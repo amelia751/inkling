@@ -563,7 +563,7 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
         )}
         <TextPrompt request={prompt} onDone={() => setPrompt(null)} />
         <Loupe root={containerRef.current} enabled={magnify && status === "ready"} />
-        {status === "loading" && <CanvasNotice>Loading image…</CanvasNotice>}
+        {status === "loading" && <CanvasNotice loading>Loading image…</CanvasNotice>}
         {status === "error" && <CanvasNotice>{error}</CanvasNotice>}
       </div>
     </div>

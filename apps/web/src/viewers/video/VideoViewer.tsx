@@ -844,7 +844,7 @@ function VideoStage({ project, item }: ViewerProps) {
           onAuxClick={(e) => e.preventDefault()}
           data-testid="video-overlay"
         />
-        {!ready && !error && <CanvasNotice>Loading video…</CanvasNotice>}
+        {!ready && !error && <CanvasNotice loading>Loading video…</CanvasNotice>}
         {error && <CanvasNotice>{error}</CanvasNotice>}
 
         {/* Top-left: drawing mode + decode state */}

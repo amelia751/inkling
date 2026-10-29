@@ -3,7 +3,7 @@ import { LockIcon, LicenseIcon } from "@/components/icons";
 import { AppLayout, PageHeading } from "@/components/layout/app-layout";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { formatBytes, ITEM_NOUN, plural, pluralWord, projectIcon, VIEWER_META } from "@/lib/format";
 import { projectItems } from "@/lib/items";
 import { cn } from "@/lib/utils";
@@ -39,7 +39,7 @@ export function WorkspacePage() {
             {!isLoading && <span className="font-normal text-hint">{available.length}</span>}
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-56" />)}
+            {isLoading && [0, 1, 2].map((i) => <DatasetCardSkeleton key={i} />)}
             {available.map((p) => <DatasetCard key={p.id} project={p} />)}
           </div>
         </section>
@@ -64,6 +64,38 @@ function progressStatus(done: number, total: number): { label: string; theme: Ba
   if (total > 0 && done >= total) return { label: "Fully annotated", theme: "success" };
   if (done > 0) return { label: "In progress", theme: "info" };
   return { label: "Not started", theme: "unknown" };
+}
+
+/** Same frame as DatasetCard so the grid doesn't jump when projects arrive. */
+function DatasetCardSkeleton() {
+  return (
+    <Card view="outlined" className="flex flex-col p-4" aria-busy>
+      <div className="flex items-start gap-3">
+        <Skeleton className="size-10 shrink-0 rounded-lg" />
+        <div className="min-w-0 flex-1">
+          <SkeletonText variant="subheader" className="w-3/5" />
+          <Skeleton className="mt-1 h-5 w-20" />
+          <SkeletonText className="mt-1 w-2/5" />
+        </div>
+      </div>
+      <div className="mt-4">
+        <SkeletonText className="w-1/4" />
+        <Skeleton className="mt-1.5 h-1 rounded-none" />
+      </div>
+      <div className="mt-4 grid grid-cols-3 gap-3">
+        {[0, 1, 2].map((i) => (
+          <div key={i}>
+            <SkeletonText variant="body-1" className="w-3/4" />
+            <SkeletonText variant="subheader" className="w-1/2" />
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 border-t border-border pt-3">
+        <SkeletonText variant="body-1" className="w-4/5" />
+        <SkeletonText variant="body-1" className="w-1/2" />
+      </div>
+    </Card>
+  );
 }
 
 function DatasetCard({ project }: { project: Project }) {
@@ -108,8 +140,8 @@ function DatasetCard({ project }: { project: Project }) {
               <span className="text-muted-foreground">Annotated</span>
               <span className="tnum">{done} <span className="text-hint">/ {items.length}</span></span>
             </div>
-            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-generic-accent" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Items annotated">
-              <div className={cn("h-full rounded-full transition-[width]", done >= items.length && items.length ? "bg-positive" : "bg-primary")} style={{ width: `${pct}%` }} />
+            <div className="mt-1.5 h-1 overflow-hidden bg-generic-hover" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Items annotated">
+              <div className={cn("h-full transition-[width] duration-600", done >= items.length && items.length ? "bg-positive" : "bg-primary")} style={{ width: `${pct}%` }} />
             </div>
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-3">

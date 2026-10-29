@@ -410,3 +410,107 @@
 .animate-fadeIn {
   animation: fadeIn 0.4s ease-out;
 }
+
+/* Loading motion, after Gravity/Nebius: dot pulse (Loader), half-ring spin (Spinner),
+   gradient sweep (Skeleton, running Badge) and diagonal stripes (busy Button). */
+@keyframes g-pulse {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes g-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes g-stripes {
+  from {
+    background-position: -12px 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@layer components {
+  .loader-dot {
+    border-radius: 9999px;
+    background: currentColor;
+    animation: g-pulse 0.8s infinite;
+  }
+  .loader-dot:nth-child(1) {
+    animation-delay: 0.2s;
+  }
+  .loader-dot:nth-child(2) {
+    animation-delay: 0.4s;
+  }
+  .loader-dot:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+
+  .skeleton-sweep {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background-color: var(--g-generic);
+  }
+  .skeleton-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(90deg, transparent, var(--g-generic));
+    animation: g-sweep 1.2s ease-out infinite;
+  }
+
+  /* Running status label: a lighter copy of the label colour sweeps across it. */
+  .label-sweep {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .label-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-color: currentColor;
+    opacity: 0.18;
+    mask-image: linear-gradient(90deg, transparent, #000);
+    animation: g-sweep 2s linear infinite;
+  }
+
+  .loading-stripes {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .loading-stripes::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--stripe-a, var(--g-generic-accent)),
+      var(--stripe-a, var(--g-generic-accent)) 4px,
+      var(--stripe-b, var(--g-generic-hover)) 4px,
+      var(--stripe-b, var(--g-generic-hover)) 8px
+    );
+    background-size: 150%;
+    animation: g-stripes 0.5s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .loader-dot,
+    .skeleton-sweep::after,
+    .label-sweep::after,
+    .loading-stripes::before {
+      animation: none;
+    }
+  }
+}

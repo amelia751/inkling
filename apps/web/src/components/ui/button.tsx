@@ -51,15 +51,22 @@ export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean
+  /** Busy: disabled, with Gravity's sliding diagonal stripes instead of a spinner. */
+  loading?: boolean
 }
 
+const LOADING =
+  "loading-stripes border-transparent bg-transparent text-hint disabled:border-transparent disabled:bg-transparent disabled:text-hint"
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, selected, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, selected, asChild = false, loading = false, disabled, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, selected, className }))}
+        className={cn(buttonVariants({ variant, size, selected }), loading && LOADING, className)}
         ref={ref}
+        disabled={disabled || loading}
+        aria-busy={loading || undefined}
         {...props}
       />
     )

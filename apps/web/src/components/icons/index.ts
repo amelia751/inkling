@@ -77,7 +77,6 @@ export { default as TodoIcon } from "@gravity-ui/icons/Circle";
 export { default as WarningIcon } from "@gravity-ui/icons/TriangleExclamation";
 export { default as ErrorIcon } from "@gravity-ui/icons/CircleExclamation";
 export { default as InfoIcon } from "@gravity-ui/icons/CircleInfo";
-export { SpinnerArc as SpinnerIcon } from "./custom";
 
 // AI and provenance (AI glyphs pair with the lime AI colour, never brand violet)
 export { default as AiIcon } from "@gravity-ui/icons/Sparkles";

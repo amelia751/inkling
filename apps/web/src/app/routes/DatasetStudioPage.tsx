@@ -34,10 +34,10 @@ export function DatasetStudioPage() {
     }
   }, [project, saved.data, projectId, load]);
 
-  if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio…" />;
+  if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio…" loading />;
   if (error || !project) return <FullPageMessage title="Dataset not found" body={`No seed project “${datasetId}”. Run pnpm seeds, then reload.`} />;
   if (saved.error) return <FullPageMessage title="Couldn't load annotations" body={String(saved.error)} />;
-  if (projectId !== project.id) return <FullPageMessage title="Opening Studio…" />;
+  if (projectId !== project.id) return <FullPageMessage title="Opening Studio…" loading />;
   return <Studio key={project.id} projectId={project.id} />;
 }
 
@@ -77,7 +77,7 @@ function Studio({ projectId }: { projectId: string }) {
       {adapter && <CanvasToolbar project={project} tools={adapter.tools} />}
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {adapter && item ? (
-          <Suspense fallback={<FullPageMessage title="Loading viewer…" />}>
+          <Suspense fallback={<FullPageMessage title="Loading viewer…" loading />}>
             <adapter.Component key={item.id} project={project} item={item} />
           </Suspense>
         ) : (

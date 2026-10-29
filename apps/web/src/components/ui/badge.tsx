@@ -43,10 +43,17 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {
   /** @deprecated use `theme` */
   variant?: keyof typeof LEGACY_THEME
+  /** A live process (running, generating): a soft highlight sweeps across the label. */
+  running?: boolean
 }
 
-function Badge({ className, theme, size, variant, ...props }: BadgeProps) {
-  return <span className={cn(badgeVariants({ theme: theme ?? (variant && LEGACY_THEME[variant]), size }), className)} {...props} />
+function Badge({ className, theme, size, variant, running = false, ...props }: BadgeProps) {
+  return (
+    <span
+      className={cn(badgeVariants({ theme: theme ?? (variant && LEGACY_THEME[variant]), size }), running && "label-sweep", className)}
+      {...props}
+    />
+  )
 }
 
 export { Badge, badgeVariants }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CardiacIcon as HeartPulse, SpinnerIcon as Loader2, SidePanelIcon as PanelRight } from "@/components/icons";
+import { CardiacIcon as HeartPulse, SidePanelIcon as PanelRight } from "@/components/icons";
+import { Spinner } from "@/components/ui/spinner";
 import { useShortcuts } from "@/lib/hotkeys";
 import { cn } from "@/lib/utils";
 import { isEditable, newAnnotation, useStudio, visibleFor } from "@/stores/studio";
@@ -791,17 +792,18 @@ export function SignalViewer({ project, item }: ViewerProps) {
           className={cn("tnum flex items-center gap-1 rounded px-1.5 py-0.5", filtersOn ? "bg-chart-4/20 text-chart-4" : "bg-white/5 text-canvas-foreground/50")}
           title="Display filters are zero-phase and never change the stored time axis or annotations"
         >
-          {filterPending && <Loader2 className="h-3 w-3 animate-spin" />}
+          {filterPending && <Spinner className="size-3 text-current" />}
           {filtersOn ? `Filtered ${filterText(filterCfg)}` : "Unfiltered"}
         </span>
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={runDetect}
             disabled={!rec || detecting}
-            className="flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 hover:bg-white/15 disabled:opacity-50"
+            className={cn("flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 hover:bg-white/15 disabled:opacity-50", detecting && "loading-stripes bg-transparent [--stripe-a:rgb(255_255_255/0.15)] [--stripe-b:rgb(255_255_255/0.08)] disabled:opacity-100")}
+            aria-busy={detecting || undefined}
             title={`Pan–Tompkins R-peak detection on lead ${display.layout === "single" ? display.focus : "II"}; results are AI suggestions to review`}
           >
-            {detecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <HeartPulse className="h-3 w-3" />} Detect beats
+            <HeartPulse className="h-3 w-3" /> {detecting ? "Detecting…" : "Detect beats"}
           </button>
           <button
             onClick={() => setDisplay({ panel: !display.panel })}
@@ -894,7 +896,7 @@ export function SignalViewer({ project, item }: ViewerProps) {
                 onClose={() => setLeadMenu(null)}
               />
             )}
-            {!rec && !error && <CanvasNotice>Loading recording…</CanvasNotice>}
+            {!rec && !error && <CanvasNotice loading>Loading recording…</CanvasNotice>}
             {error && <CanvasNotice>{error}</CanvasNotice>}
           </div>
           <div ref={ov.containerRef} className="relative h-10 shrink-0 border-t border-white/10">

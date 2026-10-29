@@ -159,8 +159,6 @@ export const Invert = strokeIcon(
   </>,
 );
 
-/** Static arc; spin it with `animate-spin`. */
-export const SpinnerArc = strokeIcon("SpinnerArc", <path d="M14 8a6 6 0 1 1-6-6" />);
 
 /** A labelled span on a timeline. */
 export const TimeSpan = strokeIcon(

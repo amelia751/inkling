@@ -7,12 +7,12 @@ import { useCommands } from "@/lib/hotkeys";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { useStudio } from "@/stores/studio";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
 import { PathologyController, type UiState } from "./controller";
 import { fromGeoJSON } from "./io";
 import { countMarks } from "./measure";
-import { regionArea, regionOf } from "./regions";
+import { regionArea, regionOf } from "@/kits/overlay2d/regions";
 import { NEUTRAL_ADJUST, type Adjustments } from "./wand";
 
 const MAGNIFICATIONS = [1.25, 5, 10, 20, 40];

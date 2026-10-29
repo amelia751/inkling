@@ -4,7 +4,7 @@ import type { ViewerAdapter } from "@/viewers/ViewerAdapter";
 import { Cine4DViewer } from "./Cine4DViewer";
 import { cineExporters } from "./exporters";
 import { cellKey, groupCells, isContour, isMask, knownGrids, myoArea, perimeterMm, ringArea, structures } from "./model";
-import { rleForeground } from "@/viewers/shared/geometry";
+import { rleForeground } from "@/kits/overlay2d/geometry";
 
 export const cine4dAdapter: ViewerAdapter = {
   kind: "cine-4d",

@@ -1,7 +1,7 @@
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
 import type { Annotation, Pt } from "@/types";
-import { drawHandles, drawTag } from "@/viewers/shared/draw";
-import { distToSegment, hitEdge, hitVertex, pointInPolygon } from "@/viewers/shared/geometry";
+import { drawHandles, drawTag } from "@/kits/overlay2d/draw";
+import { distToSegment, hitEdge, hitVertex, pointInPolygon } from "@/kits/overlay2d/geometry";
 import type { Box, FrameShape } from "./tracks";
 
 /** One annotation as it appears on the current frame. */

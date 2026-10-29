@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { CardiacIcon as HeartPulse, SpinnerIcon as Loader2, SidePanelIcon as PanelRight } from "@/components/icons";
 import { useCommands } from "@/lib/hotkeys";
 import { cn } from "@/lib/utils";
+import { BarPick, BarSegmented, BarToggle } from "@/kits/viewport-chrome/controls";
 import { isEditable, newAnnotation, useStudio, visibleFor } from "@/stores/studio";
 import type { Annotation, Geometry } from "@/types";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
-import { useCanvasSize } from "@/viewers/shared/useCanvasSize";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
+import { useCanvasSize } from "@/kits/viewport-chrome/useCanvasSize";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
 import { BEAT_CODES, beatCodeName, labelForWave, RHYTHMS, SHIFT_BEAT_CODES, waveKindForLabel } from "./codes";
 import { isPassthrough, snapToExtremum, wavePeak, type FilterConfig } from "./dsp";
@@ -758,8 +759,8 @@ export function SignalViewer({ project, item }: ViewerProps) {
     <div className="flex h-full flex-col bg-canvas text-canvas-foreground">
       {/* Display bar */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/10 px-3 py-1.5 text-xs">
-        <Seg label="Layout" value={display.layout} options={LAYOUTS.map((l) => ({ v: l.v, label: l.label, title: l.title }))} onChange={(layout) => setDisplay(layout === "single" ? { layout } : { layout, prevLayout: layout })} />
-        <Seg
+        <BarSegmented label="Layout" value={display.layout} options={LAYOUTS.map((l) => ({ v: l.v, label: l.label, title: l.title }))} onChange={(layout) => setDisplay(layout === "single" ? { layout } : { layout, prevLayout: layout })} />
+        <BarSegmented
           label="Scale"
           value={display.scale}
           options={[
@@ -769,14 +770,14 @@ export function SignalViewer({ project, item }: ViewerProps) {
           onChange={(scale) => setDisplay({ scale })}
         />
         {display.scale === "fit" ? (
-          <Seg label="Window" value={windowSec} options={WINDOWS.map((w) => ({ v: w, label: `${w}s` }))} onChange={(w) => {
+          <BarSegmented label="Window" value={windowSec} options={WINDOWS.map((w) => ({ v: w, label: `${w}s` }))} onChange={(w) => {
             setWindowSec(w);
             setOffset((o) => clamp(o, 0, Math.max(0, duration - w)));
           }} />
         ) : (
-          <Seg label="Speed" value={display.speed} options={SPEEDS.map((v) => ({ v, label: `${v}` }))} suffix="mm/s" onChange={(speed) => setDisplay({ speed })} />
+          <BarSegmented label="Speed" value={display.speed} options={SPEEDS.map((v) => ({ v, label: `${v}` }))} suffix="mm/s" onChange={(speed) => setDisplay({ speed })} />
         )}
-        <Seg label="Gain" value={display.gain} options={GAINS.map((v) => ({ v, label: `${v}` }))} suffix="mm/mV" onChange={(gain) => setDisplay({ gain })} />
+        <BarSegmented label="Gain" value={display.gain} options={GAINS.map((v) => ({ v, label: `${v}` }))} suffix="mm/mV" onChange={(gain) => setDisplay({ gain })} />
         <button
           onClick={() => setCalibrating(true)}
           className={cn("rounded-md px-1.5 py-0.5 hover:bg-white/10", screen.calibrated ? "text-canvas-foreground/80" : "text-canvas-foreground/55")}
@@ -785,9 +786,9 @@ export function SignalViewer({ project, item }: ViewerProps) {
           {screen.calibrated ? "✓ Calibrated" : "Calibrate screen"}
         </button>
         <span className="h-4 w-px bg-white/10" />
-        <Pick label="HP" value={display.hp} options={HP} unit="Hz" onChange={(hp) => setDisplay({ hp })} title="High-pass (baseline wander)" />
-        <Pick label="Notch" value={display.notch} options={NOTCH} unit="Hz" onChange={(notch) => setDisplay({ notch })} title="Mains notch" />
-        <Pick label="LP" value={display.lp} options={LP} unit="Hz" onChange={(lp) => setDisplay({ lp })} title="Low-pass (muscle noise)" />
+        <BarPick label="HP" value={display.hp} options={HP} unit="Hz" onChange={(hp) => setDisplay({ hp })} title="High-pass (baseline wander)" />
+        <BarPick label="Notch" value={display.notch} options={NOTCH} unit="Hz" onChange={(notch) => setDisplay({ notch })} title="Mains notch" />
+        <BarPick label="LP" value={display.lp} options={LP} unit="Hz" onChange={(lp) => setDisplay({ lp })} title="Low-pass (muscle noise)" />
         <span
           className={cn("tnum flex items-center gap-1 rounded px-1.5 py-0.5", filtersOn ? "bg-chart-4/20 text-chart-4" : "bg-white/5 text-canvas-foreground/50")}
           title="Display filters are zero-phase and never change the stored time axis or annotations"
@@ -921,45 +922,6 @@ export function SignalViewer({ project, item }: ViewerProps) {
 
 // ------------------------------------------------------------------ small controls
 
-function Seg<T extends string | number>({ label, value, options, onChange, suffix }: { label: string; value: T; options: { v: T; label: string; title?: string }[]; onChange: (v: T) => void; suffix?: string }) {
-  return (
-    <div className="flex items-center gap-0.5" role="group" aria-label={label}>
-      <span className="mr-1 text-canvas-foreground/55">{label}</span>
-      {options.map((o) => (
-        <button
-          key={String(o.v)}
-          title={o.title}
-          aria-pressed={o.v === value}
-          onClick={() => onChange(o.v)}
-          className={cn("tnum rounded-md px-1.5 py-0.5 transition-colors", o.v === value ? "bg-primary text-primary-foreground" : "text-canvas-foreground/70 hover:bg-white/10")}
-        >
-          {o.label}
-        </button>
-      ))}
-      {suffix && <span className="ml-0.5 text-canvas-foreground/45">{suffix}</span>}
-    </div>
-  );
-}
-
-function Pick({ label, value, options, unit, onChange, title }: { label: string; value: number; options: number[]; unit: string; onChange: (v: number) => void; title: string }) {
-  return (
-    <label className="flex items-center gap-1" title={title}>
-      <span className="text-canvas-foreground/55">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(+e.target.value)}
-        className={cn("tnum h-6 rounded-md border border-white/15 bg-canvas px-1 text-xs", value ? "text-canvas-foreground" : "text-canvas-foreground/55")}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o ? `${o} ${unit}` : "off"}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
 function ToolOptions(p: {
   tool: string;
   beatCode: string;
@@ -1015,21 +977,12 @@ function ToolOptions(p: {
       {p.tool === "caliper" && (
         <>
           <span className="text-canvas-foreground/60">Drag to measure · Alt-drag Q onset → T end for QT/QTc · Esc clears</span>
-          <Toggle on={p.marchOut} onChange={p.setMarchOut} label="March-out" />
+          <BarToggle on={p.marchOut} onChange={p.setMarchOut} label="March-out" />
         </>
       )}
-      {(p.tool === "beat" || p.tool === "select") && <Toggle on={p.snap} onChange={p.setSnap} label="Snap to peak" />}
+      {(p.tool === "beat" || p.tool === "select") && <BarToggle on={p.snap} onChange={p.setSnap} label="Snap to peak" />}
       {p.dx && <span className="ml-auto truncate text-canvas-foreground/45">Source Dx {p.dx}</span>}
     </div>
-  );
-}
-
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button aria-pressed={on} onClick={() => onChange(!on)} className={cn("rounded-md px-1.5 py-0.5", on ? "bg-white/15 text-canvas-foreground" : "text-canvas-foreground/55 hover:bg-white/10")}>
-      {on ? "✓ " : ""}
-      {label}
-    </button>
   );
 }
 

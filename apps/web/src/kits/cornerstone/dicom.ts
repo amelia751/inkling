@@ -1,6 +1,6 @@
 import { imageLoader, metaData, utilities as csUtils } from "@cornerstonejs/core";
 import { seedUrl } from "@/lib/api";
-import { absoluteUrl, ensureDicom } from "./init";
+import { absoluteUrl, ensureDicom } from "@/kits/cornerstone/init";
 
 export const isDicomPath = (p: string) => /\.dcm$/i.test(p);
 

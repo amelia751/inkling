@@ -3,7 +3,7 @@ import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { Tool } from "@/stores/studio";
 import type { Annotation, Geometry } from "@/types";
-import { formatTime } from "@/viewers/shared/draw";
+import { formatTime } from "@/kits/viewport-chrome/format";
 import { moveKeyframe, sortKeyframes, trackSpans } from "./tracks";
 
 const HEADER = 132;

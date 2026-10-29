@@ -4,8 +4,8 @@ import { seedUrl } from "@/lib/api";
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
 import { brushSizeOf, isEditable, newAnnotation, useStudio, visibleFor, type Tool } from "@/stores/studio";
 import type { Annotation, Geometry, Project, Pt, SeedAsset, StudioItem } from "@/types";
-import { drawHandles, CLOSE_RADIUS } from "@/viewers/shared/draw";
-import { hitEdge, pathLength, pointInPolygon, polygonArea, simplify } from "@/viewers/shared/geometry";
+import { drawHandles, CLOSE_RADIUS } from "@/kits/overlay2d/draw";
+import { hitEdge, pathLength, pointInPolygon, polygonArea, simplify } from "@/kits/overlay2d/geometry";
 import { formatArea, formatLength, lengthStats } from "./measure";
 import {
   bboxOverlap,
@@ -22,9 +22,9 @@ import {
   unionRegions,
   type BBox,
   type Region,
-} from "./regions";
-import { drawScene, entryFor, pathFor, lodFor, pill, Scene, type DrawStats, type Entry } from "./scene";
-import { View } from "./transform";
+} from "@/kits/overlay2d/regions";
+import { drawScene, entryFor, pathFor, lodFor, pill, Scene, type DrawStats, type Entry } from "@/kits/overlay2d/scene";
+import { View } from "@/kits/overlay2d/transform";
 import { lastWandRunner, NEUTRAL_ADJUST, wandRegion, type Adjustments } from "./wand";
 
 export const PATHOLOGY_TOOLS: Tool[] = ["select", "pan", "box", "ellipse", "polygon", "freehand", "polyline", "brush", "eraser", "wand", "mark", "length"];

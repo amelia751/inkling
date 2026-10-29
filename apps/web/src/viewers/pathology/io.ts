@@ -4,7 +4,7 @@ import { newAnnotation } from "@/stores/studio";
 import type { Annotation, Geometry, Project, Pt, StudioItem } from "@/types";
 import type { ExportContext, Exporter } from "@/viewers/ViewerAdapter";
 import { measurementLength } from "./measure";
-import { regionArea, regionOf, regionPerimeter } from "./regions";
+import { regionArea, regionOf, regionPerimeter } from "@/kits/overlay2d/regions";
 
 // ---------------------------------------------------------------- helpers
 

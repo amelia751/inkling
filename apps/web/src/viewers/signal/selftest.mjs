@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyFilters, panTompkins } from "./dsp.ts";
-import { encodeAtr, decodeAtr, ustar } from "./wfdb.ts";
+import { encodeAtr, decodeAtr, ustar } from "@/kits/io/wfdb";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const seed = join(here, "../../../../../seed-data/ecg-waveform");

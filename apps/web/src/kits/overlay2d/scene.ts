@@ -2,9 +2,9 @@ import Flatbush from "flatbush";
 import simplifyPath from "simplify-js";
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
 import type { Annotation, Geometry, Pt } from "@/types";
-import { catmullRomClosed, distToSegment } from "@/viewers/shared/geometry";
-import { geometryBounds, pointInRegion, regionArea, regionOf, type BBox, type Region } from "./regions";
-import type { View } from "./transform";
+import { catmullRomClosed, distToSegment } from "@/kits/overlay2d/geometry";
+import { geometryBounds, pointInRegion, regionArea, regionOf, type BBox, type Region } from "@/kits/overlay2d/regions";
+import type { View } from "@/kits/overlay2d/transform";
 
 export type EntryKind = "mark" | "region" | "line";
 

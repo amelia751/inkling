@@ -17,14 +17,14 @@ import { matches, useHotkeys } from "@/lib/hotkeys";
 import { cn } from "@/lib/utils";
 import { brushSizeOf, LOCAL_AUTHOR, toolOption, useStudio } from "@/stores/studio";
 import type { Annotation, Plane } from "@/types";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
-import { CornerstoneBridge, type LabelmapAccess } from "@/viewers/cornerstone/bridge";
-import { absoluteUrl, ensureCornerstone, getRenderingEngine } from "@/viewers/cornerstone/init";
-import { confidenceConnected, floodFill2D, interpolateSlices, removeIslands } from "@/viewers/cornerstone/regionOps";
-import { exposeForTests, Loupe, useMagnifierKey, useSpacePan } from "@/viewers/cornerstone/interactions";
-import { encodeMask, maskId } from "@/viewers/cornerstone/rle";
-import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@/viewers/cornerstone/toolGroup";
+import { CornerstoneBridge, type LabelmapAccess } from "@/kits/cornerstone/bridge";
+import { absoluteUrl, ensureCornerstone, getRenderingEngine } from "@/kits/cornerstone/init";
+import { confidenceConnected, floodFill2D, interpolateSlices, removeIslands } from "@/kits/cornerstone/regionOps";
+import { exposeForTests, Loupe, useMagnifierKey, useSpacePan } from "@/kits/cornerstone/interactions";
+import { encodeMask, maskId } from "@/kits/cornerstone/rle";
+import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@/kits/cornerstone/toolGroup";
 import {
   BarButton,
   BarLabel,
@@ -37,7 +37,7 @@ import {
   directionLetters,
   releaseFocusAfterPointer,
   type PromptRequest,
-} from "@/viewers/cornerstone/ui";
+} from "@/kits/viewport-chrome/bar";
 import {
   COLORMAPS,
   CT_PRESETS,
@@ -55,9 +55,9 @@ import {
   setInvert,
   setVoi,
   type VoiRange,
-} from "@/viewers/cornerstone/viewControls";
-import { loadVolume } from "./nifti";
-import { isDicomPath, loadDicomSeries } from "@/viewers/cornerstone/dicom";
+} from "@/kits/cornerstone/viewControls";
+import { loadVolume } from "@/kits/io/nifti";
+import { isDicomPath, loadDicomSeries } from "@/kits/cornerstone/dicom";
 import { labelIndexForValue } from "./niftiExport";
 import { PLANES, planeAxis, planeFromNormal, volumeConverter, type VolumeGeometry } from "./convert";
 

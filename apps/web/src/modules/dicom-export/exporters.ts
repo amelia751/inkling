@@ -27,7 +27,7 @@ export const dicomSegExporter: Exporter = {
   available: hasDicom,
   async build(ctx) {
     const item = pickItem(ctx, "mask");
-    const m = await import("./dicomExport");
+    const m = await import("@/modules/dicom-export/dicomExport");
     return m.buildDicomSeg({ project: ctx.project, item, annotations: ctx.annotations });
   },
 };
@@ -40,7 +40,7 @@ export const dicomSrExporter: Exporter = {
   available: hasDicom,
   async build(ctx) {
     const item = pickItem(ctx, "measure");
-    const m = await import("./dicomExport");
+    const m = await import("@/modules/dicom-export/dicomExport");
     return m.buildDicomSr({ project: ctx.project, item, annotations: ctx.annotations });
   },
 };

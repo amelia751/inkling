@@ -2,7 +2,7 @@
  * Pure wand pixel code, shared by the Web Worker (wand.worker.ts) and the inline fallback.
  * No DOM access here.
  */
-import { maskToRegion, type Region } from "./regions";
+import { maskToRegion, type Region } from "@/kits/overlay2d/regions";
 
 export interface Adjustments {
   brightness: number;

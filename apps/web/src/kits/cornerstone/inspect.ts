@@ -1,5 +1,6 @@
+import { polygonArea } from "@/kits/overlay2d/geometry";
 import type { Annotation, Pt } from "@/types";
-import { getLiveStats } from "./liveStats";
+import { getLiveStats } from "@/kits/cornerstone/liveStats";
 
 /**
  * Selection-inspector rows for radiology annotations, in physical units where known.
@@ -18,16 +19,6 @@ const KIND_NAME: Record<string, string> = {
 };
 
 const f = (v: number, d = 1) => (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString() : v.toFixed(d));
-
-export function polygonArea(points: Pt[] | number[][]): number {
-  let a = 0;
-  for (let i = 0; i < points.length; i++) {
-    const [x1, y1] = points[i];
-    const [x2, y2] = points[(i + 1) % points.length];
-    a += x1 * y2 - x2 * y1;
-  }
-  return Math.abs(a) / 2;
-}
 
 function intensityRows(stats: Record<string, number>, valueUnit: string): [string, string][] {
   const rows: [string, string][] = [];
@@ -63,7 +54,7 @@ export function inspectAnnotation(a: Annotation, ctx: { mode: "2d" | "3d"; modal
       return [
         ["Shape", "Polygon"],
         ["Vertices", String(g.points.length)],
-        ["Area", `${f(polygonArea(g.points), 0)} px²`],
+        ["Area", `${f(polygonArea(g.points as Pt[]), 0)} px²`],
         ...intensityRows(live?.stats ?? {}, valueUnit),
       ];
     case "keypoint":
@@ -94,7 +85,7 @@ export function inspectAnnotation(a: Annotation, ctx: { mode: "2d" | "3d"; modal
       if (g.kind === "probe" && stats.value !== undefined) rows.push(["Value", `${f(stats.value)}${valueUnit}`]);
       if (g.kind.endsWith("-roi")) {
         if (stats.area !== undefined) rows.push(["Area", `${f(stats.area, 2)} ${areaUnit}`]);
-        else if (g.space === "image" && g.points.length > 2 && g.kind === "freehand-roi") rows.push(["Area", `${f(polygonArea(g.points), 0)} px²`]);
+        else if (g.space === "image" && g.points.length > 2 && g.kind === "freehand-roi") rows.push(["Area", `${f(polygonArea(g.points as Pt[]), 0)} px²`]);
         if (stats.perimeter !== undefined) rows.push(["Perimeter", `${f(stats.perimeter, 2)} ${unit}`]);
         rows.push(...intensityRows(stats, valueUnit));
       }

@@ -5,9 +5,9 @@ import * as tools from "@cornerstonejs/tools";
 import { hslToRgb, resolveLabelColor, resolveToken } from "@/lib/labels";
 import { isEditable, LOCAL_AUTHOR, useStudio, visibleFor, type Tool } from "@/stores/studio";
 import type { Annotation, Geometry, MeasurementKind, Project } from "@/types";
-import { setLiveStats, clearLiveStats } from "./liveStats";
-import { decodeMaskInto, encodeMask, maskId, sameCounts } from "./rle";
-import { T } from "./init";
+import { setLiveStats, clearLiveStats } from "@/kits/cornerstone/liveStats";
+import { decodeMaskInto, encodeMask, maskId, sameCounts } from "@/kits/cornerstone/rle";
+import { T } from "@/kits/cornerstone/init";
 
 type CsAnnotation = tools.Types.Annotation;
 const { Events, SegmentationRepresentations } = tools.Enums;

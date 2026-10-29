@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { Volume } from "@/viewers/volume3d/nifti";
+import type { Volume } from "@/kits/io/nifti";
 
 export type Rgb = [number, number, number];
 

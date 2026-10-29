@@ -3,10 +3,10 @@ import { cache, metaData, utilities as csUtils, type Types } from "@cornerstonej
 import { adaptersSEG, adaptersSR } from "@cornerstonejs/adapters";
 import { data as dcmjsData } from "dcmjs";
 import type { Annotation, Project, StudioItem } from "@/types";
-import { KIND_TOOL, labelRgb } from "./bridge";
-import { isDicomPath, loadDicomSeries } from "./dicom";
-import { ensureCornerstone } from "./init";
-import { decodeMaskInto } from "./rle";
+import { KIND_TOOL, labelRgb } from "@/kits/cornerstone/bridge";
+import { isDicomPath, loadDicomSeries } from "@/kits/cornerstone/dicom";
+import { ensureCornerstone } from "@/kits/cornerstone/init";
+import { decodeMaskInto } from "@/kits/cornerstone/rle";
 
 /**
  * DICOM SEG (masks) and DICOM SR TID 1500 (measurements) for items whose source images are

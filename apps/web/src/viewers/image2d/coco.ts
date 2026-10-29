@@ -1,9 +1,9 @@
 import { labelNames } from "@/platform/environment";
 import { seedUrl } from "@/lib/api";
-import type { Annotation, StudioItem } from "@/types";
+import type { Annotation, Pt, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
-import { polygonArea } from "@/viewers/cornerstone/inspect";
-import { toCocoRle } from "@/viewers/cornerstone/rle";
+import { polygonArea } from "@/kits/overlay2d/geometry";
+import { toCocoRle } from "@/kits/cornerstone/rle";
 
 async function imageSize(item: StudioItem, annotations: Annotation[]): Promise<[number, number]> {
   const asset = item.assets[0];
@@ -90,7 +90,7 @@ export const cocoExporter: Exporter = {
       } else if (g.type === "polygon" || (g.type === "measurement" && g.kind === "freehand-roi" && g.space === "image")) {
         const pts = g.points;
         if (pts.length < 3) continue;
-        out.push({ ...base, bbox: bboxOf(pts).map(r2), area: r2(polygonArea(pts)), segmentation: [pts.flatMap((p) => [r2(p[0]), r2(p[1])])] });
+        out.push({ ...base, bbox: bboxOf(pts).map(r2), area: r2(polygonArea(pts as Pt[])), segmentation: [pts.flatMap((p) => [r2(p[0]), r2(p[1])])] });
       } else if (g.type === "ellipse" || (g.type === "measurement" && g.kind === "ellipse-roi" && g.space === "image")) {
         let cx: number, cy: number, rx: number, ry: number;
         if (g.type === "ellipse") ({ cx, cy, rx, ry } = g);

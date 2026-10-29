@@ -5,15 +5,16 @@ import { Slider } from "@/components/ui/slider";
 import { useCommands } from "@/lib/hotkeys";
 import { hslToRgb, labelColor, resolveLabelColor, resolveToken } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { ToolbarButton, ToolbarSep } from "@/kits/viewport-chrome/controls";
 import { brushSizeOf, isEditable, newAnnotation, toolOption, useStudio } from "@/stores/studio";
 import type { Annotation, Pt } from "@/types";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
-import { CLOSE_RADIUS, drawHandles } from "@/viewers/shared/draw";
-import { distToSegment, hitVertex, pointInPolygon, polygonArea, rleDecode, rleEncode, rleForeground } from "@/viewers/shared/geometry";
-import { useCanvasSize } from "@/viewers/shared/useCanvasSize";
-import { useViewport2D } from "@/viewers/shared/useViewport2D";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
+import { CLOSE_RADIUS, drawHandles } from "@/kits/overlay2d/draw";
+import { distToSegment, hitVertex, pointInPolygon, polygonArea, rleDecode, rleEncode, rleForeground } from "@/kits/overlay2d/geometry";
+import { useCanvasSize } from "@/kits/viewport-chrome/useCanvasSize";
+import { useViewport2D } from "@/kits/overlay2d/useViewport2D";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
-import { loadVolume, type Volume } from "@/viewers/volume3d/nifti";
+import { loadVolume, type Volume } from "@/kits/io/nifti";
 import { MetricsPanel } from "./MetricsPanel";
 import { PhaseMatrix } from "./PhaseMatrix";
 import {
@@ -41,7 +42,7 @@ import {
   type MaskAnn,
   type StructKey,
 } from "./model";
-import { fetchBodySize } from "./niftiIO";
+import { fetchBodySize } from "@/kits/io/niftiIO";
 import { fullRange, percentileWindow, renderLabelMap, renderSlice, useCinePlayback, type PlayMode, type Rgb } from "./render";
 
 type Drag =
@@ -867,7 +868,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
         {(["ED", "ES"] as const).map((p) => {
           const m = p === "ED" ? phases.ed : phases.es;
           return (
-            <TB
+            <ToolbarButton
               key={p}
               active={m !== null && frame === m.frame}
               onClick={() => m && goto(slice, m.frame)}
@@ -876,38 +877,38 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
             >
               {p} {m ? m.frame + 1 : "—"}
               {m && m.source !== "marked" && <span className="text-hint">*</span>}
-            </TB>
+            </ToolbarButton>
           );
         })}
-        <TB onClick={() => markPhase("ED", frame)} title="Mark the current frame as end-diastole">Set ED</TB>
-        <TB onClick={() => markPhase("ES", frame)} title="Mark the current frame as end-systole">Set ES</TB>
-        <Sep />
+        <ToolbarButton onClick={() => markPhase("ED", frame)} title="Mark the current frame as end-diastole">Set ED</ToolbarButton>
+        <ToolbarButton onClick={() => markPhase("ES", frame)} title="Mark the current frame as end-systole">Set ES</ToolbarButton>
+        <ToolbarSep />
         <span className="text-muted-foreground">Copy</span>
-        <TB onClick={(e) => copyTo(0, -1, e.shiftKey)} title="Copy selected (or all) contours to the previous frame (Alt+←). Shift replaces what is there"><ArrowLeft className="h-3.5 w-3.5" /></TB>
-        <TB onClick={(e) => copyTo(0, 1, e.shiftKey)} title="Copy to the next frame (Alt+→)"><ArrowRight className="h-3.5 w-3.5" /></TB>
-        <TB onClick={(e) => copyTo(-1, 0, e.shiftKey)} title="Copy to the previous slice (Alt+↑)"><ArrowUp className="h-3.5 w-3.5" /></TB>
-        <TB onClick={(e) => copyTo(1, 0, e.shiftKey)} title="Copy to the next slice (Alt+↓)"><ArrowDown className="h-3.5 w-3.5" /></TB>
+        <ToolbarButton onClick={(e) => copyTo(0, -1, e.shiftKey)} title="Copy selected (or all) contours to the previous frame (Alt+←). Shift replaces what is there"><ArrowLeft className="h-3.5 w-3.5" /></ToolbarButton>
+        <ToolbarButton onClick={(e) => copyTo(0, 1, e.shiftKey)} title="Copy to the next frame (Alt+→)"><ArrowRight className="h-3.5 w-3.5" /></ToolbarButton>
+        <ToolbarButton onClick={(e) => copyTo(-1, 0, e.shiftKey)} title="Copy to the previous slice (Alt+↑)"><ArrowUp className="h-3.5 w-3.5" /></ToolbarButton>
+        <ToolbarButton onClick={(e) => copyTo(1, 0, e.shiftKey)} title="Copy to the next slice (Alt+↓)"><ArrowDown className="h-3.5 w-3.5" /></ToolbarButton>
         <span className="ml-1 text-muted-foreground">Interpolate</span>
-        <TB onClick={() => interpolate("frame")} title="Fill empty frames of this slice between key contours of the selected/active structure">frames</TB>
-        <TB onClick={() => interpolate("slice")} title="Fill empty slices of this frame between key contours of the selected/active structure">slices</TB>
-        <TB onClick={() => setWrapCycle((v) => !v)} active={wrapCycle} title="Frame interpolation wraps around the cardiac cycle (last key frame → first)">wrap</TB>
-        <Sep />
+        <ToolbarButton onClick={() => interpolate("frame")} title="Fill empty frames of this slice between key contours of the selected/active structure">frames</ToolbarButton>
+        <ToolbarButton onClick={() => interpolate("slice")} title="Fill empty slices of this frame between key contours of the selected/active structure">slices</ToolbarButton>
+        <ToolbarButton onClick={() => setWrapCycle((v) => !v)} active={wrapCycle} title="Frame interpolation wraps around the cardiac cycle (last key frame → first)">wrap</ToolbarButton>
+        <ToolbarSep />
         <span className="text-muted-foreground">Reference</span>
-        <TB onClick={() => setShowRef((s) => !s)} disabled={!refs.length} active={showRef && !!phaseRef} title="Show the reference segmentation outline on ED/ES frames">
+        <ToolbarButton onClick={() => setShowRef((s) => !s)} disabled={!refs.length} active={showRef && !!phaseRef} title="Show the reference segmentation outline on ED/ES frames">
           {showRef ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-        </TB>
-        <TB onClick={() => importReference("slice")} disabled={!phaseRef} title="Convert the reference on this slice into editable spline contours">→ contours</TB>
-        <TB onClick={() => importReference("all")} disabled={!refs.length} title="Convert the reference on every slice of every reference frame (ED and ES)">all ED/ES</TB>
+        </ToolbarButton>
+        <ToolbarButton onClick={() => importReference("slice")} disabled={!phaseRef} title="Convert the reference on this slice into editable spline contours">→ contours</ToolbarButton>
+        <ToolbarButton onClick={() => importReference("all")} disabled={!refs.length} title="Convert the reference on every slice of every reference frame (ED and ES)">all ED/ES</ToolbarButton>
         <div className="ml-auto flex items-center gap-1">
           <span className="text-muted-foreground">W/L</span>
-          <TB onClick={() => setWin(autoWin)} title="Auto window: 1st–99th percentile">Auto</TB>
-          <TB onClick={() => setWin(fullWin)} title="Full intensity range">Full</TB>
-          <TB onClick={() => setInvert((v) => !v)} active={invert} title="Invert grey scale">Inv</TB>
-          <TB onClick={() => setSmooth((v) => !v)} active={smooth} title="Bilinear interpolation (off = nearest neighbour pixels)">Smooth</TB>
-          <TB onClick={() => vp.fit()} title="Fit to view (=)"><Maximize className="h-3.5 w-3.5" /></TB>
-          <Sep />
-          <TB onClick={() => setMatrixOpen((v) => !v)} active={matrixOpen} title="Slice × phase matrix"><Grid3x3 className="h-3.5 w-3.5" /></TB>
-          <TB onClick={() => setMetricsOpen((v) => !v)} active={metricsOpen} title="Volumes and function"><BarChart3 className="h-3.5 w-3.5" /></TB>
+          <ToolbarButton onClick={() => setWin(autoWin)} title="Auto window: 1st–99th percentile">Auto</ToolbarButton>
+          <ToolbarButton onClick={() => setWin(fullWin)} title="Full intensity range">Full</ToolbarButton>
+          <ToolbarButton onClick={() => setInvert((v) => !v)} active={invert} title="Invert grey scale">Inv</ToolbarButton>
+          <ToolbarButton onClick={() => setSmooth((v) => !v)} active={smooth} title="Bilinear interpolation (off = nearest neighbour pixels)">Smooth</ToolbarButton>
+          <ToolbarButton onClick={() => vp.fit()} title="Fit to view (=)"><Maximize className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarSep />
+          <ToolbarButton onClick={() => setMatrixOpen((v) => !v)} active={matrixOpen} title="Slice × phase matrix"><Grid3x3 className="h-3.5 w-3.5" /></ToolbarButton>
+          <ToolbarButton onClick={() => setMetricsOpen((v) => !v)} active={metricsOpen} title="Volumes and function"><BarChart3 className="h-3.5 w-3.5" /></ToolbarButton>
         </div>
       </div>
 
@@ -1017,22 +1018,6 @@ function centroid(pts: Pt[]): Pt {
   return [x / pts.length, y / pts.length];
 }
 
-function TB({ children, active, className, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) {
-  return (
-    <button
-      {...rest}
-      className={cn(
-        "flex h-6 items-center gap-1 rounded-md px-1.5 transition-colors disabled:opacity-35",
-        active ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-generic",
-        className,
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-const Sep = () => <span className="mx-1 h-4 w-px bg-border" />;
 
 function Legend({
   labels,
@@ -1147,22 +1132,22 @@ function Transport(props: {
         <span className="w-10 shrink-0 text-muted-foreground">Cine</span>
         <Slider value={[fps]} min={1} max={60} step={1} onValueChange={([v]) => setFps(v)} aria-label="Frames per second" className="w-24" />
         <span className="tnum w-12">{fps} fps</span>
-        <TB onClick={() => setMode(mode === "loop" ? "bounce" : "loop")} title="Loop restarts at the first frame; bounce plays back and forth">
+        <ToolbarButton onClick={() => setMode(mode === "loop" ? "bounce" : "loop")} title="Loop restarts at the first frame; bounce plays back and forth">
           {mode === "loop" ? <Repeat className="h-3.5 w-3.5" /> : <Repeat1 className="h-3.5 w-3.5" />}
           {mode === "loop" ? "Loop" : "Bounce"}
-        </TB>
-        <Sep />
-        <TB onClick={() => setRange([frame, b])} active={a !== null} title="Set the start of the play range to this frame">A{a !== null ? ` ${a + 1}` : ""}</TB>
-        <TB onClick={() => setRange([a, frame])} active={b !== null} title="Set the end of the play range to this frame">B{b !== null ? ` ${b + 1}` : ""}</TB>
+        </ToolbarButton>
+        <ToolbarSep />
+        <ToolbarButton onClick={() => setRange([frame, b])} active={a !== null} title="Set the start of the play range to this frame">A{a !== null ? ` ${a + 1}` : ""}</ToolbarButton>
+        <ToolbarButton onClick={() => setRange([a, frame])} active={b !== null} title="Set the end of the play range to this frame">B{b !== null ? ` ${b + 1}` : ""}</ToolbarButton>
         {(a !== null || b !== null) && (
-          <TB onClick={() => setRange([null, null])} title="Play all frames">
+          <ToolbarButton onClick={() => setRange([null, null])} title="Play all frames">
             Clear
-          </TB>
+          </ToolbarButton>
         )}
         {ed !== null && es !== null && (
-          <TB onClick={() => setRange([Math.min(ed, es), Math.max(ed, es)])} title="Play systole only (ED → ES)">
+          <ToolbarButton onClick={() => setRange([Math.min(ed, es), Math.max(ed, es)])} title="Play systole only (ED → ES)">
             ED→ES
-          </TB>
+          </ToolbarButton>
         )}
       </div>
     </div>

@@ -1,6 +1,6 @@
 import type { ViewerAdapter } from "@/viewers/ViewerAdapter";
-import { formatTime } from "@/viewers/shared/draw";
-import { polygonArea } from "@/viewers/shared/geometry";
+import { formatTime } from "@/kits/viewport-chrome/format";
+import { polygonArea } from "@/kits/overlay2d/geometry";
 import { videoExporters, videoTiming } from "./exporters";
 import { shapeAt, sortKeyframes, trackSpans, visibleFrameCount } from "./tracks";
 import { VideoViewer, videoPlayhead } from "./VideoViewer";

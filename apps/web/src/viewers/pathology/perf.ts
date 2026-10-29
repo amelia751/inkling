@@ -4,8 +4,8 @@
  * frames. In the dev console: `__pathology.selfCheck()` (see PathologyViewer).
  */
 import type { Annotation, Pt } from "@/types";
-import { drawScene, Scene, type DrawStats } from "./scene";
-import type { View } from "./transform";
+import { drawScene, Scene, type DrawStats } from "@/kits/overlay2d/scene";
+import type { View } from "@/kits/overlay2d/transform";
 
 const LABELS = ["tumor", "stroma", "necrosis", "lymphocytes"];
 

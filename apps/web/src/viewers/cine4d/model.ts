@@ -10,7 +10,7 @@ import {
   resample,
   rleDecode,
   simplify,
-} from "@/viewers/shared/geometry";
+} from "@/kits/overlay2d/geometry";
 
 /**
  * Pure cine-MRI model: contour geometry, ACDC label maps, ventricular volumes and

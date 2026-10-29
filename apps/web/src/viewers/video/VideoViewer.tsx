@@ -8,14 +8,16 @@ import { seedUrl } from "@/lib/api";
 import { useHotkeys } from "@/lib/hotkeys";
 import { resolveLabelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { BarIconButton, BarTextButton } from "@/kits/viewport-chrome/controls";
 import { isEditable, newAnnotation, useStudio, visibleFor } from "@/stores/studio";
 import type { Annotation, Geometry, Pt } from "@/types";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
-import { CLOSE_RADIUS, formatTime } from "@/viewers/shared/draw";
-import { useCanvasSize } from "@/viewers/shared/useCanvasSize";
-import { useViewport2D } from "@/viewers/shared/useViewport2D";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
+import { CLOSE_RADIUS } from "@/kits/overlay2d/draw";
+import { formatTime } from "@/kits/viewport-chrome/format";
+import { useCanvasSize } from "@/kits/viewport-chrome/useCanvasSize";
+import { useViewport2D } from "@/kits/overlay2d/useViewport2D";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
-import { FrameSource } from "./frameSource";
+import { FrameSource } from "@/kits/io/frameSource";
 import { drawDraft, drawRenderables, HANDLE_CURSORS, hitTest, resizeBox, translateShape, type Hit, type Renderable } from "./overlay";
 import { Timeline, type FilmstripSource } from "./Timeline";
 import {
@@ -884,11 +886,11 @@ function VideoStage({ project, item }: ViewerProps) {
 
         {/* Top-right: view controls */}
         <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-md bg-black/55 p-0.5 text-white backdrop-blur">
-          <IconButton label="Zoom out" onClick={() => vp.zoomAt(1 / 1.25)} icon={ZoomOut} />
+          <BarIconButton label="Zoom out" onClick={() => vp.zoomAt(1 / 1.25)} icon={ZoomOut} />
           <span className="tnum w-11 text-center text-xs text-white/80">{Math.round(camera.scale * 100)}%</span>
-          <IconButton label="Zoom in" onClick={() => vp.zoomAt(1.25)} icon={ZoomIn} />
-          <IconButton label="Fit" shortcut="F" onClick={vp.fit} icon={Scan} />
-          <IconButton label="Actual size (1:1)" onClick={vp.actualSize} icon={SquareDashed} />
+          <BarIconButton label="Zoom in" onClick={() => vp.zoomAt(1.25)} icon={ZoomIn} />
+          <BarIconButton label="Fit" shortcut="F" onClick={vp.fit} icon={Scan} />
+          <BarIconButton label="Actual size (1:1)" onClick={vp.actualSize} icon={SquareDashed} />
           <Popover>
             <PopoverTrigger asChild>
               <button aria-label="Image adjustments" title="Brightness, contrast, saturation" className={cn("flex h-7 w-7 items-center justify-center rounded hover:bg-white/15", (adjust.brightness !== 100 || adjust.contrast !== 100 || adjust.saturation !== 100) && "text-primary")}>
@@ -952,11 +954,11 @@ function VideoStage({ project, item }: ViewerProps) {
         />
 
         <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-1">
-          <IconButton label="First frame" shortcut="Home" onClick={() => seek(range ? range.a : 0)} icon={SkipBack} />
-          <IconButton label="Previous frame" shortcut=", or ←  (Shift: 10)" onClick={() => step(-1)} icon={StepBack} />
-          <IconButton label={playing ? "Pause" : "Play"} shortcut="Space" onClick={togglePlay} icon={playing ? Pause : Play} primary disabled={!videoReady || !clockReady} />
-          <IconButton label="Next frame" shortcut=". or →  (Shift: 10)" onClick={() => step(1)} icon={StepForward} />
-          <IconButton label="Last frame" shortcut="End" onClick={() => seek(range ? range.b : frames - 1)} icon={SkipForward} />
+          <BarIconButton label="First frame" shortcut="Home" onClick={() => seek(range ? range.a : 0)} icon={SkipBack} />
+          <BarIconButton label="Previous frame" shortcut=", or ←  (Shift: 10)" onClick={() => step(-1)} icon={StepBack} />
+          <BarIconButton label={playing ? "Pause" : "Play"} shortcut="Space" onClick={togglePlay} icon={playing ? Pause : Play} primary disabled={!videoReady || !clockReady} />
+          <BarIconButton label="Next frame" shortcut=". or →  (Shift: 10)" onClick={() => step(1)} icon={StepForward} />
+          <BarIconButton label="Last frame" shortcut="End" onClick={() => seek(range ? range.b : frames - 1)} icon={SkipForward} />
 
           <span className="tnum ml-1 text-xs text-canvas-foreground/70">{formatTime(target / fps)}</span>
           <FrameInput frame={target} frames={frames} onSeek={seek} />
@@ -973,15 +975,15 @@ function VideoStage({ project, item }: ViewerProps) {
               </button>
             ))}
           </div>
-          <IconButton label={loop ? "Loop on" : "Loop off"} shortcut="L" onClick={() => setLoop((l) => !l)} icon={Repeat} active={loop} />
+          <BarIconButton label={loop ? "Loop on" : "Loop off"} shortcut="L" onClick={() => setLoop((l) => !l)} icon={Repeat} active={loop} />
           <div className="flex items-center gap-0.5 text-xs">
-            <TextButton title="Set loop start (A) at the playhead · or Shift-drag the ruler" onClick={() => setRange((r) => ({ a: target, b: r && r.b > target ? r.b : frames - 1 }))} active={!!range}>
+            <BarTextButton title="Set loop start (A) at the playhead · or Shift-drag the ruler" onClick={() => setRange((r) => ({ a: target, b: r && r.b > target ? r.b : frames - 1 }))} active={!!range}>
               A{range ? ` ${range.a + 1}` : ""}
-            </TextButton>
-            <TextButton title="Set loop end (B) at the playhead" onClick={() => setRange((r) => ({ a: r && r.a < target ? r.a : 0, b: target }))} active={!!range}>
+            </BarTextButton>
+            <BarTextButton title="Set loop end (B) at the playhead" onClick={() => setRange((r) => ({ a: r && r.a < target ? r.a : 0, b: target }))} active={!!range}>
               B{range ? ` ${range.b + 1}` : ""}
-            </TextButton>
-            {range && <IconButton label="Clear A–B range" onClick={() => setRange(null)} icon={X} />}
+            </BarTextButton>
+            {range && <BarIconButton label="Clear A–B range" onClick={() => setRange(null)} icon={X} />}
           </div>
 
           <div className="ml-auto flex items-center gap-0.5 text-xs">
@@ -990,17 +992,17 @@ function VideoStage({ project, item }: ViewerProps) {
                 <span className="mr-1 text-canvas-foreground/70">
                   #{numbers.get(selectedTrack.id)} <span className="capitalize">{selectedTrack.label}</span> · {selKfs.length} keyframes
                 </span>
-                <IconButton label="Previous keyframe" shortcut="Alt+," onClick={() => jumpKeyframe(-1)} icon={ChevronLeft} />
-                <IconButton label={kfHere ? "Remove keyframe" : "Add keyframe"} shortcut="Shift+K" onClick={() => editTrack(toggleKeyframe)} icon={Diamond} active={!!kfHere} disabled={!trackEditable} />
-                <IconButton label="Next keyframe" shortcut="Alt+." onClick={() => jumpKeyframe(1)} icon={ChevronRight} />
-                <IconButton label={selShape ? "Mark outside (hide from here)" : "Bring back in view"} shortcut="O" onClick={() => editTrack(toggleOutside)} icon={EyeOff} active={!selShape} disabled={!trackEditable} />
-                <TextButton title="Toggle occluded (Shift+O)" onClick={() => editTrack(toggleOccluded)} active={!!selShape?.occluded} disabled={!trackEditable || !selShape}>
+                <BarIconButton label="Previous keyframe" shortcut="Alt+," onClick={() => jumpKeyframe(-1)} icon={ChevronLeft} />
+                <BarIconButton label={kfHere ? "Remove keyframe" : "Add keyframe"} shortcut="Shift+K" onClick={() => editTrack(toggleKeyframe)} icon={Diamond} active={!!kfHere} disabled={!trackEditable} />
+                <BarIconButton label="Next keyframe" shortcut="Alt+." onClick={() => jumpKeyframe(1)} icon={ChevronRight} />
+                <BarIconButton label={selShape ? "Mark outside (hide from here)" : "Bring back in view"} shortcut="O" onClick={() => editTrack(toggleOutside)} icon={EyeOff} active={!selShape} disabled={!trackEditable} />
+                <BarTextButton title="Toggle occluded (Shift+O)" onClick={() => editTrack(toggleOccluded)} active={!!selShape?.occluded} disabled={!trackEditable || !selShape}>
                   Occluded
-                </TextButton>
-                <IconButton label="Copy to next frame" shortcut="Alt+B" onClick={propagate} icon={Copy} disabled={!trackEditable || !selShape} />
+                </BarTextButton>
+                <BarIconButton label="Copy to next frame" shortcut="Alt+B" onClick={propagate} icon={Copy} disabled={!trackEditable || !selShape} />
               </>
             ) : selected && selected.geometry.type !== "segment" && selected.geometry.type !== "event" && isSpatial(selected.geometry) ? (
-              <IconButton label="Copy to next frame" shortcut="Alt+B" onClick={propagate} icon={Copy} />
+              <BarIconButton label="Copy to next frame" shortcut="Alt+B" onClick={propagate} icon={Copy} />
             ) : (
               <span className="text-canvas-foreground/45">{hint(tool, perFrame)}</span>
             )}
@@ -1054,57 +1056,3 @@ function FrameInput({ frame, frames, onSeek }: { frame: number; frames: number; 
   );
 }
 
-function IconButton({
-  label,
-  shortcut,
-  onClick,
-  icon: Icon,
-  primary,
-  active,
-  disabled,
-}: {
-  label: string;
-  shortcut?: string;
-  onClick: () => void;
-  icon: typeof Play;
-  primary?: boolean;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          aria-label={label}
-          aria-pressed={active}
-          disabled={disabled}
-          className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-40",
-            primary ? "bg-primary text-primary-foreground hover:bg-primary-hover" : active ? "bg-white/15 text-primary" : "text-canvas-foreground/80 hover:bg-white/10",
-          )}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {label}
-        {shortcut && <kbd className="ml-1 font-mono opacity-70">{shortcut}</kbd>}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function TextButton({ title, onClick, active, disabled, children }: { title: string; onClick: () => void; active?: boolean; disabled?: boolean; children: React.ReactNode }) {
-  return (
-    <button
-      title={title}
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      className={cn("tnum rounded-md px-1.5 py-0.5 transition-colors disabled:opacity-40", active ? "bg-white/15 text-canvas-foreground" : "text-canvas-foreground/65 hover:bg-white/10")}
-    >
-      {children}
-    </button>
-  );
-}

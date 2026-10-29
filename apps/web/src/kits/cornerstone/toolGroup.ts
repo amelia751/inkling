@@ -1,9 +1,9 @@
 import type { Types } from "@cornerstonejs/core";
-import type { AnyViewport } from "./viewControls";
+import type { AnyViewport } from "@/kits/cornerstone/viewControls";
 import * as tools from "@cornerstonejs/tools";
 import type { Tool } from "@/stores/studio";
-import { ANNOTATION_TOOLS, CS_TOOL } from "./bridge";
-import { T } from "./init";
+import { ANNOTATION_TOOLS, CS_TOOL } from "@/kits/cornerstone/bridge";
+import { T } from "@/kits/cornerstone/init";
 
 const { MouseBindings, ToolModes } = tools.Enums;
 type ToolGroup = NonNullable<ReturnType<typeof tools.ToolGroupManager.getToolGroup>>;

@@ -2,7 +2,7 @@ import { labelNames } from "@/platform/environment";
 import type { Annotation, Project, Pt, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
 import { keyframeAt, shapeAt, sortKeyframes, trackNumbers, type Box, type TrackGeometry } from "./tracks";
-import { zip } from "./zip";
+import { zip } from "@/kits/io/zip";
 
 /** Frame count and rate of a video item, from the seed metadata. */
 export function videoTiming(item: StudioItem): { fps: number; frames: number; duration: number } {

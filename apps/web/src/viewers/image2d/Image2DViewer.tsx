@@ -6,14 +6,14 @@ import * as tools from "@cornerstonejs/tools";
 import { seedUrl } from "@/lib/api";
 import { matches, useHotkeys } from "@/lib/hotkeys";
 import { brushSizeOf, toolOption, useStudio } from "@/stores/studio";
-import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
+import { CanvasNotice } from "@/kits/viewport-chrome/CanvasNotice";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
-import { CornerstoneBridge, type LabelmapAccess } from "@/viewers/cornerstone/bridge";
-import { absoluteUrl, ensureCornerstone, ensureDicom, getRenderingEngine } from "@/viewers/cornerstone/init";
-import { confidenceConnected, floodFill2D, removeIslands } from "@/viewers/cornerstone/regionOps";
-import { exposeForTests, Loupe, useMagnifierKey, useSpacePan } from "@/viewers/cornerstone/interactions";
-import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@/viewers/cornerstone/toolGroup";
-import { BarButton, BarLabel, BarSelect, BarSep, CornerText, TextPrompt, ViewportBar, releaseFocusAfterPointer, type PromptRequest } from "@/viewers/cornerstone/ui";
+import { CornerstoneBridge, type LabelmapAccess } from "@/kits/cornerstone/bridge";
+import { absoluteUrl, ensureCornerstone, ensureDicom, getRenderingEngine } from "@/kits/cornerstone/init";
+import { confidenceConnected, floodFill2D, removeIslands } from "@/kits/cornerstone/regionOps";
+import { exposeForTests, Loupe, useMagnifierKey, useSpacePan } from "@/kits/cornerstone/interactions";
+import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@/kits/cornerstone/toolGroup";
+import { BarButton, BarLabel, BarSelect, BarSep, CornerText, TextPrompt, ViewportBar, releaseFocusAfterPointer, type PromptRequest } from "@/kits/viewport-chrome/bar";
 import {
   COLORMAPS,
   CT_PRESETS,
@@ -31,9 +31,9 @@ import {
   setVoi,
   wlToRange,
   type VoiRange,
-} from "@/viewers/cornerstone/viewControls";
-import { webImageId } from "@/viewers/cornerstone/webImageLoader";
-import { loadDicomSeries, modalityOf, pixelSpacingOf } from "@/viewers/cornerstone/dicom";
+} from "@/kits/cornerstone/viewControls";
+import { webImageId } from "@/kits/cornerstone/webImageLoader";
+import { loadDicomSeries, modalityOf, pixelSpacingOf } from "@/kits/cornerstone/dicom";
 import { imageConverter } from "./convert";
 
 const { SegmentationRepresentations } = tools.Enums;

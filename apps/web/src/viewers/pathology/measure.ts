@@ -1,6 +1,6 @@
 import type { Annotation, Geometry, Pt } from "@/types";
-import { pathLength } from "@/viewers/shared/geometry";
-import { geometryBounds, pointInRegion, regionArea, regionOf, regionPerimeter, type Region } from "./regions";
+import { pathLength } from "@/kits/overlay2d/geometry";
+import { geometryBounds, pointInRegion, regionArea, regionOf, regionPerimeter, type Region } from "@/kits/overlay2d/regions";
 
 const fmt = (n: number, digits = 1) => n.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: n < 10 && n % 1 ? digits : 0 });
 

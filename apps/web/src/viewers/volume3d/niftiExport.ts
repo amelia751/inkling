@@ -4,7 +4,7 @@ import { seedUrl } from "@/lib/api";
 import { useStudio } from "@/stores/studio";
 import type { Annotation, Project, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
-import { decodeMaskInto } from "@/viewers/cornerstone/rle";
+import { decodeMaskInto } from "@/kits/cornerstone/rle";
 
 /** BraTS label convention: necrotic core 1, edema 2, enhancing tumor 4. */
 export function isBrats(project: Project): boolean {

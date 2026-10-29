@@ -1,6 +1,6 @@
 import { lazy } from "react";
 import type { ViewerAdapter } from "@/viewers/ViewerAdapter";
-import { inspectAnnotation } from "@/viewers/cornerstone/inspect";
+import { inspectAnnotation } from "@/kits/cornerstone/inspect";
 import { masksJsonExporter, niftiCurrentExporter } from "./niftiExport";
 
 /** Cornerstone3D only loads when a volume project opens. */

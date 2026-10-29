@@ -1,7 +1,7 @@
 import * as core from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
 import { cornerstoneNiftiImageLoader, init as niftiInit } from "@cornerstonejs/nifti-volume-loader";
-import { loadWebImage, WEB_IMAGE_SCHEME } from "./webImageLoader";
+import { loadWebImage, WEB_IMAGE_SCHEME } from "@/kits/cornerstone/webImageLoader";
 
 /**
  * One-time Cornerstone3D setup shared by the 2D and 3D viewers: core + tools init,

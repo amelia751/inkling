@@ -1,8 +1,8 @@
 import { utilities as csUtils, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
 import type { Annotation, Geometry, Pt } from "@/types";
-import { KIND_TOOL, readStats, round, simplifyPolyline, TOOL_KIND, type Converter, type CsSpec } from "@/viewers/cornerstone/bridge";
-import { T } from "@/viewers/cornerstone/init";
+import { KIND_TOOL, readStats, round, simplifyPolyline, TOOL_KIND, type Converter, type CsSpec } from "@/kits/cornerstone/bridge";
+import { T } from "@/kits/cornerstone/init";
 
 type CsAnnotation = tools.Types.Annotation;
 

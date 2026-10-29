@@ -1,7 +1,7 @@
 import { difference, union, type Geom } from "polyclip-ts";
 import simplifyPath from "simplify-js";
 import type { Geometry, Pt } from "@/types";
-import { ellipsePoints, pathLength, pointInPolygon, rasterizePolygon, signedArea } from "@/viewers/shared/geometry";
+import { ellipsePoints, pathLength, pointInPolygon, rasterizePolygon, signedArea } from "@/kits/overlay2d/geometry";
 
 /** [outer, ...holes] per polygon, level-0 image pixels. Same shape as `multipolygon.polygons`. */
 export type Region = Pt[][][];

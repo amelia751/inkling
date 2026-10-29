@@ -18,7 +18,7 @@ import {
   cellKey,
   type Grid,
 } from "./model";
-import { fetchBodySize, fetchHeader, gzip, writeLabelNifti } from "./niftiIO";
+import { fetchBodySize, fetchHeader, gzip, writeLabelNifti } from "@/kits/io/niftiIO";
 
 const cinePath = (item: StudioItem) => item.assets.find((a) => a.role === "cine")?.path;
 

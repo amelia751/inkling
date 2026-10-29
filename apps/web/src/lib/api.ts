@@ -59,7 +59,18 @@ export async function fetchProjects(): Promise<Project[]> {
  * v1 geometry types whose modules now read core geometries. Grows as each viewer is
  * converted (todo phase 6); the rest stay as stored until their module catches up.
  */
-export const MIGRATED_V1_TYPES = new Set<string>([]);
+export const MIGRATED_V1_TYPES = new Set<string>([
+  // modules/wsi (mark → keypoint):
+
+  // modules/volume (point → point3d):
+
+  // modules/timeseries (interval, beat, wave, rhythm → span / instant):
+
+  // modules/video (segment, event → span / instant):
+
+  // modules/cine (phase → instant):
+
+]);
 
 export async function fetchAnnotations(projectId: string): Promise<AnnotationDocument> {
   const doc = await json<AnnotationDocument>(await fetch(`/api/annotations/${projectId}`));

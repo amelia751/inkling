@@ -2,7 +2,7 @@ import type { Annotation, Geometry, Project, StudioItem } from "@/types";
 import type { Exporter, ExportContext } from "@/viewers/ViewerAdapter";
 import { STANDARD_LEADS, WFDB_CODE_BY_SYMBOL } from "./codes";
 import { loadInfo, type RecordInfo } from "./record";
-import { encodeAtr, ustar, type AtrAnnotation, type TarEntry } from "./wfdb";
+import { encodeAtr, ustar, type AtrAnnotation, type TarEntry } from "@/kits/io/wfdb";
 
 type G<T extends Geometry["type"]> = Extract<Geometry, { type: T }>;
 

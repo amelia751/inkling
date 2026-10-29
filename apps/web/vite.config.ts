@@ -20,7 +20,7 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "src"),
       // vtk.js (via Cornerstone) imports xmlbuilder2, which needs Node's `events`; we never parse VTK XML.
-      xmlbuilder2: path.resolve(__dirname, "src/viewers/cornerstone/xmlbuilder2-stub.ts"),
+      xmlbuilder2: path.resolve(__dirname, "src/kits/cornerstone/xmlbuilder2-stub.ts"),
       dcmjs: dcmjsEntry,
     },
   },

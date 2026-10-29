@@ -66,9 +66,3 @@ export function drawTag(ctx: CanvasRenderingContext2D, x: number, y: number, tex
   ctx.fillText(text, x + 4, y - 4);
   ctx.restore();
 }
-
-export function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds - m * 60;
-  return `${String(m).padStart(2, "0")}:${s.toFixed(2).padStart(5, "0")}`;
-}

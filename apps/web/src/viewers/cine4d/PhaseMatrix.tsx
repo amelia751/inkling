@@ -1,7 +1,7 @@
 import { memo, useEffect, useRef } from "react";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import type { Volume } from "@/viewers/volume3d/nifti";
+import type { Volume } from "@/kits/io/nifti";
 import { cellKey, STRUCT_KEYS, STRUCT_SHORT, type Cell, type FrameMetrics, type StructKey } from "./model";
 import { renderThumb } from "./render";
 

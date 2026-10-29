@@ -1,8 +1,8 @@
 import type OpenSeadragon from "openseadragon";
 import type { Pt } from "@/types";
-import type { Region } from "./regions";
+import type { Region } from "@/kits/overlay2d/regions";
 import { runWandJob, type Adjustments, type WandJob } from "./wandCore";
-import type { View } from "./transform";
+import type { View } from "@/kits/overlay2d/transform";
 
 export { NEUTRAL_ADJUST, type Adjustments } from "./wandCore";
 

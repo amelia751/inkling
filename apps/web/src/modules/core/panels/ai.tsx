@@ -2,15 +2,15 @@ import { InfoIcon, SendIcon, AiIcon, CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useStudio } from "@/stores/studio";
-import type { Project, StudioItem } from "@/types";
+import type { PanelProps } from "@/platform/module";
 
 const SAMPLE_PROMPTS = ["Help me define labels", "Suggest a contour", "Find unlabeled scans", "Explain validation warnings", "Prepare dataset documentation"];
 
 /**
- * Right-hand assistant (ui.md §3). No model is connected yet, so every action is
- * disabled rather than faked; manual annotation never depends on this panel.
+ * `inkling.core.panels.ai`: the right-hand assistant (ui.md §3). No model is connected yet,
+ * so every action is disabled rather than faked; manual annotation never depends on it.
  */
-export function AiAssistantPanel({ project, item }: { project: Project; item?: StudioItem }) {
+export function AiPanel({ project, item }: PanelProps) {
   const toggleAi = useStudio((s) => s.toggleAi);
 
   return (

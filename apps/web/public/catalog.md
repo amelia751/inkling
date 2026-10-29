@@ -1,0 +1,199 @@
+# Inkling environment catalogue
+An environment spec (JSON) picks a data kind, viewports (renderers), tools, panels, exporters and label groups by full id `<module>.<type>.<name>`.
+Validate before saving; fix errors using their `path` and `suggestion`.
+
+## dataKinds
+- `inkling.image2d.dataKinds.raster` — Single-frame images, one item per file
+- `inkling.volume.dataKinds.volume` — Volumes grouped by subject (several sequences per subject)
+- `inkling.timeseries.dataKinds.multichannel-timeseries` — One item per recording; channels are leads / signals
+- `inkling.video.dataKinds.video` — One item per video file (or frame archive)
+- `inkling.cine.dataKinds.volume-time` — A 4D series plus reference segmentations, as one study
+- `inkling.wsi.dataKinds.raster-pyramid` — One item per pyramid (slide); thumbnails are skipped
+
+## renderers
+- `inkling.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps (consumes inkling.image2d.dataKinds.raster; space image2d)
+- `inkling.volume.renderers.cornerstone-mpr` — Cornerstone3D orthographic MPR with linked crosshairs and an optional 3D view (consumes inkling.volume.dataKinds.volume; space volume)
+- `inkling.timeseries.renderers.strip-chart` — Strip chart: stacked or 12-lead layouts, ECG paper or plain grid, filters, calipers (consumes inkling.timeseries.dataKinds.multichannel-timeseries; space time)
+- `inkling.video.renderers.frame-canvas` — WebCodecs frame canvas with a playback clock, A–B range, filmstrip timeline and track overlays (consumes inkling.video.dataKinds.video; space image2d)
+- `inkling.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a phase matrix, playback and function metrics (consumes inkling.cine.dataKinds.volume-time; space image2d)
+- `inkling.wsi.renderers.osd` — OpenSeadragon deep zoom with a vector overlay, navigator and colour adjustments (consumes inkling.wsi.dataKinds.raster-pyramid; space image2d)
+
+## geometries
+- `inkling.core.geometries.class` — Item-level class (whole image, recording or study)
+- `inkling.core.geometries.box` — Axis-aligned rectangle in item pixels
+- `inkling.core.geometries.ellipse` — Ellipse in item pixels
+- `inkling.core.geometries.polygon` — Closed contour, optionally with holes
+- `inkling.core.geometries.multipolygon` — Several disjoint regions with holes
+- `inkling.core.geometries.polyline` — Open line through points
+- `inkling.core.geometries.spline` — Smooth closed contour through control points
+- `inkling.core.geometries.keypoint` — Single 2D location (landmark, cell)
+- `inkling.core.geometries.point3d` — 3D landmark in voxel indices
+- `inkling.core.geometries.measurement` — Measurement or ROI with computed stats (length, angle, area…)
+- `inkling.core.geometries.mask` — Run-length encoded pixel / voxel mask
+- `inkling.core.geometries.span` — Span on a time axis (seconds), optionally on one channel
+- `inkling.core.geometries.instant` — Point in time (seconds or frame), optionally on one channel
+- `inkling.core.geometries.track` — Object tracked across frames by keyframes
+- `inkling.core.geometries.mark` — Deprecated: use keypoint
+- `inkling.core.geometries.point` — Deprecated: use point3d
+- `inkling.core.geometries.interval` — Deprecated: use span with channel
+- `inkling.core.geometries.beat` — Deprecated: use instant with attributes.code
+- `inkling.core.geometries.wave` — Deprecated: use span with attributes.wave
+- `inkling.core.geometries.rhythm` — Deprecated: use span with attributes.rhythm
+- `inkling.core.geometries.segment` — Deprecated: use span
+- `inkling.core.geometries.event` — Deprecated: use instant
+- `inkling.core.geometries.phase` — Deprecated: use instant with attributes.phase
+
+## tools
+- `inkling.core.tools.select` — Select, move and edit annotations
+- `inkling.core.tools.pan` — Pan and zoom the view
+- `inkling.core.tools.windowLevel` — Adjust contrast and brightness by dragging (when 'windowLevel' in renderer.capabilities)
+- `inkling.overlay2d.tools.box` — Axis-aligned box (creates box; when renderer.space == image2d)
+- `inkling.overlay2d.tools.ellipse` — Ellipse (creates ellipse; when renderer.space == image2d)
+- `inkling.overlay2d.tools.polygon` — Click-to-place polygon (creates polygon; when renderer.space == image2d)
+- `inkling.overlay2d.tools.freehand` — Freehand closed outline (creates polygon; when renderer.space == image2d)
+- `inkling.overlay2d.tools.polyline` — Open polyline (creates polyline; when renderer.space == image2d)
+- `inkling.overlay2d.tools.spline` — Smooth closed spline contour (creates spline; when renderer.space == image2d)
+- `inkling.overlay2d.tools.keypoint` — Single landmark (creates keypoint; when renderer.space == image2d)
+- `inkling.overlay2d.tools.brush` — Paint a raster mask (creates mask; when renderer.space == image2d)
+- `inkling.overlay2d.tools.eraser` — Erase a raster mask (creates mask; when renderer.space == image2d)
+- `inkling.cornerstone.tools.zoom` — Drag to zoom (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.crosshairs` — Linked MPR crosshairs (when 'cornerstone' in renderer.capabilities && 'planes' in renderer.capabilities)
+- `inkling.cornerstone.tools.box` — Rectangle ROI with stats (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.ellipse` — Ellipse ROI with stats (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.polygon` — Spline / polygon ROI with stats (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.freehand` — Freehand ROI with stats (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.keypoint` — Landmark with the pixel value (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.length` — Distance in mm (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.angle` — Three-point angle (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.cobb` — Cobb angle between two lines (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.bidirectional` — RECIST long and short axes (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.probe` — Pixel value (HU for CT); saved as a measurement but not a drawing tool (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.arrow` — Arrow with a note (creates measurement; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.brush` — Paint a labelmap, optionally thresholded to the window (creates mask; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.eraser` — Erase a labelmap (creates mask; when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.tools.wand` — Flood-fill a connected region of similar intensity (creates mask; when 'cornerstone' in renderer.capabilities)
+- `inkling.timeline.tools.segment` — Drag along the timeline to label a span (creates span; when 'time' in renderer.capabilities)
+- `inkling.timeline.tools.event` — Mark the current frame as an event (creates instant; when 'time' in renderer.capabilities)
+- `inkling.volume.tools.point` — 3D landmark in voxel indices (creates point3d; when renderer.space == volume)
+- `inkling.timeseries.tools.interval` — Time span on one channel or all (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.beat` — Beat fiducial with a code (creates instant; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.wave` — Wave onset / peak / offset (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.rhythm` — Rhythm episode (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.caliper` — Measure Δt and Δamplitude (not saved) (when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.wsi.tools.brush` — Paint vector regions with the active label (creates multipolygon; when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.tools.eraser` — Erase from vector regions (creates multipolygon; when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.tools.wand` — Magic wand on tile pixels (creates polygon; when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.tools.mark` — Point (cell) counting (creates keypoint; when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.tools.length` — Distance in µm (creates polyline; when renderer == inkling.wsi.renderers.osd)
+
+## commands
+- `inkling.core.commands.undo` — Undo the last annotation change
+- `inkling.core.commands.redo` — Redo
+- `inkling.core.commands.deleteSelection` — Delete the selected, unlocked annotations
+- `inkling.core.commands.deselect` — Clear the selection
+- `inkling.core.commands.selectAll` — Select every visible annotation on the current item
+- `inkling.core.commands.nextItem` — Go to the next item
+- `inkling.core.commands.prevItem` — Go to the previous item
+- `inkling.core.commands.pickLabel` — Make the n-th label class active
+- `inkling.core.commands.brushSmaller` — Shrink the active tool's size (when 'size' in tool.options)
+- `inkling.core.commands.brushLarger` — Grow the active tool's size (when 'size' in tool.options)
+- `inkling.core.commands.showShortcuts` — Open the keyboard shortcuts sheet
+- `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)
+- `inkling.core.commands.cancelShape` — Cancel the shape being drawn (when 'drafting' in renderer.capabilities)
+- `inkling.core.commands.removeLastVertex` — Remove the last vertex of the shape being drawn (when 'vertexUndo' in renderer.capabilities)
+- `inkling.core.commands.holdToPan` — Pan while Space is held, whatever the tool (when 'holdToPan' in renderer.capabilities)
+- `inkling.core.commands.rotateView` — Rotate the view 90° clockwise (when 'rotate' in renderer.capabilities)
+- `inkling.core.commands.playPause` — Play or pause (when 'playback' in renderer.capabilities)
+- `inkling.core.commands.prevFrame` — Step one frame back (when 'playback' in renderer.capabilities)
+- `inkling.core.commands.nextFrame` — Step one frame forward (when 'playback' in renderer.capabilities)
+- `inkling.core.commands.nextSuggestion` — Select the next unreviewed AI suggestion (when 'suggestions' in renderer.capabilities)
+- `inkling.core.commands.prevSuggestion` — Select the previous unreviewed AI suggestion (when 'suggestions' in renderer.capabilities)
+- `inkling.core.commands.acceptSuggestion` — Mark the selected AI suggestions as reviewed (when 'suggestions' in renderer.capabilities)
+- `inkling.core.commands.rejectSuggestion` — Delete the selected AI suggestion and select the next (when 'suggestions' in renderer.capabilities)
+- `inkling.cornerstone.commands.rotateViewLeft` — Rotate the view 90° counter-clockwise (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.commands.toggleMagnifier` — Show or hide the hover magnifier (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.commands.invertImage` — Invert the grayscale (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.commands.flipHorizontal` — Mirror left–right (when 'cornerstone' in renderer.capabilities)
+- `inkling.cornerstone.commands.flipVertical` — Mirror top–bottom (when 'cornerstone' in renderer.capabilities)
+- `inkling.image2d.commands.fitView` — Reset zoom, pan and window
+- `inkling.volume.commands.fitView` — Reset every viewport
+- `inkling.volume.commands.stepSlice` — Scroll the active plane
+- `inkling.volume.commands.firstLastSlice` — Jump to the first or last slice
+- `inkling.timeseries.commands.scrollWindow` — Scroll the visible time window
+- `inkling.timeseries.commands.zoomTime` — Zoom the time axis
+- `inkling.timeseries.commands.setBeatCode` — Set the code of the selected instants
+- `inkling.timeseries.commands.clearCaliper` — Clear the caliper
+- `inkling.video.commands.stepFrame` — Step one frame
+- `inkling.video.commands.step10` — Step ten frames
+- `inkling.video.commands.firstLastFrame` — Jump to the first or last frame
+- `inkling.video.commands.toggleLoop` — Toggle looping
+- `inkling.video.commands.fitView` — Fit the frame to the viewport
+- `inkling.video.commands.toggleKeyframe` — Toggle a keyframe at the playhead
+- `inkling.video.commands.toggleOutside` — Toggle outside at the playhead
+- `inkling.video.commands.toggleOccluded` — Toggle occluded at the playhead
+- `inkling.video.commands.prevKeyframe` — Jump to the previous keyframe
+- `inkling.video.commands.nextKeyframe` — Jump to the next keyframe
+- `inkling.video.commands.copyToNextFrame` — Propagate the selection one frame
+- `inkling.video.commands.addEvent` — Add an event at the playhead (when tool == event)
+- `inkling.cine.commands.fitView` — Fit the image to the viewport
+- `inkling.cine.commands.stepFrame` — Step one frame
+- `inkling.cine.commands.stepSlice` — Step one slice
+- `inkling.cine.commands.copyContourReplace` — Copy the selected contours, replacing the target's
+- `inkling.cine.commands.copyContour` — Copy the selected contours to the neighbouring cell
+- `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions
+
+## panels
+- `inkling.core.panels.files` — The project's items, grouped, with per-item progress and a filter (slot left)
+- `inkling.core.panels.labels` — Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector (slot left)
+- `inkling.core.panels.review` — Every annotation with provenance, and the items with none yet (slot left)
+- `inkling.core.panels.ai` — Assistant that can read and edit this environment (agent tools) (slot right)
+
+## inspectors
+- `inkling.image2d.inspectors.main` — Physical measurements (mm, mm², HU) for Cornerstone annotations
+- `inkling.volume.inspectors.main` — Volumes (mL), lengths and ROI stats in patient space
+- `inkling.timeseries.inspectors.main` — Times in s and ms, sample index, channel, codes and provenance
+- `inkling.video.inspectors.main` — Frames, times and sizes; a track's shape at the playhead
+- `inkling.cine.inspectors.main` — Areas, perimeters and structure roles in mm
+- `inkling.wsi.inspectors.main` — Areas and lengths in µm from the slide's mpp
+
+## exporters
+- `inkling.image2d.exporters.coco` — Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels. (accepts box, polygon, keypoint, measurement, mask, class)
+- `inkling.volume.exporters.nifti-labelmap` — One .nii.gz labelmap of the subject open in the studio; geometry copied from its own scan. BraTS values 1/2/4, otherwise label index + 1. (accepts mask)
+- `inkling.volume.exporters.masks-json` — Every subject's masks as run-length encoded voxel grids (x fastest, background first) with label values, voxel counts and volumes. (accepts mask)
+- `inkling.timeseries.exporters.wfdb-atr` — MIT-format <record>.atr (beats, rhythm changes, noise) plus LUDB-style per-lead wave files (<record>.i, .ii … with ( peak ) triplets), the source .hea headers and a RECORDS list. Readable with rdann / wfdb-python. (accepts span, instant, interval, beat, wave, rhythm, class)
+- `inkling.timeseries.exporters.ecg-json` — Per record: beats, P/QRS/T waves (onset/peak/offset), rhythm episodes, intervals and record statements, in seconds and sample indices. (accepts span, instant, interval, beat, wave, rhythm, class)
+- `inkling.timeseries.exporters.ecg-intervals-csv` — One row per interval, wave and rhythm episode: record, kind, lead, label, start/end in s and samples, duration in ms, provenance. (accepts span, interval, wave, rhythm)
+- `inkling.video.exporters.cvat-video` — One annotations XML per video: tracks with every frame interpolated (keyframe, outside, occluded flags); per-frame shapes as one-frame tracks. (accepts track, box, polygon, keypoint)
+- `inkling.video.exporters.mot` — Box tracks per video as gt/gt.txt (frame, id, x, y, w, h, conf, class, visibility; 1-based frames) with seqinfo.ini. (accepts track, box)
+- `inkling.video.exporters.temporal-json` — Labeled segments and point-in-time events per video, in seconds and frames. (accepts span, instant, segment, event)
+- `inkling.cine.exporters.acdc-nifti` — 4D uint8 .nii.gz, 1 = RV, 2 = MYO, 3 = LV, on the cine's grid and orientation. Frames without contours are zero. (accepts spline, polygon, mask)
+- `inkling.cine.exporters.cine-metrics-csv` — Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs). (accepts spline, polygon, mask)
+- `inkling.cine.exporters.cine-contours-json` — Every contour with its spline control points, densely sampled outline, slice, frame, area and source. (accepts spline, polygon)
+- `inkling.wsi.exporters.qupath-geojson` — Regions, lines and per-class point sets in level-0 pixels with classifications and measurements. Opens in QuPath (File › Import objects), Cytomine and DSA. (accepts polygon, multipolygon, keypoint, mark, polyline, box, ellipse)
+- `inkling.wsi.exporters.asap-xml` — ASAP / CAMELYON annotation XML: polygons, rectangles, point sets and groups per class; holes become <class>_exclusion polygons. (accepts polygon, multipolygon, keypoint, mark, box)
+- `inkling.wsi.exporters.point-counts-csv` — Per-slide, per-class point counts with region count, region area and points/mm². (accepts keypoint, mark)
+- `inkling.dicom-export.exporters.dicom-seg` — Masks as a DICOM Segmentation object referencing the source DICOM images (one segment per label). DICOM inputs only. (accepts mask)
+- `inkling.dicom-export.exporters.dicom-sr` — Lengths, angles, ROIs, probes and arrows as a DICOM Structured Report (TID 1500). DICOM inputs only. (accepts measurement)
+
+## labelControls
+- `inkling.core.labelControls.Labels` — Classes for any drawn geometry
+- `inkling.core.labelControls.RectangleLabels` — Classes for boxes
+- `inkling.core.labelControls.EllipseLabels` — Classes for ellipses
+- `inkling.core.labelControls.PolygonLabels` — Classes for polygons and regions
+- `inkling.core.labelControls.KeyPointLabels` — Classes for points
+- `inkling.core.labelControls.BrushLabels` — Classes for painted masks
+- `inkling.core.labelControls.TimeSeriesLabels` — Classes for spans and instants on a time axis
+- `inkling.core.labelControls.VideoRectangle` — Classes for objects tracked through video
+- `inkling.core.labelControls.Choices` — Item-level classes; `multiple: true` allows several per item
+
+## reviewRules
+- `inkling.core.reviewRules.source-label-disagreement` — Flags item classes that differ from the source dataset's label for that item
+- `inkling.core.reviewRules.unlabeled-items` — Flags items with no annotations yet
+
+## presets
+- `preset:cine-4d` — Cardiac cine MRI: spline contours and masks per slice and frame, copy-forward, ED/ES phases, function metrics; ACDC NIfTI export.
+- `preset:ecg` — ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, calipers; WFDB and LUDB export.
+- `preset:image-2d` — Radiographs and photos on a Cornerstone3D stack: window/level, ROI shapes, measurements, masks; COCO and DICOM export.
+- `preset:pathology` — Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.
+- `preset:video` — Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.
+- `preset:volume-3d` — MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.

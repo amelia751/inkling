@@ -1,10 +1,11 @@
+import { labelNames } from "@/platform/environment";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDownIcon as ArrowDown, ArrowLeftIcon as ArrowLeft, ArrowRightIcon as ArrowRight, ArrowUpIcon as ArrowUp, ChartIcon as BarChart3, ShowIcon as Eye, HideIcon as EyeOff, GridIcon as Grid3x3, FitIcon as Maximize, PauseIcon as Pause, PlayIcon as Play, LoopIcon as Repeat, LoopOnceIcon as Repeat1 } from "@/components/icons";
 import { Slider } from "@/components/ui/slider";
-import { useShortcuts } from "@/lib/hotkeys";
+import { useCommands } from "@/lib/hotkeys";
 import { hslToRgb, labelColor, resolveLabelColor, resolveToken } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { isEditable, newAnnotation, useStudio } from "@/stores/studio";
+import { brushSizeOf, isEditable, newAnnotation, toolOption, useStudio } from "@/stores/studio";
 import type { Annotation, Pt } from "@/types";
 import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
 import { CLOSE_RADIUS, drawHandles } from "@/viewers/shared/draw";
@@ -65,7 +66,7 @@ const SAMPLES = 12;
 
 export function Cine4DViewer({ project, item }: ViewerProps) {
   const cineAsset = item.assets.find((a) => a.role === "cine");
-  const labels = useMemo(() => project.labels ?? [], [project.labels]);
+  const labels = useMemo(() => labelNames(project.labels), [project.labels]);
   const structs = useMemo(() => structures(labels), [labels]);
 
   // ---- data ----
@@ -152,7 +153,9 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
   const hiddenLabels = useStudio((s) => s.hiddenLabels);
   const lockedLabels = useStudio((s) => s.lockedLabels);
   const overlayOpacity = useStudio((s) => s.overlayOpacity);
-  const toolOptions = useStudio((s) => s.toolOptions);
+  const brushSize = useStudio(brushSizeOf);
+  const brushThreshold = useStudio((s) => toolOption(s, "brush", "threshold", false));
+  const outlineOnly = useStudio((s) => s.outlineOnly);
   const { add, update, select, toggleSelect, batch, setViewerStatus, toggleLabelHidden } = useStudio.getState();
 
   const grid = useMemo<Grid | null>(
@@ -267,10 +270,10 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
       const v = labelValue(labels, layer.label);
       for (let i = 0; i < map.length; i++) if (layer.buf[i]) map[i] = v;
     }
-    return (maskCanvas.current = renderLabelMap(map, 0, nx, ny, colorsByValue, 0.45 * overlayOpacity, toolOptions.outlineOnly, maskCanvas.current));
+    return (maskCanvas.current = renderLabelMap(map, 0, nx, ny, colorsByValue, 0.45 * overlayOpacity, outlineOnly, maskCanvas.current));
     // `tick` re-renders the live brush stroke held in the drag ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cine, cell.masks, visible, paintKey, tick, nx, ny, labels, colorsByValue, overlayOpacity, toolOptions.outlineOnly]);
+  }, [cine, cell.masks, visible, paintKey, tick, nx, ny, labels, colorsByValue, overlayOpacity, outlineOnly]);
 
   // ---- draw ----
   useEffect(() => {
@@ -310,7 +313,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
         for (let i = 1; i < r.length; i++) ctx.lineTo(r[i][0], r[i][1]);
         ctx.closePath();
       }
-      if (!toolOptions.outlineOnly) {
+      if (!outlineOnly) {
         ctx.fillStyle = resolveLabelColor(labels, a.label, (isSel ? 0.3 : 0.18) * overlayOpacity);
         ctx.fill("evenodd");
       }
@@ -364,7 +367,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
       ctx.strokeStyle = tool === "eraser" ? "rgba(255,255,255,0.8)" : activeLabel ? resolveLabelColor(labels, activeLabel) : "#fff";
       ctx.setLineDash(tool === "eraser" ? [3, 3] : []);
       ctx.beginPath();
-      ctx.arc(hover[0], hover[1], toolOptions.brushSize / 2, 0, Math.PI * 2);
+      ctx.arc(hover[0], hover[1], brushSize / 2, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
     }
@@ -448,7 +451,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
 
   const stamp = (dr: Extract<Drag, { kind: "paint" }>, a: Pt, b: Pt) => {
     if (!cine) return;
-    const r = toolOptions.brushSize / 2 / (camera.scale * Math.min(dx, dy));
+    const r = brushSize / 2 / (camera.scale * Math.min(dx, dy));
     const dist = Math.hypot(b[0] - a[0], b[1] - a[1]);
     const steps = Math.max(1, Math.ceil(dist / Math.max(0.5, r / 2)));
     const baseOff = frame * nx * ny * nz + slice * nx * ny;
@@ -460,7 +463,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
           const p = j * nx + i;
           if (dr.erase) for (const l of dr.layers) l.buf[p] = 0;
           else {
-            if (toolOptions.brushThreshold) {
+            if (brushThreshold) {
               const v = cine.data[baseOff + p];
               if (v < win[0] || v > win[1]) continue;
             }
@@ -802,7 +805,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
     setPlaying(false);
     fn();
   };
-  useShortcuts(
+  useCommands(
     {
       stepFrame: (e) => stop(() => stepFrame(e.key === "ArrowLeft" ? -1 : 1))(),
       stepSlice: (e) => stepSlice(e.key === "ArrowUp" ? -1 : 1),
@@ -824,9 +827,9 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
         setPreview(null);
         drag.current = null;
       },
-      fitViewCine: () => vp.fit(),
+      fitView: () => vp.fit(),
     },
-    { enabled: !!cine },
+    { enabled: !!cine, scope: ["inkling.cine", "inkling.core"] },
   );
   useEffect(() => {
     const up = (e: KeyboardEvent) => {
@@ -854,7 +857,7 @@ export function Cine4DViewer({ project, item }: ViewerProps) {
         : tool === "freehand"
           ? "Drag around the structure; it becomes an editable spline"
           : tool === "brush" || tool === "eraser"
-            ? `${tool === "brush" ? `Paint the ${activeLabel ?? "active"} mask` : "Erase masks of every unlocked structure"} on this slice/frame${toolOptions.brushThreshold && tool === "brush" ? " (only inside the window)" : ""}`
+            ? `${tool === "brush" ? `Paint the ${activeLabel ?? "active"} mask` : "Erase masks of every unlocked structure"} on this slice/frame${brushThreshold && tool === "brush" ? " (only inside the window)" : ""}`
             : null;
 
   return (

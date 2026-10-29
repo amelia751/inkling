@@ -72,6 +72,9 @@ export interface ResolveOptions {
   baseModules?: string[];
 }
 
+/** App-wide defaults, set once by the composition root (src/bundle.ts). */
+export const resolveDefaults: ResolveOptions = { baseModules: [] };
+
 // ---- Merging ------------------------------------------------------------------------
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -156,7 +159,7 @@ const zodPath = (issue: z.core.$ZodIssue) => "/" + issue.path.map(String).join("
  * merged structure the Studio renders. Never throws for bad input: every problem comes
  * back as a structured error so an agent can repair the spec.
  */
-export function resolveEnvironment(input: unknown, registry: Registry, options: ResolveOptions = {}): ResolveResult {
+export function resolveEnvironment(input: unknown, registry: Registry, options: ResolveOptions = resolveDefaults): ResolveResult {
   const errors: EnvError[] = [];
   const err = (e: EnvError) => errors.push(e);
 
@@ -321,6 +324,12 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     .filter((c) => mayBeTrue(c.when, { ...context, "env.tools": tools.map((t) => t.name) }));
   const replaced = new Set(candidates.flatMap((c) => c.replaces ?? []));
   const commands: ResolvedCommand[] = candidates.filter((c) => !replaced.has(c.id)).map((c) => ({ ...c, keys: rebinds.get(c.id) ?? c.keys ?? [] }));
+  // `shadows` takes the shadowing command's keys away from the shadowed ones, which keep the rest.
+  for (const c of commands) {
+    if (!c.shadows?.length) continue;
+    const taken = new Set(c.keys.map(normalizeCombo));
+    for (const t of commands) if (c.shadows.includes(t.id)) t.keys = t.keys.filter((k) => !taken.has(normalizeCombo(k)));
+  }
 
   // 11. Hotkeys must be unique among bindings that are unconditionally active together.
   const owners = new Map<string, string[]>();
@@ -331,7 +340,9 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   for (const c of commands) if (!c.contextual && alwaysTrue(c.when, context)) c.keys.forEach((k) => claim(k, c.id));
   for (const t of tools) if (t.hotkey) claim(t.hotkey, `tool ${t.id}`);
   labelClasses(labels).forEach((c, i) => c.hotkey && c.hotkey !== String(i + 1) && claim(c.hotkey, `label ${c.id}`));
-  for (const [combo, who] of owners) {
+  const shadowed = new Set(commands.flatMap((c) => (c.shadows ?? []).map((s) => `${c.id}>${s}`)));
+  for (const [combo, all] of owners) {
+    const who = all.filter((o) => !all.some((p) => shadowed.has(`${p}>${o}`)));
     if (who.length > 1) err({ path: "/keybindings", code: "hotkey-conflict", message: `"${combo}" is bound to ${who.join(" and ")}`, suggestion: `Rebind one of them in "keybindings", or disable it in "overrides"` });
   }
 

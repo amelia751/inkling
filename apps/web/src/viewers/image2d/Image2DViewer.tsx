@@ -1,10 +1,11 @@
+import { labelNames } from "@/platform/environment";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InvertIcon as Contrast, FlipHorizontalIcon as FlipHorizontal2, FlipVerticalIcon as FlipVertical2, FitIcon as Maximize, RotateLeftIcon as RotateCcw, RotateRightIcon as RotateCw, CleanupIcon as Sparkles, RegionIcon as SquareDashed, SearchIcon as Search, FillIcon as Wand2 } from "@/components/icons";
 import { Enums as CoreEnums, type RenderingEngine, cache, imageLoader, utilities as csUtils, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
 import { seedUrl } from "@/lib/api";
 import { matches, useHotkeys } from "@/lib/hotkeys";
-import { useStudio } from "@/stores/studio";
+import { brushSizeOf, toolOption, useStudio } from "@/stores/studio";
 import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
 import { CornerstoneBridge, type LabelmapAccess } from "@/viewers/cornerstone/bridge";
@@ -83,7 +84,8 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
   const readout = useRef<Readout | null>(null);
   const setViewerStatus = useStudio((s) => s.setViewerStatus);
   const tool = useStudio((s) => s.tool);
-  const toolOptions = useStudio((s) => s.toolOptions);
+  const brushSize = useStudio(brushSizeOf);
+  const brushThreshold = useStudio((s) => toolOption(s, "brush", "threshold", false));
   const activeLabel = useStudio((s) => s.activeLabel);
   const asset = item.assets[0];
 
@@ -167,7 +169,7 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
           representation: { type: SegmentationRepresentations.Labelmap, data: { imageIds: [labelmap.imageId] } },
           config: {
             label: "Inkling mask",
-            segments: Object.fromEntries((project.labels ?? []).map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
+            segments: Object.fromEntries(labelNames(project.labels).map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
           },
         },
       ]);
@@ -342,15 +344,15 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
     if (status !== "ready" || !s) return;
     const tg = tools.ToolGroupManager.getToolGroup(s.toolGroupId);
     const vp = viewport();
-    if (tg) applyBrushOptions(tg, vp, toolOptions, vp ? getVoi(vp) : undefined, false);
+    if (tg) applyBrushOptions(tg, vp, { size: brushSize, threshold: brushThreshold }, vp ? getVoi(vp) : undefined, false);
     // tick: brush size follows zoom; VOI drives the threshold range.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolOptions, status, tick]);
+  }, [brushSize, brushThreshold, status, tick]);
 
   useEffect(() => {
     const s = session.current;
     if (status !== "ready" || !s || !activeLabel) return;
-    const idx = (project.labels ?? []).indexOf(activeLabel) + 1;
+    const idx = labelNames(project.labels).indexOf(activeLabel) + 1;
     if (idx > 0) tools.segmentation.segmentIndex.setActiveSegmentIndex(s.segmentationId, idx);
   }, [activeLabel, status, project.labels]);
 
@@ -364,7 +366,7 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
       const vp = viewport();
       const st = useStudio.getState();
       if (!s || !vp || evt.button !== 0 || !st.activeLabel) return;
-      const seg = (project.labels ?? []).indexOf(st.activeLabel) + 1;
+      const seg = labelNames(project.labels).indexOf(st.activeLabel) + 1;
       if (seg <= 0 || st.lockedLabels.includes(st.activeLabel)) return;
       const rect = element.getBoundingClientRect();
       const world = vp.canvasToWorld([evt.clientX - rect.left, evt.clientY - rect.top]);
@@ -421,7 +423,7 @@ export default function Image2DViewer({ project, item }: ViewerProps) {
     act((_vp, s) => {
       const label = useStudio.getState().activeLabel;
       if (!label) return;
-      const seg = (project.labels ?? []).indexOf(label) + 1;
+      const seg = labelNames(project.labels).indexOf(label) + 1;
       const m = cache.getImage(s.labelmapImageId)?.voxelManager as Types.IVoxelManager<number> | undefined;
       if (!m || seg <= 0) return;
       const data = Array.from(m.getScalarData());

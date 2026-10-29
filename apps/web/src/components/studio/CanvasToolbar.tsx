@@ -1,126 +1,61 @@
-import { Fragment } from "react";
-import {
-  AngleIcon,
-  ArrowNoteIcon,
-  BeatIcon,
-  BidirectionalIcon,
-  BoxIcon,
-  BrushIcon,
-  CaliperIcon,
-  CobbAngleIcon,
-  CrosshairsIcon,
-  EllipseIcon,
-  EraserIcon,
-  EventIcon,
-  FillIcon,
-  FreehandIcon,
-  IntervalIcon,
-  KeypointIcon,
-  LengthIcon,
-  PanIcon,
-  Point3DIcon,
-  PointMarksIcon,
-  PolygonIcon,
-  PolylineIcon,
-  ProbeIcon,
-  RedoIcon,
-  RhythmIcon,
-  SegmentIcon,
-  SelectIcon,
-  SplineIcon,
-  UndoIcon,
-  WaveIcon,
-  WindowLevelIcon,
-  ZoomInIcon,
-  type IconComponent,
-} from "@/components/icons";
+import { Fragment, useMemo } from "react";
+import * as z from "zod";
+import { RedoIcon, UndoIcon, type IconComponent } from "@/components/icons";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
-import { TOOL_KEYS, type ShortcutId } from "@/lib/shortcuts";
+import type { ShortcutId } from "@/lib/shortcuts";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { useStudio, type Tool } from "@/stores/studio";
-import type { Project } from "@/types";
-
-type Group = "navigate" | "shape" | "measure" | "mask" | "time";
-
-/** Every tool's name, hint, icon and toolbar group. Shortcut keys live in `TOOL_KEYS` (lib/shortcuts). */
-export const TOOL_META: Record<Tool, { label: string; hint: string; icon: IconComponent; group: Group }> = {
-  select: { label: "Select", hint: "Select, move and edit annotations. Drag a handle to reshape; Delete removes", icon: SelectIcon, group: "navigate" },
-  pan: { label: "Pan", hint: "Drag to move the image; scroll to zoom. Hold Space with any tool to pan", icon: PanIcon, group: "navigate" },
-  zoom: { label: "Zoom", hint: "Drag up/down to zoom", icon: ZoomInIcon, group: "navigate" },
-  windowLevel: { label: "Window/level", hint: "Drag horizontally for contrast (window), vertically for brightness (level)", icon: WindowLevelIcon, group: "navigate" },
-  crosshairs: { label: "Crosshairs", hint: "Click or drag to move the linked crosshair through all three planes", icon: CrosshairsIcon, group: "navigate" },
-  box: { label: "Box", hint: "Drag to outline a rectangular region with the active label", icon: BoxIcon, group: "shape" },
-  ellipse: { label: "Ellipse", hint: "Drag to draw an ellipse; reports area and intensity stats", icon: EllipseIcon, group: "shape" },
-  polygon: { label: "Polygon", hint: "Click to place vertices; click the first point, double-click or press Enter to close. Esc cancels", icon: PolygonIcon, group: "shape" },
-  freehand: { label: "Freehand", hint: "Drag to trace a closed outline", icon: FreehandIcon, group: "shape" },
-  polyline: { label: "Polyline", hint: "Click to place points along an open line; double-click or Enter to finish", icon: PolylineIcon, group: "shape" },
-  spline: { label: "Spline contour", hint: "Click control points for a smooth closed contour; drag points to adjust, click an edge to add one, Alt-click to delete", icon: SplineIcon, group: "shape" },
-  keypoint: { label: "Keypoint", hint: "Click to place a landmark", icon: KeypointIcon, group: "shape" },
-  point: { label: "Point", hint: "Click to mark a 3D location with the active label", icon: Point3DIcon, group: "shape" },
-  mark: { label: "Points", hint: "Click to mark a single location, e.g. a cell; counts per class appear in the panel", icon: PointMarksIcon, group: "shape" },
-  length: { label: "Length", hint: "Drag to measure a distance", icon: LengthIcon, group: "measure" },
-  angle: { label: "Angle", hint: "Click three points to measure an angle", icon: AngleIcon, group: "measure" },
-  cobb: { label: "Cobb angle", hint: "Draw two lines along vertebral endplates to measure the angle between them", icon: CobbAngleIcon, group: "measure" },
-  bidirectional: { label: "Bidirectional", hint: "Draw the long axis; the perpendicular short axis follows (RECIST)", icon: BidirectionalIcon, group: "measure" },
-  probe: { label: "Probe", hint: "Click to read the pixel value (HU for CT) at a point", icon: ProbeIcon, group: "measure" },
-  arrow: { label: "Arrow", hint: "Drag to point an arrow at a finding and add a note", icon: ArrowNoteIcon, group: "measure" },
-  brush: { label: "Brush", hint: "Paint a mask with the active label. [ and ] change the size", icon: BrushIcon, group: "mask" },
-  eraser: { label: "Eraser", hint: "Erase mask or region area. [ and ] change the size", icon: EraserIcon, group: "mask" },
-  wand: { label: "Fill", hint: "Click to flood-fill a connected region of similar intensity", icon: FillIcon, group: "mask" },
-  interval: { label: "Interval", hint: "Drag across a lead to mark a time span; Shift-drag marks all leads", icon: IntervalIcon, group: "time" },
-  beat: { label: "Beat", hint: "Click a beat to place a fiducial; type a WFDB code (N, V, A…) to change it", icon: BeatIcon, group: "time" },
-  wave: { label: "Wave", hint: "Drag from a wave's onset to its offset to delineate P, QRS or T", icon: WaveIcon, group: "time" },
-  rhythm: { label: "Rhythm", hint: "Drag on the rhythm track to label an episode", icon: RhythmIcon, group: "time" },
-  caliper: { label: "Caliper", hint: "Drag to measure Δt, heart rate and ΔmV. Not saved", icon: CaliperIcon, group: "time" },
-  segment: { label: "Segment", hint: "Drag along the timeline to label a span of the video", icon: SegmentIcon, group: "time" },
-  event: { label: "Event", hint: "Mark the current frame as a point-in-time event", icon: EventIcon, group: "time" },
-};
+import { labelNames } from "@/platform/environment";
+import type { Registered } from "@/platform/registry";
+import type { ResolvedEnv } from "@/platform/resolve";
+import { useStudio } from "@/stores/studio";
+import type { Project, StudioItem } from "@/types";
+import { SlotTabs } from "./LeftSidebar";
 
 const COMPACT_AFTER = 7;
-const SIZED_TOOLS: Tool[] = ["brush", "eraser"];
 
-export function CanvasToolbar({ project, tools }: { project: Project; tools: Tool[] }) {
+/** Tools, undo/redo, the active tool's options and the active label. Everything comes from the env's tool contributions. */
+export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv; project: Project; items: StudioItem[]; item: StudioItem | undefined }) {
   const tool = useStudio((s) => s.tool);
   const setTool = useStudio((s) => s.setTool);
   const activeLabel = useStudio((s) => s.activeLabel);
-  const options = useStudio((s) => s.toolOptions);
-  const setOptions = useStudio((s) => s.setToolOptions);
   const undo = useStudio((s) => s.undo);
   const redo = useStudio((s) => s.redo);
   const canUndo = useStudio((s) => s.past.length > 0);
   const canRedo = useStudio((s) => s.future.length > 0);
-  const labels = project.labels ?? [];
-  const drawing = TOOL_META[tool].group !== "navigate" && tool !== "probe" && tool !== "caliper";
+  const tools = env.tools;
+  const labels = labelNames(env.labels);
+  const active = tools.find((t) => t.name === tool);
+  const drawing = active?.creates !== undefined;
   const compact = tools.length > COMPACT_AFTER;
 
   return (
     <div className="@container hide-scrollbar flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background px-2" role="toolbar" aria-label="Annotation tools">
       {tools.map((t, i) => {
-        const meta = TOOL_META[t];
-        const newGroup = i > 0 && TOOL_META[tools[i - 1]].group !== meta.group;
+        const newGroup = i > 0 && tools[i - 1].group !== t.group;
         return (
-          <Fragment key={t}>
+          <Fragment key={t.id}>
             {newGroup && <Separator orientation="vertical" className="mx-0.5 h-5" />}
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost-secondary"
-                  selected={tool === t}
-                  onClick={() => setTool(t)}
+                  selected={tool === t.name}
+                  onClick={() => setTool(t.name)}
                   className={cn("shrink-0", compact ? "w-7 px-0" : "px-2 @max-[720px]:w-7 @max-[720px]:px-0")}
-                  aria-pressed={tool === t}
-                  aria-label={meta.label}
-                  data-tool={t}
+                  aria-pressed={tool === t.name}
+                  aria-label={t.label}
+                  data-tool={t.name}
                 >
-                  <meta.icon />
-                  {!compact && <span className="hidden @[720px]:inline">{meta.label}</span>}
+                  <t.icon />
+                  {!compact && <span className="hidden @[720px]:inline">{t.label}</span>}
                 </Button>
               </TooltipTrigger>
-              <ActionTooltipContent title={meta.label} shortcut={TOOL_KEYS[t]} description={meta.hint} />
+              <ActionTooltipContent title={t.label} shortcut={t.hotkey} description={t.hint} />
             </Tooltip>
           </Fragment>
         );
@@ -129,28 +64,7 @@ export function CanvasToolbar({ project, tools }: { project: Project; tools: Too
       <IconAction icon={UndoIcon} label="Undo" shortcut="undo" onClick={undo} disabled={!canUndo} />
       <IconAction icon={RedoIcon} label="Redo" shortcut="redo" onClick={redo} disabled={!canRedo} />
 
-      {SIZED_TOOLS.includes(tool) && (
-        <div className="ml-2 flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
-          <span>Size</span>
-          <Slider
-            value={[options.brushSize]}
-            min={2}
-            max={120}
-            step={1}
-            onValueChange={([v]) => setOptions({ brushSize: v })}
-            className="w-24"
-            aria-label="Brush size"
-          />
-          <span className="tnum w-9">{options.brushSize}px</span>
-          {/* Intensity thresholds only make sense on grayscale radiology/cine images. */}
-          {tool === "brush" && project.viewer !== "pathology" && (
-            <label className="flex items-center gap-1" title="Only paint pixels whose intensity is inside the current window">
-              <input type="checkbox" checked={options.brushThreshold} onChange={(e) => setOptions({ brushThreshold: e.target.checked })} />
-              Threshold
-            </label>
-          )}
-        </div>
-      )}
+      {active?.optionsSchema && <ToolOptionsStrip tool={active} />}
 
       {drawing && activeLabel && (
         <div className="ml-auto flex shrink-0 items-center gap-1.5 pl-2 text-xs text-muted-foreground">
@@ -161,9 +75,80 @@ export function CanvasToolbar({ project, tools }: { project: Project; tools: Too
           </span>
         </div>
       )}
+      {env.panels["viewport-bar"].length > 0 && (
+        <div className={cn("flex shrink-0 items-center", !(drawing && activeLabel) && "ml-auto")}>
+          <SlotTabs slot="viewport-bar" env={env} project={project} items={items} item={item} />
+        </div>
+      )}
     </div>
   );
 }
+
+interface OptionField {
+  key: string;
+  type?: string;
+  minimum?: number;
+  maximum?: number;
+  enum?: string[];
+  description?: string;
+}
+
+/**
+ * Controls generated from the active tool's `optionsSchema`: numbers become sliders,
+ * booleans checkboxes, enums segmented controls. (A schema-driven form library replaces
+ * this once configs get richer; todo phase 9.)
+ */
+function ToolOptionsStrip({ tool }: { tool: Registered<"tools"> }) {
+  const options = useStudio((s) => s.toolOptions[tool.name]);
+  const setOption = useStudio((s) => s.setToolOption);
+  const fields = useMemo<OptionField[]>(() => {
+    const js = z.toJSONSchema(tool.optionsSchema!, { unrepresentable: "any" }) as { properties?: Record<string, Omit<OptionField, "key">> };
+    return Object.entries(js.properties ?? {}).map(([key, f]) => ({ key, ...f }));
+  }, [tool.optionsSchema]);
+  if (!options) return null;
+
+  return (
+    <div className="ml-2 flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+      {fields.map((f) => {
+        const value = options[f.key];
+        if (f.type === "number" || f.type === "integer") {
+          const v = Number(value);
+          // Brush-like sizes keep their historic name for assistive tech and tests.
+          const aria = f.key === "size" ? "Brush size" : label(f.key);
+          return (
+            <div key={f.key} className="flex items-center gap-2">
+              <span>{label(f.key)}</span>
+              <Slider value={[v]} min={f.minimum ?? 0} max={f.maximum ?? 100} step={f.type === "integer" ? 1 : 0.01} onValueChange={([n]) => setOption(tool.name, f.key, n)} className="w-24" aria-label={aria} />
+              <span className="tnum w-9">{v}{f.key === "size" ? "px" : ""}</span>
+            </div>
+          );
+        }
+        if (f.type === "boolean") {
+          return (
+            <label key={f.key} className="flex items-center gap-1" title={f.description}>
+              <input type="checkbox" checked={!!value} onChange={(e) => setOption(tool.name, f.key, e.target.checked)} />
+              {label(f.key)}
+            </label>
+          );
+        }
+        if (f.enum) {
+          return (
+            <SegmentedControl
+              key={f.key}
+              aria-label={label(f.key)}
+              value={String(value)}
+              onValueChange={(v) => setOption(tool.name, f.key, v)}
+              options={f.enum.map((e) => ({ value: e, label: e }))}
+            />
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
+
+const label = (key: string) => key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1").toLowerCase();
 
 function IconAction({ icon: Icon, label, shortcut, onClick, disabled }: { icon: IconComponent; label: string; shortcut: ShortcutId; onClick: () => void; disabled: boolean }) {
   return (

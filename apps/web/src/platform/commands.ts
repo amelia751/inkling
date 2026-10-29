@@ -50,9 +50,16 @@ export function commandDef(id: string): (ResolvedCommand | (Omit<ResolvedCommand
   return c && { ...c, keys: c.keys ?? [] };
 }
 
-/** `stepFrame` + scope `inkling.cine` → `inkling.cine.commands.stepFrame`; full ids pass through. */
-export function commandId(name: string, scope?: string): string {
-  return name.includes(".") || !scope ? name : fullId(scope, "commands", name);
+/**
+ * `stepFrame` + scope `inkling.cine` → `inkling.cine.commands.stepFrame`; full ids pass
+ * through. With several scopes, the first whose command is active (or registered) wins, so
+ * a renderer can bind its own commands and shared core ones in one map.
+ */
+export function commandId(name: string, scope?: string | string[]): string {
+  if (name.includes(".") || !scope) return name;
+  const scopes = Array.isArray(scope) ? scope : [scope];
+  const ids = scopes.map((s) => fullId(s, "commands", name));
+  return ids.find((id) => active.has(id)) ?? ids.find((id) => registry.has(id)) ?? ids[0];
 }
 
 // ---- Imperative handlers (execute / run_command) -----------------------------------
@@ -125,7 +132,7 @@ export type CommandHandlers = Record<string, (e: KeyboardEvent) => boolean | voi
  * hard-code a key. Names without a dot are resolved against `scope` (a module id).
  * Commands the environment doesn't include (disabled, replaced) never fire.
  */
-export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, enabled = true, scope }: { priority?: number; enabled?: boolean; scope?: string } = {}) {
+export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, enabled = true, scope }: { priority?: number; enabled?: boolean; scope?: string | string[] } = {}) {
   const ref = useRef(map);
   ref.current = map;
 
@@ -148,9 +155,11 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
 
   // Also reachable through execute() for menus and the agent.
   const names = Object.keys(map).join("|");
+  const scopeKey = Array.isArray(scope) ? scope.join("|") : scope;
   useEffect(() => {
     if (!enabled) return;
-    const offs = names.split("|").filter(Boolean).map((name) => registerCommand(commandId(name, scope), (e) => ref.current[name]?.(e ?? new KeyboardEvent("keydown"))));
+    const scopes = scopeKey?.split("|");
+    const offs = names.split("|").filter(Boolean).map((name) => registerCommand(commandId(name, scopes), (e) => ref.current[name]?.(e ?? new KeyboardEvent("keydown"))));
     return () => offs.forEach((off) => off());
-  }, [names, scope, enabled]);
+  }, [names, scopeKey, enabled]);
 }

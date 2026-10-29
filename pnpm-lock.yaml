@@ -142,6 +142,9 @@ importers:
       react-router:
         specifier: ^7.9.0
         version: 7.18.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      rfc6902:
+        specifier: ^5.3.0
+        version: 5.3.0
       simplify-js:
         specifier: 1.2.4
         version: 1.2.4
@@ -2193,6 +2196,9 @@ packages:
     resolution: {integrity: sha512-Dj/cW9zBV2aRj6XzCxuGIs3ESZKv02jixne3q6jFZYZ3/Tg09gHHviSMDL4kObh9pqSahdRHEnDoaP2gn8YLhA==}
     engines: {node: '>= 0.4'}
     hasBin: true
+
+  rfc6902@5.3.0:
+    resolution: {integrity: sha512-8x9uqKB5FeC3jhdtmBtI2Z2GR0+VE1VLbQ7Luy5RcnCxUa4+Z1n8w2G1D+GevkRUT33nbbfpAK5O4LhRbnaIPQ==}
 
   rollup@4.66.0:
     resolution: {integrity: sha512-Onq6/qO4ARhxIs+jYiHE0pYehadLyMECAiGEqQ+0/aWND3+2PmifJIIqBLYtuBODqHTlOUEQFtIVPyCy0Lck7A==}
@@ -4286,6 +4292,8 @@ snapshots:
       is-core-module: 2.17.0
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
+
+  rfc6902@5.3.0: {}
 
   rollup@4.66.0:
     dependencies:

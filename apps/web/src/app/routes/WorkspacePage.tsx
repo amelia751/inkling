@@ -4,7 +4,8 @@ import { AppLayout, PageHeading } from "@/components/layout/app-layout";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatBytes, ITEM_NOUN, plural, pluralWord, projectIcon, VIEWER_META } from "@/lib/format";
+import { envLabel, formatBytes, itemNoun, plural, pluralWord, projectIcon } from "@/lib/format";
+import { envOf } from "@/lib/environment";
 import { projectItems } from "@/lib/items";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
@@ -68,7 +69,8 @@ function progressStatus(done: number, total: number): { label: string; theme: Ba
 
 function DatasetCard({ project }: { project: Project }) {
   const Icon = projectIcon(project);
-  const meta = VIEWER_META[project.viewer];
+  const env = envOf(project);
+  const noun = itemNoun(env);
   const available = project.status === "available";
   const items = available ? projectItems(project) : [];
   const bytes = project.assets.reduce((n, a) => n + a.bytes, 0);
@@ -97,7 +99,7 @@ function DatasetCard({ project }: { project: Project }) {
               <Badge theme="warning" title="The source license restricts commercial use or redistribution"><LockIcon />Local dev only</Badge>
             )}
           </div>
-          <p className="mt-1 truncate text-sm text-muted-foreground">{meta.label}{project.task && <> · {project.task.replace("-", " ")}</>}</p>
+          <p className="mt-1 truncate text-sm text-muted-foreground">{envLabel(env)}{(env?.task ?? project.task) && <> · {(env?.task ?? project.task)!.replace("-", " ")}</>}</p>
         </div>
       </div>
 
@@ -113,7 +115,7 @@ function DatasetCard({ project }: { project: Project }) {
             </div>
           </div>
           <dl className="mt-4 grid grid-cols-3 gap-3">
-            <Metric label={capitalize(pluralWord(2, ITEM_NOUN[project.viewer]))} value={String(items.length)} />
+            <Metric label={capitalize(pluralWord(2, noun))} value={String(items.length)} />
             <Metric label="Annotations" value={saved.isLoading ? "–" : String(annotations.length)} />
             <Metric label="Size" value={formatBytes(bytes)} />
           </dl>
@@ -130,7 +132,7 @@ function DatasetCard({ project }: { project: Project }) {
   );
 
   return available ? (
-    <Link to={`/datasets/${project.id}`} className="block rounded-lg" aria-label={`Open ${project.title}, ${plural(items.length, ITEM_NOUN[project.viewer])}, ${status.label}`}>
+    <Link to={`/datasets/${project.id}`} className="block rounded-lg" aria-label={`Open ${project.title}, ${plural(items.length, noun)}, ${status.label}`}>
       {body}
     </Link>
   ) : (

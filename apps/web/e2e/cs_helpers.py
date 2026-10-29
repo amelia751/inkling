@@ -113,17 +113,17 @@ def masks(st, item_id: str) -> dict[str, int]:
     return {a["label"]: a["geometry"].get("voxels", 0) for a in item_annotations(st, item_id) if a["geometry"]["type"] == "mask"}
 
 
-def blob_from_exporter(st, module: str, exporter_index_expr: str) -> bytes:
-    """Run an adapter exporter in the page (with the live store) and return the file bytes."""
+def blob_from_exporter(st, exporter_id: str) -> bytes:
+    """Run an exporter contribution (full id, e.g. inkling.dicom-export.exporters.dicom-seg)
+    in the page with the live store, through the app's registry, and return the file bytes."""
     b64 = st.page.evaluate(
         f"""async () => {{
-          const ad = await import({json.dumps(module)});
+          const {{ registry }} = await import('/src/platform/registry.ts');
           const {{ projectItems }} = await import('/src/lib/items.ts');
           const api = await import('/src/lib/api.ts');
           const s = (await import('/src/stores/studio.ts')).useStudio.getState();
-          const res = await fetch('/seed/manifest.json');
-          const project = (await res.json()).projects.find(p => p.id === s.projectId);
-          const exporter = {exporter_index_expr};
+          const project = (await api.fetchProjects()).find(p => p.id === s.projectId);
+          const exporter = await registry.loadImpl({json.dumps(exporter_id)});
           const blob = await exporter.build({{ project, items: projectItems(project), annotations: s.annotations }});
           const buf = new Uint8Array(await blob.arrayBuffer());
           let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));

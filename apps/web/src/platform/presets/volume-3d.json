@@ -1,0 +1,60 @@
+{
+  "id": "volume-3d",
+  "title": "3D volume",
+  "description": "MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.",
+  "spec": {
+    "$schema": "inkling://schema/environment/v1",
+    "id": "volume-3d",
+    "title": "3D volume",
+    "data": {
+      "kind": "inkling.volume.dataKinds.volume"
+    },
+    "viewports": [
+      {
+        "name": "main",
+        "renderer": "inkling.volume.renderers.cornerstone-mpr"
+      }
+    ],
+    "tools": [
+      "inkling.core.tools.select",
+      "inkling.core.tools.pan",
+      "inkling.cornerstone.tools.zoom",
+      "inkling.core.tools.windowLevel",
+      "inkling.cornerstone.tools.crosshairs",
+      "inkling.cornerstone.tools.brush",
+      "inkling.cornerstone.tools.eraser",
+      "inkling.cornerstone.tools.wand",
+      "inkling.volume.tools.point",
+      "inkling.cornerstone.tools.length",
+      "inkling.cornerstone.tools.angle",
+      "inkling.cornerstone.tools.bidirectional",
+      "inkling.cornerstone.tools.ellipse",
+      "inkling.cornerstone.tools.box",
+      "inkling.cornerstone.tools.polygon",
+      "inkling.cornerstone.tools.freehand",
+      "inkling.cornerstone.tools.probe",
+      "inkling.cornerstone.tools.arrow"
+    ],
+    "exporters": [
+      "inkling.volume.exporters.nifti-labelmap",
+      "inkling.volume.exporters.masks-json",
+      "inkling.dicom-export.exporters.dicom-seg",
+      "inkling.dicom-export.exporters.dicom-sr"
+    ],
+    "panels": {
+      "left": [
+        "inkling.core.panels.files",
+        "inkling.core.panels.labels",
+        "inkling.core.panels.review"
+      ],
+      "right": [
+        "inkling.core.panels.ai"
+      ]
+    },
+    "reviewRules": [
+      "inkling.core.reviewRules.source-label-disagreement",
+      "inkling.core.reviewRules.unlabeled-items"
+    ],
+    "layout": null
+  }
+}

@@ -1,59 +1,34 @@
 import { create } from "zustand";
+import { labelNames } from "@/platform/environment";
+import type { ResolvedEnv } from "@/platform/resolve";
 import type { Annotation } from "@/types";
 
-export type Tool =
-  // navigation
-  | "select"
-  | "pan"
-  | "zoom"
-  | "windowLevel"
-  | "crosshairs"
-  // 2D shapes
-  | "box"
-  | "ellipse"
-  | "polygon"
-  | "freehand"
-  | "polyline"
-  | "spline"
-  | "keypoint"
-  | "point"
-  | "mark"
-  // measurements
-  | "length"
-  | "angle"
-  | "cobb"
-  | "bidirectional"
-  | "probe"
-  | "arrow"
-  // masks
-  | "brush"
-  | "eraser"
-  | "wand"
-  // time
-  | "interval"
-  | "beat"
-  | "wave"
-  | "rhythm"
-  | "caliper"
-  | "segment"
-  | "event";
+/**
+ * A tool's local name (`select`, `box`, `brush`…), as declared by its tool contribution.
+ * The registry is the source of truth for which tools exist; the resolved environment
+ * guarantees names are unique within a Studio, so renderers can switch on them.
+ */
+export type ToolId = string;
+/** @deprecated Use ToolId. */
+export type Tool = ToolId;
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
-export interface ToolOptions {
-  /** Brush / eraser diameter in screen pixels (viewers convert to their own units). */
-  brushSize: number;
-  /** Restrict brush strokes to intensities inside the current window (threshold brush). */
-  brushThreshold: boolean;
-  /** Draw filled regions as outlines only. */
-  outlineOnly: boolean;
-}
+/** Per-tool options, keyed by tool name, defaulted from each tool's `optionsSchema`. */
+export type ToolOptions = Record<ToolId, Record<string, unknown>>;
 
-interface StudioState {
+export interface StudioState {
   projectId: string | null;
   itemIndex: number;
-  tool: Tool;
+  tool: ToolId;
   toolOptions: ToolOptions;
+  /** Draw filled regions and masks as outlines only. */
+  outlineOnly: boolean;
+  /** The resolved environment the Studio is running. Agent edits go through `setEnv`. */
+  env: ResolvedEnv | null;
+  /** Environment history, separate from annotation undo so agent edits are undoable on their own. */
+  envPast: ResolvedEnv[];
+  envFuture: ResolvedEnv[];
   activeLabel: string | null;
   annotations: Annotation[];
   /** Server revision the current annotations were last confirmed at. */
@@ -77,8 +52,13 @@ interface StudioState {
 
   load: (projectId: string, annotations: Annotation[], revision: number, firstLabel: string | null) => void;
   setItemIndex: (i: number) => void;
-  setTool: (t: Tool) => void;
-  setToolOptions: (o: Partial<ToolOptions>) => void;
+  setTool: (t: ToolId) => void;
+  setToolOption: (tool: ToolId, key: string, value: unknown) => void;
+  setOutlineOnly: (on: boolean) => void;
+  /** Install a resolved environment. `record: false` replaces without an undo step (first load). */
+  setEnv: (env: ResolvedEnv, opts?: { record?: boolean }) => void;
+  undoEnv: () => void;
+  redoEnv: () => void;
   setActiveLabel: (l: string) => void;
   add: (a: Annotation) => void;
   /** Add several annotations as one undo step. */
@@ -91,8 +71,12 @@ interface StudioState {
   batch: (ops: { update?: { id: string; patch: Partial<Omit<Annotation, "id" | "itemId">> }[]; upsert?: Annotation[]; remove?: string[] }) => void;
   remove: (id: string) => void;
   removeMany: (ids: string[]) => void;
-  /** Replace the item's class annotation (classification tasks hold one label per item). */
-  setClass: (itemId: string, label: string, author: string) => void;
+  /**
+   * Set an item-level class. Single-valued groups (Label Studio `Choices`) replace the
+   * item's other classes from the same group; `multiple` groups toggle the class.
+   * Without `group`, every class annotation not owned by a multiple group is replaced.
+   */
+  setClass: (itemId: string, label: string, author: string, opts?: { group?: string }) => void;
   /** Replace the selection with one annotation (or clear it). */
   select: (id: string | null) => void;
   /** Add or remove one annotation from the selection (Shift/⌘-click). */
@@ -133,7 +117,11 @@ export const useStudio = create<StudioState>((set, get) => {
     projectId: null,
     itemIndex: 0,
     tool: "select",
-    toolOptions: { brushSize: 16, brushThreshold: false, outlineOnly: false },
+    toolOptions: {},
+    outlineOnly: false,
+    env: null,
+    envPast: [],
+    envFuture: [],
     activeLabel: null,
     annotations: [],
     revision: 0,
@@ -168,7 +156,26 @@ export const useStudio = create<StudioState>((set, get) => {
       }),
     setItemIndex: (itemIndex) => set({ itemIndex, selectedId: null, selectedIds: [] }),
     setTool: (tool) => set({ tool }),
-    setToolOptions: (o) => set((s) => ({ toolOptions: { ...s.toolOptions, ...o } })),
+    setToolOption: (tool, key, value) => set((s) => ({ toolOptions: { ...s.toolOptions, [tool]: { ...s.toolOptions[tool], [key]: value } } })),
+    setOutlineOnly: (outlineOnly) => set({ outlineOnly }),
+    setEnv: (env, { record = true } = {}) =>
+      set((s) => ({
+        env,
+        toolOptions: defaultToolOptions(env, s.toolOptions),
+        envPast: record && s.env ? [...s.envPast, s.env].slice(-HISTORY_LIMIT) : s.envPast,
+        envFuture: record ? [] : s.envFuture,
+      })),
+    undoEnv: () => {
+      const { envPast, env, envFuture } = get();
+      if (!envPast.length || !env) return;
+      const prev = envPast[envPast.length - 1];
+      set((s) => ({ env: prev, envPast: envPast.slice(0, -1), envFuture: [env, ...envFuture], toolOptions: defaultToolOptions(prev, s.toolOptions) }));
+    },
+    redoEnv: () => {
+      const { envPast, env, envFuture } = get();
+      if (!envFuture.length || !env) return;
+      set((s) => ({ env: envFuture[0], envFuture: envFuture.slice(1), envPast: [...envPast, env], toolOptions: defaultToolOptions(envFuture[0], s.toolOptions) }));
+    },
     setActiveLabel: (activeLabel) => set({ activeLabel }),
     add: (a) => commit([...get().annotations, a]),
     addMany: (list) => list.length && commit([...get().annotations, ...list]),
@@ -220,21 +227,23 @@ export const useStudio = create<StudioState>((set, get) => {
       commit(get().annotations.filter((a) => !drop.has(a.id)));
       prune(drop);
     },
-    setClass: (itemId, label, author) => {
-      // Record-level statements (e.g. ECG SNOMED codes) are also `class` annotations but multi-valued; keep them.
-      const rest = get().annotations.filter((a) => !(a.itemId === itemId && a.geometry.type === "class" && a.attributes?.snomed === undefined));
-      commit([
-        ...rest,
-        {
-          id: crypto.randomUUID(),
-          itemId,
-          label,
-          geometry: { type: "class" },
-          provenance: "human-created",
-          author,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+    setClass: (itemId, label, author, { group } = {}) => {
+      const groups = (get().env?.labels ?? []).filter((g) => g.control === "Choices");
+      const target = groups.find((g) => g.name === group) ?? groups.find((g) => g.classes.some((c) => c.id === label));
+      const multiple = new Set(groups.filter((g) => g.multiple).flatMap((g) => g.classes.map((c) => c.id)));
+      const isClass = (a: Annotation) => a.itemId === itemId && a.geometry.type === "class";
+      const list = get().annotations;
+      if (target?.multiple) {
+        // Multi-valued group: toggle this class, keep everything else.
+        const existing = list.find((a) => isClass(a) && a.label === label);
+        if (existing) return commit(list.filter((a) => a !== existing));
+        return commit([...list, classAnnotation(itemId, label, author)]);
+      }
+      // Single-valued: replace this group's class. With no Choices group for the label, replace
+      // classes of the environment's own vocabulary; record-level statements outside it stay.
+      const replace = new Set(target ? target.classes.map((c) => c.id) : [...labelNames(get().env?.labels), label].filter((l) => !multiple.has(l)));
+      const rest = list.filter((a) => !(isClass(a) && replace.has(a.label)));
+      commit([...rest, classAnnotation(itemId, label, author)]);
     },
     select: (selectedId) => set({ selectedId, selectedIds: selectedId ? [selectedId] : [] }),
     toggleSelect: (id) =>
@@ -267,6 +276,46 @@ export const useStudio = create<StudioState>((set, get) => {
 });
 
 export const LOCAL_AUTHOR = "local-expert";
+
+const classAnnotation = (itemId: string, label: string, author: string): Annotation => ({
+  id: crypto.randomUUID(),
+  itemId,
+  label,
+  geometry: { type: "class" },
+  provenance: "human-created",
+  author,
+  createdAt: new Date().toISOString(),
+});
+
+/** Keep options the user already set; fill in each env tool's schema defaults. */
+function defaultToolOptions(env: ResolvedEnv, current: ToolOptions): ToolOptions {
+  const out: ToolOptions = { ...current };
+  for (const t of env.tools) {
+    if (!t.optionsSchema) continue;
+    const parsed = t.optionsSchema.safeParse(current[t.name] ?? {});
+    out[t.name] = parsed.success ? (parsed.data as Record<string, unknown>) : (t.optionsSchema.parse({}) as Record<string, unknown>);
+  }
+  return out;
+}
+
+/** One option of one tool (falls back when the env doesn't declare it). */
+export function toolOption<T>(s: Pick<StudioState, "toolOptions">, tool: ToolId, key: string, fallback: T): T {
+  return (s.toolOptions[tool]?.[key] as T | undefined) ?? fallback;
+}
+
+/** React binding for one tool option. */
+export function useToolOption<T>(tool: ToolId, key: string, fallback: T): T {
+  return useStudio((s) => toolOption(s, tool, key, fallback));
+}
+
+/**
+ * Brush / eraser diameter in screen pixels for whichever sized tool is active (viewers
+ * convert to their own units). Each sized tool keeps its own size.
+ */
+export function brushSizeOf(s: Pick<StudioState, "toolOptions" | "tool">): number {
+  const own = s.toolOptions[s.tool]?.size;
+  return typeof own === "number" ? own : toolOption(s, "brush", "size", 16);
+}
 
 export function newAnnotation(
   fields: Omit<Annotation, "id" | "createdAt" | "provenance" | "author"> & Partial<Pick<Annotation, "provenance" | "author">>,

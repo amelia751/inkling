@@ -1,7 +1,6 @@
 import { lazy } from "react";
 import type { ViewerAdapter } from "@/viewers/ViewerAdapter";
 import { inspectAnnotation } from "@/viewers/cornerstone/inspect";
-import { dicomSegExporter, dicomSrExporter } from "@/viewers/cornerstone/dicomExporters";
 import { cocoExporter } from "./coco";
 
 /** Cornerstone3D only loads when a 2D project opens. */
@@ -31,5 +30,5 @@ export const image2dAdapter: ViewerAdapter = {
   ],
   Component: Image2DViewer,
   inspect: (a) => inspectAnnotation(a, { mode: "2d" }),
-  exporters: [cocoExporter, dicomSegExporter, dicomSrExporter],
+  exporters: [cocoExporter],
 };

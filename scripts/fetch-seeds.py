@@ -354,6 +354,28 @@ FETCHERS = {
 }
 
 
+# Seed projects boot a Studio environment (apps/web/src/platform/presets/*.json). `viewer`
+# and string `labels` stay for one release so older checkouts still load the manifest.
+PRESET_FOR_VIEWER = {
+    "image-2d": "preset:image-2d",
+    "volume-3d": "preset:volume-3d",
+    "signal": "preset:ecg",
+    "temporal": "preset:video",
+    "cine-4d": "preset:cine-4d",
+    "pathology": "preset:pathology",
+}
+
+
+def with_environment(project: dict) -> dict:
+    """Add `environment`: the viewer's preset plus label groups with palette colors."""
+    classes = [{"id": label, "color": f"chart-{i % 5 + 1}"} for i, label in enumerate(project.get("labels", []))]
+    groups = [{"name": "labels", "control": "Labels", "classes": classes}]
+    if project.get("task") == "classification":
+        groups.insert(0, {"name": "class", "control": "Choices", "classes": classes})
+    env = {"extends": PRESET_FOR_VIEWER[project["viewer"]], "task": project.get("task"), "labels": groups}
+    return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
+
+
 def main(argv: list[str]) -> int:
     only = set(argv) or set(FETCHERS)
     unknown = only - set(FETCHERS)
@@ -367,10 +389,10 @@ def main(argv: list[str]) -> int:
     for pid, fn in FETCHERS.items():
         if pid in only:
             print(f"Fetching {pid}…")
-            projects.append({**fn(), "status": "available"})
+            projects.append(with_environment({**fn(), "status": "available"}))
         elif existing.get(pid, {}).get("status") == "available":
-            projects.append(existing[pid])
-    manifest_path.write_text(json.dumps({"version": 1, "projects": projects}, indent=2))
+            projects.append(with_environment(existing[pid]))
+    manifest_path.write_text(json.dumps({"version": 2, "projects": projects}, indent=2))
     print(f"Wrote {manifest_path}")
     return 0
 

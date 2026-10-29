@@ -72,6 +72,8 @@ def tool(st, key):
         st.page.keyboard.press(key)
         time.sleep(0.25)
         if st.store("s => s.tool") == want:
+            # Let React commit and the viewer rebind Cornerstone's primary tool before the next gesture.
+            st.page.evaluate("() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 100))))")
             if attempt:
                 print(f"  note: key {key!r} needed {attempt + 1} presses", flush=True)
             return
@@ -450,7 +452,7 @@ def main() -> int:
             tool(st, "k")
             click(st.page, img(st, 900, 1100))
             only_new(st, before, n=3)
-            raw = blob_from_exporter(st, "/src/viewers/image2d/adapter.ts", "ad.image2dAdapter.exporters.find(e => e.id === 'coco')")
+            raw = blob_from_exporter(st, "inkling.image2d.exporters.coco")
             doc = json.loads(raw)
             (out / "coco.json").write_bytes(raw)
             im = next(i for i in doc["images"] if i["file_name"] == ITEM)
@@ -497,7 +499,7 @@ def main() -> int:
             mask = next(a for a in item_annotations(st, DX) if a["geometry"]["type"] == "mask")
             check(abs(mask["geometry"]["volumeMm3"] - mask["geometry"]["voxels"] * 0.0225) < 1, "mask area in mm²")
             st.shot("dicom-dx", out)
-            seg = blob_from_exporter(st, "/src/viewers/image2d/adapter.ts", "ad.image2dAdapter.exporters.find(e => e.id === 'dicom-seg')")
+            seg = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-seg")
             (out / "dx-seg.dcm").write_bytes(seg)
             v = validate_dicom(out / "dx-seg.dcm", "seg")
             check(v["sopClassUID"] == "1.2.840.10008.5.1.4.1.1.66.4", v["sopClassUID"])
@@ -505,7 +507,7 @@ def main() -> int:
             check([s["label"] for s in v["segments"]] == ["opacity"], v["segments"])
             check(v["studyUID"] == cr["studyUID"] and cr["seriesUID"] in v["referencedSeries"], "references the DX study/series")
             check(v["totalPixels"] == mask["geometry"]["voxels"], f"SEG pixels {v['totalPixels']} vs mask {mask['geometry']['voxels']}")
-            sr = blob_from_exporter(st, "/src/viewers/image2d/adapter.ts", "ad.image2dAdapter.exporters.find(e => e.id === 'dicom-sr')")
+            sr = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-sr")
             (out / "dx-sr.dcm").write_bytes(sr)
             s = validate_dicom(out / "dx-sr.dcm", "sr")
             check(s["template"] == "1500", s)

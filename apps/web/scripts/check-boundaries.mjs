@@ -49,6 +49,8 @@ function violation(from, to) {
     return `modules/${moduleOf(from)} may only import modules/${moduleOf(to)}/manifest.ts or public.ts`;
   if (a === "modules" && (to.startsWith("app/") || to.startsWith("components/studio"))) return "modules must not import the Studio shell; use RendererProps and platform/runtime";
   if (a === "shell" && b === "modules") return "the shell reaches modules only through platform/ (registry, ViewportHost)";
+  // viewers/ is the pre-module code; it shrinks to nothing as each viewer converts (todo phase 6).
+  if ((a === "modules" || a === "kits" || a === "shell" || a === "platform") && to.startsWith("viewers/")) return "legacy viewers/ code: move it into the module (or a kit) that owns it";
   return null;
 }
 

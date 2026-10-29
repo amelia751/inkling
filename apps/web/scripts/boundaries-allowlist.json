@@ -1,1 +1,1 @@
-[]
+["modules/image2d", "modules/volume", "modules/timeseries", "modules/video", "modules/cine", "modules/wsi", "modules/dicom-export"]

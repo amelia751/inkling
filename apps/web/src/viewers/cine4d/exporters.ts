@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import type { Annotation, Project, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
 import {
@@ -52,7 +53,7 @@ export const cineExporters: Exporter[] = [
     build: async ({ project, items, annotations }) => {
       const item = pickItem(items, annotations);
       const { header, grid } = await gridFor(item);
-      const labels = project.labels ?? [];
+      const labels = labelNames(project.labels);
       const n = grid.nx * grid.ny;
       const data = new Uint8Array(n * grid.nz * grid.frames);
       const cells = groupCells(annotations, item.id);
@@ -73,7 +74,7 @@ export const cineExporters: Exporter[] = [
     build: async ({ project, items, annotations }) => {
       const item = pickItem(items, annotations);
       const { grid } = await gridFor(item);
-      const labels = project.labels ?? [];
+      const labels = labelNames(project.labels);
       const { ed, es } = resolvePhases(annotations, item.id, item.assets, project.meta);
       const body = await fetchBodySize(cinePath(item)!, project.meta);
       const bsa = mosteller(body.height, body.weight);
@@ -118,7 +119,7 @@ export const cineExporters: Exporter[] = [
     build: async ({ project, items, annotations }) => {
       const item = pickItem(items, annotations);
       const { grid } = await gridFor(item);
-      const labels = project.labels ?? [];
+      const labels = labelNames(project.labels);
       const s = structures(labels);
       const cells = groupCells(annotations, item.id);
       const { ed, es } = resolvePhases(annotations, item.id, item.assets, project.meta);

@@ -18,6 +18,7 @@ import { BrandMark } from "@/components/layout/brand";
 import { ThemeSwitch } from "@/components/layout/theme-switch";
 import { useTheme, type ThemePreference } from "@/lib/theme";
 import { useWindowWidth } from "@/lib/use-media-query";
+import { envLabel } from "@/lib/format";
 import { useStudio } from "@/stores/studio";
 import type { Project } from "@/types";
 
@@ -32,10 +33,13 @@ interface StudioTopBarProps {
   /** Set on phones, where the sidebar is a drawer. */
   onOpenSidebar?: () => void;
   onShowShortcuts: () => void;
+  /** The environment has right-slot panels (the assistant) to toggle. */
+  showAi?: boolean;
 }
 
-export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts }: StudioTopBarProps) {
+export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true }: StudioTopBarProps) {
   const aiOpen = useStudio((s) => s.aiOpen);
+  const env = useStudio((s) => s.env);
   const toggleAi = useStudio((s) => s.toggleAi);
 
   return (
@@ -48,6 +52,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
       <BrandMark compact className="hidden shrink-0 @[480px]:flex" />
       <DatasetSwitcher datasetId={project.id} title={project.title} className="max-w-[min(280px,40cqw)] shrink" />
       <Badge className="hidden @[760px]:inline-flex">Draft</Badge>
+      {env && <span className="hidden shrink-0 text-sm text-muted-foreground @[900px]:inline" title={env.modules.map((m) => `${m.id}@${m.version}`).join("\n")}>{envLabel(env)}</span>}
       <SaveIndicator onRetry={onRetrySave} />
 
       <div className="ml-auto flex shrink-0 items-center gap-1 @[640px]:gap-2">
@@ -66,14 +71,16 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
           </Button>
           <div className="mx-1 h-5 w-px bg-border" aria-hidden />
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label="Inkling AI panel">
-              <AiIcon />
-            </Button>
-          </TooltipTrigger>
-          <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} Inkling AI`} />
-        </Tooltip>
+        {showAi && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label="Inkling AI panel">
+                <AiIcon />
+              </Button>
+            </TooltipTrigger>
+            <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} Inkling AI`} />
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost-secondary" size="icon" onClick={onShowShortcuts} className="hidden @[480px]:inline-flex" aria-label="Keyboard shortcuts">

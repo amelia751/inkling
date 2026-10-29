@@ -1,8 +1,9 @@
+import { labelNames } from "@/platform/environment";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { FlipHorizontalIcon as FlipHorizontal2, FitIcon as Maximize2, RotateLeftIcon as RotateCcw, RotateRightIcon as RotateCw, SettingsIcon as SlidersHorizontal, TagIcon as Tag, UploadIcon as Upload, ZoomInIcon as ZoomIn, ZoomOutIcon as ZoomOut } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { useShortcuts } from "@/lib/hotkeys";
+import { useCommands } from "@/lib/hotkeys";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { useStudio } from "@/stores/studio";
@@ -29,7 +30,7 @@ export function PathologyViewer({ project, item }: ViewerProps) {
   const [tolerance, setTolerance] = useState(28);
   const gammaId = `gamma-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const tool = useStudio((s) => s.tool);
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const objective = Number(asset.magnification) || 40;
   const mpp = asset.mpp ?? null;
 
@@ -52,7 +53,8 @@ export function PathologyViewer({ project, item }: ViewerProps) {
     if (ctrlRef.current) ctrlRef.current.wandTolerance = tolerance;
   }, [tolerance, ui.ready]);
 
-  useShortcuts({
+  useCommands(
+    {
     cancelShape: () => ctrlRef.current?.cancelShape() ?? false,
     finishShape: () => ctrlRef.current?.finishDraft() ?? false,
     removeLastVertex: () => ctrlRef.current?.removeLastVertex() ?? false,
@@ -63,7 +65,9 @@ export function PathologyViewer({ project, item }: ViewerProps) {
       ctrlRef.current?.rotate(90);
     },
     holdToPan: () => ctrlRef.current?.holdToPan() ?? false,
-  });
+    },
+    { scope: ["inkling.wsi", "inkling.core"] },
+  );
 
   // Status bar: dimensions, magnification, scale, object counts.
   const annotations = useStudio((s) => s.annotations);

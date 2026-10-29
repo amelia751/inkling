@@ -92,9 +92,12 @@ export type ViewportSpec = z.infer<typeof ViewportSpecSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type PanelSlots = z.infer<typeof PanelSlotsSchema>;
 
-/** Every class id across the env's label groups, in order, deduplicated (the transition from `labels: string[]`). */
-export function labelNames(labels: LabelGroup[] | undefined): string[] {
-  return [...new Set((labels ?? []).flatMap((g) => g.classes.map((c) => c.id)))];
+/**
+ * Every class id across the env's label groups, in order, deduplicated (the transition from
+ * `labels: string[]`; a v1 string list passes through, so raw manifest projects still work).
+ */
+export function labelNames(labels: readonly (LabelGroup | string)[] | undefined): string[] {
+  return [...new Set((labels ?? []).flatMap((g) => (typeof g === "string" ? [g] : g.classes.map((c) => c.id))))];
 }
 
 /** Flat class lookup: the first group that defines a class wins for color and hotkey. */

@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import * as nifti from "nifti-reader-js";
 import { seedUrl } from "@/lib/api";
 import { useStudio } from "@/stores/studio";
@@ -7,12 +8,12 @@ import { decodeMaskInto } from "@/viewers/cornerstone/rle";
 
 /** BraTS label convention: necrotic core 1, edema 2, enhancing tumor 4. */
 export function isBrats(project: Project): boolean {
-  return /brats/i.test(`${project.id} ${project.title} ${project.source}`) && (project.labels?.length ?? 0) === 3;
+  return /brats/i.test(`${project.id} ${project.title} ${project.source}`) && labelNames(project.labels).length === 3;
 }
 
 /** Voxel value written for a label (and read from a reference segmentation). */
 export function labelValue(project: Project, label: string): number {
-  const i = (project.labels ?? []).indexOf(label);
+  const i = labelNames(project.labels).indexOf(label);
   if (i < 0) return 0;
   return isBrats(project) ? [1, 2, 4][i] : i + 1;
 }
@@ -22,7 +23,7 @@ export function labelIndexForValue(project: Project, value: number): number {
   if (!value) return -1;
   if (isBrats(project)) return [1, 2, 4].indexOf(value);
   const i = value - 1;
-  return i < (project.labels?.length ?? 0) ? i : -1;
+  return i < labelNames(project.labels).length ? i : -1;
 }
 
 function headerSource(item: StudioItem) {
@@ -76,7 +77,7 @@ export async function buildSubjectNifti(project: Project, item: StudioItem, anno
   dv.setFloat32(108, 352, littleEndian); // vox_offset
   dv.setFloat32(112, 1, littleEndian); // scl_slope
   dv.setFloat32(116, 0, littleEndian); // scl_inter
-  dv.setFloat32(124, Math.max(...(project.labels ?? []).map((l) => labelValue(project, l)), 1), littleEndian); // cal_max
+  dv.setFloat32(124, Math.max(...labelNames(project.labels).map((l) => labelValue(project, l)), 1), littleEndian); // cal_max
   dv.setFloat32(128, 0, littleEndian); // cal_min
   out.set([0x6e, 0x2b, 0x31, 0x00], 344); // magic "n+1"
   // Bytes 348–351: no extensions.
@@ -107,7 +108,7 @@ export const masksJsonExporter: Exporter = {
     "Every subject's masks as run-length encoded voxel grids (x fastest, background first) with label values, voxel counts and volumes.",
   filename: (project) => `${project.id}-masks.json`,
   async build({ project, items, annotations }) {
-    const labels = project.labels ?? [];
+    const labels = labelNames(project.labels);
     const subjects = items.map((item) => ({
       subject: item.id,
       masks: annotations

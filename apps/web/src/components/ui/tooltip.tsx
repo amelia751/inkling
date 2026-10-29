@@ -4,7 +4,7 @@ import * as React from "react"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 
 import { Kbd, Shortcut } from "@/components/ui/kbd"
-import { SHORTCUTS, type ShortcutId } from "@/lib/shortcuts"
+import { resolveShortcut, type ShortcutId } from "@/lib/shortcuts"
 import { cn } from "@/lib/utils"
 
 const TooltipProvider = TooltipPrimitive.Provider
@@ -56,7 +56,7 @@ function ActionTooltipContent({ title, shortcut, description, className, ...prop
 }
 
 function ShortcutChips({ value }: { value: string }) {
-  return value in SHORTCUTS ? <Shortcut id={value as ShortcutId} dark /> : <Shortcut combo={value} dark />
+  return resolveShortcut(value) ? <Shortcut id={value} dark /> : <Shortcut combo={value} dark />
 }
 
 export { Tooltip, TooltipTrigger, TooltipContent, ActionTooltipContent, TooltipProvider, Kbd }

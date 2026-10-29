@@ -1,50 +1,103 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { AiAssistantPanel } from "@/components/studio/AiAssistantPanel";
 import { CanvasStatusBar } from "@/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/components/studio/CanvasToolbar";
-import { LeftSidebar } from "@/components/studio/LeftSidebar";
+import { LeftSidebar, SlotTabs } from "@/components/studio/LeftSidebar";
 import { StudioTopBar } from "@/components/studio/StudioTopBar";
+import { ShortcutsDialog } from "@/components/studio/ShortcutsDialog";
+import { ViewportHost } from "@/components/studio/ViewportHost";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useViewport, useWindowWidth } from "@/lib/use-media-query";
-import { fetchAnnotations, saveAnnotations } from "@/lib/api";
-import { digitOf, matches, SHELL_PRIORITY, useHotkeys, useShortcuts } from "@/lib/hotkeys";
-import { findConflicts, TOOL_KEYS } from "@/lib/shortcuts";
-import { ShortcutsDialog } from "@/components/studio/ShortcutsDialog";
-import { projectItems } from "@/lib/items";
-import { isEditable, useStudio, visibleFor, type Tool } from "@/stores/studio";
-import type { StudioItem } from "@/types";
-import { adapterFor } from "@/viewers/registry";
+import { fetchAnnotations, fetchEnvironment, saveAnnotations } from "@/lib/api";
+import { setLabelClasses } from "@/lib/labels";
+import { ANNOTATIONS_VERSION } from "@/migrations/annotations-v1-to-v2";
+import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/platform/commands";
+import { labelClasses, labelNames } from "@/platform/environment";
+import { digitOf, matches } from "@/platform/keys";
+import { registry } from "@/platform/registry";
+import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/platform/resolve";
+import { clearRuntime, publish } from "@/platform/runtime";
+import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/stores/studio";
+import type { Project, StudioItem } from "@/types";
 import { FullPageMessage, useProject } from "./shared";
 
 const AUTOSAVE_MS = 800;
+const LEGACY_TYPES = /^(interval|beat|wave|rhythm|phase|segment|event|mark|point)$/;
+
+type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
+
+/**
+ * Resolve the project's environment (its saved edits, else the manifest's) and load the
+ * implementations of every module it uses, so renderers and panels mount synchronously.
+ */
+function useEnvironment(project: Project | undefined): Boot {
+  const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project, staleTime: Infinity });
+  const [boot, setBoot] = useState<Boot>({ status: "loading" });
+  useEffect(() => {
+    if (!project || saved.isLoading) return;
+    const spec = saved.data?.environment ?? project.environment;
+    const r = resolveEnvironment(spec, registry);
+    if (r.errors) return setBoot({ status: "errors", errors: r.errors });
+    let live = true;
+    Promise.all(r.env.modules.map((m) => registry.preload(m.id)))
+      .then(() => live && setBoot({ status: "ready", env: r.env }))
+      .catch((e) => live && setBoot({ status: "failed", message: e instanceof Error ? e.message : String(e) }));
+    return () => {
+      live = false;
+    };
+  }, [project, saved.isLoading, saved.data]);
+  return boot;
+}
 
 export function DatasetStudioPage() {
   const { datasetId = "" } = useParams();
   const { project, isLoading, error } = useProject(datasetId);
   const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: Infinity });
+  const boot = useEnvironment(project);
   const projectId = useStudio((s) => s.projectId);
   const load = useStudio((s) => s.load);
+  const setEnv = useStudio((s) => s.setEnv);
 
   useEffect(() => {
-    if (project && saved.data && projectId !== project.id) {
-      load(project.id, saved.data.annotations, saved.data.revision, project.labels?.[0] ?? null);
+    if (project && saved.data && boot.status === "ready" && projectId !== project.id) {
+      clearRuntime();
+      setEnv(boot.env, { record: false });
+      load(project.id, saved.data.annotations, saved.data.revision, labelNames(boot.env.labels)[0] ?? null);
     }
-  }, [project, saved.data, projectId, load]);
+  }, [project, saved.data, projectId, load, boot, setEnv]);
 
   if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio…" />;
   if (error || !project) return <FullPageMessage title="Dataset not found" body={`No seed project “${datasetId}”. Run pnpm seeds, then reload.`} />;
   if (saved.error) return <FullPageMessage title="Couldn't load annotations" body={String(saved.error)} />;
-  if (projectId !== project.id) return <FullPageMessage title="Opening Studio…" />;
+  if (boot.status === "errors") return <EnvErrors errors={boot.errors} />;
+  if (boot.status === "failed") return <FullPageMessage title="Couldn't load this environment's modules" body={boot.message} />;
+  if (boot.status === "loading" || projectId !== project.id) return <FullPageMessage title="Opening Studio…" />;
   return <Studio key={project.id} projectId={project.id} />;
+}
+
+/** Resolver errors, with the JSON Pointer of each problem so the spec can be fixed. */
+function EnvErrors({ errors }: { errors: EnvError[] }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
+      <h1 className="text-body-2 font-semibold">This environment doesn't resolve</h1>
+      <ul className="max-w-2xl space-y-1.5 text-sm" data-testid="env-errors">
+        {errors.map((e, i) => (
+          <li key={i} className="rounded-md bg-warning-tint px-3 py-2">
+            <code className="font-mono text-code">{e.path || "/"}</code> · {e.message}
+            {e.suggestion && <span className="text-muted-foreground"> Did you mean <code className="font-mono">{e.suggestion}</code>?</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function Studio({ projectId }: { projectId: string }) {
   const { project } = useProject(projectId);
-  const items = useMemo(() => (project ? projectItems(project) : []), [project]);
-  const adapter = project ? adapterFor(project) : undefined;
+  const env = useStudio((s) => s.env)!;
+  const items = useMemo(() => (project ? env.dataKind.groupItems(project) : []), [project, env.dataKind]);
   const itemIndex = useStudio((s) => s.itemIndex);
   const aiOpen = useStudio((s) => s.aiOpen);
   const toggleAi = useStudio((s) => s.toggleAi);
@@ -57,36 +110,43 @@ function Studio({ projectId }: { projectId: string }) {
   // Picking a file in the phone drawer should reveal the canvas.
   useEffect(() => setSidebarOpen(false), [itemIndex]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  useStudioShortcuts(items, adapter?.tools ?? [], project?.labels ?? [], () => setShortcutsOpen(true));
-  useEffect(() => {
-    if (import.meta.env.DEV && project && adapter) findConflicts(project.viewer, adapter.tools).forEach((c) => console.warn(`[shortcuts] ${c}`));
-  }, [project, adapter]);
+  useEnvBindings(env);
+  useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
-  // Open on a tool this viewer actually offers (whole-slide starts in pan, not select).
+  // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
   const tool = useStudio((s) => s.tool);
   const setTool = useStudio((s) => s.setTool);
   useEffect(() => {
-    if (adapter && !adapter.tools.includes(tool)) setTool(adapter.tools[0]);
-  }, [adapter, tool, setTool]);
+    if (env.tools.length && !env.tools.some((t) => t.name === tool)) setTool(env.tools[0].name);
+  }, [env, tool, setTool]);
+
+  // The status line is also structured runtime state, so panels can read it.
+  const viewerStatus = useStudio((s) => s.viewerStatus);
+  const itemId = items[itemIndex]?.id;
+  useEffect(() => {
+    if (itemId) publish(itemId, "status", viewerStatus);
+  }, [itemId, viewerStatus]);
 
   if (!project) return null;
   const item = items[itemIndex];
+  const main = env.viewports[0];
+  const hasRight = env.panels.right.length > 0;
 
   const canvas = (
     <>
-      {adapter && <CanvasToolbar project={project} tools={adapter.tools} />}
+      <CanvasToolbar env={env} project={project} items={items} item={item} />
       <main className="min-h-0 flex-1" aria-label="Viewer">
-        {adapter && item ? (
-          <Suspense fallback={<FullPageMessage title="Loading viewer…" />}>
-            <adapter.Component key={item.id} project={project} item={item} />
-          </Suspense>
+        {item ? (
+          <ViewportHost key={item.id} env={env} viewport={main} project={project} item={item} />
         ) : (
-          <FullPageMessage title="No viewer for this data type yet" body="This project's format is planned for a later phase." />
+          <FullPageMessage title="Nothing to annotate" body="This project has no items for its data kind." />
         )}
       </main>
       <CanvasStatusBar items={items} />
     </>
   );
+  const left = <LeftSidebar env={env} project={project} items={items} item={item} />;
+  const right = <SlotTabs slot="right" env={env} project={project} items={items} item={item} />;
 
   return (
     <div className="flex h-full flex-col">
@@ -95,24 +155,29 @@ function Studio({ projectId }: { projectId: string }) {
         onRetrySave={save}
         onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
         onShowShortcuts={() => setShortcutsOpen(true)}
+        showAi={hasRight}
       />
-      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} viewer={project.viewer} tools={adapter?.tools ?? []} />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       ) : (
         <PanelGroup direction="horizontal" autoSaveId={`inkling-studio-${viewport}`} className="min-h-0 flex-1">
-          <Panel id="left" order={1} defaultSize={pct(280)} minSize={pct(240)} maxSize={pct(420)}>
-            <LeftSidebar project={project} items={items} />
-          </Panel>
-          <ResizeHandle />
+          {env.panels.left.length > 0 && (
+            <>
+              <Panel id="left" order={1} defaultSize={pct(280)} minSize={pct(240)} maxSize={pct(420)}>
+                {left}
+              </Panel>
+              <ResizeHandle />
+            </>
+          )}
           <Panel id="canvas" order={2} minSize={pct(360)} className="flex flex-col">
             {canvas}
           </Panel>
-          {aiOpen && viewport === "desktop" && (
+          {aiOpen && hasRight && viewport === "desktop" && (
             <>
               <ResizeHandle />
               <Panel id="ai" order={3} defaultSize={pct(340)} minSize={pct(300)} maxSize={pct(480)}>
-                <AiAssistantPanel project={project} item={item} />
+                {right}
               </Panel>
             </>
           )}
@@ -122,14 +187,14 @@ function Studio({ projectId }: { projectId: string }) {
       {viewport === "phone" && (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
           <SheetContent side="left" title="Files, labels and review" showClose={false}>
-            <LeftSidebar project={project} items={items} />
+            {left}
           </SheetContent>
         </Sheet>
       )}
-      {viewport !== "desktop" && (
+      {viewport !== "desktop" && hasRight && (
         <Sheet open={aiOpen} onOpenChange={(open) => open !== aiOpen && toggleAi()}>
           <SheetContent side="right" title="Inkling AI" showClose={false}>
-            <AiAssistantPanel project={project} item={item} />
+            {right}
           </SheetContent>
         </Sheet>
       )}
@@ -139,6 +204,25 @@ function Studio({ projectId }: { projectId: string }) {
 
 function ResizeHandle() {
   return <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-primary data-[resize-handle-state=drag]:bg-primary" />;
+}
+
+/** Bind the environment's commands and label colors for as long as it runs. */
+function useEnvBindings(env: ResolvedEnv) {
+  useEffect(() => {
+    setLabelClasses(labelClasses(env.labels));
+    setActiveCommands(env.commands, () => {
+      const s = useStudio.getState();
+      return {
+        ...env.context,
+        tool: s.tool,
+        "tool.options": Object.keys(s.toolOptions[s.tool] ?? {}),
+        "selection.count": s.selectedIds.length,
+        "env.tools": env.tools.map((t) => t.name),
+      };
+    });
+    if (import.meta.env.DEV) console.debug(`[inkling] environment ${env.id}: ${env.modules.map((m) => `${m.id}@${m.version}`).join(", ")}`);
+    return () => setActiveCommands([]);
+  }, [env]);
 }
 
 /** Debounced save; the indicator only shows "Saved" after the server returns the new revision. */
@@ -155,7 +239,8 @@ function useAutosave(projectId: string) {
       const snapshot = s.annotations;
       s.markSaving();
       try {
-        const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot });
+        const v2 = !snapshot.some((a) => LEGACY_TYPES.test(a.geometry.type));
+        const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot, ...(v2 ? { annotationsVersion: ANNOTATIONS_VERSION } : {}) });
         useStudio.getState().markSaved(doc.revision, snapshot);
       } catch {
         useStudio.getState().markError();
@@ -187,20 +272,23 @@ function useAutosave(projectId: string) {
 }
 
 /**
- * Studio-wide shortcuts. Viewers register at a higher priority and so run first;
- * anything they decline (e.g. Escape with no shape in progress) falls through to here.
+ * Studio-wide `inkling.core` commands. Renderers register at a higher priority and so run
+ * first; anything they decline (e.g. Escape with no shape in progress) falls through here.
  */
-function useStudioShortcuts(items: StudioItem[], tools: Tool[], labels: string[], showShortcuts: () => void) {
+function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts: () => void) {
   const s = useStudio.getState;
   const itemCount = items.length;
+  const labels = labelNames(env.labels);
+  const classes = labelClasses(env.labels);
   const resizeBrush = (factor: number) => {
-    const size = s().toolOptions.brushSize;
-    s().setToolOptions({ brushSize: Math.max(2, Math.min(120, Math.round(size * factor))) });
+    const st = s();
+    const size = brushSizeOf(st);
+    st.setToolOption(st.tool, "size", Math.max(2, Math.min(120, Math.round(size * factor))));
   };
   // Sliders and tabs own their arrow keys.
   const ownsArrows = (e: KeyboardEvent) => e.target instanceof Element && !!e.target.closest('[role="slider"],[role="tab"]');
 
-  useShortcuts(
+  useCommands(
     {
       undo: () => s().undo(),
       redo: () => s().redo(),
@@ -232,18 +320,27 @@ function useStudioShortcuts(items: StudioItem[], tools: Tool[], labels: string[]
       },
       pickLabel: (e) => {
         const label = labels[(digitOf(e) ?? 0) - 1];
-        if (!label) return false;
+        // A class with its own hotkey isn't also picked by position.
+        if (!label || classes.find((c) => c.id === label)?.hotkey) return false;
         s().setActiveLabel(label);
       },
       showShortcuts,
     },
-    { priority: SHELL_PRIORITY },
+    { priority: SHELL_PRIORITY, scope: "inkling.core" },
   );
 
+  // Tool and label-class hotkeys come from their contributions.
   useHotkeys((e) => {
-    const tool = tools.find((t) => matches(e, TOOL_KEYS[t]));
-    if (!tool) return false;
-    if (!e.repeat) s().setTool(tool);
-    return true;
+    const t = env.tools.find((x) => x.hotkey && matches(e, x.hotkey));
+    if (t) {
+      if (!e.repeat) s().setTool(t.name);
+      return true;
+    }
+    const c = classes.find((x) => x.hotkey && matches(e, x.hotkey));
+    if (c) {
+      s().setActiveLabel(c.id);
+      return true;
+    }
+    return false;
   }, SHELL_PRIORITY);
 }

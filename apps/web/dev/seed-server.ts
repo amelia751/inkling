@@ -1,16 +1,29 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 
 /**
  * Dev-only stand-in for the FastAPI backend (inkling.md §3.2):
- *   GET  /seed/*                      → files under seed-data/
- *   GET  /api/annotations/:projectId  → saved annotation document (or empty)
- *   PUT  /api/annotations/:projectId  → persist annotation document
- * Annotations live in seed-data/.annotations/ so seed files are never modified.
+ *   GET   /seed/*                       → files under seed-data/
+ *   GET   /api/annotations/:projectId   → saved annotation document (or empty)
+ *   PUT   /api/annotations/:projectId   → persist annotation document
+ *   GET   /api/catalog                  → module / contribution catalogue (agent surface)
+ *   GET   /api/catalog/schema           → environment JSON Schema with registered-id enums
+ *   POST  /api/environments/validate    → resolve a spec; structured errors
+ *   GET   /api/environments/:projectId  → saved environment edits ({ environment: null } if none)
+ *   PUT   /api/environments/:projectId  → replace (validated); { revision, environment, author }
+ *   PATCH /api/environments/:projectId  → RFC 6902 JSON Patch (validated); { revision?, patch, author }
+ *   GET   /api/environments/:projectId/history → every saved revision with author and time
+ * Annotations and environments live in seed-data/.annotations/ and .environments/ so seed
+ * files are never modified. Validation runs the app's own registry and resolver through
+ * Vite's SSR loader (src/server-entry.ts).
  */
+type ServerApi = typeof import("../src/server-entry");
+
 export function seedServer(seedRoot: string): Plugin {
   const annotationsDir = path.join(seedRoot, ".annotations");
+  const environmentsDir = path.join(seedRoot, ".environments");
   const types: Record<string, string> = {
     ".json": "application/json",
     ".jpeg": "image/jpeg",
@@ -52,6 +65,10 @@ export function seedServer(seedRoot: string): Plugin {
         fs.createReadStream(file).pipe(res);
       });
 
+      const api = () => server.ssrLoadModule("/src/server-entry.ts") as Promise<ServerApi>;
+      server.middlewares.use("/api/catalog", (req, res) => handleCatalog(req, res, api));
+      server.middlewares.use("/api/environments", (req, res) => handleEnvironments(req, res, api, environmentsDir, seedRoot));
+
       server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];
         if (!/^[a-z0-9-]+$/.test(id)) {
@@ -86,4 +103,101 @@ export function seedServer(seedRoot: string): Plugin {
       });
     },
   };
+}
+
+function sendJson(res: ServerResponse, status: number, body: unknown) {
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json");
+  res.end(JSON.stringify(body));
+}
+
+function readBody(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => {
+      try {
+        resolve(body ? JSON.parse(body) : undefined);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+async function handleCatalog(req: IncomingMessage, res: ServerResponse, api: () => Promise<ServerApi>) {
+  if (req.method !== "GET") return sendJson(res, 405, { error: "method not allowed" });
+  const m = await api();
+  const sub = (req.url ?? "/").split("?")[0];
+  if (sub === "/schema") return sendJson(res, 200, m.schema());
+  if (sub === "/prompt") {
+    res.setHeader("Content-Type", "text/markdown");
+    return res.end(m.prompt());
+  }
+  return sendJson(res, 200, m.catalog());
+}
+
+interface EnvDoc {
+  revision: number;
+  environment: unknown;
+  savedAt?: string;
+  author?: string;
+}
+
+async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api: () => Promise<ServerApi>, dir: string, seedRoot: string) {
+  const parts = (req.url ?? "").split("?")[0].split("/").filter(Boolean);
+  try {
+    const m = await api();
+    if (parts[0] === "validate" && req.method === "POST") {
+      const r = m.validate(await readBody(req));
+      return sendJson(res, r.ok ? 200 : 422, r);
+    }
+    const id = parts[0] ?? "";
+    if (!/^[a-z0-9-]+$/.test(id)) return sendJson(res, 400, { error: "bad project id" });
+    const file = path.join(dir, `${id}.json`);
+    const historyFile = path.join(dir, `${id}.history.jsonl`);
+    const current = (): EnvDoc => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { revision: 0, environment: null });
+
+    if (parts[1] === "history" && req.method === "GET") {
+      const lines = fs.existsSync(historyFile) ? fs.readFileSync(historyFile, "utf8").trim().split("\n").filter(Boolean) : [];
+      return sendJson(res, 200, lines.map((l) => JSON.parse(l)));
+    }
+    if (req.method === "GET") return sendJson(res, 200, current());
+
+    const save = (environment: unknown, author: string) => {
+      const doc: EnvDoc = { revision: current().revision + 1, environment, savedAt: new Date().toISOString(), author };
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, JSON.stringify(doc, null, 2));
+      fs.appendFileSync(historyFile, JSON.stringify(doc) + "\n");
+      return doc;
+    };
+    const body = (await readBody(req)) as { revision?: number; environment?: unknown; patch?: unknown; author?: string } | undefined;
+    if (!body) return sendJson(res, 400, { error: "missing body" });
+    const cur = current();
+    // Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
+    if (body.revision !== undefined && body.revision !== cur.revision) return sendJson(res, 409, { error: "revision conflict", current: cur });
+    const author = body.author ?? "local-expert";
+
+    if (req.method === "PUT") {
+      const r = m.validate(body.environment);
+      if (!r.ok) return sendJson(res, 422, r);
+      return sendJson(res, 200, save(body.environment, author));
+    }
+    if (req.method === "PATCH") {
+      const base = cur.environment ?? manifestEnvironment(seedRoot, id, m);
+      if (!base) return sendJson(res, 404, { error: `no project "${id}"` });
+      const r = m.patch(base as never, body.patch as never);
+      if (!r.ok) return sendJson(res, 422, r);
+      return sendJson(res, 200, save(r.spec, author));
+    }
+    return sendJson(res, 405, { error: "method not allowed" });
+  } catch (e) {
+    return sendJson(res, 400, { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+function manifestEnvironment(seedRoot: string, id: string, m: ServerApi): unknown {
+  const manifest = JSON.parse(fs.readFileSync(path.join(seedRoot, "manifest.json"), "utf8")) as { projects: { id: string }[] };
+  const raw = manifest.projects.find((p) => p.id === id);
+  return raw ? m.normalizeProject(raw as never).environment : null;
 }

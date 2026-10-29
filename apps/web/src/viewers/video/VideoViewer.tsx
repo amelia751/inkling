@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ChevronLeftIcon as ChevronLeft, ChevronRightIcon as ChevronRight, CopyIcon as Copy, KeyframeIcon as Diamond, HideIcon as EyeOff, PauseIcon as Pause, PlayIcon as Play, LoopIcon as Repeat, FitIcon as Scan, SkipBackIcon as SkipBack, SkipForwardIcon as SkipForward, SettingsIcon as SlidersHorizontal, RegionIcon as SquareDashed, StepBackIcon as StepBack, StepForwardIcon as StepForward, CloseIcon as X, ZoomInIcon as ZoomIn, ZoomOutIcon as ZoomOut } from "@/components/icons";
@@ -59,7 +60,7 @@ function VideoStage({ project, item }: ViewerProps) {
   const asset = item.assets[0];
   const fps = asset.fps ?? 25;
   const url = seedUrl(asset.path);
-  const labels = useMemo(() => project.labels ?? [], [project.labels]);
+  const labels = useMemo(() => labelNames(project.labels), [project.labels]);
 
   const tool = useStudio((s) => s.tool);
   const activeLabel = useStudio((s) => s.activeLabel);
@@ -663,7 +664,8 @@ function VideoStage({ project, item }: ViewerProps) {
           if (g.type === "track") return g.keyframes.map((k) => k.frame);
           if (g.type === "event") return [g.frame];
           if (g.type === "segment") return [Math.round(g.start * fps)];
-          return "frame" in g && g.frame !== undefined ? [g.frame] : [];
+          const frame = (g as { frame?: number }).frame;
+          return typeof frame === "number" ? [frame] : [];
         });
     const sorted = [...new Set(marks)].sort((a, b) => a - b);
     const next = dir > 0 ? sorted.find((f) => f > cur) : sorted.reverse().find((f) => f < cur);

@@ -1,7 +1,8 @@
+import { labelNames } from "@/platform/environment";
 import OpenSeadragon from "openseadragon";
 import { seedUrl } from "@/lib/api";
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
-import { isEditable, newAnnotation, useStudio, visibleFor, type Tool } from "@/stores/studio";
+import { brushSizeOf, isEditable, newAnnotation, useStudio, visibleFor, type Tool } from "@/stores/studio";
 import type { Annotation, Geometry, Project, Pt, SeedAsset, StudioItem } from "@/types";
 import { drawHandles, CLOSE_RADIUS } from "@/viewers/shared/draw";
 import { hitEdge, pathLength, pointInPolygon, polygonArea, simplify } from "@/viewers/shared/geometry";
@@ -140,7 +141,7 @@ export class PathologyController {
     asset: SeedAsset,
     private onUi: (ui: UiState) => void,
   ) {
-    this.labels = project.labels ?? [];
+    this.labels = labelNames(project.labels);
     this.mpp = asset.mpp ?? null;
     this.objective = Number(asset.magnification) || 40;
     this.imageW = asset.width ?? 1;
@@ -227,8 +228,8 @@ export class PathologyController {
         this.request(true);
         if (s.selectedId !== prev.selectedId) this.revealSelection();
       }
-      if (s.overlayOpacity !== prev.overlayOpacity || s.toolOptions.outlineOnly !== prev.toolOptions.outlineOnly || s.lockedLabels !== prev.lockedLabels) this.request(true);
-      if (s.toolOptions.brushSize !== prev.toolOptions.brushSize || s.activeLabel !== prev.activeLabel) this.request(false);
+      if (s.overlayOpacity !== prev.overlayOpacity || s.outlineOnly !== prev.outlineOnly || s.lockedLabels !== prev.lockedLabels) this.request(true);
+      if (brushSizeOf(s) !== brushSizeOf(prev) || s.activeLabel !== prev.activeLabel) this.request(false);
       if (s.tool !== prev.tool) {
         this.cancelDraft();
         this.updateCursor();
@@ -362,7 +363,7 @@ export class PathologyController {
     this.viewer.drawer.canvas.style.filter = parts.join(" ");
   }
 
-  // Keyboard: bound by id through useShortcuts (lib/shortcuts.ts). Each returns false to decline.
+  // Keyboard: bound by command id through useCommands (modules/wsi/manifest.ts). Each returns false to decline.
 
   /** Esc: cancel the shape / edit / area selection in progress; otherwise falls through to deselect. */
   cancelShape(): boolean {
@@ -916,7 +917,7 @@ export class PathologyController {
 
   private brushDown(erase: boolean, p: Pt, screen: Pt, shift: boolean) {
     const s = this.store;
-    const radius = s.toolOptions.brushSize / 2 / this.view.scale;
+    const radius = brushSizeOf(s) / 2 / this.view.scale;
     const sel = this.selectedEntry();
     let addTo: string | null = null;
     // QuPath: a stroke that starts inside the selected region (or any stroke with Shift) edits it.
@@ -1018,7 +1019,7 @@ export class PathologyController {
     this.lastStats = drawScene(ctx, this.dpr, this.view, this.scene, {
       labels: this.labels,
       opacity: s.overlayOpacity,
-      outlineOnly: s.toolOptions.outlineOnly,
+      outlineOnly: s.outlineOnly,
       showNames: this.ui.showNames,
       skip: this.skipSet(),
       mpp: this.mpp,
@@ -1138,7 +1139,7 @@ export class PathologyController {
 
     // Brush cursor.
     if ((s.tool === "brush" || s.tool === "eraser") && this.hover) {
-      const r = s.toolOptions.brushSize / 2;
+      const r = brushSizeOf(s) / 2;
       ctx.save();
       ctx.beginPath();
       ctx.arc(this.hover[0], this.hover[1], r, 0, Math.PI * 2);
@@ -1235,7 +1236,7 @@ export class PathologyController {
     for (const e of list) {
       if (e.kind === "mark") continue;
       const path = pathFor(e, lod);
-      if (e.kind === "region" && !s.toolOptions.outlineOnly) {
+      if (e.kind === "region" && !s.outlineOnly) {
         ctx.fillStyle = resolveLabelColor(this.labels, e.a.label, 0.3 * s.overlayOpacity);
         ctx.fill(path, "evenodd");
       }
@@ -1274,7 +1275,7 @@ export class PathologyController {
     }
     const path = pathFor(e, lodFor(v.scale));
     v.apply(ctx, dpr);
-    if (e.kind === "region" && !s.toolOptions.outlineOnly) {
+    if (e.kind === "region" && !s.outlineOnly) {
       ctx.fillStyle = resolveLabelColor(this.labels, e.a.label, 0.32 * s.overlayOpacity);
       ctx.fill(path, "evenodd");
     }

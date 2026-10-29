@@ -1,7 +1,33 @@
-/** Stable label-class colors, drawn from the theme's categorical chart tokens. */
+import type { LabelClass } from "@/platform/environment";
+
+/**
+ * Label-class colors. A class's own `color` from the environment wins (a CSS color, or a
+ * palette slot `chart-1`…`chart-5`); otherwise classes take the theme's categorical chart
+ * tokens by position, so colors follow light and dark mode.
+ */
 const PALETTE = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"];
 
+let classColors = new Map<string, string>();
+
+/** Called by the Studio when an environment loads. */
+export function setLabelClasses(classes: LabelClass[]): void {
+  classColors = new Map(classes.filter((c) => c.color).map((c) => [c.id, c.color!]));
+}
+
+const slot = (color: string) => /^chart-[1-5]$/.test(color) ? `--${color}` : null;
+
+/** `#rgb` / `#rrggbb` with an alpha, for canvases and CSS alike; other CSS colors pass through. */
+function withAlpha(color: string, alpha: number): string {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color);
+  if (!m) return alpha === 1 ? color : `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)`;
+  const hex = m[1].length === 3 ? [...m[1]].map((c) => c + c).join("") : m[1];
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function labelColor(labels: string[], label: string, alpha = 1): string {
+  const own = classColors.get(label);
+  if (own) return slot(own) ? `hsl(var(${slot(own)}) / ${alpha})` : withAlpha(own, alpha);
   const i = Math.max(0, labels.indexOf(label));
   return `hsl(var(${PALETTE[i % PALETTE.length]}) / ${alpha})`;
 }
@@ -16,12 +42,16 @@ export function resolveToken(name: string, alpha = 1): string {
 }
 
 export function resolveLabelColor(labels: string[], label: string, alpha = 1): string {
+  const own = classColors.get(label);
+  if (own) return slot(own) ? resolveToken(slot(own)!, alpha) : withAlpha(own, alpha);
   const i = Math.max(0, labels.indexOf(label));
   return resolveToken(PALETTE[i % PALETTE.length], alpha);
 }
 
-/** Convert a resolved `hsl(h s% l% / a)` string to 0–255 RGB for writing into ImageData. */
+/** Convert a resolved `hsl(h s% l% / a)` (or `rgba(…)`) string to 0–255 RGB for writing into ImageData. */
 export function hslToRgb(color: string): [number, number, number] {
+  const rgb = color.match(/rgba?\(\s*([\d.]+),\s*([\d.]+),\s*([\d.]+)/);
+  if (rgb) return [+rgb[1], +rgb[2], +rgb[3]];
   const m = color.match(/hsl\(\s*([\d.]+)\s+([\d.]+)%\s+([\d.]+)%/);
   if (!m) return [255, 255, 255];
   const h = +m[1] / 360, s = +m[2] / 100, l = +m[3] / 100;

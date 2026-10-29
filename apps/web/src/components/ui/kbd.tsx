@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { comboParts, SHORTCUTS, type ShortcutDef, type ShortcutId } from "@/lib/shortcuts"
+import { comboParts, resolveShortcut, type ShortcutId } from "@/lib/shortcuts"
 import { cn } from "@/lib/utils"
 
 /** Gravity Hotkey chip: body-1 text, 1px 5px padding, 3px radius. `dark` sits on dark tooltips. */
@@ -22,7 +22,7 @@ function Kbd({ className, dark = false, ...props }: React.HTMLAttributes<HTMLEle
  * Shows the first combo only; the "?" sheet lists alternates.
  */
 function Shortcut({ id, combo, dark, className }: { id?: ShortcutId; combo?: string; dark?: boolean; className?: string }) {
-  const def: ShortcutDef | undefined = id ? SHORTCUTS[id] : undefined
+  const def = id ? resolveShortcut(id) : undefined
   const parts = def?.display ? [def.display] : comboParts(combo ?? def?.keys[0] ?? "")
   return (
     <span className={cn("inline-flex shrink-0 items-center gap-0.5", className)}>

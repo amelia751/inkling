@@ -39,7 +39,9 @@ Build a **React + TypeScript + Vite** browser application, with a **Cornerstone3
 | Whole-slide pathology | SVS, OME-TIFF, DICOM WSI | Tile-based pan/zoom at multiple resolutions | Tissue regions, cells, counts | P2/P3 |
 | Signals/clinical tables | ECG, waveform, CSV | Waveforms, structured forms | Interval markers, events, labels | Later |
 
-**Product rule:** the creator chooses a task (e.g., “mark abnormal areas”), not a coordinate system, serialization format, or library. The system auto-detects data type and launches an appropriate adapter. The adapters share a dataset/annotation API, not a universal renderer.
+**Product rule:** the creator chooses a task (e.g., “mark abnormal areas”), not a coordinate system, serialization format, or library. The system auto-detects data type and boots an **environment** for it. Medical families are first-class but are *presets*, not hardcoded code paths: the same platform boots non-medical data (shelf photos, drone video, sensor CSV, satellite tiles) from environment JSON alone.
+
+**Module contract:** modules share a dataset/annotation API (the studio store, core geometries, the runtime context), not a universal renderer. Each module ships its own renderer for its data family and contributes tools, commands, panels, inspectors and exporters around it; the shell never knows which renderer is mounted. See `docs/modules.md`.
 
 ## 3. Technology stack
 
@@ -78,22 +80,29 @@ pnpm add -D typescript vite @vitejs/plugin-react vitest \
 
 Use actual shadcn CLI generation for UI primitives, rather than assuming every shadcn component comes from a single packaged UI dependency. Verify a compatible Tailwind configuration.
 
-**Viewer design:** `ViewerAdapter` is the internal Inkling contract. Start with `Image2DAdapter`, add `DicomStackAdapter` and `Volume3DAdapter`; later implement `PathologyAdapter` and `TemporalAdapter`. Do **not** fork the entire OHIF viewer unless a concrete requirement emerges; use OHIF as a reference/prototype and Cornerstone3D as the SDK.
+**Viewer design: modules, environments, presets.** Do **not** fork OHIF; copy its extension/mode pattern (and VS Code `contributes` + `when`, Label Studio `name`/`toName`, JupyterLab `requires`). Cornerstone3D remains the SDK for radiology renderers.
+
+- **Platform** (`apps/web/src/platform/`): module contract, registry, environment schema (zod), resolver with structured errors, `when`-clause evaluator, runtime context, command registry, agent catalogue. No domain code.
+- **Kits** (`kits/`): domain-neutral building blocks: 2D vector overlay, viewport chrome, timeline, file I/O (NIfTI, DICOM, WFDB, video), Cornerstone glue.
+- **Modules** (`modules/<id>/`): a pure-data `manifest.ts` plus a lazy `load()` returning implementations keyed by contribution id. Contributions are addressed `<module>.<type>.<name>`, e.g. `inkling.wsi.renderers.osd`.
+- **Environments**: JSON documents (seed manifest, `platform/presets/*.json`, or agent-written) that pick modules and configure them. Validated against a JSON Schema generated from the live registry.
 
 ```ts
-export type ViewerKind = 'image-2d' | 'dicom-stack' | 'volume-3d' | 'pathology' | 'temporal';
-
-export interface ViewerAdapter {
-  kind: ViewerKind;
-  canOpen(asset: AssetDescriptor): boolean;
-  mount(element: HTMLElement, asset: AssetDescriptor): Promise<void>;
-  setActiveTool(tool: AnnotationTool): void;
-  exportDraftAnnotations(): Promise<AnnotationDraft[]>;
-  unmount(): void;
+// platform/module.ts (abridged)
+export interface ModuleManifest {
+  id: string; version: string; title: string; description: string;
+  requires?: string[];
+  contributes: { dataKinds?; renderers?; geometries?; tools?; commands?; panels?;
+                 inspectors?; exporters?; labelControls?; reviewRules?; presets? };
+  load?: () => Promise<ModuleImpl>;          // renderers, panels, inspectors, exporters
 }
+
+// An environment: medical presets are just `extends`.
+{ "extends": "preset:pathology",
+  "labels": [{ "name": "tissue", "control": "PolygonLabels", "classes": [{ "id": "tumor", "color": "#e66" }] }] }
 ```
 
-**Note:** This is an Inkling interface proposal, not a Cornerstone library API.
+`ViewerAdapter`/`ViewerKind` (the earlier proposal) are retired; the six original viewers became the presets `image-2d`, `volume-3d`, `ecg`, `video`, `cine-4d` and `pathology`.
 
 ### 3.2 Backend and workers
 

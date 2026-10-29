@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { useStudio } from "@/stores/studio";
 import type { ViewerAdapter } from "@/viewers/ViewerAdapter";
 import { Cine4DViewer } from "./Cine4DViewer";
@@ -19,7 +20,7 @@ export const cine4dAdapter: ViewerAdapter = {
     if (g.type === "phase") {
       return [["Phase", g.phase === "ED" ? "End-diastole" : "End-systole"], ["Frame", String(g.frame + 1)]];
     }
-    const s = structures(project.labels ?? []);
+    const s = structures(labelNames(project.labels));
     const role = a.label === s.lv ? "LV endocardium" : a.label === s.rv ? "RV endocardium" : a.label === s.myo ? "Myocardium" : a.label;
     if (isContour(a)) {
       const geo = a.geometry;

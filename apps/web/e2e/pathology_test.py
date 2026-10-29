@@ -509,7 +509,7 @@ def brush_merge_and_eraser_hole(p: P):
     assert p.sel()["id"] == bid
     p.tool("b")
     s = p.scale()
-    brush_img = p.st.store("s => s.toolOptions.brushSize") / s
+    brush_img = p.st.store("s => s.toolOptions.brush.size") / s
     p.drag_img((cx + 400, cy), (cx + 2200, cy))
     a = p.anns()
     assert len(a) == 1 and a[0]["id"] == bid and a[0]["geometry"]["type"] == "polygon", a

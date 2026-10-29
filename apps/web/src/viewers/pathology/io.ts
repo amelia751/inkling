@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { hslToRgb, resolveLabelColor } from "@/lib/labels";
 import { newAnnotation } from "@/stores/studio";
 import type { Annotation, Geometry, Project, Pt, StudioItem } from "@/types";
@@ -68,7 +69,7 @@ function measurementsOf(a: Annotation, mpp: number | null): Record<string, numbe
  * pixels. Points are grouped per class into one MultiPoint annotation, as QuPath's points tool does.
  */
 export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotations: Annotation[]) {
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const byId = new Map(items.map((i) => [i.id, i]));
   const features: Feature[] = [];
   const points = new Map<string, { item: string; label: string; coords: number[][] }>();
@@ -181,7 +182,7 @@ const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").repl
  * Polygons, polylines Splines, length measurements Measurements, and each class's points one PointSet.
  */
 export function toAsapXml(project: Project, items: StudioItem[], annotations: Annotation[]): string {
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const ids = new Set(items.map((i) => i.id));
   const lines: string[] = [];
   const groups = new Set<string>();
@@ -227,7 +228,7 @@ export function toAsapXml(project: Project, items: StudioItem[], annotations: An
 
 /** One row per slide × class: point count, region count and total region area. */
 export function toCountsCsv(project: Project, items: StudioItem[], annotations: Annotation[]): string {
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const rows = ["slide,class,points,regions,region_area,area_unit,points_per_mm2"];
   for (const item of items) {
     const mpp = mppOf(item);

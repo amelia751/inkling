@@ -10,6 +10,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { fetchAnnotations } from "@/lib/api";
 import { projectItems } from "@/lib/items";
+import { envOf } from "@/lib/environment";
+import { labelNames } from "@/platform/environment";
 import { FormatExports } from "@/components/studio/FormatExports";
 import { cn } from "@/lib/utils";
 import { FullPageMessage, useProject } from "./shared";
@@ -22,18 +24,21 @@ export function ExportPage() {
   const [rights, setRights] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const env = project ? envOf(project) : undefined;
 
   const bundle = useMemo(() => {
     if (!project || !saved.data) return null;
     const items = projectItems(project);
     return {
+      annotationsVersion: saved.data.annotationsVersion ?? 1,
       format: "inkling-annotations/v1",
       exportedAt: new Date().toISOString(),
       dataset: {
         id: project.id,
         title: project.title,
-        task: project.task,
-        labels: project.labels,
+        task: env?.task ?? project.task,
+        labels: labelNames(project.labels),
+        labelGroups: project.labels,
         source: project.source,
         license: project.license,
         revision: saved.data.revision,
@@ -42,8 +47,10 @@ export function ExportPage() {
       },
       items: items.map((i) => ({ id: i.id, name: i.name, files: i.assets.map((a) => ({ path: a.path, sha256: a.sha256 })), sourceLabel: i.sourceLabel })),
       annotations: saved.data.annotations,
+      // Exactly which modules (and versions) produced this export.
+      environment: env ? { id: env.id, extends: env.spec.extends, modules: env.modules, dataKind: env.dataKind.id, renderers: env.viewports.map((v) => v.renderer.id), tools: env.tools.map((t) => t.id) } : null,
     };
-  }, [project, saved.data]);
+  }, [project, saved.data, env]);
 
   if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export…" loading />;
   if (!project || !bundle) return <FullPageMessage title="Dataset not found" />;

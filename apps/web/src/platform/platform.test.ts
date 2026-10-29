@@ -189,3 +189,16 @@ describe("catalog", () => {
     expect(root.properties.extends.anyOf[0].enum).toEqual(["preset:image"]);
   });
 });
+
+describe("shadows", () => {
+  it("takes only the overlapping keys", () => {
+    const r = createRegistry([
+      coreFixture,
+      imageFixture,
+      { ...videoFixture, id: "test.video2", contributes: { ...videoFixture.contributes, commands: [{ id: "step", label: "Step", group: "Playback", keys: ["ArrowRight"], shadows: ["test.core.commands.nextItem"], description: "Step" }] } },
+    ]);
+    const { env } = resolveEnvironment({ extends: "preset:image", modules: { "test.video2": "*" } }, r);
+    expect(env!.commands.find((c) => c.name === "nextItem")!.keys).toEqual([]);
+    expect(env!.commands.find((c) => c.name === "step")!.keys).toEqual(["ArrowRight"]);
+  });
+});

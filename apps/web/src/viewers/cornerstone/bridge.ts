@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { eventTarget, type Types } from "@cornerstonejs/core";
 import simplify from "simplify-js";
 import * as tools from "@cornerstonejs/tools";
@@ -243,7 +244,7 @@ export class CornerstoneBridge {
   private labels: string[];
 
   constructor(private o: BridgeOptions) {
-    this.labels = o.project.labels ?? [];
+    this.labels = labelNames(o.project.labels);
   }
 
   start() {
@@ -257,7 +258,7 @@ export class CornerstoneBridge {
         this.reconcile();
       }
       if (s.selectedIds !== prev.selectedIds || s.selectedId !== prev.selectedId) this.syncSelection();
-      if (s.overlayOpacity !== prev.overlayOpacity || s.toolOptions.outlineOnly !== prev.toolOptions.outlineOnly) this.applySegStyle();
+      if (s.overlayOpacity !== prev.overlayOpacity || s.outlineOnly !== prev.outlineOnly) this.applySegStyle();
     });
     this.reconcile();
     this.syncSelection();
@@ -617,11 +618,11 @@ export class CornerstoneBridge {
       tools.segmentation.config.style.setStyle(
         { segmentationId: segId, type },
         {
-          renderFill: !s.toolOptions.outlineOnly,
+          renderFill: !s.outlineOnly,
           fillAlpha: 0.5 * s.overlayOpacity,
           fillAlphaInactive: 0.35 * s.overlayOpacity,
           renderOutline: true,
-          outlineWidth: s.toolOptions.outlineOnly ? 2 : 1,
+          outlineWidth: s.outlineOnly ? 2 : 1,
           outlineOpacity: Math.max(0.3, s.overlayOpacity),
         },
       );

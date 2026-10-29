@@ -1,4 +1,4 @@
-export type ViewerKind = "image-2d" | "volume-3d" | "signal" | "temporal" | "cine-4d" | "pathology";
+import type { EnvironmentSpec, LabelGroup } from "@/platform/environment";
 
 export interface SeedAsset {
   path: string;
@@ -29,9 +29,15 @@ export interface SeedAsset {
 export interface Project {
   id: string;
   title: string;
-  viewer: ViewerKind;
+  /**
+   * The environment that boots this project's Studio: a preset reference plus project
+   * specifics (labels, task). Seed manifests written before environments existed carry
+   * `viewer` + `labels: string[]` instead; lib/api.ts migrates them on load.
+   */
+  environment: EnvironmentSpec;
   task?: string;
-  labels?: string[];
+  /** The environment's label groups (kept in sync with `environment.labels`). */
+  labels?: LabelGroup[];
   source: string;
   license: string;
   status: "available" | "bring-your-own";
@@ -81,7 +87,21 @@ export interface TrackKeyframe {
   points?: Pt[];
 }
 
-export type Geometry =
+/**
+ * Annotation geometry. Core geometries are domain-neutral and bare-named; module
+ * geometries are namespaced (`<module>.<name>`) and validated by the registry. Domain
+ * vocabulary (ECG beat codes, cardiac phases…) belongs in `Annotation.attributes`, refined
+ * by the owning module's `geometries` contribution (see migrations/annotations-v1-to-v2.ts).
+ */
+export type Geometry = CoreGeometry | ModuleGeometry | LegacyGeometry;
+
+/** A module-defined geometry, e.g. `{ type: "inkling.text.span", start, end }`. */
+export interface ModuleGeometry {
+  type: `${string}.${string}`;
+  [k: string]: unknown;
+}
+
+export type CoreGeometry =
   | { type: "class" }
   // ---- 2D shapes in image pixels ----
   | ({ type: "box"; x: number; y: number; w: number; h: number } & Placement)
@@ -95,11 +115,9 @@ export type Geometry =
   | ({ type: "spline"; points: Pt[] } & Placement)
   /** Single 2D location, e.g. an anatomical landmark. */
   | ({ type: "keypoint"; x: number; y: number } & Placement)
-  /** Single location in image pixels, e.g. a cell on a whole-slide image. */
-  | { type: "mark"; x: number; y: number }
   // ---- Radiology (Cornerstone3D) ----
   /** 3D landmark in voxel indices. */
-  | { type: "point"; plane: Plane; slice: number; ijk: [number, number, number] }
+  | { type: "point3d"; plane: Plane; slice: number; ijk: [number, number, number] }
   /**
    * Measurement / ROI drawn with a Cornerstone3D tool. `points` are in image pixels for 2D
    * items and in world (patient LPS, mm) coordinates for volumes; `space` says which.
@@ -120,6 +138,24 @@ export type Geometry =
    * with background. `dims` is the full grid so a mask can be decoded without the image.
    */
   | ({ type: "mask"; dims: number[]; counts: number[]; voxels?: number; volumeMm3?: number } & Placement)
+  // ---- Time ----
+  /** A span on a time axis, in seconds; `channel` is a lead / signal name ("all" = every channel). */
+  | { type: "span"; start: number; end: number; channel?: string }
+  /** A point in time: seconds (`t`) or a frame index (`frame`); optional `channel`. */
+  | { type: "instant"; t?: number; frame?: number; channel?: string }
+  /** An object tracked across frames with keyframes; shapes in between are interpolated. */
+  | { type: "track"; shape: "box" | "polygon" | "keypoint"; keyframes: TrackKeyframe[] };
+
+/**
+ * Geometries from before the core vocabulary (annotations v1). Stored documents are
+ * rewritten into core geometries on load by migrations/annotations-v1-to-v2.ts; viewers
+ * still producing them are converted module by module (todo phase 6).
+ */
+export type LegacyGeometry =
+  /** Single location in image pixels, e.g. a cell on a whole-slide image. (v2: keypoint) */
+  | { type: "mark"; x: number; y: number }
+  /** 3D landmark in voxel indices. (v2: point3d) */
+  | { type: "point"; plane: Plane; slice: number; ijk: [number, number, number] }
   // ---- Signal (ECG) — times in seconds; lead "all" applies to every lead ----
   | { type: "interval"; lead: string; start: number; end: number }
   /** Beat fiducial (usually R peak) with a WFDB beat code (N, V, A, …). */
@@ -134,9 +170,7 @@ export type Geometry =
   /** Point-in-time event (e.g. polyp first seen), in frames. */
   | { type: "event"; frame: number }
   /** Cardiac phase marker for a cine study: which frame is end-diastole / end-systole. */
-  | { type: "phase"; phase: "ED" | "ES"; frame: number }
-  /** An object tracked across frames with keyframes; shapes in between are interpolated. */
-  | { type: "track"; shape: "box" | "polygon" | "keypoint"; keyframes: TrackKeyframe[] };
+  | { type: "phase"; phase: "ED" | "ES"; frame: number };
 
 export type GeometryType = Geometry["type"];
 
@@ -158,6 +192,8 @@ export interface Annotation {
 }
 
 export interface AnnotationDocument {
+  /** Geometry vocabulary version; absent means 1 (pre-core geometries). */
+  annotationsVersion?: number;
   revision: number;
   savedAt?: string;
   annotations: Annotation[];
@@ -166,6 +202,8 @@ export interface AnnotationDocument {
 /** A unit the expert works through in the file tree (one image, one MRI subject, one ECG). */
 export interface StudioItem {
   id: string;
+  /** Full id of the data kind contribution that grouped this item. */
+  dataKind?: string;
   name: string;
   group: string;
   assets: SeedAsset[];

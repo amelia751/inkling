@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { seedUrl } from "@/lib/api";
 import type { Annotation, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
@@ -48,7 +49,7 @@ export const cocoExporter: Exporter = {
   description: "Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels.",
   filename: (project) => `${project.id}-coco.json`,
   async build({ project, items, annotations }) {
-    const labels = project.labels ?? [];
+    const labels = labelNames(project.labels);
     const categories = labels.map((name, i) => ({ id: i + 1, name, supercategory: project.id }));
     const catId = (label: string) => labels.indexOf(label) + 1 || null;
     const sizes = new Map<string, [number, number]>();

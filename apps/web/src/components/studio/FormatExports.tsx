@@ -1,18 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExportIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { fetchAnnotations } from "@/lib/api";
 import { projectItems } from "@/lib/items";
 import type { Project } from "@/types";
-import { adapterFor } from "@/viewers/registry";
+import { envOf } from "@/lib/environment";
+import type { Exporter, ExporterImpl } from "@/platform/module";
+import { registry } from "@/platform/registry";
 
 /**
- * Standard-format downloads offered by the project's viewer (COCO, NIfTI masks, QuPath
- * GeoJSON, WFDB…). Always built from the server's saved revision, never unsaved edits.
+ * Standard-format downloads offered by the project's environment (COCO, NIfTI masks,
+ * QuPath GeoJSON, WFDB…). Always built from the server's saved revision, never unsaved edits.
  */
 export function FormatExports({ project, enabled }: { project: Project; enabled: boolean }) {
-  const exporters = (adapterFor(project)?.exporters ?? []).filter((e) => e.available?.(project) ?? true);
+  const env = envOf(project);
+  const [impls, setImpls] = useState<Exporter[] | null>(null);
+  useEffect(() => {
+    if (!env) return;
+    let live = true;
+    Promise.all(
+      env.exporters.map(async (c) => {
+        const impl = await registry.loadImpl<ExporterImpl>(c.id);
+        return { ...impl, id: c.id, label: c.label, description: c.description } as Exporter;
+      }),
+    ).then((list) => live && setImpls(list));
+    return () => {
+      live = false;
+    };
+  }, [env]);
+  const exporters = (impls ?? []).filter((e) => e.available?.(project) ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (!exporters.length) return null;
@@ -23,7 +40,7 @@ export function FormatExports({ project, enabled }: { project: Project; enabled:
     setError(null);
     try {
       const doc = await fetchAnnotations(project.id);
-      const blob = await ex.build({ project, items: projectItems(project), annotations: doc.annotations });
+      const blob = await ex.build({ project, items: projectItems(project), annotations: doc.annotations, env });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = ex.filename(project);

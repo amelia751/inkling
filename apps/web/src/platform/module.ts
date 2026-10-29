@@ -85,6 +85,11 @@ export interface CommandContribution extends ContributionBase {
   when?: string;
   /** Full command ids this one takes over wherever it is active (arrows step frames, not items). */
   replaces?: string[];
+  /**
+   * Full command ids this one takes its keys from; they stay bound to their other keys
+   * (video steps frames on ←/→ while PageDown still changes item).
+   */
+  shadows?: string[];
   /** Claims its key only in some state and otherwise falls through, so sharing a key is intended. */
   contextual?: boolean;
 }

@@ -1,6 +1,7 @@
+import { labelNames } from "@/platform/environment";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { CardiacIcon as HeartPulse, SpinnerIcon as Loader2, SidePanelIcon as PanelRight } from "@/components/icons";
-import { useShortcuts } from "@/lib/hotkeys";
+import { useCommands } from "@/lib/hotkeys";
 import { cn } from "@/lib/utils";
 import { isEditable, newAnnotation, useStudio, visibleFor } from "@/stores/studio";
 import type { Annotation, Geometry } from "@/types";
@@ -118,7 +119,7 @@ interface Hit {
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 
 export function SignalViewer({ project, item }: ViewerProps) {
-  const labels = useMemo(() => project.labels ?? [], [project.labels]);
+  const labels = useMemo(() => labelNames(project.labels), [project.labels]);
   const main = useCanvasSize();
   const ov = useCanvasSize();
   const size = main.size;
@@ -422,7 +423,7 @@ export function SignalViewer({ project, item }: ViewerProps) {
       s.select(hit.id);
       const a = mine.find((x) => x.id === hit.id)!;
       if (!isEditable(a, s.lockedLabels) || !host) return;
-      const lead = "lead" in a.geometry ? a.geometry.lead : undefined;
+      const lead = "lead" in a.geometry ? (a.geometry.lead as string) : undefined;
       drag.current = { kind: "edit", id: a.id, handle: hit.handle, orig: a.geometry, t0: t, panel: host, preview: a.geometry, snapLead: lead && a.geometry.type === "beat" ? (lead === "all" ? p?.lead : lead) : undefined };
       capture();
     };
@@ -697,7 +698,7 @@ export function SignalViewer({ project, item }: ViewerProps) {
       chosen: s.annotations.filter((a) => a.itemId === item.id && s.selectedIds.includes(a.id) && isEditable(a, s.lockedLabels)),
     };
   };
-  useShortcuts(
+  useCommands(
     {
       scrollWindow: (e) => {
         const step = e.shiftKey ? span : span * 0.1;
@@ -746,7 +747,7 @@ export function SignalViewer({ project, item }: ViewerProps) {
         else return false;
       },
     },
-    { enabled: !!rec },
+    { enabled: !!rec, scope: ["inkling.timeseries", "inkling.core"] },
   );
 
   // ---------------------------------------------------------------- render

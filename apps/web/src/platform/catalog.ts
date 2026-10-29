@@ -43,12 +43,39 @@ const jsonSchema = (s: z.ZodType | undefined) => {
   }
 };
 
+/** A minimal working spec fragment for a contribution, when its manifest doesn't give one. */
+function defaultExample(c: Registered<ContributionType>): unknown {
+  switch (c.kind) {
+    case "dataKinds":
+      return { data: { kind: c.id } };
+    case "renderers":
+      return { data: { kind: (c as Registered<"renderers">).consumes[0] }, viewports: [{ name: "main", renderer: c.id }] };
+    case "tools":
+      return { tools: ["inkling.core.tools.select", c.id] };
+    case "panels":
+      return { panels: { [(c as Registered<"panels">).slot]: [c.id] } };
+    case "exporters":
+      return { exporters: [c.id] };
+    case "reviewRules":
+      return { reviewRules: [c.id] };
+    case "commands":
+      return { keybindings: [{ command: c.id, keys: (c as Registered<"commands">).keys ?? [] }] };
+    case "labelControls":
+      return { labels: [{ name: "objects", control: c.name, classes: [{ id: "a" }, { id: "b" }] }] };
+    case "presets":
+      return { extends: `preset:${c.name}` };
+    default:
+      return undefined;
+  }
+}
+
 function entry(c: Registered<ContributionType>): CatalogEntry {
   const any = c as Registered<ContributionType> & Record<string, unknown>;
   const out: CatalogEntry = { id: c.id, type: c.kind, module: c.module, description: c.description };
   const copy = ["label", "consumes", "creates", "accepts", "space", "capabilities", "when", "slot", "hotkey", "keys", "geometries", "example"] as const;
   for (const k of copy) if (any[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = any[k];
   if (c.kind === "presets") out.example = (c as Registered<"presets">).spec;
+  out.example ??= defaultExample(c);
   if (c.kind === "tools" && (c as Registered<"tools">).optionsSchema) out.configSchema = jsonSchema((c as Registered<"tools">).optionsSchema);
   else if (c.configSchema) out.configSchema = jsonSchema(c.configSchema);
   if (c.kind === "geometries") out.label = (c as Registered<"geometries">).type;

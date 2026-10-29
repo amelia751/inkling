@@ -41,3 +41,8 @@ export function runtimeFor(itemId: string): RuntimeApi {
     get: (key) => getRuntime(itemId, key),
   };
 }
+
+/** Re-render whenever anything is published for an item (for readers that go through `runtime.get`). */
+export function useRuntimeVersion(itemId: string | undefined): Record<string, unknown> | undefined {
+  return useStore(runtimeStore, (s) => (itemId ? s.values[itemId] : undefined));
+}

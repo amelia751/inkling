@@ -3,13 +3,15 @@ import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { DoneIcon, ExportIcon, AnnotateIcon, WarningIcon } from "@/components/icons";
 import { AppLayout, PageHeading } from "@/components/layout/app-layout";
-import { describeGeometry, ProvenanceBadge } from "@/components/studio/provenance";
+import { describeGeometry, ProvenanceBadge } from "@/components/annotation/provenance";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { fetchAnnotations } from "@/lib/api";
 import { projectItems } from "@/lib/items";
 import { labelColor } from "@/lib/labels";
+import { envOf } from "@/lib/environment";
+import { labelNames } from "@/platform/environment";
 import { FullPageMessage, useProject } from "./shared";
 
 export function ReviewPage() {
@@ -27,16 +29,11 @@ export function ReviewPage() {
   if (saved.error || !saved.data) return <FullPageMessage title="Couldn't load annotations" body={String(saved.error)} />;
 
   const annotations = saved.data.annotations;
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
+  const env = envOf(project);
   const annotated = new Set(annotations.map((a) => a.itemId));
-  const unlabeled = items.filter((i) => !annotated.has(i.id));
-  const disagreements = project.task === "classification"
-    ? annotations.filter((a) => a.geometry.type === "class" && items.find((i) => i.id === a.itemId)?.sourceLabel && items.find((i) => i.id === a.itemId)?.sourceLabel !== a.label)
-    : [];
-  const issues = [
-    unlabeled.length > 0 && `${unlabeled.length} of ${items.length} items have no annotations yet.`,
-    disagreements.length > 0 && `${disagreements.length} image labels differ from the source dataset's label. Worth a second look.`,
-  ].filter(Boolean) as string[];
+  // Validation comes from the environment's review rules (modules/core/reviewRules.ts…).
+  const issues = env ? env.reviewRules.flatMap((r) => r.check({ env, items, annotations })).map((i) => i.message) : [];
   const rows = labelFilter === "all" ? annotations : annotations.filter((a) => a.label === labelFilter);
   const usedLabels = labels.filter((l) => annotations.some((a) => a.label === l));
 
@@ -118,7 +115,7 @@ export function ReviewPage() {
                       </span>
                     </td>
                     <td className="max-w-56 truncate px-2 pb-2.5 pt-[11px]" title={itemName.get(a.itemId)}>{itemName.get(a.itemId)}</td>
-                    <td className="whitespace-nowrap px-2 pb-2.5 pt-[11px] text-muted-foreground">{describeGeometry(a)}</td>
+                    <td className="whitespace-nowrap px-2 pb-2.5 pt-[11px] text-muted-foreground">{describeGeometry(a, env)}</td>
                     <td className="px-2 py-2"><ProvenanceBadge provenance={a.provenance} /></td>
                     <td className="tnum whitespace-nowrap pb-2.5 pl-2 pr-4 pt-[11px] text-right text-muted-foreground">{formatDate(a.createdAt)}</td>
                   </tr>

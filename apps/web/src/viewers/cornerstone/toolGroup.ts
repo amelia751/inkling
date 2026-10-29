@@ -1,7 +1,7 @@
 import type { Types } from "@cornerstonejs/core";
 import type { AnyViewport } from "./viewControls";
 import * as tools from "@cornerstonejs/tools";
-import type { Tool, ToolOptions } from "@/stores/studio";
+import type { Tool } from "@/stores/studio";
 import { ANNOTATION_TOOLS, CS_TOOL } from "./bridge";
 import { T } from "./init";
 
@@ -115,17 +115,17 @@ export function brushRadiusWorld(vp: AnyViewport, diameterPx: number): number {
 export function applyBrushOptions(
   tg: ToolGroup,
   viewport: AnyViewport | undefined,
-  options: ToolOptions,
+  options: { size: number; threshold: boolean },
   voiRange: { lower: number; upper: number } | undefined,
   sphere: boolean,
 ) {
   if (viewport) {
-    tools.utilities.segmentation.setBrushSizeForToolGroup(tg.id, brushRadiusWorld(viewport, options.brushSize));
+    tools.utilities.segmentation.setBrushSizeForToolGroup(tg.id, brushRadiusWorld(viewport, options.size));
   }
-  const fill = options.brushThreshold ? (sphere ? "THRESHOLD_INSIDE_SPHERE" : "THRESHOLD_INSIDE_CIRCLE") : sphere ? "FILL_INSIDE_SPHERE" : "FILL_INSIDE_CIRCLE";
+  const fill = options.threshold ? (sphere ? "THRESHOLD_INSIDE_SPHERE" : "THRESHOLD_INSIDE_CIRCLE") : sphere ? "FILL_INSIDE_SPHERE" : "FILL_INSIDE_CIRCLE";
   tg.setToolConfiguration(T.Brush, {
     activeStrategy: fill,
-    threshold: options.brushThreshold && voiRange ? { range: [voiRange.lower, voiRange.upper], isDynamic: false, dynamicRadius: 0 } : undefined,
+    threshold: options.threshold && voiRange ? { range: [voiRange.lower, voiRange.upper], isDynamic: false, dynamicRadius: 0 } : undefined,
   });
   tg.setToolConfiguration(T.Eraser, { activeStrategy: sphere ? "ERASE_INSIDE_SPHERE" : "ERASE_INSIDE_CIRCLE" });
 }

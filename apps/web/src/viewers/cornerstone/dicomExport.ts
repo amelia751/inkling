@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { cache, metaData, utilities as csUtils, type Types } from "@cornerstonejs/core";
 import { adaptersSEG, adaptersSR } from "@cornerstonejs/adapters";
 import { data as dcmjsData } from "dcmjs";
@@ -110,7 +111,7 @@ export async function buildDicomSeg({ project, item, annotations }: Ctx): Promis
   const images = imageIds.map((id) => cache.getImage(id)!);
   const { columns: w, rows: h } = images[0];
   const nz = imageIds.length;
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const scalar = new Uint8Array(w * h * nz);
   const masks = annotations.filter((a) => a.itemId === item.id && a.geometry.type === "mask");
   for (const a of masks) {

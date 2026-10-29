@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import type { Annotation, Project, Pt, StudioItem } from "@/types";
 import type { Exporter } from "@/viewers/ViewerAdapter";
 import { keyframeAt, shapeAt, sortKeyframes, trackNumbers, type Box, type TrackGeometry } from "./tracks";
@@ -68,7 +69,7 @@ const source = (a: Annotation) => (a.provenance === "ai-suggested" ? "auto" : a.
 function cvatXml(project: Project, item: StudioItem, annotations: Annotation[], taskId: number): string {
   const { frames } = videoTiming(item);
   const asset = item.assets[0];
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const out: string[] = [];
   out.push('<?xml version="1.0" encoding="utf-8"?>', "<annotations>", "  <version>1.1</version>", "  <meta>", "    <task>");
   out.push(`      <id>${taskId}</id>`, `      <name>${esc(`${project.title} · ${fileName(item)}`)}</name>`, `      <size>${frames}</size>`);
@@ -109,7 +110,7 @@ function cvatXml(project: Project, item: StudioItem, annotations: Annotation[], 
 
 function motCsv(project: Project, item: StudioItem, annotations: Annotation[]): string {
   const { frames } = videoTiming(item);
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const mine = annotations.filter((a) => a.itemId === item.id);
   const numbers = trackNumbers(mine);
   let nextId = Math.max(0, ...numbers.values()) + 1;
@@ -141,7 +142,7 @@ function temporalJson(project: Project, items: StudioItem[], annotations: Annota
     {
       format: "inkling-video-temporal",
       version: 1,
-      project: { id: project.id, title: project.title, labels: project.labels ?? [] },
+      project: { id: project.id, title: project.title, labels: labelNames(project.labels) },
       exportedAt: new Date().toISOString(),
       note: "Frames are 0-based; frame f spans [f/fps, (f+1)/fps) seconds. Segment endFrame is inclusive.",
       videos: items.map((item) => {

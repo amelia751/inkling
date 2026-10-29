@@ -1,3 +1,4 @@
+import { labelNames } from "@/platform/environment";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { VolumeIcon as Box, InvertIcon as Contrast, CopyIcon as Copy, ShowIcon as Eye, HideIcon as EyeOff, FlipHorizontalIcon as FlipHorizontal2, FlipVerticalIcon as FlipVertical2, ProjectionIcon as Layers, FitIcon as Maximize, RotateLeftIcon as RotateCcw, RotateRightIcon as RotateCw, CleanupIcon as Sparkles, InterpolateIcon as Wand2, SearchIcon as Search, FillIcon as Fill } from "@/components/icons";
 import {
@@ -14,7 +15,7 @@ import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume
 import { seedUrl } from "@/lib/api";
 import { matches, useHotkeys } from "@/lib/hotkeys";
 import { cn } from "@/lib/utils";
-import { LOCAL_AUTHOR, useStudio } from "@/stores/studio";
+import { brushSizeOf, LOCAL_AUTHOR, toolOption, useStudio } from "@/stores/studio";
 import type { Annotation, Plane } from "@/types";
 import { CanvasNotice } from "@/viewers/shared/CanvasNotice";
 import type { ViewerProps } from "@/viewers/ViewerAdapter";
@@ -213,7 +214,7 @@ let mountSeq = 0;
  * reference segmentation as a read-only overlay.
  */
 export default function Volume3DViewer({ project, item }: ViewerProps) {
-  const labels = project.labels ?? [];
+  const labels = labelNames(project.labels);
   const sequences = volumeSources(item.assets);
   const segAsset = item.assets.find((a) => a.sequence === "seg");
   const [sequence, setSequence] = useState(() => (sequences.find((a) => a.key === "flair") ?? sequences[0])?.key);
@@ -244,7 +245,8 @@ export default function Volume3DViewer({ project, item }: ViewerProps) {
   const readout = useRef<Readout | null>(null);
   const activeRef = useRef<Plane>("axial");
   const tool = useStudio((s) => s.tool);
-  const toolOptions = useStudio((s) => s.toolOptions);
+  const brushSize = useStudio(brushSizeOf);
+  const brushThreshold = useStudio((s) => toolOption(s, "brush", "threshold", false));
   const activeLabel = useStudio((s) => s.activeLabel);
   const setViewerStatus = useStudio((s) => s.setViewerStatus);
   const cells = cellsFor(layout, single);
@@ -748,9 +750,9 @@ export default function Volume3DViewer({ project, item }: ViewerProps) {
     if (!viewReady || !v) return;
     const tg = tools.ToolGroupManager.getToolGroup(v.toolGroupId);
     const vp = activeVp();
-    if (tg) applyBrushOptions(tg, vp, toolOptions, vp ? getVoi(vp) : undefined, sphere);
+    if (tg) applyBrushOptions(tg, vp, { size: brushSize, threshold: brushThreshold }, vp ? getVoi(vp) : undefined, sphere);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolOptions, viewReady, sphere, tick, activeCell]);
+  }, [brushSize, brushThreshold, viewReady, sphere, tick, activeCell]);
 
   useEffect(() => {
     const s = session.current;

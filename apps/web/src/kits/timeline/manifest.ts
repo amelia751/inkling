@@ -1,0 +1,18 @@
+import { tool } from "@/kits/tool-catalog";
+import { defineModule } from "@/platform/module";
+
+/** Time-axis tools for renderers with the `time` capability: spans and instants on a timeline. */
+const TIME = "'time' in renderer.capabilities";
+
+export default defineModule({
+  id: "inkling.timeline",
+  version: "1.0.0",
+  title: "Timeline tools",
+  description: "Label spans and point-in-time events on any renderer with a time axis.",
+  contributes: {
+    tools: [
+      tool("segment", { creates: "span", when: TIME, description: "Drag along the timeline to label a span" }),
+      tool("event", { creates: "instant", when: TIME, description: "Mark the current frame as an event" }),
+    ],
+  },
+});

@@ -473,7 +473,7 @@ def main() -> int:
         def t_nifti(st):
             button(st.page, "Copy to my mask").click()
             wait_for(lambda: len(masks(st, SUBJECT)) == 3, "masks")
-            raw = blob_from_exporter(st, "/src/viewers/volume3d/adapter.ts", "ad.volume3dAdapter.exporters.find(e => e.id === 'nifti-labelmap')")
+            raw = blob_from_exporter(st, "inkling.volume.exporters.nifti-labelmap")
             (out / "labels.nii.gz").write_bytes(raw)
             nii = gzip.decompress(raw)
             hdr = struct.unpack_from("<i8h", nii, 0)[0], struct.unpack_from("<8h", nii, 40), struct.unpack_from("<h", nii, 70)[0], struct.unpack_from("<f", nii, 108)[0]
@@ -481,7 +481,7 @@ def main() -> int:
             body = nii[352:]
             counts = {v: body.count(bytes([v])) for v in (1, 2, 4)}
             check(counts == {1: 20808, 2: 46447, 4: 32047}, counts)
-            js = json.loads(blob_from_exporter(st, "/src/viewers/volume3d/adapter.ts", "ad.volume3dAdapter.exporters.find(e => e.id === 'masks-json')"))
+            js = json.loads(blob_from_exporter(st, "inkling.volume.exporters.masks-json"))
             sub = next(s for s in js["subjects"] if s["subject"] == SUBJECT)
             check({m["label"]: m["voxels"] for m in sub["masks"]} == REF_COUNTS, sub["masks"])
             return f"NIfTI uint8 240×240×155 BraTS values {counts}; masks JSON ok"
@@ -543,7 +543,7 @@ def main() -> int:
             expected = 4 / 3 * 3.14159 * 12**3 / (1.5 * 1.5 * 2.5)
             close(vox, expected, expected * 0.25, "lesion voxels ≈ sphere volume")
             st.shot("ct-lesion", out)
-            seg = blob_from_exporter(st, "/src/viewers/volume3d/adapter.ts", "ad.volume3dAdapter.exporters.find(e => e.id === 'dicom-seg')")
+            seg = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-seg")
             (out / "ct-seg.dcm").write_bytes(seg)
             sv = validate_dicom(out / "ct-seg.dcm", "seg")
             check(sv["sopClassUID"] == "1.2.840.10008.5.1.4.1.1.66.4", sv["sopClassUID"])
@@ -557,7 +557,7 @@ def main() -> int:
                 r2 = 12**2 - f["position"][2] ** 2
                 area = 3.14159 * max(r2, 0) / (1.5 * 1.5)
                 check(f["pixels"] == 0 or abs(f["pixels"] - area) <= max(25, area * 0.35), f"frame z={f['position'][2]}: {f['pixels']} px vs {area:.0f}")
-            sr = blob_from_exporter(st, "/src/viewers/volume3d/adapter.ts", "ad.volume3dAdapter.exporters.find(e => e.id === 'dicom-sr')")
+            sr = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-sr")
             (out / "ct-sr.dcm").write_bytes(sr)
             s = validate_dicom(out / "ct-sr.dcm", "sr")
             lengths = [n for n in s["nums"] if n["name"] == "Length"]

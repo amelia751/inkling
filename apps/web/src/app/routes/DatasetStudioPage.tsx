@@ -146,7 +146,19 @@ function Studio({ projectId }: { projectId: string }) {
       <CanvasToolbar env={env} project={project} items={items} item={item} />
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {item ? (
-          <ViewportHost key={item.id} env={env} viewport={main} project={project} item={item} />
+          env.viewports.length === 1 ? (
+            <ViewportHost key={item.id} env={env} viewport={main} project={project} item={item} />
+          ) : (
+            // Several viewports (e.g. a video next to its sensor trace) share the item and
+            // stay in sync through runtime values such as `playhead`.
+            <div className="flex h-full min-h-0 divide-x divide-border">
+              {env.viewports.map((vp) => (
+                <div key={vp.name} className="min-w-0 flex-1" data-viewport={vp.name}>
+                  <ViewportHost key={`${item.id}:${vp.name}`} env={env} viewport={vp} project={project} item={item} />
+                </div>
+              ))}
+            </div>
+          )
         ) : (
           <FullPageMessage title="Nothing to annotate" body="This project has no items for its data kind." />
         )}

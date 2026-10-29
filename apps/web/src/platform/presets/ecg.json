@@ -1,7 +1,7 @@
 {
   "id": "ecg",
   "title": "12-lead ECG",
-  "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, calipers; WFDB and LUDB export.",
+  "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export.",
   "spec": {
     "$schema": "inkling://schema/environment/v1",
     "id": "ecg",
@@ -9,10 +9,520 @@
     "data": {
       "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
     },
+    "labels": [
+      {
+        "name": "labels",
+        "control": "Labels",
+        "classes": [
+          {
+            "id": "P wave",
+            "color": "chart-1"
+          },
+          {
+            "id": "QRS complex",
+            "color": "chart-2"
+          },
+          {
+            "id": "T wave",
+            "color": "chart-3"
+          },
+          {
+            "id": "artifact",
+            "color": "chart-4"
+          }
+        ]
+      },
+      {
+        "name": "statements",
+        "control": "Choices",
+        "multiple": true,
+        "classes": [
+          {
+            "id": "Sinus rhythm",
+            "name": "SNR",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "426783006"
+              }
+            }
+          },
+          {
+            "id": "Sinus bradycardia",
+            "name": "SB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "426177001"
+              }
+            }
+          },
+          {
+            "id": "Sinus tachycardia",
+            "name": "STach",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "427084000"
+              }
+            }
+          },
+          {
+            "id": "Sinus arrhythmia",
+            "name": "SA",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "427393009"
+              }
+            }
+          },
+          {
+            "id": "Atrial fibrillation",
+            "name": "AF",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164889003"
+              }
+            }
+          },
+          {
+            "id": "Atrial flutter",
+            "name": "AFL",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164890007"
+              }
+            }
+          },
+          {
+            "id": "1st degree AV block",
+            "name": "IAVB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "270492004"
+              }
+            }
+          },
+          {
+            "id": "Prolonged PR interval",
+            "name": "LPR",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164947007"
+              }
+            }
+          },
+          {
+            "id": "Left bundle branch block",
+            "name": "LBBB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164909002"
+              }
+            }
+          },
+          {
+            "id": "Right bundle branch block",
+            "name": "RBBB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "59118001"
+              }
+            }
+          },
+          {
+            "id": "Incomplete RBBB",
+            "name": "IRBBB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "713426002"
+              }
+            }
+          },
+          {
+            "id": "Left anterior fascicular block",
+            "name": "LAnFB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "445118002"
+              }
+            }
+          },
+          {
+            "id": "Nonspecific IV conduction disturbance",
+            "name": "NSIVCB",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "698252002"
+              }
+            }
+          },
+          {
+            "id": "Left axis deviation",
+            "name": "LAD",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "39732003"
+              }
+            }
+          },
+          {
+            "id": "Right axis deviation",
+            "name": "RAD",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "47665007"
+              }
+            }
+          },
+          {
+            "id": "Low QRS voltages",
+            "name": "LQRSV",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "251146004"
+              }
+            }
+          },
+          {
+            "id": "Left ventricular hypertrophy",
+            "name": "LVH",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164873001"
+              }
+            }
+          },
+          {
+            "id": "Myocardial infarction",
+            "name": "MI",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164865005"
+              }
+            }
+          },
+          {
+            "id": "Abnormal QRS",
+            "name": "abQRS",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164951009"
+              }
+            }
+          },
+          {
+            "id": "Q wave abnormal",
+            "name": "QAb",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164917005"
+              }
+            }
+          },
+          {
+            "id": "T wave abnormal",
+            "name": "TAb",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "164934002"
+              }
+            }
+          },
+          {
+            "id": "T wave inversion",
+            "name": "TInv",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "59931005"
+              }
+            }
+          },
+          {
+            "id": "Nonspecific ST-T abnormality",
+            "name": "NSSTTA",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "428750005"
+              }
+            }
+          },
+          {
+            "id": "Prolonged QT interval",
+            "name": "LQT",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "111975006"
+              }
+            }
+          },
+          {
+            "id": "Premature atrial contraction",
+            "name": "PAC",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "284470004"
+              }
+            }
+          },
+          {
+            "id": "Premature ventricular contractions",
+            "name": "PVC",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "427172004"
+              }
+            }
+          },
+          {
+            "id": "Pacing rhythm",
+            "name": "PR",
+            "attributes": {
+              "snomed": {
+                "type": "string",
+                "default": "10370003"
+              }
+            }
+          }
+        ]
+      }
+    ],
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.timeseries.renderers.strip-chart"
+        "renderer": "inkling.timeseries.renderers.strip-chart",
+        "config": {
+          "reader": "wfdb",
+          "layout": "stacked",
+          "layouts": [
+            "stacked",
+            "6x2",
+            "3x4",
+            "single"
+          ],
+          "grid": "ecg",
+          "paperSpeed": 25,
+          "gain": 10,
+          "unit": "mV",
+          "filters": {
+            "hp": 0.05,
+            "notch": 0,
+            "lp": 150
+          },
+          "channelOrder": [
+            "I",
+            "II",
+            "III",
+            "aVR",
+            "aVL",
+            "aVF",
+            "V1",
+            "V2",
+            "V3",
+            "V4",
+            "V5",
+            "V6"
+          ],
+          "primaryChannel": "II",
+          "channelNoun": "lead",
+          "track": {
+            "channel": "rhythm",
+            "label": "Rhythm"
+          },
+          "instantCodes": [
+            {
+              "id": "N",
+              "name": "Normal beat",
+              "hotkey": "shift+n"
+            },
+            {
+              "id": "V",
+              "name": "Premature ventricular contraction",
+              "hotkey": "shift+v"
+            },
+            {
+              "id": "A",
+              "name": "Atrial premature beat",
+              "hotkey": "shift+a"
+            },
+            {
+              "id": "L",
+              "name": "Left bundle branch block beat",
+              "hotkey": "shift+l"
+            },
+            {
+              "id": "R",
+              "name": "Right bundle branch block beat",
+              "hotkey": "shift+r"
+            },
+            {
+              "id": "F",
+              "name": "Fusion of ventricular and normal beat",
+              "hotkey": "shift+f"
+            },
+            {
+              "id": "J",
+              "name": "Nodal (junctional) premature beat",
+              "hotkey": "shift+j"
+            },
+            {
+              "id": "S",
+              "name": "Supraventricular premature beat",
+              "hotkey": "shift+s"
+            },
+            {
+              "id": "E",
+              "name": "Ventricular escape beat",
+              "hotkey": "shift+e"
+            },
+            {
+              "id": "/",
+              "name": "Paced beat",
+              "hotkey": "/"
+            },
+            {
+              "id": "f",
+              "name": "Fusion of paced and normal beat"
+            },
+            {
+              "id": "Q",
+              "name": "Unclassifiable beat",
+              "hotkey": "shift+q"
+            },
+            {
+              "id": "a",
+              "name": "Aberrated atrial premature beat"
+            },
+            {
+              "id": "j",
+              "name": "Nodal (junctional) escape beat"
+            },
+            {
+              "id": "e",
+              "name": "Atrial escape beat"
+            },
+            {
+              "id": "n",
+              "name": "Supraventricular escape beat"
+            },
+            {
+              "id": "r",
+              "name": "R-on-T premature ventricular contraction"
+            },
+            {
+              "id": "B",
+              "name": "Bundle branch block beat (unspecified)",
+              "hotkey": "shift+b"
+            },
+            {
+              "id": "!",
+              "name": "Ventricular flutter wave"
+            }
+          ],
+          "trackCodes": [
+            {
+              "id": "(N",
+              "name": "Normal sinus rhythm"
+            },
+            {
+              "id": "(SBR",
+              "name": "Sinus bradycardia"
+            },
+            {
+              "id": "(AFIB",
+              "name": "Atrial fibrillation"
+            },
+            {
+              "id": "(AFL",
+              "name": "Atrial flutter"
+            },
+            {
+              "id": "(SVTA",
+              "name": "Supraventricular tachyarrhythmia"
+            },
+            {
+              "id": "(VT",
+              "name": "Ventricular tachycardia"
+            },
+            {
+              "id": "(B",
+              "name": "Ventricular bigeminy"
+            },
+            {
+              "id": "(T",
+              "name": "Ventricular trigeminy"
+            },
+            {
+              "id": "(IVR",
+              "name": "Idioventricular rhythm"
+            },
+            {
+              "id": "(NOD",
+              "name": "Nodal (junctional) rhythm"
+            },
+            {
+              "id": "(P",
+              "name": "Paced rhythm"
+            },
+            {
+              "id": "(BII",
+              "name": "2° heart block"
+            },
+            {
+              "id": "(PREX",
+              "name": "Pre-excitation (WPW)"
+            },
+            {
+              "id": "(AB",
+              "name": "Atrial bigeminy"
+            },
+            {
+              "id": "(VFL",
+              "name": "Ventricular flutter"
+            }
+          ],
+          "waves": [
+            {
+              "id": "P",
+              "label": "P wave"
+            },
+            {
+              "id": "QRS",
+              "label": "QRS complex"
+            },
+            {
+              "id": "T",
+              "label": "T wave"
+            }
+          ],
+          "defaultWave": "QRS",
+          "instantLabel": "QRS complex",
+          "ecg": true,
+          "displayKey": "inkling.signal.display.v1"
+        }
       }
     ],
     "tools": [
@@ -36,9 +546,39 @@
         "inkling.core.panels.review"
       ],
       "right": [
+        "inkling.timeseries.panels.measurements",
         "inkling.core.panels.ai"
       ]
     },
+    "keybindings": [
+      {
+        "command": "inkling.timeseries.commands.setBeatCode",
+        "keys": [
+          "shift+n",
+          "shift+v",
+          "shift+a",
+          "shift+l",
+          "shift+r",
+          "shift+f",
+          "shift+j",
+          "shift+s",
+          "shift+e",
+          "/",
+          "shift+q",
+          "shift+b"
+        ]
+      }
+    ],
+    "overrides": [
+      {
+        "id": "inkling.timeseries.panels.measurements",
+        "config": {
+          "label": "ECG measurements",
+          "codeAttribute": "snomed",
+          "codeSystem": "SNOMED CT"
+        }
+      }
+    ],
     "reviewRules": [
       "inkling.core.reviewRules.source-label-disagreement",
       "inkling.core.reviewRules.unlabeled-items"

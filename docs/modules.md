@@ -65,7 +65,8 @@ renderers switch on; the resolver guarantees names are unique within an environm
 }
 ```
 
-Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate.
+Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate, and
+`labels` groups merge by `name` (a same-named group replaces the preset's; new groups append).
 `resolveEnvironment` never throws for bad input; every problem comes back as
 `{ path, code, message, suggestion }` with `path` a JSON Pointer.
 

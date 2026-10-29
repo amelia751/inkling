@@ -1,5 +1,3 @@
-import { STANDARD_LEADS } from "./codes";
-
 /** CSS reference pixel: 96 px per inch. True paper scale only after screen calibration (see calibration.ts). */
 export const PX_PER_MM = 96 / 25.4;
 /** Minimum label gutter; paper mode widens it so the calibration pulse keeps its true 200 ms width. */
@@ -19,14 +17,19 @@ export interface Rect {
   h: number;
 }
 
-/** One trace strip: a lead drawn over the time range [t0, t1] inside a rect. */
+/**
+ * Strip-chart geometry: which channel ("lead" in ECG) is drawn where, over which time range.
+ * Pure functions of the plot size and display settings; unit-tested in layout.test.ts.
+ */
+
+/** One trace strip: a channel drawn over the time range [t0, t1] inside a rect. */
 export interface Panel extends Rect {
   lead: string;
   t0: number;
   t1: number;
   col: number;
   row: number;
-  /** Full-width lead-II strip under a 3×4 layout. */
+  /** Full-width rhythm strip (the primary channel) under a 3×4 layout. */
   rhythmStrip?: boolean;
 }
 
@@ -65,15 +68,19 @@ export interface FrameInput {
   duration: number;
   /** CSS px per mm (calibrated); defaults to the CSS reference 96/25.4. */
   pxPerMm?: number;
+  /** Canonical channel order for the column layouts (ECG: the 12 standard leads). */
+  order?: string[];
+  /** Channel of the full-width strip under a 3×4 layout, when the record has it. */
+  stripChannel?: string;
 }
 
-/** Columns of the 3×4 / 6×2 formats, falling back to even chunks for non-standard lead sets. */
-export function columnsFor(leads: string[], mode: LayoutMode, focus: string): string[][] {
-  const std = STANDARD_LEADS.every((l) => leads.includes(l));
+/** Columns of the 3×4 / 6×2 formats: the canonical order when the record has all of it, else even chunks. */
+export function columnsFor(leads: string[], mode: LayoutMode, focus: string, order: string[] = []): string[][] {
+  const std = order.length > 0 && order.every((l) => leads.includes(l));
   if (mode === "single") return [[leads.includes(focus) ? focus : leads[0]]];
   if (mode === "12x1") return [leads];
   const per = mode === "3x4" ? 3 : 6;
-  const src = std ? STANDARD_LEADS : leads;
+  const src = std ? order : leads;
   const cols: string[][] = [];
   for (let i = 0; i < src.length; i += per) cols.push(src.slice(i, i + per));
   return cols;
@@ -93,9 +100,9 @@ export function computeFrame(f: FrameInput): Frame {
   const pxPerMm = f.pxPerMm ?? PX_PER_MM;
   const gutter = gutterFor(f.scale, f.speed, pxPerMm);
   const plot: Rect = { x: gutter, y: 0, w: Math.max(10, f.width - gutter - RIGHT_PAD), h: Math.max(10, f.height - RHYTHM_TRACK) };
-  const colLeads = columnsFor(f.leads, f.mode, f.focus);
+  const colLeads = columnsFor(f.leads, f.mode, f.focus, f.order);
   const cols = colLeads.length;
-  const strip = f.mode === "3x4" && f.leads.includes("II");
+  const strip = f.mode === "3x4" && !!f.stripChannel && f.leads.includes(f.stripChannel);
   const rows = Math.max(...colLeads.map((c) => c.length)) + (strip ? 1 : 0);
   const span = spanFor(plot.w, f.scale, f.speed, f.windowSec, f.duration, pxPerMm);
   const offset = Math.max(0, Math.min(f.offset, Math.max(0, f.duration - span)));
@@ -111,7 +118,7 @@ export function computeFrame(f: FrameInput): Frame {
       panels.push({ lead, col, row, x: plot.x + col * colW, y: plot.y + row * rowH, w: colW, h: rowH, t0: offset + col * colSpan, t1: offset + (col + 1) * colSpan }),
     ),
   );
-  if (strip) panels.push({ lead: "II", col: 0, row: rows - 1, x: plot.x, y: plot.y + (rows - 1) * rowH, w: plot.w, h: rowH, t0: offset, t1: offset + span, rhythmStrip: true });
+  if (strip) panels.push({ lead: f.stripChannel!, col: 0, row: rows - 1, x: plot.x, y: plot.y + (rows - 1) * rowH, w: plot.w, h: rowH, t0: offset, t1: offset + span, rhythmStrip: true });
   return {
     panels,
     plot,

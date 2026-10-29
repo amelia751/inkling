@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { CARD_MM } from "./calibration";
+import { CARD_MM } from "../calibration";
 import { PX_PER_MM } from "./layout";
 
 interface Props {

@@ -3,8 +3,6 @@
 
   "modules/volume",
 
-  "modules/timeseries",
-
   "modules/video",
 
   "modules/cine",

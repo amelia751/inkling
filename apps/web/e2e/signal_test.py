@@ -166,8 +166,10 @@ def expect(fn: Callable[[], Any], msg: str) -> Any:
     return wait_until(fn, timeout=4, msg=msg)
 
 
-def anns(st: Studio, type_: str | None = None) -> list[dict]:
-    flt = f" && a.geometry.type === '{type_}'" if type_ else ""
+def anns(st: Studio, kind: str | None = None) -> list[dict]:
+    """This item's annotations; `kind` is a strip-chart kind (stored as core span / instant with
+    attributes.kind = interval | beat | wave | rhythm) or "class"."""
+    flt = "" if not kind else " && a.geometry.type === 'class'" if kind == "class" else f" && (a.attributes || {{}}).kind === '{kind}'"
     return st.store(f"s => s.annotations.filter(a => a.itemId === '{ITEM}'{flt})")
 
 
@@ -333,7 +335,10 @@ def t_load_and_status(browser, port):
     st = boot(browser, port)
     status = st.store("s => s.viewerStatus")
     assert "500 Hz · 12 leads · 0.00–10.00 s of 10 s · fit · 10 mm/mV · 0.05–150 Hz" in status, status
-    assert len(anns(st, "interval")) == 3, "legacy intervals must load"
+    legacy = anns(st, "interval")
+    assert len(legacy) == 3, "legacy intervals must load"
+    # Stored v1 intervals migrate on load to core spans with the lead as channel.
+    assert [(a["geometry"]["type"], a["geometry"]["channel"], a["geometry"]["start"]) for a in legacy] == [("span", "III", 1.926), ("span", "II", 5.415), ("span", "II", 5.823)], legacy
     st.shot("signal-12x1-dark", OUT)
     assert not st.errors, st.errors
     return st
@@ -452,12 +457,12 @@ def t_interval_tool(browser, port):
     iv = [a for a in anns(st, "interval") if a["label"] == "artifact"]
     assert len(iv) == 1, iv
     geo = iv[0]["geometry"]
-    assert geo["lead"] == "III", geo
+    assert geo["type"] == "span" and geo["channel"] == "III", geo
     near(geo["start"], 0.5, 0.004, "interval start")
     near(geo["end"], 1.0, 0.004, "interval end")
     drag(st, (g.x(1.5), g.y(5)), (g.x(2.0), g.y(5)), mods=["Shift"])
     iv = [a for a in anns(st, "interval") if a["label"] == "artifact"]
-    assert len(iv) == 2 and iv[1]["geometry"]["lead"] == "all", iv
+    assert len(iv) == 2 and iv[1]["geometry"]["channel"] == "all", iv
     assert st.store("s => s.selectedId") == iv[1]["id"], "new interval selected"
     # Undo / redo round trip.
     press(st, "Control+z")
@@ -478,15 +483,16 @@ def t_beat_tool_snap(browser, port):
     beats = anns(st, "beat")
     assert len(beats) == 1, beats
     b0 = beats[0]["geometry"]
-    assert b0["lead"] == "II" and b0["code"] == "N", b0
+    assert b0["type"] == "instant" and b0["channel"] == "II" and beats[0]["attributes"]["code"] == "N", beats[0]
     near(b0["t"], raw_extremum("II", tr + 0.03), 0.004, "snapped beat at the raw ±50 ms extremum")
     assert beats[0]["label"] == "QRS complex", beats[0]["label"]
     # Shift-click: all leads; picker code V.
     st.page.get_by_role("group", name="Beat code").get_by_role("button", name="V", exact=True).click()
     tr2 = raw_extremum("II", 2.08)
     click(st, (g.x(tr2 - 0.02), g.y(4)), mods=["Shift"])
-    b1 = anns(st, "beat")[-1]["geometry"]
-    assert b1["lead"] == "all" and b1["code"] == "V", b1
+    b1a = anns(st, "beat")[-1]
+    b1 = b1a["geometry"]
+    assert b1["channel"] == "all" and b1a["attributes"]["code"] == "V", b1a
     # aVR's QRS is a broad negative deflection, so the 0.05–150 Hz display filter can move its extremum by a few ms.
     near(b1["t"], raw_extremum("aVR", tr2 - 0.02), 0.010, "snapped on the clicked lead (aVR)")
     # Snap off: the beat stays where clicked.
@@ -511,24 +517,24 @@ def t_wave_tool(browser, port):
     drag(st, (g.x(tr - 0.05), g.y(1)), (g.x(tr + 0.06), g.y(1)))
     w = anns(st, "wave")[-1]
     ge = w["geometry"]
-    assert ge["wave"] == "QRS" and ge["lead"] == "II" and w["label"] == "QRS complex", w
-    near(ge["onset"], tr - 0.05, 0.004, "QRS onset")
-    near(ge["offset"], tr + 0.06, 0.004, "QRS offset")
-    near(ge["peak"], tr, 0.01, "QRS peak ≈ R")
+    assert ge["type"] == "span" and w["attributes"]["wave"] == "QRS" and ge["channel"] == "II" and w["label"] == "QRS complex", w
+    near(ge["start"], tr - 0.05, 0.004, "QRS onset")
+    near(ge["end"], tr + 0.06, 0.004, "QRS offset")
+    near(w["attributes"]["peak"], tr, 0.01, "QRS peak ≈ R")
     press(st, "1")  # P wave
     drag(st, (g.x(tr - 0.2), g.y(1)), (g.x(tr - 0.1), g.y(1)))
-    assert anns(st, "wave")[-1]["geometry"]["wave"] == "P"
+    assert anns(st, "wave")[-1]["attributes"]["wave"] == "P"
     press(st, "3")  # T wave, Shift = all leads
     drag(st, (g.x(tr + 0.15), g.y(3)), (g.x(tr + 0.4), g.y(3)), mods=["Shift"])
     t = anns(st, "wave")[-1]
-    assert t["geometry"]["wave"] == "T" and t["geometry"]["lead"] == "all", t
+    assert t["attributes"]["wave"] == "T" and t["geometry"]["channel"] == "all", t
     press(st, "4")  # artifact → falls back to QRS
     drag(st, (g.x(2.0), g.y(1)), (g.x(2.1), g.y(1)))
     a = anns(st, "wave")[-1]
-    assert a["geometry"]["wave"] == "QRS" and a["label"] == "QRS complex", a
+    assert a["attributes"]["wave"] == "QRS" and a["label"] == "QRS complex", a
     # Measurements panel reflects the waves: PR = QRS onset − P onset.
     pr = st.page.locator("dt:has-text('PR') + dd").inner_text()
-    exp_pr = round((ge["onset"] - anns(st, "wave")[1]["geometry"]["onset"]) * 1000)
+    exp_pr = round((ge["start"] - anns(st, "wave")[1]["geometry"]["start"]) * 1000)
     assert pr == f"{exp_pr} ms", (pr, exp_pr)
     st.shot("signal-waves", OUT)
     assert not st.errors, st.errors
@@ -541,12 +547,12 @@ def t_rhythm_tool(browser, port):
     st.page.locator("label:has-text('Rhythm') select").select_option("(AFIB")
     drag(st, (g.x(1.0), g.track_y()), (g.x(4.0), g.track_y()))
     r = anns(st, "rhythm")
-    assert len(r) == 1 and r[0]["geometry"]["rhythm"] == "(AFIB" and r[0]["label"] == "(AFIB", r
+    assert len(r) == 1 and r[0]["attributes"]["rhythm"] == "(AFIB" and r[0]["geometry"]["channel"] == "rhythm" and r[0]["label"] == "(AFIB", r
     near(r[0]["geometry"]["start"], 1.0, 0.01, "rhythm start")
     near(r[0]["geometry"]["end"], 4.0, 0.01, "rhythm end")
     # Changing the picker while the episode is selected relabels it.
     st.page.locator("label:has-text('Rhythm') select").select_option("(AFL")
-    assert anns(st, "rhythm")[0]["geometry"]["rhythm"] == "(AFL"
+    assert anns(st, "rhythm")[0]["attributes"]["rhythm"] == "(AFL"
     assert st.page.get_by_role("button", name=re.compile(r"\(AFL")).count() >= 1, "listed in the side panel"
     assert not st.errors, st.errors
 
@@ -611,7 +617,9 @@ def t_select_edits(browser, port):
     drag(st, (g.x(0.3), g.track_y()), (g.x(1.3), g.track_y()))
     rh_id = st.store("s => s.selectedId")
     press(st, "v")
-    get = lambda i: next(a for a in anns(st) if a["id"] == i)["geometry"]  # noqa: E731
+    ann = lambda i: next(a for a in anns(st) if a["id"] == i)  # noqa: E731
+    get = lambda i: ann(i)["geometry"]  # noqa: E731
+    peak = lambda i: ann(i)["attributes"]["peak"]  # noqa: E731
 
     # Interval: end edge, then body move.
     drag(st, (g.x(1.0), g.y(0)), (g.x(1.2), g.y(0)))
@@ -621,18 +629,18 @@ def t_select_edits(browser, port):
     near(get(iv_id)["end"], 1.3, 0.004, "interval moved: end")
     # Wave: onset, offset, peak (top handle of the selected wave), move.
     w = get(wv_id)
-    drag(st, (g.x(w["onset"]), g.y(1)), (g.x(w["onset"] - 0.02), g.y(1)))
-    near(get(wv_id)["onset"], w["onset"] - 0.02, 0.004, "wave onset dragged")
-    drag(st, (g.x(w["offset"]), g.y(1)), (g.x(w["offset"] + 0.03), g.y(1)))
-    near(get(wv_id)["offset"], w["offset"] + 0.03, 0.004, "wave offset dragged")
-    w = get(wv_id)
-    drag(st, (g.x(w["peak"]), g.y(1, 0) + 5), (g.x(w["peak"] + 0.02), g.y(1, 0) + 5))
-    near(get(wv_id)["peak"], w["peak"] + 0.02, 0.004, "wave peak dragged")
-    w = get(wv_id)
-    mid = (w["onset"] + w["peak"]) / 2
+    drag(st, (g.x(w["start"]), g.y(1)), (g.x(w["start"] - 0.02), g.y(1)))
+    near(get(wv_id)["start"], w["start"] - 0.02, 0.004, "wave onset dragged")
+    drag(st, (g.x(w["end"]), g.y(1)), (g.x(w["end"] + 0.03), g.y(1)))
+    near(get(wv_id)["end"], w["end"] + 0.03, 0.004, "wave offset dragged")
+    w, wp = get(wv_id), peak(wv_id)
+    drag(st, (g.x(wp), g.y(1, 0) + 5), (g.x(wp + 0.02), g.y(1, 0) + 5))
+    near(peak(wv_id), wp + 0.02, 0.004, "wave peak dragged")
+    w, wp = get(wv_id), peak(wv_id)
+    mid = (w["start"] + wp) / 2
     drag(st, (g.x(mid), g.y(1, 0.8)), (g.x(mid + 0.05), g.y(1, 0.8)))
-    near(get(wv_id)["onset"], w["onset"] + 0.05, 0.004, "wave moved: onset")
-    near(get(wv_id)["peak"], w["peak"] + 0.05, 0.004, "wave moved: peak")
+    near(get(wv_id)["start"], w["start"] + 0.05, 0.004, "wave moved: onset")
+    near(peak(wv_id), wp + 0.05, 0.004, "wave moved: peak")
     # Beat: drag with snap to the next extremum.
     b = get(bt_id)
     drag(st, (g.x(b["t"]), g.y(2)), (g.x(b["t"] + 0.1), g.y(2)))
@@ -664,7 +672,7 @@ def t_detect_review(browser, port):
     wait_until(lambda: len(anns(st, "beat")) >= 10, msg="detection")
     beats = sorted(anns(st, "beat"), key=lambda a: a["geometry"]["t"])
     assert len(beats) == 11, len(beats)
-    assert all(a["provenance"] == "ai-suggested" and a["geometry"]["lead"] == "all" and a["geometry"]["code"] == "N" and a["attributes"]["source"] == "pan-tompkins" for a in beats)
+    assert all(a["provenance"] == "ai-suggested" and a["geometry"]["channel"] == "all" and a["attributes"]["code"] == "N" and a["attributes"]["source"] == "pan-tompkins" for a in beats)
     ref = raw_r_peaks()
     assert len(ref) == 11, ref
     for a, r in zip(beats, ref):
@@ -679,7 +687,7 @@ def t_detect_review(browser, port):
     assert sel() == beats[1]["id"], "Enter advances"
     press(st, "Shift+V")
     b1 = get(beats[1]["id"])
-    assert b1["geometry"]["code"] == "V" and b1["provenance"] == "human-corrected", b1
+    assert b1["attributes"]["code"] == "V" and b1["provenance"] == "human-corrected", b1
     press(st, "Tab")
     assert sel() == beats[2]["id"]
     press(st, "Delete")
@@ -708,26 +716,26 @@ def t_layouts(browser, port):
     g = Geo(st, rows=4, cols=4)
     click(st, (g.cx + g.gutter + g.pw * 2.5 / 4, g.y(0)))
     b = anns(st, "beat")[-1]["geometry"]
-    assert b["lead"] == "V1", b
+    assert b["channel"] == "V1", b
     near(b["t"], 6.25, 0.06, "3×4 column 3 starts at 5 s (2.5 s columns)")
     click(st, (g.cx + g.gutter + g.pw * 0.5, g.y(3)))
     b = anns(st, "beat")[-1]["geometry"]
-    assert b["lead"] == "II", b
+    assert b["channel"] == "II", b
     near(b["t"], 5.0, 0.06, "rhythm strip spans the whole 10 s")
     click(st, (g.cx + g.gutter + g.pw * 3.5 / 4, g.y(2)))
-    assert anns(st, "beat")[-1]["geometry"]["lead"] == "V6"
+    assert anns(st, "beat")[-1]["geometry"]["channel"] == "V6"
     st.shot("signal-3x4", OUT)
     seg(st, "Layout", "6×2")
     g = Geo(st, rows=6, cols=2)
     click(st, (g.cx + g.gutter + g.pw * 0.75, g.y(0)))
     b = anns(st, "beat")[-1]["geometry"]
-    assert b["lead"] == "V1", b
+    assert b["channel"] == "V1", b
     near(b["t"], 7.5, 0.06, "6×2 chest column is the second 5 s")
     st.shot("signal-6x2", OUT)
     seg(st, "Layout", "1")
     g = Geo(st, rows=1)
     click(st, (g.x(3.3), g.y(0)))
-    assert anns(st, "beat")[-1]["geometry"]["lead"] == "II"
+    assert anns(st, "beat")[-1]["geometry"]["channel"] == "II"
     st.shot("signal-single", OUT)
     assert not st.errors, st.errors
 
@@ -861,7 +869,7 @@ def t_multiselect(browser, port):
     st.shot("signal-multiselect", OUT)
     # Band over lead II 5.3–7.8 s also selects the legacy intervals there.
     drag(st, (g.x(5.3), g.y(1, 0.9)), (g.x(5.9), g.y(1, 0.95)), mods=["Shift"])
-    ivs = [a["id"] for a in anns(st, "interval") if a["geometry"]["lead"] == "II"]
+    ivs = [a["id"] for a in anns(st, "interval") if a["geometry"]["channel"] == "II"]
     assert set(ivs) <= set(st.store("s => s.selectedIds")), "band selects overlapping intervals on its leads"
     st.act("s => s.selectMany(%s)" % json.dumps([beats[0]["id"], *in_band]))
     # Bulk accept: one undo step.
@@ -876,9 +884,9 @@ def t_multiselect(browser, port):
     h = history(st)
     press(st, "Shift+A")
     assert history(st) == h + 1
-    assert all(a["geometry"]["code"] == "A" for a in anns(st, "beat") if a["id"] in [beats[0]["id"], *in_band])
+    assert all(a["attributes"]["code"] == "A" for a in anns(st, "beat") if a["id"] in [beats[0]["id"], *in_band])
     press(st, "Control+z")
-    expect(lambda: all(a["geometry"]["code"] == "N" for a in anns(st, "beat")), "undo bulk code change")
+    expect(lambda: all(a["attributes"]["code"] == "N" for a in anns(st, "beat")), "undo bulk code change")
     # Bulk delete (shell): every selected annotation.
     press(st, "Delete")
     expect(lambda: len(anns(st, "beat")) == 7, "bulk delete removes 4")
@@ -906,15 +914,16 @@ def t_exporters(browser, port):
     drag(st, (g.x(1.6), g.y(3)), (g.x(2.2), g.y(3)), mods=["Shift"])
     b64 = st.page.evaluate(
         """async () => {
-        const ex = await import('/src/viewers/signal/exporters.ts'); const items = await import('/src/lib/items.ts');
-        const st = await import('/src/stores/studio.ts');
-        const man = await fetch('/seed/manifest.json').then(r => r.json()); const project = man.projects.find(p => p.id === 'ecg-waveform');
+        const { registry } = await import('/src/platform/registry.ts'); const items = await import('/src/lib/items.ts');
+        const st = await import('/src/stores/studio.ts'); const api = await import('/src/lib/api.ts');
+        const project = (await api.fetchProjects()).find(p => p.id === 'ecg-waveform');
         const ctx = { project, items: items.projectItems(project), annotations: st.useStudio.getState().annotations };
         const out = {};
-        for (const e of ex.signalExporters) {
+        for (const id of ['wfdb-atr', 'ecg-json', 'ecg-intervals-csv']) {
+          const e = await registry.loadImpl('inkling.timeseries.exporters.' + id);
           const u = new Uint8Array(await (await e.build(ctx)).arrayBuffer()); let s = '';
           for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
-          out[e.id] = { name: e.filename(project), data: btoa(s) };
+          out[id] = { name: e.filename(project), data: btoa(s) };
         }
         return out; }"""
     )
@@ -983,8 +992,10 @@ def t_light_theme_and_inspect(browser, port):
     press(st, "Tab")
     sid = st.store("s => s.selectedId")
     rows = st.page.evaluate(
-        f"""async () => {{ const ad = await import('/src/viewers/signal/adapter.ts'); const st = await import('/src/stores/studio.ts');
-        const a = st.useStudio.getState().annotations.find(x => x.id === '{sid}'); return ad.signalAdapter.inspect(a, {{ item: {{ id: '{ITEM}' }} }}); }}"""
+        f"""async () => {{ const {{ registry }} = await import('/src/platform/registry.ts'); const st = await import('/src/stores/studio.ts');
+        const {{ runtimeFor }} = await import('/src/platform/runtime.ts'); const inspect = await registry.loadImpl('inkling.timeseries.inspectors.main');
+        const s = st.useStudio.getState(); const a = s.annotations.find(x => x.id === '{sid}');
+        return inspect(a, {{ env: s.env, project: null, item: {{ id: '{ITEM}' }}, runtime: runtimeFor('{ITEM}') }}); }}"""
     )
     d = dict(rows)
     assert d["Code"].startswith("N —") and d["Lead"] == "All leads" and "#" in d["Time"] and d["Provenance"].startswith("AI"), d

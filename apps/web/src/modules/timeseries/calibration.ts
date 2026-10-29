@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PX_PER_MM } from "./layout";
+import { PX_PER_MM } from "./renderer/layout";
 
 /**
  * Screen calibration for true paper scale.

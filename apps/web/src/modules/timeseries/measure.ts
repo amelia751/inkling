@@ -1,7 +1,14 @@
-import type { Annotation, Geometry } from "@/types";
+import type { Annotation } from "@/types";
+import { channelOf, codeOf, kindOf, peakOf, rangeOf, waveOf } from "./model";
 
-type BeatG = Extract<Geometry, { type: "beat" }>;
-type WaveG = Extract<Geometry, { type: "wave" }>;
+/** A delineated wave, read from its stored span (attributes.wave / attributes.peak). */
+interface WaveG {
+  lead: string;
+  wave: string;
+  onset: number;
+  peak?: number;
+  offset: number;
+}
 
 export interface Measurements {
   beats: number;
@@ -28,10 +35,11 @@ const mean = (v: number[]) => (v.length ? v.reduce((a, b) => a + b, 0) / v.lengt
 export function beatTimes(anns: Annotation[]): number[] {
   const byLead = new Map<string, number[]>();
   for (const a of anns) {
-    if (a.geometry.type !== "beat") continue;
-    const list = byLead.get(a.geometry.lead) ?? [];
-    list.push(a.geometry.t);
-    byLead.set(a.geometry.lead, list);
+    if (kindOf(a) !== "beat") continue;
+    const lead = channelOf(a.geometry);
+    const list = byLead.get(lead) ?? [];
+    list.push(rangeOf(a.geometry)![0]);
+    byLead.set(lead, list);
   }
   let best = byLead.get("all");
   if (!best?.length) for (const l of byLead.values()) if (!best || l.length > best.length) best = l;
@@ -66,10 +74,14 @@ export function measure(anns: Annotation[]): Measurements {
   const waves: WaveG[] = [];
   for (const a of anns) {
     if (a.provenance === "ai-suggested") unreviewed++;
-    if (a.geometry.type === "beat") codes.set((a.geometry as BeatG).code, (codes.get((a.geometry as BeatG).code) ?? 0) + 1);
-    if (a.geometry.type === "wave") waves.push(a.geometry);
+    const k = kindOf(a);
+    if (k === "beat") codes.set(codeOf(a), (codes.get(codeOf(a)) ?? 0) + 1);
+    if (k === "wave") {
+      const [onset, offset] = rangeOf(a.geometry)!;
+      waves.push({ lead: channelOf(a.geometry), wave: waveOf(a), onset, peak: peakOf(a), offset });
+    }
   }
-  const of = (k: WaveG["wave"]) => waves.filter((w) => w.wave === k);
+  const of = (k: string) => waves.filter((w) => w.wave === k);
   const sameLead = (a: WaveG, b: WaveG) => a.lead === b.lead || a.lead === "all" || b.lead === "all";
   const P = of("P");
   const Q = of("QRS");
@@ -102,31 +114,3 @@ export function measure(anns: Annotation[]): Measurements {
 
 export const ms = (s: number | undefined) => (s === undefined ? "—" : `${Math.round(s * 1000)} ms`);
 
-/** Time key used to order annotations of any signal geometry. */
-export function timeOf(g: Geometry): number | undefined {
-  switch (g.type) {
-    case "beat":
-      return g.t;
-    case "wave":
-      return g.onset;
-    case "interval":
-    case "rhythm":
-      return g.start;
-    default:
-      return undefined;
-  }
-}
-
-export function endOf(g: Geometry): number | undefined {
-  switch (g.type) {
-    case "beat":
-      return g.t;
-    case "wave":
-      return g.offset;
-    case "interval":
-    case "rhythm":
-      return g.end;
-    default:
-      return undefined;
-  }
-}

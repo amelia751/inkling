@@ -14,7 +14,7 @@ import { fetchAnnotations, fetchEnvironment, saveAnnotations } from "@/lib/api";
 import { setLabelClasses } from "@/lib/labels";
 import { ANNOTATIONS_VERSION } from "@/migrations/annotations-v1-to-v2";
 import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/platform/commands";
-import { labelClasses, labelNames } from "@/platform/environment";
+import { labelClasses, regionLabelNames } from "@/platform/environment";
 import { digitOf, matches } from "@/platform/keys";
 import { registry } from "@/platform/registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/platform/resolve";
@@ -64,7 +64,7 @@ export function DatasetStudioPage() {
     if (project && saved.data && boot.status === "ready" && projectId !== project.id) {
       clearRuntime();
       setEnv(boot.env, { record: false });
-      load(project.id, saved.data.annotations, saved.data.revision, labelNames(boot.env.labels)[0] ?? null);
+      load(project.id, saved.data.annotations, saved.data.revision, regionLabelNames(boot.env.labels)[0] ?? null);
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
@@ -286,7 +286,7 @@ function useAutosave(projectId: string) {
 function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts: () => void) {
   const s = useStudio.getState;
   const itemCount = items.length;
-  const labels = labelNames(env.labels);
+  const labels = regionLabelNames(env.labels);
   const classes = labelClasses(env.labels);
   const resizeBrush = (factor: number) => {
     const st = s();

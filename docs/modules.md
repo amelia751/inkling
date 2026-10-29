@@ -107,7 +107,7 @@ singletons for this.
 | `status` | the shell | the status-bar text |
 | `playhead` | video, cine | `{ frame, time }` |
 | `grid` | cine | `{ spacing, dims }` |
-| `signalInfo` | timeseries | `{ fs, leads, … }` |
+| `signalInfo` | timeseries | `{ record, fs, samples, channels, header? }` |
 | `mpp` | wsi | microns (or metres) per pixel |
 
 ## Agent surface and safety tiers

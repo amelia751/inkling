@@ -100,6 +100,14 @@ export function labelNames(labels: readonly (LabelGroup | string)[] | undefined)
   return [...new Set((labels ?? []).flatMap((g) => (typeof g === "string" ? [g] : g.classes.map((c) => c.id))))];
 }
 
+/**
+ * Class ids for drawn regions: `labelNames` without `multiple` Choices groups, whose classes
+ * are item-level statements (e.g. ECG record statements), not something to draw with.
+ */
+export function regionLabelNames(labels: readonly (LabelGroup | string)[] | undefined): string[] {
+  return labelNames((labels ?? []).filter((g) => typeof g === "string" || !(g.control === "Choices" && g.multiple)));
+}
+
 /** Flat class lookup: the first group that defines a class wins for color and hotkey. */
 export function labelClasses(labels: LabelGroup[] | undefined): LabelClass[] {
   const seen = new Map<string, LabelClass>();

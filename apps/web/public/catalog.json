@@ -27,16 +27,16 @@
     },
     {
       "id": "inkling.image2d",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "2D images",
-      "description": "Single-frame images (PNG, JPEG, single-frame DICOM) on a Cornerstone3D stack viewport with window/level, measurements and masks.",
+      "description": "Single-frame images (PNG, JPEG, single-frame DICOM): a Cornerstone3D stack viewport with window/level, measurements and masks for radiology, or a light canvas renderer with boxes, polygons and keypoints for natural images.",
       "requires": [
         "inkling.cornerstone"
       ]
     },
     {
       "id": "inkling.volume",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "3D volumes",
       "description": "NIfTI and DICOM series on Cornerstone3D MPR viewports (axial / coronal / sagittal + 3D) with crosshairs, 3D labelmaps and measurements.",
       "requires": [
@@ -45,9 +45,9 @@
     },
     {
       "id": "inkling.timeseries",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "title": "Multichannel time series",
-      "description": "Sampled signals (WFDB today) on a strip chart with spans, instants, delineation, beat detection and calipers."
+      "description": "Sampled signals (WFDB, CSV) on a strip chart: spans and instants per channel, a record-level track, delineation, beat detection and calipers."
     },
     {
       "id": "inkling.video",
@@ -63,14 +63,23 @@
       "id": "inkling.cine",
       "version": "1.0.0",
       "title": "Slice × frame cine",
-      "description": "4D (slice × frame) image series such as cardiac cine MRI: contours and masks per slice and frame, playback, copy-forward.",
+      "description": "Any slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, key frames, playback, copy-forward, interpolation and reference import.",
       "requires": [
         "inkling.overlay2d"
       ]
     },
     {
-      "id": "inkling.wsi",
+      "id": "inkling.cardiac-metrics",
       "version": "1.0.0",
+      "title": "Cardiac function metrics",
+      "description": "EDV, ESV, SV, EF, LV mass and Dice vs reference for a cardiac cine (Simpson's method of discs), as a right panel and a CSV export.",
+      "requires": [
+        "inkling.cine"
+      ]
+    },
+    {
+      "id": "inkling.wsi",
+      "version": "1.1.0",
       "title": "Tiled image pyramids",
       "description": "Deep-zoom image pyramids (DZI) on OpenSeadragon with vector regions, brush/eraser on regions, magic wand, point counting and µm measurements.",
       "requires": [
@@ -107,7 +116,7 @@
       "id": "inkling.volume.dataKinds.volume",
       "type": "dataKinds",
       "module": "inkling.volume",
-      "description": "Volumes grouped by subject (several sequences per subject)",
+      "description": "Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation",
       "label": "3D volume",
       "example": {
         "data": {
@@ -119,7 +128,7 @@
       "id": "inkling.timeseries.dataKinds.multichannel-timeseries",
       "type": "dataKinds",
       "module": "inkling.timeseries",
-      "description": "One item per recording; channels are leads / signals",
+      "description": "One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)",
       "label": "Waveform",
       "example": {
         "data": {
@@ -167,7 +176,7 @@
       "id": "inkling.image2d.renderers.cornerstone-stack",
       "type": "renderers",
       "module": "inkling.image2d",
-      "description": "Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps",
+      "description": "Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config",
       "consumes": [
         "inkling.image2d.dataKinds.raster"
       ],
@@ -180,14 +189,207 @@
         "holdToPan"
       ],
       "example": {
-        "data": {
-          "kind": "inkling.image2d.dataKinds.raster"
-        },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.image2d.renderers.cornerstone-stack"
+            "renderer": "inkling.image2d.renderers.cornerstone-stack",
+            "config": {
+              "windowLevel": false,
+              "colormap": false
+            }
           }
+        ],
+        "panels": {
+          "viewport-bar": [
+            "inkling.image2d.panels.viewControls"
+          ]
+        }
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "windowLevel": {
+            "default": true,
+            "description": "Window/level presets and the W/L readout; false for natural photos",
+            "type": "boolean"
+          },
+          "invert": {
+            "default": true,
+            "description": "Invert button and its key",
+            "type": "boolean"
+          },
+          "flip": {
+            "default": true,
+            "description": "Flip horizontal / vertical buttons and keys",
+            "type": "boolean"
+          },
+          "rotate": {
+            "default": true,
+            "description": "Rotate buttons and keys",
+            "type": "boolean"
+          },
+          "colormap": {
+            "default": true,
+            "description": "Color map picker",
+            "type": "boolean"
+          },
+          "interpolation": {
+            "default": true,
+            "description": "Smooth / nearest-neighbour toggle",
+            "type": "boolean"
+          },
+          "magnifier": {
+            "default": true,
+            "description": "Hover magnifier button and key",
+            "type": "boolean"
+          },
+          "colormaps": {
+            "default": [
+              {
+                "value": "Grayscale",
+                "label": "Grayscale"
+              },
+              {
+                "value": "Black-Body Radiation",
+                "label": "Hot iron"
+              },
+              {
+                "value": "Inferno (matplotlib)",
+                "label": "Inferno"
+              },
+              {
+                "value": "Viridis (matplotlib)",
+                "label": "Viridis"
+              },
+              {
+                "value": "jet",
+                "label": "Jet"
+              }
+            ],
+            "description": "Cornerstone color map names offered in the picker",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "ctPresets": {
+            "default": [
+              {
+                "id": "soft",
+                "label": "Soft tissue",
+                "window": 400,
+                "level": 40
+              },
+              {
+                "id": "lung",
+                "label": "Lung",
+                "window": 1500,
+                "level": -600
+              },
+              {
+                "id": "liver",
+                "label": "Liver",
+                "window": 150,
+                "level": 90
+              },
+              {
+                "id": "bone",
+                "label": "Bone",
+                "window": 2500,
+                "level": 480
+              },
+              {
+                "id": "brain",
+                "label": "Brain",
+                "window": 80,
+                "level": 40
+              }
+            ],
+            "description": "Window/level presets offered when the image's modality is CT",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "window": {
+                  "type": "number"
+                },
+                "level": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "window",
+                "level"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "windowLevel",
+          "invert",
+          "flip",
+          "rotate",
+          "colormap",
+          "interpolation",
+          "magnifier",
+          "colormaps",
+          "ctPresets"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "inkling.image2d.renderers.canvas-raster",
+      "type": "renderers",
+      "module": "inkling.image2d",
+      "description": "Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools",
+      "consumes": [
+        "inkling.image2d.dataKinds.raster"
+      ],
+      "space": "image2d",
+      "capabilities": [
+        "zoom",
+        "pan",
+        "holdToPan",
+        "drafting",
+        "vertexUndo"
+      ],
+      "example": {
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.image2d.renderers.canvas-raster"
+          }
+        ],
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.tools.pan",
+          "inkling.overlay2d.tools.box",
+          "inkling.overlay2d.tools.polygon",
+          "inkling.overlay2d.tools.keypoint"
         ]
       }
     },
@@ -195,7 +397,7 @@
       "id": "inkling.volume.renderers.cornerstone-mpr",
       "type": "renderers",
       "module": "inkling.volume",
-      "description": "Cornerstone3D orthographic MPR with linked crosshairs and an optional 3D view",
+      "description": "Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D",
       "consumes": [
         "inkling.volume.dataKinds.volume"
       ],
@@ -211,22 +413,94 @@
         "crosshairs"
       ],
       "example": {
-        "data": {
-          "kind": "inkling.volume.dataKinds.volume"
-        },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.volume.renderers.cornerstone-mpr"
+            "renderer": "inkling.volume.renderers.cornerstone-mpr",
+            "config": {
+              "layout": "mpr3d",
+              "layouts": [
+                "mpr",
+                "mpr3d",
+                "plane3d"
+              ]
+            }
           }
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "layout": {
+            "default": "mpr",
+            "description": "Initial layout: mpr (1×3), main (1 + 2), single, mpr3d (2×2 with 3D), plane3d (1 + 3D)",
+            "type": "string",
+            "enum": [
+              "mpr",
+              "main",
+              "single",
+              "mpr3d",
+              "plane3d"
+            ]
+          },
+          "layouts": {
+            "default": [
+              "mpr",
+              "main",
+              "single",
+              "mpr3d"
+            ],
+            "description": "Layouts offered in the viewport bar's Layout picker, in order",
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mpr",
+                "main",
+                "single",
+                "mpr3d",
+                "plane3d"
+              ]
+            }
+          },
+          "plane": {
+            "default": "axial",
+            "description": "Plane shown by the single and plane3d layouts",
+            "type": "string",
+            "enum": [
+              "axial",
+              "sagittal",
+              "coronal"
+            ]
+          },
+          "sequence": {
+            "default": "flair",
+            "description": "Sequence opened first when the subject has it (else the first one)",
+            "type": "string"
+          },
+          "preset3d": {
+            "default": "MR-Default",
+            "description": "Cornerstone volume-rendering preset of the 3D cell",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layout",
+          "layouts",
+          "plane",
+          "sequence",
+          "preset3d"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "id": "inkling.timeseries.renderers.strip-chart",
       "type": "renderers",
       "module": "inkling.timeseries",
-      "description": "Strip chart: stacked or 12-lead layouts, ECG paper or plain grid, filters, calipers",
+      "description": "Strip chart: stacked or column layouts, ECG paper or plain grid, zero-phase display filters, calipers",
       "consumes": [
         "inkling.timeseries.dataKinds.multichannel-timeseries"
       ],
@@ -238,15 +512,294 @@
         "suggestions"
       ],
       "example": {
-        "data": {
-          "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
-        },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.timeseries.renderers.strip-chart"
+            "renderer": "inkling.timeseries.renderers.strip-chart",
+            "config": {
+              "reader": "csv",
+              "grid": "plain",
+              "unit": "g",
+              "track": {
+                "channel": "activity",
+                "label": "Activity"
+              },
+              "trackCodes": [
+                {
+                  "id": "walk"
+                },
+                {
+                  "id": "run"
+                }
+              ]
+            }
           }
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "reader": {
+            "default": "auto",
+            "description": "How assets are read: auto (by extension), wfdb (seed JSON + .hea) or csv (time column + numeric channels)",
+            "type": "string",
+            "enum": [
+              "auto",
+              "wfdb",
+              "csv"
+            ]
+          },
+          "sampleRate": {
+            "description": "CSV without a time column: samples per second",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "layout": {
+            "default": "stacked",
+            "description": "Initial layout: every channel stacked, 6×2 / 3×4 columns, or one channel",
+            "type": "string",
+            "enum": [
+              "stacked",
+              "6x2",
+              "3x4",
+              "single"
+            ]
+          },
+          "layouts": {
+            "default": [
+              "stacked",
+              "single"
+            ],
+            "description": "Layouts offered in the display bar",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "stacked",
+                "6x2",
+                "3x4",
+                "single"
+              ]
+            }
+          },
+          "grid": {
+            "default": "plain",
+            "description": "ecg: 40/200 ms boxes and a true-scale paper mode (mm/s, mm per unit); plain: time ruler only",
+            "type": "string",
+            "enum": [
+              "ecg",
+              "plain"
+            ]
+          },
+          "paperSpeed": {
+            "default": 25,
+            "description": "Initial paper speed, mm/s (grid: ecg)",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "gain": {
+            "default": 10,
+            "description": "Initial gain, mm per unit",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "unit": {
+            "default": "",
+            "description": "Amplitude unit of the samples, e.g. mV or g",
+            "type": "string"
+          },
+          "filters": {
+            "default": {
+              "hp": 0,
+              "notch": 0,
+              "lp": 0
+            },
+            "description": "Initial display filters (zero-phase; never change stored times)",
+            "type": "object",
+            "properties": {
+              "hp": {
+                "default": 0,
+                "description": "High-pass cutoff in Hz (0 = off)",
+                "type": "number",
+                "minimum": 0
+              },
+              "notch": {
+                "default": 0,
+                "description": "Mains notch in Hz (0 = off)",
+                "type": "number",
+                "minimum": 0
+              },
+              "lp": {
+                "default": 0,
+                "description": "Low-pass cutoff in Hz (0 = off)",
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "hp",
+              "notch",
+              "lp"
+            ],
+            "additionalProperties": false
+          },
+          "channelOrder": {
+            "default": [],
+            "description": "Canonical channel order, used for the column layouts and channel numbers in exports",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "primaryChannel": {
+            "description": "Channel of the overview strip, the 3×4 rhythm strip and beat detection; defaults to the first",
+            "type": "string"
+          },
+          "channelNoun": {
+            "default": "channel",
+            "description": "What a channel is called in the UI (\"lead\" for ECG)",
+            "type": "string"
+          },
+          "track": {
+            "default": {
+              "channel": "track",
+              "label": "Track"
+            },
+            "description": "Record-level span track under the channels; spans on it carry this channel",
+            "type": "object",
+            "properties": {
+              "channel": {
+                "default": "track",
+                "type": "string"
+              },
+              "label": {
+                "default": "Track",
+                "type": "string"
+              }
+            },
+            "required": [
+              "channel",
+              "label"
+            ],
+            "additionalProperties": false
+          },
+          "instantCodes": {
+            "default": [],
+            "description": "Codes of instants (beat codes); the first is the default and drawn in the label colour",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Value stored in attributes.code (instants) or attributes.rhythm (track spans)"
+                },
+                "name": {
+                  "description": "Display name",
+                  "type": "string"
+                },
+                "hotkey": {
+                  "description": "Combo that sets this code on the selected instants, e.g. \"shift+v\" (bind the same keys to setBeatCode)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "trackCodes": {
+            "default": [],
+            "description": "Codes of track spans (rhythms); the first is the default",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Value stored in attributes.code (instants) or attributes.rhythm (track spans)"
+                },
+                "name": {
+                  "description": "Display name",
+                  "type": "string"
+                },
+                "hotkey": {
+                  "description": "Combo that sets this code on the selected instants, e.g. \"shift+v\" (bind the same keys to setBeatCode)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "waves": {
+            "default": [],
+            "description": "Delineated waves and the label class of each; the first non-matching label falls back to `defaultWave`",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Wave name stored in attributes.wave, e.g. P, QRS, T"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Label class that delineates this wave"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "defaultWave": {
+            "description": "Wave drawn when the active label names none of `waves`",
+            "type": "string"
+          },
+          "instantLabel": {
+            "description": "Label class given to new instants (else the active label)",
+            "type": "string"
+          },
+          "ecg": {
+            "default": false,
+            "description": "ECG extras: Pan–Tompkins beat detection, QT/QTc caliper, heart rate and PR/QRS/QT measurements",
+            "type": "boolean"
+          },
+          "displayKey": {
+            "default": "inkling.timeseries.display.v1",
+            "description": "localStorage key for the expert's display settings",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reader",
+          "layout",
+          "layouts",
+          "grid",
+          "paperSpeed",
+          "gain",
+          "unit",
+          "filters",
+          "channelOrder",
+          "channelNoun",
+          "track",
+          "instantCodes",
+          "trackCodes",
+          "waves",
+          "ecg",
+          "displayKey"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -282,7 +835,7 @@
       "id": "inkling.cine.renderers.slice-frame-canvas",
       "type": "renderers",
       "module": "inkling.cine",
-      "description": "One slice × frame at a time on a canvas, with a phase matrix, playback and function metrics",
+      "description": "One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage",
       "consumes": [
         "inkling.cine.dataKinds.volume-time"
       ],
@@ -296,22 +849,88 @@
         "windowLevel"
       ],
       "example": {
-        "data": {
-          "kind": "inkling.cine.dataKinds.volume-time"
-        },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.cine.renderers.slice-frame-canvas"
+            "renderer": "inkling.cine.renderers.slice-frame-canvas",
+            "config": {
+              "structures": {
+                "lv": "left ventricle"
+              },
+              "keyFrames": [
+                {
+                  "id": "ED",
+                  "label": "End-diastole"
+                },
+                {
+                  "id": "ES",
+                  "label": "End-systole"
+                }
+              ]
+            }
           }
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "structures": {
+            "default": {},
+            "description": "Structure roles → label ids. Drives label-map paint order, areas, completeness and the enclosure rule",
+            "type": "object",
+            "properties": {
+              "rv": {
+                "description": "Label id of the right-ventricle cavity",
+                "type": "string"
+              },
+              "myo": {
+                "description": "Label id of the myocardium (a contour around an `lv` contour is its outer border)",
+                "type": "string"
+              },
+              "lv": {
+                "description": "Label id of the left-ventricle cavity",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "keyFrames": {
+            "default": [],
+            "description": "Named key frames (phases) the expert can mark; highlighted in the transport and the slice × frame matrix",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stored as attributes.phase, e.g. ED"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "Long name, e.g. End-diastole"
+                }
+              },
+              "required": [
+                "id",
+                "label"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "structures",
+          "keyFrames"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "id": "inkling.wsi.renderers.osd",
       "type": "renderers",
       "module": "inkling.wsi",
-      "description": "OpenSeadragon deep zoom with a vector overlay, navigator and colour adjustments",
+      "description": "OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments",
       "consumes": [
         "inkling.wsi.dataKinds.raster-pyramid"
       ],
@@ -326,15 +945,41 @@
         "holdToPan"
       ],
       "example": {
-        "data": {
-          "kind": "inkling.wsi.dataKinds.raster-pyramid"
-        },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.wsi.renderers.osd"
+            "renderer": "inkling.wsi.renderers.osd",
+            "config": {
+              "mpp": 0.5,
+              "showNavigator": true
+            }
           }
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "objective": {
+            "description": "Scanner objective (×) for the magnification buttons; default from the asset, else 40",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "mpp": {
+            "description": "Physical units per level-0 pixel (µm for slides); default from the asset",
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "showNavigator": {
+            "default": true,
+            "description": "Overview navigator in the bottom-right corner",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "showNavigator"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -497,6 +1142,62 @@
       "module": "inkling.core",
       "description": "Deprecated: use instant with attributes.phase",
       "label": "phase"
+    },
+    {
+      "id": "inkling.volume.geometries.landmark",
+      "type": "geometries",
+      "module": "inkling.volume",
+      "description": "3D landmark: voxel indices (i, j, k) plus the plane and slice it was placed on",
+      "label": "point3d"
+    },
+    {
+      "id": "inkling.timeseries.geometries.span",
+      "type": "geometries",
+      "module": "inkling.timeseries",
+      "description": "Strip-chart span: an interval, a delineated wave (attributes.wave, .peak) or a track episode (attributes.rhythm), by attributes.kind",
+      "label": "span"
+    },
+    {
+      "id": "inkling.timeseries.geometries.instant",
+      "type": "geometries",
+      "module": "inkling.timeseries",
+      "description": "Strip-chart instant with a code (attributes.kind = beat, attributes.code)",
+      "label": "instant"
+    },
+    {
+      "id": "inkling.video.geometries.segment",
+      "type": "geometries",
+      "module": "inkling.video",
+      "description": "A labelled segment of the video (seconds); was v1 `segment`",
+      "label": "span"
+    },
+    {
+      "id": "inkling.video.geometries.event",
+      "type": "geometries",
+      "module": "inkling.video",
+      "description": "A point-in-time event on a frame; was v1 `event`",
+      "label": "instant"
+    },
+    {
+      "id": "inkling.video.geometries.track",
+      "type": "geometries",
+      "module": "inkling.video",
+      "description": "Object track with keyframes, interpolated between them (CVAT track semantics)",
+      "label": "track"
+    },
+    {
+      "id": "inkling.cine.geometries.phase",
+      "type": "geometries",
+      "module": "inkling.cine",
+      "description": "Key frame (phase) marker: instant { frame } with attributes { kind: \"phase\", phase }",
+      "label": "instant"
+    },
+    {
+      "id": "inkling.wsi.geometries.keypoint",
+      "type": "geometries",
+      "module": "inkling.wsi",
+      "description": "A counted point (cell) on a slide, in level-0 pixels",
+      "label": "keypoint"
     },
     {
       "id": "inkling.core.tools.select",
@@ -1064,7 +1765,7 @@
       "id": "inkling.timeseries.tools.interval",
       "type": "tools",
       "module": "inkling.timeseries",
-      "description": "Time span on one channel or all",
+      "description": "Time span on one channel or all (attributes.kind = interval)",
       "label": "Interval",
       "creates": "span",
       "when": "renderer == inkling.timeseries.renderers.strip-chart",
@@ -1080,7 +1781,7 @@
       "id": "inkling.timeseries.tools.beat",
       "type": "tools",
       "module": "inkling.timeseries",
-      "description": "Beat fiducial with a code",
+      "description": "Instant with a code from `instantCodes` (attributes.kind = beat, .code)",
       "label": "Beat",
       "creates": "instant",
       "when": "renderer == inkling.timeseries.renderers.strip-chart",
@@ -1090,13 +1791,28 @@
           "inkling.core.tools.select",
           "inkling.timeseries.tools.beat"
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "default": "",
+            "description": "Code of new annotations; empty = the first of the strip chart's `instantCodes`",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "additionalProperties": false
       }
     },
     {
       "id": "inkling.timeseries.tools.wave",
       "type": "tools",
       "module": "inkling.timeseries",
-      "description": "Wave onset / peak / offset",
+      "description": "Wave onset / peak / offset (attributes.kind = wave, .wave, .peak)",
       "label": "Wave",
       "creates": "span",
       "when": "renderer == inkling.timeseries.renderers.strip-chart",
@@ -1112,7 +1828,7 @@
       "id": "inkling.timeseries.tools.rhythm",
       "type": "tools",
       "module": "inkling.timeseries",
-      "description": "Rhythm episode",
+      "description": "Episode on the record-level track (attributes.kind = rhythm, .rhythm)",
       "label": "Rhythm",
       "creates": "span",
       "when": "renderer == inkling.timeseries.renderers.strip-chart",
@@ -1122,6 +1838,21 @@
           "inkling.core.tools.select",
           "inkling.timeseries.tools.rhythm"
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "code": {
+            "default": "",
+            "description": "Code of new annotations; empty = the first of the strip chart's `trackCodes`",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -1219,6 +1950,23 @@
           "inkling.core.tools.select",
           "inkling.wsi.tools.wand"
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "tolerance": {
+            "default": 28,
+            "description": "Colour tolerance. Shift-click adds to the selected region, Alt-click subtracts",
+            "type": "integer",
+            "minimum": 4,
+            "maximum": 100
+          }
+        },
+        "required": [
+          "tolerance"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -1243,7 +1991,7 @@
       "module": "inkling.wsi",
       "description": "Distance in µm",
       "label": "Length",
-      "creates": "polyline",
+      "creates": "measurement",
       "when": "renderer == inkling.wsi.renderers.osd",
       "hotkey": "l",
       "example": {
@@ -1866,17 +2614,40 @@
       "id": "inkling.image2d.commands.fitView",
       "type": "commands",
       "module": "inkling.image2d",
-      "description": "Reset zoom, pan and window",
+      "description": "Reset zoom and pan (and, on the Cornerstone stack, flips, rotation and the window)",
       "label": "Fit image to view",
       "keys": [
-        "0"
+        "0",
+        "="
       ],
       "example": {
         "keybindings": [
           {
             "command": "inkling.image2d.commands.fitView",
             "keys": [
-              "0"
+              "0",
+              "="
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.image2d.commands.cancelManipulation",
+      "type": "commands",
+      "module": "inkling.image2d",
+      "description": "Abort a Cornerstone tool drag or an unfinished measurement; otherwise Escape clears the selection",
+      "label": "Cancel the drag or drawing in progress",
+      "when": "renderer == inkling.image2d.renderers.cornerstone-stack",
+      "keys": [
+        "Escape"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.image2d.commands.cancelManipulation",
+            "keys": [
+              "Escape"
             ]
           }
         ]
@@ -1886,8 +2657,9 @@
       "id": "inkling.volume.commands.fitView",
       "type": "commands",
       "module": "inkling.volume",
-      "description": "Reset every viewport",
+      "description": "Reset every viewport (zoom, pan, flips, rotation, window)",
       "label": "Fit to view",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
       "keys": [
         "="
       ],
@@ -1906,8 +2678,9 @@
       "id": "inkling.volume.commands.stepSlice",
       "type": "commands",
       "module": "inkling.volume",
-      "description": "Scroll the active plane",
+      "description": "Scroll the active plane (↑ previous, ↓ next)",
       "label": "Previous or next slice",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
       "keys": [
         "ArrowUp",
         "ArrowDown"
@@ -1928,8 +2701,9 @@
       "id": "inkling.volume.commands.firstLastSlice",
       "type": "commands",
       "module": "inkling.volume",
-      "description": "Jump to the first or last slice",
+      "description": "Jump to the first (Home) or last (End) slice of the active plane",
       "label": "First or last slice",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
       "keys": [
         "Home",
         "End"
@@ -1942,6 +2716,91 @@
               "Home",
               "End"
             ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.volume.commands.cancelManipulation",
+      "type": "commands",
+      "module": "inkling.volume",
+      "description": "Cancel an in-progress Cornerstone drag (drawing, handle move); otherwise Escape falls through to clearing the selection",
+      "label": "Cancel the drag in progress",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "keys": [
+        "Escape"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.volume.commands.cancelManipulation",
+            "keys": [
+              "Escape"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.volume.commands.interpolateSlices",
+      "type": "commands",
+      "module": "inkling.volume",
+      "description": "Fill the slices between painted slices of the active label along the active plane (shape-based interpolation)",
+      "label": "Interpolate mask slices",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.volume.commands.interpolateSlices",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.volume.commands.removeIslands",
+      "type": "commands",
+      "module": "inkling.volume",
+      "description": "Keep only the largest 3D connected region of the active label",
+      "label": "Remove mask islands",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.volume.commands.removeIslands",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.volume.commands.smartFill",
+      "type": "commands",
+      "module": "inkling.volume",
+      "description": "Wand clicks grow a 3D region from the clicked structure's intensity statistics (confidence-connected, ±40 mm)",
+      "label": "Wand: smart fill",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.volume.commands.smartFill",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.volume.commands.similarFill",
+      "type": "commands",
+      "module": "inkling.volume",
+      "description": "Wand clicks flood the connected region on the clicked slice within ±8% of the window",
+      "label": "Wand: similar intensity",
+      "when": "renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.volume.commands.similarFill",
+            "keys": []
           }
         ]
       }
@@ -2000,39 +2859,16 @@
       "id": "inkling.timeseries.commands.setBeatCode",
       "type": "commands",
       "module": "inkling.timeseries",
-      "description": "Set the code of the selected instants",
-      "label": "Set code of selected beats",
-      "keys": [
-        "shift+n",
-        "shift+v",
-        "shift+a",
-        "shift+l",
-        "shift+r",
-        "shift+f",
-        "shift+j",
-        "shift+s",
-        "shift+e",
-        "shift+q",
-        "shift+b",
-        "/"
-      ],
+      "description": "Set the code whose `hotkey` (strip-chart `instantCodes`) was pressed on the selected instants; bind the same keys to this command",
+      "label": "Set code of selected instants",
+      "keys": [],
       "example": {
         "keybindings": [
           {
             "command": "inkling.timeseries.commands.setBeatCode",
             "keys": [
               "shift+n",
-              "shift+v",
-              "shift+a",
-              "shift+l",
-              "shift+r",
-              "shift+f",
-              "shift+j",
-              "shift+s",
-              "shift+e",
-              "shift+q",
-              "shift+b",
-              "/"
+              "shift+v"
             ]
           }
         ]
@@ -2054,6 +2890,36 @@
             "keys": [
               "Escape"
             ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.timeseries.commands.detectBeats",
+      "type": "commands",
+      "module": "inkling.timeseries",
+      "description": "R-peak detection on the primary (or focused) channel; results are ai-suggested instants for review. Needs strip-chart config `ecg: true`",
+      "label": "Detect beats (Pan–Tompkins)",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.timeseries.commands.detectBeats",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.timeseries.commands.calibrateScreen",
+      "type": "commands",
+      "module": "inkling.timeseries",
+      "description": "Match an on-screen bar to a credit card so mm/s and mm per unit are true (grid: ecg)",
+      "label": "Calibrate screen for paper scale",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.timeseries.commands.calibrateScreen",
+            "keys": []
           }
         ]
       }
@@ -2088,7 +2954,9 @@
       "label": "Back or forward 10 frames",
       "keys": [
         "shift+ArrowLeft",
-        "shift+ArrowRight"
+        "shift+ArrowRight",
+        "shift+,",
+        "shift+."
       ],
       "example": {
         "keybindings": [
@@ -2096,7 +2964,9 @@
             "command": "inkling.video.commands.step10",
             "keys": [
               "shift+ArrowLeft",
-              "shift+ArrowRight"
+              "shift+ArrowRight",
+              "shift+,",
+              "shift+."
             ]
           }
         ]
@@ -2422,11 +3292,27 @@
       }
     },
     {
+      "id": "inkling.cine.commands.goTo",
+      "type": "commands",
+      "module": "inkling.cine",
+      "description": "Show a slice and frame; args { slice?, frame? } (0-based)",
+      "label": "Go to slice and frame",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.cine.commands.goTo",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.wsi.commands.toggleClassNames",
       "type": "commands",
       "module": "inkling.wsi",
       "description": "Toggle class names on regions",
       "label": "Show or hide class names",
+      "when": "renderer == inkling.wsi.renderers.osd",
       "keys": [
         "n"
       ],
@@ -2437,6 +3323,22 @@
             "keys": [
               "n"
             ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.wsi.commands.importGeoJSON",
+      "type": "commands",
+      "module": "inkling.wsi",
+      "description": "Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step",
+      "label": "Import QuPath GeoJSON",
+      "when": "renderer == inkling.wsi.renderers.osd",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.wsi.commands.importGeoJSON",
+            "keys": []
           }
         ]
       }
@@ -2498,6 +3400,139 @@
       }
     },
     {
+      "id": "inkling.image2d.panels.viewControls",
+      "type": "panels",
+      "module": "inkling.image2d",
+      "description": "Window/level presets, invert, flip, rotate, fit, color map, interpolation and magnifier for the Cornerstone stack (controls follow the renderer config), plus wand mode and remove-islands for mask tools",
+      "slot": "viewport-bar",
+      "example": {
+        "panels": {
+          "viewport-bar": [
+            "inkling.image2d.panels.viewControls"
+          ]
+        }
+      }
+    },
+    {
+      "id": "inkling.timeseries.panels.measurements",
+      "type": "panels",
+      "module": "inkling.timeseries",
+      "description": "Rate and RR from instants, wave intervals (ecg), track episodes and record statements (a `multiple` Choices group)",
+      "slot": "right",
+      "example": {
+        "panels": {
+          "right": [
+            "inkling.timeseries.panels.measurements"
+          ]
+        }
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "label": {
+            "default": "Measurements",
+            "description": "Accessible name of the panel",
+            "type": "string"
+          },
+          "statements": {
+            "description": "Choices label group offered as record statements; defaults to the first `multiple` Choices group",
+            "type": "string"
+          },
+          "codeAttribute": {
+            "default": "code",
+            "description": "Class attribute holding the code that `item.sourceLabel` lists (e.g. snomed)",
+            "type": "string"
+          },
+          "codeSystem": {
+            "description": "Name of that code system, shown in the panel (e.g. SNOMED CT)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "codeAttribute"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "inkling.cardiac-metrics.panels.metrics",
+      "type": "panels",
+      "module": "inkling.cardiac-metrics",
+      "description": "Ventricular volumes and function, LV mass, the volume curve with an ED/ES suggestion, per-slice areas, Dice vs reference and body size",
+      "slot": "right",
+      "example": {
+        "panels": {
+          "right": [
+            "inkling.cardiac-metrics.panels.metrics"
+          ]
+        }
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "phases": {
+            "default": {
+              "ed": "ED",
+              "es": "ES"
+            },
+            "type": "object",
+            "properties": {
+              "ed": {
+                "default": "ED",
+                "description": "Key frame id of end-diastole",
+                "type": "string"
+              },
+              "es": {
+                "default": "ES",
+                "description": "Key frame id of end-systole",
+                "type": "string"
+              }
+            },
+            "required": [
+              "ed",
+              "es"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "phases"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "inkling.wsi.panels.counts",
+      "type": "panels",
+      "module": "inkling.wsi",
+      "description": "Point counts per class on the slide, and inside the selected region with density per mm²",
+      "slot": "right",
+      "example": {
+        "panels": {
+          "right": [
+            "inkling.wsi.panels.counts"
+          ]
+        }
+      }
+    },
+    {
+      "id": "inkling.wsi.panels.adjust",
+      "type": "panels",
+      "module": "inkling.wsi",
+      "description": "Brightness, contrast, gamma and saturation of the slide tiles (display only; the wand samples them)",
+      "slot": "viewport-bar",
+      "example": {
+        "panels": {
+          "viewport-bar": [
+            "inkling.wsi.panels.adjust"
+          ]
+        }
+      }
+    },
+    {
       "id": "inkling.image2d.inspectors.main",
       "type": "inspectors",
       "module": "inkling.image2d",
@@ -2508,15 +3543,19 @@
       "id": "inkling.volume.inspectors.main",
       "type": "inspectors",
       "module": "inkling.volume",
-      "description": "Volumes (mL), lengths and ROI stats in patient space",
+      "description": "Volumes (mL), lengths and ROI stats in patient space; HU for CT",
       "geometries": "*"
     },
     {
       "id": "inkling.timeseries.inspectors.main",
       "type": "inspectors",
       "module": "inkling.timeseries",
-      "description": "Times in s and ms, sample index, channel, codes and provenance",
-      "geometries": "*"
+      "description": "Times in s and ms, sample index (runtime.signalInfo), channel, code names and statement codes",
+      "geometries": [
+        "span",
+        "instant",
+        "class"
+      ]
     },
     {
       "id": "inkling.video.inspectors.main",
@@ -2529,14 +3568,14 @@
       "id": "inkling.cine.inspectors.main",
       "type": "inspectors",
       "module": "inkling.cine",
-      "description": "Areas, perimeters and structure roles in mm",
+      "description": "Areas, perimeters and structure roles in mm (from runtime.grid); key frame names",
       "geometries": "*"
     },
     {
       "id": "inkling.wsi.inspectors.main",
       "type": "inspectors",
       "module": "inkling.wsi",
-      "description": "Areas and lengths in µm from the slide's mpp",
+      "description": "Areas and lengths in µm from the runtime's `mpp`, and points inside regions",
       "geometries": "*"
     },
     {
@@ -2598,16 +3637,81 @@
       "accepts": [
         "span",
         "instant",
-        "interval",
-        "beat",
-        "wave",
-        "rhythm",
         "class"
       ],
       "example": {
         "exporters": [
           "inkling.timeseries.exporters.wfdb-atr"
         ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "codes": {
+            "default": {
+              "N": 1,
+              "L": 2,
+              "R": 3,
+              "a": 4,
+              "V": 5,
+              "F": 6,
+              "J": 7,
+              "A": 8,
+              "S": 9,
+              "E": 10,
+              "j": 11,
+              "/": 12,
+              "Q": 13,
+              "~": 14,
+              "|": 16,
+              "s": 18,
+              "T": 19,
+              "*": 20,
+              "D": 21,
+              "\"": 22,
+              "=": 23,
+              "p": 24,
+              "B": 25,
+              "^": 26,
+              "t": 27,
+              "+": 28,
+              "u": 29,
+              "?": 30,
+              "!": 31,
+              "[": 32,
+              "]": 33,
+              "e": 34,
+              "n": 35,
+              "@": 36,
+              "x": 37,
+              "f": 38,
+              "(": 39,
+              ")": 40,
+              "r": 41
+            },
+            "description": "Code → WFDB annotation number (ecgcodes.h)",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 49
+            }
+          },
+          "noise": {
+            "default": "artifact|artefact|noise",
+            "description": "Regular expression (case-insensitive) on the label of intervals written as NOISE (~) episodes",
+            "type": "string"
+          }
+        },
+        "required": [
+          "codes",
+          "noise"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2619,10 +3723,6 @@
       "accepts": [
         "span",
         "instant",
-        "interval",
-        "beat",
-        "wave",
-        "rhythm",
         "class"
       ],
       "example": {
@@ -2638,10 +3738,7 @@
       "description": "One row per interval, wave and rhythm episode: record, kind, lead, label, start/end in s and samples, duration in ms, provenance.",
       "label": "Intervals & waves (CSV)",
       "accepts": [
-        "span",
-        "interval",
-        "wave",
-        "rhythm"
+        "span"
       ],
       "example": {
         "exporters": [
@@ -2691,9 +3788,7 @@
       "label": "Temporal JSON",
       "accepts": [
         "span",
-        "instant",
-        "segment",
-        "event"
+        "instant"
       ],
       "example": {
         "exporters": [
@@ -2705,7 +3800,7 @@
       "id": "inkling.cine.exporters.acdc-nifti",
       "type": "exporters",
       "module": "inkling.cine",
-      "description": "4D uint8 .nii.gz, 1 = RV, 2 = MYO, 3 = LV, on the cine's grid and orientation. Frames without contours are zero.",
+      "description": "4D uint8 .nii.gz on the cine's grid and orientation; value = label position (1 = RV, 2 = MYO, 3 = LV for ACDC labels). Frames without contours are zero.",
       "label": "ACDC labelmap (NIfTI)",
       "accepts": [
         "spline",
@@ -2715,23 +3810,6 @@
       "example": {
         "exporters": [
           "inkling.cine.exporters.acdc-nifti"
-        ]
-      }
-    },
-    {
-      "id": "inkling.cine.exporters.cine-metrics-csv",
-      "type": "exporters",
-      "module": "inkling.cine",
-      "description": "Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs).",
-      "label": "Cardiac function (CSV)",
-      "accepts": [
-        "spline",
-        "polygon",
-        "mask"
-      ],
-      "example": {
-        "exporters": [
-          "inkling.cine.exporters.cine-metrics-csv"
         ]
       }
     },
@@ -2752,6 +3830,23 @@
       }
     },
     {
+      "id": "inkling.cardiac-metrics.exporters.function-csv",
+      "type": "exporters",
+      "module": "inkling.cardiac-metrics",
+      "description": "Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs).",
+      "label": "Cardiac function (CSV)",
+      "accepts": [
+        "spline",
+        "polygon",
+        "mask"
+      ],
+      "example": {
+        "exporters": [
+          "inkling.cardiac-metrics.exporters.function-csv"
+        ]
+      }
+    },
+    {
       "id": "inkling.wsi.exporters.qupath-geojson",
       "type": "exporters",
       "module": "inkling.wsi",
@@ -2761,8 +3856,8 @@
         "polygon",
         "multipolygon",
         "keypoint",
-        "mark",
         "polyline",
+        "measurement",
         "box",
         "ellipse"
       ],
@@ -2782,8 +3877,10 @@
         "polygon",
         "multipolygon",
         "keypoint",
-        "mark",
-        "box"
+        "polyline",
+        "measurement",
+        "box",
+        "ellipse"
       ],
       "example": {
         "exporters": [
@@ -2798,8 +3895,7 @@
       "description": "Per-slide, per-class point counts with region count, region area and points/mm².",
       "label": "Cell counts CSV",
       "accepts": [
-        "keypoint",
-        "mark"
+        "keypoint"
       ],
       "example": {
         "exporters": [
@@ -3114,7 +4210,24 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.cine.renderers.slice-frame-canvas"
+            "renderer": "inkling.cine.renderers.slice-frame-canvas",
+            "config": {
+              "structures": {
+                "rv": "right ventricle",
+                "myo": "myocardium",
+                "lv": "left ventricle"
+              },
+              "keyFrames": [
+                {
+                  "id": "ED",
+                  "label": "End-diastole"
+                },
+                {
+                  "id": "ES",
+                  "label": "End-systole"
+                }
+              ]
+            }
           }
         ],
         "tools": [
@@ -3129,8 +4242,79 @@
         ],
         "exporters": [
           "inkling.cine.exporters.acdc-nifti",
-          "inkling.cine.exporters.cine-metrics-csv",
+          "inkling.cardiac-metrics.exporters.function-csv",
           "inkling.cine.exporters.cine-contours-json"
+        ],
+        "panels": {
+          "left": [
+            "inkling.core.panels.files",
+            "inkling.core.panels.labels",
+            "inkling.core.panels.review"
+          ],
+          "right": [
+            "inkling.cardiac-metrics.panels.metrics",
+            "inkling.core.panels.ai"
+          ]
+        },
+        "reviewRules": [
+          "inkling.core.reviewRules.source-label-disagreement",
+          "inkling.core.reviewRules.unlabeled-items"
+        ],
+        "layout": null
+      }
+    },
+    {
+      "id": "inkling.presets.presets.drone-video-tracks",
+      "type": "presets",
+      "module": "inkling.presets",
+      "description": "Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export.",
+      "example": {
+        "$schema": "inkling://schema/environment/v1",
+        "id": "drone-video-tracks",
+        "title": "Drone video tracks",
+        "data": {
+          "kind": "inkling.video.dataKinds.video"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.video.renderers.frame-canvas"
+          }
+        ],
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.tools.pan",
+          "inkling.overlay2d.tools.box",
+          "inkling.timeline.tools.event"
+        ],
+        "labels": [
+          {
+            "name": "objects",
+            "control": "VideoRectangle",
+            "classes": [
+              {
+                "id": "car",
+                "color": "#ef476f"
+              },
+              {
+                "id": "truck",
+                "color": "#ffd166"
+              },
+              {
+                "id": "person",
+                "color": "#06d6a0"
+              }
+            ],
+            "attributes": {
+              "occluded": {
+                "type": "boolean"
+              }
+            }
+          }
+        ],
+        "exporters": [
+          "inkling.video.exporters.mot",
+          "inkling.video.exporters.cvat-video"
         ],
         "panels": {
           "left": [
@@ -3143,7 +4327,6 @@
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
           "inkling.core.reviewRules.unlabeled-items"
         ],
         "layout": null
@@ -3153,7 +4336,7 @@
       "id": "inkling.presets.presets.ecg",
       "type": "presets",
       "module": "inkling.presets",
-      "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, calipers; WFDB and LUDB export.",
+      "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export.",
       "example": {
         "$schema": "inkling://schema/environment/v1",
         "id": "ecg",
@@ -3161,10 +4344,520 @@
         "data": {
           "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
         },
+        "labels": [
+          {
+            "name": "labels",
+            "control": "Labels",
+            "classes": [
+              {
+                "id": "P wave",
+                "color": "chart-1"
+              },
+              {
+                "id": "QRS complex",
+                "color": "chart-2"
+              },
+              {
+                "id": "T wave",
+                "color": "chart-3"
+              },
+              {
+                "id": "artifact",
+                "color": "chart-4"
+              }
+            ]
+          },
+          {
+            "name": "statements",
+            "control": "Choices",
+            "multiple": true,
+            "classes": [
+              {
+                "id": "Sinus rhythm",
+                "name": "SNR",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "426783006"
+                  }
+                }
+              },
+              {
+                "id": "Sinus bradycardia",
+                "name": "SB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "426177001"
+                  }
+                }
+              },
+              {
+                "id": "Sinus tachycardia",
+                "name": "STach",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "427084000"
+                  }
+                }
+              },
+              {
+                "id": "Sinus arrhythmia",
+                "name": "SA",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "427393009"
+                  }
+                }
+              },
+              {
+                "id": "Atrial fibrillation",
+                "name": "AF",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164889003"
+                  }
+                }
+              },
+              {
+                "id": "Atrial flutter",
+                "name": "AFL",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164890007"
+                  }
+                }
+              },
+              {
+                "id": "1st degree AV block",
+                "name": "IAVB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "270492004"
+                  }
+                }
+              },
+              {
+                "id": "Prolonged PR interval",
+                "name": "LPR",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164947007"
+                  }
+                }
+              },
+              {
+                "id": "Left bundle branch block",
+                "name": "LBBB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164909002"
+                  }
+                }
+              },
+              {
+                "id": "Right bundle branch block",
+                "name": "RBBB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "59118001"
+                  }
+                }
+              },
+              {
+                "id": "Incomplete RBBB",
+                "name": "IRBBB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "713426002"
+                  }
+                }
+              },
+              {
+                "id": "Left anterior fascicular block",
+                "name": "LAnFB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "445118002"
+                  }
+                }
+              },
+              {
+                "id": "Nonspecific IV conduction disturbance",
+                "name": "NSIVCB",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "698252002"
+                  }
+                }
+              },
+              {
+                "id": "Left axis deviation",
+                "name": "LAD",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "39732003"
+                  }
+                }
+              },
+              {
+                "id": "Right axis deviation",
+                "name": "RAD",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "47665007"
+                  }
+                }
+              },
+              {
+                "id": "Low QRS voltages",
+                "name": "LQRSV",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "251146004"
+                  }
+                }
+              },
+              {
+                "id": "Left ventricular hypertrophy",
+                "name": "LVH",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164873001"
+                  }
+                }
+              },
+              {
+                "id": "Myocardial infarction",
+                "name": "MI",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164865005"
+                  }
+                }
+              },
+              {
+                "id": "Abnormal QRS",
+                "name": "abQRS",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164951009"
+                  }
+                }
+              },
+              {
+                "id": "Q wave abnormal",
+                "name": "QAb",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164917005"
+                  }
+                }
+              },
+              {
+                "id": "T wave abnormal",
+                "name": "TAb",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "164934002"
+                  }
+                }
+              },
+              {
+                "id": "T wave inversion",
+                "name": "TInv",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "59931005"
+                  }
+                }
+              },
+              {
+                "id": "Nonspecific ST-T abnormality",
+                "name": "NSSTTA",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "428750005"
+                  }
+                }
+              },
+              {
+                "id": "Prolonged QT interval",
+                "name": "LQT",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "111975006"
+                  }
+                }
+              },
+              {
+                "id": "Premature atrial contraction",
+                "name": "PAC",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "284470004"
+                  }
+                }
+              },
+              {
+                "id": "Premature ventricular contractions",
+                "name": "PVC",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "427172004"
+                  }
+                }
+              },
+              {
+                "id": "Pacing rhythm",
+                "name": "PR",
+                "attributes": {
+                  "snomed": {
+                    "type": "string",
+                    "default": "10370003"
+                  }
+                }
+              }
+            ]
+          }
+        ],
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.timeseries.renderers.strip-chart"
+            "renderer": "inkling.timeseries.renderers.strip-chart",
+            "config": {
+              "reader": "wfdb",
+              "layout": "stacked",
+              "layouts": [
+                "stacked",
+                "6x2",
+                "3x4",
+                "single"
+              ],
+              "grid": "ecg",
+              "paperSpeed": 25,
+              "gain": 10,
+              "unit": "mV",
+              "filters": {
+                "hp": 0.05,
+                "notch": 0,
+                "lp": 150
+              },
+              "channelOrder": [
+                "I",
+                "II",
+                "III",
+                "aVR",
+                "aVL",
+                "aVF",
+                "V1",
+                "V2",
+                "V3",
+                "V4",
+                "V5",
+                "V6"
+              ],
+              "primaryChannel": "II",
+              "channelNoun": "lead",
+              "track": {
+                "channel": "rhythm",
+                "label": "Rhythm"
+              },
+              "instantCodes": [
+                {
+                  "id": "N",
+                  "name": "Normal beat",
+                  "hotkey": "shift+n"
+                },
+                {
+                  "id": "V",
+                  "name": "Premature ventricular contraction",
+                  "hotkey": "shift+v"
+                },
+                {
+                  "id": "A",
+                  "name": "Atrial premature beat",
+                  "hotkey": "shift+a"
+                },
+                {
+                  "id": "L",
+                  "name": "Left bundle branch block beat",
+                  "hotkey": "shift+l"
+                },
+                {
+                  "id": "R",
+                  "name": "Right bundle branch block beat",
+                  "hotkey": "shift+r"
+                },
+                {
+                  "id": "F",
+                  "name": "Fusion of ventricular and normal beat",
+                  "hotkey": "shift+f"
+                },
+                {
+                  "id": "J",
+                  "name": "Nodal (junctional) premature beat",
+                  "hotkey": "shift+j"
+                },
+                {
+                  "id": "S",
+                  "name": "Supraventricular premature beat",
+                  "hotkey": "shift+s"
+                },
+                {
+                  "id": "E",
+                  "name": "Ventricular escape beat",
+                  "hotkey": "shift+e"
+                },
+                {
+                  "id": "/",
+                  "name": "Paced beat",
+                  "hotkey": "/"
+                },
+                {
+                  "id": "f",
+                  "name": "Fusion of paced and normal beat"
+                },
+                {
+                  "id": "Q",
+                  "name": "Unclassifiable beat",
+                  "hotkey": "shift+q"
+                },
+                {
+                  "id": "a",
+                  "name": "Aberrated atrial premature beat"
+                },
+                {
+                  "id": "j",
+                  "name": "Nodal (junctional) escape beat"
+                },
+                {
+                  "id": "e",
+                  "name": "Atrial escape beat"
+                },
+                {
+                  "id": "n",
+                  "name": "Supraventricular escape beat"
+                },
+                {
+                  "id": "r",
+                  "name": "R-on-T premature ventricular contraction"
+                },
+                {
+                  "id": "B",
+                  "name": "Bundle branch block beat (unspecified)",
+                  "hotkey": "shift+b"
+                },
+                {
+                  "id": "!",
+                  "name": "Ventricular flutter wave"
+                }
+              ],
+              "trackCodes": [
+                {
+                  "id": "(N",
+                  "name": "Normal sinus rhythm"
+                },
+                {
+                  "id": "(SBR",
+                  "name": "Sinus bradycardia"
+                },
+                {
+                  "id": "(AFIB",
+                  "name": "Atrial fibrillation"
+                },
+                {
+                  "id": "(AFL",
+                  "name": "Atrial flutter"
+                },
+                {
+                  "id": "(SVTA",
+                  "name": "Supraventricular tachyarrhythmia"
+                },
+                {
+                  "id": "(VT",
+                  "name": "Ventricular tachycardia"
+                },
+                {
+                  "id": "(B",
+                  "name": "Ventricular bigeminy"
+                },
+                {
+                  "id": "(T",
+                  "name": "Ventricular trigeminy"
+                },
+                {
+                  "id": "(IVR",
+                  "name": "Idioventricular rhythm"
+                },
+                {
+                  "id": "(NOD",
+                  "name": "Nodal (junctional) rhythm"
+                },
+                {
+                  "id": "(P",
+                  "name": "Paced rhythm"
+                },
+                {
+                  "id": "(BII",
+                  "name": "2° heart block"
+                },
+                {
+                  "id": "(PREX",
+                  "name": "Pre-excitation (WPW)"
+                },
+                {
+                  "id": "(AB",
+                  "name": "Atrial bigeminy"
+                },
+                {
+                  "id": "(VFL",
+                  "name": "Ventricular flutter"
+                }
+              ],
+              "waves": [
+                {
+                  "id": "P",
+                  "label": "P wave"
+                },
+                {
+                  "id": "QRS",
+                  "label": "QRS complex"
+                },
+                {
+                  "id": "T",
+                  "label": "T wave"
+                }
+              ],
+              "defaultWave": "QRS",
+              "instantLabel": "QRS complex",
+              "ecg": true,
+              "displayKey": "inkling.signal.display.v1"
+            }
           }
         ],
         "tools": [
@@ -3188,12 +4881,93 @@
             "inkling.core.panels.review"
           ],
           "right": [
+            "inkling.timeseries.panels.measurements",
+            "inkling.core.panels.ai"
+          ]
+        },
+        "keybindings": [
+          {
+            "command": "inkling.timeseries.commands.setBeatCode",
+            "keys": [
+              "shift+n",
+              "shift+v",
+              "shift+a",
+              "shift+l",
+              "shift+r",
+              "shift+f",
+              "shift+j",
+              "shift+s",
+              "shift+e",
+              "/",
+              "shift+q",
+              "shift+b"
+            ]
+          }
+        ],
+        "overrides": [
+          {
+            "id": "inkling.timeseries.panels.measurements",
+            "config": {
+              "label": "ECG measurements",
+              "codeAttribute": "snomed",
+              "codeSystem": "SNOMED CT"
+            }
+          }
+        ],
+        "reviewRules": [
+          "inkling.core.reviewRules.source-label-disagreement",
+          "inkling.core.reviewRules.unlabeled-items"
+        ],
+        "layout": null
+      }
+    },
+    {
+      "id": "inkling.presets.presets.generic-image",
+      "type": "presets",
+      "module": "inkling.presets",
+      "description": "Natural images (photos, scans, screenshots) on a light canvas renderer: boxes, polygons and keypoints with select / move / resize; COCO export. No Cornerstone, no window/level.",
+      "example": {
+        "$schema": "inkling://schema/environment/v1",
+        "id": "generic-image",
+        "title": "Generic image",
+        "data": {
+          "kind": "inkling.image2d.dataKinds.raster"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.image2d.renderers.canvas-raster"
+          }
+        ],
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.tools.pan",
+          "inkling.overlay2d.tools.box",
+          "inkling.overlay2d.tools.polygon",
+          "inkling.overlay2d.tools.keypoint"
+        ],
+        "exporters": [
+          "inkling.image2d.exporters.coco"
+        ],
+        "panels": {
+          "left": [
+            "inkling.core.panels.files",
+            "inkling.core.panels.labels",
+            "inkling.core.panels.review"
+          ],
+          "right": [
             "inkling.core.panels.ai"
           ]
         },
         "reviewRules": [
           "inkling.core.reviewRules.source-label-disagreement",
           "inkling.core.reviewRules.unlabeled-items"
+        ],
+        "overrides": [
+          {
+            "id": "inkling.cornerstone.tools.cobb",
+            "disabled": true
+          }
         ],
         "layout": null
       }
@@ -3249,6 +5023,9 @@
           ],
           "right": [
             "inkling.core.panels.ai"
+          ],
+          "viewport-bar": [
+            "inkling.image2d.panels.viewControls"
           ]
         },
         "reviewRules": [
@@ -3302,11 +5079,96 @@
             "inkling.core.panels.review"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "inkling.core.panels.ai",
+            "inkling.wsi.panels.counts"
+          ],
+          "viewport-bar": [
+            "inkling.wsi.panels.adjust"
           ]
         },
         "reviewRules": [
           "inkling.core.reviewRules.source-label-disagreement",
+          "inkling.core.reviewRules.unlabeled-items"
+        ],
+        "layout": null
+      }
+    },
+    {
+      "id": "inkling.presets.presets.satellite-tiles",
+      "type": "presets",
+      "module": "inkling.presets",
+      "description": "Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.",
+      "example": {
+        "$schema": "inkling://schema/environment/v1",
+        "id": "satellite-tiles",
+        "title": "Satellite tiles",
+        "data": {
+          "kind": "inkling.wsi.dataKinds.raster-pyramid"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.wsi.renderers.osd",
+            "config": {
+              "mpp": 500000
+            }
+          }
+        ],
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.tools.pan",
+          "inkling.overlay2d.tools.box",
+          "inkling.overlay2d.tools.polygon",
+          "inkling.wsi.tools.brush",
+          "inkling.wsi.tools.eraser",
+          "inkling.wsi.tools.mark",
+          "inkling.wsi.tools.length"
+        ],
+        "labels": [
+          {
+            "name": "land",
+            "control": "PolygonLabels",
+            "classes": [
+              {
+                "id": "building",
+                "color": "#e4572e"
+              },
+              {
+                "id": "field",
+                "color": "#76b041"
+              },
+              {
+                "id": "water",
+                "color": "#17bebb"
+              }
+            ]
+          },
+          {
+            "name": "poi",
+            "control": "KeyPointLabels",
+            "classes": [
+              {
+                "id": "tree",
+                "color": "#2e7d32"
+              }
+            ]
+          }
+        ],
+        "exporters": [
+          "inkling.wsi.exporters.qupath-geojson",
+          "inkling.wsi.exporters.point-counts-csv"
+        ],
+        "panels": {
+          "left": [
+            "inkling.core.panels.files",
+            "inkling.core.panels.labels",
+            "inkling.core.panels.review"
+          ],
+          "right": [
+            "inkling.core.panels.ai"
+          ]
+        },
+        "reviewRules": [
           "inkling.core.reviewRules.unlabeled-items"
         ],
         "layout": null

@@ -4,7 +4,7 @@ import type { RuntimeApi } from "./module";
 /**
  * Per-item runtime context. Renderers publish live values here (playhead, grid spacing,
  * signal sample rate, viewport state, structured status); inspectors and panels read them.
- * Replaces module-level singletons such as `videoPlayhead` or `knownGrids`.
+ * Replaces the module-level singletons viewers used to keep for this.
  *
  * Well-known keys (docs/modules.md): `playhead` ({ frame, time }), `grid` ({ spacing, dims }),
  * `signalInfo` ({ fs, … }), `viewportState`, `status`.

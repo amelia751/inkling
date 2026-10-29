@@ -4,19 +4,20 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 
 ## dataKinds
 - `inkling.image2d.dataKinds.raster` — Single-frame images, one item per file
-- `inkling.volume.dataKinds.volume` — Volumes grouped by subject (several sequences per subject)
-- `inkling.timeseries.dataKinds.multichannel-timeseries` — One item per recording; channels are leads / signals
+- `inkling.volume.dataKinds.volume` — Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation
+- `inkling.timeseries.dataKinds.multichannel-timeseries` — One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)
 - `inkling.video.dataKinds.video` — One item per video file (or frame archive)
 - `inkling.cine.dataKinds.volume-time` — A 4D series plus reference segmentations, as one study
 - `inkling.wsi.dataKinds.raster-pyramid` — One item per pyramid (slide); thumbnails are skipped
 
 ## renderers
-- `inkling.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps (consumes inkling.image2d.dataKinds.raster; space image2d)
-- `inkling.volume.renderers.cornerstone-mpr` — Cornerstone3D orthographic MPR with linked crosshairs and an optional 3D view (consumes inkling.volume.dataKinds.volume; space volume)
-- `inkling.timeseries.renderers.strip-chart` — Strip chart: stacked or 12-lead layouts, ECG paper or plain grid, filters, calipers (consumes inkling.timeseries.dataKinds.multichannel-timeseries; space time)
+- `inkling.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config (consumes inkling.image2d.dataKinds.raster; space image2d)
+- `inkling.image2d.renderers.canvas-raster` — Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools (consumes inkling.image2d.dataKinds.raster; space image2d)
+- `inkling.volume.renderers.cornerstone-mpr` — Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D (consumes inkling.volume.dataKinds.volume; space volume)
+- `inkling.timeseries.renderers.strip-chart` — Strip chart: stacked or column layouts, ECG paper or plain grid, zero-phase display filters, calipers (consumes inkling.timeseries.dataKinds.multichannel-timeseries; space time)
 - `inkling.video.renderers.frame-canvas` — WebCodecs frame canvas with a playback clock, A–B range, filmstrip timeline and track overlays (consumes inkling.video.dataKinds.video; space image2d)
-- `inkling.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a phase matrix, playback and function metrics (consumes inkling.cine.dataKinds.volume-time; space image2d)
-- `inkling.wsi.renderers.osd` — OpenSeadragon deep zoom with a vector overlay, navigator and colour adjustments (consumes inkling.wsi.dataKinds.raster-pyramid; space image2d)
+- `inkling.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage (consumes inkling.cine.dataKinds.volume-time; space image2d)
+- `inkling.wsi.renderers.osd` — OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments (consumes inkling.wsi.dataKinds.raster-pyramid; space image2d)
 
 ## geometries
 - `inkling.core.geometries.class` — Item-level class (whole image, recording or study)
@@ -42,6 +43,14 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.geometries.segment` — Deprecated: use span
 - `inkling.core.geometries.event` — Deprecated: use instant
 - `inkling.core.geometries.phase` — Deprecated: use instant with attributes.phase
+- `inkling.volume.geometries.landmark` — 3D landmark: voxel indices (i, j, k) plus the plane and slice it was placed on
+- `inkling.timeseries.geometries.span` — Strip-chart span: an interval, a delineated wave (attributes.wave, .peak) or a track episode (attributes.rhythm), by attributes.kind
+- `inkling.timeseries.geometries.instant` — Strip-chart instant with a code (attributes.kind = beat, attributes.code)
+- `inkling.video.geometries.segment` — A labelled segment of the video (seconds); was v1 `segment`
+- `inkling.video.geometries.event` — A point-in-time event on a frame; was v1 `event`
+- `inkling.video.geometries.track` — Object track with keyframes, interpolated between them (CVAT track semantics)
+- `inkling.cine.geometries.phase` — Key frame (phase) marker: instant { frame } with attributes { kind: "phase", phase }
+- `inkling.wsi.geometries.keypoint` — A counted point (cell) on a slide, in level-0 pixels
 
 ## tools
 - `inkling.core.tools.select` — Select, move and edit annotations
@@ -75,16 +84,16 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.timeline.tools.segment` — Drag along the timeline to label a span (creates span; when 'time' in renderer.capabilities)
 - `inkling.timeline.tools.event` — Mark the current frame as an event (creates instant; when 'time' in renderer.capabilities)
 - `inkling.volume.tools.point` — 3D landmark in voxel indices (creates point3d; when renderer.space == volume)
-- `inkling.timeseries.tools.interval` — Time span on one channel or all (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
-- `inkling.timeseries.tools.beat` — Beat fiducial with a code (creates instant; when renderer == inkling.timeseries.renderers.strip-chart)
-- `inkling.timeseries.tools.wave` — Wave onset / peak / offset (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
-- `inkling.timeseries.tools.rhythm` — Rhythm episode (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.interval` — Time span on one channel or all (attributes.kind = interval) (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.beat` — Instant with a code from `instantCodes` (attributes.kind = beat, .code) (creates instant; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.wave` — Wave onset / peak / offset (attributes.kind = wave, .wave, .peak) (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
+- `inkling.timeseries.tools.rhythm` — Episode on the record-level track (attributes.kind = rhythm, .rhythm) (creates span; when renderer == inkling.timeseries.renderers.strip-chart)
 - `inkling.timeseries.tools.caliper` — Measure Δt and Δamplitude (not saved) (when renderer == inkling.timeseries.renderers.strip-chart)
 - `inkling.wsi.tools.brush` — Paint vector regions with the active label (creates multipolygon; when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.tools.eraser` — Erase from vector regions (creates multipolygon; when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.tools.wand` — Magic wand on tile pixels (creates polygon; when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.tools.mark` — Point (cell) counting (creates keypoint; when renderer == inkling.wsi.renderers.osd)
-- `inkling.wsi.tools.length` — Distance in µm (creates polyline; when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.tools.length` — Distance in µm (creates measurement; when renderer == inkling.wsi.renderers.osd)
 
 ## commands
 - `inkling.core.commands.undo` — Undo the last annotation change
@@ -115,14 +124,22 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.cornerstone.commands.invertImage` — Invert the grayscale (when 'cornerstone' in renderer.capabilities)
 - `inkling.cornerstone.commands.flipHorizontal` — Mirror left–right (when 'cornerstone' in renderer.capabilities)
 - `inkling.cornerstone.commands.flipVertical` — Mirror top–bottom (when 'cornerstone' in renderer.capabilities)
-- `inkling.image2d.commands.fitView` — Reset zoom, pan and window
-- `inkling.volume.commands.fitView` — Reset every viewport
-- `inkling.volume.commands.stepSlice` — Scroll the active plane
-- `inkling.volume.commands.firstLastSlice` — Jump to the first or last slice
+- `inkling.image2d.commands.fitView` — Reset zoom and pan (and, on the Cornerstone stack, flips, rotation and the window)
+- `inkling.image2d.commands.cancelManipulation` — Abort a Cornerstone tool drag or an unfinished measurement; otherwise Escape clears the selection (when renderer == inkling.image2d.renderers.cornerstone-stack)
+- `inkling.volume.commands.fitView` — Reset every viewport (zoom, pan, flips, rotation, window) (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.stepSlice` — Scroll the active plane (↑ previous, ↓ next) (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.firstLastSlice` — Jump to the first (Home) or last (End) slice of the active plane (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.cancelManipulation` — Cancel an in-progress Cornerstone drag (drawing, handle move); otherwise Escape falls through to clearing the selection (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.interpolateSlices` — Fill the slices between painted slices of the active label along the active plane (shape-based interpolation) (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.removeIslands` — Keep only the largest 3D connected region of the active label (when renderer == inkling.volume.renderers.cornerstone-mpr)
+- `inkling.volume.commands.smartFill` — Wand clicks grow a 3D region from the clicked structure's intensity statistics (confidence-connected, ±40 mm) (when renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand)
+- `inkling.volume.commands.similarFill` — Wand clicks flood the connected region on the clicked slice within ±8% of the window (when renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand)
 - `inkling.timeseries.commands.scrollWindow` — Scroll the visible time window
 - `inkling.timeseries.commands.zoomTime` — Zoom the time axis
-- `inkling.timeseries.commands.setBeatCode` — Set the code of the selected instants
+- `inkling.timeseries.commands.setBeatCode` — Set the code whose `hotkey` (strip-chart `instantCodes`) was pressed on the selected instants; bind the same keys to this command
 - `inkling.timeseries.commands.clearCaliper` — Clear the caliper
+- `inkling.timeseries.commands.detectBeats` — R-peak detection on the primary (or focused) channel; results are ai-suggested instants for review. Needs strip-chart config `ecg: true`
+- `inkling.timeseries.commands.calibrateScreen` — Match an on-screen bar to a credit card so mm/s and mm per unit are true (grid: ecg)
 - `inkling.video.commands.stepFrame` — Step one frame
 - `inkling.video.commands.step10` — Step ten frames
 - `inkling.video.commands.firstLastFrame` — Jump to the first or last frame
@@ -140,38 +157,45 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.cine.commands.stepSlice` — Step one slice
 - `inkling.cine.commands.copyContourReplace` — Copy the selected contours, replacing the target's
 - `inkling.cine.commands.copyContour` — Copy the selected contours to the neighbouring cell
-- `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions
+- `inkling.cine.commands.goTo` — Show a slice and frame; args { slice?, frame? } (0-based)
+- `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions (when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.commands.importGeoJSON` — Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step (when renderer == inkling.wsi.renderers.osd)
 
 ## panels
 - `inkling.core.panels.files` — The project's items, grouped, with per-item progress and a filter (slot left)
 - `inkling.core.panels.labels` — Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector (slot left)
 - `inkling.core.panels.review` — Every annotation with provenance, and the items with none yet (slot left)
 - `inkling.core.panels.ai` — Assistant that can read and edit this environment (agent tools) (slot right)
+- `inkling.image2d.panels.viewControls` — Window/level presets, invert, flip, rotate, fit, color map, interpolation and magnifier for the Cornerstone stack (controls follow the renderer config), plus wand mode and remove-islands for mask tools (slot viewport-bar)
+- `inkling.timeseries.panels.measurements` — Rate and RR from instants, wave intervals (ecg), track episodes and record statements (a `multiple` Choices group) (slot right)
+- `inkling.cardiac-metrics.panels.metrics` — Ventricular volumes and function, LV mass, the volume curve with an ED/ES suggestion, per-slice areas, Dice vs reference and body size (slot right)
+- `inkling.wsi.panels.counts` — Point counts per class on the slide, and inside the selected region with density per mm² (slot right)
+- `inkling.wsi.panels.adjust` — Brightness, contrast, gamma and saturation of the slide tiles (display only; the wand samples them) (slot viewport-bar)
 
 ## inspectors
 - `inkling.image2d.inspectors.main` — Physical measurements (mm, mm², HU) for Cornerstone annotations
-- `inkling.volume.inspectors.main` — Volumes (mL), lengths and ROI stats in patient space
-- `inkling.timeseries.inspectors.main` — Times in s and ms, sample index, channel, codes and provenance
+- `inkling.volume.inspectors.main` — Volumes (mL), lengths and ROI stats in patient space; HU for CT
+- `inkling.timeseries.inspectors.main` — Times in s and ms, sample index (runtime.signalInfo), channel, code names and statement codes
 - `inkling.video.inspectors.main` — Frames, times and sizes; a track's shape at the playhead
-- `inkling.cine.inspectors.main` — Areas, perimeters and structure roles in mm
-- `inkling.wsi.inspectors.main` — Areas and lengths in µm from the slide's mpp
+- `inkling.cine.inspectors.main` — Areas, perimeters and structure roles in mm (from runtime.grid); key frame names
+- `inkling.wsi.inspectors.main` — Areas and lengths in µm from the runtime's `mpp`, and points inside regions
 
 ## exporters
 - `inkling.image2d.exporters.coco` — Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels. (accepts box, polygon, keypoint, measurement, mask, class)
 - `inkling.volume.exporters.nifti-labelmap` — One .nii.gz labelmap of the subject open in the studio; geometry copied from its own scan. BraTS values 1/2/4, otherwise label index + 1. (accepts mask)
 - `inkling.volume.exporters.masks-json` — Every subject's masks as run-length encoded voxel grids (x fastest, background first) with label values, voxel counts and volumes. (accepts mask)
-- `inkling.timeseries.exporters.wfdb-atr` — MIT-format <record>.atr (beats, rhythm changes, noise) plus LUDB-style per-lead wave files (<record>.i, .ii … with ( peak ) triplets), the source .hea headers and a RECORDS list. Readable with rdann / wfdb-python. (accepts span, instant, interval, beat, wave, rhythm, class)
-- `inkling.timeseries.exporters.ecg-json` — Per record: beats, P/QRS/T waves (onset/peak/offset), rhythm episodes, intervals and record statements, in seconds and sample indices. (accepts span, instant, interval, beat, wave, rhythm, class)
-- `inkling.timeseries.exporters.ecg-intervals-csv` — One row per interval, wave and rhythm episode: record, kind, lead, label, start/end in s and samples, duration in ms, provenance. (accepts span, interval, wave, rhythm)
+- `inkling.timeseries.exporters.wfdb-atr` — MIT-format <record>.atr (beats, rhythm changes, noise) plus LUDB-style per-lead wave files (<record>.i, .ii … with ( peak ) triplets), the source .hea headers and a RECORDS list. Readable with rdann / wfdb-python. (accepts span, instant, class)
+- `inkling.timeseries.exporters.ecg-json` — Per record: beats, P/QRS/T waves (onset/peak/offset), rhythm episodes, intervals and record statements, in seconds and sample indices. (accepts span, instant, class)
+- `inkling.timeseries.exporters.ecg-intervals-csv` — One row per interval, wave and rhythm episode: record, kind, lead, label, start/end in s and samples, duration in ms, provenance. (accepts span)
 - `inkling.video.exporters.cvat-video` — One annotations XML per video: tracks with every frame interpolated (keyframe, outside, occluded flags); per-frame shapes as one-frame tracks. (accepts track, box, polygon, keypoint)
 - `inkling.video.exporters.mot` — Box tracks per video as gt/gt.txt (frame, id, x, y, w, h, conf, class, visibility; 1-based frames) with seqinfo.ini. (accepts track, box)
-- `inkling.video.exporters.temporal-json` — Labeled segments and point-in-time events per video, in seconds and frames. (accepts span, instant, segment, event)
-- `inkling.cine.exporters.acdc-nifti` — 4D uint8 .nii.gz, 1 = RV, 2 = MYO, 3 = LV, on the cine's grid and orientation. Frames without contours are zero. (accepts spline, polygon, mask)
-- `inkling.cine.exporters.cine-metrics-csv` — Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs). (accepts spline, polygon, mask)
+- `inkling.video.exporters.temporal-json` — Labeled segments and point-in-time events per video, in seconds and frames. (accepts span, instant)
+- `inkling.cine.exporters.acdc-nifti` — 4D uint8 .nii.gz on the cine's grid and orientation; value = label position (1 = RV, 2 = MYO, 3 = LV for ACDC labels). Frames without contours are zero. (accepts spline, polygon, mask)
 - `inkling.cine.exporters.cine-contours-json` — Every contour with its spline control points, densely sampled outline, slice, frame, area and source. (accepts spline, polygon)
-- `inkling.wsi.exporters.qupath-geojson` — Regions, lines and per-class point sets in level-0 pixels with classifications and measurements. Opens in QuPath (File › Import objects), Cytomine and DSA. (accepts polygon, multipolygon, keypoint, mark, polyline, box, ellipse)
-- `inkling.wsi.exporters.asap-xml` — ASAP / CAMELYON annotation XML: polygons, rectangles, point sets and groups per class; holes become <class>_exclusion polygons. (accepts polygon, multipolygon, keypoint, mark, box)
-- `inkling.wsi.exporters.point-counts-csv` — Per-slide, per-class point counts with region count, region area and points/mm². (accepts keypoint, mark)
+- `inkling.cardiac-metrics.exporters.function-csv` — Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs). (accepts spline, polygon, mask)
+- `inkling.wsi.exporters.qupath-geojson` — Regions, lines and per-class point sets in level-0 pixels with classifications and measurements. Opens in QuPath (File › Import objects), Cytomine and DSA. (accepts polygon, multipolygon, keypoint, polyline, measurement, box, ellipse)
+- `inkling.wsi.exporters.asap-xml` — ASAP / CAMELYON annotation XML: polygons, rectangles, point sets and groups per class; holes become <class>_exclusion polygons. (accepts polygon, multipolygon, keypoint, polyline, measurement, box, ellipse)
+- `inkling.wsi.exporters.point-counts-csv` — Per-slide, per-class point counts with region count, region area and points/mm². (accepts keypoint)
 - `inkling.dicom-export.exporters.dicom-seg` — Masks as a DICOM Segmentation object referencing the source DICOM images (one segment per label). DICOM inputs only. (accepts mask)
 - `inkling.dicom-export.exporters.dicom-sr` — Lengths, angles, ROIs, probes and arrows as a DICOM Structured Report (TID 1500). DICOM inputs only. (accepts measurement)
 
@@ -192,8 +216,11 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 
 ## presets
 - `preset:cine-4d` — Cardiac cine MRI: spline contours and masks per slice and frame, copy-forward, ED/ES phases, function metrics; ACDC NIfTI export.
-- `preset:ecg` — ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, calipers; WFDB and LUDB export.
+- `preset:drone-video-tracks` — Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export.
+- `preset:ecg` — ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export.
+- `preset:generic-image` — Natural images (photos, scans, screenshots) on a light canvas renderer: boxes, polygons and keypoints with select / move / resize; COCO export. No Cornerstone, no window/level.
 - `preset:image-2d` — Radiographs and photos on a Cornerstone3D stack: window/level, ROI shapes, measurements, masks; COCO and DICOM export.
 - `preset:pathology` — Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.
+- `preset:satellite-tiles` — Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.
 - `preset:video` — Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.
 - `preset:volume-3d` — MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.

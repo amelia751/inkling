@@ -23,9 +23,12 @@
               "type": "string",
               "enum": [
                 "preset:cine-4d",
+                "preset:drone-video-tracks",
                 "preset:ecg",
+                "preset:generic-image",
                 "preset:image-2d",
                 "preset:pathology",
+                "preset:satellite-tiles",
                 "preset:video",
                 "preset:volume-3d"
               ]
@@ -36,9 +39,12 @@
                 "type": "string",
                 "enum": [
                   "preset:cine-4d",
+                  "preset:drone-video-tracks",
                   "preset:ecg",
+                  "preset:generic-image",
                   "preset:image-2d",
                   "preset:pathology",
+                  "preset:satellite-tiles",
                   "preset:video",
                   "preset:volume-3d"
                 ]
@@ -66,6 +72,7 @@
               "inkling.timeseries",
               "inkling.video",
               "inkling.cine",
+              "inkling.cardiac-metrics",
               "inkling.wsi",
               "inkling.dicom-export",
               "inkling.presets"
@@ -115,6 +122,7 @@
                 "type": "string",
                 "enum": [
                   "inkling.image2d.renderers.cornerstone-stack",
+                  "inkling.image2d.renderers.canvas-raster",
                   "inkling.volume.renderers.cornerstone-mpr",
                   "inkling.timeseries.renderers.strip-chart",
                   "inkling.video.renderers.frame-canvas",
@@ -199,7 +207,12 @@
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
-                  "inkling.core.panels.ai"
+                  "inkling.core.panels.ai",
+                  "inkling.image2d.panels.viewControls",
+                  "inkling.timeseries.panels.measurements",
+                  "inkling.cardiac-metrics.panels.metrics",
+                  "inkling.wsi.panels.counts",
+                  "inkling.wsi.panels.adjust"
                 ]
               }
             },
@@ -211,7 +224,12 @@
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
-                  "inkling.core.panels.ai"
+                  "inkling.core.panels.ai",
+                  "inkling.image2d.panels.viewControls",
+                  "inkling.timeseries.panels.measurements",
+                  "inkling.cardiac-metrics.panels.metrics",
+                  "inkling.wsi.panels.counts",
+                  "inkling.wsi.panels.adjust"
                 ]
               }
             },
@@ -223,7 +241,12 @@
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
-                  "inkling.core.panels.ai"
+                  "inkling.core.panels.ai",
+                  "inkling.image2d.panels.viewControls",
+                  "inkling.timeseries.panels.measurements",
+                  "inkling.cardiac-metrics.panels.metrics",
+                  "inkling.wsi.panels.counts",
+                  "inkling.wsi.panels.adjust"
                 ]
               }
             },
@@ -235,7 +258,12 @@
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
-                  "inkling.core.panels.ai"
+                  "inkling.core.panels.ai",
+                  "inkling.image2d.panels.viewControls",
+                  "inkling.timeseries.panels.measurements",
+                  "inkling.cardiac-metrics.panels.metrics",
+                  "inkling.wsi.panels.counts",
+                  "inkling.wsi.panels.adjust"
                 ]
               }
             }
@@ -257,8 +285,8 @@
               "inkling.video.exporters.mot",
               "inkling.video.exporters.temporal-json",
               "inkling.cine.exporters.acdc-nifti",
-              "inkling.cine.exporters.cine-metrics-csv",
               "inkling.cine.exporters.cine-contours-json",
+              "inkling.cardiac-metrics.exporters.function-csv",
               "inkling.wsi.exporters.qupath-geojson",
               "inkling.wsi.exporters.asap-xml",
               "inkling.wsi.exporters.point-counts-csv",
@@ -314,13 +342,21 @@
                   "inkling.cornerstone.commands.flipHorizontal",
                   "inkling.cornerstone.commands.flipVertical",
                   "inkling.image2d.commands.fitView",
+                  "inkling.image2d.commands.cancelManipulation",
                   "inkling.volume.commands.fitView",
                   "inkling.volume.commands.stepSlice",
                   "inkling.volume.commands.firstLastSlice",
+                  "inkling.volume.commands.cancelManipulation",
+                  "inkling.volume.commands.interpolateSlices",
+                  "inkling.volume.commands.removeIslands",
+                  "inkling.volume.commands.smartFill",
+                  "inkling.volume.commands.similarFill",
                   "inkling.timeseries.commands.scrollWindow",
                   "inkling.timeseries.commands.zoomTime",
                   "inkling.timeseries.commands.setBeatCode",
                   "inkling.timeseries.commands.clearCaliper",
+                  "inkling.timeseries.commands.detectBeats",
+                  "inkling.timeseries.commands.calibrateScreen",
                   "inkling.video.commands.stepFrame",
                   "inkling.video.commands.step10",
                   "inkling.video.commands.firstLastFrame",
@@ -338,7 +374,9 @@
                   "inkling.cine.commands.stepSlice",
                   "inkling.cine.commands.copyContourReplace",
                   "inkling.cine.commands.copyContour",
-                  "inkling.wsi.commands.toggleClassNames"
+                  "inkling.cine.commands.goTo",
+                  "inkling.wsi.commands.toggleClassNames",
+                  "inkling.wsi.commands.importGeoJSON"
                 ]
               },
               "keys": {
@@ -371,6 +409,7 @@
                   "inkling.cine.dataKinds.volume-time",
                   "inkling.wsi.dataKinds.raster-pyramid",
                   "inkling.image2d.renderers.cornerstone-stack",
+                  "inkling.image2d.renderers.canvas-raster",
                   "inkling.volume.renderers.cornerstone-mpr",
                   "inkling.timeseries.renderers.strip-chart",
                   "inkling.video.renderers.frame-canvas",
@@ -399,6 +438,14 @@
                   "inkling.core.geometries.segment",
                   "inkling.core.geometries.event",
                   "inkling.core.geometries.phase",
+                  "inkling.volume.geometries.landmark",
+                  "inkling.timeseries.geometries.span",
+                  "inkling.timeseries.geometries.instant",
+                  "inkling.video.geometries.segment",
+                  "inkling.video.geometries.event",
+                  "inkling.video.geometries.track",
+                  "inkling.cine.geometries.phase",
+                  "inkling.wsi.geometries.keypoint",
                   "inkling.core.tools.select",
                   "inkling.core.tools.pan",
                   "inkling.core.tools.windowLevel",
@@ -469,13 +516,21 @@
                   "inkling.cornerstone.commands.flipHorizontal",
                   "inkling.cornerstone.commands.flipVertical",
                   "inkling.image2d.commands.fitView",
+                  "inkling.image2d.commands.cancelManipulation",
                   "inkling.volume.commands.fitView",
                   "inkling.volume.commands.stepSlice",
                   "inkling.volume.commands.firstLastSlice",
+                  "inkling.volume.commands.cancelManipulation",
+                  "inkling.volume.commands.interpolateSlices",
+                  "inkling.volume.commands.removeIslands",
+                  "inkling.volume.commands.smartFill",
+                  "inkling.volume.commands.similarFill",
                   "inkling.timeseries.commands.scrollWindow",
                   "inkling.timeseries.commands.zoomTime",
                   "inkling.timeseries.commands.setBeatCode",
                   "inkling.timeseries.commands.clearCaliper",
+                  "inkling.timeseries.commands.detectBeats",
+                  "inkling.timeseries.commands.calibrateScreen",
                   "inkling.video.commands.stepFrame",
                   "inkling.video.commands.step10",
                   "inkling.video.commands.firstLastFrame",
@@ -493,11 +548,18 @@
                   "inkling.cine.commands.stepSlice",
                   "inkling.cine.commands.copyContourReplace",
                   "inkling.cine.commands.copyContour",
+                  "inkling.cine.commands.goTo",
                   "inkling.wsi.commands.toggleClassNames",
+                  "inkling.wsi.commands.importGeoJSON",
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
                   "inkling.core.panels.ai",
+                  "inkling.image2d.panels.viewControls",
+                  "inkling.timeseries.panels.measurements",
+                  "inkling.cardiac-metrics.panels.metrics",
+                  "inkling.wsi.panels.counts",
+                  "inkling.wsi.panels.adjust",
                   "inkling.image2d.inspectors.main",
                   "inkling.volume.inspectors.main",
                   "inkling.timeseries.inspectors.main",
@@ -514,8 +576,8 @@
                   "inkling.video.exporters.mot",
                   "inkling.video.exporters.temporal-json",
                   "inkling.cine.exporters.acdc-nifti",
-                  "inkling.cine.exporters.cine-metrics-csv",
                   "inkling.cine.exporters.cine-contours-json",
+                  "inkling.cardiac-metrics.exporters.function-csv",
                   "inkling.wsi.exporters.qupath-geojson",
                   "inkling.wsi.exporters.asap-xml",
                   "inkling.wsi.exporters.point-counts-csv",
@@ -533,9 +595,12 @@
                   "inkling.core.reviewRules.source-label-disagreement",
                   "inkling.core.reviewRules.unlabeled-items",
                   "inkling.presets.presets.cine-4d",
+                  "inkling.presets.presets.drone-video-tracks",
                   "inkling.presets.presets.ecg",
+                  "inkling.presets.presets.generic-image",
                   "inkling.presets.presets.image-2d",
                   "inkling.presets.presets.pathology",
+                  "inkling.presets.presets.satellite-tiles",
                   "inkling.presets.presets.video",
                   "inkling.presets.presets.volume-3d"
                 ]

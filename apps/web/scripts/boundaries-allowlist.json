@@ -1,8 +1,6 @@
 [
   "modules/image2d",
 
-  "modules/volume",
-
   "modules/timeseries",
 
   "modules/video",

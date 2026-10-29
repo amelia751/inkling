@@ -63,7 +63,7 @@ export const MIGRATED_V1_TYPES = new Set<string>([
   // modules/wsi (mark → keypoint):
 
   // modules/volume (point → point3d):
-
+  "point",
   // modules/timeseries (interval, beat, wave, rhythm → span / instant):
 
   // modules/video (segment, event → span / instant):

@@ -64,6 +64,7 @@ export function inspectAnnotation(a: Annotation, ctx: { mode: "2d" | "3d"; modal
         ...(live?.stats.value !== undefined ? [["Value", `${f(live.stats.value)}${valueUnit}`] as [string, string]] : []),
       ];
     case "point":
+    case "point3d":
       return [
         ["Shape", "Point"],
         ["Voxel (i, j, k)", g.ijk.join(", ")],

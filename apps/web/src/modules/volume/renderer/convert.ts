@@ -3,10 +3,9 @@ import * as tools from "@cornerstonejs/tools";
 import type { Annotation, Geometry, Plane } from "@/types";
 import { KIND_TOOL, readStats, round, simplifyPolyline, TOOL_KIND, type Converter, type CsSpec } from "@/kits/cornerstone/bridge";
 import { T } from "@/kits/cornerstone/init";
+import { PLANES } from "../config";
 
 type CsAnnotation = tools.Types.Annotation;
-
-export const PLANES: Plane[] = ["axial", "sagittal", "coronal"];
 
 export interface VolumeGeometry {
   dims: [number, number, number];
@@ -64,8 +63,8 @@ function simplifyContour(points: Types.Point3[], plane: Plane): Types.Point3[] {
 
 /**
  * Store ⇄ Cornerstone for one volume (subject). Measurements are stored in world (LPS mm)
- * coordinates with the plane / slice they were drawn on; landmarks as `point` {ijk} so
- * the legacy annotations keep working.
+ * coordinates with the plane / slice they were drawn on; landmarks as core `point3d`
+ * {plane, slice, ijk} (stored v1 `point`s migrate on load).
  */
 export function volumeConverter(geom: () => VolumeGeometry | null): Converter {
   const metadataFor = (plane: Plane) => {
@@ -77,7 +76,7 @@ export function volumeConverter(geom: () => VolumeGeometry | null): Converter {
       const g = geom();
       if (!g) return null;
       const geo = a.geometry;
-      if (geo.type === "point") {
+      if (geo.type === "point3d") {
         return { toolName: T.Keypoint, points: [g.indexToWorld(geo.ijk)], metadata: metadataFor(geo.plane) };
       }
       if (geo.type === "measurement" && geo.space === "world") {
@@ -106,7 +105,7 @@ export function volumeConverter(geom: () => VolumeGeometry | null): Converter {
       const slice = Math.round(ijk0[axis]);
       if (name === T.Keypoint) {
         const ijk = ijk0.map((v, i) => Math.max(0, Math.min(g.dims[i] - 1, Math.round(v)))) as [number, number, number];
-        return { geometry: { type: "point", plane, slice: ijk[axis], ijk } };
+        return { geometry: { type: "point3d", plane, slice: ijk[axis], ijk } };
       }
       const kind = TOOL_KIND[name];
       if (!kind) return null;

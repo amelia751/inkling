@@ -162,7 +162,7 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 
 **`platform/runtime.ts`** (new; fixes problem F)
 - [x] A per-item runtime context store (a Zustand slice or `createStore`): `publish(itemId, key, value)`, `useRuntime(itemId, key)`, `getRuntime(itemId, key)`.
-- [~] Renderers publish `playhead`, `grid` (spacing/dims), `signalInfo` (fs), `viewportState`. Inspectors and panels read from it. _(store + API done; viewers publish in phase 6)_
+- [x] Renderers publish `playhead`, `grid` (spacing/dims), `signalInfo` (fs), `viewportState`. Inspectors and panels read from it. _(video/cine playhead, cine grid, timeseries signalInfo, wsi mpp, image2d/volume viewportState)_
 
 **`platform/commands.ts`** (new; fixes problem E)
 - [x] Command registry: `registerCommand(id, handler, { when })`, `execute(id, args)`. Handlers return `false` to fall through, matching today's `useShortcuts` semantics.
@@ -183,7 +183,7 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 - [x] Delete `ViewerKind`. Replace `Project.viewer` with `Project.environment: EnvironmentSpec | { preset: string }`. Keep a migration shim (`viewer: "pathology"` maps to `{ extends: "preset:pathology" }`) in `lib/api.ts`.
 - [x] Replace `labels?: string[]` with `labels?: LabelGroup[]` (from `platform/environment.ts`). Add `labelNames(env)` for the transition.
 - [x] Split `Geometry` into **core geometries** that stay in this file and are domain-neutral: `class`, `box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`, `point3d` (today's `point`), `measurement`, `mask`, `span` (start/end on a time axis, optional `channel`), `instant` (t or frame, optional `channel`), `track`.
-- [~] Re-express the medical geometries on core ones, carrying their codes in `attributes`: _(types, migration and tests done; each viewer switches over in phase 6 via MIGRATED_V1_TYPES in lib/api.ts)_
+- [x] Re-express the medical geometries on core ones, carrying their codes in `attributes`: _(every v1 type is in MIGRATED_V1_TYPES; all viewers read and write core geometries)_
   - `interval` becomes `span` with `channel: lead`
   - `beat` becomes `instant` with `channel` and `attributes.code`
   - `wave` becomes `span` with `attributes.wave` and `attributes.peak`
@@ -289,11 +289,11 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 
 **`kits/viewport-chrome/`** (new; fixes problem J)
 - [x] Move `viewers/cornerstone/ui.tsx` primitives here: `ViewportBar`, `BarButton`, `BarSelect`, `BarSep`, `BarLabel`, `CornerText`, `OrientationMarkers`, `TextPrompt`, `releaseFocusAfterPointer`.
-- [~] Add `BarSegmented` (replaces signal `Seg`/`Pick`), `BarToggle` (signal `Toggle`, cine `TB`), `BarIconButton`/`BarTextButton` (video), `Transport` (from cine `Transport`, also used by video), and `Legend` (from cine). _(BarSegmented, BarPick, BarToggle, BarIconButton, BarTextButton, ToolbarButton done; Transport and Legend left for the cine conversion)_
-- [~] Delete the private copies in `SignalViewer.tsx:923-1034`, `Cine4DViewer.tsx:1017-1100` and `VideoViewer.tsx:1055-1108`. _(signal, video and cine copies replaced; cine Transport/Legend remain)_
+- [x] Add `BarSegmented` (replaces signal `Seg`/`Pick`), `BarToggle` (signal `Toggle`, cine `TB`), `BarIconButton`/`BarTextButton` (video), `Transport` (from cine `Transport`, also used by video), and `Legend` (from cine). _(Transport and Legend added to kits/viewport-chrome by the cine conversion)_
+- [x] Delete the private copies in `SignalViewer.tsx:923-1034`, `Cine4DViewer.tsx:1017-1100` and `VideoViewer.tsx:1055-1108`. _(all private copies gone with the conversions)_
 
 **`kits/overlay2d/`** (new; fixes problem I; the biggest win for non-medical 2D tasks)
-- [~] `transform.ts`: image to screen mapping, generalizing `pathology/transform.ts` and `shared/useViewport2D.ts` (camera with zoom, pan, rotation, flip). _(pathology transform moved into kits/overlay2d; generalisation is part of 6.1)_
+- [x] `transform.ts`: image to screen mapping, generalizing `pathology/transform.ts` and `shared/useViewport2D.ts` (camera with zoom, pan, rotation, flip). _(Transform2D interface + generic affine View; the OSD adapter lives in modules/wsi)_
 - [x] `shapes/*.ts`: one tldraw-style `ShapeUtil` per core 2D geometry (`box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`), each with `bounds`, `hitTest`, `handles`, `applyHandle`, `translate`, `draw(ctx, style)`. Sources: `video/overlay.ts`, `pathology/scene.ts` + `regions.ts`, and the cine contour code. _(as kits/overlay2d/shapes.ts)_
 - [x] `tools/*.ts`: one state machine per drawing tool (`select` with marquee/lasso, `box`, `ellipse`, `polygon`, `freehand`, `polyline`, `spline`, `keypoint`, `brush`/`eraser` on vector regions, `length`), lifted from `pathology/controller.ts` (the most complete). Each exports `onPointerDown/Move/Up`, `onKey`, `draft()` and `cancel()`, and reads options from `useToolOption`.
 - [x] `OverlayEngine.ts`: owns the overlay canvas(es), spatial index (`flatbush`, as pathology does), LOD drawing and the selection/handle layer. It subscribes to the store with `getState`/`subscribe`, never React state.
@@ -338,7 +338,7 @@ Rules (enforced by `check:boundaries`):
 - [x] Every contribution has an `example` so `describeCatalog()` can show the agent a working snippet (kiwifs fence rule).
 
 **`modules/core/`** (new)
-- [~] Panels: files, labels, review, inspector, ai. Core geometries' `describe`/`inspect`, review rules, studio commands, and the `select`/`pan` tools as defaults for every renderer. _(files, labels (with inspector), review, ai panels, geometries, review rules, commands, select/pan done)_
+- [x] Panels: files, labels, review, inspector, ai. Core geometries' `describe`/`inspect`, review rules, studio commands, and the `select`/`pan` tools as defaults for every renderer. _(files, labels (with the selection inspector), review, ai panels; geometries, review rules, commands, select/pan/windowLevel)_
 
 ---
 

@@ -36,7 +36,7 @@ describe("bundled presets", () => {
 });
 
 describe("non-medical presets (environment JSON only)", () => {
-  it.each(["satellite-tiles", "drone-video-tracks"])("preset:%s resolves with zero errors", (id) => {
+  it.each(["satellite-tiles", "drone-video-tracks", "sensor-timeseries-events", "generic-image"])("preset:%s resolves with zero errors", (id) => {
     const r = resolveEnvironment({ extends: `preset:${id}` }, registry);
     expect(r.errors).toBeUndefined();
   });

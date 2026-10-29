@@ -29,6 +29,7 @@
                 "preset:image-2d",
                 "preset:pathology",
                 "preset:satellite-tiles",
+                "preset:sensor-timeseries-events",
                 "preset:video",
                 "preset:volume-3d"
               ]
@@ -45,6 +46,7 @@
                   "preset:image-2d",
                   "preset:pathology",
                   "preset:satellite-tiles",
+                  "preset:sensor-timeseries-events",
                   "preset:video",
                   "preset:volume-3d"
                 ]
@@ -601,6 +603,7 @@
                   "inkling.presets.presets.image-2d",
                   "inkling.presets.presets.pathology",
                   "inkling.presets.presets.satellite-tiles",
+                  "inkling.presets.presets.sensor-timeseries-events",
                   "inkling.presets.presets.video",
                   "inkling.presets.presets.volume-3d"
                 ]

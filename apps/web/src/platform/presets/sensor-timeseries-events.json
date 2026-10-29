@@ -1,0 +1,103 @@
+{
+  "id": "sensor-timeseries-events",
+  "title": "Sensor events",
+  "description": "Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).",
+  "spec": {
+    "$schema": "inkling://schema/environment/v1",
+    "id": "sensor-timeseries-events",
+    "title": "Sensor events",
+    "data": {
+      "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
+    },
+    "viewports": [
+      {
+        "name": "main",
+        "renderer": "inkling.timeseries.renderers.strip-chart",
+        "config": {
+          "reader": "csv",
+          "grid": "plain",
+          "unit": "g",
+          "gain": 20,
+          "ecg": false,
+          "track": {
+            "channel": "activity",
+            "label": "Activity"
+          },
+          "trackCodes": [
+            {
+              "id": "walk"
+            },
+            {
+              "id": "run"
+            },
+            {
+              "id": "rest"
+            }
+          ],
+          "instantCodes": [
+            {
+              "id": "step",
+              "hotkey": "shift+s"
+            },
+            {
+              "id": "fall",
+              "hotkey": "shift+f"
+            }
+          ]
+        }
+      }
+    ],
+    "tools": [
+      "inkling.core.tools.select",
+      "inkling.core.tools.pan",
+      "inkling.timeseries.tools.interval",
+      "inkling.timeseries.tools.beat",
+      "inkling.timeseries.tools.rhythm",
+      "inkling.timeseries.tools.caliper"
+    ],
+    "labels": [
+      {
+        "name": "events",
+        "control": "TimeSeriesLabels",
+        "classes": [
+          {
+            "id": "event",
+            "color": "#ef476f"
+          },
+          {
+            "id": "artifact",
+            "color": "#8d99ae"
+          }
+        ]
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "inkling.timeseries.commands.setBeatCode",
+        "keys": [
+          "shift+s",
+          "shift+f"
+        ]
+      }
+    ],
+    "panels": {
+      "left": [
+        "inkling.core.panels.files",
+        "inkling.core.panels.labels",
+        "inkling.core.panels.review"
+      ],
+      "right": [
+        "inkling.timeseries.panels.measurements",
+        "inkling.core.panels.ai"
+      ]
+    },
+    "exporters": [
+      "inkling.timeseries.exporters.ecg-intervals-csv",
+      "inkling.timeseries.exporters.ecg-json"
+    ],
+    "reviewRules": [
+      "inkling.core.reviewRules.unlabeled-items"
+    ],
+    "layout": null
+  }
+}

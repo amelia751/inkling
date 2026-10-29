@@ -224,5 +224,6 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `preset:image-2d` — Radiographs and photos on a Cornerstone3D stack: window/level, ROI shapes, measurements, masks; COCO and DICOM export.
 - `preset:pathology` — Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.
 - `preset:satellite-tiles` — Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.
+- `preset:sensor-timeseries-events` — Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).
 - `preset:video` — Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.
 - `preset:volume-3d` — MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.

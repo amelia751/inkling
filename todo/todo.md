@@ -302,7 +302,7 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 - [x] Unit tests for every `ShapeUtil` (hit-test, handle drag, translate round-trip).
 
 **`kits/timeline/`** (new)
-- [ ] Extract the ruler, playhead, span lanes and filmstrip from `video/Timeline.tsx`, generalized to "time axis + lanes of `span`/`instant` annotations". Signal's rhythm track and cine's phase markers become lanes. Tools `inkling.timeline.tools.span` and `.instant` declare `when: "renderer.capabilities has 'time'"`.
+- [x] Extract the ruler, playhead, span lanes and filmstrip from `video/Timeline.tsx`, generalized to "time axis + lanes of `span`/`instant` annotations". Signal's rhythm track and cine's phase markers become lanes. Tools `inkling.timeline.tools.span` and `.instant` declare `when: "renderer.capabilities has 'time'"`. _(kits/timeline/Timeline.tsx, used by video)_
 
 **`kits/io/`** (new; fixes problem H)
 - [x] Move `volume3d/nifti.ts` to `kits/io/nifti.ts`; update the cine imports.
@@ -363,11 +363,11 @@ The order runs from the cleanest to the most entangled. After each conversion, r
 - [ ] Exporters: `coco.ts` stays; the DICOM SEG/SR exporters move to `modules/dicom-export/` so any Cornerstone renderer can opt in.
 
 ### 6.3 `video` to `modules/video/`
-- [ ] dataKind `video` (mp4/webm). Renderer `frame-canvas` (`space: "image2d"`, capabilities `["time","playback"]`).
-- [ ] Delete the `videoPlayhead` singleton (`VideoViewer.tsx:41`). Publish `runtime.playhead`; `adapter.ts` inspect reads it.
-- [ ] Overlay drawing and editing go through `kits/overlay2d` with `placement.frame`. Track interpolation (`tracks.ts`) becomes a `geometries` contribution for `track`, plus a `ShapeUtil` wrapper that resolves the shape at the playhead.
-- [ ] Timeline goes through `kits/timeline`. Keyframe, outside and occluded become module commands with keybindings (moved from `lib/shortcuts.ts`).
-- [ ] Split `VideoViewer.tsx` (1,108 lines) into `renderer/VideoEngine.ts` (frame source, playback clock) and `renderer/Host.tsx`, under 250 lines.
+- [x] dataKind `video` (mp4/webm). Renderer `frame-canvas` (`space: "image2d"`, capabilities `["time","playback"]`).
+- [x] Delete the `videoPlayhead` singleton (`VideoViewer.tsx:41`). Publish `runtime.playhead`; `adapter.ts` inspect reads it.
+- [x] Overlay drawing and editing go through `kits/overlay2d` with `placement.frame`. Track interpolation (`tracks.ts`) becomes a `geometries` contribution for `track`, plus a `ShapeUtil` wrapper that resolves the shape at the playhead.
+- [x] Timeline goes through `kits/timeline`. Keyframe, outside and occluded become module commands with keybindings (moved from `lib/shortcuts.ts`).
+- [x] Split `VideoViewer.tsx` (1,108 lines) into `renderer/VideoEngine.ts` (frame source, playback clock) and `renderer/Host.tsx`, under 250 lines.
 
 ### 6.4 `signal` to `modules/timeseries/` (rename: ECG is a preset, not the module)
 - [ ] dataKind `multichannel-timeseries` with readers `wfdb` (now), `csv` and `edf` (later). Renderer `strip-chart`, with configSchema `{ layout: "stacked"|"12lead"|"3x4"…, paperSpeed, gain, grid: "ecg"|"plain", filters }`. ECG paper is a config value, not code.

@@ -219,8 +219,10 @@ export class RasterEditor {
   /** Pointer released; commits a drawn box or an edit. */
   up(p: Pt): void {
     const d = this.drag;
-    this.drag = null;
     if (!d) return;
+    // A release without an intermediate move still lands where it is released.
+    if (d.kind === "handle" || d.kind === "move") this.move(p);
+    this.drag = null;
     if (d.kind === "box" && this.draft?.kind === "box") {
       const { a } = this.draft;
       const b = this.clamp(this.image(p));
@@ -232,7 +234,6 @@ export class RasterEditor {
       return;
     }
     if (d.kind === "handle" || d.kind === "move") {
-      this.move(p);
       const changes = [...this.preview].map(([id, geometry]) => ({ id, geometry: roundGeometry(geometry) }));
       this.preview.clear();
       if (changes.length) this.env.commit(changes);

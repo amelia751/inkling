@@ -1,7 +1,11 @@
 import { tool } from "@/kits/tool-catalog";
 import { defineModule } from "@/platform/module";
 
-/** Time-axis tools for renderers with the `time` capability: spans and instants on a timeline. */
+/**
+ * Time-axis tools for renderers with the `time` capability: spans and instants on a timeline.
+ * Renderers draw the axis with `Timeline.tsx` (ruler, playhead, A–B range, filmstrip and lanes of
+ * span / instant items).
+ */
 const TIME = "'time' in renderer.capabilities";
 
 export default defineModule({

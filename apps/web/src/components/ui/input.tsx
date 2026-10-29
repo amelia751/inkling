@@ -2,13 +2,25 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+/** Gravity TextInput sizes: sm 24 · md 28 · lg 36, radius following the height. */
+const SIZES = {
+  sm: "h-6 rounded-sm px-2",
+  md: "h-7 rounded-md px-2",
+  lg: "h-9 rounded-lg px-3",
+} as const
+
+interface InputProps extends React.ComponentProps<"input"> {
+  inputSize?: keyof typeof SIZES
+}
+
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type, inputSize = "md", ...props }, ref) => {
     return (
       <input
         type={type}
         className={cn(
-          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+          "flex w-full border border-input bg-transparent text-sm text-foreground transition-colors [outline-offset:-1px] placeholder:text-hint hover:border-border-hover disabled:cursor-not-allowed disabled:border-transparent disabled:bg-generic disabled:text-hint",
+          SIZES[inputSize],
           className
         )}
         ref={ref}

@@ -1,14 +1,18 @@
-import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { useMemo, useState, type ReactNode } from "react";
+import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Download } from "lucide-react";
+import { ExportIcon, FileIcon } from "@/components/icons";
+import { AppLayout, PageHeading } from "@/components/layout/app-layout";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { fetchAnnotations } from "@/lib/api";
 import { projectItems } from "@/lib/items";
-import { FullPageMessage, PageHeader, useProject } from "./shared";
+import { FormatExports } from "@/components/studio/FormatExports";
+import { cn } from "@/lib/utils";
+import { FullPageMessage, useProject } from "./shared";
 
 /** Download-only export for the MVP; public publishing is out of scope (ui.md §11). */
 export function ExportPage() {
@@ -16,6 +20,8 @@ export function ExportPage() {
   const { project, isLoading } = useProject(datasetId);
   const saved = useQuery({ queryKey: ["annotations", datasetId, "export"], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: 0 });
   const [rights, setRights] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const bundle = useMemo(() => {
     if (!project || !saved.data) return null;
@@ -39,69 +45,74 @@ export function ExportPage() {
     };
   }, [project, saved.data]);
 
-  if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export…" />;
+  if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export…" loading />;
   if (!project || !bundle) return <FullPageMessage title="Dataset not found" />;
 
+  const fileName = `${project.id}-r${bundle.dataset.revision}.inkling.json`;
   const download = () => {
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${project.id}-r${bundle.dataset.revision}.inkling.json`;
+    a.download = fileName;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
-  return (
-    <div className="flex h-full flex-col">
-      <PageHeader>
-        <nav className="flex items-center gap-1 text-sm text-muted-foreground">
-          <ChevronRight className="h-3.5 w-3.5" />
-          <Link to={`/datasets/${project.id}`} className="hover:text-foreground">{project.title}</Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-foreground">Export</span>
-        </nav>
-      </PageHeader>
-      <main className="mx-auto w-full max-w-4xl flex-1 space-y-6 overflow-y-auto px-4 py-8 sm:px-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Export dataset</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Downloads the saved annotations (revision {bundle.dataset.revision}) with a dataset card and file checksums. Original files are referenced by path and sha256, never modified.
-          </p>
-        </div>
+  const rows: [string, ReactNode][] = [
+    ["Task", <span className="capitalize">{bundle.dataset.task?.replace("-", " ") ?? "–"}</span>],
+    ["Labels", <span className="flex flex-wrap gap-1">{bundle.dataset.labels?.map((l) => <Badge key={l} className="capitalize">{l}</Badge>)}</span>],
+    ["Items", String(bundle.items.length)],
+    ["Annotations", String(bundle.annotations.length)],
+    ["Method", bundle.dataset.annotationMethod],
+    ["Source", <a href={bundle.dataset.source} target="_blank" rel="noreferrer" className="break-all text-brand hover:underline">{bundle.dataset.source}</a>],
+    ["License", bundle.dataset.license],
+    ["Limitations", bundle.dataset.limitations],
+  ];
 
-        <Card className="border-[var(--border-color)] p-4 shadow-none">
-          <h2 className="mb-3 text-sm font-medium">Dataset card</h2>
-          <dl className="grid grid-cols-[140px_1fr] gap-x-4 gap-y-2 text-sm">
-            {[
-              ["Task", bundle.dataset.task],
-              ["Labels", bundle.dataset.labels?.join(", ")],
-              ["Items", String(bundle.items.length)],
-              ["Annotations", String(bundle.annotations.length)],
-              ["Method", bundle.dataset.annotationMethod],
-              ["Source", bundle.dataset.source],
-              ["License", bundle.dataset.license],
-              ["Limitations", bundle.dataset.limitations],
-            ].map(([k, v]) => (
+  return (
+    <AppLayout
+      dataset={{ id: project.id, title: project.title }}
+    >
+      <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
+        <PageHeading
+          title="Export dataset"
+          description={<>Downloads the saved annotations (revision {bundle.dataset.revision}) with a dataset card and file checksums. Original files are referenced by path and sha256, never modified.</>}
+        />
+
+        <Card className="mb-4">
+          <CardHeader className="pb-1">
+            <CardTitle>Dataset card</CardTitle>
+          </CardHeader>
+          <dl className="grid grid-cols-[120px_1fr] gap-x-4 px-4 pb-2 text-sm sm:grid-cols-[160px_1fr]">
+            {rows.map(([k, v], i) => (
               <div key={k} className="contents">
-                <dt className="text-muted-foreground">{k}</dt>
-                <dd className="break-words">{v}</dd>
+                <dt className={cn("py-2.5 text-muted-foreground", i < rows.length - 1 && "border-b border-border")}>{k}</dt>
+                <dd className={cn("min-w-0 py-2.5 break-words", i < rows.length - 1 && "border-b border-border")}>{v}</dd>
               </div>
             ))}
           </dl>
         </Card>
 
-        <Card className="flex flex-col gap-4 border-[var(--border-color)] p-4 shadow-none sm:flex-row sm:items-center">
-          <div className="flex flex-1 items-start gap-2">
-            <Checkbox id="rights" checked={rights} onCheckedChange={(v) => setRights(v === true)} className="mt-0.5" />
-            <Label htmlFor="rights" className="text-sm font-normal leading-snug">
+        <Card className="p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox id="rights" checked={rights} onCheckedChange={(v) => setRights(v === true)} className="mt-px" />
+            <Label htmlFor="rights" className="text-sm font-normal">
               I confirm I'm permitted to export these annotations under the source license above, and that the data is de-identified.
             </Label>
           </div>
-          <Button onClick={download} disabled={!rights}>
-            <Download className="h-4 w-4" /> Download JSON
-          </Button>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+            <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+              <FileIcon className="size-4 shrink-0" />
+              <span className="truncate font-mono text-code">{fileName}</span>
+            </span>
+            <Button size="lg" onClick={download} disabled={!rights}>
+              <ExportIcon /> Download JSON
+            </Button>
+          </div>
         </Card>
-      </main>
-    </div>
+
+        <FormatExports project={project} enabled={rights} />
+      </div>
+    </AppLayout>
   );
 }

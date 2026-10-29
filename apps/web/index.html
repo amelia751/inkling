@@ -8,7 +8,12 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
     <script>
       // Apply the saved theme before first paint to avoid a flash.
-      document.documentElement.classList.add(localStorage.getItem("app-theme") || "dark");
+      (function () {
+        var p = "dark";
+        try { p = localStorage.getItem("app-theme") || "dark"; } catch (e) {}
+        if (p === "system") p = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.classList.add(p);
+      })();
     </script>
   </head>
   <body>

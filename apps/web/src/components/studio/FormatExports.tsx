@@ -1,0 +1,58 @@
+import { useState } from "react";
+import { ExportIcon } from "@/components/icons";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { fetchAnnotations } from "@/lib/api";
+import { projectItems } from "@/lib/items";
+import type { Project } from "@/types";
+import { adapterFor } from "@/viewers/registry";
+
+/**
+ * Standard-format downloads offered by the project's viewer (COCO, NIfTI masks, QuPath
+ * GeoJSON, WFDB…). Always built from the server's saved revision, never unsaved edits.
+ */
+export function FormatExports({ project, enabled }: { project: Project; enabled: boolean }) {
+  const exporters = adapterFor(project)?.exporters ?? [];
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  if (!exporters.length) return null;
+
+  const run = async (id: string) => {
+    const ex = exporters.find((e) => e.id === id)!;
+    setBusy(id);
+    setError(null);
+    try {
+      const doc = await fetchAnnotations(project.id);
+      const blob = await ex.build({ project, items: projectItems(project), annotations: doc.annotations });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = ex.filename(project);
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(`${ex.label}: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="p-0">
+      <h2 className="border-b border-border px-4 py-3 text-sm font-medium">Standard formats</h2>
+      <div className="divide-y divide-border">
+        {exporters.map((ex) => (
+          <div key={ex.id} className="flex items-center gap-4 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">{ex.label}</div>
+              <div className="text-sm text-muted-foreground">{ex.description}</div>
+            </div>
+            <Button variant="outline" onClick={() => run(ex.id)} disabled={!enabled || busy !== null}>
+              <ExportIcon /> {busy === ex.id ? "Preparing…" : "Download"}
+            </Button>
+          </div>
+        ))}
+      </div>
+      {error && <p className="border-t border-border px-4 py-2 text-sm text-destructive">{error}</p>}
+    </Card>
+  );
+}

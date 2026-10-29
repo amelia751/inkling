@@ -40,14 +40,31 @@ export function drawPolygon(
   ctx.restore();
 }
 
-export function pointInPolygon([x, y]: [number, number], pts: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-    const [xi, yi] = pts[i];
-    const [xj, yj] = pts[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+/** Square edit handles on vertices; the hovered/active one is filled with the accent. */
+export function drawHandles(ctx: CanvasRenderingContext2D, pts: [number, number][], active = -1, size = 7) {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.5;
+  for (const [i, [x, y]] of pts.entries()) {
+    ctx.fillStyle = i === active ? resolveToken("--primary") : "#fff";
+    ctx.strokeStyle = "rgba(0,0,0,0.7)";
+    ctx.fillRect(x - size / 2, y - size / 2, size, size);
+    ctx.strokeRect(x - size / 2, y - size / 2, size, size);
   }
-  return inside;
+  ctx.restore();
+}
+
+/** Small label tag anchored at a screen point (above-left of the shape). */
+export function drawTag(ctx: CanvasRenderingContext2D, x: number, y: number, text: string, background: string) {
+  ctx.save();
+  ctx.setLineDash([]);
+  ctx.font = "12px Inter, sans-serif";
+  const w = ctx.measureText(text).width + 8;
+  ctx.fillStyle = background;
+  ctx.fillRect(x, y - 16, w, 16);
+  ctx.fillStyle = "#fff";
+  ctx.fillText(text, x + 4, y - 4);
+  ctx.restore();
 }
 
 export function formatTime(seconds: number): string {

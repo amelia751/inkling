@@ -2,3 +2,6 @@ packages:
   - "apps/*"
 allowBuilds:
   esbuild: true
+  core-js: false
+  core-js-pure: false
+  protobufjs: false

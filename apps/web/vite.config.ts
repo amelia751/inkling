@@ -1,12 +1,34 @@
+import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
 
+// dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
+// SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
+const adaptersDir = fs.realpathSync(path.resolve(__dirname, "node_modules/@cornerstonejs/adapters"));
+const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), seedServer(path.resolve(__dirname, "../../seed-data"))],
+  // viteCommonjs: dicom-parser only ships a UMD build (Cornerstone3D framework guide).
+  plugins: [react(), tailwindcss(), viteCommonjs(), seedServer(path.resolve(__dirname, "../../seed-data"))],
+  // INKLING_E2E=1: a frozen dev server for Playwright runs, so edits elsewhere can't reload the page mid-test.
+  server: process.env.INKLING_E2E ? { hmr: false, watch: null } : undefined,
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      // vtk.js (via Cornerstone) imports xmlbuilder2, which needs Node's `events`; we never parse VTK XML.
+      xmlbuilder2: path.resolve(__dirname, "src/viewers/cornerstone/xmlbuilder2-stub.ts"),
+      dcmjs: dcmjsEntry,
+    },
   },
+  optimizeDeps: {
+    // Cornerstone's loaders resolve their codec WASM and workers via import.meta.url, which pre-bundling breaks.
+    exclude: ["@cornerstonejs/dicom-image-loader", "@cornerstonejs/labelmap-interpolation"],
+    include: ["dicom-parser"],
+  },
+  worker: { format: "es" },
+  assetsInclude: ["**/*.wasm"],
 });

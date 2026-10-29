@@ -1,13 +1,14 @@
 import { Link } from "react-router";
-import { ArrowUpRight, Lock, ShieldCheck } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { LockIcon, LicenseIcon } from "@/components/icons";
+import { AppLayout, PageHeading } from "@/components/layout/app-layout";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatBytes, ITEM_NOUN, plural, projectIcon, VIEWER_META } from "@/lib/format";
+import { formatBytes, ITEM_NOUN, plural, pluralWord, projectIcon, VIEWER_META } from "@/lib/format";
 import { projectItems } from "@/lib/items";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
-import { FullPageMessage, PageHeader, useProjects } from "./shared";
+import { FullPageMessage, useProjects, useSavedAnnotations } from "./shared";
 
 export function WorkspacePage() {
   const { data: projects, isLoading, error } = useProjects();
@@ -25,38 +26,44 @@ export function WorkspacePage() {
   const byo = projects?.filter((p) => p.status === "bring-your-own") ?? [];
 
   return (
-    <div className="flex h-full flex-col">
-      <PageHeader />
-      <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-8 sm:px-6">
-        <div className="mb-8">
-          <h1 className="text-2xl font-semibold tracking-tight">Datasets</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Open a dataset to annotate it in the Studio. These development seeds are small, license-tracked samples. Each one opens in the viewer built for its data type.
-          </p>
-        </div>
+    <AppLayout>
+      <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-6 md:py-6">
+        <PageHeading
+          title="Datasets"
+          description="Open a dataset to annotate it in the Studio. These development seeds are small, license-tracked samples. Each one opens in the viewer built for its data type."
+        />
 
         <section aria-labelledby="seed-heading">
-          <h2 id="seed-heading" className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Ready to annotate</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-44" />)}
+          <h2 id="seed-heading" className="mb-3 flex items-center gap-2 text-body font-semibold">
+            Ready to annotate
+            {!isLoading && <span className="font-normal text-hint">{available.length}</span>}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {isLoading && [0, 1, 2].map((i) => <Skeleton key={i} className="h-56" />)}
             {available.map((p) => <DatasetCard key={p.id} project={p} />)}
           </div>
         </section>
 
         {byo.length > 0 && (
           <section aria-labelledby="byo-heading" className="mt-10">
-            <h2 id="byo-heading" className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Bring your own data</h2>
+            <h2 id="byo-heading" className="mb-1 text-body font-semibold">Bring your own data</h2>
             <p className="mb-3 text-sm text-muted-foreground">
               These sources restrict redistribution, so Inkling doesn't bundle them. You'll be able to open your own authorized copy when their viewers ship.
             </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {byo.map((p) => <DatasetCard key={p.id} project={p} />)}
             </div>
           </section>
         )}
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
+}
+
+function progressStatus(done: number, total: number): { label: string; theme: BadgeProps["theme"] } {
+  if (total > 0 && done >= total) return { label: "Fully annotated", theme: "success" };
+  if (done > 0) return { label: "In progress", theme: "info" };
+  return { label: "Not started", theme: "unknown" };
 }
 
 function DatasetCard({ project }: { project: Project }) {
@@ -65,49 +72,81 @@ function DatasetCard({ project }: { project: Project }) {
   const available = project.status === "available";
   const items = available ? projectItems(project) : [];
   const bytes = project.assets.reduce((n, a) => n + a.bytes, 0);
+  const saved = useSavedAnnotations(project.id, available);
+  const annotations = saved.data?.annotations ?? [];
+  const itemIds = new Set(items.map((i) => i.id));
+  const done = new Set(annotations.map((a) => a.itemId).filter((id) => itemIds.has(id))).size;
+  const status = progressStatus(done, items.length);
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
 
   const body = (
-    <Card
-      className={cn(
-        "group flex h-full flex-col gap-4 border-[var(--border-color)] bg-card p-4 shadow-none transition-colors",
-        available ? "hover:border-primary/60" : "opacity-75",
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg", available ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
-          <Icon className="h-[18px] w-[18px]" />
+    <Card view={available ? "selection" : "outlined"} className={cn("flex h-full flex-col p-4", !available && "opacity-70")}>
+      <div className="flex items-start gap-3">
+        <span className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg", available ? "tile-gradient text-foreground" : "bg-generic text-muted-foreground")}>
+          <Icon className="size-5" />
         </span>
-        {available ? (
-          <div className="flex items-center gap-2">
-            {project.restricted && (
-              <Badge variant="outline" className="gap-1 border-state-human/40 font-normal text-state-human" title="The source license restricts commercial use or redistribution">
-                <Lock className="h-3 w-3" />Local dev only
-              </Badge>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-body-2 font-semibold" title={project.title}>{project.title}</h3>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+            {available ? (
+              saved.isLoading ? <Skeleton className="h-5 w-20 rounded-xs" /> : <Badge theme={status.theme}>{status.label}</Badge>
+            ) : (
+              <Badge theme="unknown"><LockIcon />Restricted</Badge>
             )}
-            <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+            {project.restricted && (
+              <Badge theme="warning" title="The source license restricts commercial use or redistribution"><LockIcon />Local dev only</Badge>
+            )}
           </div>
-        ) : (
-          <Badge variant="outline" className="gap-1 font-normal text-muted-foreground"><Lock className="h-3 w-3" />Restricted</Badge>
-        )}
+          <p className="mt-1 truncate text-sm text-muted-foreground">{meta.label}{project.task && <> · {project.task.replace("-", " ")}</>}</p>
+        </div>
       </div>
-      <div>
-        <h3 className="font-medium leading-tight">{project.title}</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {meta.label}
-          {project.task && <> · {project.task.replace("-", " ")}</>}
-          {available && <> · {plural(items.length, ITEM_NOUN[project.viewer])} · {formatBytes(bytes)}</>}
-        </p>
-      </div>
-      <div className="mt-auto flex items-start gap-1.5 text-[11px] leading-snug text-muted-foreground">
-        <ShieldCheck className="mt-px h-3.5 w-3.5 shrink-0" />
-        <span className="line-clamp-2">{project.license}</span>
+
+      {available && (
+        <>
+          <div className="mt-4">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="text-muted-foreground">Annotated</span>
+              <span className="tnum">{done} <span className="text-hint">/ {items.length}</span></span>
+            </div>
+            <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-generic-accent" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Items annotated">
+              <div className={cn("h-full rounded-full transition-[width]", done >= items.length && items.length ? "bg-positive" : "bg-primary")} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+          <dl className="mt-4 grid grid-cols-3 gap-3">
+            <Metric label={capitalize(pluralWord(2, ITEM_NOUN[project.viewer]))} value={String(items.length)} />
+            <Metric label="Annotations" value={saved.isLoading ? "–" : String(annotations.length)} />
+            <Metric label="Size" value={formatBytes(bytes)} />
+          </dl>
+        </>
+      )}
+
+      <div className="mt-auto pt-4">
+        <div className="flex items-start gap-1.5 border-t border-border pt-3 text-xs text-muted-foreground">
+          <LicenseIcon className="mt-0.5 size-3 shrink-0" />
+          <span className="line-clamp-2">{project.license}</span>
+        </div>
       </div>
     </Card>
   );
 
   return available ? (
-    <Link to={`/datasets/${project.id}`} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl">{body}</Link>
+    <Link to={`/datasets/${project.id}`} className="block rounded-lg" aria-label={`Open ${project.title}, ${plural(items.length, ITEM_NOUN[project.viewer])}, ${status.label}`}>
+      {body}
+    </Link>
   ) : (
     <div aria-disabled>{body}</div>
   );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="truncate text-sm text-muted-foreground">{label}</dt>
+      <dd className="tnum mt-0.5 truncate text-body-2 font-semibold">{value}</dd>
+    </div>
+  );
+}
+
+function capitalize(s: string) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

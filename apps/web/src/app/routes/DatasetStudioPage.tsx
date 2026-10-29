@@ -1,15 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { AiAssistantPanel } from "@/components/studio/AiAssistantPanel";
 import { CanvasStatusBar } from "@/components/studio/CanvasStatusBar";
-import { CanvasToolbar, TOOL_META } from "@/components/studio/CanvasToolbar";
+import { CanvasToolbar } from "@/components/studio/CanvasToolbar";
 import { LeftSidebar } from "@/components/studio/LeftSidebar";
 import { StudioTopBar } from "@/components/studio/StudioTopBar";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useViewport, useWindowWidth } from "@/lib/use-media-query";
 import { fetchAnnotations, saveAnnotations } from "@/lib/api";
+import { digitOf, matches, SHELL_PRIORITY, useHotkeys, useShortcuts } from "@/lib/hotkeys";
+import { findConflicts, TOOL_KEYS } from "@/lib/shortcuts";
+import { ShortcutsDialog } from "@/components/studio/ShortcutsDialog";
 import { projectItems } from "@/lib/items";
-import { useStudio, type Tool } from "@/stores/studio";
+import { isEditable, useStudio, visibleFor, type Tool } from "@/stores/studio";
+import type { StudioItem } from "@/types";
 import { adapterFor } from "@/viewers/registry";
 import { FullPageMessage, useProject } from "./shared";
 
@@ -41,8 +47,20 @@ function Studio({ projectId }: { projectId: string }) {
   const adapter = project ? adapterFor(project) : undefined;
   const itemIndex = useStudio((s) => s.itemIndex);
   const aiOpen = useStudio((s) => s.aiOpen);
+  const toggleAi = useStudio((s) => s.toggleAi);
   const save = useAutosave(projectId);
-  useStudioShortcuts(items.length, adapter?.tools ?? [], project?.labels ?? []);
+  const viewport = useViewport();
+  const width = useWindowWidth();
+  /** Panel sizes are percentages; convert pixel targets so panels keep usable widths at any window size. */
+  const pct = (px: number) => Math.min(100, (px / width) * 100);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Picking a file in the phone drawer should reveal the canvas.
+  useEffect(() => setSidebarOpen(false), [itemIndex]);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  useStudioShortcuts(items, adapter?.tools ?? [], project?.labels ?? [], () => setShortcutsOpen(true));
+  useEffect(() => {
+    if (import.meta.env.DEV && project && adapter) findConflicts(project.viewer, adapter.tools).forEach((c) => console.warn(`[shortcuts] ${c}`));
+  }, [project, adapter]);
 
   // Open on a tool this viewer actually offers (whole-slide starts in pan, not select).
   const tool = useStudio((s) => s.tool);
@@ -54,36 +72,73 @@ function Studio({ projectId }: { projectId: string }) {
   if (!project) return null;
   const item = items[itemIndex];
 
+  const canvas = (
+    <>
+      {adapter && <CanvasToolbar project={project} tools={adapter.tools} />}
+      <main className="min-h-0 flex-1" aria-label="Viewer">
+        {adapter && item ? (
+          <Suspense fallback={<FullPageMessage title="Loading viewer…" />}>
+            <adapter.Component key={item.id} project={project} item={item} />
+          </Suspense>
+        ) : (
+          <FullPageMessage title="No viewer for this data type yet" body="This project's format is planned for a later phase." />
+        )}
+      </main>
+      <CanvasStatusBar items={items} />
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
-      <StudioTopBar project={project} onRetrySave={save} />
-      <PanelGroup direction="horizontal" autoSaveId="inkling-studio" className="min-h-0 flex-1">
-        <Panel id="left" order={1} defaultSize={20} minSize={14} maxSize={30} collapsible className="border-r border-[var(--border-color)]">
-          <LeftSidebar project={project} items={items} />
-        </Panel>
-        <PanelResizeHandle className="w-px bg-[var(--border-color)] transition-colors hover:bg-primary data-[resize-handle-state=drag]:bg-primary" />
-        <Panel id="canvas" order={2} minSize={40} className="flex flex-col">
-          {adapter && <CanvasToolbar project={project} tools={adapter.tools} />}
-          <main className="min-h-0 flex-1" aria-label="Viewer">
-            {adapter && item ? (
-              <adapter.Component project={project} item={item} />
-            ) : (
-              <FullPageMessage title="No viewer for this data type yet" body="This project's format is planned for a later phase." />
-            )}
-          </main>
-          <CanvasStatusBar items={items} />
-        </Panel>
-        {aiOpen && (
-          <>
-            <PanelResizeHandle className="w-px bg-[var(--border-color)] transition-colors hover:bg-primary" />
-            <Panel id="ai" order={3} defaultSize={24} minSize={18} maxSize={32} className="border-l border-[var(--border-color)]">
-              <AiAssistantPanel project={project} item={item} />
-            </Panel>
-          </>
-        )}
-      </PanelGroup>
+      <StudioTopBar
+        project={project}
+        onRetrySave={save}
+        onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
+        onShowShortcuts={() => setShortcutsOpen(true)}
+      />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} viewer={project.viewer} tools={adapter?.tools ?? []} />
+      {viewport === "phone" ? (
+        <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
+      ) : (
+        <PanelGroup direction="horizontal" autoSaveId={`inkling-studio-${viewport}`} className="min-h-0 flex-1">
+          <Panel id="left" order={1} defaultSize={pct(280)} minSize={pct(240)} maxSize={pct(420)}>
+            <LeftSidebar project={project} items={items} />
+          </Panel>
+          <ResizeHandle />
+          <Panel id="canvas" order={2} minSize={pct(360)} className="flex flex-col">
+            {canvas}
+          </Panel>
+          {aiOpen && viewport === "desktop" && (
+            <>
+              <ResizeHandle />
+              <Panel id="ai" order={3} defaultSize={pct(340)} minSize={pct(300)} maxSize={pct(480)}>
+                <AiAssistantPanel project={project} item={item} />
+              </Panel>
+            </>
+          )}
+        </PanelGroup>
+      )}
+
+      {viewport === "phone" && (
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" title="Files, labels and review" showClose={false}>
+            <LeftSidebar project={project} items={items} />
+          </SheetContent>
+        </Sheet>
+      )}
+      {viewport !== "desktop" && (
+        <Sheet open={aiOpen} onOpenChange={(open) => open !== aiOpen && toggleAi()}>
+          <SheetContent side="right" title="Inkling AI" showClose={false}>
+            <AiAssistantPanel project={project} item={item} />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
+}
+
+function ResizeHandle() {
+  return <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-primary data-[resize-handle-state=drag]:bg-primary" />;
 }
 
 /** Debounced save; the indicator only shows "Saved" after the server returns the new revision. */
@@ -131,30 +186,64 @@ function useAutosave(projectId: string) {
   return save;
 }
 
-function useStudioShortcuts(itemCount: number, tools: Tool[], labels: string[]) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      // Sliders and tabs own their arrow keys.
-      if (e.key.startsWith("Arrow") && (e.target as HTMLElement).closest?.('[role="slider"],[role="tab"]')) return;
-      const s = useStudio.getState();
-      const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        if (e.shiftKey) s.redo();
-        else s.undo();
-        return;
-      }
-      if (mod) return;
-      if (e.key === "ArrowRight" || e.key === "ArrowDown") s.setItemIndex(Math.min(itemCount - 1, s.itemIndex + 1));
-      else if (e.key === "ArrowLeft" || e.key === "ArrowUp") s.setItemIndex(Math.max(0, s.itemIndex - 1));
-      else if (/^[1-9]$/.test(e.key) && labels[+e.key - 1]) s.setActiveLabel(labels[+e.key - 1]);
-      else {
-        const tool = tools.find((t) => TOOL_META[t].key.toLowerCase() === e.key.toLowerCase());
-        if (tool) s.setTool(tool);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [itemCount, tools, labels]);
+/**
+ * Studio-wide shortcuts. Viewers register at a higher priority and so run first;
+ * anything they decline (e.g. Escape with no shape in progress) falls through to here.
+ */
+function useStudioShortcuts(items: StudioItem[], tools: Tool[], labels: string[], showShortcuts: () => void) {
+  const s = useStudio.getState;
+  const itemCount = items.length;
+  const resizeBrush = (factor: number) => {
+    const size = s().toolOptions.brushSize;
+    s().setToolOptions({ brushSize: Math.max(2, Math.min(120, Math.round(size * factor))) });
+  };
+  // Sliders and tabs own their arrow keys.
+  const ownsArrows = (e: KeyboardEvent) => e.target instanceof Element && !!e.target.closest('[role="slider"],[role="tab"]');
+
+  useShortcuts(
+    {
+      undo: () => s().undo(),
+      redo: () => s().redo(),
+      deselect: () => {
+        if (!s().selectedIds.length) return false;
+        s().select(null);
+      },
+      deleteSelection: () => {
+        const { selectedIds, annotations, lockedLabels, removeMany } = s();
+        const chosen = annotations.filter((x) => selectedIds.includes(x.id));
+        if (!chosen.length) return false;
+        removeMany(chosen.filter((a) => isEditable(a, lockedLabels)).map((a) => a.id));
+      },
+      selectAll: () => {
+        const { annotations, itemIndex, hiddenLabels, selectMany } = s();
+        const item = items[itemIndex];
+        if (!item) return false;
+        selectMany(visibleFor(annotations, item.id, hiddenLabels).filter((a) => a.geometry.type !== "class").map((a) => a.id));
+      },
+      brushSmaller: () => resizeBrush(0.8),
+      brushLarger: () => resizeBrush(1.25),
+      nextItem: (e) => {
+        if (ownsArrows(e)) return false;
+        s().setItemIndex(Math.min(itemCount - 1, s().itemIndex + 1));
+      },
+      prevItem: (e) => {
+        if (ownsArrows(e)) return false;
+        s().setItemIndex(Math.max(0, s().itemIndex - 1));
+      },
+      pickLabel: (e) => {
+        const label = labels[(digitOf(e) ?? 0) - 1];
+        if (!label) return false;
+        s().setActiveLabel(label);
+      },
+      showShortcuts,
+    },
+    { priority: SHELL_PRIORITY },
+  );
+
+  useHotkeys((e) => {
+    const tool = tools.find((t) => matches(e, TOOL_KEYS[t]));
+    if (!tool) return false;
+    if (!e.repeat) s().setTool(tool);
+    return true;
+  }, SHELL_PRIORITY);
 }

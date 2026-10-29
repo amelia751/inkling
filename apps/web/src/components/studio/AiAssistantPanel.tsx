@@ -1,4 +1,4 @@
-import { Info, Send, Sparkles, X } from "lucide-react";
+import { InfoIcon, SendIcon, AiIcon, CloseIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useStudio } from "@/stores/studio";
@@ -16,10 +16,10 @@ export function AiAssistantPanel({ project, item }: { project: Project; item?: S
   return (
     <aside className="flex h-full flex-col bg-[var(--bg-primary)]" aria-label="Inkling AI">
       <div className="flex h-10 items-center gap-2 border-b border-[var(--border-color)] px-3">
-        <Sparkles className="h-4 w-4 text-primary" />
+        <AiIcon className="size-4 text-ai-text" />
         <span className="text-sm font-medium">Inkling AI</span>
         <button onClick={toggleAi} className="ml-auto rounded p-1 text-muted-foreground hover:bg-[var(--bg-tertiary)]" aria-label="Close assistant">
-          <X className="h-3.5 w-3.5" />
+          <CloseIcon className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="flex-1 space-y-4 overflow-y-auto p-3 text-sm">
@@ -29,7 +29,7 @@ export function AiAssistantPanel({ project, item }: { project: Project; item?: S
           {item && <div className="truncate text-muted-foreground">{item.name}</div>}
         </div>
         <div className="flex gap-2 rounded-md border border-[var(--border-color)] p-2.5 text-xs text-muted-foreground">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p>
             The assistant isn't connected in this build. Everything else in the Studio works without it.
             When enabled, suggestions will appear as <span className="rounded bg-prov-ai px-1 text-prov-ai-foreground">AI suggested</span> previews that you approve or reject.
@@ -48,7 +48,7 @@ export function AiAssistantPanel({ project, item }: { project: Project; item?: S
         <div className="flex items-end gap-1.5">
           <Textarea disabled placeholder="Ask Inkling…" className="min-h-9 resize-none text-sm" rows={1} />
           <Button size="icon" disabled className="h-9 w-9 shrink-0" aria-label="Send">
-            <Send className="h-4 w-4" />
+            <SendIcon className="h-4 w-4" />
           </Button>
         </div>
       </div>

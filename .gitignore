@@ -9,3 +9,7 @@ seed-data/*
 .DS_Store
 *.tsbuildinfo
 .vite/
+
+# Playwright screenshots and traces
+apps/web/e2e/.artifacts/
+__pycache__/

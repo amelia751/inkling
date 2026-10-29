@@ -1,13 +1,14 @@
 import { Link } from "react-router";
-import { Droplet } from "lucide-react";
+import { BrandIcon } from "@/components/icons";
+import { cn } from "@/lib/utils";
 
-export function BrandMark() {
+export function BrandMark({ compact = false, className }: { compact?: boolean; className?: string }) {
   return (
-    <Link to="/" className="flex items-center gap-2" aria-label="Inkling workspace">
-      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95">
-        <Droplet className="h-4 w-4" />
+    <Link to="/" className={cn("flex shrink-0 items-center gap-2 rounded-md", className)} aria-label="Inkling workspace">
+      <span className="press flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <BrandIcon className="size-4" />
       </span>
-      <span className="text-[15px] font-semibold tracking-tight">Inkling</span>
+      {!compact && <span className="text-body-2 font-semibold">Inkling</span>}
     </Link>
   );
 }

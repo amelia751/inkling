@@ -1,21 +1,14 @@
-import type { Project, ViewerKind } from "@/types";
+import type { Project } from "@/types";
 import type { ViewerAdapter } from "./ViewerAdapter";
-import { Cine4DViewer } from "./cine4d/Cine4DViewer";
-import { Image2DViewer } from "./image2d/Image2DViewer";
-import { PathologyViewer } from "./pathology/PathologyViewer";
-import { SignalViewer } from "./signal/SignalViewer";
-import { VideoViewer } from "./video/VideoViewer";
-import { Volume3DViewer } from "./volume3d/Volume3DViewer";
+import { cine4dAdapter } from "./cine4d/adapter";
+import { image2dAdapter } from "./image2d/adapter";
+import { pathologyAdapter } from "./pathology/adapter";
+import { signalAdapter } from "./signal/adapter";
+import { videoAdapter } from "./video/adapter";
+import { volume3dAdapter } from "./volume3d/adapter";
 
-const adapters: Partial<Record<ViewerKind, ViewerAdapter>> = {
-  "image-2d": { kind: "image-2d", tools: ["select", "pan", "box"], Component: Image2DViewer },
-  "volume-3d": { kind: "volume-3d", tools: ["select", "point"], Component: Volume3DViewer },
-  signal: { kind: "signal", tools: ["select", "interval"], Component: SignalViewer },
-  temporal: { kind: "temporal", tools: ["select", "box", "segment"], Component: VideoViewer },
-  "cine-4d": { kind: "cine-4d", tools: ["select", "polygon"], Component: Cine4DViewer },
-  pathology: { kind: "pathology", tools: ["pan", "polygon", "mark"], Component: PathologyViewer },
-};
+const adapters: ViewerAdapter[] = [image2dAdapter, volume3dAdapter, signalAdapter, videoAdapter, cine4dAdapter, pathologyAdapter];
 
 export function adapterFor(project: Project): ViewerAdapter | undefined {
-  return adapters[project.viewer];
+  return adapters.find((a) => a.kind === project.viewer);
 }

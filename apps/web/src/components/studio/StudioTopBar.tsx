@@ -1,55 +1,128 @@
 import { Link } from "react-router";
-import { AlertCircle, Check, ChevronRight, Loader2, PanelRight, Sparkles } from "lucide-react";
+import { ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SpinnerIcon, SidebarIcon, AiIcon } from "@/components/icons";
+import { DatasetSwitcher } from "@/components/layout/dataset-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@/components/ui/tooltip";
 import { BrandMark } from "@/components/layout/brand";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
-import { cn } from "@/lib/utils";
+import { ThemeSwitch } from "@/components/layout/theme-switch";
+import { useTheme, type ThemePreference } from "@/lib/theme";
+import { useWindowWidth } from "@/lib/use-media-query";
 import { useStudio } from "@/stores/studio";
 import type { Project } from "@/types";
 
-export function StudioTopBar({ project, onRetrySave }: { project: Project; onRetrySave: () => void }) {
+/**
+ * Sizes are container queries on the header, so it adapts to its own width:
+ * labels drop to icons below 760px, the theme switch moves into an overflow
+ * menu below 960px, and below 480px Review, Export and shortcuts join it.
+ */
+interface StudioTopBarProps {
+  project: Project;
+  onRetrySave: () => void;
+  /** Set on phones, where the sidebar is a drawer. */
+  onOpenSidebar?: () => void;
+  onShowShortcuts: () => void;
+}
+
+export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts }: StudioTopBarProps) {
   const aiOpen = useStudio((s) => s.aiOpen);
   const toggleAi = useStudio((s) => s.toggleAi);
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-[var(--border-color)] bg-[var(--bg-primary)] px-3">
-      <BrandMark />
-      <nav className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground" aria-label="Breadcrumb">
-        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        <Link to="/" className="hover:text-foreground">Workspace</Link>
-        <ChevronRight className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate font-medium text-foreground">{project.title}</span>
-      </nav>
-      <Badge variant="secondary" className="font-normal">Draft</Badge>
+    <header className="@container flex h-12 shrink-0 items-center gap-2 border-b border-border bg-header text-foreground pl-2 pr-2 @[640px]:gap-3 @[640px]:pl-3.5 @[640px]:pr-3">
+      {onOpenSidebar && (
+        <Button variant="ghost-secondary" size="icon" onClick={onOpenSidebar} aria-label="Open files and labels">
+          <SidebarIcon />
+        </Button>
+      )}
+      <BrandMark compact className="hidden shrink-0 @[480px]:flex" />
+      <DatasetSwitcher datasetId={project.id} title={project.title} className="max-w-[min(280px,40cqw)] shrink" />
+      <Badge className="hidden @[760px]:inline-flex">Draft</Badge>
       <SaveIndicator onRetry={onRetrySave} />
 
-      <div className="ml-auto flex items-center gap-1.5">
-        <Button variant="outline" size="sm" asChild>
-          <Link to={`/datasets/${project.id}/review`}>Review</Link>
-        </Button>
-        <Button size="sm" asChild>
-          <Link to={`/datasets/${project.id}/export`}>Export</Link>
-        </Button>
+      <div className="ml-auto flex shrink-0 items-center gap-1 @[640px]:gap-2">
+        <div className="hidden items-center gap-2 @[480px]:flex">
+          <Button variant="outline" asChild>
+            <Link to={`/datasets/${project.id}/review`} aria-label="Review dataset">
+              <ReviewIcon />
+              <span className="hidden @[760px]:inline">Review dataset</span>
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to={`/datasets/${project.id}/export`} aria-label="Export dataset">
+              <ExportIcon />
+              <span className="hidden @[760px]:inline">Export dataset</span>
+            </Link>
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" aria-hidden />
+        </div>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn("h-8 w-8", aiOpen && "bg-accent text-primary")}
-              onClick={toggleAi}
-              aria-pressed={aiOpen}
-              aria-label="Toggle Inkling AI panel"
-            >
-              {aiOpen ? <PanelRight className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+            <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label="Inkling AI panel">
+              <AiIcon />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>{aiOpen ? "Hide" : "Show"} Inkling AI</TooltipContent>
+          <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} Inkling AI`} />
         </Tooltip>
-        <ThemeToggle />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost-secondary" size="icon" onClick={onShowShortcuts} className="hidden @[480px]:inline-flex" aria-label="Keyboard shortcuts">
+              <KeyboardIcon />
+            </Button>
+          </TooltipTrigger>
+          <ActionTooltipContent title="Keyboard shortcuts" shortcut="showShortcuts" />
+        </Tooltip>
+        <ThemeSwitch className="hidden @[960px]:inline-flex" />
+        <OverflowMenu projectId={project.id} onShowShortcuts={onShowShortcuts} />
       </div>
     </header>
+  );
+}
+
+function OverflowMenu({ projectId, onShowShortcuts }: { projectId: string; onShowShortcuts: () => void }) {
+  const { preference, setPreference } = useTheme();
+  // The menu renders in a portal, outside the header's container queries.
+  const narrow = useWindowWidth() < 480;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost-secondary" size="icon" className="@[960px]:hidden" aria-label="More actions">
+          <MoreIcon />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {narrow && (
+          <>
+            <DropdownMenuItem asChild>
+              <Link to={`/datasets/${projectId}/review`}><ReviewIcon /> Review dataset</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to={`/datasets/${projectId}/export`}><ExportIcon /> Export dataset</Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onShowShortcuts}>
+              <KeyboardIcon /> Keyboard shortcuts
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuLabel className="font-normal text-hint">Theme</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={preference} onValueChange={(v) => setPreference(v as ThemePreference)}>
+          <DropdownMenuRadioItem value="light">Light</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="system">Match system</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="dark">Dark</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -60,23 +133,23 @@ function SaveIndicator({ onRetry }: { onRetry: () => void }) {
 
   if (saveState === "error") {
     return (
-      <button onClick={onRetry} className="flex items-center gap-1 text-xs text-state-fail hover:underline">
-        <AlertCircle className="h-3.5 w-3.5" /> Not saved · Retry
-      </button>
+      <Button variant="ghost" size="sm" onClick={onRetry} className="shrink-0 text-danger hover:text-danger">
+        <ErrorIcon /> <span className="hidden @[520px]:inline">Not saved ·</span> Retry
+      </Button>
     );
   }
   if (saveState === "saving") {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…
+      <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="status">
+        <SpinnerIcon className="size-4 animate-spin" /> <span className="hidden @[640px]:inline">Saving…</span>
       </span>
     );
   }
-  if (dirty) return <span className="text-xs text-muted-foreground">Unsaved changes</span>;
+  if (dirty) return <span className="hidden shrink-0 text-sm text-muted-foreground @[640px]:inline" role="status">Unsaved changes</span>;
   if (saveState === "saved") {
     return (
-      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Check className="h-3.5 w-3.5 text-state-pass" /> Saved
+      <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="status" aria-label="Saved">
+        <CheckIcon className="size-4 text-positive" /> <span className="hidden @[640px]:inline">Saved</span>
       </span>
     );
   }

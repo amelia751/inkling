@@ -2,7 +2,8 @@ import type OpenSeadragon from "openseadragon";
 import type { Pt } from "@/types";
 import type { Region } from "@/kits/overlay2d/regions";
 import { runWandJob, type Adjustments, type WandJob } from "./wandCore";
-import type { View } from "@/kits/overlay2d/transform";
+import type { Transform2D } from "@/kits/overlay2d/transform";
+import type { ToolContext, ToolMachine } from "@/kits/overlay2d/tools";
 
 export { NEUTRAL_ADJUST, type Adjustments } from "./wandCore";
 
@@ -34,7 +35,7 @@ function loadTile(url: string): Promise<HTMLImageElement> {
  * than OSD's drawer, because the default WebGL drawer has no readable back buffer. The
  * on-screen image adjustments are re-applied so the wand sees what the expert sees.
  */
-export async function wandRegion(viewer: OpenSeadragon.Viewer, view: View, click: Pt, tolerance: number, adj: Adjustments): Promise<Region> {
+export async function wandRegion(viewer: OpenSeadragon.Viewer, view: Transform2D, click: Pt, tolerance: number, adj: Adjustments): Promise<Region> {
   const item = viewer.world.getItemAt(0);
   if (!item) return [];
   const src = item.source;
@@ -93,7 +94,7 @@ function getWorker(): Worker | null {
       else p.resolve(e.data.region!);
     };
     worker.onerror = (e) => {
-      console.warn("[pathology] wand worker failed; falling back to the main thread", e.message);
+      console.warn("[wsi] wand worker failed; falling back to the main thread", e.message);
       for (const p of pending.values()) p.reject(new Error("wand worker crashed"));
       pending.clear();
       worker?.terminate();
@@ -117,7 +118,7 @@ async function runInWorker(job: WandJob): Promise<Region> {
       lastWandRunner = "worker";
       return region;
     } catch (err) {
-      console.warn("[pathology] wand worker error", err);
+      console.warn("[wsi] wand worker error", err);
       // The buffer was transferred; the caller retries on the next click.
       return [];
     }
@@ -126,3 +127,20 @@ async function runInWorker(job: WandJob): Promise<Region> {
   return runWandJob(job);
 }
 
+
+/**
+ * `inkling.wsi.tools.wand` as an overlay2d tool machine: a click grows a region (async, on
+ * tile pixels the host fetches); Shift adds it to the selected region, Alt subtracts.
+ */
+export function wandTool(run: (p: Pt, shift: boolean, alt: boolean, ctx: ToolContext) => Promise<void>): ToolMachine {
+  return {
+    needsLabel: true,
+    cursor: "crosshair",
+    down(e, ctx) {
+      if (!ctx.busy) void run(e.p, e.shift, e.alt, ctx);
+      return "consume";
+    },
+    cancel() {},
+    draft: () => null,
+  };
+}

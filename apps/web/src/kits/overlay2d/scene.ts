@@ -2,9 +2,9 @@ import Flatbush from "flatbush";
 import simplifyPath from "simplify-js";
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
 import type { Annotation, Geometry, Pt } from "@/types";
-import { catmullRomClosed, distToSegment } from "@/kits/overlay2d/geometry";
-import { geometryBounds, pointInRegion, regionArea, regionOf, type BBox, type Region } from "@/kits/overlay2d/regions";
-import type { View } from "@/kits/overlay2d/transform";
+import { catmullRomClosed, distToSegment } from "./geometry";
+import { geometryBounds, pointInRegion, regionArea, regionOf, type BBox, type Region } from "./regions";
+import type { Transform2D } from "./transform";
 
 export type EntryKind = "mark" | "region" | "line";
 
@@ -291,7 +291,7 @@ class Palette {
  * px collapse to single dots; marks switch from outlined discs to deduplicated 2-px squares
  * when more than a few thousand are on screen.
  */
-export function drawScene(ctx: CanvasRenderingContext2D, dpr: number, view: View, scene: Scene, style: SceneStyle): DrawStats {
+export function drawScene(ctx: CanvasRenderingContext2D, dpr: number, view: Transform2D, scene: Scene, style: SceneStyle): DrawStats {
   const t0 = performance.now();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
@@ -386,7 +386,7 @@ export function drawScene(ctx: CanvasRenderingContext2D, dpr: number, view: View
   return stats;
 }
 
-function drawMarks(ctx: CanvasRenderingContext2D, view: View, marks: Entry[], palette: Palette, aiColor: string, stats: DrawStats, opacity: number) {
+function drawMarks(ctx: CanvasRenderingContext2D, view: Transform2D, marks: Entry[], palette: Palette, aiColor: string, stats: DrawStats, opacity: number) {
   const W = Math.ceil(view.width), H = Math.ceil(view.height);
   const byLabel = new Map<string, Entry[]>();
   for (const e of marks) {

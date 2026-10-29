@@ -5,7 +5,8 @@ import { defineModule } from "@/platform/module";
 /**
  * Vector editing on a 2D image plane (todo phase 4). Any renderer declaring
  * `space: "image2d"` gets these tools; the renderer implements them by name (`box`,
- * `polygon`…), today through its own engine and progressively through kits/overlay2d.
+ * `polygon`…), preferably by hosting kits/overlay2d's OverlayEngine (`useOverlay2D`, or
+ * directly as modules/wsi does), whose tool machines (tools/*.ts) use these names.
  */
 const PLANE = "renderer.space == image2d";
 const size = z.object({ size: z.number().int().min(2).max(120).default(16).describe("Diameter in screen pixels") });

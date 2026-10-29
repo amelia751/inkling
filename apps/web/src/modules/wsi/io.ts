@@ -2,7 +2,6 @@ import { labelNames } from "@/platform/environment";
 import { hslToRgb, resolveLabelColor } from "@/lib/labels";
 import { newAnnotation } from "@/stores/studio";
 import type { Annotation, Geometry, Project, Pt, StudioItem } from "@/types";
-import type { ExportContext, Exporter } from "@/viewers/ViewerAdapter";
 import { measurementLength } from "./measure";
 import { regionArea, regionOf, regionPerimeter } from "@/kits/overlay2d/regions";
 
@@ -40,7 +39,7 @@ function geojsonGeometry(g: Geometry): Feature["geometry"] {
     const polys = region.map((p) => p.map(close));
     return polys.length === 1 ? { type: "Polygon", coordinates: polys[0] } : { type: "MultiPolygon", coordinates: polys };
   }
-  if (g.type === "mark" || g.type === "keypoint") return { type: "Point", coordinates: [g.x, g.y] };
+  if (g.type === "keypoint") return { type: "Point", coordinates: [g.x, g.y] };
   if (g.type === "polyline") return { type: "LineString", coordinates: g.points };
   if (g.type === "measurement" && g.space === "image") return { type: "LineString", coordinates: g.points };
   return null;
@@ -78,7 +77,7 @@ export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotatio
     if (!item) continue;
     const g = a.geometry;
     const classification = { name: a.label, color: labelRgb(labels, a.label) };
-    if (g.type === "mark") {
+    if (g.type === "keypoint") {
       const key = `${a.itemId}\u0000${a.label}`;
       const entry = points.get(key) ?? { item: a.itemId, label: a.label, coords: [] };
       entry.coords.push([g.x, g.y]);
@@ -153,10 +152,10 @@ export function fromGeoJSON(text: string, itemId: string, labels: string[], fall
         break;
       }
       case "Point":
-        geoms.push({ type: "mark", x: c[0], y: c[1] });
+        geoms.push({ type: "keypoint", x: c[0], y: c[1] });
         break;
       case "MultiPoint":
-        for (const p of c as number[][]) geoms.push({ type: "mark", x: p[0], y: p[1] });
+        for (const p of c as number[][]) geoms.push({ type: "keypoint", x: p[0], y: p[1] });
         break;
       case "LineString":
         if ((c as number[][]).length >= 2) geoms.push({ type: "polyline", points: (c as number[][]).map(([x, y]) => [x, y] as Pt) });
@@ -200,7 +199,7 @@ export function toAsapXml(project: Project, items: StudioItem[], annotations: An
   for (const a of annotations) {
     if (!ids.has(a.itemId)) continue;
     const g = a.geometry;
-    if (g.type === "mark" || g.type === "keypoint") {
+    if (g.type === "keypoint") {
       const list = points.get(a.label) ?? [];
       list.push([g.x, g.y]);
       points.set(a.label, list);
@@ -236,7 +235,7 @@ export function toCountsCsv(project: Project, items: StudioItem[], annotations: 
     const classes = [...new Set([...labels, ...mine.map((a) => a.label)])];
     for (const label of classes) {
       const of = mine.filter((a) => a.label === label);
-      const pts = of.filter((a) => a.geometry.type === "mark").length;
+      const pts = of.filter((a) => a.geometry.type === "keypoint").length;
       let area = 0, regions = 0;
       for (const a of of) {
         const r = regionOf(a.geometry);
@@ -252,31 +251,3 @@ export function toCountsCsv(project: Project, items: StudioItem[], annotations: 
   }
   return rows.join("\n") + "\n";
 }
-
-// ---------------------------------------------------------------- exporters
-
-const blob = (text: string, type: string) => new Blob([text], { type });
-
-export const pathologyExporters: Exporter[] = [
-  {
-    id: "qupath-geojson",
-    label: "QuPath GeoJSON",
-    description: "Regions, lines and per-class point sets in level-0 pixels with classifications and measurements. Opens in QuPath (File › Import objects), Cytomine and DSA.",
-    filename: (p) => `${p.id}-qupath.geojson`,
-    build: async ({ project, items, annotations }: ExportContext) => blob(JSON.stringify(toQuPathGeoJSON(project, items, annotations)), "application/geo+json"),
-  },
-  {
-    id: "asap-xml",
-    label: "ASAP XML",
-    description: "ASAP / CAMELYON annotation XML: polygons, rectangles, point sets and groups per class; holes become <class>_exclusion polygons.",
-    filename: (p) => `${p.id}-asap.xml`,
-    build: async ({ project, items, annotations }: ExportContext) => blob(toAsapXml(project, items, annotations), "application/xml"),
-  },
-  {
-    id: "point-counts-csv",
-    label: "Cell counts CSV",
-    description: "Per-slide, per-class point counts with region count, region area and points/mm².",
-    filename: (p) => `${p.id}-counts.csv`,
-    build: async ({ project, items, annotations }: ExportContext) => blob(toCountsCsv(project, items, annotations), "text/csv"),
-  },
-];

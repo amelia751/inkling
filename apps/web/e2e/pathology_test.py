@@ -6,7 +6,7 @@
 Every gesture is driven with real mouse / keyboard events through Playwright. Saves are
 intercepted by `open_studio`, so seed-data is never modified. Each test starts from an
 empty annotation list (store.load) and a known viewport; screenshots go to e2e/.artifacts/.
-The viewer exposes `window.__pathology` (the PathologyController) in dev builds, which the
+The viewer exposes `window.__pathology` (modules/wsi WsiController) in dev builds, which the
 tests use only to *read* state (view transform, ui flags) and to place the viewport.
 """
 
@@ -233,7 +233,7 @@ def ellipse_and_shift_circle(p: P):
     assert near(g0["rx"], 1000, 30) and near(g0["ry"], 400, 30), g0
     assert near(g1["rx"], g1["ry"], 1), f"shift should make a circle: {g1}"
     rows = p.page.evaluate(
-        """async (a) => { const m = await import('/src/viewers/pathology/adapter.ts'); return m.pathologyAdapter.inspect(a, { project: {}, item: { assets: [{ mpp: 0.252 }] } }); }""",
+        """async (a) => { const { registry } = await import('/src/platform/registry.ts'); const inspect = await registry.loadImpl('inkling.wsi.inspectors.main'); return inspect(a, { project: {}, item: { assets: [] }, runtime: { get: (k) => (k === 'mpp' ? 0.252 : undefined) } }); }""",
         a[0],
     )
     area_um2 = math.pi * g0["rx"] * g0["ry"] * MPP * MPP
@@ -314,7 +314,7 @@ def polyline_double_click_and_enter(p: P):
     a = p.anns()
     assert [x["geometry"]["type"] for x in a] == ["polyline", "polyline"], a
     assert len(a[0]["geometry"]["points"]) == 3 and len(a[1]["geometry"]["points"]) == 2, a
-    rows = dict(p.page.evaluate("""async (a) => { const m = await import('/src/viewers/pathology/measure.ts'); return m.inspectRows(a, 0.252, []); }""", a[1]))
+    rows = dict(p.page.evaluate("""async (a) => { const m = await import('/src/modules/wsi/measure.ts'); return m.inspectRows(a, 0.252, []); }""", a[1]))
     assert rows["Length"] in ("504 µm", "504.0 µm"), rows
 
 
@@ -384,7 +384,7 @@ def marks_counts_and_density(p: P):
     p.click_img(cx + 100, cy + 600)
     p.click_img(cx + 2200, cy)  # outside the region
     a = p.anns()
-    marks = [x for x in a if x["geometry"]["type"] == "mark"]
+    marks = [x for x in a if x["geometry"]["type"] == "keypoint"]
     assert len(marks) == 5 and [m["label"] for m in marks].count("lymphocytes") == 2, marks
     panel = p.page.get_by_test_id("point-counts")
     text = panel.inner_text()
@@ -445,7 +445,7 @@ def import_qupath_geojson(p: P):
     p.page.get_by_text("Imported 6 objects, skipped 1").wait_for(timeout=5000)
     a = p.anns()
     kinds = sorted(f"{x['geometry']['type']}:{x['label']}" for x in a)
-    assert sorted(kinds) == sorted(["polygon:tumor", "multipolygon:stroma", "mark:lymphocytes", "mark:lymphocytes", "mark:lymphocytes", "polyline:tumor"]), kinds
+    assert sorted(kinds) == sorted(["polygon:tumor", "multipolygon:stroma", "keypoint:lymphocytes", "keypoint:lymphocytes", "keypoint:lymphocytes", "polyline:tumor"]), kinds
     poly = next(x for x in a if x["geometry"]["type"] == "polygon")
     assert poly["locked"] is True and poly["attributes"]["name"] == "Imported tumour" and poly["attributes"]["source"] == "import", poly
     assert len(poly["geometry"]["holes"]) == 1 and len(poly["geometry"]["points"]) == 4
@@ -719,7 +719,7 @@ def image_adjustments_change_pixels(p: P):
 def multi_select_shift_area_group_move_delete(p: P):
     cx, cy = TISSUE
     ids = [p.add({"type": "box", "x": cx - 1500 + k * 1100, "y": cy - 400, "w": 800, "h": 800}) for k in range(3)]
-    mid = p.add({"type": "mark", "x": cx, "y": cy + 1200}, label="stroma")
+    mid = p.add({"type": "keypoint", "x": cx, "y": cy + 1200}, label="stroma")
     p.fit(cx - 3000, cy - 2000, 6000, 4000)
     p.tool("v")
     p.click_img(cx - 1100, cy)
@@ -763,12 +763,12 @@ def exporters_content(p: P):
     cx, cy = TISSUE
     p.add({"type": "polygon", "points": [[cx, cy], [cx + 1000, cy], [cx + 1000, cy + 1000], [cx, cy + 1000]], "holes": [[[cx + 400, cy + 400], [cx + 600, cy + 400], [cx + 600, cy + 600], [cx + 400, cy + 600]]]})
     for k in range(3):
-        p.add({"type": "mark", "x": cx + 100 + k * 100, "y": cy + 100})
-    p.add({"type": "mark", "x": cx + 500, "y": cy + 500}, label="lymphocytes")  # inside the hole
+        p.add({"type": "keypoint", "x": cx + 100 + k * 100, "y": cy + 100})
+    p.add({"type": "keypoint", "x": cx + 500, "y": cy + 500}, label="lymphocytes")  # inside the hole
     p.add({"type": "measurement", "kind": "length", "points": [[cx, cy], [cx, cy + 4000]], "space": "image", "stats": {"length_um": 1008}})
     out = p.page.evaluate(
         """async () => {
-            const { pathologyAdapter } = await import('/src/viewers/pathology/adapter.ts');
+            const { registry } = await import('/src/platform/registry.ts');
             const { fetchProjects } = await import('/src/lib/api.ts');
             const project = (await fetchProjects()).find((x) => x.id === 'pathology-wsi');
             const { useStudio } = await import('/src/stores/studio.ts');
@@ -776,7 +776,10 @@ def exporters_content(p: P):
             const itemId = annotations[0].itemId;
             const items = [{ id: itemId, name: 'slide', group: '', assets: project.assets.filter((a) => a.path.endsWith('.dzi')) }];
             const res = {};
-            for (const ex of pathologyAdapter.exporters) res[ex.id] = { name: ex.filename(project), text: await (await ex.build({ project, items, annotations })).text() };
+            for (const id of ['qupath-geojson', 'asap-xml', 'point-counts-csv']) {
+                const ex = await registry.loadImpl(`inkling.wsi.exporters.${id}`);
+                res[id] = { name: ex.filename(project), text: await (await ex.build({ project, items, annotations })).text() };
+            }
             return res;
         }"""
     )

@@ -29,8 +29,8 @@ export function lengthStats(px: number, mpp: number | null): Record<string, numb
   return mpp ? { length_um: Math.round(px * mpp * 100) / 100, length_px: Math.round(px * 10) / 10 } : { length_px: Math.round(px * 10) / 10 };
 }
 
-/** Per-class mark counts inside a region (or the whole item when region is null). */
-export function countMarks(annotations: Annotation[], itemId: string, region: Region | null): Map<string, number> {
+/** Per-class point (keypoint) counts inside a region (or the whole item when region is null). */
+export function countPoints(annotations: Annotation[], itemId: string, region: Region | null): Map<string, number> {
   const counts = new Map<string, number>();
   let bb: [number, number, number, number] | null = null;
   if (region) {
@@ -45,7 +45,7 @@ export function countMarks(annotations: Annotation[], itemId: string, region: Re
     bb = [minX, minY, maxX, maxY];
   }
   for (const a of annotations) {
-    if (a.itemId !== itemId || a.geometry.type !== "mark") continue;
+    if (a.itemId !== itemId || a.geometry.type !== "keypoint") continue;
     const { x, y } = a.geometry;
     if (region && bb) {
       if (x < bb[0] || x > bb[2] || y < bb[1] || y > bb[3]) continue;
@@ -56,7 +56,7 @@ export function countMarks(annotations: Annotation[], itemId: string, region: Re
   return counts;
 }
 
-/** Rows for the sidebar selection inspector. */
+/** Rows for the sidebar selection inspector (`inkling.wsi.inspectors.main`); `mpp` comes from the runtime. */
 export function inspectRows(a: Annotation, mpp: number | null, all: Annotation[]): [string, string][] {
   const g = a.geometry;
   const rows: [string, string][] = [["Class", a.label]];
@@ -68,7 +68,7 @@ export function inspectRows(a: Annotation, mpp: number | null, all: Annotation[]
     if (g.type === "multipolygon") rows.push(["Pieces", String(g.polygons.length)]);
     const holes = region.reduce((s, p) => s + p.length - 1, 0);
     if (holes) rows.push(["Holes", String(holes)]);
-    const counts = countMarks(all, a.itemId, region);
+    const counts = countPoints(all, a.itemId, region);
     const total = [...counts.values()].reduce((s, n) => s + n, 0);
     if (total) {
       rows.push(["Points inside", String(total)]);
@@ -78,7 +78,7 @@ export function inspectRows(a: Annotation, mpp: number | null, all: Annotation[]
   }
   const len = measurementLength(g);
   if (len !== null) rows.push(["Length", formatLength(len, mpp)]);
-  if (g.type === "mark" || g.type === "keypoint") rows.push(["Position", `${Math.round(g.x).toLocaleString()}, ${Math.round(g.y).toLocaleString()} px`]);
+  if (g.type === "keypoint") rows.push(["Position", `${Math.round(g.x).toLocaleString()}, ${Math.round(g.y).toLocaleString()} px`]);
   else {
     const bb = geometryBounds(g);
     if (bb) rows.push(["Bounds", `${Math.round(bb[2] - bb[0]).toLocaleString()} × ${Math.round(bb[3] - bb[1]).toLocaleString()} px`]);

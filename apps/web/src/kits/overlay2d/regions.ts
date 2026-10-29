@@ -198,7 +198,7 @@ function boolean(op: "add" | "subtract", a: Region, b: Region, k: number): Regio
     lastBooleanPath = "snapped";
     return r;
   }
-  console.warn(`[pathology] polygon ${op} failed on degenerate input; using the raster fallback`);
+  console.warn(`[overlay2d] polygon ${op} failed on degenerate input; using the raster fallback`);
   lastBooleanPath = "raster";
   return rasterBoolean(a, b, op, k);
 }

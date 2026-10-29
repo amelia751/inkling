@@ -122,6 +122,18 @@ The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
 (RFC 6902), `preview_environment` and `run_command`. Every agent edit is one undoable
 `setEnv` step, recorded with author `agent:<model>` in the environment history.
 
+### From outside the app (MCP)
+
+`pnpm mcp` starts a stdio MCP server (`apps/web/scripts/mcp.mjs`) over a running dev server
+(`INKLING_URL`, default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
+`list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
+`patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
+with author `agent:mcp`; the Studio shows them the next time the project opens.
+
+```bash
+claude mcp add inkling -- node /abs/path/to/inkling/apps/web/scripts/mcp.mjs
+```
+
 1. **Tier 1 (on):** the agent references trusted, bundled modules only.
 2. **Tier 2 (behind a flag):** the agent generates declarative panels from a catalogue of
    shadcn components bound to runtime keys and store selectors. No code.

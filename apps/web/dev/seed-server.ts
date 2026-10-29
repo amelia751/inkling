@@ -166,7 +166,11 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
       const lines = fs.existsSync(historyFile) ? fs.readFileSync(historyFile, "utf8").trim().split("\n").filter(Boolean) : [];
       return sendJson(res, 200, lines.map((l) => JSON.parse(l)));
     }
-    if (req.method === "GET") return sendJson(res, 200, current());
+    if (req.method === "GET") {
+      // `effective`: what the Studio boots with (saved edits, else the manifest's environment).
+      const cur = current();
+      return sendJson(res, 200, { ...cur, effective: cur.environment ?? manifestEnvironment(seedRoot, id, m) });
+    }
 
     const save = (environment: unknown, author: string) => {
       const doc: EnvDoc = { revision: current().revision + 1, environment, savedAt: new Date().toISOString(), author };

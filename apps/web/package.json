@@ -11,7 +11,8 @@
     "check:icons": "node scripts/check-icons.mjs",
     "test": "vitest run",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "emit:schemas": "node scripts/emit-schemas.mjs"
+    "emit:schemas": "node scripts/emit-schemas.mjs",
+    "mcp": "node scripts/mcp.mjs"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.10",
@@ -73,6 +74,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "@originjs/vite-plugin-commonjs": "1.0.3",
     "@tailwindcss/vite": "^4",
     "@types/node": "^20",

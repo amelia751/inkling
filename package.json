@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "seeds": "uv run scripts/fetch-seeds.py"
+    "seeds": "uv run scripts/fetch-seeds.py",
+    "mcp": "pnpm --filter web mcp"
   }
 }

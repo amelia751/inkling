@@ -65,7 +65,8 @@ renderers switch on; the resolver guarantees names are unique within an environm
 }
 ```
 
-Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate.
+Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate, and
+`labels` groups merge by `name` (a same-named group replaces the preset's; new groups append).
 `resolveEnvironment` never throws for bad input; every problem comes back as
 `{ path, code, message, suggestion }` with `path` a JSON Pointer.
 
@@ -106,7 +107,7 @@ singletons for this.
 | `status` | the shell | the status-bar text |
 | `playhead` | video, cine | `{ frame, time }` |
 | `grid` | cine | `{ spacing, dims }` |
-| `signalInfo` | timeseries | `{ fs, leads, … }` |
+| `signalInfo` | timeseries | `{ record, fs, samples, channels, header? }` |
 | `mpp` | wsi | microns (or metres) per pixel |
 | `image2d.view`, `image2d.controls` | image2d cornerstone-stack | view state and actions for its viewport-bar panel |
 | `viewportState` | image2d canvas-raster | `{ zoom, pan, width, height }` |

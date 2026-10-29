@@ -19,7 +19,7 @@
 export interface AtrAnnotation {
   /** Sample index from the start of the record. */
   sample: number;
-  /** WFDB annotation code (1–49, see codes.ts). */
+  /** WFDB annotation code (1–49, ecgcodes.h). */
   code: number;
   chan?: number;
   sub?: number;
@@ -148,4 +148,29 @@ export function ustar(entries: TarEntry[], mtime = Math.floor(Date.now() / 1000)
     off += b.length;
   }
   return out;
+}
+
+export interface WfdbHeader {
+  record: string;
+  /** Number of signals. */
+  nsig: number;
+  /** Sampling frequency (Hz); `undefined` when the header leaves it out. */
+  fs?: number;
+  samples: number;
+  /** Signal descriptions (the free-text last field of each signal line), e.g. lead names. */
+  signals: string[];
+}
+
+/** Parse the record and signal lines of a WFDB header (.hea, header(5)); comment lines are skipped. */
+export function parseHeader(text: string): WfdbHeader {
+  const lines = text.split(/\r?\n/).filter((l) => l && !l.startsWith("#"));
+  const [name, nsig, fsField, samples] = (lines[0] ?? "").split(/\s+/);
+  const n = +nsig || 0;
+  return {
+    record: name,
+    nsig: n,
+    fs: parseFloat(fsField) || undefined,
+    samples: +samples || 0,
+    signals: lines.slice(1, 1 + n).map((l) => l.split(/\s+/).slice(8).join(" ")),
+  };
 }

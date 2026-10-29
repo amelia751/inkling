@@ -161,6 +161,11 @@ describe("helpers", () => {
     );
     expect(m).toEqual({ panels: { left: ["c"], right: ["b"] }, tools: ["y"], overrides: [{ id: "1" }, { id: "2" }] });
   });
+  it("merges label groups by name: same name replaces in place, new groups append", () => {
+    const g = (name: string, id: string) => ({ name, control: "Labels", classes: [{ id }] });
+    const m = mergeSpecs({ labels: [g("labels", "a"), g("statements", "s")] }, { labels: [g("labels", "b"), g("extra", "x")] });
+    expect(m.labels).toEqual([g("labels", "b"), g("statements", "s"), g("extra", "x")]);
+  });
   it("checks semver ranges", () => {
     expect(satisfies("1.4.2", "^1")).toBe(true);
     expect(satisfies("2.0.0", "^1.2")).toBe(false);

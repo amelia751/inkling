@@ -83,17 +83,29 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeo
 /** Keys whose arrays accumulate across `extends` instead of being replaced. */
 const CONCAT_KEYS = new Set(["overrides", "keybindings"]);
 
-/** Deep-merge `b` over `a`: objects merge, arrays and scalars replace (overrides/keybindings concatenate). */
+/**
+ * Deep-merge `b` over `a`: objects merge, arrays and scalars replace (overrides/keybindings
+ * concatenate; label groups merge by `name`, so a project's own "labels" group replaces the
+ * preset's while a preset vocabulary such as ECG record statements stays).
+ */
 export function mergeSpecs(a: EnvironmentSpec, b: EnvironmentSpec): EnvironmentSpec {
   const out: Record<string, unknown> = { ...a };
   for (const [k, v] of Object.entries(b)) {
     if (v === undefined || k === "extends") continue;
     const prev = out[k];
     if (CONCAT_KEYS.has(k) && Array.isArray(prev) && Array.isArray(v)) out[k] = [...prev, ...v];
+    else if (k === "labels" && Array.isArray(prev) && Array.isArray(v)) out[k] = mergeLabelGroups(prev as LabelGroup[], v as LabelGroup[]);
     else if (isPlainObject(prev) && isPlainObject(v) && k !== "layout") out[k] = mergeObjects(prev, v);
     else out[k] = v;
   }
   return out as EnvironmentSpec;
+}
+/** Groups of `b` replace same-named groups of `a` in place; new ones are appended. */
+function mergeLabelGroups(a: LabelGroup[], b: LabelGroup[]): LabelGroup[] {
+  const byName = new Map(b.map((g) => [g.name, g]));
+  const out = a.map((g) => byName.get(g.name) ?? g);
+  for (const g of b) if (!a.some((x) => x.name === g.name)) out.push(g);
+  return out;
 }
 function mergeObjects(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
   const out = { ...a };

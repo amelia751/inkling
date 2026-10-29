@@ -4,7 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { describeGeometry, inspectRows } from "@/platform/describe";
-import { labelClasses, labelNames } from "@/platform/environment";
+import { labelClasses, regionLabelNames } from "@/platform/environment";
 import type { PanelProps } from "@/platform/module";
 import type { ResolvedEnv } from "@/platform/resolve";
 import { runtimeFor, useRuntimeVersion } from "@/platform/runtime";
@@ -17,7 +17,7 @@ import { ProvenanceBadge } from "./provenance";
  * with pick / hide / lock, overlay opacity, and the selection inspector.
  */
 export function LabelsPanel({ env, project, items }: PanelProps) {
-  const labels = labelNames(env.labels);
+  const labels = regionLabelNames(env.labels);
   const classes = labelClasses(env.labels);
   const choiceGroups = env.labels.filter((g) => g.control === "Choices");
   const activeLabel = useStudio((s) => s.activeLabel);

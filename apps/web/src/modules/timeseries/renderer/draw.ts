@@ -1,10 +1,16 @@
 import { resolveLabelColor, resolveToken } from "@/lib/labels";
-import type { Annotation, Geometry } from "@/types";
-import { RHYTHMS } from "./codes";
+import type { Annotation } from "@/types";
+import { channelOf, codeOf, kindOf, peakOf, rangeOf, rhythmOf, waveOf } from "../model";
 import { GUTTER, type Frame, type Panel, xOf } from "./layout";
 
+/**
+ * Canvas drawing of the strip chart: grid (ECG paper or plain), traces, spans, instants,
+ * the track of record-level spans, drafts, selection handles, caliper and the overview.
+ * Pure functions of a Scene; the engine builds the scene and owns interaction.
+ */
+
 export type Draft =
-  | { kind: "interval" | "wave"; lead: string; t0: number; t1: number; label: string; wave?: "P" | "QRS" | "T" }
+  | { kind: "interval" | "wave"; lead: string; t0: number; t1: number; label: string; wave?: string }
   | { kind: "rhythm"; t0: number; t1: number; rhythm: string };
 
 export interface Caliper {
@@ -34,6 +40,8 @@ export interface Scene {
   selectedIds: Set<string>;
   labels: string[];
   opacity: number;
+  /** ECG paper grid (40/200 ms boxes, mm squares in paper mode) or a plain time ruler. */
+  grid: "ecg" | "plain";
   paper: boolean;
   /** Top-right note: speed, gain, filter band. */
   note: string;
@@ -43,10 +51,12 @@ export interface Scene {
   focusLead?: string;
   /** Rubber-band selection rectangle in CSS px. */
   band?: { x0: number; y0: number; x1: number; y1: number } | null;
+  /** Codes of instants drawn in the label colour (the vocabulary's first code); others are highlighted. */
+  normalCode?: string;
+  /** Track codes, for stable colours per code. */
+  trackCodes: string[];
+  trackLabel: string;
 }
-
-const RHYTHM_AUX = RHYTHMS.map((r) => r.aux);
-type G<T extends Geometry["type"]> = Extract<Geometry, { type: T }>;
 
 function colors() {
   return {
@@ -62,6 +72,11 @@ function colors() {
 type Colors = ReturnType<typeof colors>;
 
 const onLead = (lead: string, p: Panel) => lead === "all" || lead === p.lead;
+/** Interval and wave spans (on channels), as [start, end]. */
+function channelSpan(a: Annotation): [number, number] | null {
+  const k = kindOf(a);
+  return k === "interval" || k === "wave" ? rangeOf(a.geometry) : null;
+}
 
 export function drawScene(ctx: CanvasRenderingContext2D, s: Scene) {
   const c = colors();
@@ -135,14 +150,26 @@ function drawGrid(ctx: CanvasRenderingContext2D, s: Scene) {
     hlines(mm, minor);
     vlines(mmSec * 5, major);
     hlines(mm * 5, major);
-  } else {
+  } else if (s.grid === "ecg") {
     for (const [step, alpha] of [[0.04, 0.05], [0.2, 0.12]] as const) {
       if (pxPerSec * step < 4) continue;
       vlines(step, `rgba(255,255,255,${alpha})`);
     }
     if (pxPerSec * 0.2 < 4) vlines(1, "rgba(255,255,255,0.1)");
+  } else {
+    // Plain ruler: a 1-2-5 step giving lines at least 60 px apart, with fifths as minor lines.
+    const major = niceStep(60 / pxPerSec);
+    if ((major / 5) * pxPerSec >= 8) vlines(major / 5, "rgba(255,255,255,0.04)");
+    vlines(major, "rgba(255,255,255,0.1)");
   }
   ctx.restore();
+}
+
+/** Smallest 1-2-5 × 10^k step ≥ x. */
+export function niceStep(x: number): number {
+  const p = 10 ** Math.floor(Math.log10(x));
+  for (const m of [1, 2, 5, 10]) if (m * p >= x - 1e-12) return m * p;
+  return 10 * p;
 }
 
 function drawTrace(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors) {
@@ -193,30 +220,25 @@ function drawTrace(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors)
   ctx.stroke();
 }
 
-function spanRange(g: Geometry): [number, number] | null {
-  if (g.type === "interval") return [g.start, g.end];
-  if (g.type === "wave") return [g.onset, g.offset];
-  return null;
-}
-
 function drawSpans(ctx: CanvasRenderingContext2D, s: Scene, p: Panel) {
   const pps = s.frame.pxPerSec;
   for (const a of s.anns) {
-    const g = a.geometry;
-    if ((g.type !== "interval" && g.type !== "wave") || !onLead(g.lead, p)) continue;
-    const [t0, t1] = spanRange(g)!;
+    const r = channelSpan(a);
+    if (!r || !onLead(channelOf(a.geometry), p)) continue;
+    const isWave = kindOf(a) === "wave";
+    const [t0, t1] = r;
     if (t1 < p.t0 || t0 > p.t1) continue;
     const x0 = xOf(p, pps, t0);
     const x1 = xOf(p, pps, t1);
     const ai = a.provenance === "ai-suggested";
     const sel = s.selectedIds.has(a.id);
     const col = (alpha: number) => (ai ? resolveToken("--prov-ai", alpha) : resolveLabelColor(s.labels, a.label, alpha));
-    ctx.fillStyle = col((sel ? 0.32 : g.type === "wave" ? 0.14 : 0.2) * s.opacity);
+    ctx.fillStyle = col((sel ? 0.32 : isWave ? 0.14 : 0.2) * s.opacity);
     ctx.fillRect(x0, p.y + 1, x1 - x0, p.h - 2);
     ctx.strokeStyle = col(0.9);
     ctx.lineWidth = sel ? 2 : 1.25;
     ctx.setLineDash(ai ? [4, 3] : []);
-    if (g.type === "interval") {
+    if (!isWave) {
       ctx.fillStyle = col(1);
       ctx.fillRect(x0, p.y + 1, x1 - x0, 2);
       if (ai) ctx.strokeRect(x0, p.y + 1, x1 - x0, p.h - 2);
@@ -227,8 +249,9 @@ function drawSpans(ctx: CanvasRenderingContext2D, s: Scene, p: Panel) {
       ctx.moveTo(x1, p.y + 1);
       ctx.lineTo(x1, p.y + p.h - 1);
       ctx.stroke();
-      if (g.peak !== undefined) {
-        const xp = xOf(p, pps, g.peak);
+      const peak = peakOf(a);
+      if (peak !== undefined) {
+        const xp = xOf(p, pps, peak);
         ctx.fillStyle = col(1);
         ctx.beginPath();
         ctx.moveTo(xp - 3.5, p.y + 2);
@@ -239,16 +262,16 @@ function drawSpans(ctx: CanvasRenderingContext2D, s: Scene, p: Panel) {
       if (p.h >= 28 && x1 - x0 > 12) {
         ctx.fillStyle = col(1);
         ctx.font = "600 9px Inter, sans-serif";
-        ctx.fillText(g.wave, x0 + 2, p.y + p.h - 4);
+        ctx.fillText(waveOf(a), x0 + 2, p.y + p.h - 4);
       }
     }
     ctx.setLineDash([]);
   }
 }
 
-function beatColor(labels: string[], a: Annotation, c: Colors) {
+function beatColor(labels: string[], a: Annotation, c: Colors, normal: string | undefined) {
   if (a.provenance === "ai-suggested") return c.ai;
-  return (a.geometry as G<"beat">).code === "N" ? resolveLabelColor(labels, a.label) : c.warn;
+  return normal === undefined || codeOf(a) === normal ? resolveLabelColor(labels, a.label) : c.warn;
 }
 
 function drawBeats(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors) {
@@ -256,13 +279,15 @@ function drawBeats(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors)
   ctx.textAlign = "center";
   ctx.font = "700 10px Inter, sans-serif";
   for (const a of s.anns) {
-    const g = a.geometry;
-    if (g.type !== "beat" || !onLead(g.lead, p) || g.t < p.t0 || g.t > p.t1) continue;
-    const x = xOf(p, pps, g.t);
-    const color = beatColor(s.labels, a, c);
+    if (kindOf(a) !== "beat") continue;
+    const t = rangeOf(a.geometry)![0];
+    const lead = channelOf(a.geometry);
+    if (!onLead(lead, p) || t < p.t0 || t > p.t1) continue;
+    const x = xOf(p, pps, t);
+    const color = beatColor(s.labels, a, c, s.normalCode);
     const ai = a.provenance === "ai-suggested";
     const sel = s.selectedIds.has(a.id);
-    const showLetter = g.lead !== "all" || p.row === 0 || p.rhythmStrip || s.frame.panels.length === 1;
+    const showLetter = lead !== "all" || p.row === 0 || p.rhythmStrip || s.frame.panels.length === 1;
     if (sel) {
       ctx.strokeStyle = resolveToken("--primary", 0.55);
       ctx.lineWidth = 1;
@@ -287,7 +312,7 @@ function drawBeats(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors)
         ctx.fillRect(x - 7, p.y + 1, 14, 12);
         ctx.fillStyle = "#fff";
       } else ctx.fillStyle = color;
-      ctx.fillText(g.code, x, p.y + 11);
+      ctx.fillText(codeOf(a), x, p.y + 11);
     }
     ctx.globalAlpha = 1;
   }
@@ -321,13 +346,13 @@ export function handleSquare(ctx: CanvasRenderingContext2D, x: number, y: number
 function drawSelection(ctx: CanvasRenderingContext2D, s: Scene, p: Panel, c: Colors) {
   const a = s.anns.find((x) => x.id === s.selectedId);
   if (!a) return;
-  const g = a.geometry;
   const pps = s.frame.pxPerSec;
   const mid = p.y + p.h / 2;
-  if ((g.type === "interval" || g.type === "wave") && onLead(g.lead, p)) {
-    const [t0, t1] = spanRange(g)!;
-    for (const t of [t0, t1]) if (t >= p.t0 && t <= p.t1) handleSquare(ctx, xOf(p, pps, t), mid, "#fff");
-    if (g.type === "wave" && g.peak !== undefined && g.peak >= p.t0 && g.peak <= p.t1) handleSquare(ctx, xOf(p, pps, g.peak), p.y + 9, c.primary);
+  const r = channelSpan(a);
+  if (r && onLead(channelOf(a.geometry), p)) {
+    for (const t of r) if (t >= p.t0 && t <= p.t1) handleSquare(ctx, xOf(p, pps, t), mid, "#fff");
+    const peak = kindOf(a) === "wave" ? peakOf(a) : undefined;
+    if (peak !== undefined && peak >= p.t0 && peak <= p.t1) handleSquare(ctx, xOf(p, pps, peak), p.y + 9, c.primary);
   }
 }
 
@@ -411,7 +436,7 @@ function drawRhythmTrack(ctx: CanvasRenderingContext2D, s: Scene, c: Colors) {
   ctx.stroke();
   ctx.fillStyle = c.dim;
   ctx.font = "10px Inter, sans-serif";
-  ctx.fillText("Rhythm", 6, t.y + 15);
+  ctx.fillText(s.trackLabel, 6, t.y + 15);
   ctx.save();
   ctx.beginPath();
   ctx.rect(t.x, t.y, t.w, t.h);
@@ -434,14 +459,22 @@ function drawRhythmTrack(ctx: CanvasRenderingContext2D, s: Scene, c: Colors) {
       handleSquare(ctx, x1, t.y + t.h / 2, "#fff");
     }
   };
+  const codes = trackPalette(s.trackCodes);
   for (const a of s.anns) {
-    const g = a.geometry;
-    if (g.type !== "rhythm" || g.end < t.t0 || g.start > t.t1) continue;
-    bar(g.start, g.end, g.rhythm, (al) => resolveLabelColor(RHYTHM_AUX, g.rhythm, al), a.provenance === "ai-suggested", s.selectedIds.has(a.id));
+    if (kindOf(a) !== "rhythm") continue;
+    const [start, end] = rangeOf(a.geometry)!;
+    if (end < t.t0 || start > t.t1) continue;
+    const code = rhythmOf(a);
+    bar(start, end, code, (al) => resolveLabelColor(codes(code), code, al), a.provenance === "ai-suggested", s.selectedIds.has(a.id));
   }
   const d = s.draft;
-  if (d?.kind === "rhythm") bar(Math.min(d.t0, d.t1), Math.max(d.t0, d.t1), d.rhythm, (al) => resolveLabelColor(RHYTHM_AUX, d.rhythm, al * 0.8), false, false);
+  if (d?.kind === "rhythm") bar(Math.min(d.t0, d.t1), Math.max(d.t0, d.t1), d.rhythm, (al) => resolveLabelColor(codes(d.rhythm), d.rhythm, al * 0.8), false, false);
   ctx.restore();
+}
+
+/** Colour list for track codes: the vocabulary, plus codes it doesn't list, so each code keeps one colour. */
+function trackPalette(vocab: string[]) {
+  return (code: string) => (vocab.includes(code) ? vocab : [...vocab, code]);
 }
 
 function drawCaliper(ctx: CanvasRenderingContext2D, s: Scene, k: Caliper, c: Colors) {
@@ -520,6 +553,10 @@ export interface OverviewScene {
   anns: Annotation[];
   labels: string[];
   selectedId: string | null;
+  /** Name of the channel shown. */
+  channel: string;
+  normalCode?: string;
+  trackCodes: string[];
 }
 
 export function drawOverview(ctx: CanvasRenderingContext2D, o: OverviewScene) {
@@ -528,7 +565,7 @@ export function drawOverview(ctx: CanvasRenderingContext2D, o: OverviewScene) {
   const xOfT = (t: number) => GUTTER + (t / o.duration) * (o.width - GUTTER - 6);
   ctx.fillStyle = c.dim;
   ctx.font = "10px Inter, sans-serif";
-  ctx.fillText("II · full", 6, o.height / 2 + 4);
+  ctx.fillText(`${o.channel} · full`, 6, o.height / 2 + 4);
   const x = o.signal;
   if (x?.length) {
     // Robust vertical range: 1st–99th percentile of a subsample.
@@ -559,16 +596,20 @@ export function drawOverview(ctx: CanvasRenderingContext2D, o: OverviewScene) {
     }
     ctx.stroke();
   }
+  const palette = trackPalette(o.trackCodes);
   for (const a of o.anns) {
-    const g = a.geometry;
-    if (g.type === "rhythm") {
-      ctx.fillStyle = resolveLabelColor(RHYTHM_AUX, g.rhythm, 0.8);
-      ctx.fillRect(xOfT(g.start), 1, xOfT(g.end) - xOfT(g.start), 3);
-    } else if (g.type === "beat") {
-      ctx.fillStyle = a.id === o.selectedId ? c.primary : beatColor(o.labels, a, c);
-      ctx.fillRect(Math.round(xOfT(g.t)) - 0.5, o.height - 5, a.id === o.selectedId ? 3 : 1.5, 5);
-    } else if (g.type === "interval" || g.type === "wave") {
-      const [a0, a1] = spanRange(g)!;
+    const k = kindOf(a);
+    const r = rangeOf(a.geometry);
+    if (!k || !r) continue;
+    if (k === "rhythm") {
+      const code = rhythmOf(a);
+      ctx.fillStyle = resolveLabelColor(palette(code), code, 0.8);
+      ctx.fillRect(xOfT(r[0]), 1, xOfT(r[1]) - xOfT(r[0]), 3);
+    } else if (k === "beat") {
+      ctx.fillStyle = a.id === o.selectedId ? c.primary : beatColor(o.labels, a, c, o.normalCode);
+      ctx.fillRect(Math.round(xOfT(r[0])) - 0.5, o.height - 5, a.id === o.selectedId ? 3 : 1.5, 5);
+    } else {
+      const [a0, a1] = r;
       ctx.fillStyle = resolveLabelColor(o.labels, a.label, 0.35);
       ctx.fillRect(xOfT(a0), o.height - 9, Math.max(1, xOfT(a1) - xOfT(a0)), 3);
     }

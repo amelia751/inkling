@@ -5,7 +5,7 @@
 All paths are relative to `apps/web/src/` unless they start with `apps/`, `seed-data/` or `todo/`.
 
 > **Status (2026-10-29, branch `modular-viewers` in worktree `../inkling-modular`):** phases 0–4 are done and e2e is green;
-> phase 8 is mostly done; phase 10 is partly done. Phase 6 was started as six parallel conversions in worktrees
+> phase 8 is mostly done, phase 9 is done (multi-viewport rendering aside), phase 10 is partly done. Phase 6 was started as six parallel conversions in worktrees
 > `../inkling-conv-{wsi,image2d,volume,timeseries,video,cine}` (branches `conv-*`), but they were stopped before any
 > file changed. Restart them from `todo/phase6-brief.md`. `[~]` means partly done; the note says what's left.
 
@@ -442,16 +442,16 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 ## Phase 9: Agent-composable layout
 
 **`apps/web/package.json`**
-- [ ] Add `dockview` and `@rjsf/core@^6` (or `@jsonforms/react`).
+- [x] Add `dockview` and `@rjsf/core@^6` (or `@jsonforms/react`).
 
 **`app/routes/DatasetStudioPage.tsx`** + new **`components/studio/StudioLayout.tsx`**
-- [ ] Replace `react-resizable-panels` with dockview. Panels come from `env.panels` slots. `env.layout` is dockview `toJSON()` (null means auto-layout from slots).
-- [ ] Before `fromJSON`, drop panel ids that aren't in the resolved env (dockview throws on unknown panels).
-- [ ] Keep today's phone and tablet behavior: slots collapse into `Sheet`s below the desktop breakpoint.
-- [ ] Support multiple viewports (`env.viewports[]`), e.g. a video next to its timeseries, synced through `runtime.playhead`.
+- [x] Replace `react-resizable-panels` with dockview. Panels come from `env.panels` slots. `env.layout` is dockview `toJSON()` (null means auto-layout from slots). _(slots are the dockview panels; each slot keeps its own tabs)_
+- [x] Before `fromJSON`, drop panel ids that aren't in the resolved env (dockview throws on unknown panels).
+- [x] Keep today's phone and tablet behavior: slots collapse into `Sheet`s below the desktop breakpoint.
+- [~] Support multiple viewports (`env.viewports[]`), e.g. a video next to its timeseries, synced through `runtime.playhead`. _(spec and resolver support several viewports; the Studio mounts the first only)_
 
 **`components/studio/ModuleConfigForm.tsx`** (new)
-- [ ] An RJSF form generated from any contribution's `configSchema`, opened from a panel's ⋯ menu. Edits go through `patch_environment`, so humans and the agent share one path.
+- [x] An RJSF form generated from any contribution's `configSchema`, opened from a panel's ⋯ menu. Edits go through `patch_environment`, so humans and the agent share one path.
 
 ---
 

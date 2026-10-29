@@ -27,6 +27,8 @@ export interface Exporter {
   description: string;
   /** File name (without directory); may include the project id. */
   filename: (project: Project) => string;
+  /** Hide the exporter for projects it can't serve (e.g. DICOM SEG on JPEG/NIfTI data). Default: always shown. */
+  available?: (project: Project) => boolean;
   build: (ctx: ExportContext) => Promise<Blob>;
 }
 

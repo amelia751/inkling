@@ -919,33 +919,15 @@ export default function Volume3DViewer({ project, item }: ViewerProps) {
       n ? `Removed ${n.toLocaleString()} island voxels from “${label}”` : `“${label}” has no islands`,
     );
 
-  const interpolate = async () => {
+  // Shape-based interpolation in JS. @cornerstonejs/labelmap-interpolation needs the
+  // @itk-wasm peer, which by default fetches its WASM from a public CDN at run time;
+  // keep image-derived data on this machine instead.
+  const interpolate = () => {
     const s = session.current;
     const { label, seg } = activeSeg();
     if (!s || !label || seg <= 0) return;
     const plane = activeRef.current;
     const axis = planeAxis(s.geom, plane);
-    const count = () => encodeMask(cache.getVolume(s.segVolumeId)!.voxelManager!.getCompleteScalarDataArray!(), seg).voxels;
-    const before = count();
-    setBusy("interpolate");
-    let viaLibrary = false;
-    try {
-      // Morphological contour interpolation (ITK-wasm worker); falls back to shape-based JS.
-      const m = await import("@cornerstonejs/labelmap-interpolation");
-      await Promise.race([
-        m.interpolate({ segmentationId: s.segmentationId, segmentIndex: seg, configuration: { preview: false, axis } }),
-        new Promise((r) => setTimeout(r, 30_000)),
-      ]);
-      viaLibrary = count() !== before;
-    } catch (e) {
-      console.warn("[inkling] labelmap-interpolation unavailable, using built-in interpolation", e);
-    }
-    setBusy(null);
-    if (viaLibrary) {
-      s.bridge.labelmapEdited();
-      setViewerStatus(`Interpolated “${label}”: +${(count() - before).toLocaleString()} voxels`);
-      return;
-    }
     editLabelmap("interpolate", (data, sess, sg) => interpolateSlices(data, sess.geom.dims, sg, axis), (n, l) =>
       n ? `Interpolated “${l}” between ${plane} slices: +${n.toLocaleString()} voxels` : `Nothing to interpolate for “${l}” — paint at least two ${plane} slices with a gap`,
     );

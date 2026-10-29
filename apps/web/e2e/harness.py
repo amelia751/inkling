@@ -114,7 +114,7 @@ def open_studio(
     for seed_path, local in (fixtures or {}).items():
         body = Path(local).read_bytes()
         ctype = mimetypes.guess_type(str(local))[0] or "application/octet-stream"
-        page.route(f"**/seed/{seed_path}", lambda route, body=body, ctype=ctype: route.fulfill(status=200, body=body, content_type=ctype))
+        page.route(f"**/seed/{seed_path}", lambda route, _request=None, body=body, ctype=ctype: route.fulfill(status=200, body=body, content_type=ctype))
 
     page.goto(f"http://localhost:{port}/datasets/{dataset}")
     return studio

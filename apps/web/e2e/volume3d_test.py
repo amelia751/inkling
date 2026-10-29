@@ -131,8 +131,8 @@ def main() -> int:
 
         # ------------------------------------------------------------ load / layouts / navigation
         def t_load(st):
-            pts = [a for a in item_annotations(st, SUBJECT) if a["geometry"]["type"] == "point"]
-            check(len(pts) == 4, f"4 legacy points, got {len(pts)}")
+            pts = [a for a in item_annotations(st, SUBJECT) if a["geometry"]["type"] == "point3d"]
+            check(len(pts) == 4, f"4 legacy points (migrated to point3d), got {len(pts)}")
             time.sleep(2)
             check(st.store("s => s.past.length") == 0, "loading must not edit annotations")
             g = hook(st, "geom()")
@@ -214,7 +214,7 @@ def main() -> int:
         def t_point(st):
             a = measure("k", [(110, 130, 77)], "click")(st)
             g = a["geometry"]
-            check(g["type"] == "point" and g["plane"] == "axial" and g["ijk"] == [110, 130, 77] and g["slice"] == 77, g)
+            check(g["type"] == "point3d" and g["plane"] == "axial" and g["ijk"] == [110, 130, 77] and g["slice"] == 77, g)
             return f"point {g['ijk']}"
 
         def t_length(st):
@@ -402,13 +402,16 @@ def main() -> int:
             st.page.keyboard.press(f"{MOD}+a")
             n_all = len(item_annotations(st, SUBJECT))
             wait_for(lambda: len(st.store("s => s.selectedIds")) == n_all, "select all")
+            # Escape: nothing is being dragged, so the volume's cancel command falls through to deselect.
+            st.page.keyboard.press("Escape")
+            wait_for(lambda: len(st.store("s => s.selectedIds")) == 0, "Escape clears the selection")
             click(st.page, at(st, "axial", (120, 90, 77)))
             click(st.page, at(st, "axial", (120, 150, 77)), [MOD])
             wait_for(lambda: len(st.store("s => s.selectedIds")) == 2, f"{MOD}-click adds")
             st.page.mouse.move(3, 3)
             st.page.keyboard.press("Delete")
             wait_for(lambda: not new_annotations(st, SUBJECT, before), "deleted both")
-            return "shift/⌘ multi-select, handle drag 60→70 mm, ⌘A, Delete"
+            return "shift/⌘ multi-select, handle drag 60→70 mm, ⌘A, Escape, Delete"
 
         def t_view(st):
             st.page.mouse.move(*cell_center(st, "axial"))
@@ -531,8 +534,9 @@ def main() -> int:
             drag(st.page, at(st, "axial", (20, 64, k)), at(st, "axial", (60, 64, k)))
             lg = only_new(st, before, item="CT1")[0]["geometry"]
             close(lg["stats"]["length"], 60, 0.5, "40 px × 1.5 mm")
-            inspect = st.page.evaluate("""async () => { const ad = await import('/src/viewers/volume3d/adapter.ts'); const s = (await import('/src/stores/studio.ts')).useStudio.getState();
-                const a = s.annotations.filter(a => a.itemId === 'CT1' && a.geometry.kind === 'probe')[0]; return ad.volume3dAdapter.inspect(a, { project: {}, item: { assets: [{ path: 'dicom-ct/CT1/IM0001.dcm' }] } }) }""")
+            inspect = st.page.evaluate("""async () => { const inspect = await (await import('/src/platform/registry.ts')).registry.loadImpl('inkling.volume.inspectors.main');
+                const runtime = (await import('/src/platform/runtime.ts')).runtimeFor('CT1'); const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+                const a = s.annotations.filter(a => a.itemId === 'CT1' && a.geometry.kind === 'probe')[0]; return inspect(a, { env: s.env, project: {}, item: { assets: [{ path: 'dicom-ct/CT1/IM0001.dcm' }] }, runtime }) }""")
             check(any("HU" in v for _, v in inspect), f"inspect shows HU: {inspect}")
             # Smart fill the lesion (3D), label "lesion".
             tool(st, "g")

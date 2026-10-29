@@ -379,10 +379,10 @@ The order runs from the cleanest to the most entangled. After each conversion, r
 - [ ] Split `SignalViewer.tsx` (1,067 lines) into `renderer/StripChartEngine.ts`, `renderer/Host.tsx` and the panels.
 
 ### 6.5 `volume3d` to `modules/volume/`
-- [ ] dataKind `volume` (NIfTI, DICOM series). Renderer `cornerstone-mpr` (`space: "volume"`, capabilities `["slices","planes","crosshairs"]`), with config for the 1×3, 2×2 and 1+3D layouts.
-- [ ] Turn `volumeSources()` (exported from the viewer, line 152) into the dataKind's `groupItems`/sequence picker.
-- [ ] Interpolate-slices, remove-islands and confidence-connected become commands. The segment list and visibility become `panels/segments.tsx`.
-- [ ] Split `Volume3DViewer.tsx` (1,251 lines) into an engine, a host and panels.
+- [x] dataKind `volume` (NIfTI, DICOM series). Renderer `cornerstone-mpr` (`space: "volume"`, capabilities `["slices","planes","crosshairs"]`), with config for the 1×3, 2×2 and 1+3D layouts.
+- [x] Turn `volumeSources()` (exported from the viewer, line 152) into the dataKind's `groupItems`/sequence picker.
+- [x] Interpolate-slices, remove-islands and confidence-connected become commands. The segment list and visibility become `panels/segments.tsx`. _(commands `interpolateSlices`, `removeIslands`, `smartFill`/`similarFill`; the viewer had no segment list, and the reference-mask toggle stays in its viewport bar, so no segments panel)_
+- [x] Split `Volume3DViewer.tsx` (1,251 lines) into an engine, a host and panels.
 
 ### 6.6 `cine4d` to `modules/cine/` (most domain-coupled; do last)
 - [ ] dataKind `volume-time` (4D NIfTI + reference segmentations). Renderer `slice-frame-canvas` (`space: "image2d"`, capabilities `["time","slices","playback"]`), using `kits/overlay2d` with `placement.{slice,frame}` and `kits/io/nifti`.

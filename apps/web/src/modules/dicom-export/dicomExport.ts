@@ -212,7 +212,7 @@ export async function buildDicomSr({ project, item, annotations }: Ctx): Promise
       add("PlanarFreehandROI", a, [], {}, { contour: { polyline: poly, closed: true } });
     } else if (g.type === "keypoint") {
       add("Probe", a, [toWorld2D(g.x, g.y)], {});
-    } else if (g.type === "point") {
+    } else if (g.type === "point3d" || g.type === "point") {
       add("Probe", a, [toWorldIjk(g.ijk)], {});
     } else if (g.type === "measurement") {
       const world = g.points.map((p) => (g.space === "image" ? toWorld2D(p[0], p[1]) : ([p[0], p[1], p[2]] as Types.Point3)));

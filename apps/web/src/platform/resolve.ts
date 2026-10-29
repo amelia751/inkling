@@ -45,6 +45,8 @@ export interface ResolvedCommand extends Registered<"commands"> {
 export interface ResolvedEnv {
   /** The fully merged spec (extends and overrides applied), for get_environment and diffs. */
   spec: EnvironmentSpec;
+  /** The spec as written (before `extends` is merged): what edits and JSON Patches apply to. */
+  source: EnvironmentSpec;
   id: string;
   title?: string;
   task?: string;
@@ -370,6 +372,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   return {
     env: {
       spec,
+      source: parsed.data,
       id: spec.id ?? "environment",
       title: spec.title,
       task: spec.task,

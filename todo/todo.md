@@ -4,6 +4,11 @@
 
 All paths are relative to `apps/web/src/` unless they start with `apps/`, `seed-data/` or `todo/`.
 
+> **Status (2026-10-29, branch `modular-viewers` in worktree `../inkling-modular`):** phases 0–4 are done and e2e is green;
+> phase 8 is mostly done; phase 10 is partly done. Phase 6 was started as six parallel conversions in worktrees
+> `../inkling-conv-{wsi,image2d,volume,timeseries,video,cine}` (branches `conv-*`), but they were stopped before any
+> file changed. Restart them from `todo/phase6-brief.md`. `[~]` means partly done; the note says what's left.
+
 ---
 
 ## 0. Audit summary (why this work is needed)
@@ -110,75 +115,75 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 ## Phase 0: Guardrails (do first, about half a day)
 
 **`apps/web/package.json`**
-- [ ] Add `zod@^4` to dependencies. Add `vitest` and `@vitest/coverage-v8` to devDependencies.
-- [ ] Add scripts: `"test": "vitest run"`, `"check:boundaries": "node scripts/check-boundaries.mjs"`, `"emit:schemas": "node scripts/emit-schemas.mjs"`.
+- [x] Add `zod@^4` to dependencies. Add `vitest` and `@vitest/coverage-v8` to devDependencies.
+- [x] Add scripts: `"test": "vitest run"`, `"check:boundaries": "node scripts/check-boundaries.mjs"`, `"emit:schemas": "node scripts/emit-schemas.mjs"`.
 
 **`apps/web/vite.config.ts`**
-- [ ] Add a `test: { environment: "jsdom", include: ["src/**/*.test.ts"] }` block (or a separate `vitest.config.ts`).
+- [x] Add a `test: { environment: "jsdom", include: ["src/**/*.test.ts"] }` block (or a separate `vitest.config.ts`).
 
 **`apps/web/scripts/check-boundaries.mjs`** (new; model it on `scripts/check-icons.mjs`)
-- [ ] Fail if `platform/**` imports from `modules/**`, `kits/**` or `components/studio/**`.
-- [ ] Fail if `kits/**` imports from `modules/**`.
-- [ ] Fail if `modules/A/**` imports `modules/B/**` internals. Only `modules/B/manifest.ts` and `modules/B/public.ts` are allowed.
-- [ ] Fail if the shell (`app/**`, `components/studio/**`, `lib/**`) imports anything under `modules/**` except through `platform/`.
-- [ ] Until phase 6, run it in warn-only mode with an allowlist that shrinks as each viewer migrates.
+- [x] Fail if `platform/**` imports from `modules/**`, `kits/**` or `components/studio/**`.
+- [x] Fail if `kits/**` imports from `modules/**`.
+- [x] Fail if `modules/A/**` imports `modules/B/**` internals. Only `modules/B/manifest.ts` and `modules/B/public.ts` are allowed.
+- [x] Fail if the shell (`app/**`, `components/studio/**`, `lib/**`) imports anything under `modules/**` except through `platform/`.
+- [x] Until phase 6, run it in warn-only mode with an allowlist that shrinks as each viewer migrates.
 
 **`apps/web/e2e/`**
-- [ ] Record a green baseline of every `*_test.py` before refactoring. Each phase below must keep it green. Its `data-testid`s (e.g. `volume-3d`, `plane-*`, `viewer-status`) are the regression contract, so keep them.
+- [x] Record a green baseline of every `*_test.py` before refactoring. Each phase below must keep it green. Its `data-testid`s (e.g. `volume-3d`, `plane-*`, `viewer-status`) are the regression contract, so keep them.
 
 ---
 
 ## Phase 1: Platform contracts (new `platform/` folder)
 
 **`platform/module.ts`** (new)
-- [ ] Define `ModuleManifest`: `{ id, version, title, description, engines, requires?, optional?, activation?, contributes, load }`.
-- [ ] Define the contribution interfaces listed in section 1. Every contribution has `id`, a one-line `description` (shown to the agent, kiwifs style) and an optional `configSchema: ZodType`.
-- [ ] Add `defineModule(m)`, an identity helper that type-checks and freezes. `load()` returns `Promise<ModuleImpl>`, keyed by the same contribution ids (components, functions).
-- [ ] Define `RendererProps` (replaces `ViewerProps`): `{ env, viewport, item, config, runtime }`. `runtime` is the context API from `platform/runtime.ts`.
+- [x] Define `ModuleManifest`: `{ id, version, title, description, engines, requires?, optional?, activation?, contributes, load }`.
+- [x] Define the contribution interfaces listed in section 1. Every contribution has `id`, a one-line `description` (shown to the agent, kiwifs style) and an optional `configSchema: ZodType`.
+- [x] Add `defineModule(m)`, an identity helper that type-checks and freezes. `load()` returns `Promise<ModuleImpl>`, keyed by the same contribution ids (components, functions).
+- [x] Define `RendererProps` (replaces `ViewerProps`): `{ env, viewport, item, config, runtime }`. `runtime` is the context API from `platform/runtime.ts`.
 
 **`platform/registry.ts`** (new; replaces `viewers/registry.ts`)
-- [ ] `registerModule(manifest)` is idempotent. It indexes every contribution under its full id `<module>.<type>.<name>`.
-- [ ] Add `get(type, id)`, `list(type, filter?)`, `loadImpl(id)` (lazy, cached) and `modulesFor(dataKind)`.
-- [ ] Detect duplicate ids and hotkey conflicts per resolved environment (move `findConflicts` here from `lib/shortcuts.ts`).
+- [x] `registerModule(manifest)` is idempotent. It indexes every contribution under its full id `<module>.<type>.<name>`.
+- [x] Add `get(type, id)`, `list(type, filter?)`, `loadImpl(id)` (lazy, cached) and `modulesFor(dataKind)`.
+- [x] Detect duplicate ids and hotkey conflicts per resolved environment (move `findConflicts` here from `lib/shortcuts.ts`).
 
 **`platform/environment.ts`** (new)
-- [ ] Zod `EnvironmentSpec` matching section 1, plus `LabelSchema` (classes with `id`, `name`, `color?`, `hotkey?`, `parent?`, `allowedGeometries?`, `attributes?` as a JSON-Schema subset).
-- [ ] `environmentJsonSchema(registry)` builds the JSON Schema with `enum`s of real registered ids, so the agent can't invent ids.
+- [x] Zod `EnvironmentSpec` matching section 1, plus `LabelSchema` (classes with `id`, `name`, `color?`, `hotkey?`, `parent?`, `allowedGeometries?`, `attributes?` as a JSON-Schema subset).
+- [x] `environmentJsonSchema(registry)` builds the JSON Schema with `enum`s of real registered ids, so the agent can't invent ids.
 
 **`platform/resolve.ts`** (new)
-- [ ] `resolveEnvironment(spec, registry): { env: ResolvedEnv } | { errors: EnvError[] }`.
-- [ ] Apply `extends` (deep-merge the preset), then `overrides` (`disabled`, `config`).
-- [ ] Check that every `requires` is met; that each renderer `consumes` the data kind; that each tool's `creates` geometry is supported by its viewport's `space`; that each label `toName` names a viewport; that each exporter `accepts` at least one geometry in use; and that hotkeys are unique within a `when` scope.
-- [ ] Errors are structured (`{ path, code, message, suggestion }`, A2UI `ValidationFailed` style) so an agent can repair them.
-- [ ] Return `ResolvedEnv`: ordered tools, keybindings, panels by slot, exporters, label schema, merged configs.
+- [x] `resolveEnvironment(spec, registry): { env: ResolvedEnv } | { errors: EnvError[] }`.
+- [x] Apply `extends` (deep-merge the preset), then `overrides` (`disabled`, `config`).
+- [x] Check that every `requires` is met; that each renderer `consumes` the data kind; that each tool's `creates` geometry is supported by its viewport's `space`; that each label `toName` names a viewport; that each exporter `accepts` at least one geometry in use; and that hotkeys are unique within a `when` scope.
+- [x] Errors are structured (`{ path, code, message, suggestion }`, A2UI `ValidationFailed` style) so an agent can repair them.
+- [x] Return `ResolvedEnv`: ordered tools, keybindings, panels by slot, exporters, label schema, merged configs.
 
 **`platform/when.ts`** (new)
-- [ ] A tiny `when`-clause evaluator: `==`, `!=`, `&&`, `||`, `!`, `in`. Context keys: `renderer`, `renderer.space`, `tool`, `dataKind`, `selection.count`, `drafting`, plus anything a module publishes. No `eval`.
+- [x] A tiny `when`-clause evaluator: `==`, `!=`, `&&`, `||`, `!`, `in`. Context keys: `renderer`, `renderer.space`, `tool`, `dataKind`, `selection.count`, `drafting`, plus anything a module publishes. No `eval`.
 
 **`platform/runtime.ts`** (new; fixes problem F)
-- [ ] A per-item runtime context store (a Zustand slice or `createStore`): `publish(itemId, key, value)`, `useRuntime(itemId, key)`, `getRuntime(itemId, key)`.
-- [ ] Renderers publish `playhead`, `grid` (spacing/dims), `signalInfo` (fs), `viewportState`. Inspectors and panels read from it.
+- [x] A per-item runtime context store (a Zustand slice or `createStore`): `publish(itemId, key, value)`, `useRuntime(itemId, key)`, `getRuntime(itemId, key)`.
+- [~] Renderers publish `playhead`, `grid` (spacing/dims), `signalInfo` (fs), `viewportState`. Inspectors and panels read from it. _(store + API done; viewers publish in phase 6)_
 
 **`platform/commands.ts`** (new; fixes problem E)
-- [ ] Command registry: `registerCommand(id, handler, { when })`, `execute(id, args)`. Handlers return `false` to fall through, matching today's `useShortcuts` semantics.
-- [ ] Keybindings come from the resolved env and map keys to commands. Rebuild `lib/hotkeys.ts` on top of this, keeping its priority model (`SHELL_PRIORITY`).
+- [x] Command registry: `registerCommand(id, handler, { when })`, `execute(id, args)`. Handlers return `false` to fall through, matching today's `useShortcuts` semantics.
+- [x] Keybindings come from the resolved env and map keys to commands. Rebuild `lib/hotkeys.ts` on top of this, keeping its priority model (`SHELL_PRIORITY`).
 
 **`platform/catalog.ts`** (new; agent surface, like kiwifs `kiwi_widget_reference`)
-- [ ] `describeCatalog()` returns every module and contribution with description, config JSON Schema, an example and `consumes`/`creates` edges.
-- [ ] `catalogPrompt()` returns compact markdown for the AI panel's system prompt.
+- [x] `describeCatalog()` returns every module and contribution with description, config JSON Schema, an example and `consumes`/`creates` edges.
+- [x] `catalogPrompt()` returns compact markdown for the AI panel's system prompt.
 
 **`platform/*.test.ts`** (new)
-- [ ] Resolver tests: valid preset resolves; unknown id, missing `requires`, tool/space mismatch and hotkey clash each produce the expected error; `extends` + `overrides` merge.
+- [x] Resolver tests: valid preset resolves; unknown id, missing `requires`, tool/space mismatch and hotkey clash each produce the expected error; `extends` + `overrides` merge.
 
 ---
 
 ## Phase 2: Generalize the data model
 
 **`types/index.ts`**
-- [ ] Delete `ViewerKind`. Replace `Project.viewer` with `Project.environment: EnvironmentSpec | { preset: string }`. Keep a migration shim (`viewer: "pathology"` maps to `{ extends: "preset:pathology" }`) in `lib/api.ts`.
-- [ ] Replace `labels?: string[]` with `labels?: LabelGroup[]` (from `platform/environment.ts`). Add `labelNames(env)` for the transition.
-- [ ] Split `Geometry` into **core geometries** that stay in this file and are domain-neutral: `class`, `box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`, `point3d` (today's `point`), `measurement`, `mask`, `span` (start/end on a time axis, optional `channel`), `instant` (t or frame, optional `channel`), `track`.
-- [ ] Re-express the medical geometries on core ones, carrying their codes in `attributes`:
+- [x] Delete `ViewerKind`. Replace `Project.viewer` with `Project.environment: EnvironmentSpec | { preset: string }`. Keep a migration shim (`viewer: "pathology"` maps to `{ extends: "preset:pathology" }`) in `lib/api.ts`.
+- [x] Replace `labels?: string[]` with `labels?: LabelGroup[]` (from `platform/environment.ts`). Add `labelNames(env)` for the transition.
+- [x] Split `Geometry` into **core geometries** that stay in this file and are domain-neutral: `class`, `box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`, `point3d` (today's `point`), `measurement`, `mask`, `span` (start/end on a time axis, optional `channel`), `instant` (t or frame, optional `channel`), `track`.
+- [~] Re-express the medical geometries on core ones, carrying their codes in `attributes`: _(types, migration and tests done; each viewer switches over in phase 6 via MIGRATED_V1_TYPES in lib/api.ts)_
   - `interval` becomes `span` with `channel: lead`
   - `beat` becomes `instant` with `channel` and `attributes.code`
   - `wave` becomes `span` with `attributes.wave` and `attributes.peak`
@@ -187,94 +192,94 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
   - `segment` becomes `span`; `event` becomes `instant`; `mark` becomes `keypoint` with no placement
 
   Keep the module-specific *validation* in the owning module's `geometries` contribution, which refines the attributes schema.
-- [ ] Allow module geometries: `{ type: \`${string}.${string}\`; [k: string]: unknown }` validated by the registry, for cases core can't express.
-- [ ] Add `annotationsVersion` to `AnnotationDocument`, plus `migrations/annotations-v1-to-v2.ts` (new) that rewrites stored medical geometries into core ones. Run it on load in `lib/api.ts`.
-- [ ] `StudioItem`: add `dataKind: string`; drop nothing else.
+- [x] Allow module geometries: `{ type: \`${string}.${string}\`; [k: string]: unknown }` validated by the registry, for cases core can't express.
+- [x] Add `annotationsVersion` to `AnnotationDocument`, plus `migrations/annotations-v1-to-v2.ts` (new) that rewrites stored medical geometries into core ones. Run it on load in `lib/api.ts`.
+- [x] `StudioItem`: add `dataKind: string`; drop nothing else.
 
 **`stores/studio.ts`**
-- [ ] `Tool` becomes `type ToolId = string`. Delete the union; the source of truth is the registry.
-- [ ] `ToolOptions` becomes `toolOptions: Record<ToolId, Record<string, unknown>>`, defaulted from each tool's `optionsSchema`. Add `useToolOption(toolId, key)`. Brush size becomes an option of `overlay2d.tools.brush` and of `cornerstone.tools.brush`. Each declares its own options, so the `brushThreshold` hack goes away.
-- [ ] Remove the SNOMED special case from `setClass`. Add `setClass(itemId, label, author, { group })`, where single- versus multi-valued is read from the label group's `control` (`Choices` with `multiple: true`).
-- [ ] Add `env: ResolvedEnv | null` and `setEnv(env)` (with undo stack `envPast`/`envFuture`), so agent edits are undoable separately from annotation edits.
-- [ ] Keep `newAnnotation`, `visibleFor` and `isEditable` unchanged.
+- [x] `Tool` becomes `type ToolId = string`. Delete the union; the source of truth is the registry.
+- [x] `ToolOptions` becomes `toolOptions: Record<ToolId, Record<string, unknown>>`, defaulted from each tool's `optionsSchema`. Add `useToolOption(toolId, key)`. Brush size becomes an option of `overlay2d.tools.brush` and of `cornerstone.tools.brush`. Each declares its own options, so the `brushThreshold` hack goes away.
+- [x] Remove the SNOMED special case from `setClass`. Add `setClass(itemId, label, author, { group })`, where single- versus multi-valued is read from the label group's `control` (`Choices` with `multiple: true`).
+- [x] Add `env: ResolvedEnv | null` and `setEnv(env)` (with undo stack `envPast`/`envFuture`), so agent edits are undoable separately from annotation edits.
+- [x] Keep `newAnnotation`, `visibleFor` and `isEditable` unchanged.
 
 **`seed-data/manifest.json`** and **`scripts/fetch-seeds.py`**
-- [ ] Emit `environment: { extends: "preset:<id>" }` instead of `viewer`. Emit label groups with colors.
-- [ ] Keep `viewer` for one release so older checkouts still load.
+- [x] Emit `environment: { extends: "preset:<id>" }` instead of `viewer`. Emit label groups with colors.
+- [x] Keep `viewer` for one release so older checkouts still load.
 
 **`apps/web/dev/seed-server.ts`**
-- [ ] Add `GET /api/catalog` (returns `describeCatalog()` JSON, built at dev-server start via `emit:schemas`).
-- [ ] Add `GET/PUT /api/environments/:projectId`, stored in `seed-data/.environments/`, with the same revision semantics as annotations.
-- [ ] Add `PATCH /api/environments/:projectId` accepting RFC 6902 JSON Patch. Validate server-side with the emitted JSON Schema and return structured errors on failure.
+- [x] Add `GET /api/catalog` (returns `describeCatalog()` JSON, built at dev-server start via `emit:schemas`).
+- [x] Add `GET/PUT /api/environments/:projectId`, stored in `seed-data/.environments/`, with the same revision semantics as annotations.
+- [x] Add `PATCH /api/environments/:projectId` accepting RFC 6902 JSON Patch. Validate server-side with the emitted JSON Schema and return structured errors on failure.
 
 ---
 
 ## Phase 3: De-hardcode the shell (no viewer changes yet; wrap the six adapters as modules)
 
 **`viewers/registry.ts`**
-- [ ] Replace it with a thin `legacyAdapterModule(adapter, meta)` that turns each existing `ViewerAdapter` into a `defineModule` with one dataKind, one renderer, its tools, inspectors and exporters. This lets the shell switch to the platform before any viewer is rewritten.
+- [x] Replace it with a thin `legacyAdapterModule(adapter, meta)` that turns each existing `ViewerAdapter` into a `defineModule` with one dataKind, one renderer, its tools, inspectors and exporters. This lets the shell switch to the platform before any viewer is rewritten.
 
 **`viewers/ViewerAdapter.ts`**
-- [ ] Mark it `@deprecated` and re-export `Exporter`/`ExportContext` from `platform/module.ts`. Delete it at the end of phase 6.
+- [x] Mark it `@deprecated` and re-export `Exporter`/`ExportContext` from `platform/module.ts`. Delete it at the end of phase 6.
 
 **`platform/presets/*.json`** (new; six files)
-- [ ] `image-2d`, `volume-3d`, `ecg`, `video`, `cine-4d`, `pathology`: each reproduces today's tools (same order), exporters, labels and panels exactly. The e2e baseline must pass unchanged.
+- [x] `image-2d`, `volume-3d`, `ecg`, `video`, `cine-4d`, `pathology`: each reproduces today's tools (same order), exporters, labels and panels exactly. The e2e baseline must pass unchanged.
 
 **`lib/items.ts`**
-- [ ] Delete the `switch`. `projectItems(project)` becomes `registry.get("dataKinds", env.data.kind).groupItems(project.assets)`. Move each case body into its module's dataKind contribution.
+- [x] Delete the `switch`. `projectItems(project)` becomes `registry.get("dataKinds", env.data.kind).groupItems(project.assets)`. Move each case body into its module's dataKind contribution.
 
 **`lib/format.ts`**
-- [ ] Delete `VIEWER_META` and `ITEM_NOUN`. Add `envLabel(env)`, `envIcon(env)` and `itemNoun(env)` read from the dataKind contribution. Keep `formatBytes` and the `plural*` helpers.
+- [x] Delete `VIEWER_META` and `ITEM_NOUN`. Add `envLabel(env)`, `envIcon(env)` and `itemNoun(env)` read from the dataKind contribution. Keep `formatBytes` and the `plural*` helpers.
 
 **`lib/shortcuts.ts`**
-- [ ] Keep only the studio-wide entries (undo, redo, delete, deselect, selectAll, next/prevItem, pickLabel, brush size as a `when: "tool.options.size"` binding, showShortcuts) as `inkling.core` keybindings.
-- [ ] Move every viewer-specific entry (lines 64-100) into the owning module's manifest as `commands` + `keybindings` with `when` clauses.
-- [ ] Delete `TOOL_KEYS`; hotkeys move to each tool contribution (and label hotkeys to label classes).
-- [ ] Delete `POLYGON_VIEWERS`, `VIDEO` and `PLAYBACK_VIEWERS`. They become `when: "renderer.capabilities has 'drafting'"` and similar.
+- [x] Keep only the studio-wide entries (undo, redo, delete, deselect, selectAll, next/prevItem, pickLabel, brush size as a `when: "tool.options.size"` binding, showShortcuts) as `inkling.core` keybindings.
+- [x] Move every viewer-specific entry (lines 64-100) into the owning module's manifest as `commands` + `keybindings` with `when` clauses.
+- [x] Delete `TOOL_KEYS`; hotkeys move to each tool contribution (and label hotkeys to label classes).
+- [x] Delete `POLYGON_VIEWERS`, `VIDEO` and `PLAYBACK_VIEWERS`. They become `when: "renderer.capabilities has 'drafting'"` and similar.
 
 **`lib/hotkeys.ts`**
-- [ ] Route through `platform/commands.ts`. `useShortcuts(map)` becomes `useCommands(map)`, so modules register handlers by command id. Keep the priority and fall-through behavior.
+- [x] Route through `platform/commands.ts`. `useShortcuts(map)` becomes `useCommands(map)`, so modules register handlers by command id. Keep the priority and fall-through behavior.
 
 **`app/routes/DatasetStudioPage.tsx`**
-- [ ] Load the environment (`/api/environments/:id` or the preset), call `resolveEnvironment`, and put `ResolvedEnv` in the store. Show resolver errors as a full-page message listing `path` and `message`.
-- [ ] Replace `adapter.Component` with `<ViewportHost viewport={env.viewports[0]} item={item} />` (new `components/studio/ViewportHost.tsx`), which lazy-loads the renderer impl through `registry.loadImpl`.
-- [ ] `useStudioShortcuts` calls `useCommands` for the `inkling.core.*` commands only.
-- [ ] Choose the initial tool from `env.tools[0]` instead of `adapter.tools`.
-- [ ] Stop passing `project.viewer` anywhere.
+- [x] Load the environment (`/api/environments/:id` or the preset), call `resolveEnvironment`, and put `ResolvedEnv` in the store. Show resolver errors as a full-page message listing `path` and `message`.
+- [x] Replace `adapter.Component` with `<ViewportHost viewport={env.viewports[0]} item={item} />` (new `components/studio/ViewportHost.tsx`), which lazy-loads the renderer impl through `registry.loadImpl`.
+- [x] `useStudioShortcuts` calls `useCommands` for the `inkling.core.*` commands only.
+- [x] Choose the initial tool from `env.tools[0]` instead of `adapter.tools`.
+- [x] Stop passing `project.viewer` anywhere.
 
 **`components/studio/CanvasToolbar.tsx`**
-- [ ] Delete `TOOL_META` and the icon imports. Read `label`, `hint`, `icon`, `group` and `hotkey` from tool contributions in `env.tools`.
-- [ ] Remove the `project.viewer !== "pathology"` check. Render an options strip from the active tool's `optionsSchema`: number becomes a slider, boolean a checkbox, enum a segmented control. Use RJSF/JSON Forms here in phase 9.
-- [ ] The `drawing` check becomes `toolContribution.creates !== undefined`.
-- [ ] Add a `viewport-bar` panel slot on the right so modules can contribute toolbar widgets.
+- [x] Delete `TOOL_META` and the icon imports. Read `label`, `hint`, `icon`, `group` and `hotkey` from tool contributions in `env.tools`.
+- [x] Remove the `project.viewer !== "pathology"` check. Render an options strip from the active tool's `optionsSchema`: number becomes a slider, boolean a checkbox, enum a segmented control. Use RJSF/JSON Forms here in phase 9.
+- [x] The `drawing` check becomes `toolContribution.creates !== undefined`.
+- [x] Add a `viewport-bar` panel slot on the right so modules can contribute toolbar widgets.
 
 **`components/studio/LeftSidebar.tsx`**
-- [ ] Turn the hardcoded three tabs into `env.panels.left`. Move `FilesTab`, `LabelsTab` and `ReviewTab` into `modules/core/panels/` as `inkling.core.panels.files`, `.labels` and `.review`.
-- [ ] `describeGeometry` becomes `registry.get("geometries", g.type).describe(g)`. Core geometries' `describe` lives in `modules/core/geometries.ts`.
-- [ ] `SelectionInspector` reads rows from the inspector contributions for that geometry (several modules may add rows), passing `runtime` rather than nothing.
-- [ ] Remove `project.task === "classification"`. Show the "Image label" section when the env has a label group with `control: "Choices"` bound to the item.
-- [ ] Labels come from `env.labels` (colors, hotkeys), not `labelColor(labels, l)` by index.
+- [x] Turn the hardcoded three tabs into `env.panels.left`. Move `FilesTab`, `LabelsTab` and `ReviewTab` into `modules/core/panels/` as `inkling.core.panels.files`, `.labels` and `.review`.
+- [x] `describeGeometry` becomes `registry.get("geometries", g.type).describe(g)`. Core geometries' `describe` lives in `modules/core/geometries.ts`.
+- [x] `SelectionInspector` reads rows from the inspector contributions for that geometry (several modules may add rows), passing `runtime` rather than nothing.
+- [x] Remove `project.task === "classification"`. Show the "Image label" section when the env has a label group with `control: "Choices"` bound to the item.
+- [x] Labels come from `env.labels` (colors, hotkeys), not `labelColor(labels, l)` by index.
 
 **`components/studio/FormatExports.tsx`**
-- [ ] Read exporters from `env.exporters`, not `adapterFor(project)`.
+- [x] Read exporters from `env.exporters`, not `adapterFor(project)`.
 
 **`components/studio/ShortcutsDialog.tsx`**
-- [ ] Take `env` instead of `viewer` + `tools`. List keybindings whose `when` can be true in this env, grouped as before.
+- [x] Take `env` instead of `viewer` + `tools`. List keybindings whose `when` can be true in this env, grouped as before.
 
 **`components/studio/AiAssistantPanel.tsx`**
-- [ ] Turn it into the `inkling.core.panels.ai` contribution in the `right` slot. Phase 8 adds the agent wiring.
+- [x] Turn it into the `inkling.core.panels.ai` contribution in the `right` slot. Phase 8 adds the agent wiring.
 
 **`components/studio/StudioTopBar.tsx`**, **`CanvasStatusBar.tsx`**
-- [ ] Use `envLabel`/`itemNoun`. `viewerStatus` stays, and is also published to `runtime` so panels can read structured status.
+- [x] Use `envLabel`/`itemNoun`. `viewerStatus` stays, and is also published to `runtime` so panels can read structured status.
 
 **`app/routes/WorkspacePage.tsx`**
-- [ ] Replace `VIEWER_META[project.viewer]` and `ITEM_NOUN[...]` with the `lib/format.ts` env helpers.
+- [x] Replace `VIEWER_META[project.viewer]` and `ITEM_NOUN[...]` with the `lib/format.ts` env helpers.
 
 **`app/routes/ReviewPage.tsx`**
-- [ ] Replace the classification check with `env.reviewRules`. Move the source-label disagreement rule to `modules/core/reviewRules.ts`.
+- [x] Replace the classification check with `env.reviewRules`. Move the source-label disagreement rule to `modules/core/reviewRules.ts`.
 
 **`app/routes/ExportPage.tsx`**
-- [ ] Put `environment` (resolved ids and versions) into the export manifest next to `task`, so an export records exactly which modules produced it.
+- [x] Put `environment` (resolved ids and versions) into the export manifest next to `task`, so an export records exactly which modules produced it.
 
 **Exit criteria:** `rg "viewer ===|\.viewer\b|ViewerKind" src --glob '!viewers/**'` returns nothing; all e2e tests pass; the six presets resolve with zero errors.
 
@@ -283,31 +288,31 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 ## Phase 4: Shared kits (extract duplication before converting viewers)
 
 **`kits/viewport-chrome/`** (new; fixes problem J)
-- [ ] Move `viewers/cornerstone/ui.tsx` primitives here: `ViewportBar`, `BarButton`, `BarSelect`, `BarSep`, `BarLabel`, `CornerText`, `OrientationMarkers`, `TextPrompt`, `releaseFocusAfterPointer`.
-- [ ] Add `BarSegmented` (replaces signal `Seg`/`Pick`), `BarToggle` (signal `Toggle`, cine `TB`), `BarIconButton`/`BarTextButton` (video), `Transport` (from cine `Transport`, also used by video), and `Legend` (from cine).
-- [ ] Delete the private copies in `SignalViewer.tsx:923-1034`, `Cine4DViewer.tsx:1017-1100` and `VideoViewer.tsx:1055-1108`.
+- [x] Move `viewers/cornerstone/ui.tsx` primitives here: `ViewportBar`, `BarButton`, `BarSelect`, `BarSep`, `BarLabel`, `CornerText`, `OrientationMarkers`, `TextPrompt`, `releaseFocusAfterPointer`.
+- [~] Add `BarSegmented` (replaces signal `Seg`/`Pick`), `BarToggle` (signal `Toggle`, cine `TB`), `BarIconButton`/`BarTextButton` (video), `Transport` (from cine `Transport`, also used by video), and `Legend` (from cine). _(BarSegmented, BarPick, BarToggle, BarIconButton, BarTextButton, ToolbarButton done; Transport and Legend left for the cine conversion)_
+- [~] Delete the private copies in `SignalViewer.tsx:923-1034`, `Cine4DViewer.tsx:1017-1100` and `VideoViewer.tsx:1055-1108`. _(signal, video and cine copies replaced; cine Transport/Legend remain)_
 
 **`kits/overlay2d/`** (new; fixes problem I; the biggest win for non-medical 2D tasks)
-- [ ] `transform.ts`: image to screen mapping, generalizing `pathology/transform.ts` and `shared/useViewport2D.ts` (camera with zoom, pan, rotation, flip).
-- [ ] `shapes/*.ts`: one tldraw-style `ShapeUtil` per core 2D geometry (`box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`), each with `bounds`, `hitTest`, `handles`, `applyHandle`, `translate`, `draw(ctx, style)`. Sources: `video/overlay.ts`, `pathology/scene.ts` + `regions.ts`, and the cine contour code.
+- [~] `transform.ts`: image to screen mapping, generalizing `pathology/transform.ts` and `shared/useViewport2D.ts` (camera with zoom, pan, rotation, flip). _(pathology transform moved into kits/overlay2d; generalisation is part of 6.1)_
+- [x] `shapes/*.ts`: one tldraw-style `ShapeUtil` per core 2D geometry (`box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`), each with `bounds`, `hitTest`, `handles`, `applyHandle`, `translate`, `draw(ctx, style)`. Sources: `video/overlay.ts`, `pathology/scene.ts` + `regions.ts`, and the cine contour code. _(as kits/overlay2d/shapes.ts)_
 - [ ] `tools/*.ts`: one state machine per drawing tool (`select` with marquee/lasso, `box`, `ellipse`, `polygon`, `freehand`, `polyline`, `spline`, `keypoint`, `brush`/`eraser` on vector regions, `length`), lifted from `pathology/controller.ts` (the most complete). Each exports `onPointerDown/Move/Up`, `onKey`, `draft()` and `cancel()`, and reads options from `useToolOption`.
 - [ ] `OverlayEngine.ts`: owns the overlay canvas(es), spatial index (`flatbush`, as pathology does), LOD drawing and the selection/handle layer. It subscribes to the store with `getState`/`subscribe`, never React state.
 - [ ] `useOverlay2D(hostRef, { item, placement, transform })`: the React binding. `placement` filters annotations by `frame`/`slice`, which is how video and cine reuse it per frame or slice.
-- [ ] `manifest.ts`: contributes the 2D tools as `inkling.overlay2d.tools.*`, each with `when: "renderer.space == image2d"`. Any renderer declaring `space: "image2d"` gets them for free. This is what makes a new image-like data type cheap.
-- [ ] Unit tests for every `ShapeUtil` (hit-test, handle drag, translate round-trip).
+- [x] `manifest.ts`: contributes the 2D tools as `inkling.overlay2d.tools.*`, each with `when: "renderer.space == image2d"`. Any renderer declaring `space: "image2d"` gets them for free. This is what makes a new image-like data type cheap.
+- [x] Unit tests for every `ShapeUtil` (hit-test, handle drag, translate round-trip).
 
 **`kits/timeline/`** (new)
 - [ ] Extract the ruler, playhead, span lanes and filmstrip from `video/Timeline.tsx`, generalized to "time axis + lanes of `span`/`instant` annotations". Signal's rhythm track and cine's phase markers become lanes. Tools `inkling.timeline.tools.span` and `.instant` declare `when: "renderer.capabilities has 'time'"`.
 
 **`kits/io/`** (new; fixes problem H)
-- [ ] Move `volume3d/nifti.ts` to `kits/io/nifti.ts`; update the cine imports.
-- [ ] Move `cine4d/niftiIO.ts`, `video/frameSource.ts`, `video/zip.ts` and `signal/wfdb.ts` here. Each becomes reusable by any module.
+- [x] Move `volume3d/nifti.ts` to `kits/io/nifti.ts`; update the cine imports.
+- [x] Move `cine4d/niftiIO.ts`, `video/frameSource.ts`, `video/zip.ts` and `signal/wfdb.ts` here. Each becomes reusable by any module.
 
 **`kits/cornerstone/`**
-- [ ] Move `viewers/cornerstone/*` here unchanged, apart from `ui.tsx`, which moved to viewport-chrome. Update imports.
+- [x] Move `viewers/cornerstone/*` here unchanged, apart from `ui.tsx`, which moved to viewport-chrome. Update imports.
 
 **`viewers/shared/`**
-- [ ] Move `geometry.ts` and `draw.ts` into `kits/overlay2d/` (geometry math) and `kits/viewport-chrome/` (`formatTime`). Delete the folder once it's empty. Deduplicate `polygonArea` (also in `cornerstone/inspect.ts:22`).
+- [x] Move `geometry.ts` and `draw.ts` into `kits/overlay2d/` (geometry math) and `kits/viewport-chrome/` (`formatTime`). Delete the folder once it's empty. Deduplicate `polygonArea` (also in `cornerstone/inspect.ts:22`).
 
 ---
 
@@ -333,7 +338,7 @@ Rules (enforced by `check:boundaries`):
 - [ ] Every contribution has an `example` so `describeCatalog()` can show the agent a working snippet (kiwifs fence rule).
 
 **`modules/core/`** (new)
-- [ ] Panels: files, labels, review, inspector, ai. Core geometries' `describe`/`inspect`, review rules, studio commands, and the `select`/`pan` tools as defaults for every renderer.
+- [~] Panels: files, labels, review, inspector, ai. Core geometries' `describe`/`inspect`, review rules, studio commands, and the `select`/`pan` tools as defaults for every renderer. _(files, labels (with inspector), review, ai panels, geometries, review rules, commands, select/pan done)_
 
 ---
 
@@ -409,11 +414,11 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 ## Phase 8: Agent surface (the "boot an environment" loop)
 
 **`apps/web/scripts/emit-schemas.mjs`** (new; kiwifs `emit-fence-schemas` pattern)
-- [ ] Build `public/schema/environment.v1.json` and `public/catalog.json` from all manifests. CI fails if they're stale (drift check).
+- [x] Build `public/schema/environment.v1.json` and `public/catalog.json` from all manifests. CI fails if they're stale (drift check).
 
 **`components/studio/AiAssistantPanel.tsx`** → `modules/core/panels/ai.tsx`
-- [ ] The system prompt includes `catalogPrompt()`, the current env JSON and resolver errors.
-- [ ] Agent tools (function-calling schema):
+- [x] The system prompt includes `catalogPrompt()`, the current env JSON and resolver errors.
+- [x] Agent tools (function-calling schema): _(platform/agent.ts)_
   - `list_modules`
   - `describe_contribution(id)`
   - `get_environment`
@@ -421,10 +426,10 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
   - `patch_environment(jsonPatch)`, which returns the new env or structured errors
   - `preview_environment(spec)`, which renders in a sandbox store without saving
   - `run_command(id, args)`
-- [ ] Every agent edit is one undoable `setEnv` step with an "Agent changed: …" diff summary in the panel, and is revertible.
+- [~] Every agent edit is one undoable `setEnv` step with an "Agent changed: …" diff summary in the panel, and is revertible. _(undoable setEnv + Undo button done; not yet checked end-to-end against a live model)_
 
 **`apps/web/dev/seed-server.ts`** (and later `apps/api/`)
-- [ ] Back the tools with `/api/catalog` and `/api/environments/:id` (GET/PUT/PATCH) from phase 2. Store the environment history (revision, author `agent:<model>` or user, timestamp), mirroring kiwifs's git-backed actor attribution.
+- [x] Back the tools with `/api/catalog` and `/api/environments/:id` (GET/PUT/PATCH) from phase 2. Store the environment history (revision, author `agent:<model>` or user, timestamp), mirroring kiwifs's git-backed actor attribution.
 - [ ] Later: expose the same tools over MCP (`inkling mcp`) so Claude or Cursor can boot environments from outside the app.
 
 **Safety tiers** (document them in `docs/modules.md`):
@@ -452,10 +457,10 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 
 ## Phase 10: Documentation
 
-- [ ] **`inkling.md` §2 and §3.1**: replace the `ViewerAdapter`/`ViewerKind` proposal with modules, environments and presets. Make the "adapters share a dataset/annotation API, not a universal renderer" rule explicit as the module contract.
-- [ ] **`AGENTS.md`** (new, repo root): how to add a module (copy `modules/_template/`, write the manifest, run `emit:schemas`, add a preset, add an e2e smoke test), the boundary rules, and "never hand-edit generated schema files".
-- [ ] **`docs/modules.md`** (new): contribution reference (generated from `describeCatalog()`), `when`-clause context keys, runtime keys, the safety tiers.
-- [ ] **`modules/_template/`** (new): a minimal compiling module with one renderer, one tool and one panel.
+- [~] **`inkling.md` §2 and §3.1**: replace the `ViewerAdapter`/`ViewerKind` proposal with modules, environments and presets. Make the "adapters share a dataset/annotation API, not a universal renderer" rule explicit as the module contract. _(sections 2 and 3.1 rewritten; §4 monorepo tree still shows viewers/)_
+- [x] **`AGENTS.md`** (new, repo root): how to add a module (copy `modules/_template/`, write the manifest, run `emit:schemas`, add a preset, add an e2e smoke test), the boundary rules, and "never hand-edit generated schema files".
+- [x] **`docs/modules.md`** (new): contribution reference (generated from `describeCatalog()`), `when`-clause context keys, runtime keys, the safety tiers.
+- [x] **`modules/_template/`** (new): a minimal compiling module with one renderer, one tool and one panel.
 
 ---
 

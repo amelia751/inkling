@@ -139,11 +139,58 @@ def t_text(browser, port):
         st.page.context.close()
 
 
+SANDBOX_HTML = """<!doctype html><html><head></head><body><p id=out>starting</p><script>
+(async () => {
+  let net = "blocked";
+  try { await fetch("https://example.com/"); net = "allowed"; } catch { net = "blocked"; }
+  const { item, annotations } = await inkling.getAnnotations();
+  const r = await inkling.propose([
+    { label: "cat", geometry: { type: "box", x: 10, y: 20, w: 30, h: 40 }, attributes: { net, seen: annotations.length } },
+    { label: "unicorn", geometry: { type: "box", x: 0, y: 0, w: 1, h: 1 } },
+  ]);
+  document.getElementById("out").textContent = item.id + " added " + r.added;
+})();
+</script></body></html>"""
+
+
+def t_agent_panels(browser, port):
+    xray = next(p for p in __import__("json").loads((Path(__file__).resolve().parents[3] / "seed-data/manifest.json").read_text())["projects"] if p["id"] == "2d-xray")
+    assets = [{k: v for k, v in a.items() if k != "label"} for a in xray["assets"][:2]]
+    p = project("agent-panels", "generic-image", assets)
+    p["environment"] = {
+        "extends": "preset:generic-image",
+        "labels": [{"name": "objects", "control": "RectangleLabels", "classes": [{"id": "cat"}]}],
+        "panels": {"right": ["inkling.experimental.panels.declarative", "inkling.experimental.panels.sandbox"]},
+        "overrides": [
+            {"id": "inkling.experimental.panels.declarative", "config": {"title": "Progress", "blocks": [{"type": "stat", "label": "On this item", "value": {"store": "annotations.item"}}]}},
+            {"id": "inkling.experimental.panels.sandbox", "config": {"title": "Auto-boxer", "html": SANDBOX_HTML, "height": 160}},
+        ],
+    }
+    st = open_studio(browser, port, "agent-panels", extra_projects=[p], fixture_annotations=[], init_script="localStorage.setItem('inkling.flags', 'agentPanels')")
+    try:
+        st.page.wait_for_selector("[data-testid='agent-declarative-panel']", timeout=30000)
+        check("agent panels: tier 2 declarative panel renders from JSON", st.page.get_by_test_id("agent-stat").inner_text().strip() == "0")
+        st.page.get_by_role("tab", name="Sandboxed tool").click()
+        added = wait(lambda: st.store("s => s.annotations.filter(a => a.provenance === 'ai-suggested' && a.author === 'agent:sandbox').map(a => ({ label: a.label, g: a.geometry, attrs: a.attributes }))"))
+        check("agent panels: tier 3 sandbox proposals arrive vetted and ai-suggested", bool(added) and len(added) == 1 and added[0]["label"] == "cat" and added[0]["g"]["type"] == "box", str(added))
+        check("agent panels: the sandbox has no network", bool(added) and added[0]["attrs"]["net"] == "blocked", str(added and added[0]["attrs"]))
+        frame_text = wait(lambda: (lambda t: t if "added" in t else None)(st.page.frame_locator("[data-testid='agent-sandbox']").locator("#out").inner_text()))
+        check("agent panels: sandbox got its item through the bridge", bool(frame_text) and "added 1" in frame_text, str(frame_text))
+        st.page.get_by_role("tab", name="Agent panel").click()
+        stat = wait(lambda: st.page.get_by_test_id("agent-stat").inner_text().strip() == "1")
+        check("agent panels: declarative bindings update live", bool(stat), st.page.get_by_test_id("agent-stat").inner_text())
+        # The sandbox being denied storage and network is the isolation working.
+        errs = [e for e in st.errors if "Content Security Policy" not in e and "example.com" not in e and "is sandboxed" not in e]
+        check("agent panels: no console errors (besides the blocked fetch)", not errs, str(errs[:2]))
+    finally:
+        st.page.context.close()
+
+
 def main() -> int:
     args = parse_args()
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
-        for fn in (t_sensor, t_drone, t_satellite, t_text):
+        for fn in (t_sensor, t_drone, t_satellite, t_text, t_agent_panels):
             try:
                 fn(browser, args.port)
             except Exception as e:  # noqa: BLE001 — report and keep going

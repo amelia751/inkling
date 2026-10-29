@@ -135,8 +135,19 @@ claude mcp add inkling -- node /abs/path/to/inkling/apps/web/scripts/mcp.mjs
 ```
 
 1. **Tier 1 (on):** the agent references trusted, bundled modules only.
-2. **Tier 2 (behind a flag):** the agent generates declarative panels from a catalogue of
-   shadcn components bound to runtime keys and store selectors. No code.
-3. **Tier 3 (not shipped):** agent-written code runs only in a sandboxed iframe (MCP Apps
-   style) with a postMessage bridge that can read annotations and propose `ai-suggested`
-   ones. Never in the main bundle.
+2. **Tier 2 (flag `agentPanels`):** `inkling.experimental.panels.declarative`. The agent writes
+   JSON blocks (`text`, `stat`, `list`, `progress`) bound to `{ runtime: key }` or one of the
+   whitelisted `{ store: selector }`s (`annotations.count`, `annotations.item`, `items.total`,
+   `items.annotated`, `selection.count`, `activeLabel`, `tool`, `labels.counts`). The block
+   schema is the panel's `configSchema`, so bad blocks are resolver errors. No code runs.
+3. **Tier 3 (flag `agentPanels`):** `inkling.experimental.panels.sandbox`. Agent-written HTML/JS
+   runs in an `<iframe sandbox="allow-scripts">` (opaque origin: no app DOM, storage or
+   cookies; no navigation, popups or forms) under a CSP that blocks all network access. Its
+   only API is `window.inkling.getAnnotations()` and `window.inkling.propose([...])` over
+   postMessage. Proposals are vetted (known label, a geometry type the environment's tools
+   create, plain attribute values, bounded size) and land as `ai-suggested`, author
+   `agent:sandbox`, so the expert reviews them like any AI suggestion. Never in the main bundle.
+
+Enable the flag per browser with `localStorage.setItem("inkling.flags", "agentPanels")`, or for
+a build with `VITE_INKLING_FLAGS=agentPanels`. Without it the experimental module isn't
+registered, so environments can't reference its panels.

@@ -408,7 +408,7 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 - [x] `platform/presets/sensor-timeseries-events.json`: accelerometer CSV through `timeseries` with `grid: "plain"`, span/instant labels.
 - [x] `platform/presets/satellite-tiles.json`: `wsi.osd` on a non-pathology DZI with `mpp` set to metres per pixel.
 - [~] Add matching `seed-data` fixtures (CC0 or synthetic) and e2e smoke tests in `apps/web/e2e/generic_test.py`. _(synthetic accelerometer CSV in e2e/fixtures; image smoke tests in generic_test.py, sensor/drone/satellite in environments_test.py; drone and satellite reuse the video and WSI seeds)_
-- [ ] Optional new module to prove the contract from the outside: `modules/text-spans/` (NER on plain text; `space: "text"`). It must not change any file outside its folder except one `registerModule` line.
+- [x] Optional new module to prove the contract from the outside: `modules/text-spans/` (NER on plain text; `space: "text"`). It must not change any file outside its folder except one `registerModule` line.
 
 ---
 
@@ -431,12 +431,12 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 
 **`apps/web/dev/seed-server.ts`** (and later `apps/api/`)
 - [x] Back the tools with `/api/catalog` and `/api/environments/:id` (GET/PUT/PATCH) from phase 2. Store the environment history (revision, author `agent:<model>` or user, timestamp), mirroring kiwifs's git-backed actor attribution.
-- [ ] Later: expose the same tools over MCP (`inkling mcp`) so Claude or Cursor can boot environments from outside the app.
+- [x] Later: expose the same tools over MCP (`inkling mcp`) so Claude or Cursor can boot environments from outside the app.
 
 **Safety tiers** (document them in `docs/modules.md`):
 - [x] Tier 1: the agent references trusted bundled modules (all of the above).
-- [~] Tier 2: the agent generates declarative panels (json-render catalogue of shadcn components bound to `runtime` and store selectors), behind a feature flag. _(documented in docs/modules.md; not implemented)_
-- [~] Tier 3: agent-written code runs only in an MCP Apps-style sandboxed iframe with a postMessage bridge to read annotations or propose them as `ai-suggested`. Never in the main bundle. _(documented in docs/modules.md; not implemented)_
+- [x] Tier 2: the agent generates declarative panels (json-render catalogue of shadcn components bound to `runtime` and store selectors), behind a feature flag. _(inkling.experimental.panels.declarative, flag `agentPanels`; JSON blocks with whitelisted bindings, no json-render dependency)_
+- [x] Tier 3: agent-written code runs only in an MCP Apps-style sandboxed iframe with a postMessage bridge to read annotations or propose them as `ai-suggested`. Never in the main bundle. _(inkling.experimental.panels.sandbox: sandboxed iframe + network-blocking CSP + vetted postMessage bridge)_
 
 ---
 

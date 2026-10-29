@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SpinnerIcon, SidebarIcon, AiIcon } from "@/components/icons";
+import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SpinnerIcon, SidebarIcon, AiIcon } from "@/components/icons";
 import { DatasetSwitcher } from "@/components/layout/dataset-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,9 +35,10 @@ interface StudioTopBarProps {
   onShowShortcuts: () => void;
   /** The environment has right-slot panels (the assistant) to toggle. */
   showAi?: boolean;
+  onShowSettings?: () => void;
 }
 
-export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true }: StudioTopBarProps) {
+export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true, onShowSettings }: StudioTopBarProps) {
   const aiOpen = useStudio((s) => s.aiOpen);
   const env = useStudio((s) => s.env);
   const toggleAi = useStudio((s) => s.toggleAi);
@@ -79,6 +80,16 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
               </Button>
             </TooltipTrigger>
             <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} Inkling AI`} />
+          </Tooltip>
+        )}
+        {onShowSettings && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost-secondary" size="icon" onClick={onShowSettings} className="hidden @[480px]:inline-flex" aria-label="Environment settings">
+                <SettingsIcon />
+              </Button>
+            </TooltipTrigger>
+            <ActionTooltipContent title="Environment settings" description="Viewer and module options for this dataset" />
           </Tooltip>
         )}
         <Tooltip>

@@ -4,11 +4,9 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { AiIcon, CloseIcon, InfoIcon, SendIcon, UndoIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchEnvironment, saveEnvironment } from "@/lib/api";
+import { installEnvironment, persistEnvironment } from "@/lib/environment-edits";
 import { AGENT_TOOLS, agentSystemPrompt, changedKeys, environmentContext, runAgentTool, type AgentHost } from "@/platform/agent";
 import type { PanelProps } from "@/platform/module";
-import { registry } from "@/platform/registry";
-import type { ResolvedEnv } from "@/platform/resolve";
 import { useStudio } from "@/stores/studio";
 
 type Msg = Anthropic.Beta.BetaMessageParam;
@@ -44,27 +42,18 @@ export function AiPanel({ project, item }: PanelProps) {
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const transcript = useRef<Msg[]>([]);
-  const envRevision = useRef<number | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const push = (e: Entry) => setEntries((list) => [...list, e]);
 
   useEffect(() => scroller.current?.scrollTo({ top: scroller.current.scrollHeight }), [entries]);
 
-  /** Persist the environment the Studio now runs, as an edit to this project. */
-  const persist = async (env: ResolvedEnv, author: string) => {
-    envRevision.current ??= (await fetchEnvironment(project.id).catch(() => ({ revision: 0 }))).revision;
-    const saved = await saveEnvironment(project.id, { revision: envRevision.current, environment: env.source, author });
-    envRevision.current = saved.revision;
-  };
-
   const host: AgentHost = {
     env: () => useStudio.getState().env,
     apply: async (env, summary) => {
       const before = useStudio.getState().env;
-      await Promise.all(env.modules.map((m) => registry.preload(m.id)));
-      useStudio.getState().setEnv(env);
+      await installEnvironment(env);
       push({ kind: "change", summary, keys: before ? changedKeys(before.source, env.source) : [] });
-      await persist(env, `agent:${status.data?.model ?? "claude"}`).catch((e) => push({ kind: "error", text: `Applied, but not saved: ${e instanceof Error ? e.message : e}` }));
+      await persistEnvironment(project.id, env, `agent:${status.data?.model ?? "claude"}`).catch((e) => push({ kind: "error", text: `Applied, but not saved: ${e instanceof Error ? e.message : e}` }));
     },
   };
 
@@ -72,7 +61,7 @@ export function AiPanel({ project, item }: PanelProps) {
     useStudio.getState().undoEnv();
     setEntries((list) => list.map((e, i) => (i === index && e.kind === "change" ? { ...e, undone: true } : e)));
     const env = useStudio.getState().env;
-    if (env) await persist(env, "local-expert").catch(() => undefined);
+    if (env) await persistEnvironment(project.id, env, "local-expert").catch(() => undefined);
     transcript.current.push({ role: "user", content: [{ type: "text", text: "(The expert undid your last environment change.)" }] });
   };
 

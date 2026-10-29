@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { CanvasStatusBar } from "@/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/components/studio/CanvasToolbar";
 import { LeftSidebar, SlotTabs } from "@/components/studio/LeftSidebar";
+import { StudioLayout } from "@/components/studio/StudioLayout";
 import { StudioTopBar } from "@/components/studio/StudioTopBar";
 import { ShortcutsDialog } from "@/components/studio/ShortcutsDialog";
 import { ViewportHost } from "@/components/studio/ViewportHost";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { useViewport, useWindowWidth } from "@/lib/use-media-query";
+import { useViewport } from "@/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, saveAnnotations } from "@/lib/api";
 import { setLabelClasses } from "@/lib/labels";
 import { ANNOTATIONS_VERSION } from "@/migrations/annotations-v1-to-v2";
@@ -24,6 +24,8 @@ import type { Project, StudioItem } from "@/types";
 import { FullPageMessage, useProject } from "./shared";
 
 const AUTOSAVE_MS = 800;
+// The schema form library only loads when the settings dialog opens.
+const ModuleConfigDialog = lazy(() => import("@/components/studio/ModuleConfigForm").then((m) => ({ default: m.ModuleConfigDialog })));
 const LEGACY_TYPES = /^(interval|beat|wave|rhythm|phase|segment|event|mark|point)$/;
 
 type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
@@ -103,13 +105,11 @@ function Studio({ projectId }: { projectId: string }) {
   const toggleAi = useStudio((s) => s.toggleAi);
   const save = useAutosave(projectId);
   const viewport = useViewport();
-  const width = useWindowWidth();
-  /** Panel sizes are percentages; convert pixel targets so panels keep usable widths at any window size. */
-  const pct = (px: number) => Math.min(100, (px / width) * 100);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Picking a file in the phone drawer should reveal the canvas.
   useEffect(() => setSidebarOpen(false), [itemIndex]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   useEnvBindings(env);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
@@ -137,7 +137,9 @@ function Studio({ projectId }: { projectId: string }) {
   const rightIds = env.panels.right.map((p) => p.id).filter((id) => id !== AI || aiOpen);
   const showRight = rightIds.length > 0;
 
-  const bottom = env.panels.bottom.length > 0 && <div className="max-h-[40%] min-h-0 shrink-0 overflow-auto border-t border-border"><SlotTabs slot="bottom" env={env} project={project} items={items} item={item} /></div>;
+  const bottomPanels = env.panels.bottom.length > 0 ? <SlotTabs slot="bottom" env={env} project={project} items={items} item={item} /> : null;
+  // On phones the bottom slot sits under the canvas; elsewhere it's a dockview region.
+  const bottom = viewport === "phone" && bottomPanels && <div className="max-h-[40%] min-h-0 shrink-0 overflow-auto border-t border-border">{bottomPanels}</div>;
 
   const canvas = (
     <>
@@ -163,33 +165,29 @@ function Studio({ projectId }: { projectId: string }) {
         onRetrySave={save}
         onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
         onShowShortcuts={() => setShortcutsOpen(true)}
+        onShowSettings={() => setSettingsOpen(true)}
         showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
+      {settingsOpen && (
+        <Suspense fallback={null}>
+          <ModuleConfigDialog open onOpenChange={setSettingsOpen} env={env} projectId={projectId} />
+        </Suspense>
+      )}
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       ) : (
-        <PanelGroup direction="horizontal" autoSaveId={`inkling-studio-${viewport}`} className="min-h-0 flex-1">
-          {env.panels.left.length > 0 && (
-            <>
-              <Panel id="left" order={1} defaultSize={pct(280)} minSize={pct(240)} maxSize={pct(420)}>
-                {left}
-              </Panel>
-              <ResizeHandle />
-            </>
-          )}
-          <Panel id="canvas" order={2} minSize={pct(360)} className="flex flex-col">
-            {canvas}
-          </Panel>
-          {showRight && viewport === "desktop" && (
-            <>
-              <ResizeHandle />
-              <Panel id={aiOpen ? "ai" : "right"} order={3} defaultSize={pct(340)} minSize={pct(300)} maxSize={pct(480)}>
-                {right}
-              </Panel>
-            </>
-          )}
-        </PanelGroup>
+        <StudioLayout
+          storageKey={`inkling-layout-${projectId}-${viewport}`}
+          layout={env.spec.layout ?? null}
+          slots={{
+            viewer: <div className="flex h-full min-h-0 flex-col">{canvas}</div>,
+            "slot:left": env.panels.left.length > 0 ? left : null,
+            // Below the desktop breakpoint the right slot is a sheet (see below).
+            "slot:right": showRight && viewport === "desktop" ? right : null,
+            "slot:bottom": bottomPanels,
+          }}
+        />
       )}
 
       {viewport === "phone" && (
@@ -210,9 +208,6 @@ function Studio({ projectId }: { projectId: string }) {
   );
 }
 
-function ResizeHandle() {
-  return <PanelResizeHandle className="w-px bg-border transition-colors hover:bg-primary data-[resize-handle-state=drag]:bg-primary" />;
-}
 
 /** Bind the environment's commands and label colors for as long as it runs. */
 function useEnvBindings(env: ResolvedEnv) {

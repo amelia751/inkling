@@ -130,7 +130,14 @@ function Studio({ projectId }: { projectId: string }) {
   if (!project) return null;
   const item = items[itemIndex];
   const main = env.viewports[0];
-  const hasRight = env.panels.right.length > 0;
+  // The assistant toggles with the AI button; other right-slot panels (measurements,
+  // metrics…) are always shown.
+  const AI = "inkling.core.panels.ai";
+  const hasAi = env.panels.right.some((p) => p.id === AI);
+  const rightIds = env.panels.right.map((p) => p.id).filter((id) => id !== AI || aiOpen);
+  const showRight = rightIds.length > 0;
+
+  const bottom = env.panels.bottom.length > 0 && <div className="max-h-[40%] min-h-0 shrink-0 overflow-auto border-t border-border"><SlotTabs slot="bottom" env={env} project={project} items={items} item={item} /></div>;
 
   const canvas = (
     <>
@@ -142,11 +149,12 @@ function Studio({ projectId }: { projectId: string }) {
           <FullPageMessage title="Nothing to annotate" body="This project has no items for its data kind." />
         )}
       </main>
+      {bottom}
       <CanvasStatusBar items={items} />
     </>
   );
   const left = <LeftSidebar env={env} project={project} items={items} item={item} />;
-  const right = <SlotTabs slot="right" env={env} project={project} items={items} item={item} />;
+  const right = <SlotTabs slot="right" only={rightIds} env={env} project={project} items={items} item={item} />;
 
   return (
     <div className="flex h-full flex-col">
@@ -155,7 +163,7 @@ function Studio({ projectId }: { projectId: string }) {
         onRetrySave={save}
         onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
         onShowShortcuts={() => setShortcutsOpen(true)}
-        showAi={hasRight}
+        showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
       {viewport === "phone" ? (
@@ -173,10 +181,10 @@ function Studio({ projectId }: { projectId: string }) {
           <Panel id="canvas" order={2} minSize={pct(360)} className="flex flex-col">
             {canvas}
           </Panel>
-          {aiOpen && hasRight && viewport === "desktop" && (
+          {showRight && viewport === "desktop" && (
             <>
               <ResizeHandle />
-              <Panel id="ai" order={3} defaultSize={pct(340)} minSize={pct(300)} maxSize={pct(480)}>
+              <Panel id={aiOpen ? "ai" : "right"} order={3} defaultSize={pct(340)} minSize={pct(300)} maxSize={pct(480)}>
                 {right}
               </Panel>
             </>
@@ -191,10 +199,10 @@ function Studio({ projectId }: { projectId: string }) {
           </SheetContent>
         </Sheet>
       )}
-      {viewport !== "desktop" && hasRight && (
+      {viewport !== "desktop" && env.panels.right.length > 0 && (
         <Sheet open={aiOpen} onOpenChange={(open) => open !== aiOpen && toggleAi()}>
           <SheetContent side="right" title="Inkling AI" showClose={false}>
-            {right}
+            <SlotTabs slot="right" env={env} project={project} items={items} item={item} />
           </SheetContent>
         </Sheet>
       )}

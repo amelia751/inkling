@@ -5,8 +5,8 @@ import type { Project, StudioItem } from "@/types";
 import { PanelHost } from "./PanelHost";
 
 /** A panel slot as tabs (the left sidebar: files, labels, review by default; from `env.panels`). */
-export function SlotTabs({ slot, env, project, items, item }: { slot: PanelSlot; env: ResolvedEnv; project: Project; items: StudioItem[]; item: StudioItem | undefined }) {
-  const panels = env.panels[slot];
+export function SlotTabs({ slot, only, env, project, items, item }: { slot: PanelSlot; only?: string[]; env: ResolvedEnv; project: Project; items: StudioItem[]; item: StudioItem | undefined }) {
+  const panels = env.panels[slot].filter((p) => !only || only.includes(p.id));
   if (!panels.length) return null;
   if (panels.length === 1) {
     return (

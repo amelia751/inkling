@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+# Seed data is fetched locally per its license; only the script and manifest schema are versioned.
+seed-data/*
+!seed-data/README.md
+.DS_Store
+*.tsbuildinfo
+.vite/

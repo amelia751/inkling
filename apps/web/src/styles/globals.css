@@ -1,0 +1,317 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+@plugin "tailwindcss-animate";
+
+/*
+ * Inkling theme — derived from the Nebius console ("newbius" Gravity UI theme).
+ * Every color in the app resolves to a token in this file; retheme here only.
+ *
+ * Source tokens (console.nebius.com, resolved 2026-10-29):
+ *   brand        light #5547EA (light-slate-blue-10)  dark #6057F7 (-9)
+ *   text         light #111C30 (deep-blue-17)          dark white/95
+ *   background   light #FFFFFF                         dark #1C1C1F (gray-17)
+ *   float        light #FFFFFF                         dark #26262A (gray-16)
+ *   line         light deep-blue/15                    dark white/10
+ *   marketing    navy #052B42, lime #E0FF4F, teal #83E0D1
+ */
+
+:root {
+  /* Brand: Nebius light-slate-blue. Adjust once to retheme the app. */
+  --brand-h: 245;
+  --brand-s: 80%;
+  --brand-l: 60%;
+  --primary: var(--brand-h) var(--brand-s) var(--brand-l);
+  --primary-hover: 248 70% 54%;
+  --primary-strong: 250 69% 48%;
+  --ring: var(--primary);
+
+  --background: 0 0% 100%;
+  --foreground: 219 48% 13%;
+  --card: 0 0% 100%;
+  --card-foreground: 219 48% 13%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 219 48% 13%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 225 14% 94.5%;
+  --secondary-foreground: 219 48% 13%;
+  --muted: 225 14% 94.5%;
+  --muted-foreground: 219 16% 45%;
+  --accent: 245 80% 60% / 0.1;
+  --accent-foreground: 219 48% 13%;
+  --destructive: 345 100% 43%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 218 13% 88%;
+  --input: 218 13% 88%;
+  --radius: 0.5rem;
+
+  /* Categorical series / label-class colors: brand, teal, magenta, amber, blue.
+     Lime is reserved for AI provenance and never used as a label color. */
+  --chart-1: var(--primary);
+  --chart-2: 170 58% 40%;
+  --chart-3: 326 72% 50%;
+  --chart-4: 31 100% 40%;
+  --chart-5: 209 100% 39%;
+
+  --sidebar: hsl(210 29% 97.6%);
+  --sidebar-foreground: hsl(219 48% 13%);
+  --sidebar-primary: hsl(var(--primary));
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(245 80% 60% / 0.1);
+  --sidebar-accent-foreground: hsl(219 48% 13%);
+  --sidebar-border: hsl(218 13% 88%);
+  --sidebar-ring: hsl(var(--primary));
+
+  /* Status semantics. Deliberately not brand-derived: a status must not change
+     meaning when the brand hue changes. Mirrors Nebius positive/danger/warning/info. */
+  --state-pass: 120 100% 26%;
+  --state-fail: 345 100% 43%;
+  --state-blocked: 345 100% 43%;
+  --state-human: 31 100% 35%;
+  --state-running: 209 100% 39%;
+  --state-idle: 219 16% 45%;
+
+  /* Annotation provenance (ui.md §3): AI suggestions must look different from
+     human work. AI uses Nebius lime, which reads clearly on the dark canvas. */
+  --prov-human: var(--primary);
+  --prov-ai: 70 100% 65%;
+  --prov-ai-foreground: 203 86% 14%;
+  --prov-corrected: 170 58% 40%;
+
+  /* The imaging canvas stays dark in both themes (ui.md §9). */
+  --canvas: 240 8% 8%;
+  --canvas-foreground: 0 0% 92%;
+  --canvas-grid: 0 0% 100% / 0.06;
+
+  /* Runtime surface pair the copied shadcn primitives reference
+     (button outline/ghost, alert-dialog, dialog). */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eff0f3;
+  --border-color: rgb(27 45 79 / 0.15);
+  --text-primary: #111c30;
+  --text-secondary: rgb(27 45 79 / 0.7);
+  --text-tertiary: #000000;
+
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.dark {
+  --primary: 243 91% 65%;
+  --primary-hover: 242 100% 70%;
+  --primary-strong: 238 100% 76%;
+
+  --background: 240 5% 12%;
+  --foreground: 0 0% 96%;
+  --card: 240 5% 15.7%;
+  --card-foreground: 0 0% 96%;
+  --popover: 240 5% 15.7%;
+  --popover-foreground: 0 0% 96%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5% 20%;
+  --secondary-foreground: 0 0% 96%;
+  --muted: 240 5% 20%;
+  --muted-foreground: 240 3% 69%;
+  --accent: 0 0% 100% / 0.08;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 353 90% 61%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 4% 21%;
+  --input: 240 4% 24%;
+
+  --chart-2: 170 58% 70%;
+  --chart-3: 326 85% 68%;
+  --chart-4: 31 64% 52%;
+  --chart-5: 212 84% 64%;
+
+  --sidebar: hsl(240 5% 12%);
+  --sidebar-foreground: hsl(0 0% 96%);
+  --sidebar-primary: hsl(var(--primary));
+  --sidebar-primary-foreground: hsl(0 0% 100%);
+  --sidebar-accent: hsl(0 0% 100% / 0.08);
+  --sidebar-accent-foreground: hsl(0 0% 96%);
+  --sidebar-border: hsl(240 4% 21%);
+  --sidebar-ring: hsl(var(--primary));
+
+  --state-pass: 97 76% 41%;
+  --state-fail: 353 90% 61%;
+  --state-blocked: 353 90% 61%;
+  --state-human: 31 64% 52%;
+  --state-running: 212 84% 64%;
+  --state-idle: 240 3% 60%;
+
+  --prov-corrected: 170 58% 70%;
+
+  --bg-primary: #1c1c1f;
+  --bg-secondary: #26262a;
+  --bg-tertiary: #303035;
+  --border-color: rgb(255 255 255 / 0.1);
+  --text-primary: rgb(255 255 255 / 0.95);
+  --text-secondary: rgb(255 255 255 / 0.65);
+  --text-tertiary: #ffffff;
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-primary-hover: hsl(var(--primary-hover));
+  --color-primary-strong: hsl(var(--primary-strong));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-state-pass: hsl(var(--state-pass));
+  --color-state-fail: hsl(var(--state-fail));
+  --color-state-blocked: hsl(var(--state-blocked));
+  --color-state-human: hsl(var(--state-human));
+  --color-state-running: hsl(var(--state-running));
+  --color-state-idle: hsl(var(--state-idle));
+  --color-prov-human: hsl(var(--prov-human));
+  --color-prov-ai: hsl(var(--prov-ai));
+  --color-prov-ai-foreground: hsl(var(--prov-ai-foreground));
+  --color-prov-corrected: hsl(var(--prov-corrected));
+  --color-canvas: hsl(var(--canvas));
+  --color-canvas-foreground: hsl(var(--canvas-foreground));
+  --color-canvas-grid: hsl(var(--canvas-grid));
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  /* Tabular figures keep slice indices, zoom and timestamps from shifting width. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--state-running) / 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 6px hsl(var(--state-running) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--state-running) / 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer-text {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted-foreground)) 0%,
+    hsl(var(--foreground)) 50%,
+    hsl(var(--muted-foreground)) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}

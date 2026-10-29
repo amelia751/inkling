@@ -1,0 +1,9 @@
+{
+  "name": "inkling",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "seeds": "uv run scripts/fetch-seeds.py"
+  }
+}

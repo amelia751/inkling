@@ -93,6 +93,12 @@
       "description": "Masks as DICOM SEG and measurements as DICOM SR (TID 1500), referencing the source DICOM images."
     },
     {
+      "id": "inkling.text-spans",
+      "version": "0.1.0",
+      "title": "Text spans",
+      "description": "Plain-text documents with character-offset span labels (named entities, phrases); JSONL export in the spaCy / doccano shape."
+    },
+    {
       "id": "inkling.presets",
       "version": "1.0.0",
       "title": "Presets",
@@ -169,6 +175,18 @@
       "example": {
         "data": {
           "kind": "inkling.wsi.dataKinds.raster-pyramid"
+        }
+      }
+    },
+    {
+      "id": "inkling.text-spans.dataKinds.text",
+      "type": "dataKinds",
+      "module": "inkling.text-spans",
+      "description": "One item per UTF-8 text file",
+      "label": "Text",
+      "example": {
+        "data": {
+          "kind": "inkling.text-spans.dataKinds.text"
         }
       }
     },
@@ -983,6 +1001,28 @@
       }
     },
     {
+      "id": "inkling.text-spans.renderers.reader",
+      "type": "renderers",
+      "module": "inkling.text-spans",
+      "description": "Reading view: select text to label a span; click a span to select it",
+      "consumes": [
+        "inkling.text-spans.dataKinds.text"
+      ],
+      "space": "text",
+      "capabilities": [],
+      "example": {
+        "data": {
+          "kind": "inkling.text-spans.dataKinds.text"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.text-spans.renderers.reader"
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.geometries.class",
       "type": "geometries",
       "module": "inkling.core",
@@ -1198,6 +1238,13 @@
       "module": "inkling.wsi",
       "description": "A counted point (cell) on a slide, in level-0 pixels",
       "label": "keypoint"
+    },
+    {
+      "id": "inkling.text-spans.geometries.span",
+      "type": "geometries",
+      "module": "inkling.text-spans",
+      "description": "Character span [start, end) of a text item",
+      "label": "inkling.text-spans.span"
     },
     {
       "id": "inkling.core.tools.select",
@@ -1998,6 +2045,22 @@
         "tools": [
           "inkling.core.tools.select",
           "inkling.wsi.tools.length"
+        ]
+      }
+    },
+    {
+      "id": "inkling.text-spans.tools.entity",
+      "type": "tools",
+      "module": "inkling.text-spans",
+      "description": "Label a selected text span",
+      "label": "Span",
+      "creates": "inkling.text-spans.span",
+      "when": "renderer.space == text",
+      "hotkey": "e",
+      "example": {
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.text-spans.tools.entity"
         ]
       }
     },
@@ -3579,6 +3642,15 @@
       "geometries": "*"
     },
     {
+      "id": "inkling.text-spans.inspectors.main",
+      "type": "inspectors",
+      "module": "inkling.text-spans",
+      "description": "Offsets, length and covered text",
+      "geometries": [
+        "inkling.text-spans.span"
+      ]
+    },
+    {
       "id": "inkling.image2d.exporters.coco",
       "type": "exporters",
       "module": "inkling.image2d",
@@ -3934,6 +4006,21 @@
       }
     },
     {
+      "id": "inkling.text-spans.exporters.jsonl",
+      "type": "exporters",
+      "module": "inkling.text-spans",
+      "description": "One line per document: {\"text\", \"spans\": [[start, end, label]…]}, readable by spaCy and doccano.",
+      "label": "Spans JSONL",
+      "accepts": [
+        "inkling.text-spans.span"
+      ],
+      "example": {
+        "exporters": [
+          "inkling.text-spans.exporters.jsonl"
+        ]
+      }
+    },
+    {
       "id": "inkling.core.labelControls.Labels",
       "type": "labelControls",
       "module": "inkling.core",
@@ -4174,6 +4261,31 @@
       }
     },
     {
+      "id": "inkling.text-spans.labelControls.SpanLabels",
+      "type": "labelControls",
+      "module": "inkling.text-spans",
+      "description": "Classes for text spans (named entities)",
+      "geometries": [
+        "inkling.text-spans.span"
+      ],
+      "example": {
+        "labels": [
+          {
+            "name": "objects",
+            "control": "SpanLabels",
+            "classes": [
+              {
+                "id": "a"
+              },
+              {
+                "id": "b"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.reviewRules.source-label-disagreement",
       "type": "reviewRules",
       "module": "inkling.core",
@@ -4190,6 +4302,63 @@
       "module": "inkling.core",
       "description": "Flags items with no annotations yet",
       "example": {
+        "reviewRules": [
+          "inkling.core.reviewRules.unlabeled-items"
+        ]
+      }
+    },
+    {
+      "id": "inkling.text-spans.presets.ner",
+      "type": "presets",
+      "module": "inkling.text-spans",
+      "description": "Person / organisation / location spans on plain text, JSONL export.",
+      "example": {
+        "data": {
+          "kind": "inkling.text-spans.dataKinds.text"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.text-spans.renderers.reader"
+          }
+        ],
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.text-spans.tools.entity"
+        ],
+        "labels": [
+          {
+            "name": "entities",
+            "control": "SpanLabels",
+            "classes": [
+              {
+                "id": "PER",
+                "color": "#ef476f"
+              },
+              {
+                "id": "ORG",
+                "color": "#118ab2"
+              },
+              {
+                "id": "LOC",
+                "color": "#06d6a0"
+              }
+            ]
+          }
+        ],
+        "panels": {
+          "left": [
+            "inkling.core.panels.files",
+            "inkling.core.panels.labels",
+            "inkling.core.panels.review"
+          ],
+          "right": [
+            "inkling.core.panels.ai"
+          ]
+        },
+        "exporters": [
+          "inkling.text-spans.exporters.jsonl"
+        ],
         "reviewRules": [
           "inkling.core.reviewRules.unlabeled-items"
         ]

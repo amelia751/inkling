@@ -18,6 +18,7 @@ import timeseries from "@/modules/timeseries/manifest";
 import video from "@/modules/video/manifest";
 import volume from "@/modules/volume/manifest";
 import wsi from "@/modules/wsi/manifest";
+import textSpans from "@/modules/text-spans/manifest";
 
 /** Presets are environment JSON only (platform/presets/*.json), registered as one module. */
 const presetFiles = import.meta.glob<PresetContribution>("./platform/presets/*.json", { eager: true, import: "default" });
@@ -29,7 +30,7 @@ export const presets = defineModule({
   contributes: { presets: Object.values(presetFiles).sort((a, b) => a.id.localeCompare(b.id)) },
 });
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, presets];
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, presets];
 
 for (const m of MODULES) registry.registerModule(m);
 // Every environment gets the Studio core, whatever it references.

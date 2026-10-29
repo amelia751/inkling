@@ -22,6 +22,7 @@
             {
               "type": "string",
               "enum": [
+                "preset:ner",
                 "preset:cine-4d",
                 "preset:drone-video-tracks",
                 "preset:ecg",
@@ -39,6 +40,7 @@
               "items": {
                 "type": "string",
                 "enum": [
+                  "preset:ner",
                   "preset:cine-4d",
                   "preset:drone-video-tracks",
                   "preset:ecg",
@@ -77,6 +79,7 @@
               "inkling.cardiac-metrics",
               "inkling.wsi",
               "inkling.dicom-export",
+              "inkling.text-spans",
               "inkling.presets"
             ]
           },
@@ -95,7 +98,8 @@
                 "inkling.timeseries.dataKinds.multichannel-timeseries",
                 "inkling.video.dataKinds.video",
                 "inkling.cine.dataKinds.volume-time",
-                "inkling.wsi.dataKinds.raster-pyramid"
+                "inkling.wsi.dataKinds.raster-pyramid",
+                "inkling.text-spans.dataKinds.text"
               ],
               "description": "Data kind contribution id"
             }
@@ -129,7 +133,8 @@
                   "inkling.timeseries.renderers.strip-chart",
                   "inkling.video.renderers.frame-canvas",
                   "inkling.cine.renderers.slice-frame-canvas",
-                  "inkling.wsi.renderers.osd"
+                  "inkling.wsi.renderers.osd",
+                  "inkling.text-spans.renderers.reader"
                 ],
                 "description": "Renderer contribution id"
               },
@@ -194,7 +199,8 @@
               "inkling.wsi.tools.eraser",
               "inkling.wsi.tools.wand",
               "inkling.wsi.tools.mark",
-              "inkling.wsi.tools.length"
+              "inkling.wsi.tools.length",
+              "inkling.text-spans.tools.entity"
             ]
           }
         },
@@ -293,7 +299,8 @@
               "inkling.wsi.exporters.asap-xml",
               "inkling.wsi.exporters.point-counts-csv",
               "inkling.dicom-export.exporters.dicom-seg",
-              "inkling.dicom-export.exporters.dicom-sr"
+              "inkling.dicom-export.exporters.dicom-sr",
+              "inkling.text-spans.exporters.jsonl"
             ]
           }
         },
@@ -410,6 +417,7 @@
                   "inkling.video.dataKinds.video",
                   "inkling.cine.dataKinds.volume-time",
                   "inkling.wsi.dataKinds.raster-pyramid",
+                  "inkling.text-spans.dataKinds.text",
                   "inkling.image2d.renderers.cornerstone-stack",
                   "inkling.image2d.renderers.canvas-raster",
                   "inkling.volume.renderers.cornerstone-mpr",
@@ -417,6 +425,7 @@
                   "inkling.video.renderers.frame-canvas",
                   "inkling.cine.renderers.slice-frame-canvas",
                   "inkling.wsi.renderers.osd",
+                  "inkling.text-spans.renderers.reader",
                   "inkling.core.geometries.class",
                   "inkling.core.geometries.box",
                   "inkling.core.geometries.ellipse",
@@ -448,6 +457,7 @@
                   "inkling.video.geometries.track",
                   "inkling.cine.geometries.phase",
                   "inkling.wsi.geometries.keypoint",
+                  "inkling.text-spans.geometries.span",
                   "inkling.core.tools.select",
                   "inkling.core.tools.pan",
                   "inkling.core.tools.windowLevel",
@@ -489,6 +499,7 @@
                   "inkling.wsi.tools.wand",
                   "inkling.wsi.tools.mark",
                   "inkling.wsi.tools.length",
+                  "inkling.text-spans.tools.entity",
                   "inkling.core.commands.undo",
                   "inkling.core.commands.redo",
                   "inkling.core.commands.deleteSelection",
@@ -568,6 +579,7 @@
                   "inkling.video.inspectors.main",
                   "inkling.cine.inspectors.main",
                   "inkling.wsi.inspectors.main",
+                  "inkling.text-spans.inspectors.main",
                   "inkling.image2d.exporters.coco",
                   "inkling.volume.exporters.nifti-labelmap",
                   "inkling.volume.exporters.masks-json",
@@ -585,6 +597,7 @@
                   "inkling.wsi.exporters.point-counts-csv",
                   "inkling.dicom-export.exporters.dicom-seg",
                   "inkling.dicom-export.exporters.dicom-sr",
+                  "inkling.text-spans.exporters.jsonl",
                   "inkling.core.labelControls.Labels",
                   "inkling.core.labelControls.RectangleLabels",
                   "inkling.core.labelControls.EllipseLabels",
@@ -594,8 +607,10 @@
                   "inkling.core.labelControls.TimeSeriesLabels",
                   "inkling.core.labelControls.VideoRectangle",
                   "inkling.core.labelControls.Choices",
+                  "inkling.text-spans.labelControls.SpanLabels",
                   "inkling.core.reviewRules.source-label-disagreement",
                   "inkling.core.reviewRules.unlabeled-items",
+                  "inkling.text-spans.presets.ner",
                   "inkling.presets.presets.cine-4d",
                   "inkling.presets.presets.drone-video-tracks",
                   "inkling.presets.presets.ecg",
@@ -649,7 +664,8 @@
             "BrushLabels",
             "TimeSeriesLabels",
             "VideoRectangle",
-            "Choices"
+            "Choices",
+            "SpanLabels"
           ],
           "description": "Label control id, e.g. Labels, RectangleLabels, PolygonLabels, Choices"
         },

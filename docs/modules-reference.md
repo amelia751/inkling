@@ -11,6 +11,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.video.dataKinds.video` — One item per video file (or frame archive)
 - `inkling.cine.dataKinds.volume-time` — A 4D series plus reference segmentations, as one study
 - `inkling.wsi.dataKinds.raster-pyramid` — One item per pyramid (slide); thumbnails are skipped
+- `inkling.text-spans.dataKinds.text` — One item per UTF-8 text file
 
 ## renderers
 - `inkling.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config (consumes inkling.image2d.dataKinds.raster; space image2d)
@@ -20,6 +21,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.video.renderers.frame-canvas` — WebCodecs frame canvas with a playback clock, A–B range, filmstrip timeline and track overlays (consumes inkling.video.dataKinds.video; space image2d)
 - `inkling.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage (consumes inkling.cine.dataKinds.volume-time; space image2d)
 - `inkling.wsi.renderers.osd` — OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments (consumes inkling.wsi.dataKinds.raster-pyramid; space image2d)
+- `inkling.text-spans.renderers.reader` — Reading view: select text to label a span; click a span to select it (consumes inkling.text-spans.dataKinds.text; space text)
 
 ## geometries
 - `inkling.core.geometries.class` — Item-level class (whole image, recording or study)
@@ -53,6 +55,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.video.geometries.track` — Object track with keyframes, interpolated between them (CVAT track semantics)
 - `inkling.cine.geometries.phase` — Key frame (phase) marker: instant { frame } with attributes { kind: "phase", phase }
 - `inkling.wsi.geometries.keypoint` — A counted point (cell) on a slide, in level-0 pixels
+- `inkling.text-spans.geometries.span` — Character span [start, end) of a text item
 
 ## tools
 - `inkling.core.tools.select` — Select, move and edit annotations
@@ -96,6 +99,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.wsi.tools.wand` — Magic wand on tile pixels (creates polygon; when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.tools.mark` — Point (cell) counting (creates keypoint; when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.tools.length` — Distance in µm (creates measurement; when renderer == inkling.wsi.renderers.osd)
+- `inkling.text-spans.tools.entity` — Label a selected text span (creates inkling.text-spans.span; when renderer.space == text)
 
 ## commands
 - `inkling.core.commands.undo` — Undo the last annotation change
@@ -181,6 +185,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.video.inspectors.main` — Frames, times and sizes; a track's shape at the playhead
 - `inkling.cine.inspectors.main` — Areas, perimeters and structure roles in mm (from runtime.grid); key frame names
 - `inkling.wsi.inspectors.main` — Areas and lengths in µm from the runtime's `mpp`, and points inside regions
+- `inkling.text-spans.inspectors.main` — Offsets, length and covered text
 
 ## exporters
 - `inkling.image2d.exporters.coco` — Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels. (accepts box, polygon, keypoint, measurement, mask, class)
@@ -200,6 +205,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.wsi.exporters.point-counts-csv` — Per-slide, per-class point counts with region count, region area and points/mm². (accepts keypoint)
 - `inkling.dicom-export.exporters.dicom-seg` — Masks as a DICOM Segmentation object referencing the source DICOM images (one segment per label). DICOM inputs only. (accepts mask)
 - `inkling.dicom-export.exporters.dicom-sr` — Lengths, angles, ROIs, probes and arrows as a DICOM Structured Report (TID 1500). DICOM inputs only. (accepts measurement)
+- `inkling.text-spans.exporters.jsonl` — One line per document: {"text", "spans": [[start, end, label]…]}, readable by spaCy and doccano. (accepts inkling.text-spans.span)
 
 ## labelControls
 - `inkling.core.labelControls.Labels` — Classes for any drawn geometry
@@ -211,12 +217,14 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.labelControls.TimeSeriesLabels` — Classes for spans and instants on a time axis
 - `inkling.core.labelControls.VideoRectangle` — Classes for objects tracked through video
 - `inkling.core.labelControls.Choices` — Item-level classes; `multiple: true` allows several per item
+- `inkling.text-spans.labelControls.SpanLabels` — Classes for text spans (named entities)
 
 ## reviewRules
 - `inkling.core.reviewRules.source-label-disagreement` — Flags item classes that differ from the source dataset's label for that item
 - `inkling.core.reviewRules.unlabeled-items` — Flags items with no annotations yet
 
 ## presets
+- `preset:ner` — Person / organisation / location spans on plain text, JSONL export.
 - `preset:cine-4d` — Cardiac cine MRI: spline contours and masks per slice and frame, copy-forward, ED/ES phases, function metrics; ACDC NIfTI export.
 - `preset:drone-video-tracks` — Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export.
 - `preset:ecg` — ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export.

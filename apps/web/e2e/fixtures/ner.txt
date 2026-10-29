@@ -1,0 +1,3 @@
+Ada Lovelace worked with Charles Babbage in London on the Analytical Engine.
+
+Grace Hopper later joined the Harvard Computation Lab.

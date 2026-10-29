@@ -104,11 +104,46 @@ def t_satellite(browser, port):
         st.page.context.close()
 
 
+def t_text(browser, port):
+    txt = FIXTURES / "ner.txt"
+    p = project("ner-demo", "ner", [{"path": "ner-demo/ner.txt", "sha256": "", "bytes": txt.stat().st_size}])
+    st = open_studio(browser, port, "ner-demo", extra_projects=[p], fixtures={"ner-demo/ner.txt": txt}, fixture_annotations=[])
+    try:
+        env = wait(lambda: env_summary(st))
+        check("text: a module written from outside boots preset:ner", bool(env) and env["renderer"] == "inkling.text-spans.renderers.reader", str(env and env["renderer"]))
+        st.page.wait_for_selector("[data-testid='text-reader'] [data-start]", timeout=20000)
+        st.page.mouse.click(5, 300)
+        st.page.keyboard.press("e")
+        st.page.keyboard.press("3")
+        # Select "London" (chars 44–50) with a real DOM range, then release the mouse on it.
+        st.page.evaluate("""() => {
+          const seg = document.querySelector("[data-testid='text-reader'] [data-start='0']");
+          const node = seg.firstChild; const r = document.createRange();
+          r.setStart(node, 44); r.setEnd(node, 50);
+          const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          seg.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        }""")
+        spans = wait(lambda: st.store("s => s.annotations.filter(a => a.geometry.type === 'inkling.text-spans.span').map(a => ({ label: a.label, g: a.geometry }))"))
+        ok = bool(spans) and spans[0]["label"] == "LOC" and spans[0]["g"] == {"type": "inkling.text-spans.span", "start": 44, "end": 50, "text": "London"}
+        check("text: selecting text stores a span with the active class", ok, str(spans))
+        out = st.page.evaluate("""async () => {
+          const { registry } = await import('/src/platform/registry.ts');
+          const ex = await registry.loadImpl('inkling.text-spans.exporters.jsonl');
+          const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+          const items = s.env.dataKind.groupItems({ assets: [{ path: 'ner-demo/ner.txt' }] });
+          return await (await ex.build({ project: {}, items, annotations: s.annotations })).text();
+        }""")
+        check("text: JSONL export", '"spans":[[44,50,"LOC"]]' in out, out[:120])
+        check("text: no console errors", not st.errors, str(st.errors[:2]))
+    finally:
+        st.page.context.close()
+
+
 def main() -> int:
     args = parse_args()
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
-        for fn in (t_sensor, t_drone, t_satellite):
+        for fn in (t_sensor, t_drone, t_satellite, t_text):
             try:
                 fn(browser, args.port)
             except Exception as e:  # noqa: BLE001 — report and keep going

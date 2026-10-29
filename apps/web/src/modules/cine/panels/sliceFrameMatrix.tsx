@@ -2,8 +2,8 @@ import { memo, useEffect, useRef } from "react";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { Volume } from "@/kits/io/nifti";
-import { cellKey, STRUCT_KEYS, STRUCT_SHORT, type Cell, type FrameMetrics, type StructKey } from "./model";
-import { renderThumb } from "./render";
+import { cellKey, STRUCT_KEYS, STRUCT_SHORT, type Cell, type FrameMetrics, type StructKey, type Structures } from "../model";
+import { renderThumb } from "../renderer/render";
 
 const THUMB_W = 48;
 
@@ -14,19 +14,20 @@ interface Props {
   onPick: (slice: number, frame: number) => void;
   cells: Map<string, Cell>;
   labels: string[];
-  structs: Record<StructKey, string | undefined>;
+  structs: Structures;
   frameMetrics: FrameMetrics[];
-  ed: number | null;
-  es: number | null;
+  /** Highlighted frames (key frames such as ED / ES): frame → short name. */
+  marked: Map<number, string>;
   window: [number, number];
 }
 
 /**
- * Slice × phase matrix (Segment / cvi42 style): one thumbnail per slice (rows) and frame
- * (columns). Dots show which structures are drawn in each cell; the column header shows
- * per-structure completeness for that frame (filled = complete, ring = gaps).
+ * Slice × frame matrix (Segment / cvi42 style): one thumbnail per slice (rows) and frame
+ * (columns). Dots show which structures (or, with no structure roles configured, which
+ * labels) are drawn in each cell; the column header shows per-structure completeness for
+ * that frame (filled = complete, ring = gaps). Key frames are highlighted.
  */
-export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPick, cells, labels, structs, frameMetrics, ed, es, window: win }: Props) {
+export const SliceFrameMatrix = memo(function SliceFrameMatrix({ cine, slice, frame, onPick, cells, labels, structs, frameMetrics, marked, window: win }: Props) {
   const [nx, ny, nz] = cine.dims;
   const thumbH = Math.round((THUMB_W * ny * cine.spacing[1]) / (nx * cine.spacing[0]));
   const canvases = useRef(new Map<string, HTMLCanvasElement>());
@@ -54,6 +55,11 @@ export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPic
   }, [cine, win[0], win[1], nz]);
 
   const frames = Array.from({ length: cine.frames }, (_, f) => f);
+  const roles = STRUCT_KEYS.filter((k) => structs[k]);
+  // Dots per cell: structure roles in RV, MYO, LV order, else every label.
+  const tracked: { key: string; label: string; short: string }[] = roles.length
+    ? roles.map((k: StructKey) => ({ key: k, label: structs[k]!, short: STRUCT_SHORT[k] }))
+    : labels.map((l) => ({ key: l, label: l, short: l }));
   return (
     <div className="overflow-auto">
       <table className="border-separate border-spacing-0.5 text-[10px] leading-none">
@@ -62,7 +68,7 @@ export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPic
             <th className="sticky left-0 z-10 bg-background" />
             {frames.map((f) => {
               const fm = frameMetrics[f];
-              const phase = f === ed ? "ED" : f === es ? "ES" : null;
+              const phase = marked.get(f) ?? null;
               return (
                 <th key={f} className={cn("px-0 pb-1 font-normal", phase && "text-primary")}>
                   <button onClick={() => onPick(slice, f)} className="flex w-full flex-col items-center gap-0.5" title={`Frame ${f + 1}${phase ? ` (${phase})` : ""}`}>
@@ -94,9 +100,9 @@ export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPic
               <th className={cn("sticky left-0 z-10 bg-background pr-1 text-right font-normal tnum", z === slice ? "text-foreground" : "text-muted-foreground")}>{z + 1}</th>
               {frames.map((f) => {
                 const cell = cells.get(cellKey(z, f));
-                const present = STRUCT_KEYS.filter((k) => structs[k] && cell && (cell.contours.some((c) => c.label === structs[k]) || cell.masks.some((m) => m.label === structs[k])));
+                const present = tracked.filter((t) => cell && (cell.contours.some((c) => c.label === t.label) || cell.masks.some((m) => m.label === t.label)));
                 const current = z === slice && f === frame;
-                const phaseCol = f === ed || f === es;
+                const phaseCol = marked.has(f);
                 return (
                   <td key={f} className="p-0">
                     <button
@@ -106,7 +112,7 @@ export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPic
                         current ? "outline outline-2 outline-primary" : phaseCol ? "outline outline-1 outline-primary/50" : "hover:outline hover:outline-1 hover:outline-border-hover",
                       )}
                       style={{ width: THUMB_W, height: thumbH }}
-                      title={`Slice ${z + 1}, frame ${f + 1}${present.length ? ` · ${present.map((k) => STRUCT_SHORT[k]).join(", ")}` : ""}`}
+                      title={`Slice ${z + 1}, frame ${f + 1}${present.length ? ` · ${present.map((t) => t.short).join(", ")}` : ""}`}
                     >
                       <canvas
                         width={THUMB_W}
@@ -120,8 +126,8 @@ export const PhaseMatrix = memo(function PhaseMatrix({ cine, slice, frame, onPic
                       />
                       {present.length > 0 && (
                         <span className="absolute bottom-0.5 left-0.5 flex gap-px">
-                          {present.map((k) => (
-                            <span key={k} className="h-1.5 w-1.5 rounded-full ring-1 ring-black/60" style={{ background: labelColor(labels, structs[k]!) }} />
+                          {present.map((t) => (
+                            <span key={t.key} className="h-1.5 w-1.5 rounded-full ring-1 ring-black/60" style={{ background: labelColor(labels, t.label) }} />
                           ))}
                         </span>
                       )}

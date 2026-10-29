@@ -1,12 +1,109 @@
+import { useEffect, useMemo, useState } from "react";
 import { WarningIcon as AlertTriangle } from "@/components/icons";
+import { fetchBodySize } from "@/kits/io/niftiIO";
 import { labelColor } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { STRUCT_KEYS, STRUCT_SHORT, type CineMetrics, type DiceRow, type PhaseMark, type StructKey } from "./model";
+import { execute } from "@/platform/commands";
+import { labelNames } from "@/platform/environment";
+import type { PanelProps } from "@/platform/module";
+import { useRuntime } from "@/platform/runtime";
+import { newAnnotation, useStudio } from "@/stores/studio";
+import {
+  cineConfig,
+  cinePath,
+  GOTO_COMMAND,
+  groupCells,
+  phaseOps,
+  resolvePhases,
+  RUNTIME,
+  STRUCT_KEYS,
+  STRUCT_SHORT,
+  structuresOf,
+  type CineCoverage,
+  type CineGrid,
+  type CinePlayhead,
+  type PhaseMark,
+  type RefSeg,
+  type StructKey,
+  type Structures,
+} from "@/modules/cine/public";
+import { computeMetrics, diceVsReference, mosteller, type CineMetrics, type DiceRow } from "../metrics";
+import { MetricsConfigSchema } from "../config";
+
+/**
+ * Right-slot panel: ventricular function (EDV, ESV, SV, EF), LV mass, the LV volume curve
+ * with an ED/ES suggestion, per-slice areas of the current frame, Dice against reference
+ * segmentations and body size. Reads what the cine renderer publishes to the runtime
+ * (grid, playhead, coverage, references); navigates with `inkling.cine.commands.goTo`.
+ */
+export function CardiacMetricsPanel({ env, project, item, config: rawConfig }: PanelProps) {
+  const config = useMemo(() => MetricsConfigSchema.parse(rawConfig), [rawConfig]);
+  const cine = useMemo(() => cineConfig(env), [env]);
+  const structs = useMemo(() => structuresOf(cine), [cine]);
+  const labels = useMemo(() => labelNames(env.labels), [env.labels]);
+  const grid = useRuntime<CineGrid>(item?.id, RUNTIME.grid);
+  const coverage = useRuntime<CineCoverage>(item?.id, RUNTIME.coverage);
+  const refs = useRuntime<RefSeg[]>(item?.id, RUNTIME.references);
+  const playhead = useRuntime<CinePlayhead>(item?.id, RUNTIME.playhead);
+  const annotations = useStudio((s) => s.annotations);
+  const [body, setBody] = useState<{ height: number | null; weight: number | null }>({ height: null, weight: null });
+  const path = item && cinePath(item);
+  useEffect(() => {
+    let live = true;
+    if (path) fetchBodySize(path, project.meta).then((b) => live && setBody(b));
+    return () => {
+      live = false;
+    };
+  }, [path, project.meta]);
+
+  const { ed: edId, es: esId } = config.phases;
+  const phases = useMemo(
+    () => (item ? resolvePhases(annotations, item.id, item.assets, project.meta, [edId, esId]) : ({} as Record<string, PhaseMark | null>)),
+    [annotations, item, project.meta, edId, esId],
+  );
+  const ed = phases[edId]?.frame ?? null, es = phases[esId]?.frame ?? null;
+  const bsa = mosteller(body.height, body.weight);
+  const metrics = useMemo(() => (coverage ? computeMetrics({ frames: coverage, ed, es, bsa }) : null), [coverage, ed, es, bsa]);
+  const cells = useMemo(() => (item ? groupCells(annotations, item.id) : new Map()), [annotations, item]);
+  const qa = useMemo(
+    () => (grid && refs ? refs.map((r) => ({ phase: r.phase, frame: r.frame, rows: diceVsReference(cells, r.frame, r.volume.data, labels, structs, grid) })) : []),
+    [refs, cells, labels, structs, grid],
+  );
+
+  if (!item || !metrics || !playhead) return <aside className="p-3 text-xs text-muted-foreground">Waiting for the cine…</aside>;
+
+  const applySuggestion = () => {
+    const s = metrics.suggested;
+    if (!s) return;
+    const all = useStudio.getState().annotations;
+    const ops = phaseOps(all, item.id, { [edId]: s.ed, [esId]: s.es }, (init) => newAnnotation({ itemId: item.id, label: structs.lv ?? labels[0] ?? "phase", ...init }));
+    useStudio.getState().batch(ops); // ED and ES change together as one undo step
+  };
+
+  return (
+    <aside className="h-full overflow-y-auto" aria-label="Cardiac function">
+      <MetricsPanel
+        metrics={metrics}
+        labels={labels}
+        structs={structs}
+        frame={playhead.frame}
+        slice={playhead.slice}
+        onFrame={(frame) => execute(GOTO_COMMAND, { frame })}
+        phases={{ ed: phases[edId] ?? null, es: phases[esId] ?? null }}
+        onApplySuggestion={applySuggestion}
+        height={body.height}
+        weight={body.weight}
+        onBody={setBody}
+        qa={qa}
+      />
+    </aside>
+  );
+}
 
 interface Props {
   metrics: CineMetrics;
   labels: string[];
-  structs: Record<StructKey, string | undefined>;
+  structs: Structures;
   frame: number;
   slice: number;
   onFrame: (f: number) => void;
@@ -245,7 +342,7 @@ export function MetricsPanel({ metrics: m, labels, structs, frame, slice, onFram
   );
 }
 
-function VolumeCurve({ metrics: m, labels, structs, frame, onFrame }: { metrics: CineMetrics; labels: string[]; structs: Record<StructKey, string | undefined>; frame: number; onFrame: (f: number) => void }) {
+function VolumeCurve({ metrics: m, labels, structs, frame, onFrame }: { metrics: CineMetrics; labels: string[]; structs: Structures; frame: number; onFrame: (f: number) => void }) {
   const W = 248, H = 96, L = 28, R = 4, T = 6, B = 14;
   const n = m.frames.length;
   const series = (["lv", "rv"] as const).map((k) => ({

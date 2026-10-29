@@ -2,6 +2,8 @@ import { CardiacIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import { modArrows } from "@/modules/core/manifest";
 import type { Project, StudioItem } from "@/types";
+import { CineConfigSchema } from "./config";
+import { cineGeometries } from "./geometries";
 
 export const CINE = "inkling.cine";
 const core = (n: string) => `inkling.core.commands.${n}`;
@@ -23,7 +25,7 @@ export default defineModule({
   id: CINE,
   version: "1.0.0",
   title: "Slice × frame cine",
-  description: "4D (slice × frame) image series such as cardiac cine MRI: contours and masks per slice and frame, playback, copy-forward.",
+  description: "Any slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, key frames, playback, copy-forward, interpolation and reference import.",
   requires: ["inkling.overlay2d"],
   contributes: {
     dataKinds: [
@@ -35,7 +37,17 @@ export default defineModule({
         consumes: [`${CINE}.dataKinds.volume-time`],
         space: "image2d",
         capabilities: ["time", "slices", "playback", "drafting", "holdToPan", "windowLevel"],
-        description: "One slice × frame at a time on a canvas, with a phase matrix, playback and function metrics",
+        description: "One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage",
+        configSchema: CineConfigSchema,
+        example: {
+          viewports: [
+            {
+              name: "main",
+              renderer: `${CINE}.renderers.slice-frame-canvas`,
+              config: { structures: { lv: "left ventricle" }, keyFrames: [{ id: "ED", label: "End-diastole" }, { id: "ES", label: "End-systole" }] },
+            },
+          ],
+        },
       },
     ],
     commands: [
@@ -44,11 +56,12 @@ export default defineModule({
       { id: "stepSlice", keys: ["ArrowUp", "ArrowDown"], display: "↑ ↓", label: "Previous or next slice", group: "Navigate", repeat: true, shadows: [core("prevItem"), core("nextItem")], description: "Step one slice" },
       { id: "copyContourReplace", keys: ["shift+alt+ArrowLeft", "shift+alt+ArrowRight", "shift+alt+ArrowUp", "shift+alt+ArrowDown"], display: modArrows("shift+alt"), label: "Copy contour, replacing what is at the target", group: "Drawing", description: "Copy the selected contours, replacing the target's" },
       { id: "copyContour", keys: ["alt+ArrowLeft", "alt+ArrowRight", "alt+ArrowUp", "alt+ArrowDown"], display: modArrows("alt"), label: "Copy contour to the next frame or slice", group: "Drawing", description: "Copy the selected contours to the neighbouring cell" },
+      { id: "goTo", label: "Go to slice and frame", group: "Navigate", description: "Show a slice and frame; args { slice?, frame? } (0-based)" },
     ],
-    inspectors: [{ id: "main", geometries: "*", description: "Areas, perimeters and structure roles in mm" }],
+    geometries: cineGeometries,
+    inspectors: [{ id: "main", geometries: "*", description: "Areas, perimeters and structure roles in mm (from runtime.grid); key frame names" }],
     exporters: [
-      { id: "acdc-nifti", label: "ACDC labelmap (NIfTI)", accepts: ["spline", "polygon", "mask"], description: "4D uint8 .nii.gz, 1 = RV, 2 = MYO, 3 = LV, on the cine's grid and orientation. Frames without contours are zero." },
-      { id: "cine-metrics-csv", label: "Cardiac function (CSV)", accepts: ["spline", "polygon", "mask"], description: "Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs)." },
+      { id: "acdc-nifti", label: "ACDC labelmap (NIfTI)", accepts: ["spline", "polygon", "mask"], description: "4D uint8 .nii.gz on the cine's grid and orientation; value = label position (1 = RV, 2 = MYO, 3 = LV for ACDC labels). Frames without contours are zero." },
       { id: "cine-contours-json", label: "Contours (JSON)", accepts: ["spline", "polygon"], description: "Every contour with its spline control points, densely sampled outline, slice, frame, area and source." },
     ],
   },

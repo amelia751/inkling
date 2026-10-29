@@ -1,4 +1,10 @@
-import { legacyImpl } from "@/viewers/legacy";
-import { cine4dAdapter } from "@/viewers/cine4d/adapter";
+import type { ModuleImpl } from "@/platform/module";
+import { cineExporters } from "./exporters";
+import { inspectCine } from "./inspect";
+import { CineHost } from "./renderer/Host";
 
-export default legacyImpl(cine4dAdapter, "slice-frame-canvas");
+export default {
+  renderers: { "slice-frame-canvas": CineHost },
+  inspectors: { main: inspectCine },
+  exporters: cineExporters,
+} satisfies ModuleImpl;

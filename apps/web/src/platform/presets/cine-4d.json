@@ -12,7 +12,24 @@
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.cine.renderers.slice-frame-canvas"
+        "renderer": "inkling.cine.renderers.slice-frame-canvas",
+        "config": {
+          "structures": {
+            "rv": "right ventricle",
+            "myo": "myocardium",
+            "lv": "left ventricle"
+          },
+          "keyFrames": [
+            {
+              "id": "ED",
+              "label": "End-diastole"
+            },
+            {
+              "id": "ES",
+              "label": "End-systole"
+            }
+          ]
+        }
       }
     ],
     "tools": [
@@ -27,7 +44,7 @@
     ],
     "exporters": [
       "inkling.cine.exporters.acdc-nifti",
-      "inkling.cine.exporters.cine-metrics-csv",
+      "inkling.cardiac-metrics.exporters.function-csv",
       "inkling.cine.exporters.cine-contours-json"
     ],
     "panels": {
@@ -37,6 +54,7 @@
         "inkling.core.panels.review"
       ],
       "right": [
+        "inkling.cardiac-metrics.panels.metrics",
         "inkling.core.panels.ai"
       ]
     },

@@ -9,6 +9,7 @@ import { resolveDefaults } from "@/platform/resolve";
 import cornerstone from "@/kits/cornerstone/manifest";
 import overlay2d from "@/kits/overlay2d/manifest";
 import timeline from "@/kits/timeline/manifest";
+import cardiacMetrics from "@/modules/cardiac-metrics/manifest";
 import cine from "@/modules/cine/manifest";
 import core from "@/modules/core/manifest";
 import dicomExport from "@/modules/dicom-export/manifest";
@@ -28,7 +29,7 @@ export const presets = defineModule({
   contributes: { presets: Object.values(presetFiles).sort((a, b) => a.id.localeCompare(b.id)) },
 });
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, wsi, dicomExport, presets];
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, presets];
 
 for (const m of MODULES) registry.registerModule(m);
 // Every environment gets the Studio core, whatever it references.

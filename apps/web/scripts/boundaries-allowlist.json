@@ -1,7 +1,5 @@
 [
   "modules/volume",
 
-  "modules/timeseries",
-
-  "modules/cine"
+  "modules/timeseries"
 ]

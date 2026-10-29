@@ -71,6 +71,7 @@ export const MIGRATED_V1_TYPES = new Set<string>([
   "segment", "event",
 
   // modules/cine (phase → instant):
+  "phase",
 
 ]);
 

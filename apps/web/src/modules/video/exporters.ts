@@ -1,6 +1,6 @@
 import { labelNames } from "@/platform/environment";
 import type { Annotation, Project, Pt, StudioItem } from "@/types";
-import type { Exporter } from "@/viewers/ViewerAdapter";
+import type { ExporterImpl } from "@/platform/module";
 import { keyframeAt, shapeAt, sortKeyframes, trackNumbers, type Box, type TrackGeometry } from "./tracks";
 import { zip } from "@/kits/io/zip";
 
@@ -155,7 +155,7 @@ function temporalJson(project: Project, items: StudioItem[], annotations: Annota
           frames,
           duration,
           segments: mine.flatMap((a) =>
-            a.geometry.type === "segment"
+            a.geometry.type === "span"
               ? [{
                   id: a.id,
                   label: a.label,
@@ -169,11 +169,11 @@ function temporalJson(project: Project, items: StudioItem[], annotations: Annota
                 }]
               : [],
           ).sort((x, y) => x.start - y.start),
-          events: mine.flatMap((a) =>
-            a.geometry.type === "event"
-              ? [{ id: a.id, label: a.label, frame: a.geometry.frame, time: r3(a.geometry.frame / fps), provenance: a.provenance, attributes: a.attributes ?? {} }]
-              : [],
-          ).sort((x, y) => x.frame - y.frame),
+          events: mine.flatMap((a) => {
+            if (a.geometry.type !== "instant") return [];
+            const frame = a.geometry.frame ?? Math.round((a.geometry.t ?? 0) * fps);
+            return [{ id: a.id, label: a.label, frame, time: r3(frame / fps), provenance: a.provenance, attributes: a.attributes ?? {} }];
+          }).sort((x, y) => x.frame - y.frame),
         };
       }),
     },
@@ -182,19 +182,14 @@ function temporalJson(project: Project, items: StudioItem[], annotations: Annota
   );
 }
 
-export const videoExporters: Exporter[] = [
-  {
-    id: "cvat-video",
-    label: "CVAT for video 1.1",
-    description: "One annotations XML per video: tracks with every frame interpolated (keyframe, outside, occluded flags); per-frame shapes as one-frame tracks.",
+/** Implementations of the manifest's exporters (labels and descriptions live there). */
+export const videoExporters: Record<string, ExporterImpl> = {
+  "cvat-video": {
     filename: (p) => `${p.id}-cvat-video.zip`,
     build: async ({ project, items, annotations }) =>
       zip(items.map((item, i) => ({ name: `${stem(item)}/annotations.xml`, text: cvatXml(project, item, annotations, i + 1) }))),
   },
-  {
-    id: "mot",
-    label: "MOT challenge CSV",
-    description: "Box tracks per video as gt/gt.txt (frame, id, x, y, w, h, conf, class, visibility; 1-based frames) with seqinfo.ini.",
+  mot: {
     filename: (p) => `${p.id}-mot.zip`,
     build: async ({ project, items, annotations }) =>
       zip(items.flatMap((item) => [
@@ -202,11 +197,8 @@ export const videoExporters: Exporter[] = [
         { name: `${stem(item)}/seqinfo.ini`, text: seqinfo(item) },
       ])),
   },
-  {
-    id: "temporal-json",
-    label: "Temporal JSON",
-    description: "Labeled segments and point-in-time events per video, in seconds and frames.",
+  "temporal-json": {
     filename: (p) => `${p.id}-temporal.json`,
     build: async ({ project, items, annotations }) => new Blob([temporalJson(project, items, annotations)], { type: "application/json" }),
   },
-];
+};

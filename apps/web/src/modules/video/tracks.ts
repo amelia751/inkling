@@ -231,3 +231,27 @@ export function boxOfPoints(pts: Pt[]): Box {
   }
   return [minX, minY, maxX - minX, maxY - minY];
 }
+
+/** A frame shape as the core geometry ShapeUtils understand (box / polygon / keypoint). */
+export function frameGeometry(s: Pick<FrameShape, "kind" | "box" | "points">): Geometry {
+  if (s.kind === "box") {
+    const [x, y, w, h] = s.box!;
+    return { type: "box", x, y, w, h };
+  }
+  if (s.kind === "polygon") return { type: "polygon", points: s.points! };
+  return { type: "keypoint", x: s.points![0][0], y: s.points![0][1] };
+}
+
+/** Inverse of `frameGeometry`: the shape data `applyShape` writes back. */
+export function shapeData(g: Geometry): { box?: Box; points?: Pt[] } {
+  switch (g.type) {
+    case "box":
+      return { box: [g.x, g.y, g.w, g.h] };
+    case "polygon":
+      return { points: g.points };
+    case "keypoint":
+      return { points: [[g.x, g.y]] };
+    default:
+      return {};
+  }
+}

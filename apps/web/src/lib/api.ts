@@ -67,6 +67,7 @@ export const MIGRATED_V1_TYPES = new Set<string>([
   // modules/timeseries (interval, beat, wave, rhythm → span / instant):
 
   // modules/video (segment, event → span / instant):
+  "segment", "event",
 
   // modules/cine (phase → instant):
 

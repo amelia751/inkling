@@ -1,7 +1,7 @@
 import { labelNames } from "@/platform/environment";
 import { seedUrl } from "@/lib/api";
 import type { Annotation, Pt, StudioItem } from "@/types";
-import type { Exporter } from "@/viewers/ViewerAdapter";
+import type { Exporter } from "@/platform/module";
 import { polygonArea } from "@/kits/overlay2d/geometry";
 import { toCocoRle } from "@/kits/cornerstone/rle";
 

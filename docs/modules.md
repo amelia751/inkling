@@ -108,6 +108,8 @@ singletons for this.
 | `grid` | cine | `{ spacing, dims }` |
 | `signalInfo` | timeseries | `{ fs, leads, … }` |
 | `mpp` | wsi | microns (or metres) per pixel |
+| `image2d.view`, `image2d.controls` | image2d cornerstone-stack | view state and actions for its viewport-bar panel |
+| `viewportState` | image2d canvas-raster | `{ zoom, pan, width, height }` |
 
 ## Agent surface and safety tiers
 

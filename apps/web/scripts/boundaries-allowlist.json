@@ -9,7 +9,5 @@
 
   "modules/cine",
 
-  "modules/wsi",
-
   "modules/dicom-export"
 ]

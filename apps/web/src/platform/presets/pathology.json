@@ -41,7 +41,11 @@
         "inkling.core.panels.review"
       ],
       "right": [
-        "inkling.core.panels.ai"
+        "inkling.core.panels.ai",
+        "inkling.wsi.panels.counts"
+      ],
+      "viewport-bar": [
+        "inkling.wsi.panels.adjust"
       ]
     },
     "reviewRules": [

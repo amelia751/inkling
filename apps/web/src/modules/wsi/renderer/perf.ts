@@ -1,11 +1,11 @@
 /**
  * Dev-only self-check for the bulk overlay: builds the spatial index over synthetic objects
  * (never written to the store) and times queries, hit tests and — in a browser — full
- * frames. In the dev console: `__pathology.selfCheck()` (see PathologyViewer).
+ * frames. In the dev console: `__pathology.selfCheck()` (see renderer/Host.tsx).
  */
 import type { Annotation, Pt } from "@/types";
 import { drawScene, Scene, type DrawStats } from "@/kits/overlay2d/scene";
-import type { View } from "@/kits/overlay2d/transform";
+import type { Transform2D } from "@/kits/overlay2d/transform";
 
 const LABELS = ["tumor", "stroma", "necrosis", "lymphocytes"];
 
@@ -22,7 +22,7 @@ export function syntheticAnnotations(marks: number, regions: number, width: numb
   const centers = Array.from({ length: 200 }, () => [r() * width, r() * height] as Pt);
   for (let i = 0; i < marks; i++) {
     const [cx, cy] = centers[i % centers.length];
-    out.push({ ...base, id: `m${i}`, label: LABELS[i % 4], geometry: { type: "mark", x: cx + (r() - 0.5) * 3000, y: cy + (r() - 0.5) * 3000 } });
+    out.push({ ...base, id: `m${i}`, label: LABELS[i % 4], geometry: { type: "keypoint", x: cx + (r() - 0.5) * 3000, y: cy + (r() - 0.5) * 3000 } });
   }
   for (let i = 0; i < regions; i++) {
     const cx = r() * width, cy = r() * height, rad = 200 + r() * 3000, n = 64 + Math.floor(r() * 400);
@@ -79,7 +79,7 @@ export function benchIndex(list: Annotation[], width: number, height: number): I
     return scene.lastBuild.ms;
   };
   let cur = list;
-  const mark = (i: number): Annotation => ({ id: `n${i}`, itemId: "synthetic", label: "tumor", provenance: "human-created", author: "perf", createdAt: "", geometry: { type: "mark", x: r() * width, y: r() * height } });
+  const mark = (i: number): Annotation => ({ id: `n${i}`, itemId: "synthetic", label: "tumor", provenance: "human-created", author: "perf", createdAt: "", geometry: { type: "keypoint", x: r() * width, y: r() * height } });
   let appendMs = 0, replaceMs = 0, removeMs = 0;
   for (let k = 0; k < 20; k++) appendMs += step((cur = [...cur, mark(k)]));
   for (let k = 0; k < 20; k++) {
@@ -102,7 +102,7 @@ export function benchIndex(list: Annotation[], width: number, height: number): I
 }
 
 /** Browser-only: time drawScene frames for the synthetic set at the controller's current view. */
-export function benchFrames(list: Annotation[], view: View, frames = 30): { mean: number; max: number; stats: DrawStats } {
+export function benchFrames(list: Annotation[], view: Transform2D, frames = 30): { mean: number; max: number; stats: DrawStats } {
   const scene = new Scene();
   scene.build(list);
   const canvas = document.createElement("canvas");

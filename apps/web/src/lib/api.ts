@@ -61,6 +61,7 @@ export async function fetchProjects(): Promise<Project[]> {
  */
 export const MIGRATED_V1_TYPES = new Set<string>([
   // modules/wsi (mark → keypoint):
+  "mark",
 
   // modules/volume (point → point3d):
 

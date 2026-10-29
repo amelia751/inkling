@@ -402,13 +402,16 @@ def main() -> int:
             st.page.keyboard.press(f"{MOD}+a")
             n_all = len(item_annotations(st, SUBJECT))
             wait_for(lambda: len(st.store("s => s.selectedIds")) == n_all, "select all")
+            # Escape: nothing is being dragged, so the volume's cancel command falls through to deselect.
+            st.page.keyboard.press("Escape")
+            wait_for(lambda: len(st.store("s => s.selectedIds")) == 0, "Escape clears the selection")
             click(st.page, at(st, "axial", (120, 90, 77)))
             click(st.page, at(st, "axial", (120, 150, 77)), [MOD])
             wait_for(lambda: len(st.store("s => s.selectedIds")) == 2, f"{MOD}-click adds")
             st.page.mouse.move(3, 3)
             st.page.keyboard.press("Delete")
             wait_for(lambda: not new_annotations(st, SUBJECT, before), "deleted both")
-            return "shift/⌘ multi-select, handle drag 60→70 mm, ⌘A, Delete"
+            return "shift/⌘ multi-select, handle drag 60→70 mm, ⌘A, Escape, Delete"
 
         def t_view(st):
             st.page.mouse.move(*cell_center(st, "axial"))

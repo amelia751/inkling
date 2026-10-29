@@ -178,16 +178,12 @@ inkling/
 │   │       │   ├── annotation/
 │   │       │   ├── reviews/
 │   │       │   └── publishing/
-│   │       ├── viewers/
-│   │       │   ├── ViewerAdapter.ts
-│   │       │   ├── registry.ts
-│   │       │   ├── cornerstone/
-│   │       │   │   ├── init.ts
-│   │       │   │   ├── Image2DAdapter.ts
-│   │       │   │   ├── DicomStackAdapter.ts
-│   │       │   │   └── Volume3DAdapter.ts
-│   │       │   ├── pathology/        # Later
-│   │       │   └── temporal/         # Later
+│   │       ├── platform/             # Module contract, registry, resolver, when, commands, runtime, catalogue, agent tools
+│   │       │   └── presets/          # Environment JSON: image-2d, volume-3d, ecg, video, cine-4d, pathology, generic-image…
+│   │       ├── kits/                 # overlay2d, viewport-chrome, timeline, io, cornerstone (domain-neutral)
+│   │       ├── modules/              # core, image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, dicom-export, _template
+│   │       ├── bundle.ts             # The one place that lists bundled modules
+│   │       ├── migrations/           # Stored annotation upgrades (v1 → v2 core geometries)
 │   │       ├── components/ui/
 │   │       ├── hooks/
 │   │       ├── lib/api/

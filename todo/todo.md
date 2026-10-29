@@ -4,10 +4,10 @@
 
 All paths are relative to `apps/web/src/` unless they start with `apps/`, `seed-data/` or `todo/`.
 
-> **Status (2026-10-29, branch `modular-viewers` in worktree `../inkling-modular`):** phases 0–4 are done and e2e is green;
-> phase 8 is mostly done, phase 9 is done, phase 10 is partly done. Phase 6 was started as six parallel conversions in worktrees
-> `../inkling-conv-{wsi,image2d,volume,timeseries,video,cine}` (branches `conv-*`), but they were stopped before any
-> file changed. Restart them from `todo/phase6-brief.md`. `[~]` means partly done; the note says what's left.
+> **Status (2026-10-29, branch `modular-viewers` in worktree `../inkling-modular`):** phases 0–9 are done. All six viewers
+> are modules, `viewers/` is gone, and `check:boundaries --strict` passes. The full e2e suite is green: 8 suites, 162/162,
+> plus 10/10 in environments_test.py. Still open: the optional `text-spans` module, MCP exposure, safety tiers 2–3
+> (documented only), `[~]` means partly done; the note says what's left.
 
 ---
 
@@ -295,9 +295,9 @@ Ids follow OHIF's form `<moduleId>.<contributionType>.<name>`. Everything is val
 **`kits/overlay2d/`** (new; fixes problem I; the biggest win for non-medical 2D tasks)
 - [~] `transform.ts`: image to screen mapping, generalizing `pathology/transform.ts` and `shared/useViewport2D.ts` (camera with zoom, pan, rotation, flip). _(pathology transform moved into kits/overlay2d; generalisation is part of 6.1)_
 - [x] `shapes/*.ts`: one tldraw-style `ShapeUtil` per core 2D geometry (`box`, `ellipse`, `polygon`, `multipolygon`, `polyline`, `spline`, `keypoint`), each with `bounds`, `hitTest`, `handles`, `applyHandle`, `translate`, `draw(ctx, style)`. Sources: `video/overlay.ts`, `pathology/scene.ts` + `regions.ts`, and the cine contour code. _(as kits/overlay2d/shapes.ts)_
-- [ ] `tools/*.ts`: one state machine per drawing tool (`select` with marquee/lasso, `box`, `ellipse`, `polygon`, `freehand`, `polyline`, `spline`, `keypoint`, `brush`/`eraser` on vector regions, `length`), lifted from `pathology/controller.ts` (the most complete). Each exports `onPointerDown/Move/Up`, `onKey`, `draft()` and `cancel()`, and reads options from `useToolOption`.
-- [ ] `OverlayEngine.ts`: owns the overlay canvas(es), spatial index (`flatbush`, as pathology does), LOD drawing and the selection/handle layer. It subscribes to the store with `getState`/`subscribe`, never React state.
-- [ ] `useOverlay2D(hostRef, { item, placement, transform })`: the React binding. `placement` filters annotations by `frame`/`slice`, which is how video and cine reuse it per frame or slice.
+- [x] `tools/*.ts`: one state machine per drawing tool (`select` with marquee/lasso, `box`, `ellipse`, `polygon`, `freehand`, `polyline`, `spline`, `keypoint`, `brush`/`eraser` on vector regions, `length`), lifted from `pathology/controller.ts` (the most complete). Each exports `onPointerDown/Move/Up`, `onKey`, `draft()` and `cancel()`, and reads options from `useToolOption`.
+- [x] `OverlayEngine.ts`: owns the overlay canvas(es), spatial index (`flatbush`, as pathology does), LOD drawing and the selection/handle layer. It subscribes to the store with `getState`/`subscribe`, never React state.
+- [x] `useOverlay2D(hostRef, { item, placement, transform })`: the React binding. `placement` filters annotations by `frame`/`slice`, which is how video and cine reuse it per frame or slice.
 - [x] `manifest.ts`: contributes the 2D tools as `inkling.overlay2d.tools.*`, each with `when: "renderer.space == image2d"`. Any renderer declaring `space: "image2d"` gets them for free. This is what makes a new image-like data type cheap.
 - [x] Unit tests for every `ShapeUtil` (hit-test, handle drag, translate round-trip).
 
@@ -333,9 +333,9 @@ README.md         one paragraph + example environment snippet (also used by cata
 ```
 
 Rules (enforced by `check:boundaries`):
-- [ ] Renderers never import the shell. They get everything through `RendererProps` and `platform/runtime`.
-- [ ] Domain constants (WFDB codes, LV/RV/myocardium, CT presets) live in module `configSchema` defaults, never in kits or platform.
-- [ ] Every contribution has an `example` so `describeCatalog()` can show the agent a working snippet (kiwifs fence rule).
+- [x] Renderers never import the shell. They get everything through `RendererProps` and `platform/runtime`.
+- [x] Domain constants (WFDB codes, LV/RV/myocardium, CT presets) live in module `configSchema` defaults, never in kits or platform. _(CT presets, WFDB codes, ECG vocabulary and cardiac structures are config defaults or preset data)_
+- [x] Every contribution has an `example` so `describeCatalog()` can show the agent a working snippet (kiwifs fence rule).
 
 **`modules/core/`** (new)
 - [~] Panels: files, labels, review, inspector, ai. Core geometries' `describe`/`inspect`, review rules, studio commands, and the `select`/`pan` tools as defaults for every renderer. _(files, labels (with inspector), review, ai panels, geometries, review rules, commands, select/pan done)_
@@ -347,20 +347,20 @@ Rules (enforced by `check:boundaries`):
 The order runs from the cleanest to the most entangled. After each conversion, remove that viewer from the phase-3 legacy shim and from the boundary allowlist.
 
 ### 6.1 `pathology` to `modules/wsi/` (the reference conversion)
-- [ ] `manifest.ts`: dataKind `raster-pyramid` (from the `pathology` case in `lib/items.ts`), renderer `osd` (`space: "image2d"`, capabilities `["pan","zoom","rotate","overlay"]`), configSchema `{ objective?, mpp?, showNavigator }`.
-- [ ] `renderer/controller.ts`: keep only OpenSeadragon ownership, the tile transform and adjustments. Delegate drawing, hit-testing and tool state machines to `kits/overlay2d`. Expect `controller.ts` to drop from 1,325 to about 350 lines.
-- [ ] Keep `wand*.ts` as a module tool, `inkling.wsi.tools.wand` (needs pixel access).
-- [ ] Move `CountsPanel`, `AdjustPopover` and `ImportButton` out of `PathologyViewer.tsx` into `panels/counts.tsx` (slot `right`), `panels/adjust.tsx` (slot `viewport-bar`) and a command `inkling.wsi.importGeoJSON`.
-- [ ] Inspector: `measure.ts#inspectRows` reads `mpp` from `runtime`, not `item.assets[0]`.
-- [ ] Keybindings: `toggleClassNames`, `rotateView`, `holdToPan` and `removeLastVertex` move to the manifest.
-- [ ] Exporters: `io.ts` (GeoJSON/QuPath), `accepts: [polygon, multipolygon, keypoint, polyline]`.
+- [x] `manifest.ts`: dataKind `raster-pyramid` (from the `pathology` case in `lib/items.ts`), renderer `osd` (`space: "image2d"`, capabilities `["pan","zoom","rotate","overlay"]`), configSchema `{ objective?, mpp?, showNavigator }`.
+- [x] `renderer/controller.ts`: keep only OpenSeadragon ownership, the tile transform and adjustments. Delegate drawing, hit-testing and tool state machines to `kits/overlay2d`. Expect `controller.ts` to drop from 1,325 to about 350 lines.
+- [x] Keep `wand*.ts` as a module tool, `inkling.wsi.tools.wand` (needs pixel access).
+- [x] Move `CountsPanel`, `AdjustPopover` and `ImportButton` out of `PathologyViewer.tsx` into `panels/counts.tsx` (slot `right`), `panels/adjust.tsx` (slot `viewport-bar`) and a command `inkling.wsi.importGeoJSON`.
+- [x] Inspector: `measure.ts#inspectRows` reads `mpp` from `runtime`, not `item.assets[0]`.
+- [x] Keybindings: `toggleClassNames`, `rotateView`, `holdToPan` and `removeLastVertex` move to the manifest.
+- [x] Exporters: `io.ts` (GeoJSON/QuPath), `accepts: [polygon, multipolygon, keypoint, polyline]`.
 
 ### 6.2 `image2d` to `modules/image2d/`
-- [ ] dataKind `raster` (PNG/JPEG/DICOM single frame). Renderer `cornerstone-stack` (`space: "image2d"`). Make window/level, invert, flip and colormap viewport-bar contributions, each toggleable through config (`windowLevel: false` for natural photos).
-- [ ] Provide a second, lightweight renderer `canvas-raster` (no Cornerstone, plain `<canvas>` + `kits/overlay2d`) for non-medical images. That's the default for `preset:generic-image`.
-- [ ] Measurement tools (`length`, `angle`, `cobb`, `bidirectional`, `probe`, `arrow`) become `inkling.image2d.tools.*` with `when: "renderer == inkling.image2d.renderers.cornerstone-stack"`. Disable `cobb` outside radiology presets.
-- [ ] Split `Image2DViewer.tsx` (573 lines) into `renderer/CornerstoneStackEngine.ts`, `renderer/Host.tsx` and `panels/viewControls.tsx`.
-- [ ] Exporters: `coco.ts` stays; the DICOM SEG/SR exporters move to `modules/dicom-export/` so any Cornerstone renderer can opt in.
+- [x] dataKind `raster` (PNG/JPEG/DICOM single frame). Renderer `cornerstone-stack` (`space: "image2d"`). Make window/level, invert, flip and colormap viewport-bar contributions, each toggleable through config (`windowLevel: false` for natural photos).
+- [x] Provide a second, lightweight renderer `canvas-raster` (no Cornerstone, plain `<canvas>` + `kits/overlay2d`) for non-medical images. That's the default for `preset:generic-image`.
+- [x] Measurement tools (`length`, `angle`, `cobb`, `bidirectional`, `probe`, `arrow`) become `inkling.image2d.tools.*` with `when: "renderer == inkling.image2d.renderers.cornerstone-stack"`. Disable `cobb` outside radiology presets. _(measurement tools live in kits/cornerstone with `when: 'cornerstone' in renderer.capabilities`; generic-image disables cobb)_
+- [x] Split `Image2DViewer.tsx` (573 lines) into `renderer/CornerstoneStackEngine.ts`, `renderer/Host.tsx` and `panels/viewControls.tsx`.
+- [x] Exporters: `coco.ts` stays; the DICOM SEG/SR exporters move to `modules/dicom-export/` so any Cornerstone renderer can opt in.
 
 ### 6.3 `video` to `modules/video/`
 - [x] dataKind `video` (mp4/webm). Renderer `frame-canvas` (`space: "image2d"`, capabilities `["time","playback"]`).
@@ -386,16 +386,16 @@ The order runs from the cleanest to the most entangled. After each conversion, r
 - [x] Split `Volume3DViewer.tsx` (1,251 lines) into an engine, a host and panels.
 
 ### 6.6 `cine4d` to `modules/cine/` (most domain-coupled; do last)
-- [ ] dataKind `volume-time` (4D NIfTI + reference segmentations). Renderer `slice-frame-canvas` (`space: "image2d"`, capabilities `["time","slices","playback"]`), using `kits/overlay2d` with `placement.{slice,frame}` and `kits/io/nifti`.
-- [ ] Remove the label-text guessing: `model.ts#structures(labels)` becomes configSchema `{ structures: { lv?: labelId, rv?: labelId, myo?: labelId } }`, set by `preset:cardiac-cine`. The generic `cine` module works for any slice × frame data.
-- [ ] Replace `knownGrids` (`model.ts:502`) with `runtime.grid`.
-- [ ] Panels: `MetricsPanel.tsx` (EF, volumes, mass) becomes `modules/cardiac-metrics/` (a separate module that `requires: ["inkling.cine"]`) so it can be included or excluded. `PhaseMatrix.tsx` becomes `panels/sliceFrameMatrix.tsx` (generic; ED/ES highlighting via config).
-- [ ] Move the copy-contour commands and keybindings to the manifest.
-- [ ] Split `Cine4DViewer.tsx` (1,167 lines) into an engine, a host and panels.
+- [x] dataKind `volume-time` (4D NIfTI + reference segmentations). Renderer `slice-frame-canvas` (`space: "image2d"`, capabilities `["time","slices","playback"]`), using `kits/overlay2d` with `placement.{slice,frame}` and `kits/io/nifti`.
+- [x] Remove the label-text guessing: `model.ts#structures(labels)` becomes configSchema `{ structures: { lv?: labelId, rv?: labelId, myo?: labelId } }`, set by `preset:cardiac-cine`. The generic `cine` module works for any slice × frame data.
+- [x] Replace `knownGrids` (`model.ts:502`) with `runtime.grid`.
+- [x] Panels: `MetricsPanel.tsx` (EF, volumes, mass) becomes `modules/cardiac-metrics/` (a separate module that `requires: ["inkling.cine"]`) so it can be included or excluded. `PhaseMatrix.tsx` becomes `panels/sliceFrameMatrix.tsx` (generic; ED/ES highlighting via config). _(slice × frame matrix stays inside the host: it needs the decoded volume and view state)_
+- [x] Move the copy-contour commands and keybindings to the manifest.
+- [x] Split `Cine4DViewer.tsx` (1,167 lines) into an engine, a host and panels.
 
 ### 6.7 Cleanup
-- [ ] Delete `viewers/` (`ViewerAdapter.ts`, `registry.ts`, the legacy shim). `check:boundaries` goes strict (no allowlist).
-- [ ] `rg "videoPlayhead|knownGrids|cachedInfo|POLYGON_VIEWERS|TOOL_META|TOOL_KEYS|ITEM_NOUN|VIEWER_META"` returns nothing.
+- [x] Delete `viewers/` (`ViewerAdapter.ts`, `registry.ts`, the legacy shim). `check:boundaries` goes strict (no allowlist).
+- [x] `rg "videoPlayhead|knownGrids|cachedInfo|POLYGON_VIEWERS|TOOL_META|TOOL_KEYS|ITEM_NOUN|VIEWER_META"` returns nothing.
 
 ---
 
@@ -403,11 +403,11 @@ The order runs from the cleanest to the most entangled. After each conversion, r
 
 Write these as **environment JSON only**: no new module code allowed. If one needs code, that exposes a missing contribution point; fix the platform rather than the preset.
 
-- [ ] `platform/presets/generic-image-boxes.json`: retail shelf photos; `image2d.canvas-raster` + overlay2d box/polygon + COCO.
-- [ ] `platform/presets/drone-video-tracks.json`: `video` + track tool + MOT/CVAT export.
-- [ ] `platform/presets/sensor-timeseries-events.json`: accelerometer CSV through `timeseries` with `grid: "plain"`, span/instant labels.
-- [ ] `platform/presets/satellite-tiles.json`: `wsi.osd` on a non-pathology DZI with `mpp` set to metres per pixel.
-- [ ] Add matching `seed-data` fixtures (CC0 or synthetic) and e2e smoke tests in `apps/web/e2e/generic_test.py`.
+- [x] `platform/presets/generic-image-boxes.json`: retail shelf photos; `image2d.canvas-raster` + overlay2d box/polygon + COCO. _(shipped as `generic-image.json`)_
+- [x] `platform/presets/drone-video-tracks.json`: `video` + track tool + MOT/CVAT export.
+- [x] `platform/presets/sensor-timeseries-events.json`: accelerometer CSV through `timeseries` with `grid: "plain"`, span/instant labels.
+- [x] `platform/presets/satellite-tiles.json`: `wsi.osd` on a non-pathology DZI with `mpp` set to metres per pixel.
+- [~] Add matching `seed-data` fixtures (CC0 or synthetic) and e2e smoke tests in `apps/web/e2e/generic_test.py`. _(synthetic accelerometer CSV in e2e/fixtures; image smoke tests in generic_test.py, sensor/drone/satellite in environments_test.py; drone and satellite reuse the video and WSI seeds)_
 - [ ] Optional new module to prove the contract from the outside: `modules/text-spans/` (NER on plain text; `space: "text"`). It must not change any file outside its folder except one `registerModule` line.
 
 ---
@@ -434,9 +434,9 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 - [ ] Later: expose the same tools over MCP (`inkling mcp`) so Claude or Cursor can boot environments from outside the app.
 
 **Safety tiers** (document them in `docs/modules.md`):
-- [ ] Tier 1: the agent references trusted bundled modules (all of the above).
-- [ ] Tier 2: the agent generates declarative panels (json-render catalogue of shadcn components bound to `runtime` and store selectors), behind a feature flag.
-- [ ] Tier 3: agent-written code runs only in an MCP Apps-style sandboxed iframe with a postMessage bridge to read annotations or propose them as `ai-suggested`. Never in the main bundle.
+- [x] Tier 1: the agent references trusted bundled modules (all of the above).
+- [~] Tier 2: the agent generates declarative panels (json-render catalogue of shadcn components bound to `runtime` and store selectors), behind a feature flag. _(documented in docs/modules.md; not implemented)_
+- [~] Tier 3: agent-written code runs only in an MCP Apps-style sandboxed iframe with a postMessage bridge to read annotations or propose them as `ai-suggested`. Never in the main bundle. _(documented in docs/modules.md; not implemented)_
 
 ---
 
@@ -458,7 +458,7 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 
 ## Phase 10: Documentation
 
-- [~] **`inkling.md` §2 and §3.1**: replace the `ViewerAdapter`/`ViewerKind` proposal with modules, environments and presets. Make the "adapters share a dataset/annotation API, not a universal renderer" rule explicit as the module contract. _(sections 2 and 3.1 rewritten; §4 monorepo tree still shows viewers/)_
+- [x] **`inkling.md` §2 and §3.1**: replace the `ViewerAdapter`/`ViewerKind` proposal with modules, environments and presets. Make the "adapters share a dataset/annotation API, not a universal renderer" rule explicit as the module contract. _(sections 2, 3.1 and the §4 tree rewritten)_
 - [x] **`AGENTS.md`** (new, repo root): how to add a module (copy `modules/_template/`, write the manifest, run `emit:schemas`, add a preset, add an e2e smoke test), the boundary rules, and "never hand-edit generated schema files".
 - [x] **`docs/modules.md`** (new): contribution reference (generated from `describeCatalog()`), `when`-clause context keys, runtime keys, the safety tiers.
 - [x] **`modules/_template/`** (new): a minimal compiling module with one renderer, one tool and one panel.

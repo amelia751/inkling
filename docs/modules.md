@@ -105,12 +105,15 @@ singletons for this.
 | Key | Published by | Value |
 |---|---|---|
 | `status` | the shell | the status-bar text |
-| `playhead` | video, cine | `{ frame, time }` |
-| `grid` | cine | `{ spacing, dims }` |
+| `playhead` | video, cine | `{ frame, time }` (cine adds `slice`) |
+| `grid` | cine | the slice grid: spacing, origin, orientation and `dims` |
+| `cine.references`, `cine.coverage` | cine | reference segmentations and which cells are contoured (read by cardiac metrics) |
+| `volume` | volume | `{ dims, spacing, modality, frameOfReferenceUID }` |
 | `signalInfo` | timeseries | `{ record, fs, samples, channels, header? }` |
 | `mpp` | wsi | microns (or metres) per pixel |
 | `image2d.view`, `image2d.controls` | image2d cornerstone-stack | view state and actions for its viewport-bar panel |
-| `viewportState` | image2d canvas-raster | `{ zoom, pan, width, height }` |
+| `viewportState` | image2d canvas-raster, volume | canvas: `{ zoom, pan, width, height }`; volume: `{ layout, sequence, activePlane, slices }` |
+| `adjust` | wsi adjust panel | brightness / contrast / gamma the renderer applies |
 
 ## Agent surface and safety tiers
 

@@ -4,10 +4,9 @@
 
 All paths are relative to `apps/web/src/` unless they start with `apps/`, `seed-data/` or `todo/`.
 
-> **Status (2026-10-29, branch `modular-viewers` in worktree `../inkling-modular`):** phases 0–9 are done. All six viewers
-> are modules, `viewers/` is gone, and `check:boundaries --strict` passes. The full e2e suite is green: 8 suites, 162/162,
-> plus 10/10 in environments_test.py. Still open: the optional `text-spans` module, MCP exposure, safety tiers 2–3
-> (documented only), `[~]` means partly done; the note says what's left.
+> **Status (2026-10-29, branch `modular-viewers`):** every item is done. Phases 0–10, the optional text-spans module, the MCP
+> server and safety tiers 2–3 (behind the `agentPanels` flag). All six viewers are modules, `check:boundaries --strict` passes,
+> the e2e suites are green, and so is environments_test.py (26/26).
 
 ---
 
@@ -407,7 +406,7 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
 - [x] `platform/presets/drone-video-tracks.json`: `video` + track tool + MOT/CVAT export.
 - [x] `platform/presets/sensor-timeseries-events.json`: accelerometer CSV through `timeseries` with `grid: "plain"`, span/instant labels.
 - [x] `platform/presets/satellite-tiles.json`: `wsi.osd` on a non-pathology DZI with `mpp` set to metres per pixel.
-- [~] Add matching `seed-data` fixtures (CC0 or synthetic) and e2e smoke tests in `apps/web/e2e/generic_test.py`. _(synthetic accelerometer CSV in e2e/fixtures; image smoke tests in generic_test.py, sensor/drone/satellite in environments_test.py; drone and satellite reuse the video and WSI seeds)_
+- [x] Add matching `seed-data` fixtures (CC0 or synthetic) and e2e smoke tests in `apps/web/e2e/generic_test.py`. _(seed-data is gitignored, so the synthetic fixtures are versioned in e2e/fixtures; image smoke tests in generic_test.py, the rest in environments_test.py; drone and satellite reuse the video and WSI seeds)_
 - [x] Optional new module to prove the contract from the outside: `modules/text-spans/` (NER on plain text; `space: "text"`). It must not change any file outside its folder except one `registerModule` line.
 
 ---
@@ -427,7 +426,7 @@ Write these as **environment JSON only**: no new module code allowed. If one nee
   - `patch_environment(jsonPatch)`, which returns the new env or structured errors
   - `preview_environment(spec)`, which renders in a sandbox store without saving
   - `run_command(id, args)`
-- [~] Every agent edit is one undoable `setEnv` step with an "Agent changed: …" diff summary in the panel, and is revertible. _(undoable setEnv + Undo button done; not yet checked end-to-end against a live model)_
+- [x] Every agent edit is one undoable `setEnv` step with an "Agent changed: …" diff summary in the panel, and is revertible. _(e2e with a scripted model: patch applied live, saved as agent:<model>, Undo reverts and saves)_
 
 **`apps/web/dev/seed-server.ts`** (and later `apps/api/`)
 - [x] Back the tools with `/api/catalog` and `/api/environments/:id` (GET/PUT/PATCH) from phase 2. Store the environment history (revision, author `agent:<model>` or user, timestamp), mirroring kiwifs's git-backed actor attribution.

@@ -186,11 +186,64 @@ def t_agent_panels(browser, port):
         st.page.context.close()
 
 
+def t_assistant_loop(browser, port):
+    """The assistant's tool loop against a scripted model: get_environment, then patch_environment."""
+    import json as _json
+    turns = [
+        {"stop_reason": "tool_use", "content": [{"type": "text", "text": "Let me look."}, {"type": "tool_use", "id": "t1", "name": "get_environment", "input": {}}]},
+        {"stop_reason": "tool_use", "content": [{"type": "tool_use", "id": "t2", "name": "patch_environment", "input": {"patch": [{"op": "add", "path": "/labels/0/classes/-", "value": {"id": "mitosis", "color": "#ff00aa"}}], "summary": "Add a mitosis class"}}]},
+        {"stop_reason": "end_turn", "content": [{"type": "text", "text": "Added a mitosis class."}]},
+    ]
+    sent: list[dict] = []
+    saved: list[dict] = []
+    st = open_studio(browser, port, "pathology-wsi", fixture_annotations=[])
+    page = st.page
+
+    def agent(route):
+        url = route.request.url
+        if url.endswith("/status"):
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"available": True, "model": "claude-opus-5-5"}))
+        body = _json.loads(route.request.post_data or "{}")
+        sent.append(body)
+        turn = turns[min(len(sent), len(turns)) - 1]
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps({"id": f"m{len(sent)}", "type": "message", "role": "assistant", "model": "claude-opus-5-5", **turn}))
+
+    def envs(route):
+        if route.request.method == "PUT":
+            doc = _json.loads(route.request.post_data or "{}")
+            saved.append(doc)
+            return route.fulfill(status=200, content_type="application/json", body=_json.dumps({"revision": len(saved), "environment": doc.get("environment")}))
+        route.fulfill(status=200, content_type="application/json", body=_json.dumps({"revision": 0, "environment": None}))
+
+    page.route("**/api/agent/**", agent)
+    page.route("**/api/environments/**", envs)
+    page.reload()
+    try:
+        page.wait_for_selector("[data-testid='wsi-viewer']", timeout=30000)
+        page.get_by_label("Inkling AI panel").click()
+        page.get_by_placeholder("Ask Inkling to change this environment…").fill("Add a mitosis class")
+        page.keyboard.press("Enter")
+        page.wait_for_selector("[data-testid='agent-change']", timeout=20000)
+        classes = st.store("s => s.env.labels[0].classes.map(c => c.id)")
+        check("assistant: patch applied to the running environment", classes[-1] == "mitosis", str(classes))
+        check("assistant: saved as an agent edit", bool(saved) and saved[-1].get("author") == "agent:claude-opus-5-5", str(saved and saved[-1].get("author")))
+        last = sent[-1]["messages"]
+        results = [b for m in last if m["role"] == "user" and isinstance(m["content"], list) for b in m["content"] if b.get("type") == "tool_result"]
+        check("assistant: tool results returned in the transcript", len(results) == 2 and all(not r.get("is_error") for r in results), str(len(results)))
+        check("assistant: final reply shown", page.get_by_text("Added a mitosis class.").count() == 1)
+        page.get_by_test_id("agent-change").get_by_role("button", name="Undo").click()
+        undone = wait(lambda: "mitosis" not in st.store("s => s.env.labels[0].classes.map(c => c.id)"))
+        check("assistant: Undo reverts the environment and saves it", bool(undone) and len(saved) == 2 and saved[-1].get("author") == "local-expert", str([d.get("author") for d in saved]))
+        check("assistant: no console errors", not st.errors, str(st.errors[:2]))
+    finally:
+        page.context.close()
+
+
 def main() -> int:
     args = parse_args()
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
-        for fn in (t_sensor, t_drone, t_satellite, t_text, t_agent_panels):
+        for fn in (t_sensor, t_drone, t_satellite, t_text, t_agent_panels, t_assistant_loop):
             try:
                 fn(browser, args.port)
             except Exception as e:  # noqa: BLE001 — report and keep going

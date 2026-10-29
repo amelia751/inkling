@@ -1,6 +1,4 @@
 [
-  "modules/image2d",
-
   "modules/volume",
 
   "modules/timeseries",
@@ -9,7 +7,5 @@
 
   "modules/cine",
 
-  "modules/wsi",
-
-  "modules/dicom-export"
+  "modules/wsi"
 ]

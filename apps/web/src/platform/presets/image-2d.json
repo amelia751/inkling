@@ -48,6 +48,9 @@
       ],
       "right": [
         "inkling.core.panels.ai"
+      ],
+      "viewport-bar": [
+        "inkling.image2d.panels.viewControls"
       ]
     },
     "reviewRules": [

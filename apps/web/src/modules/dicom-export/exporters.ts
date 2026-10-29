@@ -1,5 +1,5 @@
 import { useStudio } from "@/stores/studio";
-import type { ExportContext, Exporter } from "@/viewers/ViewerAdapter";
+import type { ExportContext, Exporter } from "@/platform/module";
 
 /**
  * DICOM SEG / SR exporters shared by the 2D and 3D adapters. Pure wrapper: the heavy

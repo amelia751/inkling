@@ -162,7 +162,7 @@ function VideoHost({ project, item, runtime }: RendererProps) {
           onAuxClick={(e) => e.preventDefault()}
           data-testid="video-overlay"
         />
-        {!engine.ready && !s.error && <CanvasNotice>Loading video…</CanvasNotice>}
+        {!engine.ready && !s.error && <CanvasNotice loading>Loading video…</CanvasNotice>}
         {s.error && <CanvasNotice>{s.error}</CanvasNotice>}
         <ModeBar perFrame={perFrame} onPerFrame={(v) => setPerFrame((perFrameDefault = v))} mode={mode} fallbackReason={s.fallbackReason} />
         <ViewBar scale={camera.scale} zoomBy={(f) => vp.zoomAt(f)} fit={vp.fit} actualSize={vp.actualSize} adjust={adjust} onAdjust={setAdjust} />

@@ -1,4 +1,5 @@
-import { CardiacIcon as HeartPulse, SpinnerIcon as Loader2 } from "@/components/icons";
+import { CardiacIcon as HeartPulse } from "@/components/icons";
+import { Spinner } from "@/components/ui/spinner";
 import { BarPick, BarSegmented, BarToggle } from "@/kits/viewport-chrome/controls";
 import { cn } from "@/lib/utils";
 import type { Code, StripChartConfig } from "../config";
@@ -111,7 +112,7 @@ export function DisplayBar(p: {
         className={cn("tnum flex items-center gap-1 rounded px-1.5 py-0.5", filtersOn ? "bg-chart-4/20 text-chart-4" : "bg-white/5 text-canvas-foreground/50")}
         title="Display filters are zero-phase and never change the stored time axis or annotations"
       >
-        {p.filterPending && <Loader2 className="h-3 w-3 animate-spin" />}
+        {p.filterPending && <Spinner className="size-3 text-current" />}
         {filtersOn ? `Filtered ${filterText(filters)}` : "Unfiltered"}
       </span>
       {p.canDetect && (
@@ -119,10 +120,11 @@ export function DisplayBar(p: {
           <button
             onClick={p.onDetect}
             disabled={p.detecting}
-            className="flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 hover:bg-white/15 disabled:opacity-50"
+            className={cn("flex items-center gap-1 rounded-md bg-white/10 px-2 py-0.5 hover:bg-white/15 disabled:opacity-50", p.detecting && "loading-stripes bg-transparent [--stripe-a:rgb(255_255_255/0.15)] [--stripe-b:rgb(255_255_255/0.08)] disabled:opacity-100")}
+            aria-busy={p.detecting || undefined}
             title={`Pan–Tompkins R-peak detection on ${cfg.channelNoun} ${detectLead}; results are AI suggestions to review`}
           >
-            {p.detecting ? <Loader2 className="h-3 w-3 animate-spin" /> : <HeartPulse className="h-3 w-3" />} Detect beats
+            <HeartPulse className="h-3 w-3" /> {p.detecting ? "Detecting…" : "Detect beats"}
           </button>
         </div>
       )}

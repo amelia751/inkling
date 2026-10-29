@@ -249,7 +249,7 @@ export default function CanvasRasterHost({ project, item, runtime }: RendererPro
         onContextMenu={(e) => e.preventDefault()}
       />
       {image && <CornerText tl={<div>{item.name}</div>} tr={<div>Zoom {zoom}%</div>} br={<div>{image.naturalWidth}×{image.naturalHeight} px</div>} />}
-      {!image && !error && <CanvasNotice>Loading image…</CanvasNotice>}
+      {!image && !error && <CanvasNotice loading>Loading image…</CanvasNotice>}
       {error && <CanvasNotice>{error}</CanvasNotice>}
     </div>
   );

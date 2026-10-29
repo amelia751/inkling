@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { Loader } from "@/components/ui/loader";
 import { fetchAnnotations, fetchProjects } from "@/lib/api";
 
 export function useProjects() {
@@ -21,7 +21,7 @@ export function useSavedAnnotations(id: string, enabled = true) {
 export function FullPageMessage({ title, body, loading = false }: { title: string; body?: string; loading?: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-      {loading && <Spinner className="mb-1 size-5 text-muted-foreground" />}
+      {loading && <Loader className="mb-2" />}
       <h1 className="text-body-2 font-semibold">{title}</h1>
       {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}
       {!loading && (

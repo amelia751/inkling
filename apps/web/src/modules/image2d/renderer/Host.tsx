@@ -190,9 +190,9 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
         )}
         <TextPrompt request={prompt} onDone={() => setPrompt(null)} />
         <Loupe root={containerRef.current} enabled={magnify && ready} />
-        {engine?.status === "loading" && <CanvasNotice>Loading image…</CanvasNotice>}
+        {engine?.status === "loading" && <CanvasNotice loading>Loading image…</CanvasNotice>}
         {engine?.status === "error" && <CanvasNotice>{engine.error}</CanvasNotice>}
-        {!engine && <CanvasNotice>Loading image…</CanvasNotice>}
+        {!engine && <CanvasNotice loading>Loading image…</CanvasNotice>}
       </div>
     </div>
   );

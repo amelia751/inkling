@@ -528,7 +528,7 @@ export function StripChartHost({ env, item, config, runtime }: RendererProps) {
               onClose={() => setMenu(null)}
             />
           )}
-          {!rec && !error && <CanvasNotice>Loading recording…</CanvasNotice>}
+          {!rec && !error && <CanvasNotice loading>Loading recording…</CanvasNotice>}
           {error && <CanvasNotice>{error}</CanvasNotice>}
         </div>
         <div ref={ov.containerRef} className="relative h-10 shrink-0 border-t border-white/10">

@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SpinnerIcon, SidebarIcon, AiIcon } from "@/components/icons";
+import { Spinner } from "@/components/ui/spinner";
+import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon } from "@/components/icons";
 import { DatasetSwitcher } from "@/components/layout/dataset-switcher";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -159,7 +160,7 @@ function SaveIndicator({ onRetry }: { onRetry: () => void }) {
   if (saveState === "saving") {
     return (
       <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="status">
-        <SpinnerIcon className="size-4 animate-spin" /> <span className="hidden @[640px]:inline">Saving…</span>
+        <Spinner /> <span className="hidden @[640px]:inline">Saving…</span>
       </span>
     );
   }

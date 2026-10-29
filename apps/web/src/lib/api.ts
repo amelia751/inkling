@@ -69,6 +69,7 @@ export const MIGRATED_V1_TYPES = new Set<string>([
   // modules/video (segment, event → span / instant):
 
   // modules/cine (phase → instant):
+  "phase",
 
 ]);
 

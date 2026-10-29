@@ -7,8 +7,6 @@
 
   "modules/video",
 
-  "modules/cine",
-
   "modules/wsi",
 
   "modules/dicom-export"

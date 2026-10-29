@@ -13,40 +13,44 @@ import {
 } from "@/kits/overlay2d/geometry";
 
 /**
- * Pure cine-MRI model: contour geometry, ACDC label maps, ventricular volumes and
- * function. Shared by the viewer, the selection inspector and the exporters.
+ * Pure slice × frame model: contour geometry, label maps, per-structure areas and slice
+ * coverage per frame, and key frames (phases). Shared by the renderer, the inspector, the
+ * exporters and (through public.ts) modules such as inkling.cardiac-metrics.
  *
- * Myocardium rule: a "myocardium" contour that encloses a "left ventricle" contour on the
- * same slice and frame is an epicardial border; the myocardium is then epi − LV endo.
- * A myocardium contour that encloses no LV contour is the myocardium region itself.
+ * Structures are configured, never guessed from label text: `structures` maps the roles
+ * rv / myo / lv to label ids (renderer config, set by preset:cine-4d). With none
+ * configured the module still works for any slice × frame data.
+ *
+ * Enclosure rule: a `myo` contour that encloses an `lv` contour on the same slice and
+ * frame is an outer (epicardial) border; its region is then outer − inner. A `myo`
+ * contour that encloses no `lv` contour is the region itself.
  */
 
 export type ContourGeometry = Extract<Geometry, { type: "spline" | "polygon" }>;
 export type MaskGeometry = Extract<Geometry, { type: "mask" }>;
-export type PhaseGeometry = Extract<Geometry, { type: "phase" }>;
+export type InstantGeometry = Extract<Geometry, { type: "instant" }>;
 export type ContourAnn = Annotation & { geometry: ContourGeometry };
 export type MaskAnn = Annotation & { geometry: MaskGeometry };
-export type PhaseAnn = Annotation & { geometry: PhaseGeometry };
+/** A key-frame marker: core `instant` with `attributes: { kind: "phase", phase }`. */
+export type PhaseAnn = Annotation & { geometry: InstantGeometry & { frame: number }; attributes: { kind: "phase"; phase: string } };
 
 export type StructKey = "rv" | "myo" | "lv";
 export const STRUCT_KEYS: StructKey[] = ["rv", "myo", "lv"];
 export const STRUCT_SHORT: Record<StructKey, string> = { rv: "RV", myo: "MYO", lv: "LV" };
-/** Myocardial tissue density used for LV mass. */
-export const MYO_DENSITY = 1.05;
+/** Structure role → label id (from config; missing roles are undefined). */
+export type Structures = Record<StructKey, string | undefined>;
 
 export const isContour = (a: Annotation): a is ContourAnn =>
   (a.geometry.type === "spline" || a.geometry.type === "polygon") && a.geometry.frame !== undefined && a.geometry.slice !== undefined;
 export const isMask = (a: Annotation): a is MaskAnn => a.geometry.type === "mask" && a.geometry.frame !== undefined && a.geometry.slice !== undefined;
-export const isPhase = (a: Annotation): a is PhaseAnn => a.geometry.type === "phase";
+export const isPhase = (a: Annotation): a is PhaseAnn =>
+  a.geometry.type === "instant" && a.geometry.frame !== undefined && a.attributes?.kind === "phase" && typeof a.attributes.phase === "string";
 
-/** Map structures to the project's label names (ACDC order: RV, MYO, LV). */
-export function structures(labels: string[]): Record<StructKey, string | undefined> {
-  const find = (re: RegExp, i: number) => labels.find((l) => re.test(l)) ?? labels[i];
-  return { rv: find(/right ventricle|^rv\b/i, 0), myo: find(/myocard|^myo/i, 1), lv: find(/left ventricle|^lv\b/i, 2) };
-}
-
-/** ACDC label value for a label name: its index + 1 in the project's label list. */
+/** Label value in label maps: its index + 1 in the environment's label list. */
 export const labelValue = (labels: string[], label: string) => labels.indexOf(label) + 1;
+
+/** Structure role of a label, if it has one. */
+export const structureOf = (structs: Structures, label: string): StructKey | undefined => STRUCT_KEYS.find((k) => structs[k] === label);
 
 export interface Grid {
   nx: number;
@@ -130,12 +134,19 @@ export function groupCells(annotations: Annotation[], itemId: string): Map<strin
   return cells;
 }
 
-/** ACDC label map (uint8, nx·ny) of one cell: RV, then MYO, then LV painted on top. */
-export function cellLabelMap(cell: Cell, labels: string[], nx: number, ny: number, out = new Uint8Array(nx * ny)): Uint8Array {
-  const s = structures(labels);
-  for (const key of STRUCT_KEYS) {
-    const name = s[key];
-    if (!name) continue;
+/**
+ * Paint order for label maps: labels without a structure role first (in label order), then
+ * RV, MYO and LV, so an LV cavity painted last carves the myocardium ring out of its
+ * epicardium. Value = label index + 1 (ACDC style for the seed labels: 1 RV, 2 MYO, 3 LV).
+ */
+export function paintOrder(labels: string[], structs: Structures): string[] {
+  const roles = STRUCT_KEYS.map((k) => structs[k]).filter((l): l is string => !!l && labels.includes(l));
+  return [...labels.filter((l) => !roles.includes(l)), ...roles];
+}
+
+/** Label map (uint8, nx·ny) of one cell, painted in `paintOrder`. */
+export function cellLabelMap(cell: Cell, labels: string[], structs: Structures, nx: number, ny: number, out = new Uint8Array(nx * ny)): Uint8Array {
+  for (const name of paintOrder(labels, structs)) {
     const v = labelValue(labels, name);
     for (const c of cell.contours) if (c.label === name && c.geometry.points.length >= 3) rasterizePolygon([ring(c.geometry)], nx, ny, out, v);
     for (const m of cell.masks) if (m.label === name) rleDecode(m.geometry.counts, nx * ny, out, v);
@@ -144,12 +155,12 @@ export function cellLabelMap(cell: Cell, labels: string[], nx: number, ny: numbe
 }
 
 /** Areas in mm² per structure for one cell. Analytic for contours; pixel counts once masks are involved. */
-export function cellAreas(cell: Cell, labels: string[], grid: Grid): Record<StructKey, number> {
-  const s = structures(labels);
+export function cellAreas(cell: Cell, labels: string[], structs: Structures, grid: Grid): Record<StructKey, number> {
+  const s = structs;
   const px = grid.spacing[0] * grid.spacing[1];
   const out: Record<StructKey, number> = { rv: 0, myo: 0, lv: 0 };
   if (cell.masks.length) {
-    const map = cellLabelMap(cell, labels, grid.nx, grid.ny);
+    const map = cellLabelMap(cell, labels, structs, grid.nx, grid.ny);
     const vals = STRUCT_KEYS.map((k) => (s[k] ? labelValue(labels, s[k]!) : -1));
     for (let i = 0; i < map.length; i++) {
       const v = map[i];
@@ -169,7 +180,7 @@ export function cellAreas(cell: Cell, labels: string[], grid: Grid): Record<Stru
   return out;
 }
 
-// ---------- ED / ES ----------
+// ---------- key frames (phases) ----------
 
 export interface PhaseMark {
   frame: number;
@@ -177,19 +188,41 @@ export interface PhaseMark {
   id?: string;
 }
 
-export function resolvePhases(annotations: Annotation[], itemId: string, assets: SeedAsset[], meta?: Project["meta"]) {
-  const pick = (phase: "ED" | "ES"): PhaseMark | null => {
-    const marked = annotations.find((a): a is PhaseAnn => a.itemId === itemId && isPhase(a) && a.geometry.phase === phase);
+/**
+ * Frame of each key frame id (e.g. ED, ES): a marked `instant` (attributes.phase) wins, then
+ * a reference asset tagged with that phase, then `meta[<id lowercased>]`.
+ */
+export function resolvePhases(annotations: Annotation[], itemId: string, assets: SeedAsset[], meta: Project["meta"] | undefined, ids: string[]): Record<string, PhaseMark | null> {
+  const pick = (phase: string): PhaseMark | null => {
+    const marked = annotations.find((a): a is PhaseAnn => a.itemId === itemId && isPhase(a) && a.attributes.phase === phase);
     if (marked) return { frame: marked.geometry.frame, source: "marked", id: marked.id };
     const ref = assets.find((a) => a.role === "reference" && a.phase === phase && a.frame !== undefined);
     if (ref) return { frame: ref.frame!, source: "reference" };
     const m = meta?.[phase.toLowerCase()];
     return typeof m === "number" ? { frame: m, source: "meta" } : null;
   };
-  return { ed: pick("ED"), es: pick("ES") };
+  return Object.fromEntries(ids.map((id) => [id, pick(id)]));
 }
 
-// ---------- metrics ----------
+/** Core geometry of a key-frame marker. */
+export const phaseAnnotation = (phase: string, frame: number) => ({ geometry: { type: "instant" as const, frame }, attributes: { kind: "phase", phase } });
+
+/**
+ * Store ops that set key frames (one undo step): existing markers move, missing ones are
+ * created with `newAnn` (the caller supplies label and provenance).
+ */
+export function phaseOps(annotations: Annotation[], itemId: string, frames: Record<string, number>, newAnn: (init: ReturnType<typeof phaseAnnotation>) => Annotation) {
+  const ops = { update: [] as { id: string; patch: Partial<Annotation> }[], upsert: [] as Annotation[] };
+  for (const [phase, frame] of Object.entries(frames)) {
+    const init = phaseAnnotation(phase, frame);
+    const existing = annotations.find((a) => a.itemId === itemId && isPhase(a) && a.attributes.phase === phase);
+    if (existing) ops.update.push({ id: existing.id, patch: { geometry: init.geometry } });
+    else ops.upsert.push(newAnn(init));
+  }
+  return ops;
+}
+
+// ---------- slice coverage per frame ----------
 
 export type Completeness = "empty" | "partial" | "complete";
 
@@ -197,38 +230,16 @@ export interface FrameMetrics {
   frame: number;
   /** slice → mm² per structure (only slices with any annotation). */
   areas: Map<number, Record<StructKey, number>>;
-  /** mL per structure, null if nothing contoured. */
+  /** mL per structure (Σ area × slice spacing), null if nothing contoured. */
   volume: Record<StructKey, number | null>;
   status: Record<StructKey, Completeness>;
   /** Slices that look missing for each structure (gaps, or present in the reference). */
   missing: Record<StructKey, number[]>;
 }
 
-export interface FunctionMetrics {
-  edv: number | null;
-  esv: number | null;
-  sv: number | null;
-  ef: number | null;
-}
-
-export interface CineMetrics {
-  frames: FrameMetrics[];
-  ed: number | null;
-  es: number | null;
-  lv: FunctionMetrics;
-  rv: FunctionMetrics;
-  /** LV mass at ED (g) = MYO volume × 1.05. */
-  mass: number | null;
-  massEs: number | null;
-  bsa: number | null;
-  warnings: string[];
-  /** Frame with the largest / smallest LV volume, once ≥ 2 frames have LV contours. */
-  suggested: { ed: number; es: number } | null;
-}
-
 /** Slices that contain each structure in a reference label volume (for completeness). */
-export function referenceSlices(ref: { data: ArrayLike<number> }, labels: string[], grid: Grid): Record<StructKey, Set<number>> {
-  const s = structures(labels);
+export function referenceSlices(ref: { data: ArrayLike<number> }, labels: string[], structs: Structures, grid: Grid): Record<StructKey, Set<number>> {
+  const s = structs;
   const out: Record<StructKey, Set<number>> = { rv: new Set(), myo: new Set(), lv: new Set() };
   const n = grid.nx * grid.ny;
   for (let z = 0; z < grid.nz; z++) {
@@ -238,27 +249,23 @@ export function referenceSlices(ref: { data: ArrayLike<number> }, labels: string
       for (const k of STRUCT_KEYS) if (s[k] && labelValue(labels, s[k]!) === v) out[k].add(z);
     }
   }
-  // ACDC myocardium is a ring around the LV cavity: an LV slice also needs an epicardium.
   return out;
 }
 
-export function mosteller(heightCm: number | null | undefined, weightKg: number | null | undefined): number | null {
-  if (!heightCm || !weightKg) return null;
-  return Math.sqrt((heightCm * weightKg) / 3600);
-}
-
-export function computeMetrics(opts: {
+/**
+ * Per frame: areas per slice, volumes and how completely each structure covers the
+ * slices (gaps, slices present in the reference, or far fewer slices than other frames).
+ */
+export function frameCoverage(opts: {
   annotations: Annotation[];
   itemId: string;
   labels: string[];
+  structures: Structures;
   grid: Grid;
-  ed: number | null;
-  es: number | null;
-  bsa: number | null;
   /** Reference structure slices per frame, when a reference segmentation exists there. */
   refSlices?: Map<number, Record<StructKey, Set<number>>>;
-}): CineMetrics {
-  const { grid, labels } = opts;
+}): FrameMetrics[] {
+  const { grid, labels, structures: structs } = opts;
   const cells = groupCells(opts.annotations, opts.itemId);
   const frames: FrameMetrics[] = [];
   // Most slices each structure covers in any frame: a frame covering far fewer is incomplete.
@@ -267,7 +274,7 @@ export function computeMetrics(opts: {
     const perFrame = new Map<number, Record<StructKey, number>>();
     for (const [key, c] of cells) {
       const f = +key.split(":")[1];
-      const a = cellAreas(c, labels, grid);
+      const a = cellAreas(c, labels, structs, grid);
       const n = perFrame.get(f) ?? { rv: 0, myo: 0, lv: 0 };
       for (const k of STRUCT_KEYS) if (a[k] > 0) n[k]++;
       perFrame.set(f, n);
@@ -278,7 +285,7 @@ export function computeMetrics(opts: {
     const areas = new Map<number, Record<StructKey, number>>();
     for (let z = 0; z < grid.nz; z++) {
       const c = cells.get(cellKey(z, f));
-      if (c) areas.set(z, cellAreas(c, labels, grid));
+      if (c) areas.set(z, cellAreas(c, labels, structs, grid));
     }
     const volume = { rv: null, myo: null, lv: null } as Record<StructKey, number | null>;
     const status = { rv: "empty", myo: "empty", lv: "empty" } as Record<StructKey, Completeness>;
@@ -298,81 +305,7 @@ export function computeMetrics(opts: {
     }
     frames.push({ frame: f, areas, volume, status, missing });
   }
-
-  const fn = (k: StructKey): FunctionMetrics => {
-    const edv = opts.ed !== null ? frames[opts.ed]?.volume[k] ?? null : null;
-    const esv = opts.es !== null ? frames[opts.es]?.volume[k] ?? null : null;
-    const sv = edv !== null && esv !== null ? edv - esv : null;
-    return { edv, esv, sv, ef: sv !== null && edv ? (sv / edv) * 100 : null };
-  };
-  const lv = fn("lv"), rv = fn("rv");
-  const myoAt = (f: number | null) => (f !== null ? frames[f]?.volume.myo ?? null : null);
-  const massOf = (v: number | null) => (v !== null ? v * MYO_DENSITY : null);
-
-  const warnings: string[] = [];
-  if (opts.ed === null || opts.es === null) warnings.push("Mark both ED and ES frames to compute function.");
-  for (const [name, f] of [["ED", opts.ed], ["ES", opts.es]] as const) {
-    if (f === null) continue;
-    for (const k of ["lv", "rv"] as StructKey[]) {
-      const fm = frames[f];
-      if (!fm) continue;
-      if (fm.status[k] === "empty") warnings.push(`${STRUCT_SHORT[k]} not contoured at ${name} (frame ${f + 1}).`);
-      else if (fm.status[k] === "partial" && !fm.missing[k].length)
-        warnings.push(`${STRUCT_SHORT[k]} at ${name} covers fewer slices than other frames: values are provisional.`);
-      else if (fm.status[k] === "partial")
-        warnings.push(`${STRUCT_SHORT[k]} at ${name} is missing slice${fm.missing[k].length > 1 ? "s" : ""} ${fm.missing[k].map((z) => z + 1).join(", ")}: values are provisional.`);
-    }
-  }
-  if (lv.sv !== null && rv.sv !== null && Math.max(lv.sv, rv.sv) > 0) {
-    const diff = Math.abs(lv.sv - rv.sv);
-    if (diff > 10 && diff / Math.max(lv.sv, rv.sv) > 0.1)
-      warnings.push(`LV SV ${lv.sv.toFixed(0)} mL vs RV SV ${rv.sv.toFixed(0)} mL differ by ${diff.toFixed(0)} mL (check basal slices or valve disease).`);
-  }
-
-  const lvFrames = frames.filter((f) => f.volume.lv !== null && f.status.lv === "complete");
-  let suggested: CineMetrics["suggested"] = null;
-  if (lvFrames.length >= 2) {
-    const max = lvFrames.reduce((a, b) => (b.volume.lv! > a.volume.lv! ? b : a));
-    const min = lvFrames.reduce((a, b) => (b.volume.lv! < a.volume.lv! ? b : a));
-    if (max.frame !== min.frame) suggested = { ed: max.frame, es: min.frame };
-  }
-
-  return { frames, ed: opts.ed, es: opts.es, lv, rv, mass: massOf(myoAt(opts.ed)), massEs: massOf(myoAt(opts.es)), bsa: opts.bsa, warnings, suggested };
-}
-
-// ---------- QA ----------
-
-export interface DiceRow {
-  slice: number;
-  dice: Record<StructKey, number | null>;
-}
-
-/** Per-slice Dice between the user's label map and a reference label volume, on slices the user annotated. */
-export function diceVsReference(cells: Map<string, Cell>, frame: number, ref: ArrayLike<number>, labels: string[], grid: Grid): DiceRow[] {
-  const s = structures(labels);
-  const n = grid.nx * grid.ny;
-  const rows: DiceRow[] = [];
-  for (let z = 0; z < grid.nz; z++) {
-    const cell = cells.get(cellKey(z, frame));
-    if (!cell) continue;
-    const mine = cellLabelMap(cell, labels, grid.nx, grid.ny);
-    const dice = { rv: null, myo: null, lv: null } as Record<StructKey, number | null>;
-    for (const k of STRUCT_KEYS) {
-      if (!s[k]) continue;
-      const v = labelValue(labels, s[k]!);
-      let a = 0, b = 0, both = 0;
-      for (let i = 0; i < n; i++) {
-        const x = mine[i] === v, y = ref[z * n + i] === v;
-        if (x) a++;
-        if (y) b++;
-        if (x && y) both++;
-      }
-      // Only score structures the user drew on this slice.
-      if (a) dice[k] = (2 * both) / (a + b);
-    }
-    rows.push({ slice: z, dice });
-  }
-  return rows;
+  return frames;
 }
 
 // ---------- contour construction ----------
@@ -497,6 +430,3 @@ export function maskToControlPoints(mask: Uint8Array, nx: number, ny: number): P
   if (pts.length < 8) pts = resample(boundary, 8);
   return pts.map(([x, y]) => [+x.toFixed(2), +y.toFixed(2)] as Pt);
 }
-
-/** Grids of cines the viewer has decoded, so the selection inspector can report mm. */
-export const knownGrids = new Map<string, Grid>();

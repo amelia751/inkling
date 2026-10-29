@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import type { Volume } from "@/kits/io/nifti";
 
 export type Rgb = [number, number, number];
@@ -105,55 +104,4 @@ export function renderThumb(vol: Volume, slice: number, frame: number, lo: numbe
     }
   }
   ctx.putImageData(img, 0, 0);
-}
-
-export type PlayMode = "loop" | "bounce";
-
-/**
- * requestAnimationFrame cine loop. Advances whole frames at `fps`, inside [from, to]
- * (inclusive), either wrapping or bouncing at the ends.
- */
-export function useCinePlayback(opts: {
-  playing: boolean;
-  fps: number;
-  mode: PlayMode;
-  from: number;
-  to: number;
-  setFrame: (fn: (f: number) => number) => void;
-}) {
-  const { playing, fps, mode, from, to, setFrame } = opts;
-  const dir = useRef(1);
-  useEffect(() => {
-    if (!playing || to <= from) return;
-    let raf = 0;
-    let last = performance.now();
-    let acc = 0;
-    const tick = (now: number) => {
-      acc += now - last;
-      last = now;
-      const period = 1000 / fps;
-      let steps = 0;
-      while (acc >= period && steps < 4) {
-        acc -= period;
-        steps++;
-      }
-      if (acc > period) acc = 0; // tab was hidden; don't fast-forward
-      if (steps) {
-        setFrame((f) => {
-          let x = f < from || f > to ? from : f;
-          for (let s = 0; s < steps; s++) {
-            if (mode === "loop") x = x >= to ? from : x + 1;
-            else {
-              if (x + dir.current > to || x + dir.current < from) dir.current = -dir.current;
-              x += dir.current;
-            }
-          }
-          return x;
-        });
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playing, fps, mode, from, to, setFrame]);
 }

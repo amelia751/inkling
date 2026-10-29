@@ -77,7 +77,7 @@ class Cine:
 
     def dense(self, a: dict) -> list[list[float]]:
         return self.page.evaluate(
-            "async (g) => (await import('/src/viewers/cine4d/model.ts')).ring(g)", a["geometry"]
+            "async (g) => (await import('/src/modules/cine/model.ts')).ring(g)", a["geometry"]
         )
 
     # ---- input ----
@@ -453,7 +453,7 @@ def t_playback(c: Cine):
 
 
 def phase(c: Cine, p: str):
-    a = c.anns(f"a => a.geometry.type === 'phase' && a.geometry.phase === '{p}'")
+    a = c.anns(f"a => a.geometry.type === 'instant' && a.attributes?.kind === 'phase' && a.attributes?.phase === '{p}'")
     return a[0]["geometry"]["frame"] if a else None
 
 
@@ -463,14 +463,14 @@ def t_phases_and_suggestion(c: Cine):
     c.goto(SLICE, 6)
     c.button("Set ES").click()
     assert phase(c, "ED") == 4 and phase(c, "ES") == 6
-    assert len(c.anns("a => a.geometry.type === 'phase'")) == 2
+    assert len(c.anns("a => a.geometry.type === 'instant' && a.attributes?.kind === 'phase'")) == 2
     text = c.aside()
     assert "LV curve suggests ED 1, ES 13" in text, text
     before = c.past()
     c.button("Apply").click()
     assert phase(c, "ED") == 0 and phase(c, "ES") == 12
     assert c.past() == before + 1, "Apply should be one undo step"
-    assert len(c.anns("a => a.geometry.type === 'phase'")) == 2
+    assert len(c.anns("a => a.geometry.type === 'instant' && a.attributes?.kind === 'phase'")) == 2
     c.shot("08_phases_applied")
 
 
@@ -507,9 +507,9 @@ def t_interpolate(c: Cine):
     exp = [f for f in range(1, 30) if f not in have and f != 12]
     assert sorted(a["geometry"]["frame"] for a in created) == exp, (len(created), len(exp))
     # The area of a wrapped contour lies between ES and ED.
-    areas = {a["geometry"]["frame"]: c.page.evaluate("async g => (await import('/src/viewers/cine4d/model.ts')).ringArea(g)", a["geometry"]) for a in created}
-    ed = c.page.evaluate("async g => (await import('/src/viewers/cine4d/model.ts')).ringArea(g)", c.cell(SLICE, 0, LV, "contour")[0]["geometry"])
-    es = c.page.evaluate("async g => (await import('/src/viewers/cine4d/model.ts')).ringArea(g)", c.cell(SLICE, 12, LV, "contour")[0]["geometry"])
+    areas = {a["geometry"]["frame"]: c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", a["geometry"]) for a in created}
+    ed = c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", c.cell(SLICE, 0, LV, "contour")[0]["geometry"])
+    es = c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", c.cell(SLICE, 12, LV, "contour")[0]["geometry"])
     assert es < areas[20] < ed and areas[13] < areas[29], (es, areas[13], areas[20], areas[29], ed)
     c.key("Meta+z")
     c.button("wrap").click()
@@ -589,7 +589,8 @@ def t_multiselect(c: Cine):
 def b64(c: Cine, exporter_id: str) -> bytes:
     data = c.page.evaluate(
         """async (id) => {
-          const ex = (await import('/src/viewers/cine4d/exporters.ts')).cineExporters.find((e) => e.id === id);
+          const { registry } = await import('/src/platform/registry.ts');
+          const ex = await registry.loadImpl(id);
           const { projectItems } = await import('/src/lib/items.ts');
           const { useStudio } = await import('/src/stores/studio.ts');
           const manifest = await (await fetch('/seed/manifest.json')).json();
@@ -605,7 +606,7 @@ def b64(c: Cine, exporter_id: str) -> bytes:
 
 
 def t_exporters(c: Cine):
-    nii, name = b64(c, "acdc-nifti")
+    nii, name = b64(c, "inkling.cine.exporters.acdc-nifti")
     assert name == "4d-cardiac_labels.nii.gz"
     path = OUT / name
     path.write_bytes(nii)
@@ -641,14 +642,14 @@ print('nifti ok', img.shape, [int((d[..., 0] == v).sum()) for v in (1, 2, 3)])
     assert check.returncode == 0, check.stderr[-2000:]
     print("   ", check.stdout.strip())
 
-    csv, name = b64(c, "cine-metrics-csv")
+    csv, name = b64(c, "inkling.cardiac-metrics.exporters.function-csv")
     (OUT / name).write_bytes(csv)
     text = csv.decode()
     assert text.startswith("section,item,frame,phase,slice,rv_area_mm2,myo_area_mm2,lv_area_mm2")
     assert re.search(r"^LV EF,70\.\d,%$", text, re.M) and re.search(r"^RV EF,49\.\d,%$", text, re.M), text[-800:]
     assert re.search(r"^LV mass \(ED\),78\.\d\d,g$", text, re.M) and "BSA (Mosteller),1.803,m2" in text
 
-    js, name = b64(c, "cine-contours-json")
+    js, name = b64(c, "inkling.cine.exporters.cine-contours-json")
     (OUT / name).write_bytes(js)
     doc = json.loads(js)
     contours = [a for a in c.anns() if a["geometry"]["type"] in ("spline", "polygon")]

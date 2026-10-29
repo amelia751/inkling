@@ -370,13 +370,14 @@ The order runs from the cleanest to the most entangled. After each conversion, r
 - [ ] Split `VideoViewer.tsx` (1,108 lines) into `renderer/VideoEngine.ts` (frame source, playback clock) and `renderer/Host.tsx`, under 250 lines.
 
 ### 6.4 `signal` to `modules/timeseries/` (rename: ECG is a preset, not the module)
-- [ ] dataKind `multichannel-timeseries` with readers `wfdb` (now), `csv` and `edf` (later). Renderer `strip-chart`, with configSchema `{ layout: "stacked"|"12lead"|"3x4"…, paperSpeed, gain, grid: "ecg"|"plain", filters }`. ECG paper is a config value, not code.
-- [ ] Geometries: core `span`/`instant` with `channel`. The ECG vocabulary (`codes.ts`: beat codes, rhythms, SNOMED) moves to `presets/ecg/vocabulary.json`, referenced by the label groups, so a non-ECG timeseries uses the same module with different classes.
-- [ ] `dsp.ts`, `dsp.worker.ts`, `dspClient.ts` and `measure.ts` stay in the module. Pan–Tompkins becomes a command `inkling.timeseries.detectBeats` flagged `ecg` in config, and marks results `ai-suggested`.
-- [ ] Move `SidePanel.tsx` to `panels/measurements.tsx` (slot `right`). `CalibrateDialog` becomes a command.
-- [ ] `cachedInfo` (`record.ts:34`) becomes `runtime.signalInfo`.
-- [ ] Move the suggestion-review keybindings (Tab, Enter, Delete) to `inkling.core` as generic "AI suggestion review" commands with `when: "selection.provenance == ai-suggested"`. They're useful for every module.
-- [ ] Split `SignalViewer.tsx` (1,067 lines) into `renderer/StripChartEngine.ts`, `renderer/Host.tsx` and the panels.
+- [x] dataKind `multichannel-timeseries` with readers `wfdb` (now), `csv` and `edf` (later). Renderer `strip-chart`, with configSchema `{ layout: "stacked"|"12lead"|"3x4"…, paperSpeed, gain, grid: "ecg"|"plain", filters }`. ECG paper is a config value, not code.
+- [x] Geometries: core `span`/`instant` with `channel`. The ECG vocabulary (`codes.ts`: beat codes, rhythms, SNOMED) moves to `presets/ecg/vocabulary.json`, referenced by the label groups, so a non-ECG timeseries uses the same module with different classes.
+- [x] `dsp.ts`, `dsp.worker.ts`, `dspClient.ts` and `measure.ts` stay in the module. Pan–Tompkins becomes a command `inkling.timeseries.detectBeats` flagged `ecg` in config, and marks results `ai-suggested`.
+- [x] Move `SidePanel.tsx` to `panels/measurements.tsx` (slot `right`). `CalibrateDialog` becomes a command.
+- [x] `cachedInfo` (`record.ts:34`) becomes `runtime.signalInfo`.
+- [x] Move the suggestion-review keybindings (Tab, Enter, Delete) to `inkling.core` as generic "AI suggestion review" commands with `when: "selection.provenance == ai-suggested"`. They're useful for every module.
+- [x] Split `SignalViewer.tsx` (1,067 lines) into `renderer/StripChartEngine.ts`, `renderer/Host.tsx` and the panels.
+  _(done: vocabulary is preset:ecg config (`instantCodes`, `trackCodes`, `waves`, `channelOrder`…) plus a `statements` Choices group with `multiple: true`; label groups now merge by name across `extends`; readers `wfdb` + `csv`, EDF is the next extension point; exports proven byte-identical by `exporters.test.ts`)_
 
 ### 6.5 `volume3d` to `modules/volume/`
 - [ ] dataKind `volume` (NIfTI, DICOM series). Renderer `cornerstone-mpr` (`space: "volume"`, capabilities `["slices","planes","crosshairs"]`), with config for the 1×3, 2×2 and 1+3D layouts.

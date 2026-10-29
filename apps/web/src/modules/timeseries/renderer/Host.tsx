@@ -5,7 +5,7 @@ import { useCommands } from "@/platform/commands";
 import { labelNames } from "@/platform/environment";
 import { matches } from "@/platform/keys";
 import type { RendererProps } from "@/platform/module";
-import { isEditable, useStudio, visibleFor } from "@/stores/studio";
+import { isEditable, useStudio, useToolOption, visibleFor } from "@/stores/studio";
 import type { Annotation } from "@/types";
 import { useScreenScale } from "../calibration";
 import { parseStripConfig, TIMESERIES, type StripChartConfig } from "../config";
@@ -98,8 +98,6 @@ export function StripChartHost({ env, item, config, runtime }: RendererProps) {
   const [windowSec, setWindowSec] = useState(10);
   const [offset, setOffset] = useState(0);
   const [filtered, setFiltered] = useState<{ key: string; leads: Record<string, Float32Array> } | null>(null);
-  const [instantCode, setInstantCode] = useState(cfg.instantCodes[0]?.id ?? "");
-  const [trackCode, setTrackCode] = useState(cfg.trackCodes[0]?.id ?? "");
   const [caliper, setCaliper] = useState<Omit<Caliper, "readout"> | null>(null);
   const [menu, setMenu] = useState<{ lead: string; x: number; y: number } | null>(null);
   const [detecting, setDetecting] = useState(false);
@@ -117,6 +115,12 @@ export function StripChartHost({ env, item, config, runtime }: RendererProps) {
   const overlayOpacity = useStudio((s) => s.overlayOpacity);
   const setViewerStatus = useStudio((s) => s.setViewerStatus);
   const screen = useScreenScale();
+  // The code new instants / track spans get: the beat and rhythm tools' `code` option, else the vocabulary's first.
+  const pick = (codes: StripChartConfig["instantCodes"], v: string) => (codes.some((c) => c.id === v) || !codes.length ? v : codes[0].id);
+  const instantCode = pick(cfg.instantCodes, useToolOption("beat", "code", ""));
+  const trackCode = pick(cfg.trackCodes, useToolOption("rhythm", "code", ""));
+  const setInstantCode = (c: string) => useStudio.getState().setToolOption("beat", "code", c);
+  const setTrackCode = (c: string) => useStudio.getState().setToolOption("rhythm", "code", c);
 
   // ---------------------------------------------------------------- data
   useEffect(() => {

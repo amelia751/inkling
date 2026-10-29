@@ -1,3 +1,4 @@
+import * as z from "zod";
 import { WaveformIcon } from "@/components/icons";
 import { tool } from "@/kits/tool-catalog";
 import { defineModule } from "@/platform/module";
@@ -9,6 +10,8 @@ import { WfdbExportConfigSchema } from "./wfdbCodes";
 export { TIMESERIES } from "./config";
 const ON_STRIP = `renderer == ${TIMESERIES}.renderers.strip-chart`;
 const KIND = `${TIMESERIES}.dataKinds.multichannel-timeseries`;
+
+const codeOption = (list: string) => z.object({ code: z.string().default("").describe(`Code of new annotations; empty = the first of the strip chart's \`${list}\``) });
 
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
@@ -65,9 +68,9 @@ export default defineModule({
     geometries,
     tools: [
       tool("interval", { creates: "span", when: ON_STRIP, description: "Time span on one channel or all (attributes.kind = interval)" }),
-      tool("beat", { creates: "instant", when: ON_STRIP, description: "Instant with a code from `instantCodes` (attributes.kind = beat, .code)" }),
+      tool("beat", { creates: "instant", when: ON_STRIP, optionsSchema: codeOption("instantCodes"), description: "Instant with a code from `instantCodes` (attributes.kind = beat, .code)" }),
       tool("wave", { creates: "span", when: ON_STRIP, description: "Wave onset / peak / offset (attributes.kind = wave, .wave, .peak)" }),
-      tool("rhythm", { creates: "span", when: ON_STRIP, description: "Episode on the record-level track (attributes.kind = rhythm, .rhythm)" }),
+      tool("rhythm", { creates: "span", when: ON_STRIP, optionsSchema: codeOption("trackCodes"), description: "Episode on the record-level track (attributes.kind = rhythm, .rhythm)" }),
       tool("caliper", { when: ON_STRIP, description: "Measure Δt and Δamplitude (not saved)" }),
     ],
     commands: [

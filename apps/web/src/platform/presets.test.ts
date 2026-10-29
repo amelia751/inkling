@@ -34,3 +34,10 @@ describe("bundled presets", () => {
     expect(tools("cine-4d")).toEqual(["select", "pan", "windowLevel", "spline", "polygon", "freehand", "brush", "eraser"]);
   });
 });
+
+describe("non-medical presets (environment JSON only)", () => {
+  it.each(["satellite-tiles", "drone-video-tracks"])("preset:%s resolves with zero errors", (id) => {
+    const r = resolveEnvironment({ extends: `preset:${id}` }, registry);
+    expect(r.errors).toBeUndefined();
+  });
+});

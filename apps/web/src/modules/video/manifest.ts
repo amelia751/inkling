@@ -1,6 +1,7 @@
 import { VideoIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import type { Project, StudioItem } from "@/types";
+import { videoGeometries } from "./geometries";
 
 export const VIDEO = "inkling.video";
 const core = (n: string) => `inkling.core.commands.${n}`;
@@ -37,7 +38,7 @@ export default defineModule({
     ],
     commands: [
       { id: "stepFrame", keys: ["ArrowLeft", "ArrowRight"], display: "← →", label: "Previous or next frame", group: "Playback", repeat: true, shadows: [core("prevItem"), core("nextItem")], description: "Step one frame" },
-      { id: "step10", keys: ["shift+ArrowLeft", "shift+ArrowRight"], display: "⇧ ← →", label: "Back or forward 10 frames", group: "Playback", repeat: true, description: "Step ten frames" },
+      { id: "step10", keys: ["shift+ArrowLeft", "shift+ArrowRight", "shift+,", "shift+."], display: "⇧ ← →", label: "Back or forward 10 frames", group: "Playback", repeat: true, description: "Step ten frames" },
       { id: "firstLastFrame", keys: ["Home", "End"], display: "Home / End", label: "First or last frame (of the A–B range if set)", group: "Playback", description: "Jump to the first or last frame" },
       { id: "toggleLoop", keys: ["l"], label: "Loop playback", group: "Playback", description: "Toggle looping" },
       { id: "fitView", keys: ["f"], label: "Fit video to view", group: "View", description: "Fit the frame to the viewport" },
@@ -49,11 +50,12 @@ export default defineModule({
       { id: "copyToNextFrame", keys: ["alt+b"], label: "Copy selected shapes to the next frame", group: "Drawing", description: "Propagate the selection one frame" },
       { id: "addEvent", keys: ["Enter"], label: "Mark an event at the current frame", group: "Drawing", contextual: true, when: "tool == event", description: "Add an event at the playhead" },
     ],
+    geometries: videoGeometries,
     inspectors: [{ id: "main", geometries: "*", description: "Frames, times and sizes; a track's shape at the playhead" }],
     exporters: [
       { id: "cvat-video", label: "CVAT for video 1.1", accepts: ["track", "box", "polygon", "keypoint"], description: "One annotations XML per video: tracks with every frame interpolated (keyframe, outside, occluded flags); per-frame shapes as one-frame tracks." },
       { id: "mot", label: "MOT challenge CSV", accepts: ["track", "box"], description: "Box tracks per video as gt/gt.txt (frame, id, x, y, w, h, conf, class, visibility; 1-based frames) with seqinfo.ini." },
-      { id: "temporal-json", label: "Temporal JSON", accepts: ["span", "instant", "segment", "event"], description: "Labeled segments and point-in-time events per video, in seconds and frames." },
+      { id: "temporal-json", label: "Temporal JSON", accepts: ["span", "instant"], description: "Labeled segments and point-in-time events per video, in seconds and frames." },
     ],
   },
   load: () => import("./impl"),

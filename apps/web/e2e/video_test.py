@@ -54,7 +54,7 @@ class V:
         self.p.evaluate(
             """async () => {
                 window.__s = (await import('/src/stores/studio.ts')).useStudio;
-                window.__tracks = await import('/src/viewers/video/tracks.ts');
+                window.__tracks = await import('/src/modules/video/tracks.ts');
             }"""
         )
 
@@ -476,7 +476,7 @@ def t_segment(v: V, ctx):
     before = v.mine()
     v.drag_s(v.lane_x("seg-polyp", 20), v.lane_x("seg-polyp", 60))
     new = v.new_since(before)
-    assert len(new) == 1 and new[0]["geometry"]["type"] == "segment" and new[0]["label"] == "polyp", new
+    assert len(new) == 1 and new[0]["geometry"]["type"] == "span" and new[0]["label"] == "polyp", new
     a = new[0]
     g = a["geometry"]
     assert abs(g["start"] * fps - 20) <= 1 and abs(g["end"] * fps - 60) <= 1, g
@@ -525,7 +525,7 @@ def t_event(v: V, ctx):
     before = v.mine()
     v.click_v(600, 500)
     new = v.new_since(before)
-    assert len(new) == 1 and new[0]["geometry"] == {"type": "event", "frame": 30}, new
+    assert len(new) == 1 and new[0]["geometry"] == {"type": "instant", "frame": 30}, new
     e30 = new[0]
     v.blur()
     v.key("Shift+ArrowRight")
@@ -760,16 +760,17 @@ def t_exporters(v: V, ctx):
     item = v.item_id()
     blobs = v.p.evaluate(
         """async () => {
-            const ex = (await import('/src/viewers/video/exporters.ts')).videoExporters;
+            const { registry } = await import('/src/platform/registry.ts');
             const items = (await import('/src/lib/items.ts')).projectItems;
             const manifest = await (await fetch('/seed/manifest.json')).json();
             const project = manifest.projects.find((p) => p.id === 'video-endoscopy');
             const ctx = { project, items: items(project), annotations: window.__s.getState().annotations };
             const out = {};
-            for (const e of ex) {
+            for (const id of ['cvat-video', 'mot', 'temporal-json']) {
+                const e = await registry.loadImpl(`inkling.video.exporters.${id}`);
                 const buf = new Uint8Array(await (await e.build(ctx)).arrayBuffer());
                 let s = ''; for (const b of buf) s += String.fromCharCode(b);
-                out[e.id] = btoa(s);
+                out[id] = btoa(s);
             }
             return out;
         }"""

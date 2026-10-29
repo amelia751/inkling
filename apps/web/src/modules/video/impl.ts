@@ -1,4 +1,13 @@
-import { legacyImpl } from "@/viewers/legacy";
-import { videoAdapter } from "@/viewers/video/adapter";
+import type { ModuleImpl } from "@/platform/module";
+import { videoExporters } from "./exporters";
+import { inspectVideo } from "./inspect";
+import { VideoRenderer } from "./renderer/Host";
+import { registerTrackShape } from "./trackShape";
 
-export default legacyImpl(videoAdapter, "frame-canvas");
+registerTrackShape();
+
+export default {
+  renderers: { "frame-canvas": VideoRenderer },
+  inspectors: { main: inspectVideo },
+  exporters: videoExporters,
+} satisfies ModuleImpl;

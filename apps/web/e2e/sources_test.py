@@ -41,12 +41,11 @@ def main() -> int:
 
         # One source: its root folder is the page; a numbered run collapses to one row.
         page.goto(f"{base}/projects/ecg-waveform/sources")
-        page.wait_for_url(re.compile(r"/sources/nod-"), timeout=15000)
-        check("one source opens its root folder", "/sources/nod-" in page.url, page.url)
         tree = page.locator("[data-testid=sources-tree] [role=tree]")
         tree.wait_for(timeout=15000)
         page.wait_for_selector("[data-testid=listing-row]", timeout=15000)
         rows = page.locator("[data-testid=listing-row]")
+        check("one source opens its root folder (URL unchanged)", page.url.endswith("/sources") and page.locator("[data-testid=path-current]").inner_text() == "ecg-waveform", page.url)
         check("run collapses into one listing row", rows.count() == 1 and SEQ in rows.first.inner_text(), rows.first.inner_text())
         check("run row says how many files", "· 10" in rows.first.inner_text())
         page.wait_for_selector(f"[role=treeitem]:has-text('{SEQ}')", timeout=10000)

@@ -57,7 +57,7 @@ const STATUS_CHIPS = [
 ] as const;
 
 export function SourcesPage() {
-  const { projectId = "", nodeId } = useParams();
+  const { projectId = "", nodeId: pathNode } = useParams();
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -70,6 +70,9 @@ export function SourcesPage() {
 
   const sources = useSources(projectId);
   const sourceList = useMemo(() => sources.data ?? [], [sources.data]);
+  // One source: its folder is the page (no click through a list of one, and no URL change).
+  const onlyRoot = sourceList.length === 1 ? sourceList[0].rootNodeId : null;
+  const nodeId = pathNode ?? onlyRoot ?? undefined;
   const imports = useImports(projectId);
 
   // ---- Where we are -----------------------------------------------------------------------
@@ -269,12 +272,6 @@ export function SourcesPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const sourceOfRoot = (n: SourceNode) => sourceList.find((s) => s.rootNodeId === n.id);
 
-  // One source: its folder is the page (no click through a list of one).
-  const onlyRoot = sourceList.length === 1 ? sourceList[0].rootNodeId : null;
-  useEffect(() => {
-    if (!nodeId && !importId && onlyRoot) navigate(sourcesUrl(projectId, onlyRoot, { status }), { replace: true });
-  }, [nodeId, importId, onlyRoot, navigate, projectId, status]);
-
   const nothing = sources.data && sourceList.length === 0;
   const anchorMissing = !!anchorId && anchor.isError;
 
@@ -413,7 +410,7 @@ export function SourcesPage() {
                       />
                     )}
                   </div>
-                  <ImportsList sessions={imports.data ?? []} selectedId={importId} onOpen={(id) => navigate(sourcesUrl(projectId, nodeId, { import: id }))} />
+                  <ImportsList sessions={imports.data ?? []} selectedId={importId} onOpen={(id) => navigate(sourcesUrl(projectId, pathNode, { import: id }))} />
                 </div>
               </ResizablePanel>
               <ResizableHandle />
@@ -421,7 +418,7 @@ export function SourcesPage() {
           )}
           <ResizablePanel id="listing" minSize={320}>
             {importId ? (
-              <ImportSummary id={importId} projectId={projectId} sources={sourceList} onClose={() => navigate(sourcesUrl(projectId, nodeId))} />
+              <ImportSummary id={importId} projectId={projectId} sources={sourceList} onClose={() => navigate(sourcesUrl(projectId, pathNode))} />
             ) : nothing ? (
               <div className="p-6">
                 <DropZone onPick={(p) => void addData(p)} title="Add the files you have" hint="Drop a folder here, as it is: DICOM exports, spreadsheets, videos, PDFs. Originals are kept exactly as they arrive." />

@@ -49,7 +49,7 @@ WORKDIR /app
 COPY --from=build /out/ /app/bin/
 # Env and bucket names come from the naming config (todo4 V11).
 COPY schemas/naming.json /app/schemas/naming.json
-ENV NAMING_CONFIG=/app/schemas/naming.json \
+ENV NAMING_FILE=/app/schemas/naming.json \
     PATH=/app/bin:/usr/local/bin:/usr/bin:/bin \
     TMPDIR=/tmp \
     GIT_SHA=${GIT_SHA}

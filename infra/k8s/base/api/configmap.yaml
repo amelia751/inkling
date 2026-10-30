@@ -6,7 +6,7 @@ kind: ConfigMap
 metadata:
   name: api-config
 data:
-  INKLING_API_ENV: production
+  INKLING_ENV: production
   INKLING_API_CREATE_TABLES: "0"
   INKLING_API_DEV_TRUST_HEADERS: "1"
   INKLING_REDIS_URL: redis://redis:6379/0

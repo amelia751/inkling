@@ -14,7 +14,7 @@ from studio_api import db as dbm
 from studio_api import redis_client
 from studio_api.kernel import queue
 from studio_api.models import PluginEvent, PluginJob
-from studio_api.naming import env
+from studio_api.config import env
 
 from .conftest import mask_result, run_worker_once, worker_headers, ws
 from .test_installer_flow import install

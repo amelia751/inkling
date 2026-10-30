@@ -15,7 +15,7 @@ kind: ConfigMap
 metadata:
   name: agent-config
 data:
-  AGENT_REDIS_URL: rediss://redis.internal.example.com:6380/1
+  INKLING_AGENT_REDIS_URL: rediss://redis.internal.example.com:6380/1
 ---
 apiVersion: v1
 kind: ConfigMap

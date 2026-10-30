@@ -9,7 +9,7 @@ import uuid
 import pytest
 
 from studio_api import blobstore
-from studio_api.naming import env
+from studio_api.config import env
 
 from .conftest import png, ws
 

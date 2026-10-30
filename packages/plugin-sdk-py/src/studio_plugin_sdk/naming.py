@@ -6,7 +6,7 @@ it can't assume where the repository is. The config is found in this order:
 
 1. `configure(values)`: the worker sends the kernel's naming config with every job, and
    the runner applies it before the plugin is imported (the normal path at run time);
-2. `$STUDIO_NAMING_FILE`: a path to a `naming.json` (tests, out-of-tree plugins);
+2. `$NAMING_FILE`: a path to a `naming.json` (tests, out-of-tree plugins);
 3. `schemas/naming.json` in the nearest ancestor of the working directory or of this file
    (a source checkout, or an editable install);
 
@@ -19,7 +19,7 @@ import json
 import os
 from pathlib import Path
 
-NAMING_FILE_ENV = "STUDIO_NAMING_FILE"
+NAMING_FILE_ENV = "NAMING_FILE"
 _KEYS = ("displayName", "namespace", "schemaPrefix", "resourcePrefix", "envPrefix", "legacyNamespaces")
 
 _configured: dict | None = None
@@ -41,7 +41,7 @@ def configure(values: dict | None) -> None:
 
 
 def find_naming_file(start: Path | None = None) -> Path | None:
-    """`$STUDIO_NAMING_FILE`, else `schemas/naming.json` in an ancestor of `start` (cwd) or of this file."""
+    """`$NAMING_FILE`, else `schemas/naming.json` in an ancestor of `start` (cwd) or of this file."""
     env = os.environ.get(NAMING_FILE_ENV)
     if env:
         p = Path(env).expanduser()

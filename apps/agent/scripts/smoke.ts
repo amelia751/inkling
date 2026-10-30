@@ -10,24 +10,24 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createModelRuntime } from "../src/agent/models.ts";
 import { createApp } from "../src/app.ts";
-import { loadConfig } from "../src/config.ts";
+import { env, envName, loadConfig, withPrefix } from "../src/config.ts";
 import { createLogger } from "../src/log.ts";
 import type { AgentEvent } from "@studio/agent-protocol";
 import { SessionService } from "../src/runtime/sessions.ts";
 import { createDaytona } from "../src/sandbox/client.ts";
 import { loadDevSecrets } from "../src/secrets.ts";
 
-process.env.APP_ENV ??= "test";
+process.env[envName("ENV")] ??= "test";
 loadDevSecrets();
 const token = "smoke-token-0123456789abcdef";
 const dataDir = mkdtempSync(join(tmpdir(), "inkling-smoke-"));
-const { config } = loadConfig({ ...process.env, INTERNAL_AGENT_SERVICE_TOKEN: token, AGENT_DATA_DIR: dataDir, AGENT_MAX_SPEND_USD: "0.50" });
+const { config } = loadConfig({ ...process.env, ...withPrefix({ AGENT_TOKEN: token, AGENT_DATA_DIR: dataDir, AGENT_MAX_SPEND_USD: "0.50" }) });
 const daytona = createDaytona(config);
 if (!daytona || !config.providerKeys[config.model.provider]) {
   console.error(`smoke needs DAYTONA_API_KEY and a ${config.model.provider} key; skipping.`);
   process.exit(2);
 }
-const log = createLogger(process.env.LOG_LEVEL ?? "warn");
+const log = createLogger(env("LOG_LEVEL") ?? "warn");
 const sessions = new SessionService({ config, runtime: await createModelRuntime(config), log, daytona });
 const app = createApp({ config, sessions, log });
 const call = (method: string, path: string, body?: unknown) =>

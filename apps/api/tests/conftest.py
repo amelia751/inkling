@@ -11,7 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 from studio_api import config, db
-from studio_api.naming import env, ns
+from studio_api.config import env
+from studio_api.naming import ns
 
 
 def png(w: int, h: int) -> bytes:

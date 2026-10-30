@@ -1,4 +1,5 @@
 import pg from "pg";
+import { envName } from "../config.ts";
 import { LATEST_VERSION, ident, migrate, schemaVersion } from "./migrations.ts";
 import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionStore, type StoredMeta, type StoredRunStatus } from "./types.ts";
 
@@ -91,7 +92,7 @@ export class PostgresSessionStore implements SessionStore {
     }
     const v = await schemaVersion(this.pool, this.schema);
     if (v < LATEST_VERSION)
-      throw new Error(`agent database schema is at version ${v}, need ${LATEST_VERSION}: run \`pnpm --filter @studio/agent migrate\` (or set AGENT_AUTO_MIGRATE=1 in dev)`);
+      throw new Error(`agent database schema is at version ${v}, need ${LATEST_VERSION}: run \`pnpm --filter @studio/agent migrate\` (or set ${envName("AGENT_AUTO_MIGRATE")}=1 in dev)`);
   }
 
   async ping(): Promise<void> {

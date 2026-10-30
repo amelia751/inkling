@@ -36,7 +36,7 @@ def register(tools: Registry) -> None:
 `plugin_schema_version()`) from `schemas/naming.json`, so plugin code never hardcodes the
 product name. Inside a plugin's own `uv` environment the SDK can't see the repository, so
 the worker sends the naming config with each job and the runner applies it before the
-plugin is imported. Outside the worker, set `STUDIO_NAMING_FILE` to a `naming.json`, or
+plugin is imported. Outside the worker, set `NAMING_FILE` to a `naming.json`, or
 run from a checkout (it looks for `schemas/naming.json` above the working directory). With
 none of these it raises instead of guessing a namespace.
 

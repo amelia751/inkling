@@ -4,8 +4,8 @@ import { apiUrl, runtimeConfig } from "./runtime-config";
 
 /**
  * Talking to the kernel (apps/api, todo2 Phase 4). Enabled by the runtime config (`kernel` in
- * /config.json; in dev `<envPrefix>KERNEL=1 pnpm dev`, which proxies /api to it and sets
- * `VITE_<envPrefix>KERNEL`); otherwise the dev seed server stands in and only local command handlers run.
+ * /config.json; in dev `<envPrefix>API_URL=http://127.0.0.1:8000 pnpm dev`, which proxies /api
+ * to it); otherwise the dev seed server stands in and only local command handlers run.
  *
  * - Plugin commands go to `POST /api/v1/commands` (the command gateway); worker jobs are
  *   polled until they finish, and the annotations they committed are merged into the store.

@@ -50,8 +50,8 @@ COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 USER 101
 ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
-    AGENT_UPSTREAM=http://agent:8100 \
-    INTERNAL_AGENT_SERVICE_TOKEN="" \
+    INKLING_AGENT_URL=http://agent:8100 \
+    INKLING_AGENT_TOKEN="" \
     GIT_SHA=${GIT_SHA}
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

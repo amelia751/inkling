@@ -17,10 +17,11 @@ type Naming = { envPrefix: string; resourcePrefix: string; displayName: string }
 type Result = { ok: boolean; status?: number; data: any };
 
 const NAMING: Naming = JSON.parse(readFileSync(new URL("../../../schemas/naming.json", import.meta.url), "utf8"));
+/** The one place this server reads the environment: `env("WEB_URL")` → `<envPrefix>WEB_URL`. */
 const env = (name: string) => process.env[`${NAMING.envPrefix}${name}`];
 
-const BASE = (env("URL") ?? "http://localhost:5173").replace(/\/$/, "");
-const AUTHOR = env("AGENT_AUTHOR") ?? "agent:mcp";
+const BASE = (env("WEB_URL") ?? "http://localhost:5173").replace(/\/$/, "");
+const AUTHOR = env("MCP_AUTHOR") ?? "agent:mcp";
 
 async function http(method: string, path: string, body?: unknown): Promise<Result> {
   const res = await fetch(`${BASE}${path}`, {

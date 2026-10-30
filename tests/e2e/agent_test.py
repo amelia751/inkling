@@ -1,9 +1,9 @@
 """Inkling AI against the real agent service (apps/agent) with a scripted model (todo1 §8.4).
 
-The test starts the agent service itself (AGENT_MODEL=scripted, AGENT_SANDBOX=off, a temp data
+The test starts the agent service itself (INKLING_AGENT_MODEL=scripted, INKLING_AGENT_SANDBOX=off, a temp data
 dir) on --agent-port, replaying tests/e2e/fixtures/agent-script.json. Start the dev server pointed at it:
 
-    INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8299 INTERNAL_AGENT_SERVICE_TOKEN=e2e-agent-token \\
+    INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8299 INKLING_AGENT_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5299 --strictPort
     python3 ../../tests/e2e/agent_test.py --port 5299   # from apps/web
 
@@ -23,12 +23,13 @@ from pathlib import Path
 
 # The browser harness lives with the web-only tests (apps/web/e2e).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "web" / "e2e"))
-from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).parent / "fixtures" / "agent-script.json"
 TOKEN = "e2e-agent-token"
-AGENT_PORT = int(os.environ.get("INKLING_E2E_AGENT_PORT", "8299"))
+P = NAMING["envPrefix"]
+AGENT_PORT = int(os.environ.get(f"{P}E2E_AGENT_PORT", "8299"))
 
 results: list[tuple[str, bool, str]] = []
 
@@ -59,17 +60,17 @@ def get_json(url: str, token: str | None = None):
 
 
 def start_agent(data_dir: str) -> subprocess.Popen:
-    env = {
-        **os.environ,
-        "APP_ENV": "test",
+    settings = {
+        "ENV": "test",
         "AGENT_MODEL": "scripted",
         "AGENT_SCRIPT": str(FIXTURE),
         "AGENT_SANDBOX": "off",
         "AGENT_PORT": str(AGENT_PORT),
         "AGENT_DATA_DIR": data_dir,
-        "INTERNAL_AGENT_SERVICE_TOKEN": TOKEN,
+        "AGENT_TOKEN": TOKEN,
         "LOG_LEVEL": "warn",
     }
+    env = {**os.environ, **{P + k: v for k, v in settings.items()}}
     proc = subprocess.Popen(["pnpm", "--filter", "@studio/agent", "start:dev"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if not wait(lambda: get_json(f"http://127.0.0.1:{AGENT_PORT}/health/live").get("ok"), timeout=60):
         proc.terminate()
@@ -175,7 +176,7 @@ def main() -> int:
     try:
         status = get_json(f"http://localhost:{args.port}/api/agent/status")
         if status.get("provider") != "scripted":
-            print(f"FAIL the dev server proxies /api/agent elsewhere ({status}); start it with INKLING_AGENT_URL=http://127.0.0.1:{AGENT_PORT} INTERNAL_AGENT_SERVICE_TOKEN={TOKEN}")
+            print(f"FAIL the dev server proxies /api/agent elsewhere ({status}); start it with {P}AGENT_URL=http://127.0.0.1:{AGENT_PORT} {P}AGENT_TOKEN={TOKEN}")
             return 1
         with sync_playwright() as pw:
             browser = launch(pw, args.browser, args.headed)

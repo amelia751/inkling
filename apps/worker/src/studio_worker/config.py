@@ -3,7 +3,7 @@ startup: a missing key stops the process with its name, never a value.
 
 | Key (without prefix)     | Default                                   | Meaning |
 |--------------------------|-------------------------------------------|---------|
-| KERNEL_URL               | http://127.0.0.1:8000                     | the api (kernel) the worker claims jobs from |
+| API_URL                  | http://127.0.0.1:8000                     | the api the worker claims jobs from |
 | API_WORKER_TOKEN         | required, except against a loopback kernel | shared worker token (the api's `API_WORKER_TOKEN`); a dev kernel on this machine accepts `dev-only-worker-token` |
 | WORKER_DATA_DIR          | apps/worker/.data in a checkout, else <tmp>/<resourcePrefix>-worker | scratch: plugin HOME/cwd, envs built at run time |
 | WORKER_ENVS_DIR          | <data dir>/envs                           | prebuilt plugin envs (`--prepare-envs`); may be read-only |
@@ -14,7 +14,13 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_PLUGINS           | (all)                                     | comma-separated plugin ids this worker runs |
 | WORKER_ID                | <hostname>-<pid>                          | lease owner name |
 | REPO_ROOT                | derived                                   | where schemas/, registry/, plugins/ are (/app in images) |
-| GIT_SHA                  | unknown                                   | reported by /version (also read unprefixed) |
+| ENV                      | development                               | shared by every service: `development`, `test` or `production` |
+| LOG_LEVEL / LOG_FORMAT   | INFO / json                               | shared by every service; `LOG_FORMAT=text` for humans |
+| GIT_SHA                  | unknown                                   | reported by /version (also read unprefixed: the Docker build arg) |
+
+`NAMING_FILE` (unprefixed: the prefix is read from it) points at the naming config when the
+checkout's schemas/naming.json isn't there. This module is the only place the worker reads
+the environment.
 """
 
 from __future__ import annotations
@@ -52,7 +58,7 @@ REPO_ROOT = _find_repo_root()
 
 @cache
 def naming() -> dict:
-    return json.loads((REPO_ROOT / "schemas" / "naming.json").read_text())
+    return json.loads(Path(os.environ.get("NAMING_FILE") or REPO_ROOT / "schemas" / "naming.json").read_text())
 
 
 def env(name: str, default: str | None = None) -> str | None:
@@ -62,6 +68,11 @@ def env(name: str, default: str | None = None) -> str | None:
 
 def key_name(name: str) -> str:
     return f"{naming()['envPrefix']}{name}"
+
+
+def log_settings() -> tuple[str, bool]:
+    """(`<P>LOG_LEVEL`, JSON logs unless `<P>LOG_FORMAT=text`): read before settings validate."""
+    return env("LOG_LEVEL", "INFO") or "INFO", env("LOG_FORMAT", "json") != "text"
 
 
 class SettingsError(RuntimeError):
@@ -105,7 +116,7 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
             invalid.append(key_name(name))
             return kind(default)
 
-    kernel_url = (overrides.pop("kernel_url", None) or env("KERNEL_URL", "http://127.0.0.1:8000") or "").rstrip("/")
+    kernel_url = (overrides.pop("kernel_url", None) or env("API_URL", "http://127.0.0.1:8000") or "").rstrip("/")
     token = overrides.pop("token", None) or env("API_WORKER_TOKEN")
     if not token and urlsplit(kernel_url).hostname in ("127.0.0.1", "localhost", "::1"):
         token = DEV_WORKER_TOKEN  # the api's dev fallback (`pnpm dev`); a production api rejects it

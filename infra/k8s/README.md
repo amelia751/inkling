@@ -49,10 +49,10 @@ Key names per Secret (names only; env prefix `INKLING_` from `schemas/naming.jso
 
 | Secret | Keys | Notes |
 |---|---|---|
-| `web-secrets` | `INTERNAL_AGENT_SERVICE_TOKEN` | Same value as in `agent-secrets`: nginx adds it as the bearer on `/api/agent/*`. |
+| `web-secrets` | `INKLING_AGENT_TOKEN` | Same value as in `agent-secrets`: nginx adds it as the bearer on `/api/agent/*`. |
 | `api-secrets` | `INKLING_API_DATABASE_URL`, `INKLING_API_SECRET_KEY`, `INKLING_API_WORKER_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Add `INKLING_REDIS_URL` here if Redis needs a password (overrides the ConfigMap). Omit the AWS keys when the pod uses workload identity. |
 | `worker-secrets` | `INKLING_API_WORKER_TOKEN`, `KEDA_REDIS_PASSWORD` (staging/prod) | The worker token equals the api's. `KEDA_REDIS_PASSWORD` is read only by KEDA's TriggerAuthentication. Plugin provider keys are brokered by api, never mounted here. |
-| `agent-secrets` | `INTERNAL_AGENT_SERVICE_TOKEN`, `AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
+| `agent-secrets` | `INKLING_AGENT_TOKEN`, `INKLING_AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `INKLING_AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
 | `versioning-secrets` | `INKLING_VERSIONING_DATABASE_URL` (role `versioning_app`), `INKLING_VERSIONING_MIGRATE_DATABASE_URL` (role `versioning_owner`), `INKLING_VERSIONING_S3_ACCESS_KEY_ID`, `INKLING_VERSIONING_S3_SECRET_ACCESS_KEY` | S3 keys scoped to the two versioning buckets. Add `INKLING_VERSIONING_REDIS_URL` if Redis needs a password. |
 | `versioning-bootstrap-secrets` | `INKLING_VERSIONING_ADMIN_DATABASE_URL`, `INKLING_VERSIONING_OWNER_PASSWORD`, `INKLING_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
 | `studio-tls` | (type `kubernetes.io/tls`) | Issued by cert-manager for the Ingress host. |
@@ -72,10 +72,10 @@ the repo):
 NS=studio-staging
 TOKEN=$(openssl rand -base64 32)
 kubectl -n $NS create secret generic agent-secrets \
-  --from-literal=INTERNAL_AGENT_SERVICE_TOKEN="$TOKEN" \
-  --from-literal=AGENT_DATABASE_URL=… --from-literal=OPENAI_API_KEY=… \
+  --from-literal=INKLING_AGENT_TOKEN="$TOKEN" \
+  --from-literal=INKLING_AGENT_DATABASE_URL=… --from-literal=OPENAI_API_KEY=… \
   --from-literal=ANTHROPIC_API_KEY=… --from-literal=DAYTONA_API_KEY=…
-kubectl -n $NS create secret generic web-secrets --from-literal=INTERNAL_AGENT_SERVICE_TOKEN="$TOKEN"
+kubectl -n $NS create secret generic web-secrets --from-literal=INKLING_AGENT_TOKEN="$TOKEN"
 kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-manager export api)
 # …and so on per the table. Rotate with `kubectl create … --dry-run=client -o yaml | kubectl apply -f -`,
 # then `kubectl rollout restart deployment/<app>`.
@@ -87,7 +87,7 @@ kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-m
 |---|---|---|---|---|---|
 | web | HPA, CPU 70 % | 2–6 | 2–4 | 3–10 | Static files and the agent proxy; cheap. |
 | api | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Stateless (Postgres, S3, Redis). |
-| agent | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Scale-down stabilization 600 s and 1 pod/min, so long SSE runs aren't cut often; `terminationGracePeriodSeconds: 120` with `AGENT_SHUTDOWN_GRACE_S=100`. |
+| agent | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Scale-down stabilization 600 s and 1 pod/min, so long SSE runs aren't cut often; `terminationGracePeriodSeconds: 120` with `INKLING_AGENT_SHUTDOWN_GRACE_S=100`. |
 | worker | KEDA `redis` scaler on list `inkling:jobs:ready` | 0–10, 1 pod per 5 queued jobs | 0–6 | 0–30 | `pollingInterval` 10 s, `cooldownPeriod` 300 s before scaling to zero; grace 300 s. |
 | versioning | fixed replicas | 2 | 2 | 3 | River jobs run in-process; add an HPA when load needs it. |
 

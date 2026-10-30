@@ -79,7 +79,7 @@ def test_json_logs_carry_service_version_request_and_trace_ids():
 def test_production_fails_fast_naming_missing_keys_never_values(monkeypatch):
     for k in ("API_SECRET_KEY", "API_DATABASE_URL", "API_WORKER_TOKEN"):
         monkeypatch.delenv(P + k, raising=False)
-    monkeypatch.setenv(P + "API_ENV", "production")
+    monkeypatch.setenv(P + "ENV", "production")
     with pytest.raises(config.SettingsError) as e:
         config.load_settings()
     assert set(e.value.missing) == {P + "API_SECRET_KEY", P + "API_DATABASE_URL", P + "API_WORKER_TOKEN"}

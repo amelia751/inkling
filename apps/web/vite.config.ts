@@ -11,25 +11,26 @@ import { aliases, REPO_ROOT } from "./aliases";
 // reads the emitted copy of packages/plugin-contracts/src/naming.ts.
 import NAMING from "../../schemas/naming.json";
 
-const envVar = (name: string) => `${NAMING.envPrefix}${name}`;
+/** The one place the web build and dev server read the environment: `env("API_URL")` → `<envPrefix>API_URL`. */
+const env = (key: string): string | undefined => process.env[`${NAMING.envPrefix}${key}`] || undefined;
 
-// <envPrefix>KERNEL=1: proxy /api to the Python kernel (apps/api) instead of the dev seed
-// server. Catalogue, environments and the assistant stay here: they run the TS registry.
-const kernel = process.env[envVar("KERNEL")] === "1";
-const kernelUrl = process.env[envVar("KERNEL_URL")] ?? "http://127.0.0.1:8000";
-if (kernel) process.env[`VITE_${NAMING.envPrefix}KERNEL`] = "1";
+// <envPrefix>API_URL: proxy /api to the API (apps/api) instead of the dev seed server, and
+// tell the SPA (define below) that the kernel serves commands, jobs and assets. Catalogue,
+// environments and the assistant stay here: they run the TS registry.
+const kernelUrl = env("API_URL");
+const kernel = !!kernelUrl;
 const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments)(\/|$|\?)/;
 
 // <envPrefix>E2E=1: a frozen dev server for Playwright runs (see `server` below). It keeps
 // annotations in a fresh temp copy of e2e/fixtures/annotations/, so no test reads or writes the
 // developer's seed-data/.annotations. <envPrefix>WEB_ANNOTATIONS_DIR picks the folder explicitly.
-const e2e = !!process.env[envVar("E2E")];
+const e2e = !!env("E2E");
 function e2eAnnotations(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `${NAMING.resourcePrefix}-e2e-annotations-`));
   fs.cpSync(path.resolve(__dirname, "e2e/fixtures/annotations"), dir, { recursive: true });
   return dir;
 }
-const annotationsDir = process.env[envVar("WEB_ANNOTATIONS_DIR")] ?? (e2e && !kernel ? e2eAnnotations() : undefined);
+const annotationsDir = env("WEB_ANNOTATIONS_DIR") ?? (e2e && !kernel ? e2eAnnotations() : undefined);
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
@@ -41,13 +42,13 @@ const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
  * to /v1/* and adds the service token from the real env or secrets/agent.env (written by the service
  * on first start), so the token never reaches the browser.
  */
-const AGENT_URL = process.env[envVar("AGENT_URL")] ?? "http://127.0.0.1:8100";
-let agentToken = process.env.INTERNAL_AGENT_SERVICE_TOKEN;
+const AGENT_URL = env("AGENT_URL") ?? "http://127.0.0.1:8100";
+let agentToken = env("AGENT_TOKEN");
 function serviceToken(): string | undefined {
   if (agentToken) return agentToken;
   const file = path.resolve(__dirname, "../../secrets/agent.env");
   if (!fs.existsSync(file)) return undefined;
-  agentToken = /^INTERNAL_AGENT_SERVICE_TOKEN=(.+)$/m.exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
+  agentToken = new RegExp(`^${NAMING.envPrefix}AGENT_TOKEN=(.+)$`, "m").exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
   return agentToken;
 }
 const agentProxy: Record<string, ProxyOptions> = {
@@ -108,12 +109,14 @@ export default defineConfig({
     ...(e2e ? { hmr: false, watch: null } : {}),
     // Workspace packages and first-party plugins live outside apps/web.
     fs: { allow: [REPO_ROOT] },
-    // /api/agent goes to the agent service; with the kernel on, the rest of /api goes there (agentProxy is listed first).
+    // /api/agent goes to the agent service; with the API on, the rest of /api goes there (agentProxy is listed first).
     proxy: {
       ...agentProxy,
       ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
     },
   },
+  // runtime-config.ts reads this as the dev default for `kernel` (/config.json decides in images).
+  define: { "import.meta.env.DEV_API": JSON.stringify(kernel) },
   resolve: {
     alias: [
       ...aliases,

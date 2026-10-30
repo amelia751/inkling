@@ -10,7 +10,6 @@
 
 from __future__ import annotations
 
-import os
 
 from . import otel
 from .asgi import QUIET_PATHS, RequestContextMiddleware
@@ -29,12 +28,10 @@ from .context import (
 from .logs import JsonFormatter, setup_logging
 
 
-def setup_service(service: str, version: str, *, level: str | None = None, json_logs: bool | None = None) -> None:
-    """Logging + (optional) tracing for a service process. `LOG_LEVEL` and `LOG_FORMAT=text`
-    (unprefixed, like the OTEL_* variables) override the defaults."""
-    lvl = level or os.environ.get("LOG_LEVEL") or "INFO"
-    js = json_logs if json_logs is not None else os.environ.get("LOG_FORMAT", "json") != "text"
-    setup_logging(service, version, lvl, json_logs=js)
+def setup_service(service: str, version: str, *, level: str | None = None, json_logs: bool = True) -> None:
+    """Logging + (optional) tracing for a service process. The service passes its own
+    `<envPrefix>LOG_LEVEL` / `<envPrefix>LOG_FORMAT` settings; tracing reads the standard OTEL_* variables."""
+    setup_logging(service, version, level or "INFO", json_logs=json_logs)
     otel.setup(service, version)
 
 

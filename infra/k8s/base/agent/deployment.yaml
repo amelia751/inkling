@@ -24,7 +24,7 @@ spec:
     spec:
       serviceAccountName: agent
       automountServiceAccountToken: false
-      # Drain SSE streams and in-flight runs (AGENT_SHUTDOWN_GRACE_S=100 < 120).
+      # Drain SSE streams and in-flight runs (INKLING_AGENT_SHUTDOWN_GRACE_S=100 < 120).
       terminationGracePeriodSeconds: 120
       securityContext:
         runAsNonRoot: true

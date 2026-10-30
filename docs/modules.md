@@ -198,7 +198,7 @@ The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
 ### From outside the app (MCP)
 
 `pnpm mcp` starts a stdio MCP server (`apps/mcp/src/main.ts`) over a running dev server
-(`<envPrefix>URL`, e.g. `INKLING_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
+(`<envPrefix>WEB_URL`, e.g. `INKLING_WEB_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
 `patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.

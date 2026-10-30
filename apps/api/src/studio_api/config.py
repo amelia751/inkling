@@ -3,12 +3,13 @@
 Every key is read from the environment as `<envPrefix><NAME>` (the prefix comes from
 schemas/naming.json; `naming.env`). `secrets/api.env` is an optional dev overlay (keys with
 or without the prefix) and never overrides the real environment; production
-(`API_ENV=production`) ignores it. A bad configuration fails fast with the key *names*
+(`ENV=production`) ignores it. A bad configuration fails fast with the key *names*
 that are missing or invalid, never their values.
 
 | Key (without prefix)      | Default                          | Meaning |
 |---------------------------|----------------------------------|---------|
-| API_ENV                   | dev                              | `production` requires the secrets below and skips dev fallbacks |
+| ENV                       | development                      | shared by every service (`development`, `test`, `production`); `production` requires the secrets below and skips dev fallbacks |
+| LOG_LEVEL / LOG_FORMAT    | INFO / json                      | shared by every service; `LOG_FORMAT=text` for humans |
 | API_DATABASE_URL          | sqlite:///<data dir>/api.db      | SQLAlchemy URL; `postgresql+psycopg://…` in production |
 | API_CREATE_TABLES         | 1 (dev) / 0 (production)         | create tables at startup; production runs the Alembic migrate Job |
 | API_SECRET_KEY            | dev: generated per checkout      | signs URLs, encrypts secrets; required in production |
@@ -35,7 +36,8 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
-or the default AWS credential chain).
+or the default AWS credential chain). `NAMING_FILE` (unprefixed: the prefix is read from it) is
+handled in naming.py. Everything else reads settings through this module (`env()`).
 """
 
 from __future__ import annotations
@@ -110,7 +112,9 @@ class Settings(BaseModel):
     extra: dict[str, str] = Field(default_factory=dict)
 
     # Stateless deployment (todo/done/todo3.md E.2): where state, blobs, jobs and events live.
-    env: Literal["dev", "production"] = "dev"
+    env: Literal["development", "test", "production"] = "development"
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "json"
     create_tables: bool = True
     repo_root: Path = REPO_ROOT
     worker_token: str | None = None
@@ -138,7 +142,9 @@ class Settings(BaseModel):
 
 # Settings field → key name (without the prefix). Booleans accept 1/0/true/false.
 _KEYS: dict[str, str] = {
-    "env": "API_ENV",
+    "env": "ENV",
+    "log_level": "LOG_LEVEL",
+    "log_format": "LOG_FORMAT",
     "database_url": "API_DATABASE_URL",
     "create_tables": "API_CREATE_TABLES",
     "secret_key": "API_SECRET_KEY",
@@ -168,6 +174,11 @@ _KEYS: dict[str, str] = {
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 
 
+def env(name: str, default: str | None = None) -> str | None:
+    """A namespaced env var outside `Settings`: env("API_WORKER_TOKEN") reads <envPrefix>API_WORKER_TOKEN."""
+    return os.environ.get(f"{naming()['envPrefix']}{name}", default)
+
+
 def key_name(field: str) -> str:
     return f"{naming()['envPrefix']}{_KEYS[field]}" if field in _KEYS else _UNPREFIXED.get(field, field)
 
@@ -175,7 +186,7 @@ def key_name(field: str) -> str:
 def _lookup() -> tuple[dict[str, str], bool]:
     """Raw string values by field name, from the environment then (dev) secrets/api.env."""
     prefix = naming()["envPrefix"]
-    production = os.environ.get(f"{prefix}API_ENV", "dev") == "production"
+    production = os.environ.get(f"{prefix}ENV", "development") == "production"
     file_env = {} if production else _read_env_file(REPO_ROOT / "secrets" / "api.env")
 
     def get(name: str, *aliases: str) -> str | None:

@@ -37,7 +37,8 @@ REPO_ROOT = _find_repo_root()
 
 @cache
 def naming() -> dict:
-    return json.loads((REPO_ROOT / "schemas" / "naming.json").read_text())
+    """`NAMING_FILE` (unprefixed: the prefix is read from it), else the checkout's schemas/naming.json."""
+    return json.loads(Path(os.environ.get("NAMING_FILE") or REPO_ROOT / "schemas" / "naming.json").read_text())
 
 
 def ns(local: str) -> str:
@@ -51,11 +52,6 @@ def canonical_id(id_: str) -> str:
         if id_.startswith(f"{old}."):
             return f"{naming()['namespace']}.{id_[len(old) + 1:]}"
     return id_
-
-
-def env(name: str, default: str | None = None) -> str | None:
-    """A namespaced env var: env("API_DB") reads <envPrefix>API_DB."""
-    return os.environ.get(f"{naming()['envPrefix']}{name}", default)
 
 
 def plugin_schema_version() -> str:

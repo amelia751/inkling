@@ -8,10 +8,10 @@ reload. The kernel records the agent as requester and the user as approver.
 Needs the kernel (apps/api) and the dev server with both proxies; the test starts the agent:
 
     (cd apps/api && uv run uvicorn studio_api.app:app --port 8011) &
-    <envPrefix>KERNEL=1 <envPrefix>KERNEL_URL=http://127.0.0.1:8011 <envPrefix>E2E=1 \\
-      <envPrefix>AGENT_URL=http://127.0.0.1:8299 INTERNAL_AGENT_SERVICE_TOKEN=e2e-agent-token \\
+    <envPrefix>API_URL=http://127.0.0.1:8011 <envPrefix>E2E=1 \\
+      <envPrefix>AGENT_URL=http://127.0.0.1:8299 <envPrefix>AGENT_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5299 --strictPort
-    <envPrefix>E2E_KERNEL_URL=http://127.0.0.1:8011 python3 ../../tests/e2e/builder_test.py --port 5299   # from apps/web
+    <envPrefix>E2E_API_URL=http://127.0.0.1:8011 python3 ../../tests/e2e/builder_test.py --port 5299   # from apps/web
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ import agent_test  # noqa: E402
 from agent_test import ask, check, results  # noqa: E402
 from harness import NAMING, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
-KERNEL = os.environ.get(f"{NAMING['envPrefix']}E2E_KERNEL_URL", "http://127.0.0.1:8000")
+KERNEL = os.environ.get(f"{NAMING['envPrefix']}E2E_API_URL", "http://127.0.0.1:8000")
 WS = "2d-xray"
 
 
@@ -48,7 +48,7 @@ def main() -> int:
     except Exception:  # noqa: BLE001
         print(f"SKIP kernel not reachable at {KERNEL}")
         return 0
-    os.environ["AGENT_KERNEL_URL"] = KERNEL
+    os.environ[f"{NAMING['envPrefix']}API_URL"] = KERNEL  # the agent the test starts calls this API
     with tempfile.TemporaryDirectory() as data:
         agent = agent_test.start_agent(data)
         try:

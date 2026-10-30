@@ -21,10 +21,9 @@ func main() {
 }
 
 func env(naming config.Naming, key string) (string, error) {
-	k := naming.EnvPrefix + "VERSIONING_" + key
-	v := os.Getenv(k)
+	v := config.Env(naming, "VERSIONING_"+key)
 	if v == "" {
-		return "", fmt.Errorf("missing: %s", k)
+		return "", fmt.Errorf("missing: %s", naming.EnvPrefix+"VERSIONING_"+key)
 	}
 	return v, nil
 }

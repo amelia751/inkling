@@ -5,8 +5,8 @@ import { NAMING, configureNaming } from "@studio/plugin-contracts/naming";
  * bundle, so one web image runs in every environment. `main.tsx` fetches `/config.json`
  * (served by the web image's nginx from a ConfigMap or a compose volume) before the app
  * loads. When it's absent (the Vite dev server, tests) the same-origin defaults below apply,
- * plus the dev env Vite sets: `VITE_<envPrefix>KERNEL` (`<envPrefix>KERNEL=1 pnpm dev`) and
- * `VITE_<envPrefix>FLAGS`.
+ * plus what the dev server passes in: `import.meta.env.DEV_API` (true when it was started with
+ * `<envPrefix>API_URL`, vite.config.ts) and `VITE_<envPrefix>FLAGS`.
  */
 export interface RuntimeConfig {
   /** Base of the kernel API (apps/api); the SPA appends `/v1/…`, `/annotations/…`. */
@@ -29,7 +29,7 @@ function defaults(): RuntimeConfig {
   return {
     apiBase: "/api",
     agentBase: "/api/agent",
-    kernel: env[`VITE_${NAMING.envPrefix}KERNEL`] === "1",
+    kernel: env.DEV_API === true,
     flags: typeof flags === "string" ? splitList(flags) : [],
     displayName: NAMING.displayName,
   };

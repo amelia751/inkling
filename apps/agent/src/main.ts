@@ -5,7 +5,7 @@ import { dataDir, createModelRuntime } from "./agent/models.ts";
 import { type ReadyCheck, createApp } from "./app.ts";
 import { createBus } from "./bus/index.ts";
 import { SERVICE_NAME, SERVICE_VERSION } from "./cluster/naming.ts";
-import { type Config, ConfigError, describeSecrets, loadConfig } from "./config.ts";
+import { type Config, ConfigError, describeSecrets, envName, loadConfig } from "./config.ts";
 import { createServiceLog } from "./observability.ts";
 import { SessionService } from "./runtime/sessions.ts";
 import { createDaytona } from "./sandbox/client.ts";
@@ -131,7 +131,7 @@ if (config.sweeperEnabled) {
   sweeper = setInterval(() => void sweep(), SWEEP_EVERY_MS);
   sweeper.unref();
 } else {
-  log.info("in-process sweeper disabled (SWEEPER_ENABLED=false); run scripts/sweep.ts as a CronJob");
+  log.info(`in-process sweeper disabled (${envName("AGENT_SWEEPER_ENABLED")}=false); run scripts/sweep.ts as a CronJob`);
 }
 
 const app = createApp({ config, sessions, log, ready });

@@ -11,7 +11,7 @@
   `allow-same-origin`, runs on an opaque origin and can't reach the parent document.
   No kernel needed.
 
-    <envPrefix>KERNEL=1 <envPrefix>E2E=1 pnpm exec vite --port 5199 --strictPort
+    <envPrefix>API_URL=http://127.0.0.1:8000 <envPrefix>E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/plugin_isolation_test.py --port 5199
 """
 

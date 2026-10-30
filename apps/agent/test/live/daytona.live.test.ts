@@ -62,7 +62,7 @@ describe.skipIf(!live)("Daytona live", () => {
     const env = await call("bash", { command: "env" });
     expect(env).toContain("INKLING_SESSION=");
     // Daytona injects its own sandbox metadata (DAYTONA_SANDBOX_ID, _REGION_ID, …); host credentials never get in.
-    expect(env).not.toMatch(/^(DAYTONA_API_KEY|DAYTONA_API_URL|DAYTONA_TARGET|INTERNAL_AGENT_SERVICE_TOKEN|OPENAI_\w*|ANTHROPIC_\w*)=/m);
+    expect(env).not.toMatch(/^(DAYTONA_API_KEY|DAYTONA_API_URL|DAYTONA_TARGET|\w*AGENT_TOKEN|OPENAI_\w*|ANTHROPIC_\w*)=/m);
     for (const v of [config.daytona?.apiKey, ...Object.values(config.providerKeys)]) if (v) expect(env).not.toContain(v);
   });
 

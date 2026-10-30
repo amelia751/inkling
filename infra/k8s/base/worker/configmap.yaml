@@ -5,7 +5,7 @@ kind: ConfigMap
 metadata:
   name: worker-config
 data:
-  INKLING_KERNEL_URL: http://api
+  INKLING_API_URL: http://api
   INKLING_WORKER_DATA_DIR: /tmp/worker
   INKLING_WORKER_ENVS_DIR: /app/.plugin-envs
   INKLING_WORKER_BUILD_ENVS: "0"

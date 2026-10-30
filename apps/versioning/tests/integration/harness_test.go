@@ -109,7 +109,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		t.Fatal(err)
 	}
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if os.Getenv("VERBOSE") != "" {
+	if n, _ := config.LoadNaming(); config.Env(n, "VERSIONING_TEST_VERBOSE") != "" {
 		log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
 	a, err := app.Build(ctx, cfg, log, app.Options{Blobs: s3,

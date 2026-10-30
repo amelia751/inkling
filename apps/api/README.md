@@ -1,4 +1,4 @@
-# Kernel and control plane (`apps/api`)
+# API service (`apps/api`): kernel and plugin control plane
 
 FastAPI + SQLAlchemy 2 + Alembic, Python 3.12, managed with `uv`. Implements the stable
 kernel of `docs/plugins.md` §6 and the plugin control plane of §7 and §11.
@@ -12,7 +12,7 @@ uv run pytest
 uv run python scripts/gen_contracts.py --check   # pydantic contracts match schemas/
 ```
 
-Then run the web app against it: `INKLING_KERNEL=1 pnpm dev` (the env-var prefix comes from
+Then run the web app against it: `INKLING_API_URL=http://127.0.0.1:8000 pnpm dev` (the env-var prefix comes from
 `schemas/naming.json`). Vite proxies `/api/*` here, except `/api/catalog`,
 `/api/environments` and `/api/agent`, which need the TypeScript registry.
 
@@ -45,7 +45,7 @@ event hand-off behind interfaces. Dev needs none of it (SQLite, `seed-data/`, DB
 | Blobs (seed assets, artifacts) | `BLOB_STORE=local`: `seed-data/`, `.data/` | `BLOB_STORE=s3` + `S3_ENDPOINT`/`S3_BUCKET` (keys = seed-data paths; derived data under `.data/`) | `blobstore.py` |
 | Job queue | `JOB_QUEUE=sql`: DB scan, `FOR UPDATE SKIP LOCKED` on Postgres, conditional-UPDATE leases | `JOB_QUEUE=redis`: `<resourcePrefix>:jobs:ready` list (KEDA scales workers on its length), lease set + reaper | `kernel/queue.py` |
 | Events | `EVENT_BUS=sql`: outbox scan | `EVENT_BUS=redis`: stream `<resourcePrefix>:events`, consumer group `kernel` | `kernel/eventbus.py` |
-| Logs and traces | JSON on stdout (`LOG_FORMAT=text` for humans) | + OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`--extra otel`) | `packages/observability-py` |
+| Logs and traces | JSON on stdout (`INKLING_LOG_FORMAT=text` for humans) | + OpenTelemetry when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (`--extra otel`) | `packages/observability-py` |
 
 Every setting and its default is in the docstring of `config.py`; a bad configuration
 stops the process naming the missing or invalid keys (never their values). Seed data gets

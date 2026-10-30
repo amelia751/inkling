@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import { type FauxContentBlock, fauxAssistantMessage, fauxProvider, fauxText, fauxThinking, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { type Config, SCRIPTED_PROVIDER } from "../config.ts";
+import { type Config, SCRIPTED_PROVIDER, envName } from "../config.ts";
 
 export const DEFAULT_DATA_DIR = resolve(import.meta.dirname, "../../.data");
 export const dataDir = (config: Config) => resolve(config.dataDir ?? DEFAULT_DATA_DIR);
@@ -23,7 +23,7 @@ export async function createModelRuntime(config: Config): Promise<ModelRuntime> 
 }
 
 export function resolveModel(runtime: ModelRuntime, config: Config, ref = `${config.model.provider}:${config.model.id}`): Model<Api> {
-  if (!config.model.allowlist.includes(ref)) throw new Error(`model ${ref} is not in AGENT_MODEL_ALLOWLIST`);
+  if (!config.model.allowlist.includes(ref)) throw new Error(`model ${ref} is not in ${envName("AGENT_MODEL_ALLOWLIST")}`);
   const [provider, ...rest] = ref.split(":");
   const model = runtime.getModel(provider!, rest.join(":"));
   if (!model) throw new Error(`model ${ref} is unknown to pi ${provider}`);

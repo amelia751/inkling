@@ -1,10 +1,10 @@
 # Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
 # Only ${VAR}s defined in the environment are substituted (Dockerfile ENV sets defaults):
-#   AGENT_UPSTREAM                 the agent service (default http://agent:8100); a name the
+#   INKLING_AGENT_URL              the agent service (default http://agent:8100); a name the
 #                                  resolver can answer without search domains (k8s: the FQDN)
 #   NGINX_LOCAL_RESOLVERS          the nameservers in /etc/resolv.conf (set by the image's
 #                                  entrypoint, NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1)
-#   INTERNAL_AGENT_SERVICE_TOKEN   bearer the proxy adds; it never reaches the browser
+#   INKLING_AGENT_TOKEN            bearer the proxy adds; it never reaches the browser
 #   GIT_SHA                        build revision for /version
 server {
   listen 8080;
@@ -34,12 +34,12 @@ server {
   # The agent service: /api/agent/* → <agent>/v1/* with the service bearer (what the Vite
   # proxy does in dev). SSE run streams: no buffering, no compression, hour-long timeouts.
   location /api/agent/ {
-    set $agent_upstream ${AGENT_UPSTREAM};
+    set $agent_upstream ${INKLING_AGENT_URL};
     rewrite ^/api/agent/(.*)$ /v1/$1 break;
     proxy_pass $agent_upstream;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
-    proxy_set_header Authorization "Bearer ${INTERNAL_AGENT_SERVICE_TOKEN}";
+    proxy_set_header Authorization "Bearer ${INKLING_AGENT_TOKEN}";
     proxy_set_header X-Request-Id $request_id;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;

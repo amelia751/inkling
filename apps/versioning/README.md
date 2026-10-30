@@ -33,7 +33,7 @@ Copy `secrets/versioning.env.example` (at the repo root) to
 reads only the environment, and every key gets the naming config's
 `envPrefix`. With `schemas/naming.json` the prefix is `INKLING_`, so the keys are
 `INKLING_VERSIONING_DATABASE_URL`, `INKLING_VERSIONING_OBJECT_ENDPOINT` and so on.
-Without a naming config (`NAMING_CONFIG` unset and no `schemas/naming.json`
+Without a naming config (`NAMING_FILE` unset and no `schemas/naming.json`
 found upwards) the keys are used exactly as written in the example.
 
 ```sh
@@ -96,7 +96,7 @@ only objects that have been unreferenced for longer than `GC_GRACE_HOURS`.
 | `make test` | unit tests, `go test -race ./...` (no Docker) |
 | `make test-integration` | `-tags integration`: Postgres 17 + RustFS via testcontainers |
 | `make bench` | the Git metadata benchmarks (integration tag) |
-| `make load` | `tests/load` at 100k entries; `LOAD_ENTRIES=1000000 make load` for 1M |
+| `make load` | `tests/load` at 100k entries; `INKLING_VERSIONING_LOAD_ENTRIES=1000000 make load` for 1M |
 | `make fuzz` | `FuzzManifestDecode`, `FuzzCanonicalJSON`, `FuzzBranchName` (`FUZZTIME=30s`) |
 | `make lint`, `make vuln` | golangci-lint, govulncheck |
 | `make build` | static binaries for every `cmd/` into `dist/` |
@@ -151,7 +151,7 @@ runs (`-benchtime 1x`), not averages.
 
 ### Load tests (todo4 Phase 3), 2026-10-30
 
-`make load` (100k) and `LOAD_ENTRIES=1000000 make load` (1M), i.e.
+`make load` (100k) and `INKLING_VERSIONING_LOAD_ENTRIES=1000000 make load` (1M), i.e.
 `go test -tags load -timeout 2h -v ./tests/load/`. `TestScaleUpdateDiffMergeCheckout`
 builds a manifest with N samples, makes two 1% updates on two branches, then
 runs diff, review checks, a three-way merge and checkouts.
@@ -201,5 +201,5 @@ Notes for the next attempt:
 - For about 2 minutes early on, a short run of the new integration tests
   (`TestMergeStaleTarget*`, `TestEveryReleaseVerifies`,
   `TestGCMarkReachableCoversAllRoots`) overlapped the 1M run.
-- To retry: `LOAD_ENTRIES=1000000 make load` with nothing else running, and
+- To retry: `INKLING_VERSIONING_LOAD_ENTRIES=1000000 make load` with nothing else running, and
   more memory for the Docker VM if possible.

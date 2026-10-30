@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ConfigError, describeSecrets, loadConfig } from "../../src/config.ts";
+import { ConfigError, describeSecrets, loadConfig, withPrefix } from "../../src/config.ts";
 import { createParams, sandboxLabels, sandboxName } from "../../src/sandbox/defaults.ts";
 import { snapshotName } from "../../src/sandbox/snapshot.ts";
 import { loadDevSecrets, maskSecret, parseEnvFile } from "../../src/secrets.ts";
@@ -23,7 +23,7 @@ describe("secrets", () => {
     const env: NodeJS.ProcessEnv = { KEEP: "real" };
     expect(loadDevSecrets(env, dir)).toEqual(["NEW"]);
     expect(env).toMatchObject({ KEEP: "real", NEW: "file" });
-    const prod: NodeJS.ProcessEnv = { APP_ENV: "production" };
+    const prod = withPrefix({ ENV: "production" });
     expect(loadDevSecrets(prod, dir)).toEqual([]);
     expect(prod.NEW).toBeUndefined();
   });
@@ -36,21 +36,21 @@ describe("secrets", () => {
 
 describe("config", () => {
   it("fails closed in production when keys are missing", () => {
-    expect(() => loadConfig({ APP_ENV: "production" })).toThrow(ConfigError);
+    expect(() => loadConfig(withPrefix({ ENV: "production" }))).toThrow(ConfigError);
   });
 
   it("only warns in dev", () => {
-    const { config, warnings } = loadConfig({});
+    const { config, warnings } = loadConfig(withPrefix({}));
     expect(config.daytona).toBeUndefined();
     expect(warnings[0]).toMatch(/DAYTONA_API_KEY/);
   });
 
   it("rejects models outside the allowlist", () => {
-    expect(() => loadConfig({ AGENT_MODEL: "openai:o1-pro" })).toThrow(/ALLOWLIST/);
+    expect(() => loadConfig(withPrefix({ AGENT_MODEL: "openai:o1-pro" }))).toThrow(/ALLOWLIST/);
   });
 
   it("describeSecrets never prints values", () => {
-    const { config } = loadConfig({ DAYTONA_API_KEY: "dtn_supersecretvalue5a3", OPENAI_API_KEY: "sk-abcdefDkA" });
+    const { config } = loadConfig(withPrefix({ DAYTONA_API_KEY: "dtn_supersecretvalue5a3", OPENAI_API_KEY: "sk-abcdefDkA" }));
     const line = describeSecrets(config);
     expect(line).not.toContain("supersecret");
     expect(line).toContain("daytona=set …5a3");
@@ -58,7 +58,7 @@ describe("config", () => {
 });
 
 describe("sandbox defaults", () => {
-  const { config } = loadConfig({ APP_ENV: "test", DAYTONA_API_KEY: "k" });
+  const { config } = loadConfig(withPrefix({ ENV: "test", DAYTONA_API_KEY: "k" }));
   const who = { sessionId: "S_1/x", projectId: "p 1", owner: "me@x.com", profile: "coder" };
 
   it("names are deterministic and DNS-safe", () => {

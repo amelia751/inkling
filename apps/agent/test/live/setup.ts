@@ -1,13 +1,13 @@
 import type { Daytona } from "@daytona/sdk";
-import { type Config, loadConfig } from "../../src/config.ts";
+import { type Config, envName, loadConfig, withPrefix } from "../../src/config.ts";
 import { loadDevSecrets } from "../../src/secrets.ts";
 import { createDaytona } from "../../src/sandbox/client.ts";
 import { listOwned } from "../../src/sandbox/sweeper.ts";
 
-process.env.APP_ENV ??= "test";
+process.env[envName("ENV")] ??= "test";
 loadDevSecrets();
 
-export const { config } = loadConfig({ ...process.env, AGENT_SANDBOX_TTL_MIN: "60", AGENT_SANDBOX_AUTO_STOP_MIN: "10" });
+export const { config } = loadConfig({ ...process.env, ...withPrefix({ AGENT_SANDBOX_TTL_MIN: "60", AGENT_SANDBOX_AUTO_STOP_MIN: "10" }) });
 export const daytona: Daytona | undefined = createDaytona(config);
 export const live = Boolean(daytona);
 

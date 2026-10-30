@@ -3,7 +3,7 @@
 // Package load measures the service at scale (todo4 Phase 3): 100k or 1M
 // manifest entries with a 1% update -> diff -> merge -> partial checkout, GC
 // at 50 branches and 200 releases, and backup/restore with every release
-// verified. Run with `make load` (LOAD_ENTRIES=1000000 for the 1M run).
+// verified. Run with `make load` (<envPrefix>VERSIONING_LOAD_ENTRIES=1000000 for the 1M run).
 package load
 
 import (
@@ -150,8 +150,17 @@ func sample(i, objectIdx int) manifests.Sample {
 		Objects: []manifests.ObjectRef{{Role: "image", SHA256: fakeSHA(objectIdx), SizeBytes: int64(len(strconv.Itoa(objectIdx))), MediaType: "image/png"}}}
 }
 
+// loadEnv reads <envPrefix>VERSIONING_LOAD_<key>; the prefix comes from the naming config.
+func loadEnv(key string) string {
+	n, err := config.LoadNaming()
+	if err != nil {
+		return ""
+	}
+	return config.Env(n, "VERSIONING_LOAD_"+key)
+}
+
 func entries() int {
-	if v := os.Getenv("LOAD_ENTRIES"); v != "" {
+	if v := loadEnv("ENTRIES"); v != "" {
 		n, _ := strconv.Atoi(v)
 		return n
 	}
@@ -424,7 +433,7 @@ func TestGCScaleAndBackupRestore(t *testing.T) {
 }
 
 func writeResults(t *testing.T) {
-	if p := os.Getenv("LOAD_RESULTS"); p != "" {
+	if p := loadEnv("RESULTS"); p != "" {
 		b, _ := json.MarshalIndent(results, "", "  ")
 		if err := os.WriteFile(p, b, 0o600); err != nil {
 			t.Fatal(err)

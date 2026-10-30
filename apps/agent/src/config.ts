@@ -1,6 +1,22 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { envKey } from "./naming.ts";
 import { maskSecret } from "./secrets.ts";
+
+/**
+ * The one place this service reads the environment. Settings are `<envPrefix><KEY>` (the prefix
+ * comes from the naming config): `AGENT_*` for this service's own, `ENV` and `LOG_LEVEL` shared by
+ * every service, `API_URL` / `WEB_URL` / `AGENT_TOKEN` for how services reach each other.
+ * Third-party standards keep their own names.
+ */
+const UNPREFIXED = new Set(["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DAYTONA_API_KEY", "DAYTONA_API_URL", "DAYTONA_TARGET", "GIT_SHA", "HOSTNAME"]);
+/** The env var a setting is read from. */
+export const envName = (key: string) => (UNPREFIXED.has(key) ? key : envKey(key));
+/** One setting, e.g. `env("AGENT_DATABASE_URL")`. */
+export const env = (key: string, raw: NodeJS.ProcessEnv = process.env): string | undefined => raw[envName(key)];
+/** Settings by key → an environment (tests and scripts): `withPrefix({ AGENT_MODEL: "scripted" })`. */
+export const withPrefix = (vars: Record<string, string | undefined>): NodeJS.ProcessEnv =>
+  Object.fromEntries(Object.entries(vars).map(([k, v]) => [envName(k), v]));
 
 const int = (fallback: number) => z.coerce.number().int().nonnegative().default(fallback);
 const optional = z
@@ -14,10 +30,10 @@ const flag = (fallback: boolean) =>
     .transform((v) => (v === undefined || v === "" ? fallback : v === "true" || v === "1" || v === "yes"));
 
 const schema = z.object({
-  APP_ENV: z.enum(["development", "test", "production"]).default("development"),
+  ENV: z.enum(["development", "test", "production"]).default("development"),
   AGENT_HOST: z.string().default("127.0.0.1"),
   AGENT_PORT: int(8100),
-  INTERNAL_AGENT_SERVICE_TOKEN: optional,
+  AGENT_TOKEN: optional,
 
   AGENT_MODEL: z.string().default("openai:gpt-6.1-sol"),
   AGENT_MODEL_ALLOWLIST: z
@@ -50,9 +66,9 @@ const schema = z.object({
   AGENT_APPROVAL_TIMEOUT_S: int(600),
 
   /** The Studio (Vite dev server) for the seed API fallback and sample uploads. */
-  AGENT_STUDIO_URL: z.string().url().default("http://localhost:5173"),
-  /** The kernel (apps/api) for the builder and task profiles' tools; calls there carry `traceparent` / `x-request-id`. */
-  AGENT_KERNEL_URL: z.string().url().default("http://127.0.0.1:8000"),
+  WEB_URL: z.string().url().default("http://localhost:5173"),
+  /** The API (apps/api) for the builder and task profiles' kernel tools; calls there carry `traceparent` / `x-request-id`. */
+  API_URL: z.string().url().default("http://127.0.0.1:8000"),
   AGENT_UPLOAD_MAX_FILES: int(20),
   AGENT_UPLOAD_MAX_MB: int(200),
   AGENT_SANDBOX_RETENTION_DAYS: int(7),
@@ -83,16 +99,17 @@ const schema = z.object({
   /** SIGTERM: let in-flight runs finish for this long, then mark the rest interrupted (k8s grace is 120 s). */
   AGENT_SHUTDOWN_GRACE_S: int(100),
   /** In-process Daytona sweeper; turn off when the agent-sweeper CronJob runs `scripts/sweep.ts`. */
-  SWEEPER_ENABLED: flag(true),
+  AGENT_SWEEPER_ENABLED: flag(true),
   /** Injected at image build (`--build-arg GIT_SHA`); served by GET /version. */
   GIT_SHA: optional,
+  HOSTNAME: optional,
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
 });
 
 export type Env = z.infer<typeof schema>;
 
 export interface Config {
-  env: Env["APP_ENV"];
+  env: Env["ENV"];
   host: string;
   port: number;
   serviceToken: string | undefined;
@@ -117,7 +134,7 @@ export interface Config {
   upload: { maxFiles: number; maxBytes: number };
   sweep: { retentionDays: number; idleStopMin: number };
   egressProbe: "auto" | "off";
-  /** Set when AGENT_MODEL=scripted: path of the replay fixture. */
+  /** Set when the model is `scripted`: path of the replay fixture. */
   script: string | undefined;
   dataDir: string | undefined;
   logLevel: Env["LOG_LEVEL"];
@@ -137,22 +154,23 @@ export class ConfigError extends Error {
 
 /** Validate settings. Fails closed in production; in dev, missing keys only disable the feature. */
 export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Config; warnings: string[] } {
-  const parsed = schema.safeParse(raw);
+  const parsed = schema.safeParse(Object.fromEntries(Object.keys(schema.shape).map((k) => [k, env(k, raw)])));
   if (!parsed.success) {
     // Key names and zod's message only: never the offending value (it may be a secret).
-    throw new ConfigError(`invalid settings: ${parsed.error.issues.map((i) => `${i.path.join(".")} (${i.message})`).join("; ")}`);
+    throw new ConfigError(`invalid settings: ${parsed.error.issues.map((i) => `${envName(String(i.path[0]))} (${i.message})`).join("; ")}`);
   }
   const e = parsed.data;
   const warnings: string[] = [];
 
   const scripted = e.AGENT_MODEL === SCRIPTED_PROVIDER;
-  if (scripted && e.APP_ENV === "production") throw new ConfigError("AGENT_MODEL=scripted is for development and tests only");
+  const MODEL = envName("AGENT_MODEL");
+  if (scripted && e.ENV === "production") throw new ConfigError(`${MODEL}=scripted is for development and tests only`);
   const [provider, ...rest] = scripted ? [SCRIPTED_PROVIDER, "replay"] : e.AGENT_MODEL.split(":");
   const id = rest.join(":");
-  if (!provider || !id) throw new ConfigError(`AGENT_MODEL must be provider:model-id, got "${e.AGENT_MODEL}"`);
+  if (!provider || !id) throw new ConfigError(`${MODEL} must be provider:model-id, got "${e.AGENT_MODEL}"`);
   const allowlist = e.AGENT_MODEL_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
   if (scripted) allowlist.push(`${provider}:${id}`);
-  else if (!allowlist.includes(e.AGENT_MODEL)) throw new ConfigError(`AGENT_MODEL ${e.AGENT_MODEL} is not in AGENT_MODEL_ALLOWLIST`);
+  else if (!allowlist.includes(e.AGENT_MODEL)) throw new ConfigError(`${MODEL} ${e.AGENT_MODEL} is not in ${envName("AGENT_MODEL_ALLOWLIST")}`);
 
   const providerKeys: Record<string, string> = {};
   if (e.OPENAI_API_KEY) providerKeys.openai = e.OPENAI_API_KEY;
@@ -164,10 +182,10 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
   // Explicitly chosen backends need their URL in every environment.
   const backend: string[] = [];
-  if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push("AGENT_DATABASE_URL");
-  if (e.AGENT_EVENT_BUS === "redis" && !e.AGENT_REDIS_URL) backend.push("AGENT_REDIS_URL");
-  if (e.APP_ENV === "production") {
-    if (!e.INTERNAL_AGENT_SERVICE_TOKEN) missing.push("INTERNAL_AGENT_SERVICE_TOKEN");
+  if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push(envName("AGENT_DATABASE_URL"));
+  if (e.AGENT_EVENT_BUS === "redis" && !e.AGENT_REDIS_URL) backend.push(envName("AGENT_REDIS_URL"));
+  if (e.ENV === "production") {
+    if (!e.AGENT_TOKEN) missing.push(envName("AGENT_TOKEN"));
     missing.push(...backend);
     if (missing.length) throw new ConfigError(`missing required settings: ${missing.join(", ")}`);
   } else {
@@ -178,10 +196,10 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   return {
     warnings,
     config: {
-      env: e.APP_ENV,
+      env: e.ENV,
       host: e.AGENT_HOST,
       port: e.AGENT_PORT,
-      serviceToken: e.INTERNAL_AGENT_SERVICE_TOKEN,
+      serviceToken: e.AGENT_TOKEN,
       model: { provider, id, allowlist, thinking: e.AGENT_THINKING },
       providerKeys,
       daytona: sandboxOn && e.DAYTONA_API_KEY
@@ -204,8 +222,8 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       clientToolTimeoutS: e.AGENT_CLIENT_TOOL_TIMEOUT_S,
       approvalTimeoutS: e.AGENT_APPROVAL_TIMEOUT_S,
       limits: { maxSessions: e.AGENT_MAX_SESSIONS, maxConcurrentRuns: e.AGENT_MAX_CONCURRENT_RUNS },
-      studioUrl: e.AGENT_STUDIO_URL,
-      kernelUrl: e.AGENT_KERNEL_URL,
+      studioUrl: e.WEB_URL,
+      kernelUrl: e.API_URL,
       upload: { maxFiles: e.AGENT_UPLOAD_MAX_FILES, maxBytes: e.AGENT_UPLOAD_MAX_MB * 1024 * 1024 },
       sweep: { retentionDays: e.AGENT_SANDBOX_RETENTION_DAYS, idleStopMin: e.AGENT_SANDBOX_IDLE_STOP_MIN },
       egressProbe: e.AGENT_EGRESS_PROBE,
@@ -216,13 +234,13 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       bus: { kind: e.AGENT_EVENT_BUS, redisUrl: e.AGENT_REDIS_URL, streamMaxLen: Math.max(100, e.AGENT_RUN_STREAM_MAXLEN), streamTtlS: e.AGENT_RUN_STREAM_TTL_S },
       cluster: {
         // Unique per process: a restarted container keeps its HOSTNAME but must not own the old runs.
-        replicaId: e.AGENT_REPLICA_ID ?? `${raw.HOSTNAME || "agent"}-${randomBytes(3).toString("hex")}`,
+        replicaId: e.AGENT_REPLICA_ID ?? `${e.HOSTNAME || "agent"}-${randomBytes(3).toString("hex")}`,
         leaseS: Math.max(2, e.AGENT_RUN_LEASE_S),
         heartbeatS: Math.max(1, Math.min(e.AGENT_RUN_HEARTBEAT_S, Math.floor(e.AGENT_RUN_LEASE_S / 2) || 1)),
         inboxPollMs: Math.max(100, e.AGENT_INBOX_POLL_MS),
       },
       shutdownGraceS: e.AGENT_SHUTDOWN_GRACE_S,
-      sweeperEnabled: e.SWEEPER_ENABLED,
+      sweeperEnabled: e.AGENT_SWEEPER_ENABLED,
       gitSha: e.GIT_SHA,
     },
   };

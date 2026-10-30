@@ -22,7 +22,8 @@ import { BrandMark } from "@/studio/components/layout/brand";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { UploadLayer } from "@/studio/components/uploads/uploads";
-import { useCommands } from "@/extension-host/commands";
+import { NewProjectDialog } from "@/studio/components/projects/new-project";
+import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
@@ -94,6 +95,11 @@ export function AppLayout({ dataset, studio = false, children }: { dataset?: Pro
   const { pathname } = useLocation();
   useEffect(() => setDrawerOpen(false), [pathname]);
   const project = useCurrentProject(dataset);
+  // `when` clauses outside an environment read the page (`section == sources`); the Studio
+  // resolves its own context (section == studio) on top.
+  const section = useSection();
+  const shellSection = studio ? "studio" : (section ?? (project ? "overview" : "home"));
+  useEffect(() => setShellContext({ section: shellSection }), [shellSection]);
   // Live updates for a project this person can see (one stream per page).
   useProjectEvents(useProjectSummary(project?.id).data?.id);
 
@@ -104,6 +110,9 @@ export function AppLayout({ dataset, studio = false, children }: { dataset?: Pro
     setNav(collapsed ? "full" : "rail");
   };
   useCommands({ toggleNavigation: toggleNav }, { scope: ns("core"), global: true });
+  // The Studio binds the assistant to its own right slot; elsewhere it's the shell's drawer.
+  const toggleAssistant = useShell((s) => s.toggleAssistant);
+  useCommands({ toggleAssistant }, { scope: ns("core"), global: true, enabled: !studio });
 
   const sidebar = (rail: boolean) => <SideNav project={project} rail={rail} />;
 
@@ -118,6 +127,7 @@ export function AppLayout({ dataset, studio = false, children }: { dataset?: Pro
         )}
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>
         <UploadLayer />
+        <NewProjectDialog />
       </div>
     );
   }
@@ -139,6 +149,7 @@ export function AppLayout({ dataset, studio = false, children }: { dataset?: Pro
         <main className="thin-scrollbar min-w-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       <UploadLayer />
+      <NewProjectDialog />
       {!desktop && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
           <SheetContent side="left" title="Navigation" className="flex w-[min(284px,88vw)] flex-col p-6 pr-4">

@@ -336,7 +336,7 @@ wheels = [
 ]
 
 [[package]]
-name = "segmentation-plugin"
+name = "studio-plugin-segmentation"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [

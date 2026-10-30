@@ -279,7 +279,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:776ce48f57fd19120c51f9782363641eeae045653314f129ad9579d9ebbd7445",
+      "artifactDigest": "sha256:bf36f4a170aaabdf506cae87d299276b1d3b03bab6457e751dfea1eb1121cf4b",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"
@@ -348,7 +348,7 @@
         ],
         "runtime": {
           "kind": "python-worker",
-          "entrypoint": "segmentation_plugin.tools:register",
+          "entrypoint": "studio_plugin_segmentation.tools:register",
           "maxExecutionSeconds": 180,
           "concurrency": 4
         },

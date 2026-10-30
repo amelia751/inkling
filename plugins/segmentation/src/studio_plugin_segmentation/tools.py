@@ -1,4 +1,4 @@
-"""Tool entrypoints (plugin.yaml runtime.entrypoint = segmentation_plugin.tools:register)."""
+"""Tool entrypoints (plugin.yaml runtime.entrypoint = studio_plugin_segmentation.tools:register)."""
 
 from __future__ import annotations
 

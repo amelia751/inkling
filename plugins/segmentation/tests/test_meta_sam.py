@@ -6,10 +6,10 @@ import json
 import pytest
 from studio_plugin_sdk import SecretsClient
 
-from segmentation_plugin.normalize import to_result
-from segmentation_plugin.providers import ProviderError
-from segmentation_plugin.providers.meta_sam import ENDPOINT, MODEL, MetaSam, from_provider_response, parse_output, prompt_text, to_provider_request
-from segmentation_plugin.tools import segment_objects
+from studio_plugin_segmentation.normalize import to_result
+from studio_plugin_segmentation.providers import ProviderError
+from studio_plugin_segmentation.providers.meta_sam import ENDPOINT, MODEL, MetaSam, from_provider_response, parse_output, prompt_text, to_provider_request
+from studio_plugin_segmentation.tools import segment_objects
 
 
 def test_text_prompt_is_the_noun_phrase_and_image_is_a_data_url():
@@ -123,7 +123,7 @@ def test_calls_go_through_the_broker_to_metas_endpoint(ctx):
     broker = FakeBroker()
     c = ctx("meta.sam", secrets={"META_MODEL_API_KEY": "use-token"})
     c.secrets = SecretsClient(broker, {"META_MODEL_API_KEY": "use-token"})
-    from segmentation_plugin.providers import meta_sam
+    from studio_plugin_segmentation.providers import meta_sam
 
     orig = meta_sam.MetaSam.__init__
 

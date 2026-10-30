@@ -22,6 +22,7 @@ import { BrandMark } from "@/studio/components/layout/brand";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { UploadLayer } from "@/studio/components/uploads/uploads";
+import { NewProjectDialog } from "@/studio/components/projects/new-project";
 import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
@@ -140,6 +141,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
         )}
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>
         <UploadLayer />
+        <NewProjectDialog />
       </div>
     );
   }
@@ -161,6 +163,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
         <main className="thin-scrollbar min-w-0 flex-1 overflow-y-auto">{children}</main>
       </div>
       <UploadLayer />
+      <NewProjectDialog />
       {!desktop && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
           <SheetContent side="left" title="Navigation" className="flex w-[min(284px,88vw)] flex-col p-6 pr-4">

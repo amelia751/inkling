@@ -182,8 +182,8 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   });
   const ctxFor = (vp: ResolvedViewport | undefined): WhenContext =>
     vp
-      ? { renderer: vp.renderer.id, "renderer.name": vp.renderer.name, "renderer.space": vp.renderer.space, "renderer.capabilities": vp.renderer.capabilities, dataKind: dataKind?.id }
-      : { dataKind: dataKind?.id };
+      ? { section: "studio", renderer: vp.renderer.id, "renderer.name": vp.renderer.name, "renderer.space": vp.renderer.space, "renderer.capabilities": vp.renderer.capabilities, dataKind: dataKind?.id }
+      : { section: "studio", dataKind: dataKind?.id };
   const context = ctxFor(viewports[0]);
   const checkedWhen = (src: string | undefined, path: string): string | undefined => {
     if (!src) return src;

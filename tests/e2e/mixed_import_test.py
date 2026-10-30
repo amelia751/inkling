@@ -136,7 +136,14 @@ def main() -> int:
     for f in s["files"]:
         if f["uploadUrl"]:
             data = next(d for rel, d in files.items() if rel.endswith("/" + f["relPath"]))
-            api.call("PUT", f["uploadUrl"].removeprefix("/api"), raw=data)
+            for attempt in range(4):  # like the upload tray: retry with backoff (dev SQLite can be busy)
+                try:
+                    api.call("PUT", f["uploadUrl"].removeprefix("/api"), raw=data)
+                    break
+                except Exception:  # noqa: BLE001
+                    if attempt == 3:
+                        raise
+                    time.sleep(2**attempt)
     api.call("POST", f"/v1/imports/{s['id']}/complete")
     state = wait(lambda: (lambda st: st if st in ("needs_review", "ready", "failed") else None)(api.get(f"/v1/imports/{s['id']}")["state"]), 90)
     check("the worker inspects the import (needs review)", state == "needs_review", str(state))
@@ -215,9 +222,10 @@ def main() -> int:
 
             st = wait(lambda: (lambda x: x if x["n"] else None)(studio_state()), 60)
             check("the Studio has the imported labels", bool(st) and st["n"] == 8 and st["prov"] == ["imported"], str(st))
-            classes = page.evaluate(f"async () => (await (await fetch('/api/environments/{task}')).json()).effective.labels.map(g => g.classes.map(c => c.id).sort())")
-            check("the CSV's classes are the task's labels", all(c == ["normal", "pneumonia"] for c in classes) and len(classes) >= 1, str(classes))
-            check("2D Studio: the image viewer", page.locator("[role='toolbar'][aria-label='Annotation tools']").count() == 1)
+            classes = wait(lambda: store("s => s.env?.labels?.map(g => g.classes.map(c => c.id).sort())"), 30)
+            check("the CSV's classes are the task's labels", bool(classes) and all(c == ["normal", "pneumonia"] for c in classes), str(classes))
+            check("2D Studio: the image tools", bool(wait(lambda: page.locator("[role='toolbar'][aria-label='Annotation tools']").count() == 1, 30)))
+            check("items keep their original names", bool(wait(lambda: page.get_by_text("film_001.png").count() > 0, 15)))
             page.get_by_role("tab", name="Review").first.click()
             badge = wait(lambda: page.get_by_text("Imported", exact=True).count() > 0, 15)
             check("the imported badge is shown", bool(badge))

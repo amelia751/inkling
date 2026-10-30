@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import re
 import uuid
 from collections import Counter
@@ -289,7 +290,8 @@ def best_relationship(names: list[str], rows: list[list[str]], targets: Targets,
                 if rule == "numeric" and not numeric_like(values):
                     continue
                 ev = match(names, rows, targets, col, target, rule)
-                if ev["matched"] < (1 if filled <= 3 else max(2, int(0.2 * filled))):
+                # One coincidental match (`s1` ~ `series1`) is not a relationship.
+                if ev["matched"] < max(2, math.ceil(0.3 * filled)):
                     continue
                 score = (ev["matched"], -ev["ambiguous"], col in (profile.get("nameColumns") or []), col in (profile.get("candidateKeys") or []), target == "files", -rank)
                 if best is None or score > best[0]:
@@ -685,7 +687,9 @@ def _fact_lines(files: list[SourceNode]) -> list[str]:
     seen: Counter = Counter()
     for n in files:
         f = n.facts or {}
-        parts = [str(f.get("format") or n.detected_kind or "")]
+        if not f.get("format"):
+            continue  # unreadable files are in the Quality list, not "Detected"
+        parts = [str(f["format"])]
         if f.get("dicom", {}).get("modality"):
             parts.append(f["dicom"]["modality"])
         if f.get("width") and f.get("height"):

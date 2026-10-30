@@ -9,8 +9,9 @@ JSON, as long as the modules it needs are registered.
 The generated contribution reference (every id, description and edge) is
 [`modules-reference.md`](modules-reference.md); machine-readable versions are served at
 `/api/catalog` and `/api/catalog/schema` (`schemas/catalog.json`,
-`schemas/environment.v1.json`, copied to `apps/web/public/` for the dev server). They're built by `pnpm emit:schemas`; never
-edit them by hand.
+`schemas/environment.v1.json`; the web server also serves them, with `schemas/catalog.md`, at
+`/catalog.json`, `/schema/environment.v1.json` and `/catalog.md`). They're built by
+`pnpm emit:schemas`; never edit them by hand.
 
 ## Layers
 

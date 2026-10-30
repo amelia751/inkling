@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { defineConfig, type ProxyOptions } from "vite";
+import { defineConfig, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
@@ -55,6 +55,31 @@ const agentProxy: Record<string, ProxyOptions> = {
   },
 };
 
+/**
+ * Generated agent-facing files in schemas/ (written by `pnpm emit:schemas`), served at fixed URLs
+ * that agents and the MCP server read: a middleware in dev, emitted into dist/ by `vite build`.
+ */
+const SCHEMA_URLS: Record<string, string> = {
+  "/catalog.json": "catalog.json",
+  "/catalog.md": "catalog.md",
+  "/schema/environment.v1.json": "environment.v1.json",
+};
+const schemaFile = (name: string) => path.resolve(REPO_ROOT, "schemas", name);
+const schemaFiles: Plugin = {
+  name: "schema-files",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const name = SCHEMA_URLS[(req.url ?? "").split("?")[0]];
+      if (!name) return next();
+      res.setHeader("content-type", name.endsWith(".md") ? "text/markdown; charset=utf-8" : "application/json");
+      res.end(fs.readFileSync(schemaFile(name)));
+    });
+  },
+  generateBundle() {
+    for (const [url, name] of Object.entries(SCHEMA_URLS)) this.emitFile({ type: "asset", fileName: url.slice(1), source: fs.readFileSync(schemaFile(name)) });
+  },
+};
+
 export default defineConfig({
   // viteCommonjs: dicom-parser only ships a UMD build (Cornerstone3D framework guide).
   plugins: [
@@ -62,6 +87,7 @@ export default defineConfig({
     tailwindcss(),
     viteCommonjs(),
     seedServer(path.resolve(__dirname, "../../seed-data"), { kernel }),
+    schemaFiles,
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
   ],

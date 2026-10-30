@@ -93,5 +93,6 @@ Read `docs/modules.md`.
   goes in `annotation.attributes`. Stored v1 geometries migrate on load
   (`packages/plugin-contracts/src/migrations/annotations-v1-to-v2.ts`).
 - Icons come only from `@studio/studio-ui/icons`.
-- Never hand-edit generated files: `schemas/*.json`, `public/catalog.json`,
-  `public/catalog.md`, `public/schema/environment.v1.json`, `docs/modules-reference.md`.
+- Never hand-edit generated files: `schemas/*.json`, `schemas/catalog.md`,
+  `docs/modules-reference.md`. The web server serves the catalogue and environment schema from
+  `schemas/` at `/catalog.json`, `/catalog.md` and `/schema/environment.v1.json`.

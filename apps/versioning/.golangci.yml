@@ -1,0 +1,49 @@
+version: "2"
+run:
+  build-tags: [integration, load]
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - gosec
+    - revive
+    - bodyclose
+    - sqlclosecheck
+    - contextcheck
+    - forbidigo
+  settings:
+    forbidigo:
+      forbid:
+        # The memory storer loses data on restart (spec §4); tests only.
+        - pattern: ^memory\.NewStorage$
+          msg: the in-memory go-git storer is test-only; use storage.NewGitStorer
+        # Only binaries print; services log through slog.
+        - pattern: ^fmt\.Print(f|ln)?$
+          msg: use slog (fmt.Print* is allowed in cmd/ only)
+      analyze-types: true
+    gosec:
+      excludes:
+        - G115 # integer conversions are bounded by validation before they happen
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+  exclusions:
+    generated: strict
+    paths:
+      - internal/api/api.gen.go
+      - internal/db
+    rules:
+      - path: _test\.go
+        linters: [forbidigo, gosec, errcheck, revive, bodyclose, contextcheck]
+      - path: ^cmd/
+        linters: [forbidigo]
+      - path: ^cmd/devtoken/
+        linters: [gosec] # dev-only tool writing to an operator-chosen directory
+      - path: ^internal/(testenv|testutil)/
+        linters: [contextcheck, gosec]
+      - path: ^tests/
+        linters: [forbidigo, gosec, errcheck, revive, bodyclose]

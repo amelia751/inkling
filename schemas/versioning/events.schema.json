@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "events.schema.json",
+  "title": "VersioningEvent",
+  "description": "Outbox event envelope (versioning.md §12), published on subject `versioning.<event>`. Opaque ids and immutable oids only; never raw medical data. Delivery is at-least-once: consumers dedupe by event_id. The de-identification worker subscribes to review.opened and review.checks_requested.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "version", "tenant_id", "repo_id", "entity_id", "actor_id", "occurred_at", "data"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid"},
+    "event_type": {"enum": ["versioning.commit.created", "versioning.branch.updated", "versioning.review.opened",
+      "versioning.review.checks_requested", "versioning.review.checks_completed", "versioning.review.merged",
+      "versioning.release.published", "versioning.artifact.unreferenced"]},
+    "version": {"const": 1},
+    "tenant_id": {"type": "string", "format": "uuid"},
+    "repo_id": {"type": "string"},
+    "entity_id": {"type": "string"},
+    "actor_id": {"type": "string"},
+    "occurred_at": {"type": "string", "format": "date-time"},
+    "data": {"type": "object", "additionalProperties": {"type": "string"},
+      "description": "Event-specific ids: branch, commit_oid, previous_oid, review_id, source_oid, target_oid, merge_oid, tag, manifest_root."}
+  }
+}

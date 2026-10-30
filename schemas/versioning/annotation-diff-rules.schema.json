@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "annotation-diff-rules.schema.json",
+  "title": "AnnotationDiffRules",
+  "description": "A plugin's declared diff semantics (todo4 V13), extracted from plugin.yaml `annotations.diff` into DIFF_RULES_DIR. The versioning service validates and applies them generically; it never runs plugin code.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plugin", "rules"],
+  "properties": {
+    "plugin": {"type": "string"},
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "geometry"],
+        "properties": {
+          "kind": {"enum": ["box2d", "polygon2d", "mask2d", "region3d", "timespan", "measurement", "textspan"]},
+          "compare_fields": {"$ref": "#/$defs/fields"},
+          "conflict_fields": {"$ref": "#/$defs/fields", "description": "Divergent edits to these fields conflict; others take the reviewed source."},
+          "geometry": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["metric", "threshold"],
+            "properties": {
+              "metric": {"enum": ["iou", "max_vertex_delta_px", "abs_delta", "exact"]},
+              "threshold": {"type": "number", "minimum": 0}
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "fields": {
+      "type": "array",
+      "items": {"enum": ["class_id", "geometry", "confidence", "status", "reviewer_id", "attributes", "coordinate_frame", "calibration", "ontology_rev"]}
+    }
+  }
+}

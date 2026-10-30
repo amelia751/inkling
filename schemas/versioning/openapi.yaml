@@ -1,0 +1,922 @@
+openapi: 3.0.3
+info:
+  title: Dataset versioning internal API
+  version: 1.0.0
+  description: |
+    Internal API of apps/versioning (versioning.md §10). Only apps/api and
+    apps/worker call it; browsers never do. Every /internal/v1 request carries a
+    short-lived Ed25519 JWT minted by apps/api (todo4 V4). Write operations take
+    an Idempotency-Key. Errors are application/problem+json with a stable `code`.
+servers:
+  - url: http://versioning:8090
+security:
+  - serviceJWT: []
+tags:
+  - name: repos
+  - name: branches
+  - name: artifacts
+  - name: commits
+  - name: diff
+  - name: reviews
+  - name: releases
+  - name: checkouts
+  - name: ops
+paths:
+  /healthz:
+    get:
+      tags: [ops]
+      operationId: healthz
+      security: []
+      responses:
+        "200": {description: Process is alive, content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+  /readyz:
+    get:
+      tags: [ops]
+      operationId: readyz
+      security: []
+      responses:
+        "200": {description: Dependencies reachable, content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+        "503": {description: A dependency is unreachable, content: {application/json: {schema: {$ref: "#/components/schemas/Health"}}}}
+  /version:
+    get:
+      tags: [ops]
+      operationId: version
+      security: []
+      responses:
+        "200": {description: Build info, content: {application/json: {schema: {$ref: "#/components/schemas/VersionInfo"}}}}
+
+  /internal/v1/repos:
+    post:
+      tags: [repos]
+      operationId: createRepo
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateRepoRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Repository"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    get:
+      tags: [repos]
+      operationId: getRepo
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Repository"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/branches:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [branches]
+      operationId: createBranch
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateBranchRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Branch"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [branches]
+      operationId: listBranches
+      parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}]
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/BranchPage"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    delete:
+      tags: [branches]
+      operationId: deleteBranch
+      description: Tombstones the branch; it stays a GC root for the retention period. Refused on protected branches.
+      parameters:
+        - {name: name, in: query, required: true, schema: {$ref: "#/components/schemas/BranchName"}}
+        - {name: expected_head, in: query, required: true, schema: {$ref: "#/components/schemas/CommitOID"}}
+      responses:
+        "200": {description: Tombstoned, content: {application/json: {schema: {$ref: "#/components/schemas/Branch"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/artifacts/{sha256}:
+    parameters: [{$ref: "#/components/parameters/SHA256"}]
+    put:
+      tags: [artifacts]
+      operationId: putArtifact
+      description: Streams raw bytes to staging. Hash and length are verified before the object becomes visible.
+      parameters:
+        - {name: X-Media-Type, in: header, required: true, schema: {type: string, maxLength: 128}}
+      requestBody:
+        required: true
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "201": {description: Staged, content: {application/json: {schema: {$ref: "#/components/schemas/Artifact"}}}}
+        "200": {description: Already present, content: {application/json: {schema: {$ref: "#/components/schemas/Artifact"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [artifacts]
+      operationId: getArtifact
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Artifact"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/artifacts/{sha256}/purge:
+    parameters: [{$ref: "#/components/parameters/SHA256"}]
+    post:
+      tags: [artifacts]
+      operationId: purgeArtifact
+      description: Deletes the bytes of a withdrawn artifact (todo4 V9). Disabled unless PURGE_ENABLED; blocked by legal holds and by any live branch head or release still referencing it.
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/PurgeRequest"}}}
+      responses:
+        "200": {description: Purged, content: {application/json: {schema: {$ref: "#/components/schemas/Artifact"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/annotation-revisions:
+    post:
+      tags: [artifacts]
+      operationId: putAnnotationRevision
+      description: Canonicalises, validates and stores an immutable annotation-revision document as an artifact.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/AnnotationRevision"}}}
+      responses:
+        "201": {description: Stored, content: {application/json: {schema: {$ref: "#/components/schemas/ContentRef"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/manifests:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [commits]
+      operationId: putManifest
+      description: Validates, canonicalises and stores a manifest; returns its root hash for a later commit.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/Manifest"}}}
+      responses:
+        "201": {description: Stored, content: {application/json: {schema: {$ref: "#/components/schemas/ManifestRoot"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/commits:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [commits]
+      operationId: createCommit
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CommitRequest"}}}
+      responses:
+        "201": {description: Committed, content: {application/json: {schema: {$ref: "#/components/schemas/CommitResult"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [commits]
+      operationId: listCommits
+      parameters:
+        - {name: ref, in: query, required: true, schema: {type: string, maxLength: 128}, description: Branch name or commit oid}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/CommitPage"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/commits/{commit_oid}:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {name: commit_oid, in: path, required: true, schema: {$ref: "#/components/schemas/CommitOID"}}]
+    get:
+      tags: [commits]
+      operationId: getCommit
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Commit"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reverts:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [commits]
+      operationId: revert
+      description: Creates a new commit whose manifest equals the target commit's manifest (spec §6).
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/RevertRequest"}}}
+      responses:
+        "201": {description: Committed, content: {application/json: {schema: {$ref: "#/components/schemas/CommitResult"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/diff:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    get:
+      tags: [diff]
+      operationId: getDiff
+      parameters:
+        - {name: base, in: query, required: true, schema: {$ref: "#/components/schemas/CommitOID"}}
+        - {name: head, in: query, required: true, schema: {$ref: "#/components/schemas/CommitOID"}}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200": {description: Diff page, content: {application/json: {schema: {$ref: "#/components/schemas/DiffPage"}}}}
+        "202": {description: Large diff computed in the background, content: {application/json: {schema: {$ref: "#/components/schemas/DiffJob"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/diff-jobs/{job_id}:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {name: job_id, in: path, required: true, schema: {type: string, format: uuid}}]
+    get:
+      tags: [diff]
+      operationId: getDiffJob
+      parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}]
+      responses:
+        "200": {description: Finished, content: {application/json: {schema: {$ref: "#/components/schemas/DiffPage"}}}}
+        "202": {description: Still running, content: {application/json: {schema: {$ref: "#/components/schemas/DiffJob"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/reviews:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [reviews]
+      operationId: createReview
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateReviewRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [reviews]
+      operationId: listReviews
+      parameters:
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/ReviewStatus"}}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/ReviewPage"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    get:
+      tags: [reviews]
+      operationId: getReview
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/publish:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: publishReview
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/approve:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: approveReview
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ApproveRequest"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/comments:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: addReviewComment
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CommentRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Comment"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [reviews]
+      operationId: listReviewComments
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Comment"}}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/resolutions:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: resolveConflicts
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/ResolutionsRequest"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/checks/{check_name}:
+    parameters:
+      - {$ref: "#/components/parameters/RepoID"}
+      - {$ref: "#/components/parameters/ReviewID"}
+      - {name: check_name, in: path, required: true, schema: {type: string, pattern: "^[a-z][a-z0-9_]{0,63}$"}}
+    post:
+      tags: [reviews]
+      operationId: reportCheck
+      description: A worker reports an externally computed check (e.g. de-identification) for immutable OIDs.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CheckReport"}}}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/recheck:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: recheckReview
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/merge:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: mergeReview
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/MergeRequest"}}}
+      responses:
+        "200": {description: Merged, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/reviews/{review_id}/close:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {$ref: "#/components/parameters/ReviewID"}]
+    post:
+      tags: [reviews]
+      operationId: closeReview
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Review"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/releases:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [releases]
+      operationId: createRelease
+      parameters: [{$ref: "#/components/parameters/IdempotencyKey"}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateReleaseRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/Release"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    get:
+      tags: [releases]
+      operationId: listReleases
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Release"}}}}}
+        default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/releases/{tag}:
+    parameters: [{$ref: "#/components/parameters/RepoID"}, {name: tag, in: path, required: true, schema: {$ref: "#/components/schemas/Tag"}}]
+    get:
+      tags: [releases]
+      operationId: getRelease
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Release"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+    delete:
+      tags: [releases]
+      operationId: deleteRelease
+      responses:
+        "204": {description: Deleted}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/checkouts:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [checkouts]
+      operationId: createCheckout
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CheckoutRequest"}}}
+      responses:
+        "200": {description: Manifest page with signed URLs, content: {application/json: {schema: {$ref: "#/components/schemas/Checkout"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+  /internal/v1/repos/{repo_id}/legal-holds:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    post:
+      tags: [artifacts]
+      operationId: createLegalHold
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/LegalHoldRequest"}}}
+      responses:
+        "201": {description: Created, content: {application/json: {schema: {$ref: "#/components/schemas/LegalHold"}}}}
+        default: {$ref: "#/components/responses/Problem"}
+
+components:
+  securitySchemes:
+    serviceJWT: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    RepoID: {name: repo_id, in: path, required: true, schema: {type: string, format: uuid}}
+    ReviewID: {name: review_id, in: path, required: true, schema: {type: string, format: uuid}}
+    SHA256: {name: sha256, in: path, required: true, schema: {$ref: "#/components/schemas/SHA256"}}
+    Cursor: {name: cursor, in: query, schema: {type: string, maxLength: 512}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 1000, default: 100}}
+    IdempotencyKey: {name: Idempotency-Key, in: header, required: true, schema: {type: string, minLength: 8, maxLength: 128}}
+  responses:
+    Problem:
+      description: Error
+      content: {application/problem+json: {schema: {$ref: "#/components/schemas/Problem"}}}
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code:
+          type: string
+          description: Stable machine code.
+          enum: [bad_request, unauthenticated, forbidden, not_found, conflict, stale_head, idempotency_mismatch,
+                 multiple_merge_bases, protected_branch, purged, invalid_transition, self_approval, not_ready,
+                 unresolved_conflicts, validation_failed, rate_limited, too_large, disabled, legal_hold,
+                 retention, internal]
+        detail: {type: string}
+        request_id: {type: string}
+        current_head: {type: string}
+        head_generation: {type: integer, format: int64}
+        problems: {type: array, items: {type: string}}
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [ok, degraded]}
+        checks: {type: object, additionalProperties: {type: string}}
+    VersionInfo:
+      type: object
+      required: [git_sha, git_library, schema_version]
+      properties:
+        git_sha: {type: string}
+        git_library: {type: string}
+        schema_version: {type: integer, format: int64}
+    SHA256: {type: string, pattern: "^[0-9a-f]{64}$"}
+    ContentHash: {type: string, pattern: "^sha256:[0-9a-f]{64}$"}
+    CommitOID: {type: string, pattern: "^[0-9a-f]{40}$"}
+    BranchName: {type: string, pattern: "^[a-z0-9][a-z0-9._/-]{0,127}$"}
+    Tag: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"}
+    ActorKind: {type: string, enum: [user, agent, service]}
+    CreateRepoRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        policy_id: {type: string, maxLength: 64}
+        required_approvals: {type: integer, minimum: 0, maximum: 10}
+    Repository:
+      type: object
+      required: [id, tenant_id, project_id, name, default_branch, policy_id, object_format, head, head_generation, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        tenant_id: {type: string, format: uuid}
+        project_id: {type: string, format: uuid}
+        name: {type: string}
+        default_branch: {type: string}
+        policy_id: {type: string}
+        object_format: {type: string, enum: [sha1, sha256]}
+        head: {$ref: "#/components/schemas/CommitOID"}
+        head_generation: {type: integer, format: int64}
+        created_at: {type: string, format: date-time}
+    CreateBranchRequest:
+      type: object
+      required: [name, from]
+      properties:
+        name: {$ref: "#/components/schemas/BranchName"}
+        from: {type: string, maxLength: 128, description: Commit oid or existing branch name}
+        protected: {type: boolean}
+    Branch:
+      type: object
+      required: [name, commit_oid, generation, protected, updated_at]
+      properties:
+        name: {type: string}
+        commit_oid: {$ref: "#/components/schemas/CommitOID"}
+        generation: {type: integer, format: int64}
+        protected: {type: boolean}
+        updated_at: {type: string, format: date-time}
+        deleted_at: {type: string, format: date-time}
+    BranchPage:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Branch"}}
+        next_cursor: {type: string}
+    Artifact:
+      type: object
+      required: [sha256, size_bytes, media_type, status]
+      properties:
+        sha256: {$ref: "#/components/schemas/SHA256"}
+        size_bytes: {type: integer, format: int64}
+        media_type: {type: string}
+        status: {type: string, enum: [staged, available, unreferenced, deleted, purged]}
+        legal_hold: {type: boolean}
+    PurgeRequest:
+      type: object
+      required: [reason_code]
+      properties:
+        reason_code: {type: string, pattern: "^[a-z][a-z0-9_]{0,63}$"}
+    ContentRef:
+      type: object
+      required: [ref]
+      properties:
+        ref: {$ref: "#/components/schemas/ContentHash"}
+    LegalHoldRequest:
+      type: object
+      required: [reason_code]
+      properties:
+        artifact_sha256: {$ref: "#/components/schemas/SHA256"}
+        reason_code: {type: string, pattern: "^[a-z][a-z0-9_]{0,63}$"}
+    LegalHold:
+      type: object
+      required: [id, reason_code, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        artifact_sha256: {type: string}
+        reason_code: {type: string}
+        created_at: {type: string, format: date-time}
+
+    # ---- manifest documents (mirrors schemas/versioning/dataset-manifest.schema.json) ----
+    Manifest:
+      type: object
+      additionalProperties: false
+      required: [schema_version, ontology, samples, annotations]
+      properties:
+        schema_version: {type: string, enum: ["1"]}
+        ontology: {$ref: "#/components/schemas/Ontology"}
+        samples: {type: array, items: {$ref: "#/components/schemas/Sample"}}
+        annotations: {type: array, items: {$ref: "#/components/schemas/ManifestAnnotation"}}
+      x-go-type: manifests.Manifest
+      x-go-type-import: {path: studio.local/versioning/internal/manifests}
+    Ontology:
+      x-go-type: manifests.Ontology
+      x-go-type-import: {path: studio.local/versioning/internal/manifests}
+      type: object
+      additionalProperties: false
+      required: [revision_id, classes]
+      properties:
+        revision_id: {type: string}
+        classes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [class_id, name]
+            properties:
+              class_id: {type: string}
+              name: {type: string}
+              required_fields: {type: array, items: {type: string}}
+    Sample:
+      type: object
+      additionalProperties: false
+      required: [sample_id, modality, objects]
+      properties:
+        sample_id: {type: string, pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"}
+        modality: {type: string}
+        objects:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [role, sha256, size_bytes, media_type]
+            properties:
+              role: {type: string}
+              sha256: {$ref: "#/components/schemas/SHA256"}
+              size_bytes: {type: integer, format: int64, minimum: 0}
+              media_type: {type: string}
+        group:
+          type: object
+          additionalProperties: false
+          properties:
+            study_uid_hash: {$ref: "#/components/schemas/SHA256"}
+            series_uid_hash: {$ref: "#/components/schemas/SHA256"}
+            sequence: {type: integer}
+        split: {type: string}
+        width: {type: integer, minimum: 0}
+        height: {type: integer, minimum: 0}
+        depth: {type: integer, minimum: 0}
+        duration_s: {type: number, minimum: 0}
+      x-go-type: manifests.Sample
+      x-go-type-import: {path: studio.local/versioning/internal/manifests}
+    ManifestAnnotation:
+      type: object
+      additionalProperties: false
+      required: [annotation_id, revision_id, sample_id, kind, class_id, ontology_rev, ref]
+      properties:
+        annotation_id: {type: string}
+        revision_id: {type: string}
+        sample_id: {type: string}
+        kind: {$ref: "#/components/schemas/AnnotationKind"}
+        class_id: {type: string}
+        ontology_rev: {type: string}
+        ref: {$ref: "#/components/schemas/ContentHash"}
+      x-go-type: manifests.Annotation
+      x-go-type-import: {path: studio.local/versioning/internal/manifests}
+    AnnotationKind: {type: string, enum: [box2d, polygon2d, mask2d, region3d, timespan, measurement, textspan]}
+    AnnotationRevision:
+      type: object
+      description: Mirrors schemas/versioning/annotation-revision.schema.json.
+      required: [schema_version, annotation_id, sample_id, kind, class_id, ontology_rev, geometry, coordinate_frame, status, provenance]
+      properties:
+        schema_version: {type: string, enum: ["1"]}
+        annotation_id: {type: string}
+        sample_id: {type: string}
+        kind: {$ref: "#/components/schemas/AnnotationKind"}
+        class_id: {type: string}
+        ontology_rev: {type: string}
+        geometry: {type: object, additionalProperties: true}
+        coordinate_frame: {type: string}
+        calibration: {type: object, additionalProperties: true}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        status: {type: string, enum: [draft, submitted, accepted, rejected]}
+        reviewer_id: {type: string}
+        attributes: {type: object, additionalProperties: {type: string}}
+        provenance: {type: object, additionalProperties: true}
+      x-go-type: manifests.AnnotationRevision
+      x-go-type-import: {path: studio.local/versioning/internal/manifests}
+    ManifestRoot:
+      type: object
+      required: [manifest_root, format, sample_count, annotation_count]
+      properties:
+        manifest_root: {$ref: "#/components/schemas/ContentHash"}
+        format: {type: string, enum: [json-v1, chunked-v1]}
+        sample_count: {type: integer}
+        annotation_count: {type: integer}
+
+    CommitRequest:
+      type: object
+      required: [branch, expected_head, manifest_root, message, idempotency_key]
+      properties:
+        branch: {$ref: "#/components/schemas/BranchName"}
+        expected_head: {$ref: "#/components/schemas/CommitOID"}
+        manifest_root: {$ref: "#/components/schemas/ContentHash"}
+        message: {type: string, maxLength: 2000}
+        idempotency_key: {type: string, minLength: 8, maxLength: 128}
+        tool: {type: string, maxLength: 128}
+        inputs: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/CommitOID"}}
+    RevertRequest:
+      type: object
+      required: [branch, expected_head, target_oid, idempotency_key]
+      properties:
+        branch: {$ref: "#/components/schemas/BranchName"}
+        expected_head: {$ref: "#/components/schemas/CommitOID"}
+        target_oid: {$ref: "#/components/schemas/CommitOID"}
+        message: {type: string, maxLength: 2000}
+        idempotency_key: {type: string, minLength: 8, maxLength: 128}
+    CommitResult:
+      type: object
+      required: [commit_oid, branch, head_generation, manifest_root, request_id]
+      properties:
+        commit_oid: {$ref: "#/components/schemas/CommitOID"}
+        branch: {type: string}
+        head_generation: {type: integer, format: int64}
+        manifest_root: {$ref: "#/components/schemas/ContentHash"}
+        request_id: {type: string}
+    Commit:
+      type: object
+      required: [oid, parents, manifest_root, author_id, message, created_at, operation]
+      properties:
+        oid: {$ref: "#/components/schemas/CommitOID"}
+        parents: {type: array, items: {$ref: "#/components/schemas/CommitOID"}}
+        manifest_root: {$ref: "#/components/schemas/ContentHash"}
+        manifest_format: {type: string}
+        sample_count: {type: integer}
+        annotation_count: {type: integer}
+        author_id: {type: string}
+        on_behalf_of: {type: string}
+        message: {type: string}
+        operation: {type: string, enum: [init, commit, merge, revert]}
+        created_at: {type: string, format: date-time}
+    CommitPage:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Commit"}}
+        next_cursor: {type: string}
+
+    DiffChange:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [sample.added, sample.removed, sample.replaced, annotation.added, annotation.removed, annotation.changed,
+                 ontology.class_added, ontology.class_removed, ontology.class_renamed, ontology.required_field_added,
+                 grouping.changed]
+        sample_id: {type: string}
+        annotation_id: {type: string}
+        class_id: {type: string}
+        kind: {type: string}
+        fields: {type: array, items: {type: string}}
+        base_ref: {type: string}
+        head_ref: {type: string}
+        from_class_id: {type: string}
+        to_class_id: {type: string}
+      x-go-type: semanticdiff.Change
+      x-go-type-import: {path: studio.local/versioning/internal/semanticdiff}
+    DiffAggregates:
+      type: object
+      properties:
+        base: {type: object, properties: {samples: {type: integer}, annotations: {type: integer}}}
+        head: {type: object, properties: {samples: {type: integer}, annotations: {type: integer}}}
+        class_balance_delta: {type: object, additionalProperties: {type: integer}}
+        split_delta: {type: object, additionalProperties: {type: integer}}
+        suspicious_duplicates:
+          type: array
+          items: {type: object, properties: {sha256: {type: string}, sample_ids: {type: array, items: {type: string}}}}
+      x-go-type: semanticdiff.Aggregates
+      x-go-type-import: {path: studio.local/versioning/internal/semanticdiff}
+    DiffPage:
+      type: object
+      required: [base, head, base_root, head_root, summary, aggregates, changes]
+      properties:
+        base: {$ref: "#/components/schemas/CommitOID"}
+        head: {$ref: "#/components/schemas/CommitOID"}
+        base_root: {$ref: "#/components/schemas/ContentHash"}
+        head_root: {$ref: "#/components/schemas/ContentHash"}
+        changed_buckets: {type: integer}
+        summary: {type: object, additionalProperties: {type: integer}}
+        aggregates: {$ref: "#/components/schemas/DiffAggregates"}
+        changes: {type: array, items: {$ref: "#/components/schemas/DiffChange"}}
+        next_cursor: {type: string}
+    DiffJob:
+      type: object
+      required: [job_id, status]
+      properties:
+        job_id: {type: string, format: uuid}
+        status: {type: string, enum: [pending, running, failed]}
+
+    ReviewStatus: {type: string, enum: [DRAFT, OPEN, CHECKING, READY, BLOCKED, CONFLICTED, MERGING, MERGED, CLOSED]}
+    CreateReviewRequest:
+      type: object
+      required: [title, source_branch, target_branch]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 300}
+        description: {type: string, maxLength: 20000}
+        source_branch: {$ref: "#/components/schemas/BranchName"}
+        target_branch: {$ref: "#/components/schemas/BranchName"}
+        draft: {type: boolean}
+    ApproveRequest:
+      type: object
+      required: [source_oid]
+      properties:
+        source_oid: {$ref: "#/components/schemas/CommitOID"}
+    CommentRequest:
+      type: object
+      required: [body]
+      properties:
+        sample_id: {type: string}
+        annotation_id: {type: string}
+        body: {type: string, minLength: 1, maxLength: 10000}
+    Comment:
+      type: object
+      required: [id, author_id, source_oid, body, created_at]
+      properties:
+        id: {type: string, format: uuid}
+        author_id: {type: string}
+        sample_id: {type: string}
+        annotation_id: {type: string}
+        source_oid: {type: string}
+        body: {type: string}
+        created_at: {type: string, format: date-time}
+    Resolution:
+      type: object
+      required: [conflict_key, choice]
+      properties:
+        conflict_key: {type: string}
+        choice: {type: string, enum: [ours, theirs, custom]}
+        custom: {type: object, additionalProperties: true}
+    ResolutionsRequest:
+      type: object
+      required: [source_oid, target_oid, resolutions]
+      properties:
+        source_oid: {$ref: "#/components/schemas/CommitOID"}
+        target_oid: {$ref: "#/components/schemas/CommitOID"}
+        resolutions: {type: array, items: {$ref: "#/components/schemas/Resolution"}}
+    CheckReport:
+      type: object
+      required: [source_oid, target_oid, outcome]
+      properties:
+        source_oid: {$ref: "#/components/schemas/CommitOID"}
+        target_oid: {$ref: "#/components/schemas/CommitOID"}
+        outcome: {type: string, enum: [passed, failed, error]}
+        details: {type: object, additionalProperties: true}
+    MergeRequest:
+      type: object
+      required: [idempotency_key]
+      properties:
+        idempotency_key: {type: string, minLength: 8, maxLength: 128}
+        message: {type: string, maxLength: 2000}
+    ReviewCheck:
+      type: object
+      required: [name, mandatory, outcome, source_oid, target_oid]
+      properties:
+        name: {type: string}
+        mandatory: {type: boolean}
+        outcome: {type: string, enum: [pending, passed, failed, error]}
+        source_oid: {type: string}
+        target_oid: {type: string}
+        details: {type: object, additionalProperties: true}
+    ReviewApproval:
+      type: object
+      required: [reviewer_id, approved_source_oid, created_at]
+      properties:
+        reviewer_id: {type: string}
+        approved_source_oid: {type: string}
+        created_at: {type: string, format: date-time}
+    MergeConflict:
+      type: object
+      required: [conflict_key, kind]
+      properties:
+        conflict_key: {type: string}
+        kind: {type: string}
+        sample_id: {type: string}
+        annotation_id: {type: string}
+        field: {type: string}
+        base_ref: {type: string}
+        ours_ref: {type: string}
+        theirs_ref: {type: string}
+        resolution: {type: object, additionalProperties: true}
+    Review:
+      type: object
+      required: [id, repo_id, title, author_id, source_branch, source_oid, target_branch, status, required_approvals,
+                 version, created_at, updated_at, approvals, checks, conflicts]
+      properties:
+        id: {type: string, format: uuid}
+        repo_id: {type: string, format: uuid}
+        title: {type: string}
+        description: {type: string}
+        author_id: {type: string}
+        author_on_behalf_of: {type: string}
+        source_branch: {type: string}
+        source_oid: {type: string}
+        target_branch: {type: string}
+        checked_target_oid: {type: string}
+        base_oid: {type: string}
+        status: {$ref: "#/components/schemas/ReviewStatus"}
+        required_approvals: {type: integer}
+        merge_oid: {type: string}
+        version: {type: integer, format: int64}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+        approvals: {type: array, items: {$ref: "#/components/schemas/ReviewApproval"}}
+        checks: {type: array, items: {$ref: "#/components/schemas/ReviewCheck"}}
+        conflicts: {type: array, items: {$ref: "#/components/schemas/MergeConflict"}}
+    ReviewPage:
+      type: object
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Review"}}
+        next_cursor: {type: string}
+
+    CreateReleaseRequest:
+      type: object
+      required: [tag, commit_oid]
+      properties:
+        tag: {$ref: "#/components/schemas/Tag"}
+        commit_oid: {$ref: "#/components/schemas/CommitOID"}
+        retention_policy: {type: string, enum: [standard, long_term, legal]}
+        retain_until: {type: string, format: date-time}
+    Release:
+      type: object
+      required: [tag, commit_oid, manifest_root, created_by, created_at, retention_policy, attestations]
+      properties:
+        tag: {type: string}
+        commit_oid: {type: string}
+        manifest_root: {type: string}
+        created_by: {type: string}
+        created_at: {type: string, format: date-time}
+        retention_policy: {type: string}
+        retain_until: {type: string, format: date-time}
+        attestations: {type: array, items: {type: object, additionalProperties: true}}
+
+    CheckoutFilter:
+      type: object
+      properties:
+        sample_ids: {type: array, maxItems: 10000, items: {type: string}}
+        splits: {type: array, maxItems: 16, items: {type: string}}
+        study_uid_hashes: {type: array, maxItems: 1000, items: {$ref: "#/components/schemas/SHA256"}}
+    CheckoutRequest:
+      type: object
+      required: [ref]
+      properties:
+        ref: {type: string, maxLength: 128, description: "Commit oid, release tag (tag:<name>) or branch name"}
+        filter: {$ref: "#/components/schemas/CheckoutFilter"}
+        cursor: {type: string, maxLength: 512}
+        limit: {type: integer, minimum: 1, maximum: 1000}
+        include_urls: {type: boolean, default: true}
+    SignedObject:
+      type: object
+      required: [sha256, size_bytes, status]
+      properties:
+        sha256: {type: string}
+        size_bytes: {type: integer, format: int64}
+        status: {type: string, enum: [available, staged, purged, missing]}
+        url: {type: string}
+    Checkout:
+      type: object
+      required: [commit_oid, manifest_root, ontology, samples, annotations, objects, expires_at, buckets_read]
+      properties:
+        commit_oid: {type: string}
+        manifest_root: {type: string}
+        ontology: {$ref: "#/components/schemas/Ontology"}
+        samples: {type: array, items: {$ref: "#/components/schemas/Sample"}}
+        annotations: {type: array, items: {$ref: "#/components/schemas/ManifestAnnotation"}}
+        objects: {type: array, items: {$ref: "#/components/schemas/SignedObject"}}
+        expires_at: {type: string, format: date-time}
+        buckets_read: {type: integer}
+        next_cursor: {type: string}

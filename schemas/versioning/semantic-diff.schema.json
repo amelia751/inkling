@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "semantic-diff.schema.json",
+  "title": "SemanticDiff",
+  "description": "A semantic diff (versioning.md §7). Ids, enums and content hashes only: no free text from samples (spec §14).",
+  "type": "object",
+  "required": ["base_root", "head_root", "summary", "aggregates", "changes"],
+  "properties": {
+    "base_root": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "head_root": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "changed_buckets": {"type": "integer", "minimum": -1, "maximum": 256, "description": "-1 when a json-v1 root was involved (no partitions)."},
+    "summary": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "aggregates": {
+      "type": "object",
+      "required": ["base", "head", "class_balance_delta", "split_delta", "suspicious_duplicates"],
+      "properties": {
+        "base": {"$ref": "#/$defs/counts"},
+        "head": {"$ref": "#/$defs/counts"},
+        "class_balance_delta": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "split_delta": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "suspicious_duplicates": {"type": "array", "items": {"type": "object", "required": ["sha256", "sample_ids"],
+          "properties": {"sha256": {"type": "string"}, "sample_ids": {"type": "array", "items": {"type": "string"}}}}}
+      }
+    },
+    "changes": {"type": "array", "items": {"$ref": "#/$defs/change"}}
+  },
+  "$defs": {
+    "counts": {"type": "object", "required": ["samples", "annotations"], "properties": {"samples": {"type": "integer"}, "annotations": {"type": "integer"}}},
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["sample.added", "sample.removed", "sample.replaced", "annotation.added", "annotation.removed", "annotation.changed",
+          "ontology.class_added", "ontology.class_removed", "ontology.class_renamed", "ontology.required_field_added", "grouping.changed"]},
+        "sample_id": {"type": "string"},
+        "annotation_id": {"type": "string"},
+        "class_id": {"type": "string"},
+        "kind": {"type": "string"},
+        "fields": {"type": "array", "items": {"type": "string"}},
+        "base_ref": {"type": "string"},
+        "head_ref": {"type": "string"},
+        "from_class_id": {"type": "string"},
+        "to_class_id": {"type": "string"}
+      }
+    }
+  }
+}

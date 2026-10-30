@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dataset-manifest.schema.json",
+  "title": "DatasetManifest",
+  "description": "Logical content of one dataset snapshot (versioning.md §3). Stored canonically (RFC 8785, NFC) as json-v1, or as a chunked-v1 root plus 256 Parquet chunks. Mirrored by apps/versioning/internal/manifests/schema.go.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ontology", "samples", "annotations"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "ontology": {"$ref": "#/$defs/ontology"},
+    "samples": {"type": "array", "items": {"$ref": "#/$defs/sample"}},
+    "annotations": {"type": "array", "items": {"$ref": "#/$defs/annotation"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "token": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.+/-]{0,127}$"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "ref": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "ontology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision_id", "classes"],
+      "properties": {
+        "revision_id": {"type": "string"},
+        "classes": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["class_id", "name"],
+            "properties": {
+              "class_id": {"$ref": "#/$defs/id"},
+              "name": {"type": "string", "minLength": 1, "maxLength": 200},
+              "required_fields": {"type": "array", "items": {"$ref": "#/$defs/token"}}
+            }
+          }
+        }
+      }
+    },
+    "sample": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sample_id", "modality", "objects"],
+      "properties": {
+        "sample_id": {"$ref": "#/$defs/id", "description": "Stable, opaque id. Never a patient identifier or file name."},
+        "modality": {"$ref": "#/$defs/token"},
+        "objects": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "sha256", "size_bytes", "media_type"],
+            "properties": {
+              "role": {"$ref": "#/$defs/token"},
+              "sha256": {"$ref": "#/$defs/sha256"},
+              "size_bytes": {"type": "integer", "minimum": 0},
+              "media_type": {"$ref": "#/$defs/token"}
+            }
+          }
+        },
+        "group": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Asset grouping (e.g. DICOM study/series) as hashes, never raw UIDs.",
+          "properties": {
+            "study_uid_hash": {"$ref": "#/$defs/sha256"},
+            "series_uid_hash": {"$ref": "#/$defs/sha256"},
+            "sequence": {"type": "integer"}
+          }
+        },
+        "split": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"},
+        "width": {"type": "integer", "minimum": 0},
+        "height": {"type": "integer", "minimum": 0},
+        "depth": {"type": "integer", "minimum": 0},
+        "duration_s": {"type": "number", "minimum": 0}
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["annotation_id", "revision_id", "sample_id", "kind", "class_id", "ontology_rev", "ref"],
+      "properties": {
+        "annotation_id": {"$ref": "#/$defs/id"},
+        "revision_id": {"$ref": "#/$defs/id"},
+        "sample_id": {"$ref": "#/$defs/id"},
+        "kind": {"enum": ["box2d", "polygon2d", "mask2d", "region3d", "timespan", "measurement", "textspan"]},
+        "class_id": {"$ref": "#/$defs/id"},
+        "ontology_rev": {"type": "string"},
+        "ref": {"$ref": "#/$defs/ref", "description": "Content hash of the annotation-revision document."}
+      }
+    }
+  }
+}

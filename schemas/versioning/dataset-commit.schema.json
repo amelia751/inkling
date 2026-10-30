@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dataset-commit.schema.json",
+  "title": "DatasetCommit",
+  "description": "A dataset commit as the API returns it, and the four pointer documents in its Git tree (versioning.md §3.2).",
+  "type": "object",
+  "required": ["oid", "parents", "manifest_root", "author_id", "message", "operation", "created_at"],
+  "properties": {
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "parents": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"}, "maxItems": 2},
+    "manifest_root": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "manifest_format": {"enum": ["json-v1", "chunked-v1"]},
+    "sample_count": {"type": "integer", "minimum": 0},
+    "annotation_count": {"type": "integer", "minimum": 0},
+    "author_id": {"type": "string", "description": "Actor id, never a name or email (spec §14)."},
+    "on_behalf_of": {"type": "string"},
+    "message": {"type": "string", "maxLength": 2000},
+    "operation": {"enum": ["init", "commit", "merge", "revert"]},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "tree": {
+      "description": "Git tree of every commit: canonical JSON pointer documents only.",
+      "type": "object",
+      "required": ["dataset.json", "ontology.json", "policy.json", "provenance.json"],
+      "properties": {
+        "dataset.json": {
+          "type": "object", "additionalProperties": false,
+          "required": ["repo_id", "schema_version", "manifest_root", "manifest_format", "sample_count", "annotation_count"],
+          "properties": {
+            "repo_id": {"type": "string"}, "schema_version": {"type": "string"},
+            "manifest_root": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+            "manifest_format": {"enum": ["json-v1", "chunked-v1"]},
+            "sample_count": {"type": "integer"}, "annotation_count": {"type": "integer"}
+          }
+        },
+        "ontology.json": {"type": "object", "additionalProperties": false, "required": ["revision_id", "hash"],
+          "properties": {"revision_id": {"type": "string"}, "hash": {"type": "string"}}},
+        "policy.json": {"type": "object", "additionalProperties": false, "required": ["policy_id"], "properties": {"policy_id": {"type": "string"}}},
+        "provenance.json": {
+          "type": "object", "additionalProperties": false, "required": ["operation", "actor_id", "actor_kind"],
+          "properties": {
+            "operation": {"enum": ["init", "commit", "merge", "revert"]}, "actor_id": {"type": "string"},
+            "actor_kind": {"enum": ["user", "agent", "service"]}, "on_behalf_of": {"type": "string"}, "tool": {"type": "string"},
+            "inputs": {"type": "array", "items": {"type": "string"}}, "review_id": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
+import type { AgentEvent, AgentStatus, ChatRequest } from "../src/lib/agent/protocol";
+import { agentConfigured, agentModel, runAgent } from "./agent/runtime";
 
 /**
  * Dev-only stand-in for the FastAPI backend (inkling.md §3.2):
  *   GET  /seed/*                      → files under seed-data/
  *   GET  /api/annotations/:projectId  → saved annotation document (or empty)
  *   PUT  /api/annotations/:projectId  → persist annotation document
+ *   /api/agent/*                      → Inkling AI agent runtime (see agentMiddleware)
  * Annotations live in seed-data/.annotations/ so seed files are never modified.
  */
 export function seedServer(seedRoot: string): Plugin {
@@ -84,6 +88,59 @@ export function seedServer(seedRoot: string): Plugin {
         res.statusCode = 405;
         res.end();
       });
+
+      server.middlewares.use("/api/agent", agentMiddleware);
     },
   };
+}
+
+const MAX_BODY = 4 * 1024 * 1024;
+
+/**
+ *   GET  /api/agent/status  → AgentStatus
+ *   POST /api/agent/chat    → SSE stream of AgentEvents (protocol.ts)
+ */
+function agentMiddleware(req: IncomingMessage, res: ServerResponse) {
+  const route = (req.url ?? "").split("?")[0];
+  res.setHeader("Cache-Control", "no-store");
+  if (req.method === "GET" && route === "/status") {
+    const status: AgentStatus = { configured: agentConfigured(), provider: "OpenAI", model: agentConfigured() ? agentModel() : null };
+    res.setHeader("Content-Type", "application/json");
+    return res.end(JSON.stringify(status));
+  }
+  if (req.method !== "POST" || route !== "/chat") {
+    res.statusCode = 404;
+    return res.end();
+  }
+
+  let body = "";
+  req.on("data", (chunk) => {
+    body += chunk;
+    if (body.length > MAX_BODY) req.destroy();
+  });
+  req.on("end", async () => {
+    let request: ChatRequest;
+    try {
+      request = JSON.parse(body);
+      if (!Array.isArray(request.messages) || !request.context?.project) throw new Error();
+    } catch {
+      res.statusCode = 400;
+      return res.end(JSON.stringify({ error: "invalid chat request" }));
+    }
+    res.writeHead(200, { "Content-Type": "text/event-stream", Connection: "keep-alive", "X-Accel-Buffering": "no" });
+    const emit = (e: AgentEvent) => res.writableEnded || res.write(`data: ${JSON.stringify(e)}\n\n`);
+    const abort = new AbortController();
+    res.on("close", () => abort.abort());
+    const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15000);
+    try {
+      if (!agentConfigured()) throw new Error("No model is configured. Set OPENAI_API_KEY for the dev server and restart it.");
+      await runAgent(request.messages, request.context, emit, abort.signal);
+    } catch (e) {
+      if (!abort.signal.aborted) emit({ type: "error", message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      clearInterval(heartbeat);
+      emit({ type: "done" });
+      res.end();
+    }
+  });
 }

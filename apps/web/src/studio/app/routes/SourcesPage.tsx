@@ -218,7 +218,8 @@ export function SourcesPage() {
     },
     { scope: SCOPE, global: true },
   );
-  const qlKeys = useCommands({ quickLookPrevious: () => stepQl(-1), quickLookNext: () => stepQl(1) }, { scope: SCOPE, global: true, enabled: !!ql });
+  // Quick Look steps with the core previous / next item commands (← → by default).
+  const qlKeys = useCommands({ prevItem: () => stepQl(-1), nextItem: () => stepQl(1) }, { scope: SCOPE, global: true, enabled: !!ql });
 
   function parentOfListing(): string | null {
     if (!a) return null;

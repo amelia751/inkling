@@ -9,7 +9,7 @@ import { PreviewBody } from "./inspector";
 import { usePreview } from "./queries";
 
 /**
- * Quick Look (todo6 Phase 4.3): the inspector's preview, large. The previous / next file
+ * Quick Look (todo6 Phase 4.3): the inspector's preview, large. The previous / next item
  * commands (←/→ by default) step through the files of the folder; the Quick Look command
  * (Space) or Escape closes it. The dialog owns the keyboard, so it runs the commands itself.
  */

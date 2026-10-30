@@ -2425,48 +2425,6 @@
       }
     },
     {
-      "id": "inkling.core.commands.quickLookPrevious",
-      "type": "commands",
-      "module": "inkling.core",
-      "description": "In Quick Look, show the previous file of the folder",
-      "label": "Previous file",
-      "when": "section == sources",
-      "keys": [
-        "ArrowLeft"
-      ],
-      "example": {
-        "keybindings": [
-          {
-            "command": "inkling.core.commands.quickLookPrevious",
-            "keys": [
-              "ArrowLeft"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "id": "inkling.core.commands.quickLookNext",
-      "type": "commands",
-      "module": "inkling.core",
-      "description": "In Quick Look, show the next file of the folder",
-      "label": "Next file",
-      "when": "section == sources",
-      "keys": [
-        "ArrowRight"
-      ],
-      "example": {
-        "keybindings": [
-          {
-            "command": "inkling.core.commands.quickLookNext",
-            "keys": [
-              "ArrowRight"
-            ]
-          }
-        ]
-      }
-    },
-    {
       "id": "inkling.core.commands.toggleAssistant",
       "type": "commands",
       "module": "inkling.core",

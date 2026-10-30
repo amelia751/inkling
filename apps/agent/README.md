@@ -18,7 +18,7 @@ pnpm --filter @studio/agent build      # esbuild → dist/main.js, dist/scripts/
 pnpm --filter @studio/agent start      # node dist/main.js
 ```
 
-The bundle contains this package and the `@studio/*` workspace packages (and inlines `schemas/naming.json`); third-party packages stay external and load from `node_modules`. Files the code reads at runtime are read from their source location, exactly as under tsx: `src/agent/prompts/*.md` and `sandbox-image/requirements.txt` (snapshot hash).
+The bundle contains this package and the `@studio/*` repo-workspace packages (and inlines `schemas/naming.json`); third-party packages stay external and load from `node_modules`. Files the code reads at runtime are read from their source location, exactly as under tsx: `src/agent/prompts/*.md` and `sandbox-image/requirements.txt` (snapshot hash).
 
 Node: the package pins `devEngines.runtime` Node `^24` (`onFail: download`), so pnpm fetches it. Check with `pnpm --filter @studio/agent exec node -v` (needs ≥ 22.19).
 

@@ -180,7 +180,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   if (!scripted && !providerKeys[provider]) missing.push(`${provider.toUpperCase()}_API_KEY`);
   const sandboxOn = e.AGENT_SANDBOX === "daytona";
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
-  // Explicitly chosen backends need their URL in every environment.
+  // Explicitly chosen backends need their URL in every stage (development included).
   const backend: string[] = [];
   if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push(envName("AGENT_DATABASE_URL"));
   if (e.AGENT_EVENT_BUS === "redis" && !e.AGENT_REDIS_URL) backend.push(envName("AGENT_REDIS_URL"));

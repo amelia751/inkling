@@ -72,7 +72,7 @@ Object storage: immutable dataset versions, sandbox artifact exports
 
 ## 3. Monorepo layout
 
-`apps/agent` is a pnpm workspace package (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
+`apps/agent` is a package in the pnpm repo workspace (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
 
 ```text
 inkling/
@@ -168,7 +168,7 @@ The other rows are options from the original Harness survey; none is wired up. D
 ### 6.2 Install
 
 ```bash
-pnpm install                                   # apps/agent is a workspace package
+pnpm install                                   # apps/agent is a repo-workspace package
 pnpm --filter @studio/agent snapshot          # optional: build the content-hashed sandbox snapshot (minutes, once)
 ```
 

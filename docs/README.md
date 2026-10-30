@@ -12,6 +12,23 @@
 | [`running.md`](running.md) | Three ways to run the product: dev servers, the compose stack, a local Kubernetes cluster. |
 | [`adr/`](adr/) | Architecture decisions. [`0001`](adr/0001-monorepo-layout.md): the monorepo layout. |
 
+## Glossary
+
+One meaning per word, in docs, comments and code. When a doc needs the other sense, it uses
+the word in the right-hand column.
+
+| Term | Means | Not (say this instead) |
+|---|---|---|
+| **Studio** | the annotation UI shell (`apps/web/src/studio/`) | the whole product (say the product name), or the code scope `@studio` |
+| **Plugin** | an installable unit: `plugin.yaml` + optional `ui/` + optional worker code | — |
+| **Module** | a plugin's UI half (`ModuleManifest`, `ui/manifest.ts`) | a plugin |
+| **Extension host** | the registry, resolver, commands and catalogue in the web app (`apps/web/src/extension-host/`) | the API's plugin control plane |
+| **API** (service) | `apps/api`, configured and deployed as `api` | the kernel |
+| **Kernel** | the stable core inside the API (`studio_api/kernel/`, `plugins.md` §6) | the API service |
+| **Environment** | a JSON spec of what one Studio shows (`environment.v1.json`) | a deployment target: dev, staging and prod are **stages** (`infra/k8s/overlays/<stage>`) |
+| **Preset** | an environment shipped in `registry/presets/` | — |
+| **Workspace** | per-project plugin activation and settings (`workspace.v1.json`) | a pnpm or uv workspace: say **repo workspace** |
+
 ## Repo map
 
 ```text

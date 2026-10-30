@@ -48,7 +48,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 Each app has a `Dockerfile` (built from the repo root), a `/healthz`, `/readyz` and `/version` endpoint, and a matching folder in `infra/k8s/base/`. Apps read config only from environment variables. Local `secrets/*.env` files are a dev convenience on top.
 
 ### `apps/web`: the Studio (`@studio/web`)
-React + Vite single-page app. In production it's static files served by nginx. Runtime settings come from a mounted `/config.json`, so one image works in every environment.
+React + Vite single-page app. In production it's static files served by nginx. Runtime settings come from a mounted `/config.json`, so one image works in every stage (dev, staging, prod).
 
 | Path | What it is |
 |---|---|

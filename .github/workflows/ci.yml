@@ -85,8 +85,8 @@ jobs:
       - name: Render overlays
         run: |
           mkdir -p rendered
-          for env in dev staging prod; do
-            kubectl kustomize "infra/k8s/overlays/$env" > "rendered/$env.yaml"
+          for stage in dev staging prod; do
+            kubectl kustomize "infra/k8s/overlays/$stage" > "rendered/$stage.yaml"
           done
       - name: kubeconform (KEDA and other CRDs from the datree catalog)
         run: |

@@ -3,7 +3,9 @@
 pnpm + uv monorepo, orchestrated by Turborepo. Deployables are `apps/*` (`web`: React 19,
 Vite 7, TypeScript, zustand, Tailwind + shadcn; `api` and `worker`: Python 3.12; `agent` and
 `mcp`: Node 24; `versioning`: Go). Seed data is fetched locally with `pnpm seeds` and is
-gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`.
+gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`. Words like
+Studio, module, kernel, environment and workspace have one meaning each: see the
+[glossary](docs/README.md#glossary).
 
 ## Layout rules
 

@@ -135,7 +135,8 @@ def main() -> int:
         page.wait_for_function("[...document.querySelectorAll('[data-testid=row-name]')].some(e => e.textContent === 'patient_001')", timeout=10000)
         check("nested folders mirror the drop", set(page.locator("[data-testid=listing-row] [data-testid=row-name]").all_inner_texts()) == {"patient_001", "patient_002"})
         page.locator("[data-testid=listing-row]").filter(has_text="patient_001").dblclick()
-        page.wait_for_function("document.querySelectorAll('[data-testid=listing-row], [data-testid=listing-tile]').length >= 1", timeout=10000)
+        page.wait_for_function("document.querySelector('[data-testid=path-current]')?.textContent === 'patient_001'", timeout=10000)
+        page.wait_for_function("document.querySelectorAll('[data-testid=listing-row], [data-testid=listing-tile]').length === 1", timeout=10000)
         # Three numbered files collapse into one run.
         rows = page.locator("[data-testid=listing-row], [data-testid=listing-tile]")
         check("numbered PNGs collapse into a run", rows.count() == 1 and "img1.png–img3.png" in rows.first.inner_text(), rows.first.inner_text())

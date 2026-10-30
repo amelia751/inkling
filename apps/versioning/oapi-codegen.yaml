@@ -1,0 +1,10 @@
+# Server stubs from schemas/versioning/openapi.yaml (todo4 Phase 4). Never edit the output by hand.
+package: api
+output: api.gen.go # relative to internal/api, where go generate runs
+generate:
+  models: true
+  chi-server: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  skip-prune: true

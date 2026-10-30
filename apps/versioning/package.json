@@ -1,0 +1,12 @@
+{
+  "name": "@studio/versioning",
+  "private": true,
+  "scripts": {
+    "dev": "go run ./cmd/server",
+    "build": "go build -o dist/ ./cmd/...",
+    "test": "go test -race ./...",
+    "lint": "golangci-lint run",
+    "typecheck": "go vet ./...",
+    "generate": "sqlc generate && go generate ./..."
+  }
+}

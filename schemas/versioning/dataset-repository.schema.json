@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "dataset-repository.schema.json",
+  "title": "DatasetRepository",
+  "description": "A tenant-scoped dataset repository (versioning.md §3.1). One repository per dataset (todo4 V6).",
+  "type": "object",
+  "required": ["id", "tenant_id", "project_id", "name", "default_branch", "policy_id", "object_format", "head", "head_generation", "created_at"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "tenant_id": {"type": "string", "format": "uuid"},
+    "project_id": {"type": "string", "format": "uuid"},
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "default_branch": {"type": "string"},
+    "policy_id": {"type": "string"},
+    "object_format": {"enum": ["sha1", "sha256"], "description": "Git object format; v1 writes sha1 (todo4 research). Raw artifacts are always SHA-256."},
+    "head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "head_generation": {"type": "integer"},
+    "created_at": {"type": "string", "format": "date-time"}
+  }
+}

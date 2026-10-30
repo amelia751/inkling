@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review-request.schema.json",
+  "title": "ReviewRequest",
+  "description": "A review (feedback) request (versioning.md §9). Approvals belong to a source oid; checks and conflicts belong to a (source, target) pair.",
+  "type": "object",
+  "required": ["id", "repo_id", "title", "author_id", "source_branch", "source_oid", "target_branch", "status", "required_approvals", "version", "approvals", "checks", "conflicts"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "repo_id": {"type": "string", "format": "uuid"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 300},
+    "description": {"type": "string"},
+    "author_id": {"type": "string"},
+    "author_on_behalf_of": {"type": "string"},
+    "source_branch": {"type": "string"},
+    "source_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "target_branch": {"type": "string"},
+    "checked_target_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "base_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "status": {"enum": ["DRAFT", "OPEN", "CHECKING", "READY", "BLOCKED", "CONFLICTED", "MERGING", "MERGED", "CLOSED"]},
+    "required_approvals": {"type": "integer", "minimum": 0},
+    "merge_oid": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "version": {"type": "integer"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "approvals": {
+      "type": "array",
+      "items": {"type": "object", "required": ["reviewer_id", "approved_source_oid"],
+        "properties": {"reviewer_id": {"type": "string"}, "approved_source_oid": {"type": "string"}, "created_at": {"type": "string", "format": "date-time"}}}
+    },
+    "checks": {
+      "type": "array",
+      "items": {"type": "object", "required": ["name", "mandatory", "outcome", "source_oid", "target_oid"],
+        "properties": {
+          "name": {"enum": ["merge_base", "referential_integrity", "artifact_checksum", "schema_compatibility", "geometry_validity", "deidentification", "leakage", "class_balance"]},
+          "mandatory": {"type": "boolean"}, "outcome": {"enum": ["pending", "passed", "failed", "error"]},
+          "source_oid": {"type": "string"}, "target_oid": {"type": "string"}, "details": {"type": "object"}}}
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {"type": "object", "required": ["conflict_key", "kind"],
+        "properties": {
+          "conflict_key": {"type": "string", "pattern": "^(sample:[^:]+|annotation:[^:]+:[a-z_]+|ontology:[^:]+)$"},
+          "kind": {"type": "string"}, "sample_id": {"type": "string"}, "annotation_id": {"type": "string"}, "field": {"type": "string"},
+          "base_ref": {"type": "string"}, "ours_ref": {"type": "string"}, "theirs_ref": {"type": "string"},
+          "resolution": {"type": "object", "required": ["conflict_key", "choice"],
+            "properties": {"conflict_key": {"type": "string"}, "choice": {"enum": ["ours", "theirs", "custom"]}, "custom": {"type": "object"}}}}}
+    }
+  }
+}

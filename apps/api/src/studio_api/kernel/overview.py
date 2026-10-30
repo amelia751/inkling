@@ -103,13 +103,61 @@ def _proposal_item(pr: Proposal) -> dict:
     }
 
 
+def _version_reviews(db: Session, p: ProjectRow, titles: dict[str, str]) -> list[dict]:
+    """Open version review requests, read from the audit log the kernel writes for every
+    versioning call (`versioning.review.open`, closed by `versioning.merge`): no call to
+    apps/versioning per page view, and it works the same with the service down."""
+    rows = list(db.scalars(select(PluginAudit).where(PluginAudit.workspace_id == p.id, PluginAudit.action.in_(("versioning.review.open", "versioning.merge"))).order_by(PluginAudit.id)))
+    opened: dict[str, PluginAudit] = {}
+    for r in rows:
+        rid = str((r.after_ref or {}).get("reviewId") or "") if isinstance(r.after_ref, dict) else ""
+        if not rid:
+            continue
+        if r.action == "versioning.review.open":
+            opened[rid] = r
+        else:
+            opened.pop(rid, None)
+    out = []
+    for rid, r in opened.items():
+        dataset = (r.target or "").removeprefix("dataset:")
+        after = r.after_ref or {}
+        out.append(
+            {
+                "id": f"version-review:{rid}",
+                "type": "version-review",
+                "severity": "medium",
+                "title": "A version is waiting for review",
+                "detail": f"{titles.get(dataset, dataset)}: {after.get('source') or 'a work branch'} → {after.get('target') or 'main'}",
+                "target": {"section": "datasets", "datasetId": dataset, "tab": "versions", "reviewId": rid},
+                "datasetId": dataset,
+                "createdBy": r.on_behalf_of or r.actor_id,
+                "at": projects.iso(r.timestamp),
+            }
+        )
+    return out
+
+
+QUEUE_TYPES = ("privacy", "import", "quality", "proposal", "version-review", "annotations")
+
+
 def review_queue(db: Session, p: ProjectRow) -> list[dict]:
+    """The project's review queue, most severe first. The Review page shows all of it
+    (`filter_queue`); the Overview's "Needs your attention" is its top 5."""
     items: list[dict[str, Any]] = []
+    datasets = list(db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id)))
+    titles = {d.id: d.title for d in datasets}
+    held_in: dict[str, str] = {}
+    for d in datasets:
+        for nid in (d.definition or {}).get("heldNodeIds") or []:
+            held_in.setdefault(nid, d.id)
     # Privacy holds: always first, one row per held file.
     for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))):
         priv = (n.flags or {}).get("privacy")
         if priv and not priv.get("clearedBy"):
-            items.append({"id": f"privacy:{n.id}", "type": "privacy", "severity": "high", "title": "Held for privacy review", "detail": f"{n.name}: {priv.get('reason') or 'may contain patient identifiers'}", "target": {"section": "sources", "nodeId": n.id}, "at": projects.iso(n.created_at)})
+            row = {"id": f"privacy:{n.id}", "type": "privacy", "severity": "high", "title": "Held for privacy review", "detail": f"{n.name}: {priv.get('reason') or 'may contain patient identifiers'}", "target": {"section": "sources", "nodeId": n.id}, "at": projects.iso(n.created_at)}
+            if n.id in held_in:
+                row["datasetId"] = held_in[n.id]
+            items.append(row)
     # Imports that failed or only partly arrived.
     for s in db.scalars(select(ImportSession).where(ImportSession.project_id == p.id)):
         failed = list(db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state.in_(("failed", "rejected")))))
@@ -123,6 +171,7 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
         items.append({"id": "quality:unsupported", "type": "quality", "severity": "low", "title": f"{len(unknown)} {'file' if len(unknown) == 1 else 'files'} we can't read yet", "detail": ", ".join(n.name for n in unknown[:3]), "target": {"section": "sources", "status": "unsupported", "nodeId": unknown[0].id}, "at": projects.iso(unknown[0].created_at)})
     for pr in db.scalars(select(Proposal).where(Proposal.project_id == p.id, Proposal.status == "proposed").order_by(Proposal.created_at)):
         items.append(_proposal_item(pr))
+    items.extend(_version_reviews(db, p, titles))
     # Annotation review: assistant or plugin suggestions nobody has accepted yet, per task.
     for t in db.scalars(select(TaskRow).where(TaskRow.project_id == p.id)):
         doc = db.get(AnnotationDocumentRow, (p.id, t.id))
@@ -132,6 +181,27 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
             items.append({"id": f"annotations:{t.id}", "type": "annotations", "severity": "low", "title": f"{n} {'annotation' if n == 1 else 'annotations'} to review", "detail": t.title, "target": {"section": "studio", "taskId": t.id}, "datasetId": t.dataset_id, "at": projects.iso(doc.saved_at if doc else None)})
     items.sort(key=lambda i: (SEVERITY[i["severity"]], i.get("at") or ""))
     return items
+
+
+def filter_queue(items: list[dict], type: str | None = None, severity: str | None = None, dataset: str | None = None) -> list[dict]:
+    if type:
+        items = [i for i in items if i["type"] == type]
+    if severity:
+        items = [i for i in items if i["severity"] == severity]
+    if dataset:
+        items = [i for i in items if i.get("datasetId") == dataset]
+    return items
+
+
+def review_facets(db: Session, p: ProjectRow, items: list[dict]) -> dict:
+    """Counts for the Review page's filters, from the unfiltered queue."""
+    titles = {d.id: d.title for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id))}
+    by_ds = Counter(i["datasetId"] for i in items if i.get("datasetId"))
+    return {
+        "types": dict(Counter(i["type"] for i in items)),
+        "severities": dict(Counter(i["severity"] for i in items)),
+        "datasets": [{"id": d, "title": titles.get(d, d), "count": n} for d, n in sorted(by_ds.items(), key=lambda kv: titles.get(kv[0], kv[0]).lower())],
+    }
 
 
 # ---- Overview ----------------------------------------------------------------------------------
@@ -166,37 +236,125 @@ ACTIVITY_LABELS = {
     "import.started": "started adding files",
     "import.completed": "added files",
     "import.cancelled": "cancelled an upload",
+    "source.removed": "removed a source",
+    "proposal.created": "proposed a change",
     "proposal.confirmed": "confirmed a proposal",
     "proposal.dismissed": "dismissed a proposal",
     "privacy.cleared": "cleared a privacy hold",
     "dataset.created": "created a dataset",
     "task.created": "created a task",
     "workspace.environment": "changed the Studio setup",
+    "versioning.dataset.create": "turned on versioning",
+    "versioning.commit": "committed a version",
+    "versioning.revert": "reverted to an earlier version",
+    "versioning.branch": "started a branch",
+    "versioning.review.open": "asked for a version review",
+    "versioning.review.approve": "approved a version review",
+    "versioning.review.resolve": "resolved review conflicts",
+    "versioning.merge": "merged a version",
+    "versioning.release": "released a version",
+    "plugins.active": "turned on a plugin",
+    "plugins.disabled": "turned off a plugin",
+    "plugins.rolled_back": "rolled back a plugin",
 }
+
+# Plumbing, not project history: tool calls, jobs, sessions, reads and denials stay in the
+# audit log (and its API) but not in the feed.
+_QUIET_PREFIXES = ("jobs.", "sessions.", "gateway.", "secrets.", "annotations.commit", "plugins.plan", "plugins.stage", "plugins.validate", "plugins.grant", "plugins.artifact", "plugins.reject")
+_QUIET = {"versioning.artifact", "versioning.document", "versioning.checkout", "versioning.denied", "versioning.failed", "versioning.review.check"}
+_SMALL_DETAILS = {"workspace.environment"}  # whole environments: the revision entry links to them
+
+PROPOSAL_WORDS = {"relationship": "a link between files", "mapping": "a table mapping", "group": "a group of files", "dataset": "a dataset", "task": "a task"}
+
+
+def who(actor: str | None, on_behalf_of: str | None = None) -> dict:
+    """Who did it, in words: a person, the assistant for a person (SessionDelegation), or
+    Inkling itself (the inspection worker, the sample loader)."""
+    actor = actor or ""
+    kind, _, name = actor.partition(":") if ":" in actor else ("user", "", actor)
+    person = (on_behalf_of or "").partition(":")[2] or on_behalf_of or None
+    if kind == "agent":
+        return {"kind": "assistant", "name": "Assistant", "onBehalfOf": person}
+    if kind in ("worker", "system", "plugin", "service"):
+        return {"kind": "system", "name": {"worker:inspect": "Inspection", "system:seed": "Sample data"}.get(actor, name or kind), "onBehalfOf": person}
+    return {"kind": "person", "name": name or actor or "someone", "onBehalfOf": None}
 
 
 def activity(db: Session, p: ProjectRow, cursor: int | None = None, limit: int = 100) -> dict:
-    """Newest first: the audit log of the project's workspace plus environment revisions.
-    `cursor` is the audit id to continue below."""
+    """Newest first: the project's audit log (imports, proposals, datasets, tasks, versions,
+    plugins) plus Studio setup revisions. `cursor` is the audit id to continue below; setup
+    revisions come on the first page only."""
     q = select(PluginAudit).where(PluginAudit.workspace_id == p.id)
     if cursor:
         q = q.where(PluginAudit.id < cursor)
     rows = list(db.scalars(q.order_by(PluginAudit.id.desc()).limit(limit)))
+    titles = {d.id: d.title for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id))}
+    tasks = {t.id: t.title for t in db.scalars(select(TaskRow).where(TaskRow.project_id == p.id))}
     entries = []
     for r in rows:
-        if r.action.startswith(("jobs.", "sessions.", "annotations.commit")) and r.action not in ACTIVITY_LABELS:
+        if r.action not in ACTIVITY_LABELS and (r.action.startswith(_QUIET_PREFIXES) or r.action in _QUIET):
             continue
         after = r.after_ref if isinstance(r.after_ref, dict) else {}
-        entries.append({"id": f"audit:{r.id}", "action": r.action, "label": ACTIVITY_LABELS.get(r.action) or r.action.replace(".", " "), "actor": r.actor_id, "onBehalfOf": r.on_behalf_of, "target": r.target, "details": after, "at": projects.iso(r.timestamp), "link": _link(r)})
+        if r.action in _SMALL_DETAILS:
+            after = {}
+        entries.append(
+            {
+                "id": f"audit:{r.id}",
+                "action": r.action,
+                "label": _label(r, after),
+                "actor": r.actor_id,
+                "onBehalfOf": r.on_behalf_of,
+                "who": who(r.actor_id, r.on_behalf_of),
+                "target": r.target,
+                "subject": _subject(r, after, titles, tasks),
+                "details": after,
+                "at": projects.iso(r.timestamp),
+                "link": _link(r, after),
+            }
+        )
     if not cursor:
         for e in db.scalars(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == p.id).order_by(WorkspaceEnvironmentRevision.id.desc()).limit(limit)):
-            entries.append({"id": f"env:{e.id}", "action": "environment.saved", "label": f"saved Studio setup revision {e.revision}", "actor": f"user:{e.author}" if e.author and ":" not in e.author else e.author, "target": e.task_id, "details": {"revision": e.revision}, "at": projects.iso(e.saved_at), "link": {"section": "studio", "taskId": e.task_id}})
-    entries.sort(key=lambda e: e["at"] or "", reverse=True)
+            actor = f"user:{e.author}" if e.author and ":" not in e.author else e.author
+            entries.append({"id": f"env:{e.id}", "action": "environment.saved", "label": "set up the Studio" if e.revision == 1 else f"saved Studio setup revision {e.revision}", "actor": actor, "onBehalfOf": None, "who": who(actor), "target": e.task_id, "subject": tasks.get(e.task_id or "", e.task_id), "details": {"revision": e.revision}, "at": projects.iso(e.saved_at), "link": {"section": "studio", "taskId": e.task_id}})
+    # Newest first; within the same instant, the later write first (audit ids increase).
+    entries.sort(key=lambda e: (e["at"] or "", int(e["id"].split(":")[1]) if e["id"].startswith("audit:") else 0), reverse=True)
     return {"entries": entries[:limit], "nextCursor": str(rows[-1].id) if len(rows) == limit else None}
 
 
-def _link(r: PluginAudit) -> dict | None:
-    a, t = r.action, r.target
+def _label(r: PluginAudit, after: dict) -> str:
+    if r.action == "import.completed":
+        n = int(after.get("files") or 0)
+        return f"added {n} {'file' if n == 1 else 'files'}" + (" (some still missing)" if after.get("incomplete") else "")
+    if r.action == "import.started":
+        n = int(after.get("files") or 0)
+        return f"started adding {n} {'file' if n == 1 else 'files'}"
+    if r.action.startswith("proposal.") and after.get("kind") in PROPOSAL_WORDS:
+        verb = {"proposal.created": "proposed", "proposal.confirmed": "confirmed", "proposal.dismissed": "dismissed"}.get(r.action)
+        if verb:
+            return f"{verb} {PROPOSAL_WORDS[after['kind']]}"
+    return ACTIVITY_LABELS.get(r.action) or r.action.replace(".", " ").replace("_", " ")
+
+
+def _subject(r: PluginAudit, after: dict, titles: dict[str, str], tasks: dict[str, str]) -> str | None:
+    """The thing acted on, by name (never a file path: paths can hold patient identifiers)."""
+    t = r.target or ""
+    if r.action.startswith("versioning."):
+        d = t.removeprefix("dataset:")
+        return titles.get(d, d) or None
+    if r.action in ("dataset.created",):
+        return after.get("title") or titles.get(t)
+    if r.action == "task.created":
+        return after.get("title") or tasks.get(t)
+    if r.action.startswith("project."):
+        return after.get("title")
+    if r.action.startswith("plugins."):
+        return t.split("@")[0] or None
+    return None
+
+
+def _link(r: PluginAudit, after: dict | None = None) -> dict | None:
+    a, t = r.action, r.target or ""
+    after = after or {}
     if a.startswith("import."):
         return {"section": "sources", "importId": t}
     if a.startswith("proposal."):
@@ -207,7 +365,13 @@ def _link(r: PluginAudit) -> dict | None:
         return {"section": "studio", "taskId": t}
     if a == "privacy.cleared":
         return {"section": "sources", "nodeId": t}
+    if a.startswith("project."):
+        return {"section": "settings"}
+    if a.startswith("plugins."):
+        return {"section": "settings", "tab": "plugins"}
     if a.startswith("versioning."):
-        return {"section": "datasets"}
+        d = t.removeprefix("dataset:")
+        if after.get("reviewId"):
+            return {"section": "datasets", "datasetId": d, "tab": "versions", "reviewId": str(after["reviewId"])}
+        return {"section": "datasets", "datasetId": d, "tab": "versions"} if d else {"section": "datasets"}
     return None
-

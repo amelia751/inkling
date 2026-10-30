@@ -392,7 +392,7 @@ export interface DatasetSummary {
 
 /** Where an attention row (or an activity entry) resolves. */
 export interface ProjectTarget {
-  section: "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity";
+  section: "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity" | "settings";
   nodeId?: string;
   importId?: string;
   proposalId?: string;
@@ -400,6 +400,8 @@ export interface ProjectTarget {
   taskId?: string;
   datasetId?: string;
   status?: string;
+  /** A version review request (`tab: "versions"`). */
+  reviewId?: string;
 }
 
 export interface AttentionItem {
@@ -448,6 +450,27 @@ export interface ActivityEntry {
   details: unknown;
   at: string | null;
   link: ProjectTarget | null;
+  /** Who, in words: a person, the assistant for a person (SessionDelegation), or the system. */
+  who?: ActivityActor;
+  /** The thing acted on, by name (a dataset, task or plugin; never a file path). */
+  subject?: string | null;
+}
+
+export interface ActivityActor {
+  kind: "person" | "assistant" | "system";
+  name: string;
+  onBehalfOf: string | null;
+}
+
+/** GET /v1/projects/:id/review: the filtered queue; `facets` count the unfiltered one. */
+export interface ReviewQueue {
+  items: AttentionItem[];
+  total: number;
+  facets: {
+    types: Partial<Record<AttentionItem["type"], number>>;
+    severities: Partial<Record<AttentionItem["severity"], number>>;
+    datasets: { id: string; title: string; count: number }[];
+  };
 }
 
 /** GET /v1/tasks/:id/document: a `Project`-shaped document, so every viewer works unchanged. */

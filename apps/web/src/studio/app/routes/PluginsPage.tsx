@@ -11,6 +11,7 @@ import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { approveInstall, disablePlugin, installedPlugins, planInstall, rejectInstall, rollbackPlugin, searchPlugins, stageInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { studioUrl } from "@/studio/lib/routes";
+import { useProjectSummary } from "@/studio/lib/projects-api";
 import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from "./shared";
 
 /**
@@ -22,7 +23,12 @@ import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from ".
 export function PluginsPage() {
   const datasetId = useDatasetParam();
   const projectId = useProjectParam();
-  const { project, isLoading } = useProject(datasetId);
+  // The kernel workspace is the project (todo6 D1): any project the person can see, or a
+  // manifest project (legacy routes, test-injected seeds).
+  const summary = useProjectSummary(projectId);
+  const legacy = useProject(datasetId);
+  const project = summary.data ?? legacy.project;
+  const isLoading = !project && (summary.isLoading || legacy.isLoading);
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
   const [review, setReview] = useState<InstallRequest | null>(null);
@@ -68,7 +74,7 @@ export function PluginsPage() {
         <PageHeading
           title="Plugins"
           description="Installed in this workspace only. Installing new code or permissions always asks for approval."
-          actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, project.id)}><AnnotateIcon />Back to annotating</Link></Button>}
+          actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, summary.data?.sample === false ? undefined : project.id)}><AnnotateIcon />Back to annotating</Link></Button>}
         />
         {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 

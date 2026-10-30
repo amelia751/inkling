@@ -7,18 +7,28 @@ import { describeGeometry, ProvenanceBadge } from "@/studio/components/annotatio
 import { Button } from "@studio/ui/ui/button";
 import { Card, CardHeader, CardTitle } from "@studio/ui/ui/card";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
-import { fetchAnnotations } from "@/studio/lib/api";
+import { fetchAnnotations, fetchTaskDocument } from "@/studio/lib/api";
 import { projectItems } from "@/studio/lib/items";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { envOf } from "@/studio/lib/environment";
 import { labelNames } from "@studio/contracts/environment";
-import { datasetUrl, studioUrl } from "@/studio/lib/routes";
-import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from "./shared";
+import { datasetUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
+import { fetchTask, projectKeys } from "@/studio/lib/projects-api";
+import { FullPageMessage, useDatasetParam, useProjectParam } from "./shared";
 
+/**
+ * Annotation review of one task (`/projects/:p/review/:taskId`): what the server saved, the
+ * environment's review rules and the annotation list. The project's Review page links here
+ * from its "Annotation review" section (todo6 Phase 8).
+ */
 export function ReviewPage() {
   const datasetId = useDatasetParam();
   const projectId = useProjectParam();
-  const { project, isLoading } = useProject(datasetId);
+  const doc = useQuery({ queryKey: ["tasks", datasetId, "document"], queryFn: () => fetchTaskDocument(datasetId), staleTime: 30_000 });
+  const project = doc.data;
+  const isLoading = doc.isLoading;
+  const task = useQuery({ queryKey: projectKeys.task(datasetId), queryFn: () => fetchTask(datasetId), staleTime: 30_000 });
+  const datasetOf = task.data?.datasetId;
   // Review what the server has, not unsaved local edits.
   const saved = useQuery({ queryKey: ["annotations", datasetId, "review"], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: 0 });
   const [labelFilter, setLabelFilter] = useState("all");
@@ -45,12 +55,12 @@ export function ReviewPage() {
     >
       <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6">
         <PageHeading
-          title="Review dataset"
+          title={<><Link to={projectUrl(projectId, "review")} className="text-muted-foreground hover:text-foreground">Review</Link> <span className="text-hint">/</span> {project.title}</>}
           description={<>Revision {saved.data.revision}{saved.data.savedAt && ` · saved ${new Date(saved.data.savedAt).toLocaleString()}`}</>}
           actions={
             <>
               <Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, project.id)}><AnnotateIcon />Continue annotating</Link></Button>
-              <Button size="lg" asChild><Link to={datasetUrl(projectId, project.id, "publish")}><ExportIcon />Export dataset</Link></Button>
+              {datasetOf && <Button size="lg" asChild><Link to={datasetUrl(projectId, datasetOf, "publish")}><ExportIcon />Export dataset</Link></Button>}
             </>
           }
         />

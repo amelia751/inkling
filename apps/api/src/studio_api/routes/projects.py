@@ -67,8 +67,18 @@ def project_overview(project_id: str, ctx: RequestContext = Depends(get_context)
 
 
 @router.get("/projects/{project_id}/review")
-def project_review(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return {"items": overview.review_queue(db, projects.require_project(db, ctx, project_id))}
+def project_review(project_id: str, type: str | None = None, severity: str | None = None, dataset: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The whole queue, filtered by type, severity and dataset; `facets` counts the unfiltered
+    queue for the filter controls. The Overview's attention block is its first five rows."""
+    projects.ensure_seeds_once(db)
+    p = projects.require_project(db, ctx, project_id)
+    if type is not None and type not in overview.QUEUE_TYPES:
+        raise HTTPException(422, f"type is one of {', '.join(overview.QUEUE_TYPES)}")
+    if severity is not None and severity not in overview.SEVERITY:
+        raise HTTPException(422, "severity is high, medium or low")
+    everything = overview.review_queue(db, p)
+    items = overview.filter_queue(everything, type, severity, dataset)
+    return {"items": items, "total": len(everything), "facets": overview.review_facets(db, p, everything)}
 
 
 # ---- Datasets and tasks ------------------------------------------------------------------------

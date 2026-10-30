@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useMatch, useParams } from "react-router";
 import {
   ActivityIcon,
@@ -82,7 +82,21 @@ function useSection(): string | undefined {
  * drawer. `studio`: no header (the Studio has its own top bar) and the rail only, hidden
  * with the same command, so editing gets its space back.
  */
-export function AppLayout({ dataset, studio = false, children }: { dataset?: ProjectRef; studio?: boolean; children: ReactNode }) {
+/**
+ * Inside a page that already has the shell (a dataset's Versions and Publish & export tabs,
+ * Settings › Plugins), an older full page renders just its content (todo6 Phase 8).
+ */
+const NestedPageContext = createContext(false);
+
+export function NestedPage({ children }: { children: ReactNode }) {
+  return <NestedPageContext.Provider value>{children}</NestedPageContext.Provider>;
+}
+
+export function AppLayout(props: { dataset?: ProjectRef; studio?: boolean; children: ReactNode }) {
+  return useContext(NestedPageContext) ? <>{props.children}</> : <AppLayoutFrame {...props} />;
+}
+
+function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: ProjectRef; studio?: boolean; children: ReactNode }) {
   const viewport = useViewport();
   const desktop = viewport === "desktop";
   const width = useWindowWidth();

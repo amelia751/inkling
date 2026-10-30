@@ -632,6 +632,8 @@ def create_proposal(db: Session, ctx: RequestContext, p: ProjectRow, kind: str, 
     db.add(pr)
     db.flush()
     events.publish(db, ctx.for_scope(p.id, None), "proposal.created", {"projectId": p.id, "proposalId": pr.id, "kind": kind}, source="kernel")
+    # Activity shows who proposed what (the assistant for a person, the inspection worker).
+    audit.record(db, ctx.for_scope(p.id, None), "proposal.created", target=pr.id, after={"kind": kind, "strength": strength, "importSessionId": import_session_id})
     return pr
 
 

@@ -22,14 +22,17 @@ function withQuery(path: string, query?: Record<string, string | undefined>): st
 }
 
 /** Where an attention row, an activity entry or an assistant link resolves (`ProjectTarget`). */
-export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string }): string {
+export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string }): string {
   switch (t.section) {
     case "sources":
       return sourcesUrl(projectId, t.nodeId, { import: t.importId, status: t.status });
     case "explore":
       return exploreUrl(projectId, t.tab, t.proposalId);
     case "datasets":
-      return t.datasetId ? datasetUrl(projectId, t.datasetId) : projectUrl(projectId, "datasets");
+      if (t.datasetId && t.reviewId) return versionReviewUrl(projectId, t.datasetId, t.reviewId);
+      return t.datasetId ? datasetUrl(projectId, t.datasetId, t.tab === "versions" || t.tab === "publish" ? t.tab : undefined) : projectUrl(projectId, "datasets");
+    case "settings":
+      return settingsUrl(projectId, t.tab === "plugins" || t.tab === "members" ? t.tab : "general");
     case "studio":
       return studioUrl(projectId, t.taskId);
     case "review":

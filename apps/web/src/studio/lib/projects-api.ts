@@ -9,6 +9,7 @@ import type {
   ProjectSummary,
   Proposal,
   ResumeState,
+  ReviewQueue,
   SourceNode,
   SourceNodeDetail,
   SourceSummary,
@@ -115,4 +116,37 @@ export function useProjectSummary(id: string | undefined) {
 
 export function useOverview(id: string) {
   return useQuery({ queryKey: projectKeys.overview(id), queryFn: () => fetchOverview(id), staleTime: 5_000 });
+}
+
+// ---- Datasets, Review, Activity and Settings (todo6 Phase 8) --------------------------------------
+
+export interface ReviewFilters {
+  type?: string;
+  severity?: string;
+  dataset?: string;
+}
+
+export const fetchReviewQueue = (id: string, f: ReviewFilters = {}) =>
+  api<ReviewQueue>(`/projects/${encodeURIComponent(id)}/review?${new URLSearchParams(Object.entries(f).filter((e): e is [string, string] => !!e[1]))}`);
+export const fetchDataset = (projectId: string, datasetId: string) => api<DatasetSummary>(`/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}`);
+export const createDataset = (projectId: string, body: { title: string; description?: string; nodeIds: string[]; task?: { title: string; preset?: string; kind?: string } }) =>
+  api<DatasetSummary>(`/projects/${encodeURIComponent(projectId)}/datasets`, { method: "POST", json: body });
+export const patchProject = (id: string, body: Partial<Pick<ProjectSummary, "title" | "description" | "visibility" | "archived">>) =>
+  api<ProjectSummary>(`/projects/${encodeURIComponent(id)}`, { method: "PATCH", json: body });
+
+export function useReviewQueue(id: string, f: ReviewFilters = {}) {
+  return useQuery({ queryKey: [...projectKeys.review(id), f.type ?? "", f.severity ?? "", f.dataset ?? ""], queryFn: () => fetchReviewQueue(id, f), staleTime: 5_000, placeholderData: (prev) => prev });
+}
+
+export function useDatasets(id: string) {
+  return useQuery({ queryKey: projectKeys.datasets(id), queryFn: () => fetchDatasets(id), staleTime: 5_000 });
+}
+
+export function useDataset(projectId: string, datasetId: string) {
+  return useQuery({ queryKey: [...projectKeys.datasets(projectId), datasetId], queryFn: () => fetchDataset(projectId, datasetId), staleTime: 5_000 });
+}
+
+/** One project by id, archived ones included (the list hides those). */
+export function useProjectDetail(id: string) {
+  return useQuery({ queryKey: projectKeys.one(id), queryFn: () => fetchProject(id), staleTime: 5_000 });
 }

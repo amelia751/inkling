@@ -55,7 +55,9 @@ def create_proposal(project_id: str, request: Request, body: dict = Body(...), c
     created_by = author(ctx, request)
     payload = body["payload"] if isinstance(body.get("payload"), dict) else {}
     evidence = body["evidence"] if isinstance(body.get("evidence"), dict) else {}
-    pr = projects.create_proposal(db, ctx, p, str(body.get("kind") or ""), payload, evidence, str(body.get("strength") or "possible"), created_by)
+    kind = str(body.get("kind") or "")
+    payload, evidence, strength = explore.from_agent(db, p, kind, payload, evidence)
+    pr = projects.create_proposal(db, ctx, p, kind, payload, evidence, strength or str(body.get("strength") or "possible"), created_by)
     return projects.proposal_dict(pr)
 
 

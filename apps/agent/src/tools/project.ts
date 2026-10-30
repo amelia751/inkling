@@ -264,7 +264,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
         Type.Object({
           name: Type.String(),
           type: Type.Union([Type.Literal("id"), Type.Literal("category"), Type.Literal("number"), Type.Literal("date"), Type.Literal("text"), Type.Literal("path")]),
-          role: Type.Optional(Type.String({ description: "e.g. 'links to images', 'label', 'patient id'." })),
+          role: Type.Optional(Type.String({ description: "e.g. 'links to images', 'label', 'patient id'. Mark exactly one column 'label': the kernel reads its values as the label classes and computes the evidence itself." })),
         }),
         { minItems: 1, maxItems: 200 },
       ),

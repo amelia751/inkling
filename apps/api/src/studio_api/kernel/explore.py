@@ -346,6 +346,54 @@ def best_label_column(names: list[str], profile: dict, key_column: str | None) -
     return (hinted or cats)[0]["name"] if (hinted or cats)[0]["name"] in names else None
 
 
+# ---- Proposals the assistant makes ---------------------------------------------------------------
+
+
+def _agent_table(db: Session, p: ProjectRow, node_id: str) -> SourceNode:
+    n = db.get(SourceNode, node_id)
+    if n is None or n.project_id != p.id:
+        raise HTTPException(404, "no such file in this project")
+    if n.detected_kind != "table":
+        raise HTTPException(422, f"{n.name} isn't a table")
+    return n
+
+
+def from_agent(db: Session, p: ProjectRow, kind: str, payload: dict, evidence: dict) -> tuple[dict, dict, str | None]:
+    """The assistant's relationship or schema proposal in the shape Explore reads, with evidence the
+    kernel computes (never the model's own counts). Returns (payload, evidence, strength or None to
+    keep the one asked for). Other kinds and payloads already in the kernel's shape pass through."""
+    reason = str(evidence.get("reason") or "")[:2000]
+    if kind == "relationship" and isinstance(payload.get("from"), dict) and "tableNodeId" not in payload:
+        t = _agent_table(db, p, str(payload["from"].get("nodeId") or ""))
+        names, rows = table_rows(db, t)
+        column = str(payload["from"].get("column") or "")
+        to = db.get(SourceNode, str((payload.get("to") or {}).get("nodeId") or ""))
+        targets = Targets(db, p)
+        ranked = [tg for tg in (("folders", "files") if to is not None and to.is_dir else ("files", "folders"))]
+        best = None
+        for target in ranked:
+            for rule in ("normalized", "numeric", "exact"):
+                if rule == "numeric" and not numeric_like([_cell(r, names.index(column)) for r in rows] if column in names else []):
+                    continue
+                ev = match(names, rows, targets, column, target, rule)
+                if best is None or (ev["matched"], -ev["ambiguous"]) > (best["matched"], -best["ambiguous"]):
+                    best = ev
+        assert best is not None
+        out = {"tableNodeId": t.id, "table": t.name, "column": column, "target": best["target"], "rule": best["rule"], "resolutions": {}, "summary": _summary_rel(t.name, best), "assistantRule": str(payload.get("rule") or "")[:500]}
+        return out, {**best, "summary": out["summary"], "reason": reason}, best["strength"]
+    if kind == "mapping" and "nodeId" in payload and "tableNodeId" not in payload:
+        t = _agent_table(db, p, str(payload.get("nodeId") or ""))
+        names, rows = table_rows(db, t)
+        cols = [c for c in payload.get("columns") or [] if isinstance(c, dict)]
+        label = next((str(c.get("name")) for c in cols if LABEL_HINT.search(str(c.get("role") or ""))), None)
+        if label is None:
+            raise HTTPException(422, "say which column holds the labels (a column whose role is 'label')")
+        ev, classes = mapping_evidence(names, rows, label)
+        out = {"tableNodeId": t.id, "table": t.name, "column": label, "field": "label classes", "classes": classes, "summary": ev["summary"], "columns": cols}
+        return out, {**ev, "reason": reason}, None
+    return payload, evidence, None
+
+
 # ---- Building proposals after inspection ---------------------------------------------------------
 
 

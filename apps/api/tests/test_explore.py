@@ -132,3 +132,26 @@ def test_id_rules():
     assert not explore.prefix_compatible("s|1", "img|1") and not explore.prefix_compatible("q|5", "patient|5")
     assert explore.key_of("Smith", "numeric") is None
     assert explore.numeric_like(["P001", "p-002", "3"]) and not explore.numeric_like(["Smith", "P001"])
+
+
+def test_assistant_proposals_get_kernel_evidence_in_explores_shape(client):
+    """The assistant's propose_relationship / propose_schema payloads (todo6 Phase 6) are rebuilt by
+    the kernel: Explore reads the same shape as the worker's, and the counts are computed, not claimed."""
+    p = client.post("/api/v1/projects", json={"title": "MRI"}).json()["id"]
+    csv_bytes, prof = _table(["patient_id", "diagnosis"], [["P001", "healthy"], ["p-002", "lesion"], ["P003", "healthy"]])
+    files = {f"study/MRI/patient_00{i}/scan.png": png(4 + i, 4) for i in (1, 2, 3)}
+    files["study/diagnoses.csv"] = csv_bytes
+    imp = _import(client, p, files)
+    _report(client, imp, {"scan.png": "image", "diagnoses.csv": "table"}, {"diagnoses.csv": {"table": prof}})
+    nodes = client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["files"]
+    table = next(n["nodeId"] for n in nodes if n["name"] == "diagnoses.csv")
+    body = {"kind": "relationship", "payload": {"from": {"nodeId": table, "column": "patient_id"}, "to": {"nodeId": table, "key": "folder name"}, "rule": "P001 matches patient_001"}, "evidence": {"reason": "ids look alike", "matched": 999}, "strength": "strong"}
+    r = client.post(f"/api/v1/projects/{p}/proposals", json=body)
+    assert r.status_code == 201, r.text
+    rel = r.json()
+    assert (rel["payload"]["tableNodeId"], rel["payload"]["column"], rel["payload"]["target"]) == (table, "patient_id", "folders")
+    assert rel["evidence"]["matched"] == 3 and rel["evidence"]["reason"] == "ids look alike"
+    mp = client.post(f"/api/v1/projects/{p}/proposals", json={"kind": "mapping", "payload": {"nodeId": table, "columns": [{"name": "patient_id", "type": "id", "role": "key"}, {"name": "diagnosis", "type": "category", "role": "label"}]}, "evidence": {"reason": "diagnoses"}}).json()
+    assert mp["payload"]["column"] == "diagnosis" and {c["id"] for c in mp["payload"]["classes"]} == {"healthy", "lesion"}
+    no_label = {"kind": "mapping", "payload": {"nodeId": table, "columns": [{"name": "patient_id", "role": "key"}]}}
+    assert client.post(f"/api/v1/projects/{p}/proposals", json=no_label).status_code == 422

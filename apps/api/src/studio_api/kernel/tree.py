@@ -45,6 +45,12 @@ def natural_key(name: str) -> tuple:
     return tuple(out)
 
 
+def run_id(folder_id: str, key: str) -> str:
+    """A numbered run's id: `seq:<folder>:<hash of the key>`. Opaque, because the key comes
+    from file names, which may hold identifiers and must stay out of URLs."""
+    return f"seq:{folder_id}:{hashlib.sha256(key.encode()).hexdigest()[:12]}"
+
+
 def sequence_key(name: str) -> str | None:
     """`scan001.dcm` → `scan#.dcm`: siblings with the same key form a numbered run."""
     return _LAST_DIGITS.sub("#", name, count=1) if _LAST_DIGITS.search(name) else None
@@ -168,7 +174,7 @@ def _sequence_row(parent_id: str, key: str, members: list[SourceNode]) -> dict:
     statuses = {status_of(m) for m in members}
     status = next((s for s in ("privacy", "checking", "unsupported", "attention") if s in statuses), "ready")
     return {
-        "id": f"seq:{parent_id}:{key}",
+        "id": run_id(parent_id, key),
         "sourceId": first.source_id,
         "parentId": parent_id,
         "name": f"{first.name}–{last.name}",
@@ -207,10 +213,11 @@ def _compact(db: Session, n: SourceNode) -> tuple[SourceNode, str | None]:
 
 def children(db: Session, source_id: str, parent: str, cursor: int = 0, limit: int = PAGE) -> dict:
     """One page of a folder's listing: folders first, natural order, numbered runs collapsed.
-    `parent` is a folder id or a run id (`seq:<folder>:<key>`), which lists the run's files."""
+    `parent` is a folder id or a run id (`seq:<folder>:<hash>`), which lists the run's files."""
     if parent.startswith("seq:"):
-        _, folder, key = parent.split(":", 2)
-        rows = _ordered(list(db.scalars(select(SourceNode).where(SourceNode.source_id == source_id, SourceNode.parent_id == folder, SourceNode.sequence_key == key))))
+        _, folder, _h = parent.split(":", 2)
+        siblings = db.scalars(select(SourceNode).where(SourceNode.source_id == source_id, SourceNode.parent_id == folder, SourceNode.is_dir.is_(False), SourceNode.sequence_key.is_not(None)))
+        rows = _ordered([n for n in siblings if run_id(folder, n.sequence_key or "") == parent])
         items = [node_dict(n) for n in rows]
     else:
         rows = _ordered(list(db.scalars(select(SourceNode).where(SourceNode.source_id == source_id, SourceNode.parent_id == parent))))
@@ -234,6 +241,14 @@ def children(db: Session, source_id: str, parent: str, cursor: int = 0, limit: i
     page = items[cursor : cursor + limit]
     nxt = cursor + limit if cursor + limit < len(items) else None
     return {"items": page, "total": len(items), "nextCursor": str(nxt) if nxt is not None else None}
+
+
+def run_of(db: Session, n: SourceNode) -> str | None:
+    """The run a file is collapsed into in its folder's listing, if it is."""
+    if n.is_dir or not n.sequence_key or n.parent_id is None:
+        return None
+    count = db.scalar(select(func.count()).select_from(SourceNode).where(SourceNode.parent_id == n.parent_id, SourceNode.sequence_key == n.sequence_key, SourceNode.is_dir.is_(False))) or 0
+    return run_id(n.parent_id, n.sequence_key) if count >= MIN_SEQUENCE else None
 
 
 def ancestors(db: Session, n: SourceNode) -> list[SourceNode]:

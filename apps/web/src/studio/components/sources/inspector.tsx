@@ -359,6 +359,6 @@ function CopyHash({ value }: { value: string }) {
 }
 
 function personName(principal: string): string {
-  if (principal.startsWith("seed")) return "Sample data";
+  if (/(^|:)seed$/.test(principal)) return "Sample data";
   return principal.replace(/^user:/, "");
 }

@@ -390,6 +390,7 @@ def describe_node(db: Session, n: SourceNode) -> dict:
     out = tree.node_dict(n)
     out["path"] = [{"id": a.id, "name": a.name} for a in tree.ancestors(db, n)]
     out["usedIn"] = datasets_using(db, n)
+    out["runId"] = tree.run_of(db, n)
     src = db.get(Source, n.source_id)
     session = db.get(ImportSession, n.import_session_id) if n.import_session_id else None
     out["provenance"] = {

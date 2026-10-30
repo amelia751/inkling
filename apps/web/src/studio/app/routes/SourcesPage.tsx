@@ -32,7 +32,7 @@ import { QuickLook } from "@/studio/components/sources/quick-look";
 import { isSeq, pagesItems, seqFolder, useFolder, useImports, useNode, useSearch, useSources } from "@/studio/components/sources/queries";
 import { SourceTree, type RevealRequest, type SourceTreeHandle, type TreeTarget } from "@/studio/components/sources/source-tree";
 import { api, fetchNode, projectKeys, useProjectSummary } from "@/studio/lib/projects-api";
-import { KINDS, nodeKind, sequenceKey } from "@/studio/lib/file-kinds";
+import { KINDS, nodeKind } from "@/studio/lib/file-kinds";
 import { exploreUrl, sourcesUrl } from "@/studio/lib/routes";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fromDataTransfer, hasFiles } from "@/studio/lib/uploads/walk";
@@ -81,7 +81,7 @@ export function SourcesPage() {
   const folderQ = useFolder(a?.sourceId, baseFolder);
   const folderItems = useMemo(() => pagesItems(folderQ.data?.pages), [folderQ.data]);
   // A file collapsed into a numbered run: list the run, so the file is among the rows.
-  const runId = fileLoc && a.parentId ? `seq:${a.parentId}:${sequenceKey(a.name)}` : null;
+  const runId = fileLoc ? (a.runId ?? null) : null;
   const inRun = !!runId && folderItems.some((n) => n.id === runId);
   const runQ = useFolder(a?.sourceId, inRun ? runId : null);
   const listQ = inRun ? runQ : folderQ;
@@ -92,7 +92,6 @@ export function SourcesPage() {
   const [query, setQuery] = useState("");
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<DetectedKind | undefined>();
-  const [searchFocused, setSearchFocused] = useState(false);
   useEffect(() => {
     const t = window.setTimeout(() => setQ(query.trim()), 250);
     return () => window.clearTimeout(t);
@@ -146,7 +145,7 @@ export function SourcesPage() {
     }
     const path = a.path.map((p) => p.id);
     if (isSeq(nodeId)) setReveal({ id: nodeId, path: [...path, a.id], nonce: ++nonce.current });
-    else setReveal({ id: a.id, path, seq: a.kind === "file" && a.parentId ? `seq:${a.parentId}:${sequenceKey(a.name)}` : undefined, nonce: ++nonce.current });
+    else setReveal({ id: a.id, path, seq: a.runId ?? undefined, nonce: ++nonce.current });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per location, not per refetch
   }, [nodeId, a?.id]);
 
@@ -320,8 +319,6 @@ export function SourcesPage() {
                 ref={searchBox}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
                 onKeyDown={(e) => {
                   if (e.key === "Escape") {
                     setQuery("");
@@ -357,7 +354,7 @@ export function SourcesPage() {
             <AddDataButton size="default" onPick={(p) => void addData(p, listedFolder()?.id)} />
           </div>
         </div>
-        {(searching || searchFocused) && (
+        {(searching || !!query) && (
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-1.5 text-sm" data-testid="search-chips" onMouseDown={(e) => e.preventDefault()}>
             <span className="mr-1 text-muted-foreground">{searching ? (search.isLoading ? "Searching…" : `${(search.data ?? []).length.toLocaleString()}${(search.data ?? []).length >= 200 ? "+" : ""} found`) : "Filter"}</span>
             <DropdownMenu>

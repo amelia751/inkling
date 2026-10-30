@@ -303,6 +303,8 @@ export interface SourceNode {
 
 export interface SourceNodeDetail extends SourceNode {
   path: { id: string; name: string }[];
+  /** The numbered run (`seq:…`, an opaque id) a file is collapsed into in its folder, if any. */
+  runId?: string | null;
   usedIn: { id: string; title: string; tasks: { id: string; title: string }[] }[];
   provenance: { sourceId: string; sourceTitle: string | null; importSessionId: string | null; addedBy: string | null; addedAt: string | null; sha256: string | null };
 }

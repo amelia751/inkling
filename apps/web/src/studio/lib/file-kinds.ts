@@ -111,8 +111,3 @@ export function statusReason(n: Pick<SourceNode, "status" | "flags">): string | 
   if (n.status === "unsupported") return n.flags.unsupported ?? STATUS_LABEL.unsupported;
   return n.status === "ready" ? undefined : STATUS_LABEL[n.status];
 }
-
-/** `scan001.dcm` → `scan#.dcm`, as the kernel keys numbered runs (kernel/tree.py `sequence_key`). */
-export function sequenceKey(name: string): string | null {
-  return /\d+(?=\D*$)/.test(name) ? name.replace(/\d+(?=\D*$)/, "#") : null;
-}

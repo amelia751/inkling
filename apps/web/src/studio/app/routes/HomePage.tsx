@@ -9,19 +9,11 @@ import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { Textarea } from "@studio/ui/ui/textarea";
 import { useProjectList } from "@/studio/lib/projects-api";
+import { EXAMPLE_GOALS, type NewProjectState } from "@/studio/components/projects/new-project";
 import { newProjectUrl, projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
-import { fromDataTransfer, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
+import { fromDataTransfer, hasFiles } from "@/studio/lib/uploads/walk";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { cn } from "@studio/ui/utils";
-
-/** The chips fill the field; they don't run anything (todo6 §3.1). */
-export const EXAMPLE_GOALS = ["Classify chest X-rays", "Outline the left ventricle in cardiac MRI", "Mark events in ECG recordings"];
-
-/** What New project receives from Home: a goal sentence and/or files dropped on Home. */
-export interface NewProjectState {
-  goal?: string;
-  picked?: Picked;
-}
 
 /**
  * Home (todo6 Phase 3.1, docs/ux.md §3): "What are you working on?", one primary action, a

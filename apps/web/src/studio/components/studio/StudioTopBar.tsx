@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { Spinner } from "@studio/studio-ui/ui/spinner";
-import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon } from "@studio/studio-ui/icons";
+import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/studio-ui/icons";
 import { DatasetSwitcher } from "@/studio/components/layout/dataset-switcher";
 import { Badge } from "@studio/studio-ui/ui/badge";
 import { Button } from "@studio/studio-ui/ui/button";
@@ -94,6 +94,16 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
             <ActionTooltipContent title="Environment settings" description="Viewer and module options for this dataset" />
           </Tooltip>
         )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost-secondary" size="icon" className="hidden @[480px]:inline-flex" asChild>
+              <Link to={`/datasets/${project.id}/plugins`} aria-label="Plugins">
+                <ToolIcon />
+              </Link>
+            </Button>
+          </TooltipTrigger>
+          <ActionTooltipContent title="Plugins" description="Install, disable or roll back plugins in this workspace" />
+        </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost-secondary" size="icon" onClick={onShowShortcuts} className="hidden @[480px]:inline-flex" aria-label="Keyboard shortcuts">

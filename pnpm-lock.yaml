@@ -22,15 +22,42 @@ importers:
       '@rjsf/validator-ajv8':
         specifier: ^6.11.0
         version: 6.11.0(@rjsf/utils@6.11.0(react@19.2.8))
+      '@studio/plugin-cardiac-metrics':
+        specifier: workspace:*
+        version: link:../../plugins/cardiac-metrics
+      '@studio/plugin-cine':
+        specifier: workspace:*
+        version: link:../../plugins/cine
       '@studio/plugin-contracts':
         specifier: workspace:*
         version: link:../../packages/plugin-contracts
+      '@studio/plugin-export-dicom':
+        specifier: workspace:*
+        version: link:../../plugins/export-dicom
+      '@studio/plugin-image2d':
+        specifier: workspace:*
+        version: link:../../plugins/image2d
+      '@studio/plugin-template':
+        specifier: workspace:*
+        version: link:../../plugins/_template
+      '@studio/plugin-text-spans':
+        specifier: workspace:*
+        version: link:../../plugins/text-spans
+      '@studio/plugin-timeseries':
+        specifier: workspace:*
+        version: link:../../plugins/timeseries
       '@studio/plugin-ui-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-ui-sdk
-      '@studio/plugins':
+      '@studio/plugin-video':
         specifier: workspace:*
-        version: link:../../plugins
+        version: link:../../plugins/video
+      '@studio/plugin-volume':
+        specifier: workspace:*
+        version: link:../../plugins/volume
+      '@studio/plugin-wsi':
+        specifier: workspace:*
+        version: link:../../plugins/wsi
       '@studio/studio-renderers':
         specifier: workspace:*
         version: link:../../packages/studio-renderers
@@ -286,11 +313,171 @@ importers:
         specifier: ^19
         version: 19.3.0
 
-  plugins:
+  plugins/_template:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/cardiac-metrics:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/cine:
+    dependencies:
+      polyclip-ts:
+        specifier: 0.16.8
+        version: 0.16.8
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/export-dicom:
     dependencies:
       '@cornerstonejs/adapters':
         specifier: 5.14.0
         version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/tools@5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3))
+      '@cornerstonejs/core':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      '@cornerstonejs/metadata':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@cornerstonejs/utils':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@kitware/vtk.js':
+        specifier: 36.4.1
+        version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+
+  plugins/image2d:
+    dependencies:
+      '@cornerstonejs/core':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      '@cornerstonejs/metadata':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@cornerstonejs/tools':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3)
+      '@cornerstonejs/utils':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@kitware/vtk.js':
+        specifier: 36.4.1
+        version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/text-spans:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/timeseries:
+    dependencies:
+      digital-filter:
+        specifier: 2.4.3
+        version: 2.4.3
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/video:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.3.0(@types/react@19.3.0)
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/volume:
+    dependencies:
       '@cornerstonejs/core':
         specifier: 5.14.0
         version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
@@ -312,27 +499,34 @@ importers:
       dicom-parser:
         specifier: 1.8.21
         version: 1.8.21
-      digital-filter:
-        specifier: 2.4.3
-        version: 2.4.3
       gl-matrix:
         specifier: 3.4.3
         version: 3.4.3
       nifti-reader-js:
         specifier: ^0.6.8
         version: 0.6.9
-      openseadragon:
-        specifier: 6.1.1
-        version: 6.1.1
-      polyclip-ts:
-        specifier: 0.16.8
-        version: 0.16.8
       react:
         specifier: 19.2.8
         version: 19.2.8
-      react-dom:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))
+
+  plugins/wsi:
+    dependencies:
+      openseadragon:
+        specifier: 6.1.1
+        version: 6.1.1
+      react:
         specifier: 19.2.8
-        version: 19.2.8(react@19.2.8)
+        version: 19.2.8
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -343,9 +537,6 @@ importers:
       '@types/react':
         specifier: ^19
         version: 19.3.0
-      '@types/react-dom':
-        specifier: ^19
-        version: 19.3.0(@types/react@19.3.0)
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0))

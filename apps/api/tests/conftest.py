@@ -63,3 +63,87 @@ def ws(name: str, **extra) -> dict:
 
 
 SEGMENTATION = ns("segmentation")
+
+
+# ---- A fixture registry of synthetic plugin packages ------------------------------------------
+
+from studio_api.naming import plugin_schema_version  # noqa: E402
+from studio_api.plugins.digest import tree_digest  # noqa: E402
+
+
+def manifest(id_: str, version: str = "1.0.0", **extra) -> dict:
+    m = {
+        "schemaVersion": plugin_schema_version(),
+        "id": id_,
+        "name": id_,
+        "version": version,
+        "publisher": extra.pop("publisher", "first-party"),
+        "license": "MIT",
+        "compatibility": {"studio": ">=0.1.0 <1.0.0", "pluginApi": "^1"},
+        "capabilities": [],
+        "runtime": {"kind": "browser-bundled"},
+        "permissions": {"required": [], "optional": []},
+    }
+    m.update(extra)
+    return m
+
+
+SEG_MANIFEST = dict(
+    capabilities=[{"id": "image.segment", "tool": "segment_objects", "mediaTypes": ["image/png"]}],
+    runtime={"kind": "python-worker", "entrypoint": "fake_plugin.tools:register", "maxExecutionSeconds": 30, "concurrency": 1},
+    providers=[
+        {"id": "mock", "implements": ["image.segment"], "hosting": "mock"},
+        {
+            "id": "hosted.sam",
+            "implements": ["image.segment"],
+            "hosting": "hosted",
+            "egress": ["api.segment.test"],
+            "secrets": ["SEG_API_KEY"],
+            "pricing": {"unit": "image", "usdPerUnit": 0.5, "effectiveAt": "2026-10-01", "sourceUrl": "https://example.test/pricing"},
+        },
+    ],
+    permissions={"required": ["assets.read", "annotations.write"], "optional": ["network.egress:api.segment.test", "secrets.use:SEG_API_KEY"]},
+    resources={"defaultBudgetUsdPerJob": 1.0},
+    ui={"contributions": "ui/contributions.json"},
+)
+
+
+def write_registry(root: Path, packages: list[tuple[str, dict, dict[str, str]]]) -> Path:
+    """packages: (dir name, manifest, extra files). Returns the registry dir."""
+    import yaml
+
+    entries = []
+    for name, m, extra in packages:
+        d = root / "plugins" / name
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "plugin.yaml").write_text(yaml.safe_dump(m, sort_keys=False))
+        for rel, text in extra.items():
+            (d / rel).parent.mkdir(parents=True, exist_ok=True)
+            (d / rel).write_text(text)
+        entries.append({"id": m["id"], "version": m["version"], "publisher": m["publisher"], "trustTier": "first-party" if m["publisher"] == "first-party" else "vetted", "artifactDigest": tree_digest(d), "path": f"plugins/{name}", "manifest": m, "licenses": {"code": m["license"]}})
+    reg = root / "registry"
+    reg.mkdir(parents=True, exist_ok=True)
+    (reg / "index.json").write_text(json.dumps({"version": 1, "plugins": entries}))
+    return reg
+
+
+@pytest.fixture
+def registry_client(make_client, tmp_path: Path):
+    """A kernel whose registry has: a UI plugin, a python-worker segmentation plugin (two
+    versions) that requires it, and a vetted plugin with a dependency conflict."""
+
+    def make(**overrides):
+        seg_files = {"uv.lock": "# locked\n", "ui/contributions.json": json.dumps({"toolbarActions": [{"id": "segment", "surface": "image.viewer.toolbar", "title": "Segment", "command": "test.seg.segment_objects"}], "panels": []})}
+        reg = write_registry(
+            tmp_path / "repo",
+            [
+                ("viewer", manifest("test.viewer", publisher="acme", capabilities=[{"id": "image.view", "mediaTypes": ["image/png"]}]), {}),
+                ("viewer2", manifest("test.viewer", "2.0.0", publisher="acme"), {}),
+                ("seg", manifest("test.seg", requires={"test.viewer": "^1"}, **SEG_MANIFEST), seg_files),
+                ("seg11", manifest("test.seg", "1.1.0", requires={"test.viewer": "^1"}, **SEG_MANIFEST), seg_files),
+                ("needs2", manifest("test.needs2", publisher="acme", requires={"test.viewer": "^2"}), {}),
+            ],
+        )
+        return make_client(registry_dir=reg, **overrides)
+
+    return make

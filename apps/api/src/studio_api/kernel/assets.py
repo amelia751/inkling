@@ -11,6 +11,7 @@ import hashlib
 import hmac
 import json
 import mimetypes
+import os
 import time
 from pathlib import Path
 from urllib.parse import quote
@@ -99,9 +100,10 @@ def get_asset(db: Session, ctx: RequestContext, asset_id: str) -> Asset:
 
 
 def asset_file(a: Asset) -> Path:
-    root = settings().seed_root.resolve()
-    f = (root / a.path).resolve()
-    if not str(f).startswith(str(root)) or not f.is_file():
+    # Lexical containment (seed folders may be symlinks into a shared data checkout).
+    root = Path(os.path.normpath(settings().seed_root))
+    f = Path(os.path.normpath(root / a.path))
+    if ".." in Path(a.path).parts or root not in f.parents or not f.is_file():
         raise HTTPException(404, "asset file missing")
     return f
 

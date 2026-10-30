@@ -36,6 +36,8 @@ def _resolve(db: Session, ctx: RequestContext, body: dict) -> tuple[str, str, di
     act = installer.active_manifests(db, ctx.workspace_id)
     if tool_id:
         tool_id = canonical_id(tool_id)
+        if tool_id == f"{BUILTIN}.segment_objects" and settings().builtin_mock_segment:
+            return BUILTIN, "1.0.0", mock_segment.MANIFEST, "segment_objects", mock_segment.CAPABILITY
         for inst, m in act:
             if tool_id.startswith(inst.plugin_id + "."):
                 tool = tool_id[len(inst.plugin_id) + 1 :]

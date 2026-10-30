@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { AnnotateIcon, DatasetsIcon, ExportIcon, ReviewIcon, SidebarIcon, type IconComponent } from "@studio/studio-ui/icons";
+import { AnnotateIcon, DatasetsIcon, ExportIcon, ReviewIcon, SidebarIcon, ToolIcon, type IconComponent } from "@studio/studio-ui/icons";
 import { Button } from "@studio/studio-ui/ui/button";
 import { Sheet, SheetContent } from "@studio/studio-ui/ui/sheet";
 import { BrandMark } from "@/studio/components/layout/brand";
@@ -106,6 +106,7 @@ function SideNav({ dataset }: { dataset?: { id: string; title: string } }) {
           <NavItem to={`/datasets/${dataset.id}`} end icon={AnnotateIcon} label="Annotate" />
           <NavItem to={`/datasets/${dataset.id}/review`} icon={ReviewIcon} label="Review" />
           <NavItem to={`/datasets/${dataset.id}/export`} icon={ExportIcon} label="Export" />
+          <NavItem to={`/datasets/${dataset.id}/plugins`} icon={ToolIcon} label="Plugins" />
         </NavSection>
       )}
     </nav>

@@ -11,6 +11,7 @@
     "check:boundaries": "pnpm --filter web check:boundaries",
     "emit:schemas": "pnpm --filter web emit:schemas",
     "api": "cd apps/api && uv run uvicorn studio_api.app:app --port 8000",
-    "test:api": "cd apps/api && uv run pytest -q"
+    "test:api": "cd apps/api && uv run pytest -q",
+    "build:registry": "node scripts/build-registry.mjs"
   }
 }

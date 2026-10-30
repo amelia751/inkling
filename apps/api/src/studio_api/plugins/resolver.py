@@ -45,11 +45,10 @@ def resolve(plugin_id: str, version_range: str | None, active: dict[str, str]) -
             if rng and not semver.satisfies(e_all[-1].version, rng):
                 r.errors.append({"code": "builtin-version", "plugin": pid, "message": f"{pid}@{e_all[-1].version} (built in) doesn't satisfy {rng}"})
             return
-        if pid in active:
+        if pid in active and path:  # the requested plugin itself may be up- or downgraded
             if rng and not semver.satisfies(active[pid], rng):
                 r.conflicts.append({"plugin": pid, "active": active[pid], "required": rng, "requiredBy": path[-1] if path else None, "message": f"{path[-1] if path else 'request'} needs {pid} {rng}, but {active[pid]} is active; upgrade or roll back {pid} explicitly"})
-            if path:  # an active dependency that satisfies the range stays as it is
-                return
+            return  # an active dependency that satisfies the range stays as it is
         if pid in chosen:
             if rng and not semver.satisfies(chosen[pid].version, rng):
                 r.conflicts.append({"plugin": pid, "chosen": chosen[pid].version, "required": rng, "message": f"two plugins need incompatible versions of {pid}"})

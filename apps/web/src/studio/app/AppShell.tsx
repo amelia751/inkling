@@ -4,6 +4,7 @@ import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { StudioHostProvider } from "@/extension-host/host";
 import { ExportPage } from "./routes/ExportPage";
 import { ReviewPage } from "./routes/ReviewPage";
+import { PluginsPage } from "./routes/PluginsPage";
 import { FullPageMessage } from "./routes/shared";
 import { WorkspacePage } from "./routes/WorkspacePage";
 
@@ -18,6 +19,7 @@ const router = createBrowserRouter([
     ),
   },
   { path: "/datasets/:datasetId/review", element: <ReviewPage /> },
+  { path: "/datasets/:datasetId/plugins", element: <PluginsPage /> },
   { path: "/datasets/:datasetId/export", element: <ExportPage /> },
   { path: "*", element: <FullPageMessage title="Page not found" /> },
 ]);

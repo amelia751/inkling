@@ -47,8 +47,9 @@ Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
 ### Adding a first-party plugin
 
 1. Copy `plugins/_template` to `plugins/<name>` and rename the module id (`ns("<name>")`).
-2. Import only from the SDK, contracts, studio-ui and studio-renderers; add third-party
-   dependencies to `plugins/package.json`.
+2. Import only from the SDK, contracts, studio-ui and studio-renderers; third-party
+   dependencies go in the plugin's own `package.json` (`@studio/plugin-<name>`), and the
+   plugin's `plugin.yaml` describes it for the registry (`node scripts/build-registry.mjs`).
 3. Add one import and one `MODULES` entry in `apps/web/src/extension-host/bundled.ts`, and a
    `@plugins/<name>/*` path in `apps/web/tsconfig.json`.
 4. Run `pnpm emit:schemas` and the checks.

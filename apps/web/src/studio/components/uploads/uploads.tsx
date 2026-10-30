@@ -39,16 +39,22 @@ export function useAddData(projectId: string | undefined) {
   return (picked: Picked, targetNodeId?: string) => (projectId ? add(projectId, picked, { targetNodeId, onChanged: refresh }) : Promise.resolve(undefined));
 }
 
-/** Hidden pickers behind a split button: Files… / Folder… (`webkitdirectory`). */
+/**
+ * The `+ Add data ▾` split button (todo6 Phase 4.4): the main part picks files, the chevron
+ * offers Files… and Folder… (`webkitdirectory`, which keeps the folder structure).
+ */
 export function AddDataButton({ onPick, size = "lg", variant = "default", label = "Add data" }: { onPick: (p: Picked) => void; size?: "default" | "lg"; variant?: "default" | "outline"; label?: string }) {
   const { files, folder, inputs } = usePickers(onPick);
   return (
-    <>
+    <div className="inline-flex" role="group" aria-label={label}>
       {inputs}
+      <Button size={size} variant={variant} className="rounded-r-none" onClick={files} data-testid="add-data">
+        <AddDataIcon /> {label}
+      </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size={size} variant={variant} data-testid="add-data">
-            <AddDataIcon /> {label} <ChevronDownIcon className="opacity-70" />
+          <Button size={size} variant={variant} className={cn("rounded-l-none px-2", variant === "default" ? "border-l border-primary-foreground/25" : "border-l-0")} aria-label="More ways to add data" data-testid="add-data-menu">
+            <ChevronDownIcon className="opacity-80" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -58,7 +64,7 @@ export function AddDataButton({ onPick, size = "lg", variant = "default", label 
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    </>
+    </div>
   );
 }
 
@@ -254,6 +260,7 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
   const retry = useUploads((x) => x.retry);
   const cancel = useUploads((x) => x.cancel);
   const dismiss = useUploads((x) => x.dismiss);
+  const setCollapsed = useUploads((x) => x.setCollapsed);
   const [open, setOpen] = useState(false);
   const failed = s.files.filter((f) => f.state === "failed" || f.state === "rejected");
   const busy = s.phase === "preparing" || s.phase === "uploading";
@@ -287,6 +294,7 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
               <Button size="sm" variant="ghost-secondary" onClick={() => setOpen((o) => !o)}>{open ? "Hide files" : "Show files"}</Button>
             )}
             {busy && <Button size="sm" variant="ghost-secondary" onClick={() => void cancel(s.key)}>Cancel</Button>}
+            {(busy || s.phase === "checking") && <Button size="sm" variant="ghost-secondary" onClick={() => setCollapsed(true)}>Keep working</Button>}
           </div>
           {open && (
             <ul className="mt-1.5 max-h-40 overflow-y-auto pl-6 text-xs" data-testid="tray-files">

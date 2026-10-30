@@ -4,6 +4,7 @@ import {
   DocumentIcon,
   FileSequenceIcon,
   FolderIcon,
+  FolderOpenIcon,
   ImageIcon,
   MaskFileIcon,
   SlideIcon,
@@ -77,7 +78,7 @@ export function nodeKind(n: Pick<SourceNode, "kind" | "detectedKind" | "name">):
 
 export function nodeIcon(n: Pick<SourceNode, "kind" | "detectedKind" | "name">, open = false): IconComponent {
   if (n.kind === "sequence") return FileSequenceIcon;
-  if (n.kind === "folder") return open ? KINDS.folder.icon : FolderIcon;
+  if (n.kind === "folder") return open ? FolderOpenIcon : FolderIcon;
   return kindIcon(nodeKind(n));
 }
 
@@ -89,4 +90,29 @@ export function kindLabel(n: Pick<SourceNode, "kind" | "detectedKind" | "name" |
   if (n.kind === "sequence") return `${modality}${KINDS[kind]?.plural ?? "Files"} · ${n.childCount.toLocaleString()}`;
   if (kind === "dicom-series" && modality) return `${modality.trim()} series`;
   return KINDS[kind]?.label ?? "File";
+}
+
+/** Row status in plain words (todo6 §3 copy rules); the icon is chosen by the caller. */
+export const STATUS_LABEL: Record<SourceNode["status"], string> = {
+  checking: "Checking…",
+  ready: "Ready",
+  attention: "Needs attention",
+  privacy: "Held for privacy review",
+  unsupported: "We can't read this file yet",
+};
+
+/** Why a row has its status, for the tooltip (never a patient identifier: flags are kernel-written). */
+export function statusReason(n: Pick<SourceNode, "status" | "flags">): string | undefined {
+  if (n.status === "privacy") return n.flags.privacy?.reason ? `Held: ${n.flags.privacy.reason}` : STATUS_LABEL.privacy;
+  if (n.status === "attention") {
+    if (n.flags.duplicate_of) return `Same file as ${n.flags.duplicate_of.name}`;
+    if (n.flags.quality?.length) return n.flags.quality.join(" · ");
+  }
+  if (n.status === "unsupported") return n.flags.unsupported ?? STATUS_LABEL.unsupported;
+  return n.status === "ready" ? undefined : STATUS_LABEL[n.status];
+}
+
+/** `scan001.dcm` → `scan#.dcm`, as the kernel keys numbered runs (kernel/tree.py `sequence_key`). */
+export function sequenceKey(name: string): string | null {
+  return /\d+(?=\D*$)/.test(name) ? name.replace(/\d+(?=\D*$)/, "#") : null;
 }

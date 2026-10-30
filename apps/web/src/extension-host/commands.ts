@@ -143,8 +143,7 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
   const ref = useRef(map);
   ref.current = map;
 
-  useHotkeys(
-    (e) => {
+  const handle: KeyHandler = (e) => {
       let ctx: WhenContext | undefined;
       for (const name of Object.keys(ref.current)) {
         // `global`: shell commands (navigation, Sources) also work outside the Studio, where no
@@ -158,10 +157,8 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
         if (ref.current[name](e) !== false) return true;
       }
       return false;
-    },
-    priority,
-    enabled,
-  );
+  };
+  useHotkeys(handle, priority, enabled);
 
   // Also reachable through execute() for menus and the agent.
   const names = Object.keys(map).join("|");
@@ -172,4 +169,8 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
     const offs = names.split("|").filter(Boolean).map((name) => registerCommand(commandId(name, scopes), (e) => ref.current[name]?.(e ?? new KeyboardEvent("keydown"))));
     return () => offs.forEach((off) => off());
   }, [names, scopeKey, enabled]);
+
+  // For widgets that own their keys (a tree, a dialog): run the bound commands from their own
+  // key handler first, so the keys still come from the command contributions.
+  return (e: KeyboardEvent): boolean => enabled && handle(e) === true;
 }

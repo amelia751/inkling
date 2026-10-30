@@ -57,8 +57,13 @@ Key names per Secret (names only; env prefix `INKLING_` from `schemas/naming.jso
 | `versioning-bootstrap-secrets` | `INKLING_VERSIONING_ADMIN_DATABASE_URL`, `INKLING_VERSIONING_OWNER_PASSWORD`, `INKLING_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
 | `studio-tls` | (type `kubernetes.io/tls`) | Issued by cert-manager for the Ingress host. |
 
-The ConfigMap `versioning-jwks` (key `jwks.json`) holds the public key(s) of the api's
-service-JWT signer; it isn't secret. The dev overlay ships a throwaway one.
+The api signs every call to apps/versioning with an Ed25519 key: Secret `api-versioning-jwt`
+(key `jwt.key`, PKCS8 PEM, mounted at `/etc/api/versioning`), with the public half in ConfigMap
+`versioning-jwks` (key `jwks.json`, not secret). The JWKS `kid` must equal the api's
+`INKLING_API_VERSIONING_JWT_KID` (`api` in `base/api/configmap.yaml`). Neither is in any
+overlay; `node tools/versioning-keys.mjs --namespace <ns>` (`pnpm k8s:dev-keys` for
+`studio-dev`) generates a pair and creates both without printing the key. To rotate without
+downtime, add the new public key to `jwks.json` first, then swap the Secret and restart the api.
 
 Creating them by hand (staging shown; values come from your secret manager, never a file in
 the repo):

@@ -51,7 +51,7 @@ const schema = z.object({
 
   /** The Studio (Vite dev server) for the seed API fallback and sample uploads. */
   AGENT_STUDIO_URL: z.string().url().default("http://localhost:5173"),
-  /** The kernel (apps/api) for the builder and task profiles' tools. */
+  /** The kernel (apps/api) for the builder and task profiles' tools; calls there carry `traceparent` / `x-request-id`. */
   AGENT_KERNEL_URL: z.string().url().default("http://127.0.0.1:8000"),
   AGENT_UPLOAD_MAX_FILES: int(20),
   AGENT_UPLOAD_MAX_MB: int(200),
@@ -84,8 +84,6 @@ const schema = z.object({
   AGENT_SHUTDOWN_GRACE_S: int(100),
   /** In-process Daytona sweeper; turn off when the agent-sweeper CronJob runs `scripts/sweep.ts`. */
   SWEEPER_ENABLED: flag(true),
-  /** apps/api base URL: outgoing calls there carry `traceparent` / `x-request-id`. */
-  AGENT_API_URL: optional,
   /** Injected at image build (`--build-arg GIT_SHA`); served by GET /version. */
   GIT_SHA: optional,
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
@@ -128,7 +126,6 @@ export interface Config {
   cluster: { replicaId: string; leaseS: number; heartbeatS: number; inboxPollMs: number };
   shutdownGraceS: number;
   sweeperEnabled: boolean;
-  apiUrl: string | undefined;
   gitSha: string | undefined;
 }
 
@@ -226,7 +223,6 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       },
       shutdownGraceS: e.AGENT_SHUTDOWN_GRACE_S,
       sweeperEnabled: e.SWEEPER_ENABLED,
-      apiUrl: e.AGENT_API_URL,
       gitSha: e.GIT_SHA,
     },
   };

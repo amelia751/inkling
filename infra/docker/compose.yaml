@@ -124,8 +124,10 @@ services:
     env_file:
       - env/api.env
       - { path: ../../secrets/api.env, required: false }
+    volumes: [versioning-keys:/keys:ro]
     depends_on:
       api-migrate: { condition: service_completed_successfully }
+      versioning-keys: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
       s3-init: { condition: service_completed_successfully }
 
@@ -164,15 +166,26 @@ services:
     depends_on:
       agent: { condition: service_started }
 
-  # Dev key pair for the api → versioning service JWTs (todo4 V4). Regenerated on each run;
-  # the public half (jwks.json) is what the versioning service verifies with.
-  versioning-keys:
+  # Dev key pair for the api → versioning service JWTs (todo4 V4): api signs with jwt.key
+  # (kid "dev"), the versioning service verifies with jwks.json. Generated once per volume
+  # (`stack:down -v` makes a new pair), so a running api never holds a stale key.
+  versioning-keygen:
     <<: *oneshot
     image: studio-versioning:${TAG:-dev}
     build: { <<: *build, dockerfile: apps/versioning/Dockerfile }
     user: "0:0"
-    command: ["/app/bin/devtoken", "keygen", "/keys"]
+    command: ["/app/bin/devtoken", "keygen", "/keys/new"]
     volumes: [versioning-keys:/keys]
+
+  versioning-keys:
+    <<: *oneshot
+    image: busybox:1.37
+    user: "0:0"
+    cap_add: [CHOWN]
+    command: ["sh", "-c", "[ -f /keys/jwt.key ] || mv /keys/new/jwt.key /keys/new/jwks.json /keys/; rm -rf /keys/new; chown 10001:10001 /keys/jwt.key"]
+    volumes: [versioning-keys:/keys]
+    depends_on:
+      versioning-keygen: { condition: service_completed_successfully }
 
   versioning-bootstrap:
     <<: *oneshot

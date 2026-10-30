@@ -1,3 +1,4 @@
+import { apiUrl } from "@/extension-host/runtime-config";
 import type { ProfileName } from "./protocol";
 
 /**
@@ -23,7 +24,7 @@ export async function kernelToken(workspaceId: string, profile: ProfileName): Pr
   const hit = cache.get(key);
   if (hit && hit.expiresAt - Date.now() > 10 * 60_000) return hit.token;
   try {
-    const res = await fetch("/api/v1/sessions", {
+    const res = await fetch(apiUrl("/v1/sessions"), {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Workspace-Id": workspaceId },
       body: JSON.stringify({ agent: profile, profile, scopes, ttlSeconds: TTL_S }),

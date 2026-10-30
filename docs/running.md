@@ -150,6 +150,8 @@ done
 
 # Deploy (namespace studio-dev): apps, in-cluster Postgres/Redis/S3, migrations, Ingress
 kubectl apply -k infra/k8s/overlays/dev
+# Once per cluster: the api → versioning JWT key pair (api and versioning wait for it)
+pnpm k8s:dev-keys
 kubectl -n studio-dev get pods -w
 open http://localhost:8081
 ```

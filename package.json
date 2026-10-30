@@ -32,7 +32,8 @@
     "infra:down": "docker compose -f infra/docker/compose.yaml --profile deps down",
     "stack:up": "docker compose -f infra/docker/compose.yaml --profile full up -d --build --wait",
     "stack:down": "docker compose -f infra/docker/compose.yaml --profile full down",
-    "k8s:build": "kubectl kustomize infra/k8s/overlays/dev"
+    "k8s:build": "kubectl kustomize infra/k8s/overlays/dev",
+    "k8s:dev-keys": "node tools/versioning-keys.mjs --namespace studio-dev"
   },
   "devDependencies": {
     "turbo": "2.11.9",

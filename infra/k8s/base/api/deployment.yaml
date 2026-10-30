@@ -95,7 +95,16 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: versioning-jwt
+              mountPath: /etc/api/versioning
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 1Gi
+        # Ed25519 private key (PKCS8 PEM, key `jwt.key`), created out of band
+        # (infra/k8s/README.md; dev: `pnpm k8s:dev-keys`).
+        - name: versioning-jwt
+          secret:
+            secretName: api-versioning-jwt
+            defaultMode: 0400

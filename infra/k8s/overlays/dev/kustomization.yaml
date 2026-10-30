@@ -63,13 +63,9 @@ secretGenerator:
       - INKLING_VERSIONING_OWNER_PASSWORD=dev-only-owner-pw
       - INKLING_VERSIONING_APP_PASSWORD=dev-only-app-pw
 
-configMapGenerator:
-  # Public half of a throwaway dev key pair (its private key was discarded): it lets the
-  # service start. Replace with the public key of apps/api's JWT signer once api mints
-  # versioning tokens (todo4 Phase 6).
-  - name: versioning-jwks
-    files:
-      - jwks.json=versioning-jwks.dev.json
+# The api → versioning JWT key pair (Secret `api-versioning-jwt`, ConfigMap `versioning-jwks`)
+# isn't generated here, so no private key is ever committed: `pnpm k8s:dev-keys` creates both
+# in the namespace (once; pods wait for them).
 
 patches:
   # One replica each: drop the HPAs (Deployments without `replicas` then run one).

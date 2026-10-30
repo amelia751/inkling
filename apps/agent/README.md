@@ -128,7 +128,7 @@ Not shared across replicas yet: artifact files (`/v1/artifacts/:id` is dev-only;
 | `AGENT_SHUTDOWN_GRACE_S` | `100` | SIGTERM drain time for in-flight runs |
 | `SWEEPER_ENABLED` | `true` | in-process Daytona sweeper (turn off when the CronJob runs) |
 | `AGENT_DATA_DIR` | `apps/agent/.data` | file store, pi auth/agent dir, artifacts; in a read-only container use a path under `/tmp` |
-| `AGENT_API_URL` | – | apps/api base URL; outgoing calls there (and to `AGENT_STUDIO_URL`) carry `traceparent` and `x-request-id` |
+| `AGENT_KERNEL_URL` | `http://127.0.0.1:8000` | apps/api base URL (builder and task tools); outgoing calls there (and to `AGENT_STUDIO_URL`) carry `traceparent` and `x-request-id` |
 | `GIT_SHA` | – | build arg, served by `/version` and logged as `git_sha` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | – | export traces if the OpenTelemetry SDK packages are installed (see `packages/observability-ts/src/otel.ts`) |
 

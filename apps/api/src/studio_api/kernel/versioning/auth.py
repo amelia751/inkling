@@ -28,7 +28,6 @@ from ...config import settings
 from ...context import RequestContext
 from ...naming import naming
 
-KID = "api-dev"
 LIFETIME_S = 60
 
 # Scopes apps/versioning understands (internal/authn).
@@ -57,7 +56,7 @@ def key_paths() -> tuple[Path, Path]:
 def _write_jwks(key: Ed25519PrivateKey, path: Path) -> None:
     raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": KID, "x": _b64(raw), "use": "sig", "alg": "EdDSA"}]}))
+    path.write_text(json.dumps({"keys": [{"kty": "OKP", "crv": "Ed25519", "kid": settings().versioning_kid, "x": _b64(raw), "use": "sig", "alg": "EdDSA"}]}))
 
 
 @cache
@@ -120,7 +119,7 @@ def mint(ctx: RequestContext, scopes: list[str], *, lifetime_s: int = LIFETIME_S
         "scopes": sorted(set(scopes)),
         "request_id": ctx.correlation_id,
     }
-    header = {"alg": "EdDSA", "typ": "JWT", "kid": KID}
+    header = {"alg": "EdDSA", "typ": "JWT", "kid": settings().versioning_kid}
     signing_input = f"{_b64(json.dumps(header, separators=(',', ':')).encode())}.{_b64(json.dumps(claims, separators=(',', ':')).encode())}"
     return f"{signing_input}.{_b64(signing_key().sign(signing_input.encode()))}"
 

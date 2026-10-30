@@ -16,7 +16,7 @@ data:
   AGENT_REDIS_URL: redis://redis:6379/1
   # The agent-sweeper CronJob (base/jobs) sweeps leaked sandboxes instead of every replica.
   SWEEPER_ENABLED: "false"
-  AGENT_API_URL: http://api
+  AGENT_KERNEL_URL: http://api
   # The seed and environment APIs (/seed, /api/…): apps/api serves them under the same paths.
   AGENT_STUDIO_URL: http://api
   AGENT_DATA_DIR: /tmp/agent

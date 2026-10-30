@@ -22,6 +22,7 @@ that are missing or invalid, never their values.
 | API_VERSIONING_TENANT     | default                          | tenant sent to the versioning service |
 | API_VERSIONING_JWT_KEY_FILE / API_VERSIONING_JWKS_FILE | dev: generated | Ed25519 signing key / its public JWKS |
 | API_VERSIONING_JWT_AUDIENCE / _ISSUER | versioning / api     | JWT claims for versioning calls |
+| API_VERSIONING_JWT_KID    | api-dev                          | key id in the JWT header; must be in the service's JWKS |
 | REDIS_URL                 | (none)                           | needed when JOB_QUEUE or EVENT_BUS is redis |
 | BLOB_STORE                | local                            | `local` (files) or `s3` |
 | S3_ENDPOINT               | (AWS)                            | S3-compatible endpoint, e.g. MinIO |
@@ -104,6 +105,8 @@ class Settings(BaseModel):
     versioning_jwks_file: Path | None = None
     versioning_audience: str = "versioning"
     versioning_issuer: str = "api"
+    # The JWT `kid`; must name the key in the service's JWKS (`devtoken keygen` writes "dev").
+    versioning_kid: str = "api-dev"
     extra: dict[str, str] = Field(default_factory=dict)
 
     # Stateless deployment (todo/todo3.md E.2): where state, blobs, jobs and events live.
@@ -151,6 +154,7 @@ _KEYS: dict[str, str] = {
     "versioning_jwks_file": "API_VERSIONING_JWKS_FILE",
     "versioning_audience": "API_VERSIONING_JWT_AUDIENCE",
     "versioning_issuer": "API_VERSIONING_JWT_ISSUER",
+    "versioning_kid": "API_VERSIONING_JWT_KID",
     "redis_url": "REDIS_URL",
     "blob_store": "BLOB_STORE",
     "s3_endpoint": "S3_ENDPOINT",

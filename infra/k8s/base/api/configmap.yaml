@@ -17,3 +17,9 @@ data:
   INKLING_S3_BUCKET: assets
   INKLING_S3_REGION: us-east-1
   INKLING_REPO_ROOT: /app
+  # Dataset versioning: the api signs a 60 s JWT per call with the key in `api-versioning-jwt`;
+  # the service verifies with the matching public key in the `versioning-jwks` ConfigMap.
+  INKLING_API_VERSIONING_URL: http://versioning:8090
+  INKLING_API_VERSIONING_JWT_KEY_FILE: /etc/api/versioning/jwt.key
+  INKLING_API_VERSIONING_JWKS_FILE: /tmp/versioning-jwks.json
+  INKLING_API_VERSIONING_JWT_KID: api

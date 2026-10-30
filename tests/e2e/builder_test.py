@@ -1,6 +1,6 @@
 """todo2 Phase 7: the builder agent installs a plugin, and approval stays with the user.
 
-A scripted builder run (e2e/fixtures/agent-script.json, "add segmentation") searches the registry,
+A scripted builder run (tests/e2e/fixtures/agent-script.json, "add segmentation") searches the registry,
 plans and stages the install against the real kernel, then asks for approval. The chat card opens
 the install review; approving there (the user's own kernel call) activates the plugin without a
 reload. The kernel records the agent as requester and the user as approver.
@@ -11,7 +11,7 @@ Needs the kernel (apps/api) and the dev server with both proxies; the test start
     <envPrefix>KERNEL=1 <envPrefix>KERNEL_URL=http://127.0.0.1:8011 <envPrefix>E2E=1 \\
       <envPrefix>AGENT_URL=http://127.0.0.1:8299 INTERNAL_AGENT_SERVICE_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5299 --strictPort
-    <envPrefix>E2E_KERNEL_URL=http://127.0.0.1:8011 python3 e2e/builder_test.py --port 5299
+    <envPrefix>E2E_KERNEL_URL=http://127.0.0.1:8011 python3 ../../tests/e2e/builder_test.py --port 5299   # from apps/web
 """
 from __future__ import annotations
 
@@ -23,8 +23,10 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+# The browser harness lives with the web-only tests (apps/web/e2e).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "web" / "e2e"))
 import agent_test  # noqa: E402
-from agent_test import ask, check, results, wait  # noqa: E402
+from agent_test import ask, check, results  # noqa: E402
 from harness import NAMING, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
 KERNEL = os.environ.get(f"{NAMING['envPrefix']}E2E_KERNEL_URL", "http://127.0.0.1:8000")

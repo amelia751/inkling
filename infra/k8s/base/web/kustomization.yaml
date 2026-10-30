@@ -1,0 +1,10 @@
+# web: Studio SPA (nginx): static files, /config.json, /api/agent proxy.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - pdb.yaml
+  - service.yaml
+  - hpa.yaml

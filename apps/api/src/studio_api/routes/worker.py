@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/worker")
 
 
 def worker_token() -> str:
-    return env("API_WORKER_TOKEN") or f"dev-worker:{settings().secret_key[:16]}"
+    return settings().worker_token or env("API_WORKER_TOKEN") or f"dev-worker:{settings().secret_key[:16]}"
 
 
 def _auth(x_worker_token: str = Header(default="")) -> None:
@@ -50,7 +50,7 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
     active = installer.active(db, j.workspace_id).get(j.plugin_id)
     entry = installer.catalog.get(j.plugin_id, j.version)
     return {
-        "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s},
+        "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent},
         "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": active.artifact_digest if active else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(entry) or "") if entry else "", "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
         "provider": provider,
         "config": installer.current_config(db, j.workspace_id, j.plugin_id),
@@ -78,11 +78,18 @@ def fail(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)
     return jobs.job_dict(j)
 
 
+@router.post("/jobs/{job_id}/release", dependencies=[Depends(_auth)])
+def release(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    """A worker that is shutting down (SIGTERM) hands its job back to the queue."""
+    j = jobs.release(db, job_id, str(body.get("workerId")))
+    return jobs.job_dict(j)
+
+
 @router.post("/events/deliver", dependencies=[Depends(_auth)])
 def deliver(db: Session = Depends(get_session)):
-    from ..kernel import events
+    from ..kernel import eventbus
 
-    return {"delivered": events.deliver(db)}
+    return {"delivered": eventbus.deliver(db)}
 
 
 

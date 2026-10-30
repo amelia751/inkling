@@ -1,0 +1,16 @@
+# Non-secret settings for web. `config.json` is what the SPA fetches at startup (mounted at
+# /etc/studio/config.json); env vars feed the nginx template. The agent bearer token comes
+# from web-secrets (INTERNAL_AGENT_SERVICE_TOKEN).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+data:
+  AGENT_UPSTREAM: http://agent:8100
+  config.json: |
+    {
+      "apiBase": "/api",
+      "agentBase": "/api/agent",
+      "kernel": true,
+      "flags": []
+    }

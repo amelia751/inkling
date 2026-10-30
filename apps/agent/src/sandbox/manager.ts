@@ -101,6 +101,11 @@ export class SandboxManager {
     this.deleting.set(sessionId, p);
   }
 
+  /** Stop tracking a session's sandbox without touching it or its ref (another replica uses it now). */
+  evict(sessionId: string): void {
+    this.live.delete(sessionId);
+  }
+
   /** Drop a sandbox that turned out to be gone so the next acquire creates a fresh one. */
   forget(sessionId: string): void {
     const sb = this.live.get(sessionId);

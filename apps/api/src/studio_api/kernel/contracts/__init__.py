@@ -15,7 +15,6 @@ import uuid
 import zlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 
 from pydantic import BaseModel, ValidationError
 
@@ -144,6 +143,7 @@ def normalize_result(capability: str, result: dict, job, *, author: str, db=None
     import json
 
     from ...models import Artifact
+    from ..assets import artifact_bytes
 
     req = job.input
     out = []
@@ -157,7 +157,7 @@ def normalize_result(capability: str, result: dict, job, *, author: str, db=None
             art = db.get(Artifact, m["artifact_id"]) if db is not None else None
             if art is None or art.workspace_id != job.workspace_id:
                 raise ValueError(f"mask artifact {m['artifact_id']} isn't in this workspace")
-            w, h, bits = decode_png_gray(Path(art.path).read_bytes())
+            w, h, bits = decode_png_gray(artifact_bytes(art))
             if [h, w] != list(m["size"]):
                 raise ValueError("mask artifact size doesn't match its declared size")
             dims, counts, n = [w, h], rle_rowmajor(bits), sum(bits)

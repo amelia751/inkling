@@ -1,12 +1,61 @@
-"""Kernel settings, from namespaced env vars (<envPrefix>API_*) and secrets/api.env."""
+"""Kernel settings, validated at startup (todo/todo3.md D.4, E.4).
+
+Every key is read from the environment as `<envPrefix><NAME>` (the prefix comes from
+schemas/naming.json; `naming.env`). `secrets/api.env` is an optional dev overlay (keys with
+or without the prefix) and never overrides the real environment; production
+(`API_ENV=production`) ignores it. A bad configuration fails fast with the key *names*
+that are missing or invalid, never their values.
+
+| Key (without prefix)      | Default                          | Meaning |
+|---------------------------|----------------------------------|---------|
+| API_ENV                   | dev                              | `production` requires the secrets below and skips dev fallbacks |
+| API_DATABASE_URL          | sqlite:///<data dir>/api.db      | SQLAlchemy URL; `postgresql+psycopg://…` in production |
+| API_CREATE_TABLES         | 1 (dev) / 0 (production)         | create tables at startup; production runs the Alembic migrate Job |
+| API_SECRET_KEY            | dev: generated per checkout      | signs URLs, encrypts secrets; required in production |
+| API_WORKER_TOKEN          | dev: derived from the secret key | shared token workers authenticate with; required in production |
+| API_DATA_DIR              | apps/api/.data                   | dev-only local data (SQLite file, local derived blobs) |
+| API_SEED_ROOT             | <repo>/seed-data                 | the local BlobStore root for seed assets |
+| API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
+| API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
+| API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
+| REDIS_URL                 | (none)                           | needed when JOB_QUEUE or EVENT_BUS is redis |
+| BLOB_STORE                | local                            | `local` (files) or `s3` |
+| S3_ENDPOINT               | (AWS)                            | S3-compatible endpoint, e.g. MinIO |
+| S3_BUCKET                 | assets                           | bucket holding seed assets (keys = seed-data paths) and derived data |
+| S3_REGION                 | us-east-1                        | |
+| S3_PREFIX                 | (none)                           | optional key prefix inside the bucket |
+| JOB_QUEUE                 | sql                              | `sql` (DB lease queue) or `redis` (ready list + leases) |
+| EVENT_BUS                 | sql                              | `sql` (outbox scan) or `redis` (Streams) |
+| REPO_ROOT                 | derived                          | where schemas/, registry/, plugins/ are (/app in images) |
+| GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
+
+S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
+or the default AWS credential chain).
+"""
 
 from __future__ import annotations
 
+import os
 import secrets as pysecrets
-from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
-from .naming import REPO_ROOT, env
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from .naming import REPO_ROOT, naming
+
+
+class SettingsError(RuntimeError):
+    """Configuration is missing or invalid. The message names keys, never values."""
+
+    def __init__(self, missing: list[str], invalid: list[str]):
+        self.missing, self.invalid = missing, invalid
+        parts = []
+        if missing:
+            parts.append("missing " + ", ".join(missing))
+        if invalid:
+            parts.append("invalid " + ", ".join(invalid))
+        super().__init__("configuration error: " + "; ".join(parts))
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
@@ -20,8 +69,9 @@ def _read_env_file(path: Path) -> dict[str, str]:
     return out
 
 
-@dataclass
-class Settings:
+class Settings(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     database_url: str
     seed_root: Path
     data_dir: Path
@@ -39,32 +89,129 @@ class Settings:
     event_rate_per_minute: int = 600
     event_max_depth: int = 4
     job_lease_s: int = 60
-    extra: dict[str, str] = field(default_factory=dict)
+    extra: dict[str, str] = Field(default_factory=dict)
+
+    # Stateless deployment (todo/todo3.md E.2): where state, blobs, jobs and events live.
+    env: Literal["dev", "production"] = "dev"
+    create_tables: bool = True
+    repo_root: Path = REPO_ROOT
+    worker_token: str | None = None
+    redis_url: str | None = None
+    blob_store: Literal["local", "s3"] = "local"
+    s3_endpoint: str | None = None
+    s3_bucket: str = "assets"
+    s3_region: str = "us-east-1"
+    s3_prefix: str = ""
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    job_queue: Literal["sql", "redis"] = "sql"
+    event_bus: Literal["sql", "redis"] = "sql"
+    housekeeping_interval_s: float = 10.0
+    git_sha: str = "unknown"
+
+    @property
+    def production(self) -> bool:
+        return self.env == "production"
+
+    @property
+    def needs_redis(self) -> bool:
+        return self.job_queue == "redis" or self.event_bus == "redis"
+
+
+# Settings field → key name (without the prefix). Booleans accept 1/0/true/false.
+_KEYS: dict[str, str] = {
+    "env": "API_ENV",
+    "database_url": "API_DATABASE_URL",
+    "create_tables": "API_CREATE_TABLES",
+    "secret_key": "API_SECRET_KEY",
+    "worker_token": "API_WORKER_TOKEN",
+    "data_dir": "API_DATA_DIR",
+    "seed_root": "API_SEED_ROOT",
+    "dev_trust_headers": "API_DEV_TRUST_HEADERS",
+    "builtin_mock_segment": "API_BUILTIN_MOCK_SEGMENT",
+    "housekeeping_interval_s": "API_HOUSEKEEPING_INTERVAL_S",
+    "redis_url": "REDIS_URL",
+    "blob_store": "BLOB_STORE",
+    "s3_endpoint": "S3_ENDPOINT",
+    "s3_bucket": "S3_BUCKET",
+    "s3_region": "S3_REGION",
+    "s3_prefix": "S3_PREFIX",
+    "job_queue": "JOB_QUEUE",
+    "event_bus": "EVENT_BUS",
+    "git_sha": "GIT_SHA",
+}
+_UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
+
+
+def key_name(field: str) -> str:
+    return f"{naming()['envPrefix']}{_KEYS[field]}" if field in _KEYS else _UNPREFIXED.get(field, field)
+
+
+def _lookup() -> tuple[dict[str, str], bool]:
+    """Raw string values by field name, from the environment then (dev) secrets/api.env."""
+    prefix = naming()["envPrefix"]
+    production = os.environ.get(f"{prefix}API_ENV", "dev") == "production"
+    file_env = {} if production else _read_env_file(REPO_ROOT / "secrets" / "api.env")
+
+    def get(name: str, *aliases: str) -> str | None:
+        for n in (f"{prefix}{name}",):
+            v = os.environ.get(n)
+            if v not in (None, ""):
+                return v
+        for n in (f"{prefix}{name}", name, *aliases):
+            v = file_env.get(n)
+            if v not in (None, ""):
+                return v
+        return None
+
+    raw: dict[str, str] = {}
+    for field, name in _KEYS.items():
+        v = get(name, "SECRET_KEY") if field == "secret_key" else get(name)
+        if v is not None:
+            raw[field] = v
+    for field, name in _UNPREFIXED.items():
+        v = os.environ.get(name) or file_env.get(name)
+        if v and field not in raw:
+            raw[field] = v
+    return raw, production
 
 
 def load_settings(**overrides) -> Settings:
-    file_env = _read_env_file(REPO_ROOT / "secrets" / "api.env")
-    data_dir = Path(env("API_DATA_DIR") or REPO_ROOT / "apps" / "api" / ".data")
-    key = env("API_SECRET_KEY") or file_env.get("API_SECRET_KEY") or file_env.get("SECRET_KEY")
-    if not key:
+    raw, production = _lookup()
+    values: dict = {**raw, **overrides}
+    data_dir = Path(values.get("data_dir") or REPO_ROOT / "apps" / "api" / ".data")
+    values["data_dir"] = data_dir
+    values.setdefault("seed_root", REPO_ROOT / "seed-data")
+    values.setdefault("registry_dir", REPO_ROOT / "registry")
+    values.setdefault("plugins_dir", REPO_ROOT / "plugins")
+    values.setdefault("repo_root", REPO_ROOT)
+    values.setdefault("create_tables", "0" if production else "1")
+
+    missing: list[str] = []
+    if production:
+        for f in ("secret_key", "database_url", "worker_token"):
+            if not values.get(f):
+                missing.append(key_name(f))
+    if values.get("job_queue") == "redis" or values.get("event_bus") == "redis":
+        if not values.get("redis_url"):
+            missing.append(key_name("redis_url"))
+    if not values.get("secret_key") and not production:
         # Dev fallback: a stable per-checkout key so signed URLs survive restarts.
         data_dir.mkdir(parents=True, exist_ok=True)
         key_file = data_dir / "dev-secret.key"
         if not key_file.exists():
             key_file.write_text(pysecrets.token_urlsafe(48))
-        key = key_file.read_text().strip()
-    s = Settings(
-        database_url=env("API_DATABASE_URL") or f"sqlite:///{data_dir / 'api.db'}",
-        seed_root=Path(env("API_SEED_ROOT") or REPO_ROOT / "seed-data"),
-        data_dir=data_dir,
-        registry_dir=REPO_ROOT / "registry",
-        plugins_dir=REPO_ROOT / "plugins",
-        secret_key=key,
-        dev_trust_headers=(env("API_DEV_TRUST_HEADERS", "1") == "1"),
-        builtin_mock_segment=(env("API_BUILTIN_MOCK_SEGMENT", "0") == "1"),
-    )
-    for k, v in overrides.items():
-        setattr(s, k, v)
+        values["secret_key"] = key_file.read_text().strip()
+    values.setdefault("database_url", f"sqlite:///{data_dir / 'api.db'}")
+    values.setdefault("secret_key", "")
+    invalid: list[str] = []
+    try:
+        s = Settings(**values)
+    except ValidationError as e:
+        # Only the field names: pydantic's own message would include the offending value.
+        invalid = sorted({key_name(str(err["loc"][0])) for err in e.errors() if err.get("loc")})
+    if missing or invalid:
+        raise SettingsError(sorted(set(missing)), invalid)
     return s
 
 

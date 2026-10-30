@@ -1,0 +1,55 @@
+# Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
+# Only ${VAR}s defined in the environment are substituted (Dockerfile ENV sets defaults):
+#   AGENT_UPSTREAM                 the agent service (default http://agent:8100)
+#   INTERNAL_AGENT_SERVICE_TOKEN   bearer the proxy adds; it never reaches the browser
+#   GIT_SHA                        build revision for /version
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  # Probes (unauthenticated, not logged).
+  location = /healthz { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
+  location = /readyz  { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
+  location = /version { access_log off; default_type application/json; return 200 '{"service":"web","gitSha":"${GIT_SHA}"}'; }
+
+  # Runtime config (ConfigMap / compose volume at /etc/studio/config.json). Missing → 404 and
+  # the SPA uses same-origin defaults. Never cached.
+  location = /config.json {
+    root /etc/studio;
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    try_files /config.json =404;
+  }
+
+  # The agent service: /api/agent/* → <agent>/v1/* with the service bearer (what the Vite
+  # proxy does in dev). SSE run streams: no buffering, no compression, hour-long timeouts.
+  location /api/agent/ {
+    proxy_pass ${AGENT_UPSTREAM}/v1/;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Authorization "Bearer ${INTERNAL_AGENT_SERVICE_TOKEN}";
+    proxy_set_header X-Request-Id $request_id;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_request_buffering off;
+    gzip off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+    client_max_body_size 200m;
+  }
+
+  # Hashed build assets: cache forever.
+  location /assets/ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
+  }
+
+  # SPA fallback; index.html is revalidated so a deploy shows up on reload.
+  location / {
+    add_header Cache-Control "no-cache";
+    try_files $uri $uri/ /index.html;
+  }
+}

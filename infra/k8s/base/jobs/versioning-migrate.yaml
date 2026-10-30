@@ -1,0 +1,53 @@
+# goose + River migrations for the `versioning` schema, run as its owner role
+# (<envPrefix>VERSIONING_MIGRATE_DATABASE_URL in versioning-secrets). Role and schema
+# bootstrap (`migrate bootstrap`, superuser) is a one-time DBA step in staging/prod;
+# overlays/dev adds it as an init container.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: versioning-migrate
+  labels:
+    app.kubernetes.io/name: versioning-migrate
+    app.kubernetes.io/component: migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: versioning-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: versioning
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: studio-versioning
+          command: ["/app/bin/migrate", "up"]
+          envFrom:
+            - configMapRef:
+                name: versioning-config
+            - secretRef:
+                name: versioning-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

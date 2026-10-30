@@ -1,0 +1,128 @@
+# prod: managed Postgres/Redis/object storage (endpoints in endpoints.yaml), images pinned by
+# digest (CI bumps them; GitOps applies), more replicas, NetworkPolicies. Secrets are created
+# out of band (infra/k8s/README.md); they are never committed.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: studio
+resources:
+  - namespace.yaml
+  - ../../base
+  - trigger-auth.yaml
+  - network-config.yaml
+components:
+  - ../../components/network-policies
+
+# Digests are placeholders until the first images.yml run on main pushes real ones.
+images:
+  - name: studio-web
+    newName: ghcr.io/amelia751/studio-web
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: studio-api
+    newName: ghcr.io/amelia751/studio-api
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: studio-agent
+    newName: ghcr.io/amelia751/studio-agent
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: studio-worker
+    newName: ghcr.io/amelia751/studio-worker
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: studio-versioning
+    newName: ghcr.io/amelia751/studio-versioning
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+patches:
+  # Managed endpoints (non-secret parts; credentials and full URLs with passwords go in the
+  # `<app>-secrets`, which override the ConfigMap because envFrom lists the Secret last).
+  - path: endpoints.yaml
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 10
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: api
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: agent
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+  - target:
+      kind: Deployment
+      name: versioning
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 3
+  - target:
+      kind: ScaledObject
+      name: worker
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicaCount
+        value: 30
+      - op: add
+        path: /spec/triggers/0/authenticationRef
+        value:
+          name: worker-queue-redis
+  - target:
+      kind: Ingress
+      name: studio
+    patch: |-
+      - op: add
+        path: /spec/rules/0/host
+        value: studio.example.com
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts: [studio.example.com]
+            secretName: studio-tls
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt
+
+# The managed data services' CIDR (placeholder: set it to the real data subnet) is copied
+# into every NetworkPolicy rule that reaches them.
+replacements:
+  - source:
+      kind: ConfigMap
+      name: network-config
+      fieldPath: data.DATA_SERVICES_CIDR
+    targets:
+      - select:
+          kind: NetworkPolicy
+          name: api
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select:
+          kind: NetworkPolicy
+          name: agent
+        fieldPaths: [spec.egress.1.to.0.ipBlock.cidr]
+      - select:
+          kind: NetworkPolicy
+          name: versioning
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select:
+          kind: NetworkPolicy
+          name: migrations
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select:
+          kind: NetworkPolicy
+          name: agent-sweeper
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]

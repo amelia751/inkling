@@ -1,0 +1,19 @@
+# Dev-only in-cluster dependencies (overlays/dev): Postgres, Redis, an S3-compatible store
+# (RustFS) and a Job that creates the buckets. Staging and prod use managed services instead.
+# Credentials are the non-secret dev placeholders in overlays/dev (deps-secrets).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: studio-deps
+    includeSelectors: false
+    includeTemplates: true
+resources:
+  - postgres.yaml
+  - redis.yaml
+  - s3.yaml
+  - s3-init.yaml
+configMapGenerator:
+  - name: postgres-init
+    files:
+      - init.sql

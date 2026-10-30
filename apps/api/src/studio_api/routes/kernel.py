@@ -7,14 +7,16 @@ import mimetypes
 import re
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
+from .. import blobstore
 from ..context import RequestContext, ensure_workspace, get_context, issue_session
 from ..db import get_session
 from ..kernel import annotations, assets, audit, events, gateway, jobs, secrets
 from ..models import WorkspaceEnvironment
 from ..plugins import installer
+from ..streaming import blob_response
 
 router = APIRouter(prefix="/api")
 
@@ -86,9 +88,10 @@ def asset_file(workspace_id: str, path: str, exp: str, sig: str, request: Reques
     assets.verify(workspace_id, path, exp, sig)
     ctx = RequestContext(workspace_id, "signed-url", "")
     ensure_workspace(db, workspace_id)
+    if (key := assets.companion_key(db, ctx, path)) is not None:
+        return blob_response(blobstore.assets(), key, mimetypes.guess_type(path)[0] or "application/octet-stream", request)
     a = assets.get_asset(db, ctx, path)
-    f = assets.asset_file(a)
-    return FileResponse(f, media_type=a.media_type or mimetypes.guess_type(str(f))[0])
+    return blob_response(blobstore.assets(), assets.asset_key(a), a.media_type or mimetypes.guess_type(a.path)[0] or "application/octet-stream", request)
 
 
 @router.post("/v1/artifacts")
@@ -103,12 +106,12 @@ async def create_artifact(request: Request, ctx: RequestContext = Depends(get_co
 
 
 @router.get("/v1/assets/{asset_id}/content")
-def asset_content(asset_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def asset_content(asset_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """Bytes of an asset for a plugin worker (scoped token with assets.read)."""
     if not ctx.allows("assets.read"):
         raise HTTPException(403, "this session can't read assets")
     a = assets.get_asset(db, ctx, asset_id)
-    return FileResponse(assets.asset_file(a), media_type=a.media_type)
+    return blob_response(blobstore.assets(), assets.asset_key(a), a.media_type, request)
 
 
 # ---- Command gateway and jobs ----------------------------------------------------------------

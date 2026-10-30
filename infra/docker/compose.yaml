@@ -1,0 +1,231 @@
+# Local stacks (todo/todo3.md D.2). Run from the repo root:
+#   pnpm infra:up    # profile deps: Postgres, Redis, S3 (RustFS) + bucket init, for `pnpm dev`
+#   pnpm stack:up    # profile full: deps + every app image behind one router on :8080
+#   pnpm infra:down / pnpm stack:down   (add `-v` to drop the data volumes)
+# App env: infra/docker/env/*.env (committed, non-secret dev defaults), overridden by the
+# git-ignored secrets/*.env files when they exist. See docs/running.md.
+name: studio
+
+x-app: &app
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  profiles: [full]
+
+x-oneshot: &oneshot
+  restart: "no"
+  read_only: true
+  tmpfs:
+    - /tmp
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  profiles: [full]
+
+x-build: &build
+  context: ../..
+  args:
+    GIT_SHA: ${GIT_SHA:-dev}
+
+services:
+  # ---------------------------------------------------------------- deps (and full) -------
+  postgres:
+    image: postgres:17
+    profiles: [deps, full]
+    environment:
+      POSTGRES_USER: studio
+      POSTGRES_PASSWORD: dev-only-pg-password
+      POSTGRES_DB: studio
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7
+    profiles: [deps, full]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["${REDIS_PORT:-6379}:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # S3-compatible object store. MinIO's images are no longer published on Docker Hub;
+  # RustFS is what apps/versioning's integration tests already pin. API :9000, console :9001.
+  s3:
+    image: rustfs/rustfs:1.0.4
+    profiles: [deps, full]
+    environment:
+      RUSTFS_ACCESS_KEY: dev-only-s3-access
+      RUSTFS_SECRET_KEY: dev-only-s3-secret
+      RUSTFS_ADDRESS: ":9000"
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_CONSOLE_ADDRESS: ":9001"
+    ports: ["${S3_PORT:-9000}:9000", "${S3_CONSOLE_PORT:-9001}:9001"]
+    volumes: [s3-data:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9000"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # Creates the buckets: `assets` (apps/api: seed assets and derived data) and apps/versioning's
+  # <resourcePrefix>-objects / <resourcePrefix>-manifests. Idempotent.
+  s3-init:
+    image: amazon/aws-cli:2.31.13
+    profiles: [deps, full]
+    depends_on:
+      s3: { condition: service_healthy }
+    environment:
+      AWS_ACCESS_KEY_ID: dev-only-s3-access
+      AWS_SECRET_ACCESS_KEY: dev-only-s3-secret
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      BUCKETS: assets inkling-objects inkling-manifests
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        for b in $$BUCKETS; do
+          aws --endpoint-url http://s3:9000 s3api head-bucket --bucket "$$b" 2>/dev/null \
+            || aws --endpoint-url http://s3:9000 s3api create-bucket --bucket "$$b"
+          echo "bucket $$b ready"
+        done
+    restart: "no"
+
+  # ---------------------------------------------------------------- full: apps ------------
+  api-migrate:
+    <<: *oneshot
+    image: studio-api:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/api/Dockerfile }
+    working_dir: /app/apps/api
+    command: ["alembic", "upgrade", "head"]
+    env_file:
+      - env/api.env
+      - { path: ../../secrets/api.env, required: false }
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *app
+    image: studio-api:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/api/Dockerfile }
+    env_file:
+      - env/api.env
+      - { path: ../../secrets/api.env, required: false }
+    depends_on:
+      api-migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+      s3-init: { condition: service_completed_successfully }
+
+  worker:
+    <<: *app
+    image: studio-worker:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/worker/Dockerfile }
+    env_file: [env/worker.env]
+    stop_grace_period: 300s
+    depends_on:
+      api: { condition: service_healthy }
+
+  agent:
+    <<: *app
+    image: studio-agent:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/agent/Dockerfile }
+    env_file:
+      - env/agent.env
+      - { path: ../../secrets/agent.env, required: false }
+      - { path: ../../secrets/models.env, required: false }
+      - { path: ../../secrets/daytona.env, required: false }
+    stop_grace_period: 120s
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    <<: *app
+    image: studio-web:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/web/Dockerfile }
+    env_file:
+      - env/web.env
+      - { path: ../../secrets/agent.env, required: false }
+    volumes:
+      - ./web/config.json:/etc/studio/config.json:ro
+    depends_on:
+      agent: { condition: service_started }
+
+  # Dev key pair for the api → versioning service JWTs (todo4 V4). Regenerated on each run;
+  # the public half (jwks.json) is what the versioning service verifies with.
+  versioning-keys:
+    <<: *oneshot
+    image: studio-versioning:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/versioning/Dockerfile }
+    user: "0:0"
+    command: ["/app/bin/devtoken", "keygen", "/keys"]
+    volumes: [versioning-keys:/keys]
+
+  versioning-bootstrap:
+    <<: *oneshot
+    image: studio-versioning:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/versioning/Dockerfile }
+    command: ["/app/bin/migrate", "bootstrap"]
+    env_file: [env/versioning.env]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  versioning-migrate:
+    <<: *oneshot
+    image: studio-versioning:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/versioning/Dockerfile }
+    command: ["/app/bin/migrate", "up"]
+    env_file: [env/versioning.env]
+    depends_on:
+      versioning-bootstrap: { condition: service_completed_successfully }
+
+  versioning:
+    <<: *app
+    image: studio-versioning:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/versioning/Dockerfile }
+    env_file: [env/versioning.env]
+    volumes: [versioning-keys:/keys:ro]
+    depends_on:
+      versioning-keys: { condition: service_completed_successfully }
+      versioning-migrate: { condition: service_completed_successfully }
+      s3-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  # One entry point, same paths as the Ingress: /api/agent → web, /api and /seed → api, / → web.
+  router:
+    <<: *app
+    image: caddy:2.10-alpine
+    # The caddy binary carries the cap_net_bind_service file capability; exec fails unless
+    # that capability is in the bounding set (everything else stays dropped).
+    cap_add: [NET_BIND_SERVICE]
+    volumes:
+      - ./router/Caddyfile:/etc/caddy/Caddyfile:ro
+    tmpfs: [/tmp, /data, /config]
+    ports: ["${STACK_PORT:-8080}:8080"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      web: { condition: service_healthy }
+      api: { condition: service_healthy }
+
+volumes:
+  postgres-data:
+  redis-data:
+  s3-data:
+  versioning-keys:

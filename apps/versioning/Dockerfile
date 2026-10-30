@@ -1,0 +1,59 @@
+# syntax=docker/dockerfile:1.7
+# apps/versioning: dataset versioning service (Go). Build from the repo root:
+#   docker build -f apps/versioning/Dockerfile -t studio-versioning:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
+# Binaries in /app/bin: server (CMD), migrate (bootstrap|up|down|status; the migrate Job),
+# gc, reconcile, devtoken (dev key pair / tokens), healthcheck (HEALTHCHECK probe).
+ARG GO_IMAGE=golang:1.27-trixie
+ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian13:nonroot
+
+FROM ${GO_IMAGE} AS build
+ENV CGO_ENABLED=0 GOFLAGS=-trimpath
+WORKDIR /src/apps/versioning
+COPY apps/versioning/go.mod apps/versioning/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY apps/versioning ./
+ARG GIT_SHA=dev
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    go build -ldflags "-s -w -X main.gitSHA=${GIT_SHA}" -o /out/ ./cmd/...
+# A tiny probe for HEALTHCHECK: the distroless runtime has no shell, curl or wget.
+RUN mkdir -p /hc && cat > /hc/main.go <<'EOF'
+package main
+
+import (
+	"net/http"
+	"os"
+	"time"
+)
+
+func main() {
+	url := "http://127.0.0.1:8090/healthz"
+	if len(os.Args) > 1 {
+		url = os.Args[1]
+	}
+	c := http.Client{Timeout: 2 * time.Second}
+	r, err := c.Get(url)
+	if err != nil || r.StatusCode != http.StatusOK {
+		os.Exit(1)
+	}
+}
+EOF
+RUN cd /hc && go mod init healthcheck >/dev/null 2>&1 && go build -ldflags "-s -w" -o /out/healthcheck .
+
+FROM ${RUNTIME_IMAGE}
+ARG GIT_SHA=dev
+ARG IMAGE_SOURCE=unknown
+LABEL org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.title="studio-versioning"
+WORKDIR /app
+COPY --from=build /out/ /app/bin/
+# Env and bucket names come from the naming config (todo4 V11).
+COPY schemas/naming.json /app/schemas/naming.json
+ENV NAMING_CONFIG=/app/schemas/naming.json \
+    PATH=/app/bin:/usr/local/bin:/usr/bin:/bin \
+    TMPDIR=/tmp \
+    GIT_SHA=${GIT_SHA}
+USER 65532:65532
+EXPOSE 8090
+HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=3 CMD ["/app/bin/healthcheck"]
+CMD ["/app/bin/server"]

@@ -1,22 +1,21 @@
 """Job API (docs/plugins.md §6): enqueue, progress, cancel, retry, idempotency, cost.
 
-A DB-backed queue that apps/worker polls (no Redis yet). Leases expire, so a worker that
-dies mid-job doesn't strand it; attempts are bounded. Finishing a job (validating and
-committing its output) is the gateway's job, not the worker's.
+Workers claim over HTTP; which job a claim picks is the JobQueue's business (`queue.py`:
+the DB scan, or a Redis ready list). Leases expire, so a worker that dies mid-job doesn't
+strand it; attempts are bounded. Finishing a job (validating and committing its output) is
+the gateway's job, not the worker's.
 """
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
-
 from fastapi import HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from studio_observability import traceparent as current_traceparent
 
-from ..config import settings
 from ..context import RequestContext
 from ..models import PluginJob
-from . import audit
+from . import audit, queue
 
 TERMINAL = {"succeeded", "failed", "cancelled"}
 
@@ -64,9 +63,11 @@ def enqueue(db: Session, ctx: RequestContext, *, plugin_id: str, version: str, t
         correlation_id=ctx.correlation_id,
         principal=ctx.principal,
         timeout_s=timeout_s,
+        traceparent=current_traceparent(),
     )
     db.add(j)
     db.flush()
+    queue.notify(db, j)
     audit.record(db, ctx, "jobs.enqueue", target=j.job_id, after={"plugin": plugin_id, "version": version, "tool": tool, "provider": provider, "estimatedCostUsd": estimated_cost_usd})
     return j, True
 
@@ -99,6 +100,7 @@ def retry(db: Session, ctx: RequestContext, job_id: str) -> PluginJob:
         raise HTTPException(409, f"job is {j.state}{'' if j.recoverable else ' (not recoverable)'}")
     j.state, j.error, j.progress, j.attempts = "queued", None, 0.0, 0
     audit.record(db, ctx, "jobs.retry", target=job_id)
+    queue.notify(db, j)
     return j
 
 
@@ -107,19 +109,16 @@ def retry(db: Session, ctx: RequestContext, job_id: str) -> PluginJob:
 
 def claim(db: Session, worker_id: str, plugin_ids: list[str] | None = None) -> PluginJob | None:
     """Oldest queued job, or a running one whose lease expired (its worker died)."""
-    now = datetime.now(UTC)
-    q = select(PluginJob).where(or_(PluginJob.state == "queued", (PluginJob.state == "running") & (PluginJob.lease_until < now))).where(PluginJob.tool != "__builtin__")
-    if plugin_ids:
-        q = q.where(PluginJob.plugin_id.in_(plugin_ids))
-    for j in db.scalars(q.order_by(PluginJob.created_at).limit(10)):
-        if j.attempts >= j.max_attempts:
-            j.state, j.error, j.recoverable = "failed", f"gave up after {j.attempts} attempts", True
-            continue
-        j.state, j.worker_id, j.attempts = "running", worker_id, j.attempts + 1
-        j.lease_until = now + timedelta(seconds=max(settings().job_lease_s, j.timeout_s + 30))
-        db.flush()
-        return j
-    return None
+    return queue.backend().claim(db, worker_id, plugin_ids)
+
+
+def release(db: Session, job_id: str, worker_id: str) -> PluginJob:
+    """A worker shutting down hands its job back: queued again, the attempt not counted."""
+    j = _owned(db, job_id, worker_id)
+    j.state, j.worker_id, j.lease_until, j.progress = "queued", None, None, 0.0
+    j.attempts = max(0, j.attempts - 1)
+    queue.notify(db, j)
+    return j
 
 
 def progress(db: Session, job_id: str, worker_id: str, value: float, message: str | None = None) -> PluginJob:

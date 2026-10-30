@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "scipy", "openslide-python", "openslide-bin", "pillow"]
+# dependencies = ["numpy", "scipy", "openslide-python", "openslide-bin", "pillow", "boto3"]
 # ///
 """Fetch a small, license-tracked sample of each development seed dataset.
 
@@ -18,6 +18,17 @@ Format conversions (originals are kept next to the converted files):
   * TCGA .svs          → Deep Zoom (.dzi + JPEG tile pyramid)           openslide
 
 Usage:  uv run tools/fetch-seeds.py [project-id ...]   # requires the kaggle CLI, logged in
+
+Object storage (todo/todo3.md E.3): ``--upload`` then puts ``seed-data/`` into the
+``assets`` bucket that ``apps/api`` serves from (``BLOB_STORE=s3``), with keys equal to the
+paths in ``manifest.json`` (plus ``manifest.json`` itself, each project's
+``workspace.json`` and every Deep Zoom tile next to a ``.dzi``). ``--upload-only`` skips
+the download. Objects already present with the same size and sha256 are skipped. Config
+(env, prefixed with the naming config's ``envPrefix``): ``S3_ENDPOINT`` (e.g. MinIO's
+``http://127.0.0.1:9000``), ``S3_BUCKET`` (default ``assets``), ``S3_REGION``, ``S3_PREFIX``;
+credentials from ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``.
+
+        uv run tools/fetch-seeds.py --upload-only [--include-raw] [--create-bucket] [project-id ...]
 """
 
 from __future__ import annotations
@@ -376,7 +387,107 @@ def with_environment(project: dict) -> dict:
     return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
 
 
+# ---- Upload to object storage (todo/todo3.md E.3) -------------------------------------------
+
+
+def env(name: str, default: str | None = None) -> str | None:
+    prefix = json.loads((ROOT / "schemas" / "naming.json").read_text())["envPrefix"]
+    import os
+
+    return os.environ.get(prefix + name) or default
+
+
+def upload_keys(manifest: dict, only: set[str] | None, include_raw: bool) -> list[str]:
+    """Keys (= seed-data relative paths) the Studio and the kernel read for these projects."""
+    keys: list[str] = ["manifest.json"]
+    for p in manifest.get("projects", []):
+        if only and p["id"] not in only:
+            continue
+        if (SEED / p["id"] / "workspace.json").is_file():
+            keys.append(f"{p['id']}/workspace.json")
+        for a in p.get("assets", []):
+            keys.append(a["path"])
+            if a["path"].endswith(".dzi"):  # the tile pyramid lives next to the descriptor
+                tiles = SEED / (a["path"][: -len(".dzi")] + "_files")
+                keys += sorted(str(f.relative_to(SEED)) for f in tiles.rglob("*") if f.is_file())
+            if include_raw:
+                keys += a.get("raw") or []
+    return list(dict.fromkeys(keys))
+
+
+def upload(only: set[str] | None, include_raw: bool, create_bucket: bool) -> int:
+    import boto3
+    from botocore.config import Config
+    from botocore.exceptions import ClientError
+
+    manifest_path = SEED / "manifest.json"
+    if not manifest_path.is_file():
+        print("seed-data/manifest.json is missing: fetch the seeds first")
+        return 2
+    endpoint, bucket = env("S3_ENDPOINT"), env("S3_BUCKET", "assets")
+    prefix = (env("S3_PREFIX") or "").strip("/")
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        region_name=env("S3_REGION", "us-east-1"),
+        config=Config(signature_version="s3v4", s3={"addressing_style": "path" if endpoint else "auto"}),
+    )
+    try:
+        s3.head_bucket(Bucket=bucket)
+    except ClientError:
+        if not create_bucket:
+            print(f"bucket {bucket!r} doesn't exist (or isn't readable); pass --create-bucket to create it")
+            return 2
+        s3.create_bucket(Bucket=bucket)
+    keys = upload_keys(json.loads(manifest_path.read_text()), only, include_raw)
+    known = {a["path"]: a.get("sha256") for p in json.loads(manifest_path.read_text()).get("projects", []) for a in p.get("assets", [])}
+
+    def one(key: str) -> str:
+        f = SEED / key
+        if not f.is_file():
+            return "missing"
+        size = f.stat().st_size
+        digest = known.get(key) or sha256(f)  # the manifest records each asset's sha256 (tiles are hashed here)
+        full = f"{prefix}/{key}" if prefix else key
+        try:
+            head = s3.head_object(Bucket=bucket, Key=full)
+            if head["ContentLength"] == size and head.get("Metadata", {}).get("sha256") == digest:
+                return "skipped"
+        except ClientError as e:
+            if str(e.response.get("Error", {}).get("Code")) not in ("404", "NoSuchKey", "NotFound"):
+                raise
+        extra = {"Metadata": {"sha256": digest}}
+        if key.endswith(".json"):
+            extra["ContentType"] = "application/json"
+        s3.upload_file(str(f), bucket, full, ExtraArgs=extra)
+        return "uploaded"
+
+    with ThreadPoolExecutor(8) as pool:
+        results = list(pool.map(one, keys))
+    counts = {k: results.count(k) for k in ("uploaded", "skipped", "missing")}
+    for key, r in zip(keys, results):
+        if r == "missing":
+            print(f"  missing locally: {key}")
+    print(f"s3://{bucket}/{prefix + '/' if prefix else ''}: {counts['uploaded']} uploaded, {counts['skipped']} unchanged, {counts['missing']} missing")
+    return 1 if counts["missing"] else 0
+
+
 def main(argv: list[str]) -> int:
+    flags = {a for a in argv if a.startswith("--")}
+    argv = [a for a in argv if not a.startswith("--")]
+    unknown_flags = flags - {"--upload", "--upload-only", "--include-raw", "--create-bucket"}
+    if unknown_flags:
+        print(f"Unknown option(s): {', '.join(sorted(unknown_flags))}")
+        return 2
+    if "--upload-only" in flags:
+        return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags)
+    code = fetch(argv)
+    if code == 0 and "--upload" in flags:
+        return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags)
+    return code
+
+
+def fetch(argv: list[str]) -> int:
     only = set(argv) or set(FETCHERS)
     unknown = only - set(FETCHERS)
     if unknown:

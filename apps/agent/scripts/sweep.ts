@@ -1,5 +1,7 @@
 /**
  * Manual GC for Inkling sandboxes (todo1 §4.6). Only `app=inkling` sandboxes in one env are touched.
+ * Also the `agent-sweeper` CronJob when replicas run with SWEEPER_ENABLED=false: known and active
+ * sessions come from the configured store (AGENT_STORE), so runs on any replica are respected.
  *
  *   pnpm --filter @studio/agent sweep -- --dry-run                 list and plan (default)
  *   pnpm --filter @studio/agent sweep -- --stop                    stop idle started sandboxes
@@ -11,7 +13,7 @@ import { loadConfig } from "../src/config.ts";
 import { createDaytona } from "../src/sandbox/client.ts";
 import { listOwned, planSweep, toCandidate } from "../src/sandbox/sweeper.ts";
 import { loadDevSecrets } from "../src/secrets.ts";
-import { listSessionIds, sessionsDir } from "../src/runtime/sessions.ts";
+import { createStore } from "../src/store/index.ts";
 
 const { values } = parseArgs({
   options: {
@@ -38,12 +40,17 @@ const candidates = sandboxes.map(toCandidate);
 console.log(`${candidates.length} sandbox(es) with app=inkling env=${env}${values.label ? ` ${values.label.join(" ")}` : ""}`);
 for (const c of candidates) console.log(`  ${c.name.padEnd(48)} ${String(c.state).padEnd(10)} last=${c.lastActivityAt ?? "?"} session=${c.labels.session ?? "?"}`);
 
-// Sessions the local service has on disk (its .data dir); others count as orphans. Active runs
-// aren't visible from here, so pass --stop/--all only when the service is stopped.
-const known = listSessionIds(sessionsDir(config));
+// Sessions the store knows (the file store's .data dir in dev, Postgres otherwise); others count as
+// orphans. Sessions with an active run in the store are never touched (the file store only sees
+// runs of a service that shares its data dir).
+const store = createStore(config);
+await store.init();
+const known = await store.listSessionIds();
+const active = await store.activeSessionIds();
+await store.close();
 const plan = values.all
   ? { stop: candidates.filter((c) => c.state === "started"), delete: candidates.map((sandbox) => ({ sandbox, reason: "orphan" as const })) }
-  : planSweep(candidates, { env, now: Date.now(), activeSessions: new Set(), knownSessions: known, idleStopMin: config.sweep.idleStopMin, retentionDays: config.sweep.retentionDays, maxDeletes: 5 });
+  : planSweep(candidates, { env, now: Date.now(), activeSessions: active, knownSessions: known, idleStopMin: config.sweep.idleStopMin, retentionDays: config.sweep.retentionDays, maxDeletes: 5 });
 
 console.log(`plan: stop ${plan.stop.length}, delete ${plan.delete.length}`);
 const byId = new Map(sandboxes.map((s) => [s.id, s]));

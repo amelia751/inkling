@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { maskSecret } from "./secrets.ts";
 
@@ -6,6 +7,11 @@ const optional = z
   .string()
   .optional()
   .transform((v) => (v ? v : undefined));
+const flag = (fallback: boolean) =>
+  z
+    .enum(["true", "false", "1", "0", "yes", "no", ""])
+    .optional()
+    .transform((v) => (v === undefined || v === "" ? fallback : v === "true" || v === "1" || v === "yes"));
 
 const schema = z.object({
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -54,6 +60,32 @@ const schema = z.object({
   /** Fixture for AGENT_MODEL=scripted (dev/test only): a JSON array of scripted assistant turns. */
   AGENT_SCRIPT: optional,
   AGENT_DATA_DIR: optional,
+
+  /** Where sessions, transcripts, run records and pending approvals live (store/). */
+  AGENT_STORE: z.enum(["file", "postgres"]).default("file"),
+  AGENT_DATABASE_URL: optional,
+  AGENT_DATABASE_SCHEMA: z.string().regex(/^[a-z_][a-z0-9_]{0,62}$/).default("public"),
+  /** Apply the Postgres schema at startup (dev/compose); production runs `pnpm migrate` as a Job. */
+  AGENT_AUTO_MIGRATE: flag(false),
+  /** How run events reach SSE readers on any replica (bus/). */
+  AGENT_EVENT_BUS: z.enum(["memory", "redis"]).default("memory"),
+  AGENT_REDIS_URL: optional,
+  AGENT_RUN_STREAM_MAXLEN: int(5000),
+  AGENT_RUN_STREAM_TTL_S: int(24 * 60 * 60),
+  /** A run whose replica hasn't heartbeated for this long is marked interrupted on the next read. */
+  AGENT_RUN_LEASE_S: int(30),
+  AGENT_RUN_HEARTBEAT_S: int(10),
+  /** Fallback poll for approvals/client-tool results answered on another replica (pub/sub is the fast path). */
+  AGENT_INBOX_POLL_MS: int(1000),
+  AGENT_REPLICA_ID: optional,
+  /** SIGTERM: let in-flight runs finish for this long, then mark the rest interrupted (k8s grace is 120 s). */
+  AGENT_SHUTDOWN_GRACE_S: int(100),
+  /** In-process Daytona sweeper; turn off when the agent-sweeper CronJob runs `scripts/sweep.ts`. */
+  SWEEPER_ENABLED: flag(true),
+  /** apps/api base URL: outgoing calls there carry `traceparent` / `x-request-id`. */
+  AGENT_API_URL: optional,
+  /** Injected at image build (`--build-arg GIT_SHA`); served by GET /version. */
+  GIT_SHA: optional,
   LOG_LEVEL: z.enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"]).default("info"),
 });
 
@@ -88,6 +120,13 @@ export interface Config {
   script: string | undefined;
   dataDir: string | undefined;
   logLevel: Env["LOG_LEVEL"];
+  store: { kind: Env["AGENT_STORE"]; databaseUrl: string | undefined; schema: string; autoMigrate: boolean };
+  bus: { kind: Env["AGENT_EVENT_BUS"]; redisUrl: string | undefined; streamMaxLen: number; streamTtlS: number };
+  cluster: { replicaId: string; leaseS: number; heartbeatS: number; inboxPollMs: number };
+  shutdownGraceS: number;
+  sweeperEnabled: boolean;
+  apiUrl: string | undefined;
+  gitSha: string | undefined;
 }
 
 export const SCRIPTED_PROVIDER = "scripted";
@@ -100,7 +139,8 @@ export class ConfigError extends Error {
 export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Config; warnings: string[] } {
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    throw new ConfigError(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+    // Key names and zod's message only: never the offending value (it may be a secret).
+    throw new ConfigError(`invalid settings: ${parsed.error.issues.map((i) => `${i.path.join(".")} (${i.message})`).join("; ")}`);
   }
   const e = parsed.data;
   const warnings: string[] = [];
@@ -122,11 +162,17 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   if (!scripted && !providerKeys[provider]) missing.push(`${provider.toUpperCase()}_API_KEY`);
   const sandboxOn = e.AGENT_SANDBOX === "daytona";
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
+  // Explicitly chosen backends need their URL in every environment.
+  const backend: string[] = [];
+  if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push("AGENT_DATABASE_URL");
+  if (e.AGENT_EVENT_BUS === "redis" && !e.AGENT_REDIS_URL) backend.push("AGENT_REDIS_URL");
   if (e.APP_ENV === "production") {
     if (!e.INTERNAL_AGENT_SERVICE_TOKEN) missing.push("INTERNAL_AGENT_SERVICE_TOKEN");
+    missing.push(...backend);
     if (missing.length) throw new ConfigError(`missing required settings: ${missing.join(", ")}`);
-  } else if (missing.length) {
-    warnings.push(`missing ${missing.join(", ")}; the related features are disabled`);
+  } else {
+    if (backend.length) throw new ConfigError(`missing required settings: ${backend.join(", ")}`);
+    if (missing.length) warnings.push(`missing ${missing.join(", ")}; the related features are disabled`);
   }
 
   return {
@@ -165,6 +211,19 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       script: scripted ? e.AGENT_SCRIPT : undefined,
       dataDir: e.AGENT_DATA_DIR,
       logLevel: e.LOG_LEVEL,
+      store: { kind: e.AGENT_STORE, databaseUrl: e.AGENT_DATABASE_URL, schema: e.AGENT_DATABASE_SCHEMA, autoMigrate: e.AGENT_AUTO_MIGRATE },
+      bus: { kind: e.AGENT_EVENT_BUS, redisUrl: e.AGENT_REDIS_URL, streamMaxLen: Math.max(100, e.AGENT_RUN_STREAM_MAXLEN), streamTtlS: e.AGENT_RUN_STREAM_TTL_S },
+      cluster: {
+        // Unique per process: a restarted container keeps its HOSTNAME but must not own the old runs.
+        replicaId: e.AGENT_REPLICA_ID ?? `${raw.HOSTNAME || "agent"}-${randomBytes(3).toString("hex")}`,
+        leaseS: Math.max(2, e.AGENT_RUN_LEASE_S),
+        heartbeatS: Math.max(1, Math.min(e.AGENT_RUN_HEARTBEAT_S, Math.floor(e.AGENT_RUN_LEASE_S / 2) || 1)),
+        inboxPollMs: Math.max(100, e.AGENT_INBOX_POLL_MS),
+      },
+      shutdownGraceS: e.AGENT_SHUTDOWN_GRACE_S,
+      sweeperEnabled: e.SWEEPER_ENABLED,
+      apiUrl: e.AGENT_API_URL,
+      gitSha: e.GIT_SHA,
     },
   };
 }

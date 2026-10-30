@@ -1,0 +1,15 @@
+# NetworkPolicies for staging and prod: deny everything, then allow only the paths each app
+# needs. Managed data services (Postgres, Redis, object storage) are outside the cluster, so
+# they're matched by CIDR: overlays replace the 10.255.0.0/16 placeholder with their
+# data-subnet CIDR (patch `/spec/egress/*/to/0/ipBlock/cidr`). Needs a CNI that enforces
+# NetworkPolicy (Calico, Cilium, …).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - default-deny.yaml
+  - web.yaml
+  - api.yaml
+  - agent.yaml
+  - worker.yaml
+  - versioning.yaml
+  - jobs.yaml

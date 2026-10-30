@@ -1,0 +1,135 @@
+# End-to-end (todo/todo3.md F): the compose `full` stack from images, then the cross-service
+# tests (tests/e2e) and the web browser tests (apps/web/e2e). Daytona-live tests run only on a
+# schedule or by hand, with the key from repository secrets, and always sweep afterwards.
+name: e2e
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  INKLING_E2E: "1"
+
+jobs:
+  stack:
+    name: stack + browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen
+      - name: Playwright browser
+        run: uv run --package studio-web-e2e playwright install --with-deps chromium
+      - name: Seed data (cached)
+        uses: actions/cache@v4
+        with:
+          path: seed-data
+          key: seeds-${{ hashFiles('tools/fetch-seeds.py') }}
+      - name: Fetch seeds (kaggle CLI; credentials from repository secrets)
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: pnpm seeds
+      - name: Stack up (compose full profile)
+        run: GIT_SHA="${GITHUB_SHA::7}" pnpm stack:up
+      - name: Upload seeds to the stack's object store
+        env:
+          INKLING_S3_ENDPOINT: http://127.0.0.1:9000
+          AWS_ACCESS_KEY_ID: dev-only-s3-access
+          AWS_SECRET_ACCESS_KEY: dev-only-s3-secret
+        run: uv run tools/fetch-seeds.py --upload-only
+      - name: Smoke the router
+        run: |
+          curl -fsS http://127.0.0.1:8080/healthz
+          curl -fsS http://127.0.0.1:8080/config.json
+          curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
+      - name: "Dev servers (frozen): seed mode on 5199, kernel mode (the stack api) on 5198"
+        working-directory: apps/web
+        run: |
+          nohup pnpm exec vite --port 5199 --strictPort > /tmp/vite-5199.log 2>&1 &
+          INKLING_KERNEL=1 INKLING_KERNEL_URL=http://127.0.0.1:8080 \
+            nohup pnpm exec vite --port 5198 --strictPort > /tmp/vite-5198.log 2>&1 &
+          for p in 5199 5198; do
+            for _ in $(seq 1 60); do curl -fsS "http://127.0.0.1:$p/" >/dev/null && break; sleep 2; done
+          done
+      - name: Web e2e (apps/web/e2e)
+        working-directory: apps/web
+        run: |
+          status=0
+          for t in e2e/*_test.py; do
+            echo "::group::$t"
+            uv run --package studio-web-e2e python "$t" --port 5199 || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+      - name: Cross-service e2e (tests/e2e)
+        working-directory: apps/web
+        run: |
+          uv run --package studio-web-e2e python ../../tests/e2e/plugins_test.py --port 5198
+      - name: Agent e2e (scripted model, its own agent process)
+        working-directory: apps/web
+        env:
+          INKLING_AGENT_URL: http://127.0.0.1:8299
+          INTERNAL_AGENT_SERVICE_TOKEN: e2e-agent-token
+        run: |
+          nohup pnpm exec vite --port 5299 --strictPort > /tmp/vite-5299.log 2>&1 &
+          for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:5299/ >/dev/null && break; sleep 2; done
+          uv run --package studio-web-e2e python ../../tests/e2e/agent_test.py --port 5299
+      - name: Stack logs
+        if: failure()
+        run: docker compose -f infra/docker/compose.yaml --profile full logs --no-color > /tmp/stack.log; tail -n 300 /tmp/stack.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-artifacts
+          path: |
+            apps/web/e2e/.artifacts
+            tests/e2e/.artifacts
+            /tmp/*.log
+          if-no-files-found: ignore
+      - name: Stack down
+        if: always()
+        run: docker compose -f infra/docker/compose.yaml --profile full down -v
+
+  daytona-live:
+    name: agent live (Daytona)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Live Daytona tests
+        run: pnpm agent:live
+      - name: Sweep sandboxes left by this run
+        if: always()
+        run: pnpm --filter @studio/agent sweep -- --delete --env test --label test=live --all

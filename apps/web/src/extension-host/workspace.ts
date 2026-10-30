@@ -3,6 +3,7 @@ import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
 import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
 import { declarativeModule } from "./contributions-loader";
 import { registry, type ActivationResult } from "./registry";
+import { apiUrl } from "./runtime-config";
 
 /**
  * Per-workspace activation (todo2 Phase 3, docs/plugins.md §14 #1): the registry knows every
@@ -11,7 +12,7 @@ import { registry, type ActivationResult } from "./registry";
  * server (seed-data/<project>/workspace.json); no state means "all bundled plugins".
  */
 export async function fetchWorkspaceState(workspaceId: string): Promise<WorkspaceStateT | null> {
-  const res = await fetch(`/api/v1/workspaces/${encodeURIComponent(workspaceId)}/state`, { headers: { "X-Workspace-Id": workspaceId } });
+  const res = await fetch(apiUrl(`/v1/workspaces/${encodeURIComponent(workspaceId)}/state`), { headers: { "X-Workspace-Id": workspaceId } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`workspace state: ${res.status} ${res.statusText}`);
   const parsed = WorkspaceState.safeParse(await res.json());
@@ -35,7 +36,7 @@ export async function loadRemotePlugins(state: WorkspaceStateT | null): Promise<
   for (const id of activePluginIds(state)) {
     if (registry.availableModule(id)) continue;
     const inst = state.plugins.find((p) => p.pluginId === id);
-    const res = await fetch(`/api/v1/plugins/${encodeURIComponent(id)}?version=${encodeURIComponent(inst?.version ?? "")}`, { headers: { "X-Workspace-Id": state.workspaceId } });
+    const res = await fetch(apiUrl(`/v1/plugins/${encodeURIComponent(id)}?version=${encodeURIComponent(inst?.version ?? "")}`), { headers: { "X-Workspace-Id": state.workspaceId } });
     if (!res.ok) continue;
     const body = (await res.json()) as { manifest: unknown; contributions?: unknown };
     const m = PluginManifest.safeParse(body.manifest);

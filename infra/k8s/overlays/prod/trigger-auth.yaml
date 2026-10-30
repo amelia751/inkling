@@ -1,0 +1,11 @@
+# KEDA authenticates to the managed Redis with the password in worker-secrets
+# (key KEDA_REDIS_PASSWORD; the worker itself never uses it).
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: worker-queue-redis
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: worker-secrets
+      key: KEDA_REDIS_PASSWORD

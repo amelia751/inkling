@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Daytona, Sandbox } from "@daytona/sdk";
 import { type AgentSession, type ModelRuntime, SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { FileEntry } from "@earendil-works/pi-coding-agent";
 import { createInklingSession } from "../agent/factory.ts";
+import type { RunEventBus } from "../bus/types.ts";
+import { MemoryRunEventBus } from "../bus/memory.ts";
+import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
+import { fileStore } from "../store/index.ts";
+import type { SessionStore, StoredMeta } from "../store/types.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
 import type { Config } from "../config.ts";
@@ -64,6 +69,9 @@ export class SessionContext {
   readonly policy: PolicyState;
   projector: Projector | undefined;
   persisted = 0;
+  /** Set by SessionService: records approvals/client-tool calls (cluster/coordinator.ts) before emitting. */
+  emitHook: ((body: Parameters<Run["events"]["push"]>[0]) => void) | undefined;
+  onClientToolSettled: ((callId: string) => void) | undefined;
   private unsubscribe: (() => void) | undefined;
 
   constructor(
@@ -72,8 +80,12 @@ export class SessionContext {
     config: Config,
     egressContained: boolean,
   ) {
-    const emit = (body: Parameters<Run["events"]["push"]>[0]) => this.activeRun?.events.push(body);
-    this.bridge = new ClientToolBridge({ timeoutS: config.clientToolTimeoutS, emit: (r) => emit({ type: "client-tool", ...r }) });
+    const emit = (body: Parameters<Run["events"]["push"]>[0]) => (this.emitHook ? this.emitHook(body) : this.activeRun?.events.push(body));
+    this.bridge = new ClientToolBridge({
+      timeoutS: config.clientToolTimeoutS,
+      emit: (r) => emit({ type: "client-tool", ...r }),
+      onSettled: (callId) => this.onClientToolSettled?.(callId),
+    });
     this.approvals = new ApprovalBroker({
       expiresS: config.approvalTimeoutS,
       emit: (r) => emit({ type: "approval", ...r, expiresAt: Date.now() + config.approvalTimeoutS * 1000 }),
@@ -120,6 +132,10 @@ export interface SessionServiceDeps {
   principal?: string;
   /** Extra tools for tests (appended to the profile's). */
   extraTools?: ToolDefinition<any, any, any>[];
+  /** Durable state (store/); defaults to the dev file store under the data dir. */
+  store?: SessionStore;
+  /** Run event fan-out (bus/); defaults to in-process. */
+  bus?: RunEventBus;
 }
 
 /** FIFO slots for AGENT_MAX_CONCURRENT_RUNS; extra runs wait in `queued`. */
@@ -167,17 +183,28 @@ export class SessionService {
   private readonly slots: Slots;
   readonly sandboxes: SandboxManager | undefined;
   readonly dir: string;
+  readonly store: SessionStore;
+  readonly cluster: RunCoordinator;
 
   constructor(private readonly deps: SessionServiceDeps) {
     this.dir = sessionsDir(deps.config);
     mkdirSync(this.dir, { recursive: true });
+    this.store = deps.store ?? fileStore(deps.config);
+    this.cluster = new RunCoordinator({
+      store: this.store,
+      bus: deps.bus ?? new MemoryRunEventBus(),
+      config: deps.config,
+      log: deps.log,
+      abort: (ctx, run) => this.abortRun(ctx, run, "cancelled"),
+    });
     this.slots = new Slots(Math.max(1, deps.config.limits.maxConcurrentRuns));
     if (deps.daytona) {
       const refs: SandboxRefStore = {
-        get: (sessionId) => this.readMeta(sessionId)?.sandboxId,
+        // Sandboxes are only acquired for live sessions, whose meta is in memory.
+        get: (sessionId) => this.sessions.get(sessionId)?.meta.sandboxId,
         set: (sessionId, sandboxId) => {
           const ctx = this.sessions.get(sessionId);
-          const meta = ctx?.meta ?? this.readMeta(sessionId);
+          const meta = ctx?.meta;
           if (!meta) return;
           meta.sandboxId = sandboxId;
           this.writeMeta(meta);
@@ -203,41 +230,31 @@ export class SessionService {
 
   // ---- persistence ---------------------------------------------------------------------------
 
-  private metaPath = (id: string) => join(this.dir, `${id}.meta.json`);
-  private jsonlPath = (id: string) => join(this.dir, `${id}.jsonl`);
   artifactsDir = (id: string) => join(dataDir(this.config), "artifacts", id);
 
-  private readMeta(id: string): SessionMeta | undefined {
-    if (!/^ses_[0-9a-f-]{36}$/.test(id)) return undefined;
-    try {
-      return JSON.parse(readFileSync(this.metaPath(id), "utf8")) as SessionMeta;
-    } catch {
-      return undefined;
-    }
+  private async readMeta(id: string): Promise<SessionMeta | undefined> {
+    return (await this.store.getMeta(id)) as SessionMeta | undefined;
   }
 
   private writeMeta(meta: SessionMeta): void {
-    writeFileSync(this.metaPath(meta.id), JSON.stringify(meta, null, 2));
+    this.cluster.persistMeta(meta as unknown as StoredMeta);
   }
 
-  /** Append entries pi added since the last call (pi keeps the tree in memory; we own the file). */
+  /** Append entries pi added since the last call (pi keeps the tree in memory; the store owns the copy). */
   private persist(ctx: SessionContext): void {
     const sm = ctx.piSession?.sessionManager;
     if (!sm) return;
     const entries = sm.getEntries();
-    if (ctx.persisted === 0 && !existsSync(this.jsonlPath(ctx.id))) {
-      const header = sm.getHeader();
-      if (header) writeFileSync(this.jsonlPath(ctx.id), `${JSON.stringify(header)}\n`);
-    }
     if (entries.length > ctx.persisted) {
-      appendFileSync(this.jsonlPath(ctx.id), entries.slice(ctx.persisted).map((e) => `${JSON.stringify(e)}\n`).join(""));
+      // Position 0 is the header (written at create), so entry i lives at i + 1.
+      this.cluster.persistTranscript(ctx.id, ctx.persisted + 1, entries.slice(ctx.persisted));
       ctx.persisted = entries.length;
     }
   }
 
-  /** Session ids with a record on disk (live or not); the sweeper treats the rest as orphans. */
-  knownSessionIds(): Set<string> {
-    return listSessionIds(this.dir);
+  /** Session ids with a stored record (live or not); the sweeper treats the rest as orphans. */
+  knownSessionIds(): Promise<Set<string>> {
+    return this.store.listSessionIds();
   }
 
   /** Sessions with a run in flight; the sweeper never touches their sandboxes. */
@@ -248,7 +265,7 @@ export class SessionService {
   // ---- sessions ------------------------------------------------------------------------------
 
   async create(req: CreateSessionRequest, owner = this.deps.principal ?? "local"): Promise<SessionContext> {
-    if (this.knownSessionIds().size >= this.config.limits.maxSessions && this.sessions.size >= this.config.limits.maxSessions)
+    if ((await this.store.countSessions()) >= this.config.limits.maxSessions && this.sessions.size >= this.config.limits.maxSessions)
       throw new HttpError(429, `session limit (${this.config.limits.maxSessions}) reached; delete a session first`);
     const profileName = req.profile ?? "assistant";
     const profile = PROFILES[profileName];
@@ -267,14 +284,20 @@ export class SessionService {
     const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: meta.id.slice(4) })).catch((err) => {
       throw err instanceof ClientToolError ? new HttpError(400, err.message) : err;
     });
-    this.writeMeta(meta);
-    this.persist(ctx);
+    const sm = ctx.piSession.sessionManager;
+    await this.cluster.createSession(meta as unknown as StoredMeta, [sm.getHeader(), ...sm.getEntries()].filter(Boolean));
+    ctx.persisted = sm.getEntries().length;
     return ctx;
   }
 
   /** Live session, or rebuilt from JSONL after a restart. Ownership is checked against `owner`. */
   async get(id: string, owner = this.deps.principal ?? "local"): Promise<SessionContext> {
     let ctx = this.sessions.get(id);
+    // Another replica ran a turn (or deleted the session) since this one loaded it: rebuild.
+    if (ctx && !this.loading.has(id) && !(await this.cluster.isFresh(ctx))) {
+      this.evict(ctx);
+      ctx = this.sessions.get(id);
+    }
     if (!ctx) {
       let p = this.loading.get(id);
       if (!p) {
@@ -288,10 +311,10 @@ export class SessionService {
   }
 
   private async restore(id: string): Promise<SessionContext> {
-    const meta = this.readMeta(id);
+    await this.cluster.noteLoading(id);
+    const meta = await this.readMeta(id);
     if (!meta) throw new HttpError(404, "no such session");
-    const lines = existsSync(this.jsonlPath(id)) ? readFileSync(this.jsonlPath(id), "utf8").split("\n").filter(Boolean) : [];
-    const entries = lines.map((l) => JSON.parse(l) as FileEntry);
+    const entries = (await this.store.readTranscript(id)) as FileEntry[];
     const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: id.slice(4) }, entries));
     ctx.persisted = Math.max(0, entries.length - 1);
     this.deps.log.info({ sessionId: id, entries: ctx.persisted }, "session restored");
@@ -331,6 +354,8 @@ export class SessionService {
       ],
     });
     ctx.bind(session, (c, e) => this.onPiEvent(c, e));
+    ctx.emitHook = (body) => this.cluster.emit(ctx, body);
+    ctx.onClientToolSettled = (callId) => this.cluster.clientToolSettled(ctx, callId);
     this.sessions.set(meta.id, ctx);
     return ctx;
   }
@@ -381,8 +406,8 @@ export class SessionService {
 
   /** Find the session that owns an artifact (download route), checking ownership. */
   async findArtifact(artifactId: string, owner = this.deps.principal ?? "local") {
-    for (const id of this.knownSessionIds()) {
-      const meta = this.sessions.get(id)?.meta ?? this.readMeta(id);
+    for (const id of await this.knownSessionIds()) {
+      const meta = this.sessions.get(id)?.meta ?? (await this.readMeta(id));
       const a = meta?.owner === owner ? meta.artifacts.find((x) => x.id === artifactId) : undefined;
       if (a) return a;
     }
@@ -392,14 +417,17 @@ export class SessionService {
   async delete(id: string, owner?: string): Promise<void> {
     const ctx = await this.get(id, owner);
     if (ctx.activeRun && !ctx.activeRun.done) await this.cancel(ctx.activeRun.id, owner);
+    else {
+      const remote = await this.cluster.activeElsewhere(id);
+      if (remote) await this.cluster.cancel(remote);
+    }
     ctx.dispose();
     this.sessions.delete(id);
     for (const [runId, c] of this.runIndex) if (c === ctx) this.runIndex.delete(runId);
     if (this.sandboxes && ctx.meta.sandboxId) {
       await this.sandboxes.release(id, "delete").catch((err) => this.deps.log.error({ sessionId: id, err: sanitizeError(String(err)) }, "sandbox delete failed"));
     }
-    rmSync(this.metaPath(id), { force: true });
-    rmSync(this.jsonlPath(id), { force: true });
+    await this.cluster.deleteSession(id);
     rmSync(this.artifactsDir(id), { recursive: true, force: true });
     this.deps.log.info({ sessionId: id }, "session deleted");
   }
@@ -421,8 +449,21 @@ export class SessionService {
       else await ctx.piSession.steer(text);
       return { run: active, steered: true };
     }
+    // The session's run may be live on another replica: steer into it there.
+    const elsewhere = await this.cluster.activeElsewhere(ctx.id);
+    if (elsewhere) {
+      await this.cluster.steer(elsewhere, text, req.snapshot as DatasetSnapshot | undefined);
+      return { run: { id: elsewhere.id } as Run, steered: true };
+    }
+    if (this.cluster.draining) throw new HttpError(503, "the agent service is restarting; retry in a moment");
     const run = new Run(ctx.id);
     run.pending.push(text);
+    const taken = await this.cluster.startRun(ctx, run);
+    if (taken) {
+      // Lost a race for the session's run slot: steer into the winner.
+      await this.cluster.steer(taken, text, req.snapshot as DatasetSnapshot | undefined);
+      return { run: { id: taken.id } as Run, steered: true };
+    }
     ctx.activeRun = run;
     ctx.runs.set(run.id, run);
     this.runIndex.set(run.id, ctx);
@@ -506,12 +547,39 @@ export class SessionService {
     if (run.status !== "queued") void ctx.piSession.abort().catch(() => {});
   }
 
-  async cancel(runId: string, owner?: string): Promise<Run> {
+  async cancel(runId: string, owner?: string): Promise<{ id: string; status: string }> {
     const ctx = this.runIndex.get(runId);
-    if (!ctx || ctx.meta.owner !== (owner ?? this.deps.principal ?? "local")) throw new HttpError(404, "no such run");
+    if (!ctx) {
+      // Not running here: ask the replica that runs it.
+      const rec = await this.cluster.getRun(runId, owner ?? this.deps.principal ?? "local");
+      if (!rec) throw new HttpError(404, "no such run");
+      if (isActiveStatus(rec.status)) await this.cluster.cancel(rec);
+      return { id: rec.id, status: wireStatus(rec.status) };
+    }
+    if (ctx.meta.owner !== (owner ?? this.deps.principal ?? "local")) throw new HttpError(404, "no such run");
     const run = ctx.runs.get(runId)!;
     this.abortRun(ctx, run, "cancelled");
     return run;
+  }
+
+  /** A run on any replica, for the event stream: local first, then the store. */
+  async lookupRun(runId: string, owner = this.deps.principal ?? "local"): Promise<RunView> {
+    const ctx = this.runIndex.get(runId);
+    const run = ctx?.runs.get(runId);
+    if (ctx && run) {
+      if (ctx.meta.owner !== owner) throw new HttpError(404, "no such run");
+      return { id: run.id, sessionId: ctx.id, status: run.status, local: true };
+    }
+    const rec = await this.cluster.getRun(runId, owner);
+    if (!rec) throw new HttpError(404, "no such run");
+    return { id: rec.id, sessionId: rec.sessionId, status: rec.status, local: false };
+  }
+
+  /** Session info, with the active run even when its loop is on another replica. */
+  async describe(ctx: SessionContext): Promise<SessionInfo> {
+    const info = ctx.info();
+    if (!info.activeRunId) info.activeRunId = (await this.cluster.activeElsewhere(ctx.id))?.id;
+    return info;
   }
 
   findRun(runId: string, owner = this.deps.principal ?? "local"): { ctx: SessionContext; run: Run } {
@@ -521,19 +589,14 @@ export class SessionService {
     return { ctx, run };
   }
 
-  answerClientTool(runId: string, callId: string, result: { ok: boolean; output: unknown }, owner?: string): boolean {
-    const { ctx } = this.findRun(runId, owner);
-    return ctx.bridge.answer(callId, result);
+  /** Stored as a run input, so the POST may land on any replica; the loop's replica picks it up. */
+  async answerClientTool(runId: string, callId: string, result: { ok: boolean; output: unknown }, owner?: string): Promise<boolean> {
+    await this.lookupRun(runId, owner);
+    return this.cluster.answerClientTool(runId, callId, result, owner ?? this.deps.principal ?? "local");
   }
 
-  decideApproval(approvalId: string, decision: { decision: "approve" | "reject"; note?: string }, owner?: string): boolean {
-    for (const ctx of this.sessions.values()) {
-      if (!ctx.approvals.has(approvalId)) continue;
-      if (ctx.meta.owner !== (owner ?? this.deps.principal ?? "local")) return false;
-      if (ctx.activeRun) ctx.activeRun.approvals++;
-      return ctx.approvals.decide(approvalId, decision);
-    }
-    return false;
+  decideApproval(approvalId: string, decision: { decision: "approve" | "reject"; note?: string }, owner?: string): Promise<boolean> {
+    return this.cluster.decideApproval(approvalId, decision, owner ?? this.deps.principal ?? "local");
   }
 
   private transition(ctx: SessionContext, to: RunStatus, run = ctx.activeRun): void {
@@ -573,6 +636,43 @@ export class SessionService {
       this.persist(ctx);
       ctx.dispose();
     }
+    await Promise.all([...this.sessions.keys()].map((id) => this.cluster.flush(id)));
+    this.cluster.stop();
+  }
+
+  /**
+   * SIGTERM (todo/todo3.md E.1): refuse new runs, give local runs until `graceMs` to finish, then
+   * end the rest as interrupted (the user resumes by sending again). Returns how many were interrupted.
+   */
+  async drain(graceMs: number): Promise<number> {
+    this.cluster.draining = true;
+    await this.cluster.waitForLocalRuns(Date.now() + graceMs);
+    let interrupted = 0;
+    for (const ctx of this.sessions.values()) {
+      const run = ctx.activeRun;
+      if (!run || run.done) continue;
+      interrupted++;
+      this.cluster.markInterrupting(run.id);
+      run.events.push({ type: "error", message: INTERRUPTED_MESSAGE });
+      run.endReason = "cancelled";
+      this.transition(ctx, run.status === "queued" ? "cancelled" : "failed", run);
+      run.abort.abort();
+      ctx.bridge.cancelAll("interrupted");
+      ctx.approvals.rejectAll("interrupted");
+      void ctx.piSession.abort().catch(() => {});
+      this.persist(ctx);
+    }
+    await this.cluster.waitForLocalRuns(Date.now() + 5000);
+    return interrupted;
+  }
+
+  /** Drop a cached session another replica has changed; it is rebuilt from the store on next use. */
+  private evict(ctx: SessionContext): void {
+    if (this.sessions.get(ctx.id) !== ctx) return;
+    this.sessions.delete(ctx.id);
+    this.cluster.forget(ctx.id);
+    this.sandboxes?.evict(ctx.id);
+    ctx.dispose();
   }
 }
 

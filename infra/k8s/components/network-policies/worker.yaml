@@ -1,0 +1,18 @@
+# worker: nothing calls it (kubelet probes aren't subject to NetworkPolicy); it talks only to
+# the kernel. Plugin provider keys and calls are brokered by apps/api, so no internet egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - port: 8000

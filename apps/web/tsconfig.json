@@ -74,7 +74,11 @@
     "vite.config.ts",
     "vitest.config.ts",
     "aliases.ts",
-    "../../packages/*/src",
+    "../../packages/agent-protocol/src",
+    "../../packages/plugin-contracts/src",
+    "../../packages/plugin-ui-sdk/src",
+    "../../packages/studio-ui/src",
+    "../../packages/studio-renderers/src",
     "../../plugins/*/ui",
     "vitest.setup.ts"
   ]

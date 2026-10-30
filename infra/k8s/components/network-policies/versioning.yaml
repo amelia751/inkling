@@ -1,0 +1,25 @@
+# versioning: called only by api; talks to the data services.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: versioning
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: versioning
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - port: 8090
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.255.0.0/16 # managed data services (overlay patches this)
+      ports:
+        - port: 5432
+        - port: 6379
+        - port: 443

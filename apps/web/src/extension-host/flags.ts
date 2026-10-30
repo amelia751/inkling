@@ -1,15 +1,17 @@
-import { NAMING, RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/plugin-contracts/naming";
+import { runtimeConfig } from "./runtime-config";
 /**
  * Feature flags for experimental surfaces (docs/modules.md, safety tiers). Read once at
- * startup from `VITE_<envPrefix>FLAGS` (build/dev env) or `localStorage["<resourcePrefix>.flags"]`
- * (per browser), each a comma-separated list such as `agentPanels`.
+ * startup from the runtime config (`/config.json` `flags`, or `VITE_<envPrefix>FLAGS` in dev; see
+ * runtime-config.ts) or `localStorage["<resourcePrefix>.flags"]` (per browser, a comma-separated
+ * list such as `agentPanels`).
  */
 export type Flag = "agentPanels";
 
 function read(): Set<string> {
   const out = new Set<string>();
   const add = (v: unknown) => typeof v === "string" && v.split(",").map((s) => s.trim()).filter(Boolean).forEach((f) => out.add(f));
-  add((import.meta as { env?: Record<string, unknown> }).env?.[`VITE_${NAMING.envPrefix}FLAGS`]);
+  runtimeConfig().flags.forEach((f) => out.add(f));
   try {
     if (typeof localStorage !== "undefined") add(localStorage.getItem(`${RES}.flags`));
   } catch {
@@ -18,8 +20,8 @@ function read(): Set<string> {
   return out;
 }
 
-const flags = read();
+let flags: Set<string> | null = null;
 
 export function featureEnabled(flag: Flag): boolean {
-  return flags.has(flag);
+  return (flags ??= read()).has(flag);
 }

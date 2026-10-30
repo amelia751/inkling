@@ -1,0 +1,20 @@
+# Non-secret settings for apps/versioning (keys: <envPrefix>VERSIONING_*). versioning-secrets
+# holds the database URL (versioning_app role) and the S3 keys; the JWKS (public keys of
+# apps/api's service-JWT signer) is the versioning-jwks ConfigMap, created per environment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versioning-config
+data:
+  INKLING_VERSIONING_HTTP_ADDR: ":8090"
+  INKLING_VERSIONING_OBJECT_ENDPOINT: http://s3:9000
+  INKLING_VERSIONING_OBJECT_REGION: us-east-1
+  INKLING_VERSIONING_OBJECT_PATH_STYLE: "true"
+  INKLING_VERSIONING_JWT_PUBLIC_KEY_FILE: /etc/versioning/jwks/jwks.json
+  INKLING_VERSIONING_JWT_AUDIENCE: versioning
+  INKLING_VERSIONING_JWT_ISSUER: api
+  INKLING_VERSIONING_EVENT_BUS: redis
+  INKLING_VERSIONING_REDIS_URL: redis://redis:6379/2
+  INKLING_VERSIONING_GC_SWEEP_ENABLED: "false"
+  INKLING_VERSIONING_PURGE_ENABLED: "false"
+  INKLING_VERSIONING_TEMP_DIR: /tmp

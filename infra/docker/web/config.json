@@ -1,0 +1,6 @@
+{
+  "apiBase": "/api",
+  "agentBase": "/api/agent",
+  "kernel": true,
+  "flags": []
+}

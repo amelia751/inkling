@@ -1,0 +1,22 @@
+# KEDA: scale the worker on the kernel's Redis ready list (apps/api JOB_QUEUE=redis), down to
+# zero when idle. One replica per `listLength` queued jobs, up to maxReplicaCount.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker
+spec:
+  scaleTargetRef:
+    name: worker
+  minReplicaCount: 0
+  maxReplicaCount: 10
+  pollingInterval: 10
+  # Wait this long after the list empties before scaling to zero.
+  cooldownPeriod: 300
+  triggers:
+    - type: redis
+      metadata:
+        addressFromEnv: KEDA_REDIS_ADDRESS
+        databaseIndex: "0"
+        listName: inkling:jobs:ready
+        listLength: "5"
+        activationListLength: "0"

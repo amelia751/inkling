@@ -1,0 +1,15 @@
+# Non-secret settings for apps/worker. It talks only to the kernel over HTTP; the worker
+# token is in worker-secrets. Plugin provider keys are brokered by apps/api, never mounted here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+data:
+  INKLING_KERNEL_URL: http://api
+  INKLING_WORKER_DATA_DIR: /tmp/worker
+  INKLING_WORKER_ENVS_DIR: /app/.plugin-envs
+  INKLING_WORKER_BUILD_ENVS: "0"
+  INKLING_WORKER_SHUTDOWN_GRACE_S: "270"
+  # Read by KEDA (ScaledObject addressFromEnv), not by the worker: the Redis holding the job
+  # queue, as KEDA's operator (in its own namespace) resolves it. Overlays set the FQDN.
+  KEDA_REDIS_ADDRESS: redis:6379

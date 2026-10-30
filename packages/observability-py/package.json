@@ -1,0 +1,10 @@
+{
+  "name": "@studio/observability-py",
+  "private": true,
+  "description": "Python service conventions: JSON logs, request ids, traceparent, optional OpenTelemetry (uv workspace member)",
+  "scripts": {
+    "test": "uv run --package studio-observability pytest -q",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run pyright src"
+  }
+}

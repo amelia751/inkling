@@ -1,0 +1,39 @@
+# The compose `full` stack's router: same paths as the Kubernetes Ingress
+# (infra/k8s/base/ingress.yaml). /api/agent goes to web, whose nginx adds the agent's
+# service token and maps it to the agent's /v1.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	log {
+		output stdout
+		format json
+	}
+	@agent path /api/agent /api/agent/*
+	handle @agent {
+		reverse_proxy web:8080 {
+			flush_interval -1
+			transport http {
+				read_timeout 1h
+				write_timeout 1h
+			}
+		}
+	}
+	@api path /api /api/* /seed /seed/*
+	handle @api {
+		# Every replica of `docker compose up --scale api=N`, re-resolved, round robin.
+		reverse_proxy {
+			dynamic a api 8000 {
+				refresh 5s
+			}
+			lb_policy round_robin
+			flush_interval -1
+		}
+	}
+	handle {
+		reverse_proxy web:8080
+	}
+}

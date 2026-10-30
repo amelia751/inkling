@@ -1,0 +1,38 @@
+# api: reached by the ingress controller, the agent and the worker; talks to the data
+# services and the versioning service. No internet egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: agent
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: worker
+      ports:
+        - port: 8000
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.255.0.0/16 # managed data services (overlay patches this)
+      ports:
+        - port: 5432
+        - port: 6379
+        - port: 443
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: versioning
+      ports:
+        - port: 8090

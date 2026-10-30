@@ -34,6 +34,8 @@ def main() -> int:
         if tool is None:
             raise ToolError(f"plugin has no tool {job['tool']!r}", recoverable=False)
         headers = {"Authorization": f"Bearer {job['sessionToken']}"}
+        if job.get("traceparent"):  # the worker's job span: kernel calls continue that trace
+            headers["traceparent"] = job["traceparent"]
         with httpx.Client(base_url=job["kernelUrl"], headers=headers, timeout=60) as http:
             ctx = ToolContext(
                 workspace_id=job["workspaceId"],

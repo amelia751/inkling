@@ -1,0 +1,118 @@
+# On main: build and push only the app images whose inputs changed, tagged sha-<short>, with
+# SBOM and provenance attestations (todo/todo3.md F). Deploys are GitOps: a later step (or a
+# bot) bumps the digests in infra/k8s/overlays/*; nothing here runs kubectl.
+name: images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      all:
+        description: Build every app image
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  affected:
+    name: Which images changed
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      any: ${{ steps.pick.outputs.any }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - id: pick
+        env:
+          BEFORE: ${{ github.event.before }}
+          ALL: ${{ inputs.all || 'false' }}
+        run: |
+          base="$BEFORE"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            base="HEAD^1"
+          fi
+          # Workspace packages turbo sees as changed, including their dependents
+          # (Python and Go apps have package.json shims, so they're in the graph too).
+          pkgs=$(pnpm exec turbo ls --filter="...[$base]" --output=json 2>/dev/null | sed -n '/^{/,$p' | jq -r '.packages.items[].name')
+          files=$(git diff --name-only "$base" HEAD)
+          apps=""
+          for app in web api agent worker versioning mcp; do
+            hit=false
+            [ "$ALL" = "true" ] && hit=true
+            echo "$pkgs" | grep -qx "@studio/$app" && hit=true
+            # Inputs outside the package graph: the Dockerfile, shared build inputs, locks.
+            echo "$files" | grep -qE "^(apps/$app/Dockerfile|\.dockerignore|schemas/|pnpm-lock\.yaml)" && hit=true
+            case "$app" in
+              api|worker) echo "$files" | grep -qE "^(uv\.lock|pyproject\.toml|packages/[^/]+-py/|registry/|plugins/)" && hit=true ;;
+              web) echo "$files" | grep -qE "^(registry/|plugins/|tsconfig\.base\.json)" && hit=true ;;
+            esac
+            if $hit; then apps="$apps $app"; fi
+          done
+          # shellcheck disable=SC2086 # word-splitting the app list is intended
+          matrix=$(printf '%s\n' $apps | jq -R . | jq -sc '{app: map(select(length > 0))}')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          [ -n "${apps// /}" ] && echo "any=true" >> "$GITHUB_OUTPUT" || echo "any=false" >> "$GITHUB_OUTPUT"
+          echo "Images to build:${apps:- none}"
+
+  build:
+    name: ${{ matrix.app }}
+    needs: affected
+    if: needs.affected.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.affected.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: sha
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/studio-${{ matrix.app }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+      - id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/${{ matrix.app }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ steps.sha.outputs.short }}
+            IMAGE_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
+      - name: Digest
+        run: echo "studio-${{ matrix.app }}@${{ steps.push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"

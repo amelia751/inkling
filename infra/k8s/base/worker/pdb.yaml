@@ -1,0 +1,11 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker
+spec:
+  # Not minAvailable: KEDA scales the worker to zero, and a lone job pod must not block node
+  # drains forever. terminationGracePeriodSeconds (300 s) lets an in-flight job finish.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker

@@ -118,6 +118,19 @@ class WorkspaceEnvironment(Base):
     saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class WorkspaceEnvironmentRevision(Base):
+    """Every saved environment, append-only (`GET /api/environments/:id/history`)."""
+
+    __tablename__ = "workspace_environment_history"
+    __table_args__ = (UniqueConstraint("workspace_id", "revision"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    author: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 # ---- Plugins (§11) -----------------------------------------------------------------------
 
 
@@ -255,6 +268,8 @@ class PluginJob(Base):
     timeout_s: Mapped[int] = mapped_column(Integer, default=180)
     worker_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # W3C trace context of the request that enqueued the job; the worker continues that trace.
+    traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 

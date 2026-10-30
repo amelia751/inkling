@@ -1,0 +1,112 @@
+# Every PR (and main): affected checks, boundaries, drift checks, Go, Kubernetes manifests,
+# secret scanning (todo/todo3.md F).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: typecheck, lint, test (affected) and drift checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # turbo's --filter=...[origin/main] needs history
+      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen
+      - name: Affected typecheck, lint, test
+        # apps/versioning (Go) has its own job below.
+        run: pnpm affected --filter='!@studio/versioning'
+      - name: Module boundaries (TS)
+        run: node tools/check-boundaries.mjs
+      - name: Import contracts (Python)
+        run: uv run lint-imports
+      - name: Ruff
+        run: uv run ruff check
+      - name: Generated schemas are current
+        run: pnpm emit:schemas --check
+      - name: Registry index is current
+        run: node tools/build-registry.mjs --check
+      - name: Generated kernel contracts are current
+        run: pnpm --filter @studio/api contracts:check
+      - name: OpenAPI spec and api-client are current
+        run: |
+          uv run --package studio-api python apps/api/scripts/dump_openapi.py --check
+          pnpm --filter @studio/api-client generate
+          git diff --exit-code packages/api-client/src/schema.d.ts
+
+  go:
+    name: versioning (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/versioning
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: apps/versioning/go.mod
+          cache-dependency-path: apps/versioning/go.sum
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          working-directory: apps/versioning
+      - run: go test -race ./...
+
+  k8s:
+    name: Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: No committed Secrets under infra/
+        run: node infra/k8s/check-no-secrets.mjs
+      - name: Render overlays
+        run: |
+          mkdir -p rendered
+          for env in dev staging prod; do
+            kubectl kustomize "infra/k8s/overlays/$env" > "rendered/$env.yaml"
+          done
+      - name: kubeconform (KEDA and other CRDs from the datree catalog)
+        run: |
+          docker run --rm -v "$PWD/rendered:/work:ro" ghcr.io/yannh/kubeconform:v0.7.0-alpine \
+            -strict -summary -ignore-missing-schemas \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            /work/dev.yaml /work/staging.yaml /work/prod.yaml
+      - name: Compose file is valid
+        run: docker compose -f infra/docker/compose.yaml --profile full config --quiet
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            git /repo --redact --no-banner --exit-code 1

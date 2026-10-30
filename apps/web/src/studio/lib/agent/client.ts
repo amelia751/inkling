@@ -8,9 +8,13 @@ import type {
   SendMessageRequest,
   SendMessageResponse,
 } from "./protocol";
+import { runtimeConfig } from "@/extension-host/runtime-config";
 
-/** HTTP client for the agent service, through the Vite proxy (/api/agent → /v1). */
-const BASE = "/api/agent";
+/**
+ * HTTP client for the agent service, through a proxy that maps <agentBase> (`/api/agent`) to the
+ * service's /v1 and adds its bearer token: the Vite proxy in dev, the web image's nginx in production.
+ */
+const BASE = () => runtimeConfig().agentBase;
 
 export class AgentHttpError extends Error {
   constructor(
@@ -22,7 +26,7 @@ export class AgentHttpError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${BASE()}${path}`, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -43,7 +47,7 @@ export const cancelRun = (runId: string) => call<unknown>("POST", `/runs/${runId
 export const answerClientTool = (runId: string, callId: string, result: ClientToolResultRequest) =>
   call<unknown>("POST", `/runs/${runId}/client-tools/${encodeURIComponent(callId)}`, result);
 export const decideApproval = (approvalId: string, d: ApprovalDecisionRequest) => call<unknown>("POST", `/approvals/${approvalId}`, d);
-export const artifactUrl = (artifactId: string) => `${BASE}/artifacts/${encodeURIComponent(artifactId)}`;
+export const artifactUrl = (artifactId: string) => `${BASE()}/artifacts/${encodeURIComponent(artifactId)}`;
 
 const RETRY_MS = [500, 1000, 2000, 4000, 8000];
 
@@ -56,7 +60,7 @@ export async function followRun(runId: string, after: number, onEvent: (e: Agent
   let last = after;
   for (let attempt = 0; ; attempt++) {
     try {
-      const res = await fetch(`${BASE}/runs/${runId}/events?after=${last}`, { headers: { Accept: "text/event-stream" }, signal });
+      const res = await fetch(`${BASE()}/runs/${runId}/events?after=${last}`, { headers: { Accept: "text/event-stream" }, signal });
       if (res.status === 404) throw new AgentHttpError(404, "This run is no longer available.");
       if (!res.ok || !res.body) throw new AgentHttpError(res.status, `Event stream failed (${res.status}).`);
       attempt = 0;

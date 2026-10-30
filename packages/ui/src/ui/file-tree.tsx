@@ -31,6 +31,8 @@ export interface FileTreeNode {
   /** A pseudo row: a skeleton while a folder loads, or "Load more" for the next page. */
   placeholder?: "loading" | "more"
   onMore?: () => void
+  /** Where a file drop on this row goes (a folder: itself; a file: its folder). */
+  drop?: { id: string; label: string }
 }
 
 export interface FileTreeHandle {
@@ -49,6 +51,8 @@ export interface FileTreeProps {
   /** Enter on a folder or a double click: open it in the listing. */
   onActivate?: (id: string) => void
   onToggle?: (id: string, open: boolean) => void
+  /** Keyboard focus moved to a row (arrows, type-ahead). */
+  onFocusNode?: (id: string) => void
   /** Keys the tree must not take (commands such as Quick Look): return true when handled. */
   onKey?: (e: React.KeyboardEvent) => boolean
   onContextMenu?: (id: string, e: React.MouseEvent) => void
@@ -60,7 +64,7 @@ const ROW = 28
 const INDENT = 12
 
 export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
-  { data, selectedId, initialOpen, onSelect, onActivate, onToggle, onKey, onContextMenu, className, ...aria },
+  { data, selectedId, initialOpen, onSelect, onActivate, onToggle, onFocusNode, onKey, onContextMenu, className, ...aria },
   ref,
 ) {
   const box = React.useRef<HTMLDivElement>(null)
@@ -133,6 +137,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
             if (!node.data.placeholder) onActivate?.(node.id)
           }}
           onToggle={(id: string) => onToggle?.(id, !!tree.current?.get(id)?.isOpen)}
+          onFocus={(node: NodeApi<FileTreeNode>) => !node.data.placeholder && onFocusNode?.(node.id)}
           renderRow={AccessibleRow}
           className="thin-scrollbar outline-none"
           aria-label={aria["aria-label"]}
@@ -168,7 +173,8 @@ function TreeRow({ node, style, flash, onContextMenu }: NodeRendererProps<FileTr
   const d = node.data
   if (d.placeholder === "loading") {
     return (
-      <div style={style} className="flex h-7 items-center gap-2 pr-2" aria-busy>
+      // Shown only after 150ms, so a fast folder doesn't flicker a skeleton.
+      <div style={style} className="tree-skeleton-delay flex h-7 items-center gap-2 pr-2" aria-busy>
         <span className="ml-5 size-4 shrink-0 animate-pulse rounded-sm bg-generic" />
         <span className="h-3 w-2/3 animate-pulse rounded-sm bg-generic" />
       </div>
@@ -195,6 +201,8 @@ function TreeRow({ node, style, flash, onContextMenu }: NodeRendererProps<FileTr
         flash && "tree-reveal-flash",
       )}
       data-node-id={node.id}
+      data-drop-id={d.drop?.id}
+      data-drop-label={d.drop?.label}
     >
       {/* Indent guides: 1px lines in --g-line, shown on hover and focus only. */}
       {Array.from({ length: node.level }, (_, i) => (

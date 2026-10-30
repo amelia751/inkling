@@ -563,3 +563,11 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .tree-reveal-flash { animation: none; background-color: var(--g-selection-hover); }
 }
+/* A folder's skeleton row appears only if loading takes longer than 150ms (todo6 Phase 4.2). */
+@keyframes tree-skeleton-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.tree-skeleton-delay {
+  animation: tree-skeleton-in 0s 150ms both;
+}

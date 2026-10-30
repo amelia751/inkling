@@ -13,6 +13,7 @@ import { HomePage } from "./routes/HomePage";
 import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
+import { SourcesPage } from "./routes/SourcesPage";
 import { LEGACY, LegacyRedirect, SectionFrame, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
 
@@ -32,7 +33,7 @@ const router = createBrowserRouter([
   { path: "/projects/new", element: <NewProjectPage /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
-  { path: "/projects/:projectId/sources/:nodeId?", element: <SectionFrame title="Sources" description="The files you brought, exactly as uploaded." /> },
+  { path: "/projects/:projectId/sources/:nodeId?", element: <SourcesPage /> },
   { path: "/projects/:projectId/explore/:tab?", element: <ExplorePage /> },
   { path: "/projects/:projectId/datasets", element: <DatasetsPage /> },
   { path: "/projects/:projectId/datasets/:datasetId", element: <DatasetDetailPage tab="tasks" /> },

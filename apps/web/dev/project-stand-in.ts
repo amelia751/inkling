@@ -232,12 +232,20 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     return [cur, names.length > 1 ? names.join(" / ") : undefined];
   }
 
+  // Opaque, like the kernel's (kernel/tree.py run_id): a run's key comes from file names.
+  const runId = (folder: string, key: string) => `seq:${folder}:${crypto.createHash("sha256").update(key).digest("hex").slice(0, 12)}`;
+  const runOf = (n: Node) => {
+    if (n.isDir || !n.sequenceKey || !n.parentId) return null;
+    const count = (load().nodes.get(n.parentId)?.children ?? []).filter((id) => load().nodes.get(id)?.sequenceKey === n.sequenceKey).length;
+    return count >= MIN_SEQUENCE ? runId(n.parentId, n.sequenceKey) : null;
+  };
+
   function children(parent: string, cursor: number) {
     const { nodes } = load();
     let items: unknown[];
     if (parent.startsWith("seq:")) {
-      const [, folder, ...key] = parent.split(":");
-      items = ordered(nodes.get(folder)?.children ?? []).filter((n) => n.sequenceKey === key.join(":")).map((n) => nodeDict(n));
+      const folder = parent.split(":")[1];
+      items = ordered(nodes.get(folder)?.children ?? []).filter((n) => !n.isDir && n.sequenceKey && runId(folder, n.sequenceKey) === parent).map((n) => nodeDict(n));
     } else {
       const rows = ordered(nodes.get(parent)?.children ?? []);
       const runs = new Map<string, Node[]>();
@@ -251,7 +259,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
           emitted.add(key);
           const members = runs.get(key)!;
           const kinds = new Set(members.map((m) => m.detectedKind));
-          items.push({ ...nodeDict(members[0]), id: `seq:${parent}:${key}`, kind: "sequence", name: `${members[0].name}–${members.at(-1)!.name}`, detectedKind: kinds.size === 1 ? [...kinds][0] : null, size: members.reduce((s, m) => s + (m.size ?? 0), 0), sha256: null, childCount: members.length, descendantCount: members.length, facts: {} });
+          items.push({ ...nodeDict(members[0]), id: runId(parent, key), kind: "sequence", name: `${members[0].name}–${members.at(-1)!.name}`, detectedKind: kinds.size === 1 ? [...kinds][0] : null, size: members.reduce((s, m) => s + (m.size ?? 0), 0), sha256: null, childCount: members.length, descendantCount: members.length, facts: {} });
         } else if (n.isDir) {
           const [deepest, display] = compact(n);
           items.push(nodeDict(deepest, display));
@@ -404,7 +412,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         return send(200, out);
       }
       const tasks = [{ id: p.id, title: p.title }];
-      return send(200, { ...nodeDict(n), path: ancestors(n).map((a) => ({ id: a.id, name: a.name })), usedIn: [{ id: p.id, title: p.title, tasks }], provenance: { sourceId: p.id, sourceTitle: nodes.get(load().roots.get(p.id)!)!.name, importSessionId: null, addedBy: SEED_PRINCIPAL, addedAt: createdAt(), sha256: n.sha256 } });
+      return send(200, { ...nodeDict(n), path: ancestors(n).map((a) => ({ id: a.id, name: a.name })), usedIn: [{ id: p.id, title: p.title, tasks }], runId: runOf(n), provenance: { sourceId: p.id, sourceTitle: nodes.get(load().roots.get(p.id)!)!.name, importSessionId: null, addedBy: SEED_PRINCIPAL, addedAt: createdAt(), sha256: n.sha256 } });
     }
     if (head === "tasks" && id) {
       const p = project(id);

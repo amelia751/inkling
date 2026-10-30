@@ -142,8 +142,11 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         base = node.rel_path
     title = _title_of([w[1] for w in wanted], body.get("title"))
     tops = {w[1].split("/", 1)[0] for w in wanted}
-    if node is None and len(tops) == 1 and all("/" in w[1] for w in wanted):
-        # A dropped folder is the source's root: its files are relative to it.
+    one_folder = len(tops) == 1 and all("/" in w[1] for w in wanted)
+    if one_folder and (node is None or next(iter(tops)) == node.name):
+        # A dropped folder is the source's root: its files are relative to it. Dropped onto
+        # a folder of the same name (the same folder again, e.g. a re-drop on its source),
+        # it merges into that folder instead of nesting a copy inside it.
         wanted = [(fid, rel.split("/", 1)[1], size, sha) for fid, rel, size, sha in wanted]
 
     # (source, path inside it, sha) of every file already in the project.
@@ -338,20 +341,32 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     files = list(db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state == "uploaded")))
     known = {n.sha256: n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.sha256.in_([f.sha256 for f in files]), SourceNode.asset_id.is_not(None)))} if files else {}
     specs = []
-    for f in files:
-        key = upload_key(p.id, f.sha256, f.rel_path)
-        asset = db.scalar(select(Asset).where(Asset.workspace_id == p.id, Asset.path == key))
-        if asset is None:
-            asset = Asset(workspace_id=p.id, path=key, media_type=assets.media_type_of(f.rel_path), size=f.size)
-            db.add(asset)
-            db.flush()
+    base = (s.totals or {}).get("base") or ""
+    # The first file of this session with given bytes, for duplicates within the session.
+    first: dict[str, tuple[str, str, str]] = {}
+    for f in sorted(files, key=lambda f: tree.natural_key(f.rel_path)):
         flags = {}
         prior = known.get(f.sha256)
-        if prior is not None:
+        if prior is not None and prior.asset_id:
+            # The same bytes are already in the project: link to that asset (stored once).
+            asset_id = prior.asset_id
             flags["duplicate_of"] = {"nodeId": prior.id, "name": prior.name}
-        specs.append(tree.FileSpec(f.rel_path, asset.id, f.sha256, f.size, None, {}, flags))
+        elif f.sha256 in first:
+            asset_id, node_id, name = first[f.sha256]
+            flags["duplicate_of"] = {"nodeId": node_id, "name": name}
+        else:
+            key = upload_key(p.id, f.sha256, f.rel_path)
+            asset = db.scalar(select(Asset).where(Asset.workspace_id == p.id, Asset.path == key))
+            if asset is None:
+                asset = Asset(workspace_id=p.id, path=key, media_type=assets.media_type_of(f.rel_path), size=f.size)
+                db.add(asset)
+                db.flush()
+            asset_id = asset.id
+            full = posixpath.join(base, f.rel_path) if base else f.rel_path
+            first[f.sha256] = (asset.id, tree.node_id(source.id, full), posixpath.basename(f.rel_path))
+        specs.append(tree.FileSpec(f.rel_path, asset_id, f.sha256, f.size, None, {}, flags))
     root = source.root_node_id or tree.node_id(source.id, "")
-    ids = tree.add_files(db, source.id, p.id, root, specs, base=(s.totals or {}).get("base") or "", import_session_id=s.id)
+    ids = tree.add_files(db, source.id, p.id, root, specs, base=base, import_session_id=s.id)
     pending = db.scalar(select(UploadFile.client_file_id).where(UploadFile.session_id == s.id, UploadFile.state.in_(("pending", "failed"))).limit(1))
     s.state = "inspecting" if ids else ("failed" if pending else "ready")
     s.totals = {**(s.totals or {}), "committed": len(ids), "incomplete": bool(pending)}

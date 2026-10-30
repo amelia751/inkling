@@ -57,6 +57,10 @@ export { default as QueuedIcon } from "@gravity-ui/icons/Hourglass";
 export { default as PrivacyIcon } from "@gravity-ui/icons/ShieldExclamation";
 export { default as RelationshipIcon } from "@gravity-ui/icons/Link";
 export { default as NoRelationshipIcon } from "@gravity-ui/icons/LinkSlash";
+// Sources browser (todo6 Phase 4): the listing's view switch and Quick Look.
+export { default as ListViewIcon } from "@gravity-ui/icons/ListUl";
+export { default as GridViewIcon } from "@gravity-ui/icons/LayoutCells";
+export { default as QuickLookIcon } from "@gravity-ui/icons/Eye";
 // Annotations written from a source file (a CSV column): todo6 D8.
 export { default as ImportedIcon } from "@gravity-ui/icons/FileArrowUp";
 // Dataset versioning

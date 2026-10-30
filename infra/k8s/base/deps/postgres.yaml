@@ -60,11 +60,11 @@ spec:
               value: /var/lib/postgresql/data/pgdata
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "studio", "-d", "studio"]
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "studio", "-d", "studio"]
             periodSeconds: 5
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "studio", "-d", "studio"]
+              command: ["pg_isready", "-h", "127.0.0.1", "-U", "studio", "-d", "studio"]
             periodSeconds: 15
           resources:
             requests:

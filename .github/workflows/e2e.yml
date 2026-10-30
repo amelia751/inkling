@@ -86,15 +86,19 @@ jobs:
         working-directory: apps/web
         run: |
           uv run --package studio-web-e2e python ../../tests/e2e/plugins_test.py --port 5198
-      - name: Agent e2e (scripted model, its own agent process)
+      - name: Agent and builder e2e (scripted model, their own agent process, the stack's api)
         working-directory: apps/web
         env:
           INKLING_AGENT_URL: http://127.0.0.1:8299
           INTERNAL_AGENT_SERVICE_TOKEN: e2e-agent-token
+          INKLING_KERNEL: "1"
+          INKLING_KERNEL_URL: http://127.0.0.1:8080
+          INKLING_E2E_KERNEL_URL: http://127.0.0.1:8080
         run: |
           nohup pnpm exec vite --port 5299 --strictPort > /tmp/vite-5299.log 2>&1 &
           for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:5299/ >/dev/null && break; sleep 2; done
           uv run --package studio-web-e2e python ../../tests/e2e/agent_test.py --port 5299
+          uv run --package studio-web-e2e python ../../tests/e2e/builder_test.py --port 5299
       - name: Stack logs
         if: failure()
         run: docker compose -f infra/docker/compose.yaml --profile full logs --no-color > /tmp/stack.log; tail -n 300 /tmp/stack.log

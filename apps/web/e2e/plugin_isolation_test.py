@@ -66,7 +66,8 @@ def t_rollback(browser, port, out: Path) -> None:
     st = open_studio(browser, port, WS)
     p = st.page
     try:
-        if not p.evaluate("async () => (await fetch('/api/v1/health')).ok"):
+        # Without a kernel the dev server answers with the SPA's index.html, so ask for JSON.
+        if not p.evaluate("async () => { const r = await fetch('/api/v1/health'); return r.ok && (r.headers.get('content-type') || '').includes('json'); }"):
             print("SKIP rollback: kernel not reachable through the dev server proxy")
             return
         # Install through the kernel (plan → stage → approve), granting the self-hosted

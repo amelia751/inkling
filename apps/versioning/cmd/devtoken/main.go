@@ -41,6 +41,9 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
+		if err := os.MkdirAll(dir, 0o755); err != nil { // #nosec G301 -- holds a public JWKS beside the key
+			return err
+		}
 		if err := os.WriteFile(filepath.Join(dir, "jwt.key"), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 			return err
 		}

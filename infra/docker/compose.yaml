@@ -43,7 +43,8 @@ services:
       - postgres-data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U studio -d studio"]
+      # Over TCP: during first-boot init the temporary server listens on the socket only.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U studio -d studio"]
       interval: 3s
       timeout: 3s
       retries: 30

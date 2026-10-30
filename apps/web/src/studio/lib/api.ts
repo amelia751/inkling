@@ -2,7 +2,7 @@ import type { EnvironmentSpec, LabelGroup } from "@studio/contracts/environment"
 import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import type { AnnotationDocument, Project } from "@studio/contracts/types";
 import { canonicalId } from "@studio/contracts/naming";
-import { apiUrl } from "@/extension-host/runtime-config";
+import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -114,4 +114,20 @@ export async function saveEnvironment(projectId: string, doc: { revision: number
       body: JSON.stringify(doc),
     }),
   );
+}
+
+/**
+ * The document a task's Studio opens (todo6 Phase 7): a `Project`-shaped document, so every
+ * data kind's `groupItems(project)` works unchanged. With the kernel it's
+ * `GET /v1/tasks/:id/document`; without it, seed tasks are their manifest projects, read
+ * from `/seed/manifest.json` as before (e2e tests inject projects there).
+ */
+export async function fetchTaskDocument(taskId: string): Promise<Project | undefined> {
+  const { kernel } = runtimeConfig();
+  if (kernel) {
+    const res = await fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
+    if (res.status === 404) return undefined;
+    return normalizeProject(await json<RawProject>(res));
+  }
+  return (await fetchProjects()).find((p) => p.id === taskId);
 }

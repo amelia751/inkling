@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
+import { datasetUrl, versionReviewUrl } from "@/studio/lib/routes";
 import { useQuery } from "@tanstack/react-query";
 import { BranchIcon, CheckIcon, HistoryIcon, SendIcon, WarningIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
@@ -34,6 +35,8 @@ function reload(projectId: string, annotations: Parameters<ReturnType<typeof use
 }
 
 function BranchSwitcher({ projectId }: { projectId: string }) {
+  // `projectId` is the Studio's task id (the versioned dataset); the route names the project.
+  const routeProject = useParams().projectId;
   const branch = useVersioning((s) => s.branch);
   const readOnly = useVersioning((s) => s.readOnly);
   const dirty = useStudio((s) => s.dirty);
@@ -73,7 +76,7 @@ function BranchSwitcher({ projectId }: { projectId: string }) {
         {branches.isLoading && <DropdownMenuLabel className="font-normal text-muted-foreground">Loading…</DropdownMenuLabel>}
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to={`/datasets/${projectId}/versions`}><HistoryIcon /> History, reviews and releases</Link>
+          <Link to={datasetUrl(routeProject ?? projectId, projectId, "versions")}><HistoryIcon /> History, reviews and releases</Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -108,6 +111,7 @@ function SubmitForReview({ projectId }: { projectId: string }) {
   const readOnly = useVersioning((s) => s.readOnly);
   const dirty = useStudio((s) => s.dirty);
   const navigate = useNavigate();
+  const routeProject = useParams().projectId;
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -120,7 +124,7 @@ function SubmitForReview({ projectId }: { projectId: string }) {
     try {
       const rv = await submitForReview(projectId, title.trim() || `Changes from ${branch}`, description.trim() || undefined);
       setOpen(false);
-      navigate(`/datasets/${projectId}/versions/reviews/${rv.id}`);
+      navigate(versionReviewUrl(routeProject ?? projectId, projectId, rv.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

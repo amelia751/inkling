@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, SearchIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
@@ -10,7 +10,8 @@ import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { approveInstall, disablePlugin, installedPlugins, planInstall, rejectInstall, rollbackPlugin, searchPlugins, stageInstall, type InstallRequest } from "@/studio/lib/plugins-api";
-import { FullPageMessage, useProject } from "./shared";
+import { studioUrl } from "@/studio/lib/routes";
+import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from "./shared";
 
 /**
  * Workspace plugins (todo2 Phase 5): what's installed with version, state and permissions
@@ -19,7 +20,8 @@ import { FullPageMessage, useProject } from "./shared";
  * open Studio through the workspace state, without a deploy or reload.
  */
 export function PluginsPage() {
-  const { datasetId = "" } = useParams();
+  const datasetId = useDatasetParam();
+  const projectId = useProjectParam();
   const { project, isLoading } = useProject(datasetId);
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
@@ -66,7 +68,7 @@ export function PluginsPage() {
         <PageHeading
           title="Plugins"
           description="Installed in this workspace only. Installing new code or permissions always asks for approval."
-          actions={<Button variant="outline" size="lg" asChild><Link to={`/datasets/${project.id}`}><AnnotateIcon />Back to annotating</Link></Button>}
+          actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, project.id)}><AnnotateIcon />Back to annotating</Link></Button>}
         />
         {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
 

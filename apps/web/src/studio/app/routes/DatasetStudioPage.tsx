@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
@@ -21,9 +21,12 @@ import { applyWorkspace, fetchWorkspaceState, loadRemotePlugins } from "@/extens
 import { prepareAssetUrls } from "@/extension-host/kernel";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
-import { clearRuntime, publish } from "@studio/plugin-ui-sdk/runtime";
+import { clearRuntime, publish, useRuntime } from "@studio/plugin-ui-sdk/runtime";
+import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
+import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
-import type { Project, StudioItem } from "@studio/contracts/types";
+import type { Project, ResumeState, StudioItem } from "@studio/contracts/types";
+import { AppLayout } from "@/studio/components/layout/app-layout";
 import { FullPageMessage, useProject } from "./shared";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
@@ -79,8 +82,32 @@ function useEnvironment(project: Project | undefined): Boot {
   return boot;
 }
 
+/** `/projects/:projectId/studio/:taskId` (the legacy `/datasets/:id` redirects here). */
 export function DatasetStudioPage() {
-  const { datasetId = "" } = useParams();
+  return (
+    <AppLayout studio>
+      <SmallScreenNotice />
+      <StudioPage />
+    </AppLayout>
+  );
+}
+
+/** Phones still open the Studio, but say where annotation works best (docs/ux.md §4). */
+function SmallScreenNotice() {
+  const viewport = useViewport();
+  const [dismissed, setDismissed] = useState(false);
+  if (viewport !== "phone" || dismissed) return null;
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-b border-border bg-info-tint px-3 py-2 text-sm" role="status" data-testid="small-screen-notice">
+      <span className="min-w-0 flex-1">Annotation works best on a larger screen.</span>
+      <button type="button" className="shrink-0 text-muted-foreground underline" onClick={() => setDismissed(true)}>Dismiss</button>
+    </div>
+  );
+}
+
+function StudioPage() {
+  const { taskId, datasetId: legacyId } = useParams();
+  const datasetId = taskId ?? legacyId ?? "";
   const { project, isLoading, error } = useProject(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
   // branch; otherwise the plain document, exactly as before.
@@ -140,6 +167,7 @@ function Studio({ projectId }: { projectId: string }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEnvBindings(env, items);
   useActivationSync(env);
+  useResume(projectId, items, env);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
   // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
@@ -200,7 +228,7 @@ function Studio({ projectId }: { projectId: string }) {
   const right = <SlotTabs slot="right" only={rightIds} env={env} project={project} items={items} item={item} />;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <StudioTopBar
         project={project}
         onRetrySave={save}
@@ -249,6 +277,61 @@ function Studio({ projectId }: { projectId: string }) {
   );
 }
 
+
+const RESUME_DEBOUNCE_MS = 1000;
+
+/**
+ * Resume (todo6 D9, Phase 7): where this person is (task, item, frame or slice, tool) is
+ * written to the project as they work, debounced and on `pagehide`. It's restored when the
+ * Studio was opened to resume (Overview's "Open Studio", Home's "Resume", the Studio nav
+ * item; router state, so a reload restores too), never on a plain link to the task.
+ */
+function useResume(taskId: string, items: StudioItem[], env: ResolvedEnv) {
+  const routeProject = useParams().projectId;
+  const known = useProjectSummary(routeProject).data;
+  const projectId = known?.id;
+  const location = useLocation();
+  const wantRestore = !!(location.state as { resume?: boolean } | null)?.resume;
+  const resume = useQuery({ queryKey: ["projects", projectId, "resume"], queryFn: () => api<{ resume: ResumeState | null }>(`/projects/${projectId}/resume`), enabled: !!projectId && wantRestore, staleTime: 0 });
+  const restored = useRef(false);
+  useEffect(() => {
+    const r = resume.data?.resume;
+    if (restored.current || !r || r.taskId !== taskId || !items.length) return;
+    restored.current = true;
+    const s = useStudio.getState();
+    const at = items.findIndex((i) => i.id === r.itemId);
+    if (at >= 0) s.setItemIndex(at);
+    if (r.tool && env.tools.some((t) => t.name === r.tool)) s.setTool(r.tool);
+    // Frame or slice: the renderer reads the requested placement once it mounts.
+    if (r.placement && r.itemId) publish(r.itemId, "requestedPlacement", r.placement);
+  }, [resume.data, taskId, items, env]);
+
+  const itemIndex = useStudio((s) => s.itemIndex);
+  const tool = useStudio((s) => s.tool);
+  const itemId = items[itemIndex]?.id;
+  const placement = useRuntime<{ frame?: number }>(itemId, "playhead");
+  const view = useRuntime<{ slice?: number; plane?: string }>(itemId, "viewportState");
+  const body = useMemo(
+    () => (projectId && itemId ? { taskId, itemId, tool, placement: { ...(placement?.frame !== undefined ? { frame: placement.frame } : {}), ...(view?.slice !== undefined ? { slice: view.slice, plane: view.plane } : {}) } } : null),
+    [projectId, taskId, itemId, tool, placement?.frame, view?.slice, view?.plane],
+  );
+  const latest = useRef(body);
+  latest.current = body;
+  useEffect(() => {
+    // Don't overwrite what we're about to restore with item 0.
+    if (!body || !projectId || (wantRestore && !restored.current && resume.isLoading)) return;
+    const t = setTimeout(() => void putResume(projectId, body).catch(() => undefined), RESUME_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [body, projectId, wantRestore, resume.isLoading]);
+  useEffect(() => {
+    if (!projectId) return;
+    const flush = () => {
+      if (latest.current) void fetch(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/resume`), { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(latest.current) }).catch(() => undefined);
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [projectId]);
+}
 
 /**
  * Re-resolve when the workspace's active plugins change (enable / disable without a reload).

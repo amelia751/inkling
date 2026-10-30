@@ -126,9 +126,10 @@ export function useHotkeys(handler: KeyHandler, priority = VIEWER_PRIORITY, enab
  * Bind handlers to commands by id. Keys, repeat policy, `when` and labels come from the
  * command contributions as bound by the active environment, so components never
  * hard-code a key. Names without a dot are resolved against `scope` (a module id).
- * Commands the environment doesn't include (disabled, replaced) never fire.
+ * Commands the environment doesn't include (disabled, replaced) never fire, except
+ * `global` ones (the shell's), which fall back to their declared keys.
  */
-export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, enabled = true, scope }: { priority?: number; enabled?: boolean; scope?: string | string[] } = {}) {
+export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, enabled = true, scope, global = false }: { priority?: number; enabled?: boolean; scope?: string | string[]; global?: boolean } = {}) {
   const ref = useRef(map);
   ref.current = map;
 
@@ -136,7 +137,10 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
     (e) => {
       let ctx: WhenContext | undefined;
       for (const name of Object.keys(ref.current)) {
-        const def = active.get(commandId(name, scope));
+        // `global`: shell commands (navigation, Sources) also work outside the Studio, where no
+        // environment is active, with the keys their contribution declares.
+        const id = commandId(name, scope);
+        const def = active.get(id) ?? (global ? commandDef(id) : undefined);
         if (!def || !def.keys.some((k) => matches(e, k))) continue;
         if (def.when && !when(def.when, (ctx ??= contextProvider()))) continue;
         // Held one-shot keys are swallowed so they neither repeat nor leak to lower layers.

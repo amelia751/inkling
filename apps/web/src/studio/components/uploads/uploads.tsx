@@ -1,0 +1,307 @@
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  AddDataIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  CloseIcon,
+  DoneIcon,
+  ErrorIcon,
+  FolderIcon,
+  QueuedIcon,
+  WarningIcon,
+} from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
+import { Checkbox } from "@studio/ui/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
+import { Label } from "@studio/ui/ui/label";
+import { Spinner } from "@studio/ui/ui/spinner";
+import { bytesInFlight, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
+import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
+import { cn } from "@studio/ui/utils";
+
+/** Invalidate a project's queries when an import changes what's in it. */
+export function useRefreshProject() {
+  const qc = useQueryClient();
+  return (projectId: string) => {
+    void qc.invalidateQueries({ queryKey: ["projects", projectId] });
+    void qc.invalidateQueries({ queryKey: ["sources"] });
+    void qc.invalidateQueries({ queryKey: ["source-nodes"] });
+  };
+}
+
+/** Start an import into a project, refreshing its views as the session moves. */
+export function useAddData(projectId: string | undefined) {
+  const add = useUploads((s) => s.add);
+  const refresh = useRefreshProject();
+  return (picked: Picked, targetNodeId?: string) => (projectId ? add(projectId, picked, { targetNodeId, onChanged: refresh }) : Promise.resolve(undefined));
+}
+
+/** Hidden pickers behind a split button: Files… / Folder… (`webkitdirectory`). */
+export function AddDataButton({ onPick, size = "lg", variant = "default", label = "Add data" }: { onPick: (p: Picked) => void; size?: "default" | "lg"; variant?: "default" | "outline"; label?: string }) {
+  const { files, folder, inputs } = usePickers(onPick);
+  return (
+    <>
+      {inputs}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size={size} variant={variant} data-testid="add-data">
+            <AddDataIcon /> {label} <ChevronDownIcon className="opacity-70" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={files}>Files…</DropdownMenuItem>
+          <DropdownMenuItem onSelect={folder}>
+            <FolderIcon /> Folder…
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+}
+
+/** Two hidden inputs and functions that open them. */
+export function usePickers(onPick: (p: Picked) => void) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const dirRef = useRef<HTMLInputElement>(null);
+  const take = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) onPick(fromFileList(e.target.files));
+    e.target.value = "";
+  };
+  const inputs = (
+    <>
+      <input ref={fileRef} type="file" multiple hidden onChange={take} data-testid="pick-files" />
+      <input ref={dirRef} type="file" multiple hidden onChange={take} data-testid="pick-folder" {...{ webkitdirectory: "", directory: "" }} />
+    </>
+  );
+  return { files: () => fileRef.current?.click(), folder: () => dirRef.current?.click(), inputs };
+}
+
+/**
+ * Drop anywhere on the page: a dashed `--g-line-focus` outline over the veil, naming where
+ * the files go ("Drop to add to patient_002"). `target` may change with the hovered row.
+ */
+export function DropOverlay({ onDrop, label, children, className }: { onDrop: (p: Picked) => void; label: string; children: ReactNode; className?: string }) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  return (
+    <div
+      className={cn("relative", className)}
+      onDragEnter={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        depth.current++;
+        setOver(true);
+      }}
+      onDragLeave={() => {
+        if (--depth.current <= 0) {
+          depth.current = 0;
+          setOver(false);
+        }
+      }}
+      onDragOver={(e) => {
+        if (hasFiles(e.dataTransfer)) e.preventDefault();
+      }}
+      onDrop={async (e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        depth.current = 0;
+        setOver(false);
+        onDrop(await fromDataTransfer(e.dataTransfer));
+      }}
+    >
+      {children}
+      {over && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-veil p-6" data-testid="drop-overlay">
+          <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-ring">
+            <p className="rounded-lg bg-float px-4 py-2 text-body-2 shadow-float">
+              Drop to add to <em className="font-semibold not-italic">{label}</em>
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A large drop surface (empty states, Home): drop, Browse files, Browse folder. */
+export function DropZone({ onPick, title, hint, className }: { onPick: (p: Picked) => void; title: string; hint?: ReactNode; className?: string }) {
+  const { files, folder, inputs } = usePickers(onPick);
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      className={cn("flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors", over ? "border-ring bg-selection" : "border-border-hover", className)}
+      onDragOver={(e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        setOver(true);
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={async (e) => {
+        if (!hasFiles(e.dataTransfer)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(false);
+        onPick(await fromDataTransfer(e.dataTransfer));
+      }}
+      data-testid="drop-zone"
+    >
+      {inputs}
+      <AddDataIcon className="size-8 text-hint" />
+      <p className="text-body-2 font-semibold">{title}</p>
+      {hint && <p className="max-w-md text-sm text-muted-foreground">{hint}</p>}
+      <div className="mt-1 flex flex-wrap justify-center gap-2">
+        <Button variant="outline" size="lg" onClick={files}>Browse files</Button>
+        <Button variant="outline" size="lg" onClick={folder}>
+          <FolderIcon /> Browse folder
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Mounted once by the shell: the attestation dialog, the tray and the unload warning. */
+export function UploadLayer() {
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (bytesInFlight()) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, []);
+  return (
+    <>
+      <AttestationDialog />
+      <UploadTray />
+    </>
+  );
+}
+
+/** Once per project and person, before anything uploads (todo6 §3.2). */
+function AttestationDialog() {
+  const attestation = useUploads((s) => s.attestation);
+  const answer = useUploads((s) => s.answerAttestation);
+  const [ok, setOk] = useState(false);
+  useEffect(() => setOk(false), [attestation]);
+  return (
+    <Dialog open={!!attestation} onOpenChange={(open) => !open && answer(false)}>
+      <DialogContent className="max-w-md" data-testid="attestation">
+        <DialogHeader>
+          <DialogTitle>Before these files upload</DialogTitle>
+          <DialogDescription>
+            {attestation?.count.toLocaleString()} {attestation?.count === 1 ? "file" : "files"} will be added to this project. Originals are kept exactly as they are.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex items-start gap-2.5">
+          <Checkbox id="attest" checked={ok} onCheckedChange={(v) => setOk(v === true)} />
+          <Label htmlFor="attest" className="leading-snug">
+            I'm allowed to use these files for research, and they're de-identified or synthetic.
+          </Label>
+        </div>
+        <details className="text-sm text-muted-foreground">
+          <summary className="cursor-pointer text-brand">What counts?</summary>
+          <p className="mt-2">
+            De-identified means names, record numbers, birth dates and other identifiers are removed from file contents, headers and folder names.
+            Synthetic or public research data is fine. If you're unsure, ask your data protection office first. Inkling also checks headers and names for
+            identifiers and holds what it finds for your review, but that check is a safety net, not de-identification.
+          </p>
+        </details>
+        <DialogFooter>
+          <Button variant="outline" size="lg" onClick={() => answer(false)}>Cancel</Button>
+          <Button size="lg" disabled={!ok} onClick={() => answer(true)} data-testid="attest-confirm">
+            <CheckIcon /> Upload
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function UploadTray() {
+  const sessions = useUploads((s) => s.sessions);
+  const collapsed = useUploads((s) => s.collapsed);
+  const setCollapsed = useUploads((s) => s.setCollapsed);
+  if (!sessions.length) return null;
+  return (
+    <section className="fixed bottom-4 right-4 z-50 w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-xl bg-float shadow-popup" aria-label="Uploads" data-testid="upload-tray">
+      <header className="flex h-10 items-center gap-2 border-b border-border px-3">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">Uploads</span>
+        <Button variant="ghost-secondary" size="icon" onClick={() => setCollapsed(!collapsed)} aria-label={collapsed ? "Expand uploads" : "Collapse uploads"}>
+          {collapsed ? <ChevronUpIcon /> : <ChevronDownIcon />}
+        </Button>
+      </header>
+      <ul className="thin-scrollbar max-h-[50vh] divide-y divide-border overflow-y-auto">
+        {sessions.map((s) => (
+          <TrayRow key={s.key} s={s} collapsed={collapsed} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PhaseIcon({ s }: { s: TraySession }) {
+  const bad = s.files.some((f) => f.state === "failed" || f.state === "rejected");
+  if (s.phase === "attesting") return <QueuedIcon className="size-4 text-hint" />;
+  if (s.phase === "preparing" || s.phase === "uploading" || s.phase === "checking") return <Spinner className="size-4" />;
+  if (s.phase === "failed" || bad) return <ErrorIcon className="size-4 text-danger" />;
+  if (s.phase === "cancelled") return <CloseIcon className="size-4 text-hint" />;
+  if (s.needsReview) return <WarningIcon className="size-4 text-warning" />;
+  return <DoneIcon className="size-4 text-positive" />;
+}
+
+function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
+  const retry = useUploads((x) => x.retry);
+  const cancel = useUploads((x) => x.cancel);
+  const dismiss = useUploads((x) => x.dismiss);
+  const [open, setOpen] = useState(false);
+  const failed = s.files.filter((f) => f.state === "failed" || f.state === "rejected");
+  const busy = s.phase === "preparing" || s.phase === "uploading";
+  const skipped = s.files.filter((f) => f.state === "skipped_duplicate").length;
+  return (
+    <li className="px-3 py-2.5 text-sm" data-testid="tray-session" data-phase={s.phase}>
+      <div className="flex items-center gap-2">
+        <PhaseIcon s={s} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium" title={s.title}>{s.title}</p>
+          <p className="truncate text-muted-foreground" data-testid="tray-line">{trayLine(s)}</p>
+        </div>
+        {!busy && s.phase !== "checking" && (
+          <Button variant="ghost-secondary" size="icon" onClick={() => dismiss(s.key)} aria-label="Dismiss">
+            <CloseIcon />
+          </Button>
+        )}
+      </div>
+      {!collapsed && (
+        <>
+          {(s.skippedJunk > 0 || skipped > 0) && (
+            <p className="mt-1 pl-6 text-xs text-muted-foreground">
+              {[skipped > 0 && `${skipped} already in this project`, s.skippedJunk > 0 && `${s.skippedJunk} system ${s.skippedJunk === 1 ? "file" : "files"} skipped`].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
+            {failed.length > 0 && s.importId && (
+              <Button size="sm" variant="outline" onClick={() => void retry(s.key)} data-testid="tray-retry">Retry failed</Button>
+            )}
+            {(failed.length > 0 || s.files.length > 0) && (
+              <Button size="sm" variant="ghost-secondary" onClick={() => setOpen((o) => !o)}>{open ? "Hide files" : "Show files"}</Button>
+            )}
+            {busy && <Button size="sm" variant="ghost-secondary" onClick={() => void cancel(s.key)}>Cancel</Button>}
+          </div>
+          {open && (
+            <ul className="mt-1.5 max-h-40 overflow-y-auto pl-6 text-xs" data-testid="tray-files">
+              {s.files.map((f) => (
+                <li key={f.clientFileId} className="flex gap-2 py-0.5">
+                  <span className="min-w-0 flex-1 truncate" title={f.relPath}>{f.relPath}</span>
+                  <span className={cn("shrink-0", f.state === "failed" || f.state === "rejected" ? "text-danger" : "text-muted-foreground")}>{f.reason ?? FILE_STATE[f.state]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </li>
+  );
+}
+
+const FILE_STATE: Record<string, string> = { pending: "Waiting", uploaded: "Uploaded", skipped_duplicate: "Already in this project", rejected: "Not accepted", failed: "Didn't upload" };

@@ -14,3 +14,4 @@ minimumReleaseAgeExclude:
   - "@daytona/api-client@0.227.0"
   - "@daytona/sdk@0.227.0"
   - "@daytona/toolbox-api-client@0.227.0"
+  - react-resizable-panels@4.15.3

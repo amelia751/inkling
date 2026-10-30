@@ -1,5 +1,4 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ExportIcon, FileIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
@@ -14,12 +13,13 @@ import { envOf } from "@/studio/lib/environment";
 import { labelNames } from "@studio/contracts/environment";
 import { FormatExports } from "@/studio/components/studio/FormatExports";
 import { cn } from "@studio/ui/utils";
-import { FullPageMessage, useProject } from "./shared";
+import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from "./shared";
 import { NAMING, NS, RES } from "@studio/contracts/naming";
 
 /** Download-only export for the MVP; public publishing is out of scope (ui.md §11). */
 export function ExportPage() {
-  const { datasetId = "" } = useParams();
+  const datasetId = useDatasetParam();
+  const projectId = useProjectParam();
   const { project, isLoading } = useProject(datasetId);
   const saved = useQuery({ queryKey: ["annotations", datasetId, "export"], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: 0 });
   const [rights, setRights] = useState(false);

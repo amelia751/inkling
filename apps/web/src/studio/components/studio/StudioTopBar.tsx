@@ -1,7 +1,9 @@
-import { Link } from "react-router";
+import { Link, useParams } from "react-router";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/ui/icons";
-import { DatasetSwitcher } from "@/studio/components/layout/dataset-switcher";
+import { Breadcrumbs } from "@/studio/components/layout/switchers";
+import { useCurrentProject } from "@/studio/components/layout/app-layout";
+import { datasetUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import {
@@ -46,6 +48,10 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
   const env = useStudio((s) => s.env);
   const toggleAi = useStudio((s) => s.toggleAi);
   const versioned = useVersioning((s) => s.enabled && s.datasetId === project.id);
+  // The task's project (from the route); a seed's project, dataset and task share one id.
+  const routeProject = useCurrentProject({ id: project.id, title: project.title })!;
+  const datasetId = useParams().datasetId ?? project.id;
+  const p = routeProject.id;
 
   return (
     <header className="@container flex h-12 shrink-0 items-center gap-2 border-b border-border bg-header text-foreground pl-2 pr-2 @[640px]:gap-3 @[640px]:pl-3.5 @[640px]:pr-3">
@@ -55,7 +61,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         </Button>
       )}
       <BrandMark compact className="hidden shrink-0 @[480px]:flex" />
-      <DatasetSwitcher datasetId={project.id} title={project.title} className="max-w-[min(280px,40cqw)] shrink" />
+      <Breadcrumbs project={routeProject} section={project.title} className="min-w-0 shrink [&_[data-testid=project-switcher]]:max-w-[min(240px,32cqw)]" />
       {!versioned && <Badge className="hidden @[760px]:inline-flex">Draft</Badge>}
       <VersioningControls projectId={project.id} />
       {env && <span className="hidden shrink-0 text-sm text-muted-foreground @[900px]:inline" title={env.modules.map((m) => `${m.id}@${m.version}`).join("\n")}>{envLabel(env)}</span>}
@@ -64,13 +70,13 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
       <div className="ml-auto flex shrink-0 items-center gap-1 @[640px]:gap-2">
         <div className="hidden items-center gap-2 @[480px]:flex">
           <Button variant="outline" asChild>
-            <Link to={`/datasets/${project.id}/review`} aria-label="Review dataset">
+            <Link to={projectUrl(p, "review")} aria-label="Review dataset">
               <ReviewIcon />
               <span className="hidden @[760px]:inline">Review dataset</span>
             </Link>
           </Button>
           <Button asChild>
-            <Link to={`/datasets/${project.id}/export`} aria-label="Export dataset">
+            <Link to={datasetUrl(p, datasetId, "publish")} aria-label="Export dataset">
               <ExportIcon />
               <span className="hidden @[760px]:inline">Export dataset</span>
             </Link>
@@ -100,7 +106,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost-secondary" size="icon" className="hidden @[480px]:inline-flex" asChild>
-              <Link to={`/datasets/${project.id}/plugins`} aria-label="Plugins">
+              <Link to={settingsUrl(p, "plugins")} aria-label="Plugins">
                 <ToolIcon />
               </Link>
             </Button>
@@ -116,13 +122,13 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
           <ActionTooltipContent title="Keyboard shortcuts" shortcut="showShortcuts" />
         </Tooltip>
         <ThemeSwitch className="hidden @[960px]:inline-flex" />
-        <OverflowMenu projectId={project.id} onShowShortcuts={onShowShortcuts} />
+        <OverflowMenu projectId={p} datasetId={datasetId} onShowShortcuts={onShowShortcuts} />
       </div>
     </header>
   );
 }
 
-function OverflowMenu({ projectId, onShowShortcuts }: { projectId: string; onShowShortcuts: () => void }) {
+function OverflowMenu({ projectId, datasetId, onShowShortcuts }: { projectId: string; datasetId: string; onShowShortcuts: () => void }) {
   const { preference, setPreference } = useTheme();
   // The menu renders in a portal, outside the header's container queries.
   const narrow = useWindowWidth() < 480;
@@ -137,10 +143,10 @@ function OverflowMenu({ projectId, onShowShortcuts }: { projectId: string; onSho
         {narrow && (
           <>
             <DropdownMenuItem asChild>
-              <Link to={`/datasets/${projectId}/review`}><ReviewIcon /> Review dataset</Link>
+              <Link to={projectUrl(projectId, "review")}><ReviewIcon /> Review dataset</Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to={`/datasets/${projectId}/export`}><ExportIcon /> Export dataset</Link>
+              <Link to={datasetUrl(projectId, datasetId, "publish")}><ExportIcon /> Export dataset</Link>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={onShowShortcuts}>
               <KeyboardIcon /> Keyboard shortcuts

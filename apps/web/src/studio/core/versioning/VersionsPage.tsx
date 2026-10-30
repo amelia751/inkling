@@ -8,6 +8,7 @@ import { Card } from "@studio/ui/ui/card";
 import { Input } from "@studio/ui/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@studio/ui/ui/tabs";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { studioUrl, versionReviewUrl } from "@/studio/lib/routes";
 import { useStudio } from "@/studio/stores/studio";
 import { api, type Review, type ReviewStatus } from "./api";
 import { useVersioning, versioningEnabled } from "./session";
@@ -21,7 +22,8 @@ export const STATUS_THEME: Record<ReviewStatus, "normal" | "info" | "success" | 
 
 /** Shown instead of a versioning page when the kernel has no versioning service. */
 export function VersioningOff({ children }: { children: React.ReactNode }) {
-  const { datasetId = "" } = useParams();
+  const { projectId: routeProject, datasetId = routeProject ?? "" } = useParams();
+  const projectId = routeProject ?? datasetId;
   const on = useQuery({ queryKey: ["versioning", datasetId, "enabled"], queryFn: () => versioningEnabled(datasetId), staleTime: Infinity });
   if (on.isLoading) return null;
   if (!on.data)
@@ -38,7 +40,8 @@ export function VersioningOff({ children }: { children: React.ReactNode }) {
 
 /** History (commit list + revert), reviews, and releases of a versioned dataset. */
 export function VersionsPage() {
-  const { datasetId = "" } = useParams();
+  const { projectId: routeProject, datasetId = routeProject ?? "" } = useParams();
+  const projectId = routeProject ?? datasetId;
   return (
     <VersioningOff>
       <AppLayout dataset={{ id: datasetId, title: datasetId }}>
@@ -46,7 +49,7 @@ export function VersionsPage() {
           <PageHeading
             title="Versions"
             description="Every save is a commit on your work branch. Changes reach main through a review; releases pin a commit for training and audit."
-            actions={<Button variant="outline" size="lg" asChild><Link to={`/datasets/${datasetId}`}><AnnotateIcon />Back to annotating</Link></Button>}
+            actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, datasetId)}><AnnotateIcon />Back to annotating</Link></Button>}
           />
           <Tabs defaultValue="history">
             <TabsList>
@@ -55,7 +58,7 @@ export function VersionsPage() {
               <TabsTrigger value="releases">Releases</TabsTrigger>
             </TabsList>
             <TabsContent value="history"><History datasetId={datasetId} /></TabsContent>
-            <TabsContent value="reviews"><Reviews datasetId={datasetId} /></TabsContent>
+            <TabsContent value="reviews"><Reviews datasetId={datasetId} projectId={projectId} /></TabsContent>
             <TabsContent value="releases"><Releases datasetId={datasetId} /></TabsContent>
           </Tabs>
         </div>
@@ -118,12 +121,12 @@ function History({ datasetId }: { datasetId: string }) {
   );
 }
 
-function Reviews({ datasetId }: { datasetId: string }) {
+function Reviews({ datasetId, projectId }: { datasetId: string; projectId: string }) {
   const reviews = useQuery({ queryKey: ["versioning", datasetId, "reviews"], queryFn: () => api.reviews(datasetId, datasetId) });
   return (
     <Card className="mt-4 divide-y divide-border" data-testid="review-list">
       {(reviews.data?.items ?? []).map((r: Review) => (
-        <Link key={r.id} to={`/datasets/${datasetId}/versions/reviews/${r.id}`} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm hover:bg-generic">
+        <Link key={r.id} to={versionReviewUrl(projectId, datasetId, r.id)} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm hover:bg-generic">
           <MergeIcon className="size-4 text-muted-foreground" />
           <div className="min-w-0 flex-1">
             <div className="font-medium">{r.title}</div>

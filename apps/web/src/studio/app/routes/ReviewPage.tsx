@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { DoneIcon, ExportIcon, AnnotateIcon, WarningIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
@@ -12,10 +12,12 @@ import { projectItems } from "@/studio/lib/items";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { envOf } from "@/studio/lib/environment";
 import { labelNames } from "@studio/contracts/environment";
-import { FullPageMessage, useProject } from "./shared";
+import { datasetUrl, studioUrl } from "@/studio/lib/routes";
+import { FullPageMessage, useDatasetParam, useProject, useProjectParam } from "./shared";
 
 export function ReviewPage() {
-  const { datasetId = "" } = useParams();
+  const datasetId = useDatasetParam();
+  const projectId = useProjectParam();
   const { project, isLoading } = useProject(datasetId);
   // Review what the server has, not unsaved local edits.
   const saved = useQuery({ queryKey: ["annotations", datasetId, "review"], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: 0 });
@@ -47,8 +49,8 @@ export function ReviewPage() {
           description={<>Revision {saved.data.revision}{saved.data.savedAt && ` · saved ${new Date(saved.data.savedAt).toLocaleString()}`}</>}
           actions={
             <>
-              <Button variant="outline" size="lg" asChild><Link to={`/datasets/${project.id}`}><AnnotateIcon />Continue annotating</Link></Button>
-              <Button size="lg" asChild><Link to={`/datasets/${project.id}/export`}><ExportIcon />Export dataset</Link></Button>
+              <Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, project.id)}><AnnotateIcon />Continue annotating</Link></Button>
+              <Button size="lg" asChild><Link to={datasetUrl(projectId, project.id, "publish")}><ExportIcon />Export dataset</Link></Button>
             </>
           }
         />

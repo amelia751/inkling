@@ -550,3 +550,16 @@ body {
     }
   }
 }
+
+/* Sources tree (todo6 Phase 4.2): a node revealed from elsewhere (an Overview card, an
+   attention row, an assistant link) flashes once, kiwifs's reveal retuned to Gravity. */
+@keyframes tree-reveal-flash {
+  0%, 40% { background-color: var(--g-selection-hover); }
+  100% { background-color: transparent; }
+}
+.tree-reveal-flash {
+  animation: tree-reveal-flash 1s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-reveal-flash { animation: none; background-color: var(--g-selection-hover); }
+}

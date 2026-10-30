@@ -9,6 +9,7 @@ import { RadioGroup, RadioGroupItem } from "@studio/ui/ui/radio-group";
 import { Textarea } from "@studio/ui/ui/textarea";
 import type { Annotation } from "@studio/contracts/types";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { datasetUrl } from "@/studio/lib/routes";
 import { diffPreviewFor } from "@/extension-host/trusted-renderers";
 import { api, type Conflict, type DiffChange, type Resolution, type Review } from "./api";
 import { registerBuiltinPreviews } from "./previews";
@@ -18,15 +19,16 @@ registerBuiltinPreviews();
 
 /** One review: checks, approvals, conflicts (ours / theirs / custom) and the diff by sample. */
 export function ReviewPage() {
-  const { datasetId = "", reviewId = "" } = useParams();
+  const { projectId: routeProject, datasetId = routeProject ?? "", reviewId = "" } = useParams();
+  const projectId = routeProject ?? datasetId;
   return (
     <VersioningOff>
-      <ReviewBody datasetId={datasetId} reviewId={reviewId} />
+      <ReviewBody datasetId={datasetId} projectId={projectId} reviewId={reviewId} />
     </VersioningOff>
   );
 }
 
-function ReviewBody({ datasetId, reviewId }: { datasetId: string; reviewId: string }) {
+function ReviewBody({ datasetId, projectId, reviewId }: { datasetId: string; projectId: string; reviewId: string }) {
   const qc = useQueryClient();
   const review = useQuery({
     queryKey: ["versioning", datasetId, "review", reviewId],
@@ -67,7 +69,7 @@ function ReviewBody({ datasetId, reviewId }: { datasetId: string; reviewId: stri
           }
           actions={
             <>
-              <Button variant="outline" size="lg" asChild><Link to={`/datasets/${datasetId}/versions`}><ArrowLeftIcon />Versions</Link></Button>
+              <Button variant="outline" size="lg" asChild><Link to={datasetUrl(projectId, datasetId, "versions")}><ArrowLeftIcon />Versions</Link></Button>
               {open && (
                 <Button variant="outline" size="lg" disabled={act.isPending} onClick={() => act.mutate(() => api.approve(datasetId, datasetId, r.id, r.source_oid))} data-testid="approve-review">
                   <CheckIcon /> Approve

@@ -1,8 +1,24 @@
-import { Link } from "react-router";
+import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@studio/ui/ui/button";
 import { Loader } from "@studio/ui/ui/loader";
 import { fetchAnnotations, fetchProjects } from "@/studio/lib/api";
+
+/**
+ * The seed-era pages (review, export, plugins, versions) work on one dataset/task id. Under
+ * `/projects/:projectId/…` that's the dataset or task in the path, else the project's own id
+ * (a seed's project, dataset and task share it, todo6 D2).
+ */
+export function useDatasetParam(): string {
+  const { datasetId, taskId, projectId } = useParams();
+  return datasetId ?? taskId ?? projectId ?? "";
+}
+
+/** The project a page is in (`/projects/:projectId/…`), else the dataset id (legacy routes). */
+export function useProjectParam(): string {
+  const { projectId, datasetId } = useParams();
+  return projectId ?? datasetId ?? "";
+}
 
 export function useProjects() {
   return useQuery({ queryKey: ["projects"], queryFn: fetchProjects, staleTime: Infinity });
@@ -25,7 +41,7 @@ export function FullPageMessage({ title, body, loading = false }: { title: strin
       <h1 className="text-body-2 font-semibold">{title}</h1>
       {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}
       {!loading && (
-        <Link to="/" className={buttonVariants({ variant: "outline", className: "mt-3" })}>Back to datasets</Link>
+        <Link to="/projects" className={buttonVariants({ variant: "outline", className: "mt-3" })}>Back to projects</Link>
       )}
     </div>
   );

@@ -18,7 +18,39 @@ from ..config import settings
 from ..context import RequestContext
 from ..models import PluginEvent
 
-EVENT_TYPES = {"asset.ingested", "annotations.committed", "job.succeeded", "job.failed", "plugin.activated", "plugin.disabled"}
+EVENT_TYPES = {
+    "asset.ingested",
+    "annotations.committed",
+    "job.succeeded",
+    "job.failed",
+    "plugin.activated",
+    "plugin.disabled",
+    # Dataset versioning (todo4 Phase 6): published by the kernel when it opens a review, and
+    # again whenever a head move sends a review back to CHECKING, so worker-side checks
+    # (de-identification) run for the review's current (source, target) oids.
+    "versioning.review.opened",
+    "versioning.review.checks_requested",
+}
+
+
+def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:
+    """Events of `types` that built-in `subscriber` hasn't acknowledged yet (oldest first)."""
+    from ..models import EventConsumption
+
+    done = select(EventConsumption.event_id).where(EventConsumption.subscriber == subscriber)
+    return list(db.scalars(select(PluginEvent).where(PluginEvent.type.in_(types), PluginEvent.event_id.not_in(done)).order_by(PluginEvent.created_at).limit(limit)))
+
+
+def ack(db: Session, subscriber: str, event_ids: list[str]) -> int:
+    from ..models import EventConsumption
+
+    n = 0
+    for eid in event_ids:
+        if db.get(EventConsumption, (subscriber, eid)) is None and db.get(PluginEvent, eid) is not None:
+            db.add(EventConsumption(subscriber=subscriber, event_id=eid))
+            n += 1
+    db.flush()
+    return n
 
 
 def publish(db: Session, ctx: RequestContext, type_: str, payload: dict, *, source: str, depth: int = 0, idempotency_key: str | None = None) -> PluginEvent | None:

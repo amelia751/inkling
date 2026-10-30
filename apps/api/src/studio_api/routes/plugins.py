@@ -16,7 +16,7 @@ def _ws(ctx: RequestContext, workspace_id: str) -> RequestContext:
     # Token sessions are bound to their workspace; dev header identities may address any.
     if ctx.scopes and workspace_id != ctx.workspace_id:
         raise HTTPException(403, "session is bound to another workspace")
-    return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile)
+    return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
 
 
 @router.get("/plugins")

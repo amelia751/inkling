@@ -1,0 +1,27 @@
+# Backing services for the dataset-versioning e2e flows (tests/e2e/versioning/README.md).
+# Postgres for apps/versioning's `versioning` schema, and an S3-compatible object store
+# (RustFS: MinIO-compatible, the same image apps/versioning's integration tests use).
+# Ports are offset so they don't clash with a local Postgres or object store.
+name: versioning-e2e
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: studio
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports: ["56432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d studio"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+    tmpfs: [/var/lib/postgresql/data]
+
+  objects:
+    image: rustfs/rustfs:1.0.4
+    environment:
+      RUSTFS_ACCESS_KEY: e2eaccess
+      RUSTFS_SECRET_KEY: e2esecret-123
+    ports: ["59900:9000"]

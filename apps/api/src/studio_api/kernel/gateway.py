@@ -23,6 +23,7 @@ from ..models import PluginJob
 from ..naming import canonical_id, ns
 from ..plugins import installer, policy
 from . import annotations, assets, audit, events, jobs
+from .versioning import service as versioning
 from .contracts import CAPABILITIES, normalize_result
 from .providers import mock_segment
 
@@ -111,7 +112,7 @@ def dispatch_batch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, d
         raise Denied(402, {"message": "estimated batch cost exceeds the budget", "estimateUsd": total, "budgetUsd": limit, "items": len(inputs)})
     out = []
     for i, item in enumerate(inputs):
-        sub = RequestContext(ctx.workspace_id, ctx.principal, ctx.correlation_id, f"{ctx.idempotency_key}:{i}" if ctx.idempotency_key else None, ctx.scopes, ctx.profile)
+        sub = RequestContext(ctx.workspace_id, ctx.principal, ctx.correlation_id, f"{ctx.idempotency_key}:{i}" if ctx.idempotency_key else None, ctx.scopes, ctx.profile, ctx.on_behalf_of)
         _, res = dispatch(db, sub, {**{k: v for k, v in body.items() if k != "inputs"}, "input": item}, budget_checked=True)
         out.append(res.get("job"))
     return 202, {"jobs": out, "estimateUsd": total}
@@ -119,6 +120,14 @@ def dispatch_batch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, d
 
 def dispatch(db: Session, ctx: RequestContext, body: dict, *, budget_checked: bool = False) -> tuple[int, dict]:
     """Returns (HTTP status, body): 200 with the result for inline runs, 202 with a job for worker runs."""
+    # Built-in kernel commands (dataset versioning) run in the kernel itself, before plugin
+    # resolution; every other id still resolves to an active plugin exactly as before.
+    builtin = canonical_id(str(body.get("tool") or ""))
+    if builtin in versioning.COMMANDS:
+        raw = body.get("input") or {}
+        if not isinstance(raw, dict):
+            raise HTTPException(422, "input must be an object")
+        return versioning.command(db, ctx, builtin, raw)
     if "inputs" in body:
         return dispatch_batch(db, ctx, body)
     plugin_id, version, manifest, tool, capability = _resolve(db, ctx, body)

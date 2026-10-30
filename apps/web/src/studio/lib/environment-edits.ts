@@ -1,5 +1,5 @@
 import { createPatch } from "rfc6902";
-import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";

@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { type StudioHostState, type ToolId, type ToolOptions } from "@studio/plugin-ui-sdk/host";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import type { ResolvedEnv } from "@/extension-host/resolve";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 
 export type { SaveState, Tool, ToolId, ToolOptions } from "@studio/plugin-ui-sdk/host";
 export { brushSizeOf, isEditable, LOCAL_AUTHOR, newAnnotation, toolOption, useToolOption, visibleFor } from "@studio/plugin-ui-sdk/host";

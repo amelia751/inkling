@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { PX_PER_MM } from "./renderer/layout";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * Screen calibration for true paper scale.

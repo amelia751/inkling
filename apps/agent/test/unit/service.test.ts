@@ -10,8 +10,8 @@ import {
 } from "@studio/observability-ts";
 import { afterEach, describe, expect, it } from "vitest";
 import { INTERRUPTED_MESSAGE } from "../../src/cluster/coordinator.ts";
-import { ConfigError, loadConfig } from "../../src/config.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import { ConfigError, envName, loadConfig, withPrefix } from "../../src/config.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { ENV_TOOLS, harness, snapshot } from "./harness.ts";
 
 type H = Awaited<ReturnType<typeof harness>>;
@@ -51,23 +51,23 @@ describe("service conventions", () => {
   it("config errors name the keys, never the values", () => {
     const fail = (env: Record<string, string>) => {
       try {
-        loadConfig({ APP_ENV: "test", AGENT_MODEL: "scripted", ...env });
+        loadConfig(withPrefix({ ENV: "test", AGENT_MODEL: "scripted", ...env }));
       } catch (err) {
         expect(err).toBeInstanceOf(ConfigError);
         return (err as Error).message;
       }
       throw new Error("expected a ConfigError");
     };
-    expect(fail({ AGENT_STORE: "postgres", AGENT_EVENT_BUS: "redis" })).toBe("missing required settings: AGENT_DATABASE_URL, AGENT_REDIS_URL");
+    expect(fail({ AGENT_STORE: "postgres", AGENT_EVENT_BUS: "redis" })).toBe(`missing required settings: ${envName("AGENT_DATABASE_URL")}, ${envName("AGENT_REDIS_URL")}`);
     const msg = fail({ AGENT_EVENT_BUS: "kafka-sk-supersecretvalue", AGENT_PORT: "sk-another-secret" });
     expect(msg).toContain("AGENT_EVENT_BUS");
     expect(msg).toContain("AGENT_PORT");
     expect(msg).not.toContain("supersecret");
     expect(msg).not.toContain("another-secret");
-    const { config } = loadConfig({ APP_ENV: "test", AGENT_MODEL: "scripted", SWEEPER_ENABLED: "false", AGENT_HOST: "0.0.0.0" });
+    const { config } = loadConfig(withPrefix({ ENV: "test", AGENT_MODEL: "scripted", AGENT_SWEEPER_ENABLED: "false", AGENT_HOST: "0.0.0.0" }));
     expect(config.sweeperEnabled).toBe(false);
     expect(config.host).toBe("0.0.0.0");
-    expect(loadConfig({ APP_ENV: "test", AGENT_MODEL: "scripted" }).config.sweeperEnabled).toBe(true);
+    expect(loadConfig(withPrefix({ ENV: "test", AGENT_MODEL: "scripted" })).config.sweeperEnabled).toBe(true);
   });
 });
 

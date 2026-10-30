@@ -1,8 +1,8 @@
-import { FileIcon, type IconComponent } from "@studio/studio-ui/icons";
+import { FileIcon, type IconComponent } from "@studio/ui/icons";
 import { registry } from "@/extension-host/registry";
 import { normalizeProject } from "./api";
 import { resolveEnvironment, type ResolvedEnv, type ResolveResult } from "@/extension-host/resolve";
-import type { Project } from "@studio/plugin-contracts/types";
+import type { Project } from "@studio/contracts/types";
 
 /**
  * The shell's bridge from a project to its environment. Resolution is pure and cheap, so

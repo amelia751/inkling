@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { NAMING } from "../../src/naming.ts";
 import { type SweepCandidate, planReclaim, planSweep } from "../../src/sandbox/sweeper.ts";
+
+const RES = NAMING.resourcePrefix;
 
 const NOW = Date.parse("2026-10-29T12:00:00Z");
 const ago = (min: number) => new Date(NOW - min * 60_000).toISOString();
@@ -7,7 +10,7 @@ const sb = (id: string, o: Partial<SweepCandidate> & { session?: string; app?: s
   id,
   name: id,
   state: o.state ?? "started",
-  labels: { app: o.app ?? "inkling", env: o.env ?? "test", session: o.session ?? id },
+  labels: { app: o.app ?? `${RES}`, env: o.env ?? "test", session: o.session ?? id },
   createdAt: o.createdAt ?? ago(60),
   lastActivityAt: o.lastActivityAt ?? ago(60),
 });

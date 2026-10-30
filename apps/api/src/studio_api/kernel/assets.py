@@ -50,7 +50,7 @@ MEDIA_TYPES = [
 
 
 def media_type_of(path: str) -> str:
-    """Same table as packages/plugin-contracts/src/media-types.ts."""
+    """Same table as packages/contracts/src/media-types.ts."""
     p = path.lower()
     for ext, t in MEDIA_TYPES:
         if p.endswith(ext):

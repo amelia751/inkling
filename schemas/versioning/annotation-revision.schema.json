@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "annotation-revision.schema.json",
   "title": "AnnotationRevision",
-  "description": "Immutable annotation revision (versioning.md §3.3, todo4 2.1), stored as canonical JSON and referenced by content hash. Generated from packages/plugin-contracts/src/annotation-revision.ts by `pnpm emit:schemas`; do not edit.",
+  "description": "Immutable annotation revision (versioning.md §3.3, todo4 2.1), stored as canonical JSON and referenced by content hash. Generated from packages/contracts/src/annotation-revision.ts by `pnpm emit:schemas`; do not edit.",
   "type": "object",
   "properties": {
     "schema_version": {

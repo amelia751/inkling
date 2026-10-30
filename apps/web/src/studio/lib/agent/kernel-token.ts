@@ -1,5 +1,5 @@
 import { apiUrl } from "@/extension-host/runtime-config";
-import type { ProfileName } from "./protocol";
+import type { ProfileName } from "@studio/agent-protocol";
 
 /**
  * Kernel session tokens for the builder and task agent profiles (docs/plugins.md §8). The Studio,

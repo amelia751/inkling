@@ -3,9 +3,9 @@ import * as z from "zod";
 import Form from "@rjsf/core";
 import validator from "@rjsf/validator-ajv8";
 import type { RJSFSchema } from "@rjsf/utils";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@studio/studio-ui/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
 import { diffSpecs, patchEnvironment } from "@/studio/lib/environment-edits";
-import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
 import type { EnvError, ResolvedEnv } from "@/extension-host/resolve";
 import { LOCAL_AUTHOR } from "@/studio/stores/studio";
 

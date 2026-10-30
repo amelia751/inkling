@@ -10,11 +10,11 @@ import {
   RotateRightIcon,
   SearchIcon,
   type IconComponent,
-} from "@studio/studio-ui/icons";
-import { Button } from "@studio/studio-ui/ui/button";
-import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/studio-ui/ui/tooltip";
-import { cn } from "@studio/studio-ui/utils";
-import { formatCombo } from "@studio/studio-ui/keys";
+} from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
+import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
+import { cn } from "@studio/ui/utils";
+import { formatCombo } from "@studio/ui/keys";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { COMMANDS, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";

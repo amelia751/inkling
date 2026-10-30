@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fails when a real Secret could be committed under infra/ (todo/todo3.md D.4):
+// Fails when a real Secret could be committed under infra/ (todo/done/todo3.md D.4):
 //   1. any YAML document with `kind: Secret` that carries `data:` or `stringData:`;
 //   2. a kustomize secretGenerator literal whose key looks sensitive (password, secret, token,
 //      key, or a URL with credentials) but whose value isn't a marked dev placeholder

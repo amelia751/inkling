@@ -19,7 +19,7 @@ capabilities:
     mediaTypes: [image/png, image/jpeg, image/webp]
 runtime:
   kind: python-worker
-  entrypoint: segmentation_plugin.tools:register
+  entrypoint: studio_plugin_segmentation.tools:register
   maxExecutionSeconds: 180
   concurrency: 4
 providers:

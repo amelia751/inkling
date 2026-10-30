@@ -1,4 +1,4 @@
-"""JobQueue + EventBus (todo/todo3.md E.2): one job is leased by exactly one claimer, killed
+"""JobQueue + EventBus (todo/done/todo3.md E.2): one job is leased by exactly one claimer, killed
 workers' jobs come back, and the Redis ready list mirrors the claimable jobs (KEDA scales on
 its length). Postgres runs with `<envPrefix>TEST_DATABASE_URL`, Redis with `<envPrefix>TEST_REDIS_URL`."""
 
@@ -14,7 +14,7 @@ from studio_api import db as dbm
 from studio_api import redis_client
 from studio_api.kernel import queue
 from studio_api.models import PluginEvent, PluginJob
-from studio_api.naming import env
+from studio_api.config import env
 
 from .conftest import mask_result, run_worker_once, worker_headers, ws
 from .test_installer_flow import install

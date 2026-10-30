@@ -4,15 +4,15 @@
  * server-side validation uses exactly the client's modules and resolver.
  */
 import * as z from "zod";
-import { imageSegment } from "@studio/plugin-contracts/capabilities";
-import { annotationRevisionJsonSchema } from "@studio/plugin-contracts/annotation-revision";
-import { NAMING } from "@studio/plugin-contracts/naming";
-import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
-import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
-import { WorkspaceState } from "@studio/plugin-contracts/workspace";
+import { imageSegment } from "@studio/contracts/capabilities";
+import { annotationRevisionJsonSchema } from "@studio/contracts/annotation-revision";
+import { NAMING } from "@studio/contracts/naming";
+import { PluginManifest } from "@studio/contracts/plugin-manifest";
+import { UiContributions } from "@studio/contracts/ui-contributions";
+import { WorkspaceState } from "@studio/contracts/workspace";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
-import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError } from "@/extension-host/resolve";
@@ -47,7 +47,7 @@ export function patch(spec: EnvironmentSpec, ops: JsonPatchOperation[]): Validat
   return validate(p.spec);
 }
 
-export { NAMING, envVar } from "@studio/plugin-contracts/naming";
+export { NAMING, envVar } from "@studio/contracts/naming";
 
 /**
  * JSON Schemas of the shared contracts (todo2 §2.1), the source the Python kernel generates

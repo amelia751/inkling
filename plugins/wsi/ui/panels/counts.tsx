@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { regionArea, regionOf } from "@studio/studio-renderers/overlay2d/regions";
+import { regionArea, regionOf } from "@studio/renderers/overlay2d/regions";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { countPoints } from "../measure";

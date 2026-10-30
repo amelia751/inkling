@@ -2,10 +2,13 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ConfigError, describeSecrets, loadConfig } from "../../src/config.ts";
+import { ConfigError, describeSecrets, loadConfig, withPrefix } from "../../src/config.ts";
 import { createParams, sandboxLabels, sandboxName } from "../../src/sandbox/defaults.ts";
 import { snapshotName } from "../../src/sandbox/snapshot.ts";
 import { loadDevSecrets, maskSecret, parseEnvFile } from "../../src/secrets.ts";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 describe("secrets", () => {
   it("parses env files", () => {
@@ -18,12 +21,12 @@ describe("secrets", () => {
   });
 
   it("never overrides the real environment and skips production", () => {
-    const dir = mkdtempSync(join(tmpdir(), "inkling-secrets-"));
+    const dir = mkdtempSync(join(tmpdir(), `${RES}-secrets-`));
     writeFileSync(join(dir, "a.env"), "KEEP=file\nNEW=file\n");
     const env: NodeJS.ProcessEnv = { KEEP: "real" };
     expect(loadDevSecrets(env, dir)).toEqual(["NEW"]);
     expect(env).toMatchObject({ KEEP: "real", NEW: "file" });
-    const prod: NodeJS.ProcessEnv = { APP_ENV: "production" };
+    const prod = withPrefix({ ENV: "production" });
     expect(loadDevSecrets(prod, dir)).toEqual([]);
     expect(prod.NEW).toBeUndefined();
   });
@@ -36,21 +39,21 @@ describe("secrets", () => {
 
 describe("config", () => {
   it("fails closed in production when keys are missing", () => {
-    expect(() => loadConfig({ APP_ENV: "production" })).toThrow(ConfigError);
+    expect(() => loadConfig(withPrefix({ ENV: "production" }))).toThrow(ConfigError);
   });
 
   it("only warns in dev", () => {
-    const { config, warnings } = loadConfig({});
+    const { config, warnings } = loadConfig(withPrefix({}));
     expect(config.daytona).toBeUndefined();
     expect(warnings[0]).toMatch(/DAYTONA_API_KEY/);
   });
 
   it("rejects models outside the allowlist", () => {
-    expect(() => loadConfig({ AGENT_MODEL: "openai:o1-pro" })).toThrow(/ALLOWLIST/);
+    expect(() => loadConfig(withPrefix({ AGENT_MODEL: "openai:o1-pro" }))).toThrow(/ALLOWLIST/);
   });
 
   it("describeSecrets never prints values", () => {
-    const { config } = loadConfig({ DAYTONA_API_KEY: "dtn_supersecretvalue5a3", OPENAI_API_KEY: "sk-abcdefDkA" });
+    const { config } = loadConfig(withPrefix({ DAYTONA_API_KEY: "dtn_supersecretvalue5a3", OPENAI_API_KEY: "sk-abcdefDkA" }));
     const line = describeSecrets(config);
     expect(line).not.toContain("supersecret");
     expect(line).toContain("daytona=set …5a3");
@@ -58,16 +61,16 @@ describe("config", () => {
 });
 
 describe("sandbox defaults", () => {
-  const { config } = loadConfig({ APP_ENV: "test", DAYTONA_API_KEY: "k" });
+  const { config } = loadConfig(withPrefix({ ENV: "test", DAYTONA_API_KEY: "k" }));
   const who = { sessionId: "S_1/x", projectId: "p 1", owner: "me@x.com", profile: "coder" };
 
   it("names are deterministic and DNS-safe", () => {
-    expect(sandboxName("test", "S_1/x")).toBe("inkling-test-s-1-x");
+    expect(sandboxName("test", "S_1/x")).toBe(`${RES}-test-s-1-x`);
     expect(sandboxName("development", "a".repeat(100)).length).toBeLessThanOrEqual(63);
   });
 
   it("labels carry the sweep keys with a safe charset", () => {
-    expect(sandboxLabels("test", who)).toEqual({ app: "inkling", env: "test", session: "S_1_x", project: "p_1", owner: "me_x.com", profile: "coder" });
+    expect(sandboxLabels("test", who)).toEqual({ app: RES, env: "test", session: "S_1_x", project: "p_1", owner: "me_x.com", profile: "coder" });
   });
 
   it("private, lifecycle-bounded, no egress overrides unless the tier allows it", () => {
@@ -89,6 +92,6 @@ describe("snapshot name", () => {
     expect(snapshotName("numpy==2.5.4")).toBe(a);
     expect(snapshotName("numpy==2.5.4\r\n")).toBe(a);
     expect(snapshotName("numpy==2.5.5")).not.toBe(a);
-    expect(a).toMatch(/^inkling-agent-[0-9a-f]{12}$/);
+    expect(a).toMatch(new RegExp(`^${RES}-agent-[0-9a-f]{12}$`));
   });
 });

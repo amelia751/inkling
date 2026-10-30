@@ -336,7 +336,7 @@ wheels = [
 ]
 
 [[package]]
-name = "segmentation-plugin"
+name = "studio-plugin-segmentation"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
@@ -354,7 +354,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.28" },
-    { name = "studio-plugin-sdk", directory = "../../packages/plugin-sdk-py" },
+    { name = "studio-plugin-sdk", directory = "../../packages/plugin-sdk" },
 ]
 
 [package.metadata.requires-dev]
@@ -367,7 +367,7 @@ dev = [
 [[package]]
 name = "studio-plugin-sdk"
 version = "0.1.0"
-source = { directory = "../../packages/plugin-sdk-py" }
+source = { directory = "../../packages/plugin-sdk" }
 dependencies = [
     { name = "httpx" },
 ]

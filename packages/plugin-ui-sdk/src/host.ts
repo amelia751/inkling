@@ -1,10 +1,10 @@
 import { createContext, createElement, useContext, useSyncExternalStore, type ReactNode } from "react";
-import type { Annotation } from "@studio/plugin-contracts";
+import type { Annotation } from "@studio/contracts";
 import type { InspectContext } from "./module";
 import type { EnvError, ResolvedCommand, ResolvedEnv, ResolveResult } from "./resolved";
 
 /**
- * The host API (todo/todo2.md §1.6): everything a plugin's UI may ask of the Studio. A
+ * The host API (todo/done/todo2.md §1.6): everything a plugin's UI may ask of the Studio. A
  * plugin never imports `apps/web` internals; it calls `useHost(selector)` for state and
  * actions, `useHost.getState()` / `useHost.subscribe()` outside React, and the functions
  * below for commands, geometry descriptions, environment resolution and asset URLs.

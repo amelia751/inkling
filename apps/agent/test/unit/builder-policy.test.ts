@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { PROFILES } from "../../src/agent/profiles.ts";
 import { ns } from "../../src/naming.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { KernelClient, PLUGIN_DIR, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, parseSandboxChecks, scaffoldFromTemplate, untrusted } from "../../src/tools/kernel.ts";
 import { type Budgets, type PolicyState, confined, decide } from "../../src/tools/policy.ts";
 import { FakeSandbox } from "./fake-sandbox.ts";
@@ -113,7 +113,7 @@ const toolNames = async (hh: H, id: string) => (await hh.sessions.get(id)).piSes
 
 async function start(profile: "builder" | "task", text: string, onEvent: (e: AgentEvent) => void | Promise<void> = () => {}) {
   k = await fakeKernel();
-  h = await harness(FIXTURE, { AGENT_KERNEL_URL: k.url });
+  h = await harness(FIXTURE, { API_URL: k.url });
   const s = await h.json("POST", "/v1/sessions", { projectId: "demo", profile, clientTools: profile === "builder" ? ENV_TOOLS.filter((t) => t.name !== "run_command") : [], kernelToken: KTOKEN });
   expect(s.status).toBe(201);
   const r = await h.json("POST", `/v1/sessions/${s.body.sessionId}/messages`, { text });
@@ -159,7 +159,7 @@ describe("builder policy (pure)", () => {
 describe("profiles keep builder and task permissions apart", () => {
   it("builder gets kernel builder tools and no data-plane writes; task the opposite", async () => {
     k = await fakeKernel();
-    h = await harness(FIXTURE, { AGENT_KERNEL_URL: k.url });
+    h = await harness(FIXTURE, { API_URL: k.url });
     const b = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "builder", clientTools: ENV_TOOLS.filter((t) => t.name !== "run_command"), kernelToken: KTOKEN });
     const t = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "task", kernelToken: KTOKEN });
     const bt = await toolNames(h, b.body.sessionId);

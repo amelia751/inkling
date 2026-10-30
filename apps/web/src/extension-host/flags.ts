@@ -1,4 +1,4 @@
-import { RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/contracts/naming";
 import { runtimeConfig } from "./runtime-config";
 /**
  * Feature flags for experimental surfaces (docs/modules.md, safety tiers). Read once at

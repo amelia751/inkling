@@ -6,15 +6,24 @@ Local development secrets. Everything in this folder is git-ignored except this 
 |---|---|---|
 | `daytona.env` | `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET` | `apps/agent` sandboxes |
 | `models.env` | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | `apps/agent` model runtime |
-| `agent.env` | `INTERNAL_AGENT_SERVICE_TOKEN` | Vite proxy → `apps/agent` bearer auth (generated on first start if missing; the proxy reads it too) |
+| `agent.env` | `INKLING_AGENT_TOKEN` | Vite proxy → `apps/agent` bearer auth (generated on first start if missing; the proxy reads it too) |
 | `versioning.env` | `VERSIONING_*` (with the naming config's env prefix), see `versioning.env.example` | `apps/versioning`: Postgres role, object-store endpoint and bucket credentials, JWT public key |
 
-How it's loaded: `apps/agent/src/secrets.ts` reads every `secrets/*.env` (`KEY=VALUE`, `#` comments) when `APP_ENV` is not `production`, and **never overrides** a variable already set in the real environment. Production reads only the real environment or a secret manager.
+How it's loaded: `apps/agent/src/secrets.ts` reads every `secrets/*.env` (`KEY=VALUE`, `#` comments) when `INKLING_ENV` is not `production`, and **never overrides** a variable already set in the real environment. Production reads only the real environment or a secret manager.
+
+Env-var names (one scheme for every service; `INKLING_` is the naming config's `envPrefix`):
+
+- `INKLING_<ROLE>_<KEY>` for a setting a service owns (`INKLING_AGENT_MODEL`, `INKLING_API_DATABASE_URL`, `INKLING_WORKER_PLUGINS`, `INKLING_VERSIONING_DATABASE_URL`);
+- `INKLING_<ROLE>_URL` / `INKLING_<ROLE>_TOKEN` for how other services reach it (`INKLING_API_URL`, `INKLING_AGENT_URL`, `INKLING_AGENT_TOKEN`);
+- `INKLING_ENV` (`development|test|production`) and `INKLING_LOG_LEVEL` / `INKLING_LOG_FORMAT`, shared by every service;
+- unprefixed only for third-party standards (`DAYTONA_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `AWS_*`, `OTEL_*`) and `NAMING_FILE`, which can't carry the prefix because the prefix is read from it.
+
+Each service reads them in one module (its `config`), checked by `node tools/check-names.mjs`. After a rename, `node tools/migrate-env.mjs` rewrites the key names in your local `secrets/*.env` in place (it never prints values).
 
 Rules:
 
 - Never commit, paste, or log values. Logs show only which keys are present and their last 3 characters.
 - Never pass these into a sandbox (`envVars`). Sandbox code that needs a credential uses Daytona Secrets, which only expose a placeholder inside the sandbox.
-- Rotate the Daytona key in the Daytona dashboard (Keys), then update `daytona.env`. The current key was copied from `jetrun/kiwi/cloud/.env.local`; rotating it affects that project too.
+- Rotate the Daytona key in the Daytona dashboard (Keys), then update `daytona.env`.
 
-To run without sandboxes even though `daytona.env` exists, start the service with `AGENT_SANDBOX=off`. A value exported as an empty string does not block a key from these files.
+To run without sandboxes even though `daytona.env` exists, start the service with `INKLING_AGENT_SANDBOX=off`. A value exported as an empty string does not block a key from these files.

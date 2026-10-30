@@ -1,12 +1,12 @@
 import * as z from "zod";
-import { WaveformIcon } from "@studio/studio-ui/icons";
-import { tool } from "@studio/studio-renderers/tool-catalog";
+import { WaveformIcon } from "@studio/ui/icons";
+import { tool } from "@studio/renderers/tool-catalog";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { MeasurementsConfigSchema, StripChartConfigSchema, TIMESERIES } from "./config";
 import { geometries } from "./geometries";
 import { WfdbExportConfigSchema } from "./wfdbCodes";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 export { TIMESERIES } from "./config";
 const ON_STRIP = `renderer == ${TIMESERIES}.renderers.strip-chart`;

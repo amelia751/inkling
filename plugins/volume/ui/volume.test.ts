@@ -3,14 +3,14 @@ import "@/extension-host/bundled";
 import { describeGeometry } from "@/extension-host/describe";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
-import { migrateAnnotation } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
+import { migrateAnnotation } from "@studio/contracts/migrations/annotations-v1-to-v2";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 import { cellsFor, gridClass, mprConfig, mprConfigSchema } from "./config";
 import { groupItems, initialSource, referenceAsset, volumeSources } from "./dataKind";
 import { labelmapNifti, masksJsonDocument } from "./exporters";
 import { describeLandmark, point3dSchema } from "./geometries";
 import { labelIndexForValue, labelValue } from "./labelValues";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const asset = (path: string, extra: Record<string, string> = {}) => ({ path, sha256: "", bytes: 0, ...extra });
 const brats = {

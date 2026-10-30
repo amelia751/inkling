@@ -1,6 +1,6 @@
-import { activePluginIds, WorkspaceState, type WorkspaceState as WorkspaceStateT } from "@studio/plugin-contracts/workspace";
-import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
-import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
+import { activePluginIds, WorkspaceState, type WorkspaceState as WorkspaceStateT } from "@studio/contracts/workspace";
+import { PluginManifest } from "@studio/contracts/plugin-manifest";
+import { UiContributions } from "@studio/contracts/ui-contributions";
 import { declarativeModule } from "./contributions-loader";
 import { registry, type ActivationResult } from "./registry";
 import { apiUrl } from "./runtime-config";

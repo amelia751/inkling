@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * Contract between the Cornerstone stack renderer and its viewport-bar panel. The renderer

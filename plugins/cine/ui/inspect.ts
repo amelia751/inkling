@@ -1,4 +1,4 @@
-import { rleForeground } from "@studio/studio-renderers/overlay2d/geometry";
+import { rleForeground } from "@studio/renderers/overlay2d/geometry";
 import type { InspectFn } from "@studio/plugin-ui-sdk/module";
 import { cellKey, groupCells, isContour, isMask, isPhase, myoArea, perimeterMm, ringArea, type Grid } from "./model";
 import { cineConfig, RUNTIME, structuresOf } from "./public";

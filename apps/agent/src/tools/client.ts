@@ -1,7 +1,7 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { CARD_TOOLS } from "../agent/profiles.ts";
-import type { ClientToolResultRequest, ClientToolSpec } from "../protocol.ts";
+import type { ClientToolResultRequest, ClientToolSpec } from "@studio/agent-protocol";
 
 export class ClientToolError extends Error {
   override name = "ClientToolError";

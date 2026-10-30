@@ -1,19 +1,19 @@
 import { Enums as CoreEnums, type RenderingEngine, cache, imageLoader, utilities as csUtils, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
-import { labelNames } from "@studio/plugin-contracts/environment";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
-import { CornerstoneBridge, type LabelmapAccess } from "@studio/studio-renderers/cornerstone/bridge";
-import { loadDicomSeries, modalityOf, pixelSpacingOf } from "@studio/studio-renderers/cornerstone/dicom";
-import { absoluteUrl, ensureCornerstone, ensureDicom, getRenderingEngine } from "@studio/studio-renderers/cornerstone/init";
-import { exposeForTests } from "@studio/studio-renderers/cornerstone/interactions";
-import { confidenceConnected, floodFill2D, removeIslands } from "@studio/studio-renderers/cornerstone/regionOps";
-import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@studio/studio-renderers/cornerstone/toolGroup";
-import { flip, fullRange, getInvert, getVoi, percentileVoi, resetView, rotate, setColormap, setInterpolation, setInvert, setVoi, wlToRange, type VoiRange } from "@studio/studio-renderers/cornerstone/viewControls";
-import { webImageId } from "@studio/studio-renderers/cornerstone/webImageLoader";
-import { releaseFocusAfterPointer } from "@studio/studio-renderers/viewport-chrome/bar";
+import { labelNames } from "@studio/contracts/environment";
+import type { Project, StudioItem } from "@studio/contracts/types";
+import { CornerstoneBridge, type LabelmapAccess } from "@studio/renderers/cornerstone/bridge";
+import { loadDicomSeries, modalityOf, pixelSpacingOf } from "@studio/renderers/cornerstone/dicom";
+import { absoluteUrl, ensureCornerstone, ensureDicom, getRenderingEngine } from "@studio/renderers/cornerstone/init";
+import { exposeForTests } from "@studio/renderers/cornerstone/interactions";
+import { confidenceConnected, floodFill2D, removeIslands } from "@studio/renderers/cornerstone/regionOps";
+import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@studio/renderers/cornerstone/toolGroup";
+import { flip, fullRange, getInvert, getVoi, percentileVoi, resetView, rotate, setColormap, setInterpolation, setInvert, setVoi, wlToRange, type VoiRange } from "@studio/renderers/cornerstone/viewControls";
+import { webImageId } from "@studio/renderers/cornerstone/webImageLoader";
+import { releaseFocusAfterPointer } from "@studio/renderers/viewport-chrome/bar";
 import type { StackConfig, WandMode } from "../view";
 import { imageConverter } from "./convert";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import { NAMING, RES } from "@studio/contracts/naming";
 import { assetUrl, useHost } from "@studio/plugin-ui-sdk";
 
 const { SegmentationRepresentations } = tools.Enums;
@@ -285,7 +285,7 @@ export class CornerstoneStackEngine {
     };
     this.status = "ready";
     this.o.onChange();
-    exposeForTests(`__inkling2d`, {
+    exposeForTests(`__${RES}2d`, {
       viewport: () => engine.getViewport(ids.viewport),
       imageId,
       props: () => {
@@ -304,7 +304,7 @@ export class CornerstoneStackEngine {
   dispose(): void {
     this.cancelled = true;
     if (this.frame) cancelAnimationFrame(this.frame);
-    exposeForTests(`__inkling2d`, null);
+    exposeForTests(`__${RES}2d`, null);
     const s = this.session;
     this.session = null;
     if (s) {

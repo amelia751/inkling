@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { ENV_TOOLS, TOKEN, harness, snapshot } from "./harness.ts";
+import { NAMING } from "../../src/naming.ts";
 
 type H = Awaited<ReturnType<typeof harness>>;
 let h: H | undefined;
@@ -21,7 +22,7 @@ const FIXTURE = {
         { text: "Added a mitosis class." },
       ],
     },
-    { when: "run beats", turns: [{ toolCalls: [{ name: "run_command", arguments: { id: "inkling.timeseries.commands.detectBeats" } }] }, { text: "Command finished." }] },
+    { when: "run beats", turns: [{ toolCalls: [{ name: "run_command", arguments: { id: `${NAMING.namespace}.timeseries.commands.detectBeats` } }] }, { text: "Command finished." }] },
     { when: "overview", turns: [{ toolCalls: [{ name: "dataset_overview" }, { name: "run_validation" }] }, { text: "Two items, one pending AI suggestion." }] },
     { when: "other project", turns: [{ toolCalls: [{ name: "list_items", arguments: { filter: "all", projectId: "someone-else" } }] }, { text: "ok" }] },
     { when: "cards", turns: [{ toolCalls: [{ name: "show_items", arguments: { title: "Todo", itemIds: ["b.jpeg"] } }] }, { text: "Here they are." }] },

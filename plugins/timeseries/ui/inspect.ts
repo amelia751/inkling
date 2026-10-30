@@ -1,5 +1,5 @@
 import type { InspectFn } from "@studio/plugin-ui-sdk/module";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { codeName, measurementsConfig, statementsOf, stripConfig, type StripChartConfig } from "./config";
 import { channelOf, codeOf, kindOf, peakOf, rangeOf, rhythmOf, waveOf } from "./model";
 import type { RecordInfo } from "./readers";

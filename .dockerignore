@@ -1,4 +1,4 @@
-# Build context = repo root for every apps/<app>/Dockerfile (todo/todo3.md D.1).
+# Build context = repo root for every apps/<app>/Dockerfile (todo/done/todo3.md D.1).
 # Keep it small: dependencies are installed inside the image, never copied from the host.
 .git
 .github

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { DarkThemeIcon, LightThemeIcon, SystemThemeIcon } from "@studio/studio-ui/icons";
-import { SegmentedControl } from "@studio/studio-ui/ui/segmented-control";
+import { DarkThemeIcon, LightThemeIcon, SystemThemeIcon } from "@studio/ui/icons";
+import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { useTheme, type ThemePreference } from "@/studio/lib/theme";
 
 const OPTIONS = [

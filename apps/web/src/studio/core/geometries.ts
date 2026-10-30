@@ -1,5 +1,5 @@
 import type { GeometryContribution, Space } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 
 /** Core geometries: domain-neutral shapes every module can create, plus their one-line descriptions. */
 

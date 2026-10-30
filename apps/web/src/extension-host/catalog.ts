@@ -1,8 +1,8 @@
 import * as z from "zod";
-import { EnvironmentSpecSchema } from "@studio/plugin-contracts/environment";
+import { EnvironmentSpecSchema } from "@studio/contracts/environment";
 import { CONTRIBUTION_TYPES, type ContributionType } from "@studio/plugin-ui-sdk/module";
 import type { Registered, Registry } from "./registry";
-import { NAMING, ns } from "@studio/plugin-contracts/naming";
+import { NAMING, ns } from "@studio/contracts/naming";
 
 /**
  * The agent's view of what can be composed (kiwifs `kiwi_widget_reference` style): every

@@ -1,7 +1,7 @@
 import type * as z from "zod";
-import { canonicalDoc } from "@studio/plugin-contracts/naming";
-import { EnvironmentSpecSchema, labelClasses, type EnvironmentSpec, type LabelGroup, type ViewportSpec } from "@studio/plugin-contracts/environment";
-import { normalizeCombo } from "@studio/studio-ui/keys";
+import { canonicalDoc } from "@studio/contracts/naming";
+import { EnvironmentSpecSchema, labelClasses, type EnvironmentSpec, type LabelGroup, type ViewportSpec } from "@studio/contracts/environment";
+import { normalizeCombo } from "@studio/ui/keys";
 import type { EnvError, ResolvedCommand, ResolvedEnv, ResolvedViewport, ResolveResult } from "@studio/plugin-ui-sdk/resolved";
 import type { ContributionType, PanelSlot } from "@studio/plugin-ui-sdk/module";
 import type { Registered, Registry } from "./registry";

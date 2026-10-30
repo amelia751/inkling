@@ -1,0 +1,19 @@
+{
+  "name": "@studio/plugin-dicom-export",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "First-party plugin: see plugin.yaml and README.md",
+  "exports": {
+    "./*": "./ui/*"
+  },
+  "dependencies": {
+    "@cornerstonejs/adapters": "5.14.0",
+    "@cornerstonejs/core": "5.14.0",
+    "@cornerstonejs/metadata": "5.14.0",
+    "@cornerstonejs/utils": "5.14.0",
+    "@kitware/vtk.js": "36.4.1",
+    "dicom-parser": "1.8.21",
+    "gl-matrix": "3.4.3"
+  }
+}

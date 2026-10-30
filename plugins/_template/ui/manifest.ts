@@ -1,8 +1,8 @@
 import * as z from "zod";
-import { FileIcon, KeypointIcon } from "@studio/studio-ui/icons";
+import { FileIcon, KeypointIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
-import { ns } from "@studio/plugin-contracts/naming";
+import type { Project, StudioItem } from "@studio/contracts/types";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * Copy this folder to start a module (AGENTS.md). Rename `example` everywhere, keep the

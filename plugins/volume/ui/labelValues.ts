@@ -1,5 +1,5 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
-import type { Project } from "@studio/plugin-contracts/types";
+import { labelNames } from "@studio/contracts/environment";
+import type { Project } from "@studio/contracts/types";
 
 /**
  * Voxel values of label classes in exported labelmaps and reference segmentations.

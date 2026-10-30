@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-// Rewrites stored documents after a namespace rename (todo/todo2.md D3):
+// Rewrites stored documents after a namespace rename (todo/done/todo2.md D3):
 //   node tools/rename-namespace.mjs --from <old> --to <new> [--dry-run]
 //     [--env-prefix-from OLD_ --env-prefix-to NEW_] [--resource-prefix-from old --resource-prefix-to new]
 // Every JSON string or key that is an id under `<old>.` (or mentions one inside a `when`
 // clause or other text) becomes `<new>.`. Files: plugins/*/plugin.yaml, registry/presets/*.json, seed-data
 // manifests, saved environments and annotations, and e2e / plugin fixtures. Edit
-// packages/plugin-contracts/src/naming.ts first (namespace = <new>, legacyNamespaces += <old>)
+// packages/contracts/src/naming.ts first (namespace = <new>, legacyNamespaces += <old>)
 // so documents that this script doesn't reach keep resolving.
 //
-// Deployment config (todo/todo3.md D.4) can't read the naming config at run time, so it spells
+// Deployment config (todo/done/todo3.md D.4) can't read the naming config at run time, so it spells
 // the env prefix (`<OLD>_API_DATABASE_URL`) and the resource prefix (`<old>-objects` buckets,
 // `<old>:jobs:ready` Redis keys) out. The same run rewrites them in infra/**, .github/**,
 // apps/*/Dockerfile and apps/web/nginx/*. The prefixes default to the namespace (`--from acme`

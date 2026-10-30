@@ -1,4 +1,4 @@
-import { inspectAnnotation } from "@studio/studio-renderers/cornerstone/inspect";
+import { inspectAnnotation } from "@studio/renderers/cornerstone/inspect";
 import type { InspectFn, ModuleImpl } from "@studio/plugin-ui-sdk/module";
 import { masksJsonExporter, niftiLabelmapExporter } from "./exporters";
 import { MprRenderer } from "./renderer/Host";

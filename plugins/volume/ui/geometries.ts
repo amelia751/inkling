@@ -1,6 +1,6 @@
 import * as z from "zod";
 import type { GeometryContribution } from "@studio/plugin-ui-sdk/module";
-import type { Geometry } from "@studio/plugin-contracts/types";
+import type { Geometry } from "@studio/contracts/types";
 
 /**
  * Volume refinement of core `point3d`: a landmark in voxel indices on the plane it was

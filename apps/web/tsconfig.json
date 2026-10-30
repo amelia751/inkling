@@ -12,11 +12,11 @@
       "@studio/agent-protocol": [
         "../../packages/agent-protocol/src/index.ts"
       ],
-      "@studio/plugin-contracts": [
-        "../../packages/plugin-contracts/src/index.ts"
+      "@studio/contracts": [
+        "../../packages/contracts/src/index.ts"
       ],
-      "@studio/plugin-contracts/*": [
-        "../../packages/plugin-contracts/src/*"
+      "@studio/contracts/*": [
+        "../../packages/contracts/src/*"
       ],
       "@studio/plugin-ui-sdk": [
         "../../packages/plugin-ui-sdk/src/index.ts"
@@ -24,17 +24,17 @@
       "@studio/plugin-ui-sdk/*": [
         "../../packages/plugin-ui-sdk/src/*"
       ],
-      "@studio/studio-ui": [
-        "../../packages/studio-ui/src/index.ts"
+      "@studio/ui": [
+        "../../packages/ui/src/index.ts"
       ],
-      "@studio/studio-ui/*": [
-        "../../packages/studio-ui/src/*"
+      "@studio/ui/*": [
+        "../../packages/ui/src/*"
       ],
-      "@studio/studio-renderers": [
-        "../../packages/studio-renderers/src/index.ts"
+      "@studio/renderers": [
+        "../../packages/renderers/src/index.ts"
       ],
-      "@studio/studio-renderers/*": [
-        "../../packages/studio-renderers/src/*"
+      "@studio/renderers/*": [
+        "../../packages/renderers/src/*"
       ],
       "@plugins/_template/*": [
         "../../plugins/_template/ui/*"
@@ -63,8 +63,8 @@
       "@plugins/text-spans/*": [
         "../../plugins/text-spans/ui/*"
       ],
-      "@plugins/export-dicom/*": [
-        "../../plugins/export-dicom/ui/*"
+      "@plugins/dicom-export/*": [
+        "../../plugins/dicom-export/ui/*"
       ]
     }
   },
@@ -75,10 +75,10 @@
     "vitest.config.ts",
     "aliases.ts",
     "../../packages/agent-protocol/src",
-    "../../packages/plugin-contracts/src",
+    "../../packages/contracts/src",
     "../../packages/plugin-ui-sdk/src",
-    "../../packages/studio-ui/src",
-    "../../packages/studio-renderers/src",
+    "../../packages/ui/src",
+    "../../packages/renderers/src",
     "../../plugins/*/ui",
     "vitest.setup.ts"
   ]

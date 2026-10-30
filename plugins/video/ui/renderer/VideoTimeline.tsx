@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { formatTime } from "@studio/studio-renderers/viewport-chrome/format";
-import { Timeline, type FilmstripSource, type TimelineLane } from "@studio/studio-renderers/timeline/Timeline";
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import { formatTime } from "@studio/renderers/viewport-chrome/format";
+import { Timeline, type FilmstripSource, type TimelineLane } from "@studio/renderers/timeline/Timeline";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 import { moveKeyframe, sortKeyframes, trackSpans } from "../tracks";
 import { addInstant, addSpan, editable, setGeometry } from "./actions";
 import { useHost } from "@studio/plugin-ui-sdk";

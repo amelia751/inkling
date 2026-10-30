@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FrameMetrics, StructKey } from "@plugins/cine/public";
 import { computeMetrics, mosteller } from "./metrics";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const frame = (f: number, lv: number | null, rv: number | null, myo: number | null): FrameMetrics => {
   const status = (v: number | null) => (v === null ? "empty" : "complete");

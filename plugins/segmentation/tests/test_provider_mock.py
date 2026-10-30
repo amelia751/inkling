@@ -1,4 +1,4 @@
-from segmentation_plugin.tools import segment_objects
+from studio_plugin_segmentation.tools import segment_objects
 
 
 def test_mock_is_deterministic_and_reports_progress(ctx):

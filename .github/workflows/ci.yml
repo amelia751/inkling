@@ -1,5 +1,5 @@
 # Every PR (and main): affected checks, boundaries, drift checks, Go, Kubernetes manifests,
-# secret scanning (todo/todo3.md F).
+# secret scanning (todo/done/todo3.md F).
 name: ci
 
 on:
@@ -33,12 +33,14 @@ jobs:
         with:
           enable-cache: true
       - run: pnpm install --frozen-lockfile
-      - run: uv sync --frozen
+      - run: uv sync --frozen --all-packages --all-extras
       - name: Affected typecheck, lint, test
         # apps/versioning (Go) has its own job below.
         run: pnpm affected --filter='!@studio/versioning'
       - name: Module boundaries (TS)
         run: node tools/check-boundaries.mjs
+      - name: Names (packages = folders, env vars read only in config modules)
+        run: node tools/check-names.mjs
       - name: Import contracts (Python)
         run: uv run lint-imports
       - name: Ruff
@@ -85,8 +87,8 @@ jobs:
       - name: Render overlays
         run: |
           mkdir -p rendered
-          for env in dev staging prod; do
-            kubectl kustomize "infra/k8s/overlays/$env" > "rendered/$env.yaml"
+          for stage in dev staging prod; do
+            kubectl kustomize "infra/k8s/overlays/$stage" > "rendered/$stage.yaml"
           done
       - name: kubeconform (KEDA and other CRDs from the datree catalog)
         run: |

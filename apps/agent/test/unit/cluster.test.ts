@@ -20,9 +20,9 @@ import { createModelRuntime, registerScriptedProvider } from "../../src/agent/mo
 import { createApp } from "../../src/app.ts";
 import { RedisRunEventBus } from "../../src/bus/redis.ts";
 import { INTERRUPTED_MESSAGE } from "../../src/cluster/coordinator.ts";
-import { loadConfig } from "../../src/config.ts";
+import { loadConfig, withPrefix } from "../../src/config.ts";
 import { createLogger } from "../../src/log.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { SessionService } from "../../src/runtime/sessions.ts";
 import { PostgresSessionStore } from "../../src/store/postgres.ts";
 import { ENV_TOOLS, TOKEN, snapshot } from "./harness.ts";
@@ -42,12 +42,12 @@ const FIXTURE = {
 
 async function instance(replica: string) {
   const dir = mkdtempSync(join(tmpdir(), `agent-${replica}-`));
-  const { config } = loadConfig({
-    APP_ENV: "test",
+  const { config } = loadConfig(withPrefix({
+    ENV: "test",
     AGENT_MODEL: "scripted",
     AGENT_DATA_DIR: dir,
-    INTERNAL_AGENT_SERVICE_TOKEN: TOKEN,
-    AGENT_STUDIO_URL: "http://127.0.0.1:9",
+    AGENT_TOKEN: TOKEN,
+    WEB_URL: "http://127.0.0.1:9",
     AGENT_STORE: "postgres",
     AGENT_DATABASE_URL: DB!,
     AGENT_DATABASE_SCHEMA: schema,
@@ -58,7 +58,7 @@ async function instance(replica: string) {
     AGENT_RUN_HEARTBEAT_S: "1",
     AGENT_INBOX_POLL_MS: "200",
     AGENT_CLIENT_TOOL_TIMEOUT_S: "60",
-  });
+  }));
   const runtime = await createModelRuntime(config);
   registerScriptedProvider(runtime, FIXTURE);
   const log = createLogger("silent");

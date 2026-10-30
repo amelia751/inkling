@@ -14,11 +14,10 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from ..config import settings
+from ..config import env, settings
 from ..context import RequestContext, issue_session
 from ..db import get_session
 from ..kernel import gateway, jobs, secrets
-from ..naming import env
 from ..plugins import installer, policy
 
 router = APIRouter(prefix="/api/v1/worker")

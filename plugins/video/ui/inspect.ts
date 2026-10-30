@@ -1,6 +1,6 @@
 import type { InspectFn } from "@studio/plugin-ui-sdk/module";
-import { polygonArea } from "@studio/studio-renderers/overlay2d/geometry";
-import { formatTime } from "@studio/studio-renderers/viewport-chrome/format";
+import { polygonArea } from "@studio/renderers/overlay2d/geometry";
+import { formatTime } from "@studio/renderers/viewport-chrome/format";
 import { videoTiming } from "./exporters";
 import { shapeAt, sortKeyframes, trackSpans, visibleFrameCount } from "./tracks";
 

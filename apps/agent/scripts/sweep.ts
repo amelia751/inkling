@@ -14,6 +14,9 @@ import { createDaytona } from "../src/sandbox/client.ts";
 import { listOwned, planSweep, toCandidate } from "../src/sandbox/sweeper.ts";
 import { loadDevSecrets } from "../src/secrets.ts";
 import { createStore } from "../src/store/index.ts";
+import { NAMING } from "../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 const { values } = parseArgs({
   options: {
@@ -37,7 +40,7 @@ const env = values.env ?? config.env;
 const labels = Object.fromEntries((values.label ?? []).map((l) => l.split("=") as [string, string]));
 const sandboxes = await listOwned(daytona, env, labels);
 const candidates = sandboxes.map(toCandidate);
-console.log(`${candidates.length} sandbox(es) with app=inkling env=${env}${values.label ? ` ${values.label.join(" ")}` : ""}`);
+console.log(`${candidates.length} sandbox(es) with app=${RES} env=${env}${values.label ? ` ${values.label.join(" ")}` : ""}`);
 for (const c of candidates) console.log(`  ${c.name.padEnd(48)} ${String(c.state).padEnd(10)} last=${c.lastActivityAt ?? "?"} session=${c.labels.session ?? "?"}`);
 
 // Sessions the store knows (the file store's .data dir in dev, Postgres otherwise); others count as

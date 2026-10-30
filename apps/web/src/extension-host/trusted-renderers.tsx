@@ -1,8 +1,8 @@
 import type { ComponentType } from "react";
 import type * as z from "zod";
-import type { DataBinding } from "@studio/plugin-contracts/ui-contributions";
+import type { DataBinding } from "@studio/contracts/ui-contributions";
 import type { PanelProps } from "@studio/plugin-ui-sdk";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { DeclarativeConfig, SandboxConfig } from "./agent-panels/manifest";
 import { DeclarativePanel } from "./agent-panels/panels/declarative";
 import { SandboxPanel } from "./agent-panels/panels/sandbox";
@@ -11,7 +11,7 @@ import { SandboxPanel } from "./agent-panels/panels/sandbox";
  * Trusted renderers (docs/plugins.md §5.3): precompiled components that declarative
  * contributions name by a versioned id. A plugin supplies descriptors and data, never
  * React code. Names not in this registry fail closed (contributions-loader shows a notice).
- * Renderers from packages/studio-renderers are added by the composition root (bundled.ts).
+ * Renderers from packages/renderers are added by the composition root (bundled.ts).
  */
 export interface TrustedRendererProps extends PanelProps {
   /** What the descriptor's `dataBinding` asked for, resolved by the host. */

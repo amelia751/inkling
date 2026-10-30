@@ -1,16 +1,16 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon } from "@studio/studio-ui/icons";
-import type { IconComponent } from "@studio/studio-ui/icons";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
-import type { AgentCard } from "@/studio/lib/agent/protocol";
+import { CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon } from "@studio/ui/icons";
+import type { IconComponent } from "@studio/ui/icons";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import type { AgentCard } from "@studio/agent-protocol";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { useViewport } from "@/studio/lib/use-media-query";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import type { CardState } from "@/studio/stores/agent";
 import { isEditable, useStudio } from "@/studio/stores/studio";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { Markdown } from "./markdown";
 
 interface CardProps {

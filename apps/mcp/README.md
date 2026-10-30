@@ -9,8 +9,8 @@ pnpm mcp                                   # from the repo root; talks to http:/
 claude mcp add <resourcePrefix> -- pnpm --dir /abs/path/to/repo mcp
 ```
 
-Env vars use the naming config's `envPrefix` (`schemas/naming.json`): `<envPrefix>URL`,
-`<envPrefix>AGENT_AUTHOR`.
+Env vars use the naming config's `envPrefix` (`schemas/naming.json`): `<envPrefix>WEB_URL`,
+`<envPrefix>MCP_AUTHOR`.
 
 The catalogue and environment routes (`/api/catalog`, `/api/environments`) are still served by
 the web dev server (`apps/web/dev/seed-server.ts`). When `apps/api` serves them, point

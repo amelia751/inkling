@@ -1,11 +1,11 @@
-import { FitIcon as Scan, RegionIcon as SquareDashed, SettingsIcon as SlidersHorizontal, ZoomInIcon as ZoomIn, ZoomOutIcon as ZoomOut } from "@studio/studio-ui/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@studio/studio-ui/ui/popover";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/studio-ui/ui/tooltip";
-import { shortcutLabel } from "@studio/studio-ui/shortcuts";
-import { cn } from "@studio/studio-ui/utils";
-import { BarIconButton } from "@studio/studio-renderers/viewport-chrome/controls";
+import { FitIcon as Scan, RegionIcon as SquareDashed, SettingsIcon as SlidersHorizontal, ZoomInIcon as ZoomIn, ZoomOutIcon as ZoomOut } from "@studio/ui/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@studio/ui/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
+import { shortcutLabel } from "@studio/ui/shortcuts";
+import { cn } from "@studio/ui/utils";
+import { BarIconButton } from "@studio/renderers/viewport-chrome/controls";
 import type { DecodeMode } from "./VideoEngine";
-import { NS } from "@studio/plugin-contracts/naming";
+import { NS } from "@studio/contracts/naming";
 
 export type Adjust = { brightness: number; contrast: number; saturation: number };
 export const NO_ADJUST: Adjust = { brightness: 100, contrast: 100, saturation: 100 };

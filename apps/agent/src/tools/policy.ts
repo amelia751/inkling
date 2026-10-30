@@ -1,6 +1,6 @@
 import { posix } from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import type { ApprovalDetail } from "../protocol.ts";
+import type { ApprovalDetail } from "@studio/agent-protocol";
 import type { ApprovalBroker } from "../runtime/approvals.ts";
 
 export type Decision = { kind: "allow" } | { kind: "deny"; reason: string } | { kind: "ask"; summary: string; detail?: ApprovalDetail };

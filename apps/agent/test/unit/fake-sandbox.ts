@@ -1,11 +1,14 @@
 import { DaytonaNotFoundError, type Sandbox } from "@daytona/sdk";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 type Exec = (command: string, cwd?: string) => { exitCode: number; result: string } | Promise<{ exitCode: number; result: string }>;
 
 /** In-memory stand-in for the parts of `Sandbox` the ops and recovery code touch. */
 export class FakeSandbox {
   id = "fake-0000-sandbox";
-  name = "inkling-test-fake";
+  name = `${RES}-test-fake`;
   state: string | undefined = "started";
   labels: Record<string, string> = {};
   gone = false;

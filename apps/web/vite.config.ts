@@ -1,27 +1,40 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { defineConfig, type ProxyOptions } from "vite";
+import { defineConfig, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
 import { aliases, REPO_ROOT } from "./aliases";
 // The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
-// reads the emitted copy of packages/plugin-contracts/src/naming.ts.
+// reads the emitted copy of packages/contracts/src/naming.ts.
 import NAMING from "../../schemas/naming.json";
 
-const envVar = (name: string) => `${NAMING.envPrefix}${name}`;
+/** The one place the web build and dev server read the environment: `env("API_URL")` → `<envPrefix>API_URL`. */
+const env = (key: string): string | undefined => process.env[`${NAMING.envPrefix}${key}`] || undefined;
 
-// <envPrefix>KERNEL=1: proxy /api to the Python kernel (apps/api) instead of the dev seed
-// server. Catalogue, environments and the assistant stay here: they run the TS registry.
-const kernel = process.env[envVar("KERNEL")] === "1";
-const kernelUrl = process.env[envVar("KERNEL_URL")] ?? "http://127.0.0.1:8000";
-if (kernel) process.env[`VITE_${NAMING.envPrefix}KERNEL`] = "1";
+// <envPrefix>API_URL: proxy /api to the API (apps/api) instead of the dev seed server, and
+// tell the SPA (define below) that the kernel serves commands, jobs and assets. Catalogue,
+// environments and the assistant stay here: they run the TS registry.
+const kernelUrl = env("API_URL");
+const kernel = !!kernelUrl;
 const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments)(\/|$|\?)/;
+
+// <envPrefix>E2E=1: a frozen dev server for Playwright runs (see `server` below). It keeps
+// annotations in a fresh temp copy of e2e/fixtures/annotations/, so no test reads or writes the
+// developer's seed-data/.annotations. <envPrefix>WEB_ANNOTATIONS_DIR picks the folder explicitly.
+const e2e = !!env("E2E");
+function e2eAnnotations(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `${NAMING.resourcePrefix}-e2e-annotations-`));
+  fs.cpSync(path.resolve(__dirname, "e2e/fixtures/annotations"), dir, { recursive: true });
+  return dir;
+}
+const annotationsDir = env("WEB_ANNOTATIONS_DIR") ?? (e2e && !kernel ? e2eAnnotations() : undefined);
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
-const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/export-dicom/node_modules/@cornerstonejs/adapters"));
+const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/dicom-export/node_modules/@cornerstonejs/adapters"));
 const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
 
 /**
@@ -29,13 +42,13 @@ const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
  * to /v1/* and adds the service token from the real env or secrets/agent.env (written by the service
  * on first start), so the token never reaches the browser.
  */
-const AGENT_URL = process.env[envVar("AGENT_URL")] ?? "http://127.0.0.1:8100";
-let agentToken = process.env.INTERNAL_AGENT_SERVICE_TOKEN;
+const AGENT_URL = env("AGENT_URL") ?? "http://127.0.0.1:8100";
+let agentToken = env("AGENT_TOKEN");
 function serviceToken(): string | undefined {
   if (agentToken) return agentToken;
   const file = path.resolve(__dirname, "../../secrets/agent.env");
   if (!fs.existsSync(file)) return undefined;
-  agentToken = /^INTERNAL_AGENT_SERVICE_TOKEN=(.+)$/m.exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
+  agentToken = new RegExp(`^${NAMING.envPrefix}AGENT_TOKEN=(.+)$`, "m").exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
   return agentToken;
 }
 const agentProxy: Record<string, ProxyOptions> = {
@@ -55,32 +68,60 @@ const agentProxy: Record<string, ProxyOptions> = {
   },
 };
 
+/**
+ * Generated agent-facing files in schemas/ (written by `pnpm emit:schemas`), served at fixed URLs
+ * that agents and the MCP server read: a middleware in dev, emitted into dist/ by `vite build`.
+ */
+const SCHEMA_URLS: Record<string, string> = {
+  "/catalog.json": "catalog.json",
+  "/catalog.md": "catalog.md",
+  "/schema/environment.v1.json": "environment.v1.json",
+};
+const schemaFile = (name: string) => path.resolve(REPO_ROOT, "schemas", name);
+const schemaFiles: Plugin = {
+  name: "schema-files",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      const name = SCHEMA_URLS[(req.url ?? "").split("?")[0]];
+      if (!name) return next();
+      res.setHeader("content-type", name.endsWith(".md") ? "text/markdown; charset=utf-8" : "application/json");
+      res.end(fs.readFileSync(schemaFile(name)));
+    });
+  },
+  generateBundle() {
+    for (const [url, name] of Object.entries(SCHEMA_URLS)) this.emitFile({ type: "asset", fileName: url.slice(1), source: fs.readFileSync(schemaFile(name)) });
+  },
+};
+
 export default defineConfig({
   // viteCommonjs: dicom-parser only ships a UMD build (Cornerstone3D framework guide).
   plugins: [
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel }),
+    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir }),
+    schemaFiles,
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
   ],
-  // <envPrefix>E2E=1: a frozen dev server for Playwright runs, so edits elsewhere can't reload the page mid-test.
+  // E2E: frozen, so edits elsewhere can't reload the page mid-test.
   server: {
-    ...(process.env[envVar("E2E")] ? { hmr: false, watch: null } : {}),
+    ...(e2e ? { hmr: false, watch: null } : {}),
     // Workspace packages and first-party plugins live outside apps/web.
     fs: { allow: [REPO_ROOT] },
-    // /api/agent goes to the agent service; with the kernel on, the rest of /api goes there (agentProxy is listed first).
+    // /api/agent goes to the agent service; with the API on, the rest of /api goes there (agentProxy is listed first).
     proxy: {
       ...agentProxy,
       ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
     },
   },
+  // runtime-config.ts reads this as the dev default for `kernel` (/config.json decides in images).
+  define: { "import.meta.env.DEV_API": JSON.stringify(kernel) },
   resolve: {
     alias: [
       ...aliases,
       // vtk.js (via Cornerstone) imports xmlbuilder2, which needs Node's `events`; we never parse VTK XML.
-      { find: "xmlbuilder2", replacement: path.resolve(REPO_ROOT, "packages/studio-renderers/src/cornerstone/xmlbuilder2-stub.ts") },
+      { find: "xmlbuilder2", replacement: path.resolve(REPO_ROOT, "packages/renderers/src/cornerstone/xmlbuilder2-stub.ts") },
       { find: "dcmjs", replacement: dcmjsEntry },
     ],
   },

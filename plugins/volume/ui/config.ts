@@ -1,5 +1,5 @@
 import * as z from "zod";
-import type { Plane } from "@studio/plugin-contracts/types";
+import type { Plane } from "@studio/contracts/types";
 
 /**
  * Viewport layouts of the MPR renderer and its config schema. Pure (no Cornerstone), so

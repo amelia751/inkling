@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { WarningIcon as AlertTriangle } from "@studio/studio-ui/icons";
-import { fetchBodySize } from "@studio/studio-renderers/io/niftiIO";
+import { WarningIcon as AlertTriangle } from "@studio/ui/icons";
+import { fetchBodySize } from "@studio/renderers/io/niftiIO";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { cn } from "@studio/studio-ui/utils";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { cn } from "@studio/ui/utils";
+import { labelNames } from "@studio/contracts/environment";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import {

@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { registerDiffPreview, type DiffPreviewProps } from "@/extension-host/trusted-renderers";
 
 /**

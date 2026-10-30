@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from studio_observability import RequestContextMiddleware, setup_service
 
-from .config import SettingsError, settings
+from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
 from .routes import environments, kernel, ops, plugins, versioning, worker
@@ -94,7 +94,7 @@ def __getattr__(name: str):
     # bad configuration stops the process with the missing key names.
     if name == "app":
         global app
-        setup_service(ops.SERVICE, ops.service_version())
+        setup_service(ops.SERVICE, ops.service_version(), level=env("LOG_LEVEL"), json_logs=env("LOG_FORMAT", "json") != "text")
         try:
             settings()
         except SettingsError as e:

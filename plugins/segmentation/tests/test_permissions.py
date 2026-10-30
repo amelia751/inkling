@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from segmentation_plugin.tools import segment_objects
+from studio_plugin_segmentation.tools import segment_objects
 
 MANIFEST = yaml.safe_load((Path(__file__).parent.parent / "plugin.yaml").read_text())
 

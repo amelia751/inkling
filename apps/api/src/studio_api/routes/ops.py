@@ -1,4 +1,4 @@
-"""Service conventions (todo/todo3.md E.4): unauthenticated probes, never in the access log.
+"""Service conventions (todo/done/todo3.md E.4): unauthenticated probes, never in the access log.
 
     GET /healthz → the process is up (liveness)
     GET /readyz  → DB, Redis (when a backend uses it) and the BlobStore answer (readiness)

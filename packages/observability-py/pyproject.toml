@@ -1,7 +1,7 @@
 [project]
 name = "studio-observability"
 version = "0.1.0"
-description = "Shared service conventions: JSON logs, request ids, W3C traceparent, optional OpenTelemetry (todo/todo3.md E.4)"
+description = "Shared service conventions: JSON logs, request ids, W3C traceparent, optional OpenTelemetry (todo/done/todo3.md E.4)"
 requires-python = ">=3.12"
 dependencies = []
 

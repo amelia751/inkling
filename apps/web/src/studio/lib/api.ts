@@ -1,7 +1,7 @@
-import type { EnvironmentSpec, LabelGroup } from "@studio/plugin-contracts/environment";
-import { migrateDocument } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
-import type { AnnotationDocument, Project } from "@studio/plugin-contracts/types";
-import { canonicalId } from "@studio/plugin-contracts/naming";
+import type { EnvironmentSpec, LabelGroup } from "@studio/contracts/environment";
+import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-v2";
+import type { AnnotationDocument, Project } from "@studio/contracts/types";
+import { canonicalId } from "@studio/contracts/naming";
 import { apiUrl } from "@/extension-host/runtime-config";
 
 async function json<T>(res: Response): Promise<T> {

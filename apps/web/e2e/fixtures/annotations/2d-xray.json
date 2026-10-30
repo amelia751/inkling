@@ -1,0 +1,80 @@
+{
+  "revision": 1,
+  "annotations": [
+    {
+      "itemId": "2d-xray/normal/IM-0001-0001.jpeg",
+      "label": "normal",
+      "geometry": {
+        "type": "box",
+        "x": 469.11,
+        "y": 291.83,
+        "w": 162.8,
+        "h": 157.41
+      },
+      "id": "96baedfa-90bc-4fad-8803-d98e71a3c60d",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:09:08.000Z"
+    },
+    {
+      "itemId": "2d-xray/normal/IM-0001-0001.jpeg",
+      "label": "normal",
+      "geometry": {
+        "type": "box",
+        "x": 896.47,
+        "y": 269.62,
+        "w": 262.85,
+        "h": 530.56
+      },
+      "id": "3d7d5d2d-ee4c-4882-a16a-4f74a2253b4c",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:09:09.130Z"
+    },
+    {
+      "itemId": "2d-xray/normal/IM-0001-0001.jpeg",
+      "label": "normal",
+      "geometry": {
+        "type": "box",
+        "x": 1347.15,
+        "y": 464.08,
+        "w": 268.62,
+        "h": 288.7
+      },
+      "id": "c450479d-db5e-41c2-8d05-f7ae8dfc9713",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:09:11.162Z"
+    },
+    {
+      "itemId": "2d-xray/normal/IM-0001-0001.jpeg",
+      "label": "normal",
+      "geometry": {
+        "type": "box",
+        "x": 515.01,
+        "y": 666.96,
+        "w": 104.98,
+        "h": 158.7
+      },
+      "id": "dcea2450-d96a-4697-9aa7-94c022eb3c1a",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:09:12.994Z"
+    },
+    {
+      "itemId": "2d-xray/normal/IM-0001-0001.jpeg",
+      "label": "normal",
+      "geometry": {
+        "type": "box",
+        "x": 1650.0,
+        "y": 150.0,
+        "w": 150.0,
+        "h": 100.0
+      },
+      "id": "5e1c4a7b-2f0d-4c3e-9a51-0b7d2e6f8c14",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:09:14.000Z"
+    }
+  ]
+}

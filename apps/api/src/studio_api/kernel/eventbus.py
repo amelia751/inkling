@@ -1,4 +1,4 @@
-"""EventBus (todo/todo3.md E.2): how published events reach `deliver`.
+"""EventBus (todo/done/todo3.md E.2): how published events reach `deliver`.
 
 The outbox table (`plugin_events`, written by `events.publish` in the caller's transaction)
 stays the source of truth either way; the bus decides how delivery finds new rows.

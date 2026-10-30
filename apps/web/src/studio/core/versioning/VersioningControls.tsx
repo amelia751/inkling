@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { BranchIcon, CheckIcon, HistoryIcon, SendIcon, WarningIcon } from "@studio/studio-ui/icons";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/studio-ui/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@studio/studio-ui/ui/dropdown-menu";
-import { Input } from "@studio/studio-ui/ui/input";
-import { Textarea } from "@studio/studio-ui/ui/textarea";
+import { BranchIcon, CheckIcon, HistoryIcon, SendIcon, WarningIcon } from "@studio/ui/icons";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
+import { Input } from "@studio/ui/ui/input";
+import { Textarea } from "@studio/ui/ui/textarea";
 import { useStudio } from "@/studio/stores/studio";
-import { regionLabelNames } from "@studio/plugin-contracts/environment";
+import { regionLabelNames } from "@studio/contracts/environment";
 import { api } from "./api";
 import { refreshAndReapply, submitForReview, switchBranch, useVersioning } from "./session";
 

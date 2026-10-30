@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { diffPreviewFor } from "@/extension-host/trusted-renderers";
 import { loadDocument, reapply, saveVersioned, StaleHeadError, useVersioning } from "./session";
 import { registerBuiltinPreviews } from "./previews";

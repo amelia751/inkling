@@ -1,16 +1,16 @@
 import { Link } from "react-router";
-import { LockIcon, LicenseIcon } from "@studio/studio-ui/icons";
+import { LockIcon, LicenseIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
-import { Badge, type BadgeProps } from "@studio/studio-ui/ui/badge";
-import { Card } from "@studio/studio-ui/ui/card";
-import { Skeleton, SkeletonText } from "@studio/studio-ui/ui/skeleton";
+import { Badge, type BadgeProps } from "@studio/ui/ui/badge";
+import { Card } from "@studio/ui/ui/card";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { envLabel, formatBytes, itemNoun, plural, pluralWord, projectIcon } from "@/studio/lib/format";
 import { envOf } from "@/studio/lib/environment";
 import { projectItems } from "@/studio/lib/items";
-import { cn } from "@studio/studio-ui/utils";
-import type { Project } from "@studio/plugin-contracts/types";
+import { cn } from "@studio/ui/utils";
+import type { Project } from "@studio/contracts/types";
 import { FullPageMessage, useProjects, useSavedAnnotations } from "./shared";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import { NAMING } from "@studio/contracts/naming";
 
 export function WorkspacePage() {
   const { data: projects, isLoading, error } = useProjects();

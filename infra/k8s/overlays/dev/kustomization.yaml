@@ -36,7 +36,7 @@ secretGenerator:
       - S3_SECRET_KEY=dev-only-s3-secret
   - name: web-secrets
     literals:
-      - INTERNAL_AGENT_SERVICE_TOKEN=dev-only-agent-service-token
+      - INKLING_AGENT_TOKEN=dev-only-agent-service-token
   - name: api-secrets
     literals:
       - INKLING_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@postgres:5432/studio
@@ -49,8 +49,8 @@ secretGenerator:
       - INKLING_API_WORKER_TOKEN=dev-only-worker-token
   - name: agent-secrets
     literals:
-      - INTERNAL_AGENT_SERVICE_TOKEN=dev-only-agent-service-token
-      - AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent
+      - INKLING_AGENT_TOKEN=dev-only-agent-service-token
+      - INKLING_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent
   - name: versioning-secrets
     literals:
       - INKLING_VERSIONING_DATABASE_URL=postgres://versioning_app:dev-only-app-pw@postgres:5432/studio?sslmode=disable
@@ -105,13 +105,13 @@ patches:
       name: agent-config
     patch: |-
       - op: replace
-        path: /data/APP_ENV
+        path: /data/INKLING_ENV
         value: development
       - op: add
-        path: /data/AGENT_MODEL
+        path: /data/INKLING_AGENT_MODEL
         value: scripted
       - op: add
-        path: /data/AGENT_SANDBOX
+        path: /data/INKLING_AGENT_SANDBOX
         value: "off"
   # The dev Postgres has no DBA: bootstrap the versioning roles and schema first.
   - target:

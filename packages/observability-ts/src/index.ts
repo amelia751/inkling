@@ -1,5 +1,5 @@
 /**
- * Shared observability conventions for the Node services (todo/todo3.md E.4):
+ * Shared observability conventions for the Node services (todo/done/todo3.md E.4):
  *
  * - `createServiceLogger`: pino JSON on stdout with `service`, `version`, `request_id`, `trace_id`.
  * - `contextFromHeaders` + `runWithContext`: per-request context (accepts `X-Request-Id` and W3C

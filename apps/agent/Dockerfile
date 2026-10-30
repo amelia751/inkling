@@ -49,10 +49,10 @@ COPY --from=build /repo/apps/agent/NOTICE apps/agent/NOTICE
 COPY --from=build /repo/schemas schemas
 # Read-only root filesystem: run data (pi agent dir, scratch) under /tmp only.
 ENV NODE_ENV=production \
-    APP_ENV=production \
-    AGENT_HOST=0.0.0.0 \
-    AGENT_PORT=8100 \
-    AGENT_DATA_DIR=/tmp/agent \
+    INKLING_ENV=production \
+    INKLING_AGENT_HOST=0.0.0.0 \
+    INKLING_AGENT_PORT=8100 \
+    INKLING_AGENT_DATA_DIR=/tmp/agent \
     HOME=/tmp \
     GIT_SHA=${GIT_SHA}
 USER node

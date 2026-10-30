@@ -1,4 +1,4 @@
-// The api → versioning service-JWT key pair for a cluster (todo/todo4.md V4, infra/k8s/README.md).
+// The api → versioning service-JWT key pair for a cluster (todo/done/todo4.md V4, infra/k8s/README.md).
 //   node tools/versioning-keys.mjs [--namespace studio-dev] [--kid api] [--rotate]
 // Creates Secret `api-versioning-jwt` (jwt.key: Ed25519 PKCS8 PEM, read by apps/api) and
 // ConfigMap `versioning-jwks` (jwks.json: the public half, read by apps/versioning) through

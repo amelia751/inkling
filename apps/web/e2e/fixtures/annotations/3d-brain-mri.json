@@ -1,0 +1,77 @@
+{
+  "revision": 1,
+  "annotations": [
+    {
+      "itemId": "BraTS2021_00495",
+      "label": "necrotic core",
+      "geometry": {
+        "type": "point",
+        "plane": "axial",
+        "slice": 101,
+        "ijk": [
+          109,
+          151,
+          101
+        ]
+      },
+      "id": "c231ff79-dbc2-4a0f-93f2-4c625e46f183",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:08:33.530Z"
+    },
+    {
+      "itemId": "BraTS2021_00495",
+      "label": "necrotic core",
+      "geometry": {
+        "type": "point",
+        "plane": "axial",
+        "slice": 101,
+        "ijk": [
+          130,
+          170,
+          101
+        ]
+      },
+      "id": "bc51429a-9a6b-4302-b41a-de8c324f2dc8",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:08:34.260Z"
+    },
+    {
+      "itemId": "BraTS2021_00495",
+      "label": "necrotic core",
+      "geometry": {
+        "type": "point",
+        "plane": "axial",
+        "slice": 101,
+        "ijk": [
+          84,
+          155,
+          101
+        ]
+      },
+      "id": "ff414e50-3d8a-4e18-8643-c579d7df9598",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:08:34.912Z"
+    },
+    {
+      "itemId": "BraTS2021_00495",
+      "label": "necrotic core",
+      "geometry": {
+        "type": "point",
+        "plane": "axial",
+        "slice": 101,
+        "ijk": [
+          106,
+          178,
+          101
+        ]
+      },
+      "id": "ca6e46c7-0126-48eb-af0b-8dbf682019f6",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:08:35.380Z"
+    }
+  ]
+}

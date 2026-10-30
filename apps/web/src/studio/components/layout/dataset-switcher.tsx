@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router";
-import { CheckIcon, ChevronDownIcon, DatasetsIcon } from "@studio/studio-ui/icons";
+import { CheckIcon, ChevronDownIcon, DatasetsIcon } from "@studio/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,10 +8,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@studio/studio-ui/ui/dropdown-menu";
+} from "@studio/ui/ui/dropdown-menu";
 import { fetchProjects } from "@/studio/lib/api";
 import { projectIcon } from "@/studio/lib/format";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 
 /**
  * Header context selector (the Nebius project selector): names the open

@@ -1,4 +1,4 @@
-# End-to-end (todo/todo3.md F): the compose `full` stack from images, then the cross-service
+# End-to-end (todo/done/todo3.md F): the compose `full` stack from images, then the cross-service
 # tests (tests/e2e) and the web browser tests (apps/web/e2e). Daytona-live tests run only on a
 # schedule or by hand, with the key from repository secrets, and always sweep afterwards.
 name: e2e
@@ -66,8 +66,8 @@ jobs:
       - name: "Dev servers (frozen): seed mode on 5199, kernel mode (the stack api) on 5198"
         working-directory: apps/web
         run: |
-          nohup pnpm exec vite --port 5199 --strictPort > /tmp/vite-5199.log 2>&1 &
-          INKLING_KERNEL=1 INKLING_KERNEL_URL=http://127.0.0.1:8080 \
+          INKLING_E2E=1 nohup pnpm exec vite --port 5199 --strictPort > /tmp/vite-5199.log 2>&1 &
+          INKLING_E2E=1 INKLING_API_URL=http://127.0.0.1:8080 \
             nohup pnpm exec vite --port 5198 --strictPort > /tmp/vite-5198.log 2>&1 &
           for p in 5199 5198; do
             for _ in $(seq 1 60); do curl -fsS "http://127.0.0.1:$p/" >/dev/null && break; sleep 2; done
@@ -90,10 +90,9 @@ jobs:
         working-directory: apps/web
         env:
           INKLING_AGENT_URL: http://127.0.0.1:8299
-          INTERNAL_AGENT_SERVICE_TOKEN: e2e-agent-token
-          INKLING_KERNEL: "1"
-          INKLING_KERNEL_URL: http://127.0.0.1:8080
-          INKLING_E2E_KERNEL_URL: http://127.0.0.1:8080
+          INKLING_AGENT_TOKEN: e2e-agent-token
+          INKLING_API_URL: http://127.0.0.1:8080
+          INKLING_E2E_API_URL: http://127.0.0.1:8080
         run: |
           nohup pnpm exec vite --port 5299 --strictPort > /tmp/vite-5299.log 2>&1 &
           for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:5299/ >/dev/null && break; sleep 2; done

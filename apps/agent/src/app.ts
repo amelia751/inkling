@@ -10,7 +10,7 @@ import type { Config } from "./config.ts";
 import { streamRunEvents } from "./http/events.ts";
 import { registerServiceRoutes } from "./http/service.ts";
 import type { Logger } from "./log.ts";
-import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "./protocol.ts";
+import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "@studio/agent-protocol";
 import { sanitizeError } from "./runtime/events.ts";
 import { HttpError, type SessionService } from "./runtime/sessions.ts";
 

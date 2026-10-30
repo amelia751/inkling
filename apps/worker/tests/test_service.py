@@ -1,4 +1,4 @@
-"""todo/todo3.md E.2/E.4 for the worker: env config, probes, prebuilt envs, graceful SIGTERM."""
+"""todo/done/todo3.md E.2/E.4 for the worker: env config, probes, prebuilt envs, graceful SIGTERM."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ P = config.naming()["envPrefix"]
 
 def test_settings_fail_fast_with_key_names(monkeypatch):
     monkeypatch.delenv(P + "API_WORKER_TOKEN", raising=False)
-    monkeypatch.setenv(P + "KERNEL_URL", "http://api:8000")
+    monkeypatch.setenv(P + "API_URL", "http://api:8000")
     monkeypatch.setenv(P + "WORKER_HEALTH_PORT", "not-a-port")
     with pytest.raises(config.SettingsError) as e:
         config.load_settings()
@@ -31,13 +31,13 @@ def test_settings_fail_fast_with_key_names(monkeypatch):
 def test_dev_token_only_against_a_local_kernel(monkeypatch):
     monkeypatch.delenv(P + "API_WORKER_TOKEN", raising=False)
     monkeypatch.delenv(P + "WORKER_HEALTH_PORT", raising=False)
-    monkeypatch.setenv(P + "KERNEL_URL", "http://127.0.0.1:8000")
+    monkeypatch.setenv(P + "API_URL", "http://127.0.0.1:8000")
     assert config.load_settings().token == config.DEV_WORKER_TOKEN
 
 
 def test_settings_from_env(monkeypatch, tmp_path):
     monkeypatch.setenv(P + "API_WORKER_TOKEN", "t")
-    monkeypatch.setenv(P + "KERNEL_URL", "http://api:8000/")
+    monkeypatch.setenv(P + "API_URL", "http://api:8000/")
     monkeypatch.setenv(P + "WORKER_DATA_DIR", str(tmp_path))
     monkeypatch.setenv(P + "WORKER_ENVS_DIR", "/opt/envs")
     monkeypatch.setenv(P + "WORKER_BUILD_ENVS", "0")

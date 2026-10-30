@@ -4,6 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildFindCommand, buildGrepCommand, sanitizeCount } from "../../src/sandbox/search.ts";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 describe("sanitizeCount", () => {
   it("rejects NaN/Infinity and floors fractions", () => {
@@ -30,7 +33,7 @@ describe("command lines", () => {
 });
 
 describe("commands run in a real shell", () => {
-  const dir = mkdtempSync(join(tmpdir(), "inkling-search-"));
+  const dir = mkdtempSync(join(tmpdir(), `${RES}-search-`));
   mkdirSync(join(dir, "pkg"));
   mkdirSync(join(dir, "node_modules"));
   writeFileSync(join(dir, "pkg", "a.py"), "alpha\nneedle here\n");

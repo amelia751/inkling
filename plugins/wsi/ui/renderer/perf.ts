@@ -3,9 +3,9 @@
  * (never written to the store) and times queries, hit tests and — in a browser — full
  * frames. In the dev console: `__pathology.selfCheck()` (see renderer/Host.tsx).
  */
-import type { Annotation, Pt } from "@studio/plugin-contracts/types";
-import { drawScene, Scene, type DrawStats } from "@studio/studio-renderers/overlay2d/scene";
-import type { Transform2D } from "@studio/studio-renderers/overlay2d/transform";
+import type { Annotation, Pt } from "@studio/contracts/types";
+import { drawScene, Scene, type DrawStats } from "@studio/renderers/overlay2d/scene";
+import type { Transform2D } from "@studio/renderers/overlay2d/transform";
 
 const LABELS = ["tumor", "stroma", "necrosis", "lymphocytes"];
 

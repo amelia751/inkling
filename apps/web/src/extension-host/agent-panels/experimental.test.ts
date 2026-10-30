@@ -4,7 +4,7 @@ import { createRegistry, registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import experimental from "./manifest";
 import { selectValue, vetProposals } from "./bridge";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const reg = createRegistry([...registry.listModules(), experimental]);
 const env = resolveEnvironment(

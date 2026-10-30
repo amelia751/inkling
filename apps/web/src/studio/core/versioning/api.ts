@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationDocument } from "@studio/plugin-contracts/types";
+import type { Annotation, AnnotationDocument } from "@studio/contracts/types";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { apiUrl } from "@/extension-host/runtime-config";
 

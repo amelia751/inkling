@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import "@/extension-host/bundled";
-import { shapeUtil } from "@studio/studio-renderers/overlay2d/shapes";
-import { migrateAnnotation } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
+import { shapeUtil } from "@studio/renderers/overlay2d/shapes";
+import { migrateAnnotation } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import type { RuntimeApi } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Geometry, Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, StudioItem } from "@studio/contracts/types";
 import { videoExporters } from "./exporters";
 import { describeInstant, describeSpan, describeTrack } from "./geometries";
 import { inspectVideo } from "./inspect";
 import { placeTrack, registerTrackShape, resolveTrack, unplace } from "./trackShape";
 import { shapeAt, toggleOccluded, toggleOutside, trackSpans, type TrackGeometry } from "./tracks";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 registerTrackShape();
 

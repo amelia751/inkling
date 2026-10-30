@@ -1,7 +1,7 @@
 import { cache, volumeLoader, type Types } from "@cornerstonejs/core";
 import { createNiftiImageIdsAndCacheMetadata } from "@cornerstonejs/nifti-volume-loader";
-import { loadDicomSeries } from "@studio/studio-renderers/cornerstone/dicom";
-import { absoluteUrl } from "@studio/studio-renderers/cornerstone/init";
+import { loadDicomSeries } from "@studio/renderers/cornerstone/dicom";
+import { absoluteUrl } from "@studio/renderers/cornerstone/init";
 import type { VolumeSource } from "../dataKind";
 import { assetUrl } from "@studio/plugin-ui-sdk";
 

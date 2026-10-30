@@ -3,7 +3,7 @@ import "@/extension-host/bundled";
 import { AGENT_TOOLS, agentSystemPrompt, changedKeys, runAgentTool, type AgentHost } from "./agent";
 import { registry } from "./registry";
 import { resolveEnvironment, type ResolvedEnv } from "./resolve";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 function host(spec: object) {
   let env = resolveEnvironment(spec, registry).env!;

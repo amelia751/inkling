@@ -13,7 +13,7 @@ import (
 // SchemaVersion is the manifest schema version this service writes.
 const SchemaVersion = "1"
 
-// Annotation kinds, matching the geometries in plugin-contracts.
+// Annotation kinds, matching the geometries in contracts.
 const (
 	KindBox2D       = "box2d"
 	KindPolygon2D   = "polygon2d"

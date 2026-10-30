@@ -1,7 +1,7 @@
-import { SettingsIcon } from "@studio/studio-ui/icons";
-import { Popover, PopoverContent, PopoverTrigger } from "@studio/studio-ui/ui/popover";
-import { Slider } from "@studio/studio-ui/ui/slider";
-import { cn } from "@studio/studio-ui/utils";
+import { SettingsIcon } from "@studio/ui/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@studio/ui/ui/popover";
+import { Slider } from "@studio/ui/ui/slider";
+import { cn } from "@studio/ui/utils";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { publish, useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { NEUTRAL_ADJUST, type Adjustments } from "../renderer/wandCore";

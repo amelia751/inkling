@@ -5,7 +5,7 @@ and no web deploy or reload was needed.
 Needs the kernel and a worker (apps/api/README.md); the dev server runs with the kernel
 proxy on:
 
-    <envPrefix>KERNEL=1 <envPrefix>E2E=1 pnpm exec vite --port 5199 --strictPort
+    <envPrefix>API_URL=http://127.0.0.1:8000 <envPrefix>E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/plugins_test.py --port 5199   # from apps/web
 """
 

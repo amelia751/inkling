@@ -3,7 +3,9 @@
 pnpm + uv monorepo, orchestrated by Turborepo. Deployables are `apps/*` (`web`: React 19,
 Vite 7, TypeScript, zustand, Tailwind + shadcn; `api` and `worker`: Python 3.12; `agent` and
 `mcp`: Node 24; `versioning`: Go). Seed data is fetched locally with `pnpm seeds` and is
-gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`.
+gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`. Words like
+Studio, module, kernel, environment and workspace have one meaning each: see the
+[glossary](docs/README.md#glossary).
 
 ## Layout rules
 
@@ -33,16 +35,17 @@ Don't switch branches or commit in someone else's checkout.
 
 From the repo root: `pnpm typecheck`, `pnpm test` and `pnpm lint` (Turborepo, every
 package; `pnpm affected` for only what changed vs `origin/main`), `pnpm check:boundaries`,
-`pnpm check:python-imports`, `uv run ruff check apps packages tools tests`.
+`pnpm check:names`, `pnpm check:python-imports`, `uv run ruff check apps packages tools tests`.
 
 In `apps/web` before you hand work back:
 
 - `pnpm typecheck`
 - `pnpm test` (vitest unit tests: extension host, packages, plugins)
-- `pnpm check:boundaries` and `pnpm check:icons`
+- `pnpm check:boundaries`, `pnpm check:names` and `pnpm check:icons`
 - `pnpm emit:schemas --check` (fails if generated schemas are stale; run `pnpm emit:schemas`)
-- e2e: start a frozen dev server with `INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort`,
-  then run `python3 e2e/<name>_test.py --port 5199`. Tests that span services (agent,
+- e2e: start a frozen dev server with `INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort`
+  (it serves annotations from a temp copy of `e2e/fixtures/annotations/`, never your
+  `seed-data/.annotations`), then run `python3 e2e/<name>_test.py --port 5199`. Tests that span services (agent,
   plugin install + worker) are in `tests/e2e/`. The `data-testid`s and store fields
   those tests use are a regression contract: keep them working.
 
@@ -52,9 +55,9 @@ The Studio shell runs an **environment** (JSON) that references **modules** (the
 a plugin, `docs/plugins.md`). First-party plugins live in `plugins/<name>/ui/` and contribute
 data kinds, renderers, tools, commands, panels, inspectors, exporters, label controls,
 review rules and presets. Shared building blocks (Cornerstone, overlay2d, timeline, viewport
-chrome, IO) are trusted renderers in `packages/studio-renderers`. Canonical types and the
-environment schema are `packages/plugin-contracts`; what a plugin may import is
-`packages/plugin-ui-sdk` (module contract, host API) and `packages/studio-ui` (shadcn,
+chrome, IO) are trusted renderers in `packages/renderers`. Canonical types and the
+environment schema are `packages/contracts`; what a plugin may import is
+`packages/plugin-ui-sdk` (module contract, host API) and `packages/ui` (shadcn,
 icons). The registry, resolver, `when` clauses, commands, catalogue and agent tools are the
 **extension host** (`apps/web/src/extension-host/`); the shell is `apps/web/src/studio/`.
 Read `docs/modules.md`.
@@ -81,17 +84,23 @@ Read `docs/modules.md`.
 
 ## Rules
 
-- Layers (enforced by `tools/check-boundaries.mjs`): contracts and studio-ui import nothing internal;
-  the SDK only contracts; renderers the SDK, contracts and studio-ui; plugins those plus
+- Names are scope + role, where the role is the folder: `apps/<x>` and `packages/<x>` are
+  `@studio/<x>` (Python `studio-<x>` / `studio_<x>`), `plugins/<x>` is `@studio/plugin-<x>`;
+  images `studio-<x>`. Env vars are `INKLING_<ROLE>_<KEY>` (the prefix is `NAMING.envPrefix`),
+  read in each service's config module only (`secrets/README.md`). `pnpm check:names` enforces both.
+- Layers (enforced by `tools/check-boundaries.mjs`): `@studio/contracts` and `@studio/ui` import
+  nothing internal; `@studio/plugin-ui-sdk` only contracts; `@studio/renderers` the SDK,
+  contracts and ui; plugins those plus
   other plugins' `manifest.ts` / `public.ts`; the shell never imports `@plugins/*` and
   reaches plugins only through the registry.
-- The product name appears in code only in `packages/plugin-contracts/src/naming.ts`; use
+- The product name appears in code only in `packages/contracts/src/naming.ts`; use
   `NAMING`, `ns()`, `NS` and `RES` everywhere else.
 - Domain constants (WFDB codes, cardiac structures, CT presets) live in module config
   defaults or preset vocabularies, never in kits or the platform.
 - Core geometries are domain-neutral (`box`, `polygon`, `span`, `instant`…); domain meaning
   goes in `annotation.attributes`. Stored v1 geometries migrate on load
-  (`packages/plugin-contracts/src/migrations/annotations-v1-to-v2.ts`).
-- Icons come only from `@studio/studio-ui/icons`.
-- Never hand-edit generated files: `schemas/*.json`, `public/catalog.json`,
-  `public/catalog.md`, `public/schema/environment.v1.json`, `docs/modules-reference.md`.
+  (`packages/contracts/src/migrations/annotations-v1-to-v2.ts`).
+- Icons come only from `@studio/ui/icons`.
+- Never hand-edit generated files: `schemas/*.json`, `schemas/catalog.md`,
+  `docs/modules-reference.md`. The web server serves the catalogue and environment schema from
+  `schemas/` at `/catalog.json`, `/catalog.md` and `/schema/environment.v1.json`.

@@ -1,5 +1,5 @@
 # On main: build and push only the app images whose inputs changed, tagged sha-<short>, with
-# SBOM and provenance attestations (todo/todo3.md F). Deploys are GitOps: a later step (or a
+# SBOM and provenance attestations (todo/done/todo3.md F). Deploys are GitOps: a later step (or a
 # bot) bumps the digests in infra/k8s/overlays/*; nothing here runs kubectl.
 name: images
 

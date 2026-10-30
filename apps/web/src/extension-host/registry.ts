@@ -1,5 +1,5 @@
 import type { Registered } from "@studio/plugin-ui-sdk/resolved";
-import { canonicalId } from "@studio/plugin-contracts/naming";
+import { canonicalId } from "@studio/contracts/naming";
 import {
   CONTRIBUTION_TYPES,
   type ContributionOf,

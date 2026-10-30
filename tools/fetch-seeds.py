@@ -18,8 +18,12 @@ Format conversions (originals are kept next to the converted files):
   * TCGA .svs          → Deep Zoom (.dzi + JPEG tile pyramid)           openslide
 
 Usage:  uv run tools/fetch-seeds.py [project-id ...]   # requires the kaggle CLI, logged in
+        python3 tools/fetch-seeds.py --check            # stdlib only: is seed-data/ current?
 
-Object storage (todo/todo3.md E.3): ``--upload`` then puts ``seed-data/`` into the
+``--check`` exits 1 when ``seed-data/manifest.json`` is missing or older than
+``MANIFEST_VERSION``; the e2e harness runs it before any test.
+
+Object storage (todo/done/todo3.md E.3): ``--upload`` then puts ``seed-data/`` into the
 ``assets`` bucket that ``apps/api`` serves from (``BLOB_STORE=s3``), with keys equal to the
 paths in ``manifest.json`` (plus ``manifest.json`` itself, each project's
 ``workspace.json`` and every Deep Zoom tile next to a ``.dzi``). ``--upload-only`` skips
@@ -50,6 +54,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "seed-data"
+# Bump when the manifest format changes; `--check` (run by the e2e harness) rejects older ones.
+MANIFEST_VERSION = 2
 
 XRAY_DATASET = "paultimothymooney/chest-xray-pneumonia"
 BRATS_DATASET = "dschettler8845/brats-2021-task1"
@@ -387,7 +393,7 @@ def with_environment(project: dict) -> dict:
     return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
 
 
-# ---- Upload to object storage (todo/todo3.md E.3) -------------------------------------------
+# ---- Upload to object storage (todo/done/todo3.md E.3) -------------------------------------------
 
 
 def env(name: str, default: str | None = None) -> str | None:
@@ -472,13 +478,28 @@ def upload(only: set[str] | None, include_raw: bool, create_bucket: bool) -> int
     return 1 if counts["missing"] else 0
 
 
+def check() -> int:
+    """seed-data/manifest.json exists and has the current format (no third-party imports)."""
+    manifest_path = SEED / "manifest.json"
+    if not manifest_path.is_file():
+        print(f"{manifest_path.relative_to(ROOT)} is missing: run `pnpm seeds`")
+        return 1
+    version = json.loads(manifest_path.read_text()).get("version")
+    if version != MANIFEST_VERSION:
+        print(f"{manifest_path.relative_to(ROOT)} is version {version}, expected {MANIFEST_VERSION}: run `pnpm seeds` again")
+        return 1
+    return 0
+
+
 def main(argv: list[str]) -> int:
     flags = {a for a in argv if a.startswith("--")}
     argv = [a for a in argv if not a.startswith("--")]
-    unknown_flags = flags - {"--upload", "--upload-only", "--include-raw", "--create-bucket"}
+    unknown_flags = flags - {"--upload", "--upload-only", "--include-raw", "--create-bucket", "--check"}
     if unknown_flags:
         print(f"Unknown option(s): {', '.join(sorted(unknown_flags))}")
         return 2
+    if "--check" in flags:
+        return check()
     if "--upload-only" in flags:
         return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags)
     code = fetch(argv)
@@ -503,7 +524,7 @@ def fetch(argv: list[str]) -> int:
             projects.append(with_environment({**fn(), "status": "available"}))
         elif existing.get(pid, {}).get("status") == "available":
             projects.append(with_environment(existing[pid]))
-    manifest_path.write_text(json.dumps({"version": 2, "projects": projects}, indent=2))
+    manifest_path.write_text(json.dumps({"version": MANIFEST_VERSION, "projects": projects}, indent=2))
     print(f"Wrote {manifest_path}")
     return 0
 

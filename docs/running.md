@@ -81,7 +81,7 @@ Profile `full` of `infra/docker/compose.yaml`: the deps above plus
 | `api-migrate` | `studio-api:dev` | `alembic upgrade head`, then exits |
 | `api` | `studio-api:dev` | :8000 inside the network |
 | `worker` | `studio-worker:dev` | health on :8081; prebuilt plugin environments |
-| `agent` | `studio-agent:dev` | :8100; `AGENT_MODEL=scripted`, `AGENT_SANDBOX=off` by default |
+| `agent` | `studio-agent:dev` | :8100; `INKLING_AGENT_MODEL=scripted`, `INKLING_AGENT_SANDBOX=off` by default |
 | `web` | `studio-web:dev` | nginx: the SPA, `/config.json` (from `infra/docker/web/config.json`), `/api/agent` proxy |
 | `versioning-keys`, `versioning-bootstrap`, `versioning-migrate` | `studio-versioning:dev` | dev JWT key pair, roles + schema, migrations |
 | `versioning` | `studio-versioning:dev` | :8090 inside the network (called by api only) |
@@ -101,11 +101,11 @@ from the git-ignored `secrets/*.env` files when present (a later file wins):
 | api, api-migrate | `env/api.env`, `secrets/api.env` |
 | worker | `env/worker.env` |
 | agent | `env/agent.env`, `secrets/agent.env`, `secrets/models.env`, `secrets/daytona.env` |
-| web | `env/web.env`, `secrets/agent.env` (only `INTERNAL_AGENT_SERVICE_TOKEN`) |
+| web | `env/web.env`, `secrets/agent.env` (only `INKLING_AGENT_TOKEN`) |
 | versioning, versioning-* | `env/versioning.env` |
 
-To use a real model and sandboxes, set `AGENT_MODEL=<provider:model>` and
-`AGENT_SANDBOX=daytona` in `secrets/agent.env` next to the keys in `secrets/models.env` and
+To use a real model and sandboxes, set `INKLING_AGENT_MODEL=<provider:model>` and
+`INKLING_AGENT_SANDBOX=daytona` in `secrets/agent.env` next to the keys in `secrets/models.env` and
 `secrets/daytona.env`. Seeds: run `pnpm seeds:upload` as in mode 1 (the stack's S3 is on the
 same host port).
 
@@ -169,11 +169,11 @@ Notes:
 
   ```sh
   kubectl -n studio-dev create secret generic agent-secrets \
-    --from-literal=INTERNAL_AGENT_SERVICE_TOKEN=dev-only-agent-service-token \
-    --from-literal=AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent \
+    --from-literal=INKLING_AGENT_TOKEN=dev-only-agent-service-token \
+    --from-literal=INKLING_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent \
     --from-env-file=secrets/models.env --from-env-file=secrets/daytona.env \
     --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n studio-dev set env deployment/agent AGENT_MODEL=openai:gpt-6.1-sol AGENT_SANDBOX=daytona
+  kubectl -n studio-dev set env deployment/agent INKLING_AGENT_MODEL=openai:gpt-6.1-sol INKLING_AGENT_SANDBOX=daytona
   ```
 
 - Migration Jobs (`api-migrate`, `versioning-migrate`) are garbage-collected 5 minutes after

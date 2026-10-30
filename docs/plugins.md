@@ -106,10 +106,10 @@ studio/
 │   │       └── routes/
 │   └── worker/                       # job workers and plugin executors
 ├── packages/
-│   ├── plugin-sdk-py/                # typed Python SDK; no privileged access
-│   ├── plugin-contracts/             # JSON Schemas + shared types
+│   ├── plugin-sdk/                   # typed Python SDK; no privileged access
+│   ├── contracts/             # JSON Schemas + shared types
 │   ├── plugin-ui-sdk/                # TS types; declarative contribution API
-│   └── studio-renderers/             # trusted image/video/audio/document UI
+│   └── renderers/             # trusted image/video/audio/document UI
 ├── plugins/
 │   ├── segmentation/                # first-party reference plugin
 │   ├── transcription/

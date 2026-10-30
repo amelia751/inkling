@@ -1,13 +1,16 @@
 import type { Daytona } from "@daytona/sdk";
-import { type Config, loadConfig } from "../../src/config.ts";
+import { type Config, envName, loadConfig, withPrefix } from "../../src/config.ts";
 import { loadDevSecrets } from "../../src/secrets.ts";
 import { createDaytona } from "../../src/sandbox/client.ts";
 import { listOwned } from "../../src/sandbox/sweeper.ts";
+import { NAMING } from "../../src/naming.ts";
 
-process.env.APP_ENV ??= "test";
+const RES = NAMING.resourcePrefix;
+
+process.env[envName("ENV")] ??= "test";
 loadDevSecrets();
 
-export const { config } = loadConfig({ ...process.env, AGENT_SANDBOX_TTL_MIN: "60", AGENT_SANDBOX_AUTO_STOP_MIN: "10" });
+export const { config } = loadConfig({ ...process.env, ...withPrefix({ AGENT_SANDBOX_TTL_MIN: "60", AGENT_SANDBOX_AUTO_STOP_MIN: "10" }) });
 export const daytona: Daytona | undefined = createDaytona(config);
 export const live = Boolean(daytona);
 
@@ -19,7 +22,7 @@ export async function assertNoLeftovers(d: Daytona, cfg: Config): Promise<void> 
   const left = await listOwned(d, cfg.env, LIVE_LABELS);
   if (left.length > MAX_LEFTOVERS) {
     throw new Error(
-      `${left.length} leftover app=inkling,env=${cfg.env},test=live sandboxes exist; run \`pnpm --filter @studio/agent sweep -- --env ${cfg.env} --label test=live --delete\``,
+      `${left.length} leftover app=${RES},env=${cfg.env},test=live sandboxes exist; run \`pnpm --filter @studio/agent sweep -- --env ${cfg.env} --label test=live --delete\``,
     );
   }
 }

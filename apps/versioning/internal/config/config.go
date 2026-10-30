@@ -2,7 +2,9 @@
 //
 // Env var and bucket names are not hardcoded to a brand (todo4 V11): the env
 // prefix and resource prefix come from the naming config (schemas/naming.json),
-// located through NAMING_CONFIG or by walking up from the working directory.
+// located through NAMING_FILE (the one unprefixed name: the prefix is read from
+// it) or by walking up from the working directory. This package is the only
+// place the service reads the environment.
 package config
 
 import (
@@ -79,7 +81,7 @@ var bucketRE = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$`)
 // defaults so the service still starts in isolation (tests, a lone checkout).
 func LoadNaming() (Naming, error) {
 	n := Naming{ResourcePrefix: "studio", EnvPrefix: ""}
-	path := os.Getenv("NAMING_CONFIG")
+	path := os.Getenv("NAMING_FILE")
 	if path == "" {
 		path = findUp("schemas/naming.json")
 	}
@@ -118,6 +120,10 @@ func findUp(rel string) string {
 		dir = parent
 	}
 }
+
+// Env reads one setting outside Config (scripts, tests): Env(n, "VERSIONING_LOAD_ENTRIES")
+// reads <envPrefix>VERSIONING_LOAD_ENTRIES.
+func Env(naming Naming, key string) string { return os.Getenv(naming.EnvPrefix + key) }
 
 // Load parses the environment. Errors name the missing or invalid keys only,
 // never their values.

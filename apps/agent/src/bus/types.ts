@@ -1,11 +1,11 @@
-import type { AgentEvent, AgentEventBody } from "../protocol.ts";
+import type { AgentEvent, AgentEventBody } from "@studio/agent-protocol";
 import type { EventLog } from "../runtime/events.ts";
 
 /** What `read` yields: events in seq order, or `idle` every few seconds while nothing arrives. */
 export type BusItem = AgentEvent | "idle";
 
 /**
- * Run event fan-out (todo/todo3.md E.1). The replica that runs a loop publishes its events in seq
+ * Run event fan-out (todo/done/todo3.md E.1). The replica that runs a loop publishes its events in seq
  * order; any replica can `read` them from any seq (SSE with Last-Event-ID), and `signal` wakes the
  * loop's replica when an approval, client-tool result or command for one of its runs was stored.
  *

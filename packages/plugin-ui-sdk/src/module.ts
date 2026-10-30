@@ -1,10 +1,10 @@
 import type { ComponentType, SVGProps } from "react";
 import type * as z from "zod";
-import type { Annotation, Geometry, Project, StudioItem } from "@studio/plugin-contracts/types";
-import type { EnvironmentSpec, LabelGroup } from "@studio/plugin-contracts/environment";
+import type { Annotation, Geometry, Project, StudioItem } from "@studio/contracts/types";
+import type { EnvironmentSpec, LabelGroup } from "@studio/contracts/environment";
 import type { ResolvedEnv, ResolvedViewport } from "./resolved";
 
-/** An icon component (studio-ui icons satisfy it). */
+/** An icon component (ui icons satisfy it). */
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 /**

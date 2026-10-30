@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import type { InspectFn, InspectContext } from "@studio/plugin-ui-sdk/module";
 import { registry } from "./registry";
 import type { ResolvedEnv } from "./resolve";

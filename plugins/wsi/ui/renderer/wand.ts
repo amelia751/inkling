@@ -1,9 +1,9 @@
 import type OpenSeadragon from "openseadragon";
-import type { Pt } from "@studio/plugin-contracts/types";
-import type { Region } from "@studio/studio-renderers/overlay2d/regions";
+import type { Pt } from "@studio/contracts/types";
+import type { Region } from "@studio/renderers/overlay2d/regions";
 import { runWandJob, type Adjustments, type WandJob } from "./wandCore";
-import type { Transform2D } from "@studio/studio-renderers/overlay2d/transform";
-import type { ToolContext, ToolMachine } from "@studio/studio-renderers/overlay2d/tools";
+import type { Transform2D } from "@studio/renderers/overlay2d/transform";
+import type { ToolContext, ToolMachine } from "@studio/renderers/overlay2d/tools";
 
 export { NEUTRAL_ADJUST, type Adjustments } from "./wandCore";
 

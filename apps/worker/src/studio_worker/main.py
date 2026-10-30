@@ -312,7 +312,7 @@ def prepare_envs(repo_root: Path, envs_dir: Path, only: list[str] | None, uv: st
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="studio-worker")
-    ap.add_argument("--kernel", default=None, help="kernel URL (default: <envPrefix>KERNEL_URL)")
+    ap.add_argument("--kernel", default=None, help="api URL (default: <envPrefix>API_URL)")
     ap.add_argument("--token", default=None)
     ap.add_argument("--data-dir", default=None)
     ap.add_argument("--envs-dir", default=None)
@@ -322,7 +322,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--poll", type=float, default=None)
     ap.add_argument("--prepare-envs", action="store_true", help="build the locked envs of the bundled Python plugins into WORKER_ENVS_DIR, then exit")
     a = ap.parse_args(argv)
-    setup_service(SERVICE, service_version())
+    level, json_logs = config.log_settings()
+    setup_service(SERVICE, service_version(), level=level, json_logs=json_logs)
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per poll is noise
     try:
         s = config.load_settings(require_token=not a.prepare_envs, token=a.token, kernel_url=a.kernel, data_dir=a.data_dir, envs_dir=a.envs_dir, plugins=a.plugins, worker_id=a.worker_id)

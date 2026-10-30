@@ -1,4 +1,4 @@
-import type { Pt } from "@studio/plugin-contracts/types";
+import type { Pt } from "@studio/contracts/types";
 
 /**
  * Pan/zoom camera of the canvas-raster renderer: image pixel (x, y) maps to screen CSS

@@ -1,5 +1,5 @@
 import { difference } from "polyclip-ts";
-import type { Annotation, Geometry, Project, Pt, SeedAsset } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, Pt, SeedAsset } from "@studio/contracts/types";
 import {
   catmullRomClosed,
   interpolateRings,
@@ -10,7 +10,7 @@ import {
   resample,
   rleDecode,
   simplify,
-} from "@studio/studio-renderers/overlay2d/geometry";
+} from "@studio/renderers/overlay2d/geometry";
 
 /**
  * Pure slice × frame model: contour geometry, label maps, per-structure areas and slice

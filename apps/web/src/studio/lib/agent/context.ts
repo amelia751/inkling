@@ -1,9 +1,9 @@
 import { environmentContext } from "@/extension-host/agent";
 import { describeGeometry } from "@/extension-host/describe";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { useStudio } from "@/studio/stores/studio";
-import type { Project, StudioItem } from "@studio/plugin-contracts";
-import type { AgentContext } from "./protocol";
+import type { Project, StudioItem } from "@studio/contracts";
+import type { DatasetSnapshot as AgentContext } from "@studio/agent-protocol";
 
 /** Cap so one huge dataset can't blow the request size; tools report totals separately. */
 const MAX_ANNOTATIONS = 3000;

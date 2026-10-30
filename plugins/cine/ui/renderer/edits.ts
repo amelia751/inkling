@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { cellKey, interpolateContour, isContour, isMask, labelValue, maskToControlPoints, type Cell, type ContourAnn, type ContourGeometry, type MaskAnn, type Structures } from "../model";
 import { EMPTY_CELL } from "./engine";
 

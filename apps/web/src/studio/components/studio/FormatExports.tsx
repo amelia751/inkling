@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { ExportIcon } from "@studio/studio-ui/icons";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Card } from "@studio/studio-ui/ui/card";
+import { ExportIcon } from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
+import { Card } from "@studio/ui/ui/card";
 import { fetchAnnotations } from "@/studio/lib/api";
 import { projectItems } from "@/studio/lib/items";
-import type { Project } from "@studio/plugin-contracts/types";
+import type { Project } from "@studio/contracts/types";
 import { envOf } from "@/studio/lib/environment";
 import type { Exporter, ExporterImpl } from "@studio/plugin-ui-sdk/module";
 import { registry } from "@/extension-host/registry";

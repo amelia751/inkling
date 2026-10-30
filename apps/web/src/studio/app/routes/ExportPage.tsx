@@ -1,21 +1,21 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ExportIcon, FileIcon } from "@studio/studio-ui/icons";
+import { ExportIcon, FileIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Card, CardHeader, CardTitle } from "@studio/studio-ui/ui/card";
-import { Checkbox } from "@studio/studio-ui/ui/checkbox";
-import { Label } from "@studio/studio-ui/ui/label";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import { Card, CardHeader, CardTitle } from "@studio/ui/ui/card";
+import { Checkbox } from "@studio/ui/ui/checkbox";
+import { Label } from "@studio/ui/ui/label";
 import { fetchAnnotations } from "@/studio/lib/api";
 import { projectItems } from "@/studio/lib/items";
 import { envOf } from "@/studio/lib/environment";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { FormatExports } from "@/studio/components/studio/FormatExports";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import { FullPageMessage, useProject } from "./shared";
-import { NAMING, NS, RES } from "@studio/plugin-contracts/naming";
+import { NAMING, NS, RES } from "@studio/contracts/naming";
 
 /** Download-only export for the MVP; public publishing is out of scope (ui.md §11). */
 export function ExportPage() {

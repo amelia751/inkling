@@ -13,16 +13,16 @@ import {
   StepBackIcon as StepBack,
   StepForwardIcon as StepForward,
   CloseIcon as X,
-} from "@studio/studio-ui/icons";
-import { formatCombo, resolveShortcut, shortcutLabel } from "@studio/studio-ui/shortcuts";
-import { cn } from "@studio/studio-ui/utils";
-import { BarIconButton, BarTextButton } from "@studio/studio-renderers/viewport-chrome/controls";
-import { formatTime } from "@studio/studio-renderers/viewport-chrome/format";
-import type { Annotation } from "@studio/plugin-contracts/types";
+} from "@studio/ui/icons";
+import { formatCombo, resolveShortcut, shortcutLabel } from "@studio/ui/shortcuts";
+import { cn } from "@studio/ui/utils";
+import { BarIconButton, BarTextButton } from "@studio/renderers/viewport-chrome/controls";
+import { formatTime } from "@studio/renderers/viewport-chrome/format";
+import type { Annotation } from "@studio/contracts/types";
 import { isSpatial, keyframeAt, shapeAt, sortKeyframes, toggleKeyframe, toggleOccluded, toggleOutside, type TrackGeometry } from "../tracks";
 import { cmd } from "./StageBars";
 import type { VideoEngine, VideoState } from "./VideoEngine";
-import { NS } from "@studio/plugin-contracts/naming";
+import { NS } from "@studio/contracts/naming";
 
 const RATES = [0.25, 0.5, 1, 1.5, 2];
 const core = (n: string) => `${NS}.core.commands.${n}`;

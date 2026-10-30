@@ -1,9 +1,10 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { hslToRgb, resolveLabelColor } from "@studio/plugin-ui-sdk/labels";
-import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/contracts/types";
 import { measurementLength } from "./measure";
-import { regionArea, regionOf, regionPerimeter } from "@studio/studio-renderers/overlay2d/regions";
+import { regionArea, regionOf, regionPerimeter } from "@studio/renderers/overlay2d/regions";
 import { newAnnotation } from "@studio/plugin-ui-sdk";
+import { RES } from "@studio/contracts/naming";
 
 // ---------------------------------------------------------------- helpers
 
@@ -97,7 +98,7 @@ export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotatio
         isLocked: !!a.locked,
         ...(name ? { name } : {}),
         ...(measurementsOf(a, mppOf(item)) ? { measurements: measurementsOf(a, mppOf(item)) } : {}),
-        metadata: { inkling_item: slideName(item), inkling_provenance: a.provenance },
+        metadata: { [`${RES}_item`]: slideName(item), [`${RES}_provenance`]: a.provenance },
       },
     });
   }
@@ -111,7 +112,7 @@ export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotatio
         classification: { name: p.label, color: labelRgb(labels, p.label) },
         isLocked: false,
         measurements: { "Num points": p.coords.length },
-        metadata: { inkling_item: slideName(byId.get(p.item)!) },
+        metadata: { [`${RES}_item`]: slideName(byId.get(p.item)!) },
       },
     });
   }

@@ -4,7 +4,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { MemoryRunEventBus } from "../../src/bus/memory.ts";
 import { RedisRunEventBus } from "../../src/bus/redis.ts";
 import type { BusItem, RunEventBus } from "../../src/bus/types.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { EventLog } from "../../src/runtime/events.ts";
 
 const REDIS = process.env.AGENT_TEST_REDIS_URL;

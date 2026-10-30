@@ -45,7 +45,7 @@ the temp dir the runner prints, and are dumped on failure.
 
 To try the versioned save flow in the browser, `run.py --serve` keeps the stack up until
 Ctrl-C; then run the web app with the kernel proxy pointed at the API:
-`<envPrefix>KERNEL=1 <envPrefix>KERNEL_URL=http://127.0.0.1:58800 pnpm dev` in `apps/web`. The
+`<envPrefix>API_URL=http://127.0.0.1:58800 pnpm dev` in `apps/web`. The
 Studio switches to work branches when `GET /api/v1/versioning/status` reports `ready`.
 Without Go, `<envPrefix>API_VERSIONING_URL=memory:` gives the kernel an in-process stand-in
 (`kernel/versioning/fake.py`; state is lost on restart).

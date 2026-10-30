@@ -3,6 +3,7 @@ import { join, relative } from "node:path";
 import type { Sandbox } from "@daytona/sdk";
 import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
+import { env } from "../config.ts";
 import { NAMING, canonicalId, ns } from "../naming.ts";
 import { SANDBOX_HOME } from "../sandbox/defaults.ts";
 import { execCommand, shellQuote, withRecovery } from "../sandbox/exec.ts";
@@ -512,7 +513,7 @@ export const PLUGIN_TOOL_NAMES = ["create_plugin_sandbox", "run_plugin_checks", 
 /** File tools the builder gets in its sandbox; their paths are confined to PLUGIN_DIR (policy). */
 export const PLUGIN_FILE_TOOLS = ["read", "write", "edit", "ls", "find", "grep"] as const;
 
-const TEMPLATE_DIR = process.env.AGENT_PLUGIN_TEMPLATE_DIR ?? join(import.meta.dirname, "../../../../plugins/_template");
+const TEMPLATE_DIR = env("AGENT_PLUGIN_TEMPLATE_DIR") ?? join(import.meta.dirname, "../../../../plugins/_template");
 const SCHEMAS_DIR = join(import.meta.dirname, "../../../../schemas");
 const SKIP = /(^|\/)(node_modules|\.venv|__pycache__|\.pytest_cache)(\/|$)/;
 const TAR_EXCLUDES = ["./.venv", "./node_modules", "./__pycache__", "./.pytest_cache", "./.ruff_cache"].map((x) => `--exclude=${x}`).join(" ");

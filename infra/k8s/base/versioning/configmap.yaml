@@ -1,6 +1,6 @@
 # Non-secret settings for apps/versioning (keys: <envPrefix>VERSIONING_*). versioning-secrets
 # holds the database URL (versioning_app role) and the S3 keys; the JWKS (public keys of
-# apps/api's service-JWT signer) is the versioning-jwks ConfigMap, created per environment.
+# apps/api's service-JWT signer) is the versioning-jwks ConfigMap, created per stage.
 apiVersion: v1
 kind: ConfigMap
 metadata:

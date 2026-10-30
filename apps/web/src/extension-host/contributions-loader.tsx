@@ -1,6 +1,6 @@
-import { mediaTypeOf } from "@studio/plugin-contracts/media-types";
-import type { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
-import type { PanelDecl, UiContributions, VisibleWhen } from "@studio/plugin-contracts/ui-contributions";
+import { mediaTypeOf } from "@studio/contracts/media-types";
+import type { PluginManifest } from "@studio/contracts/plugin-manifest";
+import type { PanelDecl, UiContributions, VisibleWhen } from "@studio/contracts/ui-contributions";
 import { defineModule, type CommandContribution, type ModuleManifest, type PanelContribution, type PanelProps, type ResolvedEnv } from "@studio/plugin-ui-sdk";
 import { registerCommand } from "./commands";
 import { dispatch } from "./gateway";

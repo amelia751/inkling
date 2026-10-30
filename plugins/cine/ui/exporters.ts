@@ -1,11 +1,11 @@
-import { gzip, writeLabelNifti } from "@studio/studio-renderers/io/niftiIO";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { gzip, writeLabelNifti } from "@studio/renderers/io/niftiIO";
+import { labelNames } from "@studio/contracts/environment";
 import type { ExporterImpl } from "@studio/plugin-ui-sdk/module";
-import type { Project } from "@studio/plugin-contracts/types";
+import type { Project } from "@studio/contracts/types";
 import { cineGridFor, pickCineItem } from "./io";
 import { cellKey, cellLabelMap, groupCells, isContour, myoArea, perimeterMm, resolvePhases, ring, ringArea, STRUCT_KEYS, STRUCT_SHORT, structureOf } from "./model";
 import { cineConfigFor, structuresOf } from "./public";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import { NAMING } from "@studio/contracts/naming";
 
 /** Label map (NIfTI) and contours (JSON). The cardiac function CSV lives in inkling.cardiac-metrics. */
 export const cineExporters: Record<string, ExporterImpl> = {

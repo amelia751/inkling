@@ -1224,7 +1224,7 @@ dev = [{ name = "pytest", specifier = ">=9.2" }]
 [[package]]
 name = "studio-plugin-sdk"
 version = "0.1.0"
-source = { editable = "packages/plugin-sdk-py" }
+source = { editable = "packages/plugin-sdk" }
 dependencies = [
     { name = "httpx" },
 ]

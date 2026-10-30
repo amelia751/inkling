@@ -1,4 +1,4 @@
-import type { AgentCard, AgentContext, ClientToolSpec } from "./protocol";
+import type { AgentCard, DatasetSnapshot as AgentContext, ClientToolSpec } from "@studio/agent-protocol";
 
 /**
  * Card tools: the agent proposes, the expert decides. They run in the browser against the same

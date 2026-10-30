@@ -1,15 +1,15 @@
-import { DeleteIcon, HideIcon, LockIcon, ShowIcon, UnlockIcon } from "@studio/studio-ui/icons";
-import { ScrollArea } from "@studio/studio-ui/ui/scroll-area";
-import { Slider } from "@studio/studio-ui/ui/slider";
+import { DeleteIcon, HideIcon, LockIcon, ShowIcon, UnlockIcon } from "@studio/ui/icons";
+import { ScrollArea } from "@studio/ui/ui/scroll-area";
+import { Slider } from "@studio/ui/ui/slider";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import { describeGeometry, inspectRows } from "@/extension-host/describe";
-import { labelClasses, regionLabelNames } from "@studio/plugin-contracts/environment";
+import { labelClasses, regionLabelNames } from "@studio/contracts/environment";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import type { ResolvedEnv } from "@/extension-host/resolve";
 import { runtimeFor, useRuntimeVersion } from "@studio/plugin-ui-sdk/runtime";
 import { isEditable, LOCAL_AUTHOR, useStudio } from "@/studio/stores/studio";
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 import { ProvenanceBadge } from "./provenance";
 
 /**

@@ -4,7 +4,7 @@ A studio for viewing, annotating and exporting medical and scientific data: imag
 
 This is a monorepo. Everything (web app, backend services, agent, plugins, shared libraries, infrastructure) lives here and is built with one set of tools.
 
-> The product name lives in exactly one place, the naming config (`packages/plugin-contracts/src/naming.ts`, exported as `schemas/naming.json`). Code and new files use brand-free names (`@studio/*`), so the product can be renamed by changing that config and running `tools/rename-namespace.mjs`.
+> The product name lives in exactly one place, the naming config (`packages/contracts/src/naming.ts`, exported as `schemas/naming.json`). Code and new files use brand-free names (`@studio/*`), so the product can be renamed by changing that config and running `tools/rename-namespace.mjs`.
 
 ---
 
@@ -39,7 +39,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 
 1. **`apps/*` never import each other.** They talk over HTTP and events only, so each one can be deployed and scaled on its own.
 2. **`packages/*` never import from `apps/*` or `plugins/*`.**
-3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `plugin-ui-sdk`, `plugin-contracts`, `studio-ui` and `studio-renderers`. `plugins/*/worker` imports only `plugin-sdk-py`.
+3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `@studio/plugin-ui-sdk`, `@studio/contracts`, `@studio/ui` and `@studio/renderers`. `plugins/*/worker` imports only `plugin-sdk`.
 
 ---
 
@@ -48,7 +48,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 Each app has a `Dockerfile` (built from the repo root), a `/healthz`, `/readyz` and `/version` endpoint, and a matching folder in `infra/k8s/base/`. Apps read config only from environment variables. Local `secrets/*.env` files are a dev convenience on top.
 
 ### `apps/web`: the Studio (`@studio/web`)
-React + Vite single-page app. In production it's static files served by nginx. Runtime settings come from a mounted `/config.json`, so one image works in every environment.
+React + Vite single-page app. In production it's static files served by nginx. Runtime settings come from a mounted `/config.json`, so one image works in every stage (dev, staging, prod).
 
 | Path | What it is |
 |---|---|
@@ -86,7 +86,7 @@ Node 24 service built on the pi coding agent (`@earendil-works/pi-coding-agent`)
 | `NOTICE` | Apache-2.0 attribution for code adapted from `@daytona/pi`. Keep it. |
 
 ### `apps/worker`: plugin job runner (`@studio/worker`)
-Python process that pulls jobs from the queue and runs plugin tools (for example segmentation inference) through `plugin-sdk-py`. It acks and retries jobs and enforces resource budgets. All first-party `plugins/*/worker` packages are installed in one image. Kubernetes scales it on queue depth with KEDA, down to zero when idle.
+Python process that pulls jobs from the queue and runs plugin tools (for example segmentation inference) through `plugin-sdk`. It acks and retries jobs and enforces resource budgets. All first-party `plugins/*/worker` packages are installed in one image. Kubernetes scales it on queue depth with KEDA, down to zero when idle.
 
 ### `apps/mcp`: MCP server (`@studio/mcp`)
 Exposes the Studio environment tools (catalogue, get/validate/patch an environment) over the Model Context Protocol (stdio), so outside agents (Claude Desktop, Cursor and so on) can drive the Studio. It calls a running Studio over HTTP and never imports another app. The catalogue and validation routes still live in the web dev server (they run the TypeScript registry); see `apps/mcp/README.md`.
@@ -124,7 +124,7 @@ plugins/<name>/
 | `video/` | Video (for example endoscopy), with frame-accurate segments and labels. |
 | `wsi/` | Whole-slide pathology images (OpenSeadragon), with region annotations. |
 | `text-spans/` | Text documents with span labelling. |
-| `export-dicom/` | DICOM export of annotations and masks (SEG/SR). |
+| `dicom-export/` | DICOM export of annotations and masks (SEG/SR). |
 | `segmentation/` | Reference worker plugin: mask proposals from SAM-style providers (mock, Meta SAM, local SAM), reviewed in the `mask-review` renderer. |
 
 ---
@@ -133,12 +133,12 @@ plugins/<name>/
 
 | Package | Language | What it is |
 |---|---|---|
-| `plugin-contracts/` | TS | Canonical types and zod schemas: environment spec, annotations, geometries, `plugin.yaml`, UI contributions, and the **naming config**. Emits `schemas/`. |
+| `contracts/` | TS | Canonical types and zod schemas: environment spec, annotations, geometries, `plugin.yaml`, UI contributions, and the **naming config**. Emits `schemas/`. |
 | `plugin-ui-sdk/` | TS | All a plugin's UI may import: `defineModule`, contribution types, `when` clause types, host API hooks (`useHost`, `assetUrl`, selection, annotations). |
-| `studio-ui/` | TS | Presentational building blocks: shadcn/ui components, icons, `cn` and other utils. No app state. |
-| `studio-renderers/` | TS | Heavy shared viewer engines plugins build on: cornerstone, 2-D overlay, timeline, viewport chrome, file IO, plus the trusted renderers declarative contributions map to (for example `mask-review`). |
+| `ui/` | TS | Presentational building blocks: shadcn/ui components, icons, `cn` and other utils. No app state. |
+| `renderers/` | TS | Heavy shared viewer engines plugins build on: cornerstone, 2-D overlay, timeline, viewport chrome, file IO, plus the trusted renderers declarative contributions map to (for example `mask-review`). |
 | `api-client/` | TS | Typed client for `apps/api`, generated from its OpenAPI spec. Used by `web`, `agent` and `mcp`. |
-| `plugin-sdk-py/` | Python | Worker-side SDK (`studio_plugin_sdk`): tool decorators, provider base classes, kernel client, job context, budgets. |
+| `plugin-sdk/` | Python | Worker-side SDK (`studio_plugin_sdk`): tool decorators, provider base classes, kernel client, job context, budgets. |
 | `observability-ts/`, `observability-py/` | TS, Python | Structured JSON logging and OpenTelemetry setup, so a trace follows one user action from web through api, agent and worker. |
 
 ---
@@ -148,7 +148,7 @@ plugins/<name>/
 | Folder | What it is |
 |---|---|
 | `registry/` | `presets/*.json`: workspace templates (radiology, pathology, cardiology, …) that pick plugins and layouts. `index.json`: the catalogue of installable plugins and versions the control plane resolves against. |
-| `schemas/` | JSON Schemas emitted from `plugin-contracts`: environment, annotations, `plugin.yaml`, contributions, `naming.json`. Python pydantic models are generated from these, so TS and Python can't drift. |
+| `schemas/` | JSON Schemas emitted from `contracts`: environment, annotations, `plugin.yaml`, contributions, `naming.json`. Python pydantic models are generated from these, so TS and Python can't drift. |
 | `infra/docker/` | Shared base images and `compose.yaml`. Profile `deps` runs Postgres, Redis and MinIO for local dev. Profile `full` runs every app image behind a router, like production. |
 | `infra/k8s/` | Kustomize. `base/<app>/` holds the Deployment, Service, HPA/KEDA, PDB and ConfigMap for each app. `base/jobs/` holds DB migrations and the sandbox sweeper CronJob. `overlays/{dev,staging,prod}/` holds replicas, image digests, managed endpoints and NetworkPolicies. |
 | `infra/terraform/` | Cloud resources (cluster, buckets, database), when there is a cloud. |

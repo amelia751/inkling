@@ -6,7 +6,7 @@
 **Scope:** `apps/agent` and its integration with `apps/web`, `apps/api`, `apps/worker`, and external providers  
 **Technology:** `apps/agent` is TypeScript on Node ≥ 22.19 with **pi** (`@earendil-works/pi-coding-agent` 1.4.0), Hono and Daytona (`@daytona/sdk` 0.227.0); `apps/api` stays Python/FastAPI with PostgreSQL. Temporal optionally, later.
 
-> This document began as a design guide for a Python agent on Pydantic AI Harness. `todo/todo1.md` replaced that framework choice with pi; §2–§7 and §8.3 describe the Node service as built, and everything else (boundaries, trust model, approval matrix, lifecycle rules, event contract) still applies. pi ships about three releases a week: dependencies are pinned exactly and upgraded deliberately (§17). Sources: pi's bundled docs (`node_modules/@earendil-works/pi-coding-agent/docs/`), https://www.daytona.io/docs/.
+> This document began as a design guide for a Python agent on Pydantic AI Harness. `todo/done/todo1.md` replaced that framework choice with pi; §2–§7 and §8.3 describe the Node service as built, and everything else (boundaries, trust model, approval matrix, lifecycle rules, event contract) still applies. pi ships about three releases a week: dependencies are pinned exactly and upgraded deliberately (§17). Sources: pi's bundled docs (`node_modules/@earendil-works/pi-coding-agent/docs/`), https://www.daytona.io/docs/.
 
 ## 1. Product goals and non-goals
 
@@ -72,12 +72,12 @@ Object storage: immutable dataset versions, sandbox artifact exports
 
 ## 3. Monorepo layout
 
-`apps/agent` is a pnpm workspace package (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
+`apps/agent` is a package in the pnpm repo workspace (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
 
 ```text
 inkling/
 ├── docs/agent.md                    # THIS specification
-├── todo/todo1.md                    # the pi + Daytona plan this section implements
+├── todo/done/todo1.md                    # the pi + Daytona plan this section implements
 ├── secrets/                         # git-ignored except README.md and *.example (dev only)
 ├── apps/
 │   ├── web/                         # React + Vite Studio
@@ -168,7 +168,7 @@ The other rows are options from the original Harness survey; none is wired up. D
 ### 6.2 Install
 
 ```bash
-pnpm install                                   # apps/agent is a workspace package
+pnpm install                                   # apps/agent is a repo-workspace package
 pnpm --filter @studio/agent snapshot          # optional: build the content-hashed sandbox snapshot (minutes, once)
 ```
 
@@ -176,7 +176,7 @@ Dependencies are pinned exactly (`@earendil-works/pi-coding-agent` and `pi-ai` 1
 
 ### 6.3 Configuration
 
-Non-secret settings are documented in `apps/agent/.env.example` (`AGENT_*`); secrets come from the real environment or, outside production, from `secrets/*.env` (never overriding real env). In production missing keys fail startup; in development they only disable the feature. `AGENT_MODEL` must be in `AGENT_MODEL_ALLOWLIST`; `AGENT_MODEL=scripted` (dev/test only) replays a fixture instead of calling a provider.
+Non-secret settings are documented in `apps/agent/.env.example` (`AGENT_*`); secrets come from the real environment or, outside production, from `secrets/*.env` (never overriding real env). In production missing keys fail startup; in development they only disable the feature. `INKLING_AGENT_MODEL` must be in `INKLING_AGENT_MODEL_ALLOWLIST`; `INKLING_AGENT_MODEL=scripted` (dev/test only) replays a fixture instead of calling a provider.
 
 ### 6.4 Smoke test
 
@@ -197,7 +197,7 @@ pnpm agent        # tsx watch src/main.ts → http://127.0.0.1:8100
 pnpm dev          # Vite; /api/agent/* is proxied to the service with the service token
 ```
 
-`/health/live` makes no Daytona or model calls; `/health/ready` reports config, model key, Daytona reachability (cached 60 s) and the egress tier. On first start in development the service writes `secrets/agent.env` with a random `INTERNAL_AGENT_SERVICE_TOKEN` that the Vite proxy reads. Do **not** expose port 8100.
+`/health/live` makes no Daytona or model calls; `/health/ready` reports config, model key, Daytona reachability (cached 60 s) and the egress tier. On first start in development the service writes `secrets/agent.env` with a random `INKLING_AGENT_TOKEN` that the Vite proxy reads. Do **not** expose port 8100.
 
 ### 6.7 Startup order
 
@@ -224,7 +224,7 @@ zod-validated settings; fails closed in production. Model allowlist, budgets, co
 ### 7.3 Application tools (three execution sites)
 
 - **Server tools** (`tools/dataset.ts`): `dataset_overview`, `list_items`, `get_item_annotations`, `run_validation` over the snapshot the Studio shares with each message (seed API fallback). The project comes from the session record; a `projectId` argument naming another project is an error.
-- **Client tools** (`tools/client.ts`): declared by the browser at session creation, validated against the profile allowlist. `execute` emits `client-tool { callId, name, input }` and awaits `POST /v1/runs/:runId/client-tools/:callId` (timeout `AGENT_CLIENT_TOOL_TIMEOUT_S`). Environment tools run against the live registry and store, so each edit stays one undoable `setEnv` step; card tools return `{ shown: true }` at once and only act on the expert's click.
+- **Client tools** (`tools/client.ts`): declared by the browser at session creation, validated against the profile allowlist. `execute` emits `client-tool { callId, name, input }` and awaits `POST /v1/runs/:runId/client-tools/:callId` (timeout `INKLING_AGENT_CLIENT_TOOL_TIMEOUT_S`). Environment tools run against the live registry and store, so each edit stays one undoable `setEnv` step; card tools return `{ shown: true }` at once and only act on the expert's click.
 - **Sandbox tools** (`tools/sandbox.ts`): resolve the session's sandbox lazily and throw if there is none; they never fall back to the host.
 
 ### 7.4 Skills
@@ -462,7 +462,7 @@ A tenant member can open Inkling, start an agent session, request a **read-only 
 3. Diff the `createAgentSession` options, `AgentSessionEvent`, `*Operations` and `ToolCallEvent` declarations; the projection (`runtime/events.ts`) and ops (`sandbox/ops.ts`) depend on them.
 4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @studio/agent smoke` and `tests/e2e/agent_test.py`.
 5. Check `@daytona/pi` for fixes worth porting into `apps/agent/src/sandbox/` (keep the NOTICE).
-6. Review cost deltas and the default model list (`AGENT_MODEL_ALLOWLIST`).
+6. Review cost deltas and the default model list (`INKLING_AGENT_MODEL_ALLOWLIST`).
 
 ---
 

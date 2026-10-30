@@ -7,9 +7,9 @@ import pytest
 from studio_plugin_sdk import ToolError
 from studio_plugin_sdk.masks import decode_rle
 
-from segmentation_plugin.normalize import to_result
-from segmentation_plugin.providers.base import RawInstance
-from segmentation_plugin.tools import segment_objects
+from studio_plugin_segmentation.normalize import to_result
+from studio_plugin_segmentation.providers.base import RawInstance
+from studio_plugin_segmentation.tools import segment_objects
 
 from .conftest import REPO
 

@@ -1,5 +1,5 @@
-import { Badge } from "@studio/studio-ui/ui/badge";
-import type { Provenance } from "@studio/plugin-contracts/types";
+import { Badge } from "@studio/ui/ui/badge";
+import type { Provenance } from "@studio/contracts/types";
 
 const PROVENANCE: Record<Provenance, { label: string; theme: "clear" | "ai" | "info" }> = {
   "human-created": { label: "Human created", theme: "clear" },

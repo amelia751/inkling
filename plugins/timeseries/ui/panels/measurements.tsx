@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { codeName, MeasurementsConfigSchema, statementsOf, stripConfig, type Statement } from "../config";
 import { measure, ms } from "../measure";

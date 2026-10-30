@@ -2,7 +2,7 @@ import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { RunEventBus } from "../bus/types.ts";
 import { INTERRUPTED_MESSAGE, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
-import type { AgentEvent } from "../protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 
 const HEARTBEAT_MS = 15_000;
 

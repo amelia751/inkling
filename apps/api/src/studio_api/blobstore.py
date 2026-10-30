@@ -1,4 +1,4 @@
-"""BlobStore: where asset bytes and derived data live (todo/todo3.md E.2, E.3).
+"""BlobStore: where asset bytes and derived data live (todo/done/todo3.md E.2, E.3).
 
 Two namespaces, both behind the same interface:
 

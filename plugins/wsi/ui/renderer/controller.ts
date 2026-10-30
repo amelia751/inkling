@@ -1,9 +1,9 @@
 import OpenSeadragon from "openseadragon";
-import { OverlayEngine } from "@studio/studio-renderers/overlay2d/OverlayEngine";
-import type { ToolContext, Units } from "@studio/studio-renderers/overlay2d/tools";
-import { View } from "@studio/studio-renderers/overlay2d/transform";
+import { OverlayEngine } from "@studio/renderers/overlay2d/OverlayEngine";
+import type { ToolContext, Units } from "@studio/renderers/overlay2d/tools";
+import { View } from "@studio/renderers/overlay2d/transform";
 import { resolveToken } from "@studio/plugin-ui-sdk/labels";
-import type { Pt, SeedAsset, StudioItem } from "@studio/plugin-contracts/types";
+import type { Pt, SeedAsset, StudioItem } from "@studio/contracts/types";
 import { formatArea, formatLength, lengthStats } from "../measure";
 import { syncViewFromOSD } from "./osdView";
 import { lastWandRunner, NEUTRAL_ADJUST, wandRegion, wandTool, type Adjustments } from "./wand";

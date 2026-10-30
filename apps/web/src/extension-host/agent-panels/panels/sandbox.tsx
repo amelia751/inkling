@@ -3,7 +3,7 @@ import type * as z from "zod";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { BRIDGE_SCRIPT, vetProposals } from "../bridge";
 import type { SandboxConfig } from "../manifest";
-import { RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/contracts/naming";
 import { useHost, visibleFor } from "@studio/plugin-ui-sdk";
 
 type Config = z.infer<typeof SandboxConfig>;

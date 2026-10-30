@@ -1,4 +1,4 @@
-import type { Surface } from "@studio/plugin-contracts/ui-contributions";
+import type { Surface } from "@studio/contracts/ui-contributions";
 import type { PanelSlot } from "@studio/plugin-ui-sdk";
 
 /**

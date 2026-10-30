@@ -1,8 +1,8 @@
 import { CONSTANTS, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
-import type { Annotation, Geometry, Plane } from "@studio/plugin-contracts/types";
-import { KIND_TOOL, readStats, round, simplifyPolyline, TOOL_KIND, type Converter, type CsSpec } from "@studio/studio-renderers/cornerstone/bridge";
-import { T } from "@studio/studio-renderers/cornerstone/init";
+import type { Annotation, Geometry, Plane } from "@studio/contracts/types";
+import { KIND_TOOL, readStats, round, simplifyPolyline, TOOL_KIND, type Converter, type CsSpec } from "@studio/renderers/cornerstone/bridge";
+import { T } from "@studio/renderers/cornerstone/init";
 import { PLANES } from "../config";
 
 type CsAnnotation = tools.Types.Annotation;

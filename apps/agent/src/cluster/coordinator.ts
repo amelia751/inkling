@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { RunEventBus } from "../bus/types.ts";
 import type { Config } from "../config.ts";
 import type { Logger } from "../log.ts";
-import type { AgentEvent, AgentEventBody, DatasetSnapshot, RunStatus } from "../protocol.ts";
+import type { AgentEvent, AgentEventBody, DatasetSnapshot, RunStatus } from "@studio/agent-protocol";
 import type { Run } from "../runtime/runs.ts";
 import type { SessionContext } from "../runtime/sessions.ts";
 import { type InputKind, type InputRecord, type RunRecord, type SessionStore, type StoredMeta, isActiveStatus } from "../store/types.ts";
@@ -40,7 +40,7 @@ export interface CoordinatorDeps {
 }
 
 /**
- * Everything that lets several replicas share sessions (todo/todo3.md E.1):
+ * Everything that lets several replicas share sessions (todo/done/todo3.md E.1):
  *
  * - run records with a lease: the replica running a loop heartbeats; a run whose replica went quiet
  *   for AGENT_RUN_LEASE_S is marked `interrupted` by whoever reads it next;

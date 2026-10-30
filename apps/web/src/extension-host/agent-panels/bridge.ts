@@ -1,8 +1,8 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import type { ResolvedEnv } from "@/extension-host/resolve";
-import type { Annotation, Geometry, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, StudioItem } from "@studio/contracts/types";
 import type { STORE_SELECTORS } from "./manifest";
-import { RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/contracts/naming";
 import type { StudioHostState } from "@studio/plugin-ui-sdk";
 
 /** Pure logic of the agent panels, kept apart from React so it can be tested. */

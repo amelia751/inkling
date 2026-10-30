@@ -1,8 +1,8 @@
 import * as nifti from "nifti-reader-js";
-import { decodeMaskInto } from "@studio/studio-renderers/cornerstone/rle";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { decodeMaskInto } from "@studio/renderers/cornerstone/rle";
+import { labelNames } from "@studio/contracts/environment";
 import type { ExportContext, ExporterImpl } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 import { labelValue } from "./labelValues";
 import { assetUrl, useHost } from "@studio/plugin-ui-sdk";
 

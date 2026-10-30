@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, CloseIcon, DocumentIcon, MoreIcon, NewChatIcon, RegionIcon, SearchIcon, SettingsIcon, StopIcon, SubmitIcon, TagIcon, WarningIcon } from "@studio/studio-ui/icons";
+import { AiIcon, CloseIcon, DocumentIcon, MoreIcon, NewChatIcon, RegionIcon, SearchIcon, SettingsIcon, StopIcon, SubmitIcon, TagIcon, WarningIcon } from "@studio/ui/icons";
 import { AssistantMessage, UserMessage } from "@/studio/components/ai/thread";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,22 +13,22 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@studio/studio-ui/ui/dropdown-menu";
-import { Loader } from "@studio/studio-ui/ui/loader";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/studio-ui/ui/tooltip";
+} from "@studio/ui/ui/dropdown-menu";
+import { Loader } from "@studio/ui/ui/loader";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { CARD_TOOLS, CARD_TOOL_NAMES, runCardTool } from "@/studio/lib/agent/card-tools";
 import { fetchAgentStatus } from "@/studio/lib/agent/client";
 import { buildAgentContext, turnContext } from "@/studio/lib/agent/context";
-import type { AgentStatus, ClientToolSpec, ProfileName } from "@/studio/lib/agent/protocol";
+import type { AgentStatus, ClientToolSpec, ProfileName } from "@studio/agent-protocol";
 import { installEnvironment, persistEnvironment } from "@/studio/lib/environment-edits";
 import { itemNoun, pluralWord } from "@/studio/lib/format";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import { AGENT_TOOLS, agentSystemPrompt, changedKeys, runAgentTool, type AgentHost as EnvHost } from "@/extension-host/agent";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useStudio } from "@/studio/stores/studio";
-import { NAMING } from "@studio/plugin-contracts/naming";
-import type { Project, StudioItem } from "@studio/plugin-contracts";
+import { NAMING } from "@studio/contracts/naming";
+import type { Project, StudioItem } from "@studio/contracts";
 
 const EMPTY: ChatMessage[] = [];
 

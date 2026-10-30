@@ -3,12 +3,12 @@
  * the renderer config, the runtime values the renderer publishes, and the pure
  * slice × frame model.
  */
-import type { Volume } from "@studio/studio-renderers/io/nifti";
-import type { Project } from "@studio/plugin-contracts/types";
+import type { Volume } from "@studio/renderers/io/nifti";
+import type { Project } from "@studio/contracts/types";
 import { resolveSpec, type ResolvedEnv } from "@studio/plugin-ui-sdk";
 import { CineConfigSchema, type CineConfig } from "./config";
 import type { FrameMetrics, Grid, Structures } from "./model";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 export const CINE = ns("cine");
 export const CINE_RENDERER = `${CINE}.renderers.slice-frame-canvas`;

@@ -1,8 +1,8 @@
-import { VideoIcon } from "@studio/studio-ui/icons";
+import { VideoIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { videoGeometries } from "./geometries";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 export const VIDEO = ns("video");
 const core = (n: string) => `${NS}.core.commands.${n}`;

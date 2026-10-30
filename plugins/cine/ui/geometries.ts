@@ -1,5 +1,5 @@
 import type { GeometryContribution } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 
 /**
  * Geometry refinements: a key-frame marker is a core `instant` on a frame with

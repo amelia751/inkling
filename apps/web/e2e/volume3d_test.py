@@ -35,7 +35,10 @@ from cs_helpers import (  # noqa: E402
     validate_dicom,
     wait_for,
 )
-from harness import RUNTIME, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, RUNTIME, open_studio, parse_args, sync_playwright  # noqa: E402
+
+# Dev-only window hooks the viewers expose (named from the naming config).
+HOOK_3D = f"__{NAMING['resourcePrefix']}3d"
 
 SUBJECT = "BraTS2021_00495"
 REF_COUNTS = {"necrotic core": 20808, "edema": 46447, "enhancing tumor": 32047}
@@ -44,14 +47,14 @@ MOD = "Meta" if sys.platform == "darwin" else "Control"
 
 def open_3d(browser, port, dataset="3d-brain-mri", **kw):
     st = open_with_fixtures(open_studio, browser, port, dataset, kw["fixtures"], kw["extra_projects"]) if kw.get("fixtures") else open_studio(browser, port, dataset, **kw)
-    wait_for(lambda: st.page.evaluate("() => !!window.__inkling3d"), "3D viewer ready", 120)
+    wait_for(lambda: st.page.evaluate(f"() => !!window.{HOOK_3D}"), "3D viewer ready", 120)
     wait_for(lambda: st.store("s => s.projectId") == dataset, "annotations loaded")
     time.sleep(1)
     return st
 
 
 def hook(st, expr):
-    return st.page.evaluate(f"() => window.__inkling3d.{expr}")
+    return st.page.evaluate(f"() => window.{HOOK_3D}.{expr}")
 
 
 def props(st, cell="axial"):

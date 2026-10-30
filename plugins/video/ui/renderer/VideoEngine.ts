@@ -1,5 +1,5 @@
 import { flushSync } from "react-dom";
-import { FrameSource } from "@studio/studio-renderers/io/frameSource";
+import { FrameSource } from "@studio/renderers/io/frameSource";
 
 /**
  * Frame source and playback clock for one video (no React state): frame-exact decoding

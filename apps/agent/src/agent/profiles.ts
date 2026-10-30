@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { NAMING } from "../naming.ts";
-import type { ProfileName } from "../protocol.ts";
+import type { ProfileName } from "@studio/agent-protocol";
 
 const PROMPTS = resolve(import.meta.dirname, "prompts");
 /** Prompts name the product through `{{displayName}}` (naming config), never literally. */

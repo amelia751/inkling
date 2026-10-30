@@ -8,4 +8,4 @@ export {
   type CommandHandlers,
   type KeyHandler,
 } from "@/extension-host/commands";
-export { digitOf, matches } from "@studio/studio-ui/keys";
+export { digitOf, matches } from "@studio/ui/keys";

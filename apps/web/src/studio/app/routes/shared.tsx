@@ -1,7 +1,7 @@
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { buttonVariants } from "@studio/studio-ui/ui/button";
-import { Loader } from "@studio/studio-ui/ui/loader";
+import { buttonVariants } from "@studio/ui/ui/button";
+import { Loader } from "@studio/ui/ui/loader";
 import { fetchAnnotations, fetchProjects } from "@/studio/lib/api";
 
 export function useProjects() {

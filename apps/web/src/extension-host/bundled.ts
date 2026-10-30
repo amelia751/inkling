@@ -6,13 +6,13 @@
 import { defineModule, type ModuleManifest, type PresetContribution } from "@studio/plugin-ui-sdk/module";
 import { registry } from "./registry";
 import { resolveDefaults } from "./resolve";
-import cornerstone from "@studio/studio-renderers/cornerstone/manifest";
-import overlay2d from "@studio/studio-renderers/overlay2d/manifest";
-import timeline from "@studio/studio-renderers/timeline/manifest";
+import cornerstone from "@studio/renderers/cornerstone/manifest";
+import overlay2d from "@studio/renderers/overlay2d/manifest";
+import timeline from "@studio/renderers/timeline/manifest";
 import cardiacMetrics from "@plugins/cardiac-metrics/manifest";
 import cine from "@plugins/cine/manifest";
 import core from "@/studio/core/manifest";
-import dicomExport from "@plugins/export-dicom/manifest";
+import dicomExport from "@plugins/dicom-export/manifest";
 import image2d from "@plugins/image2d/manifest";
 import timeseries from "@plugins/timeseries/manifest";
 import video from "@plugins/video/manifest";
@@ -23,11 +23,11 @@ import experimental from "./agent-panels/manifest";
 import { featureEnabled } from "./flags";
 import { declarativeModule } from "./contributions-loader";
 import { registerTrustedRenderer } from "./trusted-renderers";
-import { MaskReview, MaskReviewConfig } from "@studio/studio-renderers/mask-review/MaskReview";
+import { MaskReview, MaskReviewConfig } from "@studio/renderers/mask-review/MaskReview";
 import { PLUGIN_PACKAGES } from "./manifests";
 // Binds the plugin host API (useHost, assetUrl, commands) before any plugin code runs.
 import "./host";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 /** Presets are environment JSON only (registry/presets/*.json), registered as one module. */
 const presetFiles = import.meta.glob<PresetContribution>("../../../../registry/presets/*.json", { eager: true, import: "default" });

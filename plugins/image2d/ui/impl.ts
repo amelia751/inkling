@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { inspectAnnotation } from "@studio/studio-renderers/cornerstone/inspect";
+import { inspectAnnotation } from "@studio/renderers/cornerstone/inspect";
 import type { ModuleImpl } from "@studio/plugin-ui-sdk/module";
 import { cocoExporter } from "./exporters";
 import { ViewControlsPanel } from "./panels/viewControls";

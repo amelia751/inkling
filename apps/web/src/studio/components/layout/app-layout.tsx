@@ -1,14 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router";
-import { AnnotateIcon, DatasetsIcon, ExportIcon, ReviewIcon, SidebarIcon, ToolIcon, type IconComponent } from "@studio/studio-ui/icons";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Sheet, SheetContent } from "@studio/studio-ui/ui/sheet";
+import { AnnotateIcon, DatasetsIcon, ExportIcon, ReviewIcon, SidebarIcon, ToolIcon, type IconComponent } from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
+import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { BrandMark } from "@/studio/components/layout/brand";
 import { DatasetSwitcher } from "@/studio/components/layout/dataset-switcher";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { useViewport } from "@/studio/lib/use-media-query";
-import { cn } from "@studio/studio-ui/utils";
-import { RES } from "@studio/plugin-contracts/naming";
+import { cn } from "@studio/ui/utils";
+import { RES } from "@studio/contracts/naming";
 
 const SIDEBAR_KEY = `${RES}-sidebar-open`;
 

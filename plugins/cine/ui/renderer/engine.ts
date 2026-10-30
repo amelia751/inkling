@@ -1,8 +1,8 @@
-import { drawHandles } from "@studio/studio-renderers/overlay2d/draw";
-import { distToSegment, pointInPolygon, polygonArea, rleDecode } from "@studio/studio-renderers/overlay2d/geometry";
-import { shapeUtil } from "@studio/studio-renderers/overlay2d/shapes";
-import type { Volume } from "@studio/studio-renderers/io/nifti";
-import type { Annotation, Pt } from "@studio/plugin-contracts/types";
+import { drawHandles } from "@studio/renderers/overlay2d/draw";
+import { distToSegment, pointInPolygon, polygonArea, rleDecode } from "@studio/renderers/overlay2d/geometry";
+import { shapeUtil } from "@studio/renderers/overlay2d/shapes";
+import type { Volume } from "@studio/renderers/io/nifti";
+import type { Annotation, Pt } from "@studio/contracts/types";
 import { ring, type Cell, type ContourAnn, type ContourGeometry, type Structures } from "../model";
 
 /**

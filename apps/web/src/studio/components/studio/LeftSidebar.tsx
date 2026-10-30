@@ -1,7 +1,7 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@studio/studio-ui/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@studio/ui/ui/tabs";
 import type { PanelSlot } from "@studio/plugin-ui-sdk/module";
 import type { ResolvedEnv } from "@/extension-host/resolve";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { PanelHost } from "./PanelHost";
 
 /** A panel slot as tabs (the left sidebar: files, labels, review by default; from `env.panels`). */

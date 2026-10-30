@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { isTextSpan, SPAN, type TextSpan } from "./manifest";
 
 /** Pure span logic, unit-tested: segmenting text for display, snapping selections, export. */

@@ -1,11 +1,11 @@
-import { VolumeIcon } from "@studio/studio-ui/icons";
-import { tool } from "@studio/studio-renderers/tool-catalog";
+import { VolumeIcon } from "@studio/ui/icons";
+import { tool } from "@studio/renderers/tool-catalog";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
 import { volumeCommands } from "./commands";
 import { mprConfigSchema } from "./config";
 import { groupItems, VOLUME, VOLUME_KIND } from "./dataKind";
 import { volumeGeometries } from "./geometries";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 export { VOLUME };
 

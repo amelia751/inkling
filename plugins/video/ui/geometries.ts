@@ -1,5 +1,5 @@
 import type { GeometryContribution } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 
 /**
  * How video annotations read in lists: core `span` / `instant` / `track` refined with video

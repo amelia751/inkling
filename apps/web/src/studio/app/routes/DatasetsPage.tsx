@@ -324,7 +324,7 @@ function NewDatasetDialog({ projectId, onClose }: { projectId: string; onClose: 
                   <li key={n.id} className="flex h-9 items-center gap-2 px-3 text-sm hover:bg-generic" data-testid="folder-row">
                     <Checkbox checked={picked.has(n.id)} onCheckedChange={() => toggle(n.id, label(n))} aria-label={`Include ${label(n)}`} />
                     {n.kind === "folder" ? (
-                      <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setTrail([...trail, { id: n.id, name: label(n) }])}>
+                      <button type="button" data-testid="open-folder" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setTrail([...trail, { id: n.id, name: label(n) }])}>
                         <FolderIcon className="size-4 shrink-0 text-hint" />
                         <span className="truncate">{label(n)}</span>
                         <span className="tnum ml-auto shrink-0 text-muted-foreground">{n.descendantCount} files</span>

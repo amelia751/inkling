@@ -146,14 +146,18 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
     items: list[dict[str, Any]] = []
     datasets = list(db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id)))
     titles = {d.id: d.title for d in datasets}
+    # Privacy holds: always first, one row per held file, tagged with the dataset it's in.
+    held = [n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))) if (pv := (n.flags or {}).get("privacy")) and not pv.get("clearedBy")]
     held_in: dict[str, str] = {}
-    for d in datasets:
-        for nid in (d.definition or {}).get("heldNodeIds") or []:
-            held_in.setdefault(nid, d.id)
-    # Privacy holds: always first, one row per held file.
-    for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))):
+    if held:
+        ids = {n.id for n in held}
+        for d in datasets:
+            for f in tree.files_under(db, (d.definition or {}).get("nodeIds") or []):
+                if f.id in ids:
+                    held_in.setdefault(f.id, d.id)
+    for n in held:
         priv = (n.flags or {}).get("privacy")
-        if priv and not priv.get("clearedBy"):
+        if priv:
             row = {"id": f"privacy:{n.id}", "type": "privacy", "severity": "high", "title": "Held for privacy review", "detail": f"{n.name}: {priv.get('reason') or 'may contain patient identifiers'}", "target": {"section": "sources", "nodeId": n.id}, "at": projects.iso(n.created_at)}
             if n.id in held_in:
                 row["datasetId"] = held_in[n.id]

@@ -34,6 +34,8 @@ that are missing or invalid, never their values.
 | EVENT_BUS                 | sql                              | `sql` (outbox scan) or `redis` (Streams) |
 | REPO_ROOT                 | derived                          | where schemas/, registry/, plugins/ are (/app in images) |
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
+| API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
+| API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). `NAMING_FILE` (unprefixed: the prefix is read from it) is
@@ -130,6 +132,9 @@ class Settings(BaseModel):
     event_bus: Literal["sql", "redis"] = "sql"
     housekeeping_interval_s: float = 10.0
     git_sha: str = "unknown"
+    # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
+    upload_max_file_bytes: int = 2 * 1024**3
+    upload_max_session_files: int = 20_000
 
     @property
     def production(self) -> bool:
@@ -170,6 +175,8 @@ _KEYS: dict[str, str] = {
     "job_queue": "JOB_QUEUE",
     "event_bus": "EVENT_BUS",
     "git_sha": "GIT_SHA",
+    "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
+    "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

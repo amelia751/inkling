@@ -18,8 +18,8 @@ from sqlalchemy.engine import Connection
 
 # (table, key columns, id columns, JSON columns)
 TABLES = [
-    ("annotation_documents", ["workspace_id"], [], ["annotations"]),
-    ("workspace_environments", ["workspace_id"], [], ["environment"]),
+    ("annotation_documents", ["workspace_id", "task_id"], [], ["annotations"]),
+    ("workspace_environments", ["workspace_id", "task_id"], [], ["environment"]),
     ("plugin_packages", ["id"], ["id"], []),
     ("plugin_versions", ["plugin_id", "version"], ["plugin_id"], ["manifest"]),
     ("plugin_capabilities", ["plugin_id", "version", "capability_id"], ["plugin_id"], []),

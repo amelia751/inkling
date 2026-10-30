@@ -209,7 +209,7 @@ def dispatch(db: Session, ctx: RequestContext, body: dict, *, budget_checked: bo
 
 def finish(db: Session, job: PluginJob, raw_result: Any, cost_usd: float | None = None) -> PluginJob:
     """Validate a job's output against its capability, normalise and commit it. Invalid output fails the job, recoverably."""
-    ctx = RequestContext(job.workspace_id, f"plugin:{job.plugin_id}@{job.version}", job.correlation_id)
+    ctx = RequestContext(job.workspace_id, f"plugin:{job.plugin_id}@{job.version}", job.correlation_id, task_id=job.task_id)
     if job.state == "cancelled":
         return job
     if cost_usd is not None:

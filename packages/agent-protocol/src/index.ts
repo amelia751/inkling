@@ -57,7 +57,7 @@ export interface DatasetSnapshot {
     itemId: string;
     label: string;
     type: string;
-    provenance: "human-created" | "ai-suggested" | "human-corrected";
+    provenance: "human-created" | "ai-suggested" | "human-corrected" | "imported";
     /** Human-readable shape summary, e.g. "Box 163×157 px". */
     summary: string;
   }[];

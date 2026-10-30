@@ -12,7 +12,7 @@ from ..models import PluginAudit
 
 
 def record(db: Session, ctx: RequestContext, action: str, target: str | None = None, before: Any = None, after: Any = None) -> PluginAudit:
-    row = PluginAudit(actor_id=ctx.principal, workspace_id=ctx.workspace_id, action=action, target=target, before_ref=before, after_ref=after, correlation_id=ctx.correlation_id)
+    row = PluginAudit(actor_id=ctx.principal, workspace_id=ctx.workspace_id, action=action, target=target, before_ref=before, after_ref=after, correlation_id=ctx.correlation_id, on_behalf_of=ctx.on_behalf_of)
     db.add(row)
     db.flush()
     return row

@@ -9,7 +9,7 @@ from __future__ import annotations
 import hashlib
 import secrets as pysecrets
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
@@ -36,6 +36,16 @@ class RequestContext:
     profile: str | None = None
     # Who an agent session acts for: the user who minted its token (POST /v1/sessions).
     on_behalf_of: str | None = None
+    # The task whose environment and annotation document a request reads (todo6 D3). Seeds and
+    # older workspaces have one task with the workspace's id, hence the default.
+    task_id: str | None = None
+
+    @property
+    def task(self) -> str:
+        return self.task_id or self.workspace_id
+
+    def for_scope(self, workspace_id: str, task_id: str | None) -> RequestContext:
+        return replace(self, workspace_id=workspace_id, task_id=task_id)
 
     def allows(self, scope: str) -> bool:
         """Session tokens carry scopes; dev header identities are full users."""
@@ -46,13 +56,26 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def ensure_workspace(db: Session, workspace_id: str) -> Workspace:
+def ensure_workspace(db: Session, workspace_id: str, name: str | None = None) -> Workspace:
+    """Get or create, safe against concurrent first requests (insert … on conflict do nothing,
+    then select), so two replicas never race into a UNIQUE error."""
     ws = db.get(Workspace, workspace_id)
     if ws is None:
-        ws = Workspace(id=workspace_id, name=workspace_id)
-        db.add(ws)
-        db.flush()
+        from .dbutil import insert_ignore
+
+        insert_ignore(db, Workspace, [{"id": workspace_id, "name": name or workspace_id, "created_at": datetime.now(UTC)}])
+        ws = db.get(Workspace, workspace_id)
+        assert ws is not None
     return ws
+
+
+def scope_of(db: Session, id_: str) -> tuple[str, str]:
+    """(workspace, task) for an id the Studio uses: a task id resolves to its project's
+    workspace; anything else (a seed, a legacy workspace) is its own workspace and task."""
+    from .models import TaskRow
+
+    task = db.get(TaskRow, id_)
+    return (task.project_id, task.id) if task is not None else (id_, id_)
 
 
 def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[str], ttl_s: int = 3600, profile: str | None = None, on_behalf_of: str | None = None) -> str:
@@ -75,20 +98,24 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
         row = db.get(SessionToken, hash_token(auth[7:].strip()))
         if row is None or row.expires_at.replace(tzinfo=row.expires_at.tzinfo or UTC) < datetime.now(UTC):
             raise HTTPException(401, "invalid or expired session token")
-        # A token is bound to one workspace; a header can't move it elsewhere.
+        # A token is bound to one workspace; a header can't move it elsewhere (a task of that
+        # workspace's project is fine: it only picks the document).
         asked = request.headers.get(WORKSPACE_HEADER)
-        if asked and asked != row.workspace_id:
-            raise HTTPException(403, "session token is bound to another workspace")
+        task = None
+        if asked:
+            ws, task = scope_of(db, asked)
+            if ws != row.workspace_id:
+                raise HTTPException(403, "session token is bound to another workspace")
         delegation = db.get(SessionDelegation, row.token_hash)
-        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None)
+        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None, task)
     if not settings().dev_trust_headers:
         raise HTTPException(401, "session token required")
-    workspace = request.headers.get(WORKSPACE_HEADER) or "default"
+    workspace, task = scope_of(db, request.headers.get(WORKSPACE_HEADER) or "default")
     ensure_workspace(db, workspace)
     principal = request.headers.get(PRINCIPAL_HEADER) or settings().dev_principal
     if not principal.startswith("user:") or len(principal) > 128:
         raise HTTPException(400, f"{PRINCIPAL_HEADER} must name a user: principal")
-    return RequestContext(workspace, principal, correlation, idem)
+    return RequestContext(workspace, principal, correlation, idem, task_id=task)
 
 
 def get_context(request: Request, db: Session = Depends(get_session)) -> RequestContext:

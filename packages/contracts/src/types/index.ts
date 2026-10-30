@@ -47,7 +47,11 @@ export interface Project {
   assets: SeedAsset[];
 }
 
-export type Provenance = "human-created" | "ai-suggested" | "human-corrected";
+/**
+ * `imported`: written from a source file (a CSV column of labels), with `attributes.source_*`
+ * naming the file and row. Counts as unreviewed until a person confirms it (todo6 D8).
+ */
+export type Provenance = "human-created" | "ai-suggested" | "human-corrected" | "imported";
 
 export type Plane = "axial" | "coronal" | "sagittal";
 
@@ -209,3 +213,242 @@ export interface StudioItem {
   assets: SeedAsset[];
   sourceLabel?: string;
 }
+
+// ---- Projects, sources, datasets and tasks (todo6 Phase 1, docs/ux.md §2) -----------------
+// Shapes of the kernel's /api/v1/projects… routes (apps/api/src/studio_api/routes/projects.py,
+// sources.py, explore.py); the dev seed server serves the read-only subset (todo6 D4).
+
+/** Where a person left off in a project (todo6 D9). */
+export interface ResumeState {
+  taskId: string;
+  taskTitle: string;
+  taskKind: string;
+  datasetId: string;
+  itemId: string | null;
+  placement: Placement | null;
+  tool: string | null;
+  at: string;
+}
+
+export interface ProjectSummary {
+  id: string;
+  orgId: string;
+  title: string;
+  description: string;
+  visibility: "private" | "shared";
+  /** A seed project from seed-data/manifest.json ("Sample" badge). */
+  sample: boolean;
+  archived: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  lastActivityAt: string;
+  resume: ResumeState | null;
+  /** Whether this person already confirmed the rights attestation in this project. */
+  attested: boolean;
+  license?: string;
+  restricted?: boolean;
+}
+
+/** Plain-language kinds the worker detects (todo6 §3 "File kinds"); `folder` for folders. */
+export type DetectedKind =
+  | "folder"
+  | "image"
+  | "dicom"
+  | "dicom-series"
+  | "volume"
+  | "video"
+  | "waveform"
+  | "slide"
+  | "table"
+  | "document"
+  | "mask"
+  | "annotations"
+  | "archive"
+  | "unknown";
+
+/** One status per row: `checking` until inspected, then the most urgent flag. */
+export type SourceNodeStatus = "checking" | "ready" | "attention" | "privacy" | "unsupported";
+
+export interface PrivacyFlag {
+  reason: string;
+  fields?: string[];
+  clearedBy?: string;
+  clearedAt?: string;
+  clearReason?: string;
+}
+
+export interface SourceNode {
+  id: string;
+  sourceId: string;
+  parentId: string | null;
+  name: string;
+  /** A compact chain of single-child folders, e.g. `MRI / patient_002` (the row is the last one). */
+  displayPath?: string;
+  /** `sequence`: a collapsed run of numbered files (`scan001–scan120.dcm`), id `seq:<folder>:<key>`. */
+  kind: "folder" | "file" | "sequence";
+  detectedKind: DetectedKind | null;
+  size: number | null;
+  sha256: string | null;
+  childCount: number;
+  descendantCount: number;
+  facts: Record<string, unknown>;
+  flags: { privacy?: PrivacyFlag; duplicate_of?: { nodeId: string; name: string }; unsupported?: string; quality?: string[] };
+  status: SourceNodeStatus;
+  importSessionId: string | null;
+  createdAt: string | null;
+  /** Search results only: the folder the file is in. */
+  folderPath?: string;
+}
+
+export interface SourceNodeDetail extends SourceNode {
+  path: { id: string; name: string }[];
+  usedIn: { id: string; title: string; tasks: { id: string; title: string }[] }[];
+  provenance: { sourceId: string; sourceTitle: string | null; importSessionId: string | null; addedBy: string | null; addedAt: string | null; sha256: string | null };
+}
+
+export interface SourceSummary {
+  id: string;
+  projectId: string;
+  title: string;
+  kind: "upload" | "seed" | "connector";
+  status: string;
+  rootNodeId: string | null;
+  fileCount: number;
+  createdBy: string;
+  createdAt: string | null;
+  usedInDatasets: string[];
+}
+
+export interface ChildrenPage {
+  items: SourceNode[];
+  total: number;
+  nextCursor: string | null;
+}
+
+export type ImportState = "uploading" | "inspecting" | "needs_review" | "ready" | "imported" | "failed" | "cancelled";
+export type UploadFileState = "pending" | "uploaded" | "skipped_duplicate" | "rejected" | "failed";
+
+export interface ImportSession {
+  id: string;
+  projectId: string;
+  sourceId: string;
+  targetNodeId: string | null;
+  state: ImportState;
+  totals: { files: number; bytes: number; receivedBytes: number; byState: Partial<Record<UploadFileState, number>>; skippedSystemFiles?: number; committed?: number; incomplete?: boolean };
+  createdBy: string;
+  attestedBy: string | null;
+  attestedAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+  files?: { clientFileId: string; relPath: string; size: number; sha256: string; received: number; state: UploadFileState; reason: string | null; uploadUrl: string | null }[];
+}
+
+export type ProposalKind = "group" | "relationship" | "mapping" | "dataset" | "task";
+/** Shown as words, never percentages: Strong / Possible / Weak match. */
+export type ProposalStrength = "strong" | "possible" | "weak";
+
+export interface Proposal {
+  id: string;
+  projectId: string;
+  kind: ProposalKind;
+  payload: Record<string, unknown>;
+  evidence: Record<string, unknown>;
+  strength: ProposalStrength;
+  status: "proposed" | "confirmed" | "dismissed" | "superseded";
+  importSessionId: string | null;
+  /** `worker:inspect`, `agent:<run>` or `user:…`. */
+  createdBy: string;
+  createdAt: string | null;
+  decidedBy: string | null;
+  decidedAt: string | null;
+}
+
+export interface TaskSummary {
+  id: string;
+  datasetId: string;
+  projectId: string;
+  title: string;
+  kind: string;
+  revision: number;
+  annotationCount: number;
+  annotatedItems: number;
+  createdAt: string | null;
+}
+
+export interface DatasetSummary {
+  id: string;
+  projectId: string;
+  title: string;
+  description: string;
+  definition: { nodeIds?: string[]; seed?: boolean; labels?: Record<string, string>; [k: string]: unknown };
+  fileCount: number;
+  tasks: TaskSummary[];
+  createdFromProposalId: string | null;
+  createdBy: string;
+  createdAt: string | null;
+}
+
+/** Where an attention row (or an activity entry) resolves. */
+export interface ProjectTarget {
+  section: "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity";
+  nodeId?: string;
+  importId?: string;
+  proposalId?: string;
+  tab?: string;
+  taskId?: string;
+  datasetId?: string;
+  status?: string;
+}
+
+export interface AttentionItem {
+  id: string;
+  type: "privacy" | "import" | "quality" | "proposal" | "annotations" | "version-review";
+  severity: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+  strength?: ProposalStrength;
+  target: ProjectTarget;
+  datasetId?: string;
+  at: string | null;
+}
+
+export interface DataCard {
+  type: "dataset" | "source";
+  id: string;
+  title: string;
+  count: number;
+  kind: DetectedKind | null;
+  kindLabel: string;
+  datasetId?: string;
+  sourceId?: string;
+  nodeId?: string | null;
+}
+
+/** GET /v1/projects/:id/overview; a block with nothing to show is absent. */
+export interface ProjectOverview {
+  project: ProjectSummary;
+  resume?: ResumeState;
+  tasks: { id: string; title: string; kind: string; datasetId: string }[];
+  data?: DataCard[];
+  attention?: AttentionItem[];
+  attentionTotal?: number;
+  empty: boolean;
+  latestImport?: { id: string; state: ImportState };
+}
+
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  label: string;
+  actor: string | null;
+  onBehalfOf?: string | null;
+  target: string | null;
+  details: unknown;
+  at: string | null;
+  link: ProjectTarget | null;
+}
+
+/** GET /v1/tasks/:id/document: a `Project`-shaped document, so every viewer works unchanged. */
+export type TaskDocument = Project & { projectId?: string };

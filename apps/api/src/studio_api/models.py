@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -73,10 +73,12 @@ class Artifact(Base):
 
 
 class AnnotationDocumentRow(Base):
-    """One canonical annotation document per workspace (the shape the Studio loads and saves)."""
+    """One canonical annotation document per task (the shape the Studio loads and saves).
+    Seeds and older workspaces use `task_id == workspace_id` (migration 0004)."""
 
     __tablename__ = "annotation_documents"
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     revision: Mapped[int] = mapped_column(Integer, default=0)
     annotations_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     annotations: Mapped[list] = mapped_column(JSON, default=list)
@@ -110,8 +112,11 @@ class Secret(Base):
 
 
 class WorkspaceEnvironment(Base):
+    """The saved environment of one task (`task_id == workspace_id` for seeds)."""
+
     __tablename__ = "workspace_environments"
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     revision: Mapped[int] = mapped_column(Integer, default=0)
     environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     author: Mapped[str | None] = mapped_column(String(256), nullable=True)
@@ -122,9 +127,10 @@ class WorkspaceEnvironmentRevision(Base):
     """Every saved environment, append-only (`GET /api/environments/:id/history`)."""
 
     __tablename__ = "workspace_environment_history"
-    __table_args__ = (UniqueConstraint("workspace_id", "revision"),)
+    __table_args__ = (UniqueConstraint("workspace_id", "task_id", "revision"),)
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    task_id: Mapped[str] = mapped_column(String(128))
     revision: Mapped[int] = mapped_column(Integer)
     environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     author: Mapped[str | None] = mapped_column(String(256), nullable=True)
@@ -270,6 +276,8 @@ class PluginJob(Base):
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # W3C trace context of the request that enqueued the job; the worker continues that trace.
     traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The task whose document the job's annotations land in (todo6 D3); None = the workspace's own.
+    task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
@@ -306,6 +314,8 @@ class PluginAudit(Base):
     after_ref: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(64))
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # The person an agent acted for (SessionDelegation), so Activity can say "the assistant, for Ana".
+    on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
 
 # ---- Dataset versioning (todo4 Phase 6) ---------------------------------------------------
@@ -354,3 +364,170 @@ class EventConsumption(Base):
     subscriber: Mapped[str] = mapped_column(String(128), primary_key=True)
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---- Projects, sources, datasets and tasks (todo6 Phase 1, docs/ux.md §2) ---------------------
+# Organization ⊃ Project ⊃ Dataset ⊃ Task, plus Sources (the immutable originals). A project's
+# kernel `workspaces` row has the same id (todo6 D1), so plugin activation is per project.
+
+
+class Organization(Base):
+    """The account level ("Workspace" in UI copy, todo6 D1)."""
+
+    __tablename__ = "organizations"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    name: Mapped[str] = mapped_column(String(256))
+    kind: Mapped[str] = mapped_column(String(16))  # personal | team
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class OrganizationMember(Base):
+    __tablename__ = "organization_members"
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16))  # owner | editor | viewer
+
+
+class ProjectRow(Base):
+    __tablename__ = "projects"
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    description: Mapped[str] = mapped_column(Text, default="")
+    visibility: Mapped[str] = mapped_column(String(16), default="private")  # private | shared
+    # Seed projects: the manifest entry they came from (license, restricted badge).
+    seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class Source(Base):
+    """Original imported material: one per upload (or seed). Never edited in place."""
+
+    __tablename__ = "sources"
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    kind: Mapped[str] = mapped_column(String(16))  # upload | seed | connector
+    root_node_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(256))
+    status: Mapped[str] = mapped_column(String(32), default="ready")  # uploading | inspecting | ready | failed
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class SourceNode(Base):
+    """The immutable tree of a source: folders and files exactly as uploaded."""
+
+    __tablename__ = "source_nodes"
+    __table_args__ = (Index("ix_source_nodes_children", "source_id", "parent_id", "name"),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), index=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    parent_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    name: Mapped[str] = mapped_column(String(512))
+    rel_path: Mapped[str] = mapped_column(String(2048))
+    is_dir: Mapped[bool] = mapped_column(Boolean, default=False)
+    asset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # None until the worker inspected the file (the UI shows "Checking…").
+    detected_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    facts: Mapped[dict] = mapped_column(JSON, default=dict)
+    flags: Mapped[dict] = mapped_column(JSON, default=dict)  # privacy, unsupported, duplicate_of
+    # A numbered run (`scan001…scan120.dcm`) shares one key, so it collapses into one row.
+    sequence_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    child_count: Mapped[int] = mapped_column(Integer, default=0)
+    descendant_count: Mapped[int] = mapped_column(Integer, default=0)
+    import_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ImportSession(Base):
+    """uploading → inspecting → needs_review | ready → imported | failed (and cancelled)."""
+
+    __tablename__ = "import_sessions"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    source_id: Mapped[str] = mapped_column(String(128))
+    target_node_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    state: Mapped[str] = mapped_column(String(32))
+    totals: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[str] = mapped_column(String(256))
+    attested_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    attested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class UploadFile(Base):
+    __tablename__ = "upload_files"
+    session_id: Mapped[str] = mapped_column(ForeignKey("import_sessions.id"), primary_key=True)
+    client_file_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    rel_path: Mapped[str] = mapped_column(String(2048))
+    size: Mapped[int] = mapped_column(Integer)
+    sha256: Mapped[str] = mapped_column(String(64))
+    received: Mapped[int] = mapped_column(Integer, default=0)
+    state: Mapped[str] = mapped_column(String(32))  # pending | uploaded | skipped_duplicate | rejected | failed
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DatasetRow(Base):
+    __tablename__ = "datasets"
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    description: Mapped[str] = mapped_column(Text, default="")
+    # Which source nodes, how items group, and which labels came from which column.
+    definition: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_from_proposal_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class TaskRow(Base):
+    """Work on a dataset. Its environment and annotation document are keyed by `task_id`."""
+
+    __tablename__ = "tasks"
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), index=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    title: Mapped[str] = mapped_column(String(256))
+    kind: Mapped[str] = mapped_column(String(64))
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Proposal(Base):
+    """Something the worker, the assistant or a person suggests. Changes nothing until a
+    person confirms it (docs/ux.md §9)."""
+
+    __tablename__ = "proposals"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))  # group | relationship | mapping | dataset | task
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict)
+    strength: Mapped[str] = mapped_column(String(16))  # strong | possible | weak
+    status: Mapped[str] = mapped_column(String(16), default="proposed")  # proposed | confirmed | dismissed | superseded
+    import_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_by: Mapped[str] = mapped_column(String(256))  # worker:inspect | agent:<run> | user:…
+    decided_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ProjectResume(Base):
+    """Where a person left off in a project (todo6 D9): server-side, so it follows them."""
+
+    __tablename__ = "project_resume"
+    project_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(128))
+    item_id: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    placement: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    tool: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

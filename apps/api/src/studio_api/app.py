@@ -13,7 +13,7 @@ from studio_observability import RequestContextMiddleware, setup_service
 from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
-from .routes import environments, kernel, ops, plugins, versioning, worker
+from .routes import environments, explore, kernel, ops, plugins, projects, sources, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -54,16 +54,33 @@ async def lifespan(app: FastAPI):
             t.join(timeout=5)
 
 
+def _seed_projects() -> None:
+    """Every seed becomes a project, source, dataset and task (todo6 D2). Idempotent; a
+    database that isn't migrated yet is retried on the first projects request."""
+    from .kernel import projects as kprojects
+
+    try:
+        with session_scope() as db:
+            kprojects.ensure_seeds(db)
+    except Exception:  # noqa: BLE001
+        log.warning("seed projects not upserted at startup", exc_info=True)
+
+
 def create_app(*, init_db: bool = True) -> FastAPI:
     app = FastAPI(title=f"{naming()['displayName']} kernel", version=ops.service_version(), lifespan=lifespan)
     if init_db and settings().create_tables:
         create_all()
+    if init_db:
+        _seed_projects()
     app.include_router(ops.router)
     app.include_router(environments.router)
     app.include_router(kernel.router)
     app.include_router(plugins.router)
     app.include_router(worker.router)
     app.include_router(versioning.router)
+    app.include_router(projects.router)
+    app.include_router(sources.router)
+    app.include_router(explore.router)
 
     @app.get("/api/v1/health")
     def health():

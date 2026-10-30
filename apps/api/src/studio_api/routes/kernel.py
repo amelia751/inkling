@@ -11,9 +11,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .. import blobstore
-from ..context import RequestContext, ensure_workspace, get_context, issue_session
+from ..context import RequestContext, ensure_workspace, get_context, issue_session, scope_of
 from ..db import get_session
-from ..kernel import annotations, assets, audit, events, gateway, jobs, secrets
+from ..kernel import annotations, assets, audit, events, gateway, jobs, projects, secrets
 from ..models import WorkspaceEnvironment
 from ..plugins import installer
 from ..streaming import blob_response
@@ -24,19 +24,28 @@ router = APIRouter(prefix="/api")
 # ---- Annotations (also the Studio's existing /api/annotations/:projectId endpoints) ------
 
 
-def _project_ctx(ctx: RequestContext, project_id: str) -> RequestContext:
-    """Dev compatibility: the seed server keyed documents by project id = workspace id."""
-    if not re.fullmatch(r"[a-z0-9-]+", project_id):
+def task_ctx(db: Session, ctx: RequestContext, task_id: str) -> RequestContext:
+    """The legacy `/annotations/:id` and `/environments/:id` ids are task ids (todo6 D3): a
+    task of a project resolves to the project's workspace, and a seed (or older workspace)
+    id is its own workspace and task. Project membership is checked when there is one."""
+    if not re.fullmatch(r"[a-z0-9-]+", task_id):
         raise HTTPException(400, "bad project id")
-    if ctx.scopes and ctx.workspace_id != project_id:
+    workspace, task = scope_of(db, task_id)
+    if ctx.scopes and ctx.workspace_id != workspace:
         raise HTTPException(403, "session token is bound to another workspace")
-    return RequestContext(project_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
+    c = ctx.for_scope(workspace, task)
+    ensure_workspace(db, workspace)
+    projects.project_of_scope(db, c)
+    return c
+
+
+def _project_ctx(ctx: RequestContext, project_id: str, db: Session) -> RequestContext:
+    return task_ctx(db, ctx, project_id)
 
 
 @router.get("/annotations/{project_id}")
 def get_annotations(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project_ctx(ctx, project_id)
-    ensure_workspace(db, c.workspace_id)
+    c = _project_ctx(ctx, project_id, db)
     return annotations.get_document(db, c)
 
 
@@ -44,8 +53,7 @@ def get_annotations(project_id: str, ctx: RequestContext = Depends(get_context),
 def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.profile == "plugin":  # plugins write through POST /v1/annotations, never the whole document
         raise HTTPException(403, "plugin sessions can't replace the annotation document")
-    c = _project_ctx(ctx, project_id)
-    ensure_workspace(db, c.workspace_id)
+    c = _project_ctx(ctx, project_id, db)
     return annotations.put_document(db, c, doc)
 
 
@@ -109,7 +117,7 @@ def asset_file(workspace_id: str, path: str, exp: str, sig: str, request: Reques
     if (key := assets.companion_key(db, ctx, path)) is not None:
         return blob_response(blobstore.assets(), key, mimetypes.guess_type(path)[0] or "application/octet-stream", request)
     a = assets.get_asset(db, ctx, path)
-    return blob_response(blobstore.assets(), assets.asset_key(a), a.media_type or mimetypes.guess_type(a.path)[0] or "application/octet-stream", request)
+    return blob_response(assets.store_of(a.path), assets.asset_key(a), a.media_type or mimetypes.guess_type(a.path)[0] or "application/octet-stream", request)
 
 
 @router.post("/v1/artifacts")
@@ -129,7 +137,7 @@ def asset_content(asset_id: str, request: Request, ctx: RequestContext = Depends
     if not ctx.allows("assets.read"):
         raise HTTPException(403, "this session can't read assets")
     a = assets.get_asset(db, ctx, asset_id)
-    return blob_response(blobstore.assets(), assets.asset_key(a), a.media_type, request)
+    return blob_response(assets.store_of(a.path), assets.asset_key(a), a.media_type, request)
 
 
 # ---- Command gateway and jobs ----------------------------------------------------------------
@@ -173,6 +181,8 @@ def retry_job(job_id: str, ctx: RequestContext = Depends(get_context), db: Sessi
 def publish_event(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if not ctx.allows("events.publish"):
         raise HTTPException(403, "this session can't publish events")
+    if str(body.get("type")) in events.PROJECT_EVENTS:
+        raise HTTPException(403, "project events are published by the kernel only")
     depth = int(body.get("depth") or 0)
     ev = events.publish(db, ctx, str(body.get("type")), body.get("payload") or {}, source=ctx.principal, depth=depth, idempotency_key=ctx.idempotency_key)
     return {"eventId": ev.event_id if ev else None, "duplicate": ev is None}
@@ -209,16 +219,14 @@ def secret_proxy(body: dict = Body(...), request: Request = None, db: Session = 
 
 @router.get("/v1/workspaces/{workspace_id}/state")
 def workspace_state(workspace_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project_ctx(ctx, workspace_id)
-    ensure_workspace(db, c.workspace_id)
+    c = _project_ctx(ctx, workspace_id, db)
     return installer.workspace_state(db, c)
 
 
 @router.put("/v1/workspaces/{workspace_id}/environment")
 def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project_ctx(ctx, workspace_id)
-    ensure_workspace(db, c.workspace_id)
-    row = db.get(WorkspaceEnvironment, c.workspace_id) or WorkspaceEnvironment(workspace_id=c.workspace_id, revision=0)
+    c = _project_ctx(ctx, workspace_id, db)
+    row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task)) or WorkspaceEnvironment(workspace_id=c.workspace_id, task_id=c.task, revision=0)
     db.add(row)
     before = row.environment
     row.environment, row.revision, row.author = body.get("environment"), row.revision + 1, c.principal

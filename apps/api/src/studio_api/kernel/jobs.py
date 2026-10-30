@@ -64,6 +64,7 @@ def enqueue(db: Session, ctx: RequestContext, *, plugin_id: str, version: str, t
         principal=ctx.principal,
         timeout_s=timeout_s,
         traceparent=current_traceparent(),
+        task_id=ctx.task_id,
     )
     db.add(j)
     db.flush()

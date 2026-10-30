@@ -36,6 +36,29 @@ export { default as SendIcon } from "@gravity-ui/icons/PaperPlane";
 export { default as LicenseIcon } from "@gravity-ui/icons/ShieldCheck";
 export { default as FileIcon } from "@gravity-ui/icons/FileCode";
 export { default as BrandIcon } from "@gravity-ui/icons/Droplet";
+// Projects and sources (todo6 §3). Glyphs may repeat across jobs; a job never gets two glyphs.
+export { default as HomeIcon } from "@gravity-ui/icons/House";
+export { default as ProjectsIcon } from "@gravity-ui/icons/LayoutCellsLarge";
+export { default as OverviewIcon } from "@gravity-ui/icons/House";
+export { default as SourcesIcon } from "@gravity-ui/icons/FolderTree";
+export { default as ExploreIcon } from "@gravity-ui/icons/Compass";
+export { default as ActivityIcon } from "@gravity-ui/icons/ListTimeline";
+export { default as ProjectSettingsIcon } from "@gravity-ui/icons/Gear";
+export { default as AddDataIcon } from "@gravity-ui/icons/CloudArrowUpIn";
+export { default as FolderIcon } from "@gravity-ui/icons/Folder";
+export { default as FolderOpenIcon } from "@gravity-ui/icons/FolderOpen";
+export { default as FileSequenceIcon } from "@gravity-ui/icons/Files";
+export { default as TableFileIcon } from "@gravity-ui/icons/LayoutHeaderCellsLarge";
+export { default as ArchiveFileIcon } from "@gravity-ui/icons/FileZipper";
+export { default as MaskFileIcon } from "@gravity-ui/icons/Layers3Diagonal";
+export { default as AnnotationFileIcon } from "@gravity-ui/icons/Tags";
+export { default as UnknownFileIcon } from "@gravity-ui/icons/FileQuestion";
+export { default as QueuedIcon } from "@gravity-ui/icons/Hourglass";
+export { default as PrivacyIcon } from "@gravity-ui/icons/ShieldExclamation";
+export { default as RelationshipIcon } from "@gravity-ui/icons/Link";
+export { default as NoRelationshipIcon } from "@gravity-ui/icons/LinkSlash";
+// Annotations written from a source file (a CSV column): todo6 D8.
+export { default as ImportedIcon } from "@gravity-ui/icons/FileArrowUp";
 // Dataset versioning
 export { default as BranchIcon } from "@gravity-ui/icons/CodeFork";
 export { default as MergeIcon } from "@gravity-ui/icons/CodeMerge";

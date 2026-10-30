@@ -30,7 +30,18 @@ EVENT_TYPES = {
     # (de-identification) run for the review's current (source, target) oids.
     "versioning.review.opened",
     "versioning.review.checks_requested",
+    # Projects and sources (todo6): `source.uploaded` starts inspection in the worker; the
+    # rest feed a project's live updates (GET /v1/projects/:id/events).
+    "source.uploaded",
+    "import.updated",
+    "source.node.inspected",
+    "proposal.created",
+    "proposal.decided",
 }
+
+# Kernel-published project updates: never rate limited (an import of 10k files is one
+# session, but its progress events must not starve plugin events or each other).
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided"}
 
 
 def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:
@@ -62,7 +73,7 @@ def publish(db: Session, ctx: RequestContext, type_: str, payload: dict, *, sour
         return None
     since = datetime.now(UTC) - timedelta(minutes=1)
     recent = db.scalar(select(func.count()).select_from(PluginEvent).where(PluginEvent.workspace_id == ctx.workspace_id, PluginEvent.created_at >= since))
-    if (recent or 0) >= settings().event_rate_per_minute:
+    if (recent or 0) >= settings().event_rate_per_minute and type_ not in PROJECT_EVENTS:
         raise HTTPException(429, "event rate limit reached for this workspace")
     ev = PluginEvent(workspace_id=ctx.workspace_id, type=type_, payload=payload, source=source, correlation_id=ctx.correlation_id, depth=depth, idempotency_key=idempotency_key)
     db.add(ev)

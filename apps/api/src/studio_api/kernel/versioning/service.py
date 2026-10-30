@@ -356,7 +356,7 @@ def op_dataset_create(c: Call, body: dict) -> tuple[int, dict]:
     # Bring the workspace's current (pre-versioning) annotations along, on the creator's work
     # branch: `main` is protected, so they reach it through a review like any other change.
     if body.get("import_document"):
-        row = c.db.get(AnnotationDocumentRow, c.ctx.workspace_id)
+        row = c.db.get(AnnotationDocumentRow, (c.ctx.workspace_id, c.ctx.task))
         name = work_branch(c.ctx, c.dataset_id)
         b = client().create_branch(c.token(), repo_id, {"name": name, "from": out["defaultBranch"]}, _key("work", repo_id, name))
         out["workBranch"] = name

@@ -22,19 +22,18 @@ import json
 import posixpath
 import re
 from datetime import UTC, datetime
-from typing import Any
 
 import jsonpatch
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import blobstore
-from ..context import RequestContext, ensure_workspace, get_context
+from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
-from ..kernel import assets
+from ..kernel import projects
 from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision, now
 from ..streaming import blob_response
 
@@ -51,15 +50,6 @@ SEED_TYPES = {
     ".gz": "application/gzip",
     ".mp4": "video/mp4",
     ".dzi": "application/xml",
-}
-
-LEGACY_PRESETS = {
-    "image-2d": "preset:image-2d",
-    "volume-3d": "preset:volume-3d",
-    "signal": "preset:ecg",
-    "temporal": "preset:video",
-    "cine-4d": "preset:cine-4d",
-    "pathology": "preset:pathology",
 }
 
 DEV_ONLY = "needs the TypeScript registry and resolver, which only the dev server has (apps/web/dev/seed-server.ts); the kernel stores environments without server-side validation"
@@ -88,31 +78,8 @@ def seed_file(path: str, request: Request):
 
 # ---- Environments ----------------------------------------------------------------------------
 
-
-def _label_groups(labels: list[str], task: str | None) -> list[dict]:
-    classes = [{"id": label} for label in labels]
-    groups = [{"name": "labels", "control": "Labels", "classes": classes}]
-    if task == "classification":
-        groups.insert(0, {"name": "class", "control": "Choices", "classes": classes})
-    return groups
-
-
-def manifest_environment(project_id: str) -> dict | None:
-    """The environment a manifest project boots with: `normalizeProject` in
-    apps/web/src/studio/lib/api.ts (v1 `viewer` + string labels are migrated)."""
-    raw = next((p for p in (assets.seed_manifest() or {}).get("projects", []) if p.get("id") == project_id), None)
-    if raw is None:
-        return None
-    labels = raw.get("labels")
-    string_labels = labels if isinstance(labels, list) and all(isinstance(x, str) for x in labels) else None
-    env: dict[str, Any] = dict(raw["environment"]) if raw.get("environment") else {"extends": LEGACY_PRESETS.get(raw.get("viewer") or "", f"preset:{raw.get('viewer')}")}
-    if env.get("task") is None and raw.get("task") is not None:
-        env["task"] = raw["task"]
-    if env.get("labels") is None:
-        groups = _label_groups(string_labels, raw.get("task")) if string_labels is not None else labels
-        if groups is not None:
-            env["labels"] = groups
-    return env
+# The manifest environment moved to the kernel (projects.py) with the seed backfill.
+manifest_environment = projects.manifest_environment
 
 
 def _doc(row: WorkspaceEnvironment | None) -> dict:
@@ -132,12 +99,24 @@ def _iso(d: datetime) -> str:
     return d.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _project(project_id: str, ctx: RequestContext) -> RequestContext | JSONResponse:
+def _project(project_id: str, ctx: RequestContext, db: Session) -> RequestContext | JSONResponse:
+    """`:projectId` is a task id (todo6 D3); seeds' task, dataset and project share one id."""
     if not PROJECT_ID.fullmatch(project_id):
         return _json(400, {"error": "bad project id"})
-    if ctx.scopes and ctx.workspace_id != project_id:
+    workspace, task = scope_of(db, project_id)
+    if ctx.scopes and ctx.workspace_id != workspace:
         return _json(403, {"error": "session token is bound to another workspace"})
-    return RequestContext(project_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile)
+    c = ctx.for_scope(workspace, task)
+    try:
+        projects.project_of_scope(db, c)
+    except HTTPException as e:
+        return _json(e.status_code, {"error": e.detail})
+    return c
+
+
+def _base_environment(db: Session, c: RequestContext) -> dict | None:
+    """What a task boots with when nothing is saved: its seed's manifest environment."""
+    return manifest_environment(c.task)
 
 
 @router.post("/api/environments/validate")
@@ -153,20 +132,20 @@ def catalog(rest: str = ""):
 
 @router.get("/api/environments/{project_id}")
 def get_environment(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project(project_id, ctx)
+    c = _project(project_id, ctx, db)
     if isinstance(c, JSONResponse):
         return c
-    cur = _doc(db.get(WorkspaceEnvironment, c.workspace_id))
+    cur = _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))
     # `effective`: what the Studio boots with (saved edits, else the manifest's environment).
-    return {**cur, "effective": cur["environment"] if cur["environment"] is not None else manifest_environment(project_id)}
+    return {**cur, "effective": cur["environment"] if cur["environment"] is not None else _base_environment(db, c)}
 
 
 @router.get("/api/environments/{project_id}/history")
 def environment_history(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project(project_id, ctx)
+    c = _project(project_id, ctx, db)
     if isinstance(c, JSONResponse):
         return c
-    rows = db.query(WorkspaceEnvironmentRevision).filter(WorkspaceEnvironmentRevision.workspace_id == c.workspace_id).order_by(WorkspaceEnvironmentRevision.revision).all()
+    rows = db.query(WorkspaceEnvironmentRevision).filter(WorkspaceEnvironmentRevision.workspace_id == c.workspace_id, WorkspaceEnvironmentRevision.task_id == c.task).order_by(WorkspaceEnvironmentRevision.revision).all()
     return [{"revision": r.revision, "environment": r.environment, "savedAt": _iso(r.saved_at), "author": r.author} for r in rows]
 
 
@@ -188,7 +167,7 @@ class _BadBody(Exception):
 @router.put("/api/environments/{project_id}", operation_id="put_environment")
 @router.patch("/api/environments/{project_id}", operation_id="patch_environment")
 async def save_environment(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project(project_id, ctx)
+    c = _project(project_id, ctx, db)
     if isinstance(c, JSONResponse):
         return c
     try:
@@ -198,7 +177,7 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
     if not body:
         return _json(400, {"error": "missing body"})
     ensure_workspace(db, c.workspace_id)
-    row = db.get(WorkspaceEnvironment, c.workspace_id)
+    row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task))
     cur = _doc(row)
     # Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
     if "revision" in body and body["revision"] is not None and body["revision"] != cur["revision"]:
@@ -210,7 +189,7 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         if not isinstance(environment, dict):
             return _json(422, {"ok": False, "errors": [{"path": "", "code": "schema", "message": "environment must be an object"}]})
     else:
-        base = cur["environment"] if cur["environment"] is not None else manifest_environment(project_id)
+        base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
         if not base:
             return _json(404, {"error": f'no project "{project_id}"'})
         ops = body.get("patch")
@@ -230,7 +209,7 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
     saved = _save(db, c, row, cur["revision"], environment, author)
     if saved is None:
         db.rollback()
-        return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, c.workspace_id))})
+        return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))})
     return saved
 
 
@@ -241,17 +220,17 @@ def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, se
     rev = seen + 1
     try:
         if row is None:
-            db.add(WorkspaceEnvironment(workspace_id=ctx.workspace_id, revision=rev, environment=environment, author=author, saved_at=at))
+            db.add(WorkspaceEnvironment(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at))
         else:
             res = db.execute(
                 update(WorkspaceEnvironment)
-                .where(WorkspaceEnvironment.workspace_id == ctx.workspace_id, WorkspaceEnvironment.revision == seen)
+                .where(WorkspaceEnvironment.workspace_id == ctx.workspace_id, WorkspaceEnvironment.task_id == ctx.task, WorkspaceEnvironment.revision == seen)
                 .values(revision=rev, environment=environment, author=author, saved_at=at)
                 .execution_options(synchronize_session=False)
             )
             if res.rowcount != 1:  # type: ignore[attr-defined]
                 return None
-        db.add(WorkspaceEnvironmentRevision(workspace_id=ctx.workspace_id, revision=rev, environment=environment, author=author, saved_at=at))
+        db.add(WorkspaceEnvironmentRevision(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at))
         db.flush()
     except IntegrityError:
         return None

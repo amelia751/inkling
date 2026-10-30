@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
+import { projectStandIn } from "./project-stand-in";
 // Loaded by vite.config.ts, which can't import workspace TS: read the emitted naming config.
 import NAMING from "../../../schemas/naming.json";
 
@@ -23,6 +24,9 @@ const RES = NAMING.resourcePrefix;
  *   GET   /api/environments/:projectId/history → every saved revision with author and time
  *   GET   /api/v1/workspaces/:id/state → active plugins: seed-data/<id>/workspace.json, else every
  *                                         bundled plugin (the kernel serves this when it runs)
+ *   GET   /api/v1/projects…, /sources/:id/children, /source-nodes/:id, /tasks/:id/document
+ *                                       → the read-only project API synthesized from manifest.json
+ *                                         (dev/project-stand-in.ts); writes answer 501 "needs the API"
  *   /api/agent/*                        → not here: Vite proxies it to the agent service (apps/agent)
  * Annotations and environments live in seed-data/.annotations/ and .environments/ so seed
  * files are never modified (`annotationsDir` moves annotations elsewhere: e2e runs use a temp copy). Validation runs the app's own registry and resolver through
@@ -31,7 +35,7 @@ const RES = NAMING.resourcePrefix;
 type ServerApi = typeof import("@/server-entry");
 
 /** `kernel`: the Python kernel serves annotations and workspace state (vite.config.ts proxies /api). */
-export function seedServer(seedRoot: string, { kernel = false, annotationsDir = path.join(seedRoot, ".annotations") }: { kernel?: boolean; annotationsDir?: string } = {}): Plugin {
+export function seedServer(seedRoot: string, { kernel = false, annotationsDir = path.join(seedRoot, ".annotations"), resumeDir = path.join(seedRoot, ".resume") }: { kernel?: boolean; annotationsDir?: string; resumeDir?: string } = {}): Plugin {
   const environmentsDir = path.join(seedRoot, ".environments");
   const types: Record<string, string> = {
     ".json": "application/json",
@@ -86,6 +90,8 @@ export function seedServer(seedRoot: string, { kernel = false, annotationsDir = 
         const plugins = (raw.plugins ?? []).map((p) => (typeof p === "string" ? { pluginId: p, version: "0.0.0", state: "ACTIVATED" } : { version: "0.0.0", state: "ACTIVATED", ...p }));
         return sendJson(res, 200, { workspaceId: m[1], plugins });
       });
+
+      if (!kernel) server.middlewares.use("/api/v1", projectStandIn(seedRoot, { resumeDir, annotationsDir }));
 
       if (!kernel) server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];

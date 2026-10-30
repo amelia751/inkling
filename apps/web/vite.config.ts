@@ -31,6 +31,8 @@ function e2eAnnotations(): string {
   return dir;
 }
 const annotationsDir = env("WEB_ANNOTATIONS_DIR") ?? (e2e && !kernel ? e2eAnnotations() : undefined);
+// Resume state (todo6 D9) without the kernel: a fresh temp folder per e2e run, like annotations.
+const resumeDir = e2e && !kernel ? fs.mkdtempSync(path.join(os.tmpdir(), `${NAMING.resourcePrefix}-e2e-resume-`)) : undefined;
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
@@ -99,7 +101,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir }),
+    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir }),
     schemaFiles,
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },

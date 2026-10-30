@@ -115,6 +115,17 @@ class LocalBlobStore:
             f.write(data)
         os.replace(tmp, p)
 
+    def put_file(self, key: str, path: str, content_type: str | None = None) -> None:
+        """Copy a local file in (uploads are assembled in /tmp, never held in memory)."""
+        import shutil
+
+        p = self._path(key)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=p.parent, prefix=".tmp-")
+        os.close(fd)
+        shutil.copyfile(path, tmp)
+        os.replace(tmp, p)
+
     def delete(self, key: str) -> None:
         try:
             self._path(key).unlink(missing_ok=True)
@@ -203,6 +214,11 @@ class S3BlobStore:
         if content_type:
             kw["ContentType"] = content_type
         self.client.put_object(**kw)
+
+    def put_file(self, key: str, path: str, content_type: str | None = None) -> None:
+        """Multipart above boto3's threshold; uploads are assembled in /tmp, never in memory."""
+        extra = {"ContentType": content_type} if content_type else None
+        self.client.upload_file(path, self.bucket, self._k(key), ExtraArgs=extra)
 
     def delete(self, key: str) -> None:
         self.client.delete_object(Bucket=self.bucket, Key=self._k(key))

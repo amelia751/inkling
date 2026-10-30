@@ -82,7 +82,7 @@ def bootstrap(db: Session, ctx: RequestContext) -> None:
 
 def workspace_state(db: Session, ctx: RequestContext) -> dict:
     bootstrap(db, ctx)
-    env = db.get(WorkspaceEnvironment, ctx.workspace_id)
+    env = db.get(WorkspaceEnvironment, (ctx.workspace_id, ctx.task))
     out = {
         "workspaceId": ctx.workspace_id,
         "plugins": [{"pluginId": r.plugin_id, "version": r.version, "artifactDigest": r.artifact_digest, "configRevision": r.config_revision, "state": r.state} for r in installations(db, ctx.workspace_id)],

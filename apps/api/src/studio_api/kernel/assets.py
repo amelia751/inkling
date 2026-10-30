@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
-from ..models import Artifact, Asset
+from ..dbutil import insert_ignore
+from ..models import Artifact, Asset, new_id, now
 
 MEDIA_TYPES = [
     (".nii.gz", "application/x-nifti"),
@@ -82,6 +83,7 @@ def ensure_seed_assets(db: Session, ctx: RequestContext) -> None:
     if db.scalar(select(Asset.id).where(Asset.workspace_id == ctx.workspace_id).limit(1)):
         return
     project = _seed_project(ctx.workspace_id)
+    rows = []
     for a in (project or {}).get("assets", []):
         path = a.get("path")
         if not path:
@@ -90,7 +92,9 @@ def ensure_seed_assets(db: Session, ctx: RequestContext) -> None:
         if not isinstance(size, int):
             info = blobstore.assets().stat(path) if ".." not in Path(path).parts else None
             size = info.size if info else None
-        db.add(Asset(workspace_id=ctx.workspace_id, path=path, media_type=media_type_of(path), role=a.get("role"), size=size))
+        rows.append({"id": new_id(), "workspace_id": ctx.workspace_id, "path": path, "media_type": media_type_of(path), "role": a.get("role"), "size": size, "created_at": now()})
+    # Concurrent first requests race to register the same rows: insert … on conflict do nothing.
+    insert_ignore(db, Asset, rows)
     db.flush()
 
 
@@ -125,13 +129,23 @@ def companion_key(db: Session, ctx: RequestContext, path: str) -> str | None:
     return key if blobstore.assets().stat(key) is not None else None
 
 
+# Uploaded files (todo6 Phase 4) are content-addressed in the data store under this prefix:
+# `sources/<project>/<sha256><ext>`. Seed paths start with a seed folder name instead.
+UPLOAD_PREFIX = "sources/"
+
+
+def store_of(path: str) -> blobstore.BlobStore:
+    """Which BlobStore holds an asset's bytes: uploads in `data()`, seeds in `assets()`."""
+    return blobstore.data() if path.startswith(UPLOAD_PREFIX) else blobstore.assets()
+
+
 def asset_key(a: Asset) -> str:
-    """The asset's BlobStore key (its seed path), checked: no traversal, and the object exists."""
+    """The asset's BlobStore key (its seed or upload path), checked: no traversal, and the object exists."""
     try:
         key = blobstore.safe_key(a.path)
     except blobstore.BlobNotFound:
         raise HTTPException(404, "asset file missing") from None
-    if blobstore.assets().stat(key) is None:
+    if store_of(key).stat(key) is None:
         raise HTTPException(404, "asset file missing")
     return key
 
@@ -204,4 +218,7 @@ def artifact_bytes(art: Artifact) -> bytes:
 
 def asset_head(a: Asset, n: int = 65536) -> bytes:
     """The first `n` bytes of an asset (enough for image headers)."""
-    return b"".join(blobstore.assets().iter_range(asset_key(a), 0, n - 1))
+    key = asset_key(a)
+    size = store_of(key).stat(key)
+    end = min(n, size.size if size else n) - 1
+    return b"".join(store_of(key).iter_range(key, 0, end)) if end >= 0 else b""

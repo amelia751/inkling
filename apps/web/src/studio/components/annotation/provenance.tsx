@@ -1,4 +1,4 @@
-import { AiIcon, CorrectedIcon, HumanIcon } from "@studio/ui/icons";
+import { AiIcon, CorrectedIcon, HumanIcon, ImportedIcon } from "@studio/ui/icons";
 import { Badge, type BadgeProps } from "@studio/ui/ui/badge";
 import type { Provenance } from "@studio/contracts/types";
 
@@ -7,6 +7,8 @@ const PROVENANCE: Record<Provenance, { label: string; theme: BadgeProps["theme"]
   "human-created": { label: "Human created", theme: "normal", icon: HumanIcon },
   "ai-suggested": { label: "AI suggested", theme: "ai", icon: AiIcon },
   "human-corrected": { label: "Human corrected", theme: "success", icon: CorrectedIcon },
+  // From a table the user brought: unreviewed until someone confirms it (todo6 D8).
+  imported: { label: "Imported", theme: "info", icon: ImportedIcon },
 };
 
 export function ProvenanceBadge({ provenance }: { provenance: Provenance }) {

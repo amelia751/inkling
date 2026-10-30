@@ -21,7 +21,8 @@ from ..naming import canonical_id
 from . import audit
 
 ANNOTATIONS_VERSION = 2
-PROVENANCE = {"human-created", "ai-suggested", "human-corrected"}
+# `imported`: written from a source file (a CSV column), unreviewed until a person confirms it (todo6 D8).
+PROVENANCE = {"human-created", "ai-suggested", "human-corrected", "imported"}
 REVIEW_STATES = {"pending", "accepted", "rejected", "edited"}
 
 # ---- v1 → v2 migration (port of packages/contracts/src/migrations/annotations-v1-to-v2.ts)
@@ -71,9 +72,9 @@ def migrate_document(doc: dict, only: set[str] | None = None) -> dict:
 
 
 def _row(db: Session, ctx: RequestContext) -> AnnotationDocumentRow:
-    row = db.get(AnnotationDocumentRow, ctx.workspace_id)
+    row = db.get(AnnotationDocumentRow, (ctx.workspace_id, ctx.task))
     if row is None:
-        row = AnnotationDocumentRow(workspace_id=ctx.workspace_id, revision=0, annotations=[])
+        row = AnnotationDocumentRow(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=0, annotations=[])
         db.add(row)
         db.flush()
     return row
@@ -86,7 +87,7 @@ def _canonical(a: dict) -> dict:
 
 
 def get_document(db: Session, ctx: RequestContext) -> dict:
-    row = db.get(AnnotationDocumentRow, ctx.workspace_id)
+    row = db.get(AnnotationDocumentRow, (ctx.workspace_id, ctx.task))
     if row is None:
         return {"revision": 0, "annotations": []}
     doc = {"revision": row.revision, "annotations": [_canonical(a) for a in row.annotations]}
@@ -205,7 +206,7 @@ def plugin_write(db: Session, ctx: RequestContext, job: Any, annotations: list[A
         except HTTPException as e:
             raise HTTPException(422, f"annotations[{i}]: item {stamped['itemId']!r} isn't an asset of this workspace") from e
         out.append(stamped)
-    return commit(db, ctx, out, idempotency_key=f"job:{job.job_id}:write:{key or uuid.uuid4().hex}", job_id=job.job_id, source=f"{job.plugin_id}.{job.tool}")
+    return commit(db, ctx.for_scope(ctx.workspace_id, job.task_id), out, idempotency_key=f"job:{job.job_id}:write:{key or uuid.uuid4().hex}", job_id=job.job_id, source=f"{job.plugin_id}.{job.tool}")
 
 
 def list_annotations(db: Session, ctx: RequestContext, item_id: str | None = None, label: str | None = None, limit: int = 1000) -> list[dict]:

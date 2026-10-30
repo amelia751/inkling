@@ -31,6 +31,9 @@ interface ShellState {
   setNav: (nav: NavPreference) => void;
   toggleStudioRail: () => void;
   visited: (p: RecentProject) => void;
+  /** The Studio's left slot (Files, Labels, Review); hidden with the rail, the canvas takes the width (todo6 Phase 7). */
+  studioLeft: boolean;
+  toggleStudioLeft: () => void;
 }
 
 function read<T>(key: string, fallback: T): T {
@@ -75,5 +78,11 @@ export const useShell = create<ShellState>((set, get) => ({
     const recent = [p, ...cur.filter((r) => r.id !== p.id)].slice(0, RECENT_MAX);
     write(RECENT_KEY, recent);
     set({ recent });
+  },
+  studioLeft: read<boolean>(`${RES}-studio-left`, true),
+  toggleStudioLeft: () => {
+    const studioLeft = !get().studioLeft;
+    write(`${RES}-studio-left`, studioLeft);
+    set({ studioLeft });
   },
 }));

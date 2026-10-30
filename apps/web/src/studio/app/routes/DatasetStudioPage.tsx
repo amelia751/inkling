@@ -10,7 +10,7 @@ import { ShortcutsDialog } from "@/studio/components/studio/ShortcutsDialog";
 import { ViewportHost } from "@/studio/components/studio/ViewportHost";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
-import { fetchAnnotations, fetchEnvironment, saveAnnotations } from "@/studio/lib/api";
+import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
 import { setLabelClasses } from "@studio/plugin-ui-sdk/labels";
 import { ANNOTATIONS_VERSION } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/extension-host/commands";
@@ -21,13 +21,15 @@ import { applyWorkspace, fetchWorkspaceState, loadRemotePlugins } from "@/extens
 import { prepareAssetUrls } from "@/extension-host/kernel";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
-import { clearRuntime, publish, useRuntime } from "@studio/plugin-ui-sdk/runtime";
+import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
+import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
-import type { Project, ResumeState, StudioItem } from "@studio/contracts/types";
+import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
-import { FullPageMessage, useProject } from "./shared";
+import { useShell } from "@/studio/stores/shell";
+import { FullPageMessage } from "./shared";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
 
@@ -82,6 +84,11 @@ function useEnvironment(project: Project | undefined): Boot {
   return boot;
 }
 
+/** The task's document (`GET /v1/tasks/:id/document`), shared with Overview's resume card. */
+function useTaskDocument(taskId: string) {
+  return useQuery({ queryKey: ["tasks", taskId, "document"], queryFn: () => fetchTaskDocument(taskId), enabled: !!taskId, staleTime: Infinity });
+}
+
 /** `/projects/:projectId/studio/:taskId` (the legacy `/datasets/:id` redirects here). */
 export function DatasetStudioPage() {
   return (
@@ -108,7 +115,7 @@ function SmallScreenNotice() {
 function StudioPage() {
   const { taskId, datasetId: legacyId } = useParams();
   const datasetId = taskId ?? legacyId ?? "";
-  const { project, isLoading, error } = useProject(datasetId);
+  const { data: project, isLoading, error } = useTaskDocument(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
   // branch; otherwise the plain document, exactly as before.
   const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => loadDocument(datasetId, () => fetchAnnotations(datasetId)), enabled: !!project, staleTime: Infinity });
@@ -126,7 +133,7 @@ function StudioPage() {
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
   if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio…" loading />;
-  if (error || !project) return <FullPageMessage title="Dataset not found" body={`No seed project “${datasetId}”. Run pnpm seeds, then reload.`} />;
+  if (error || !project) return <FullPageMessage title="Task not found" body={`No task “${datasetId}” in this project. Seeds need pnpm seeds, then a reload.`} />;
   if (saved.error) return <FullPageMessage title="Couldn't load annotations" body={String(saved.error)} />;
   if (boot.status === "errors") return <EnvErrors errors={boot.errors} />;
   if (boot.status === "failed") return <FullPageMessage title="Couldn't load this environment's modules" body={boot.message} />;
@@ -152,12 +159,13 @@ function EnvErrors({ errors }: { errors: EnvError[] }) {
 }
 
 function Studio({ projectId }: { projectId: string }) {
-  const { project } = useProject(projectId);
+  const { data: project } = useTaskDocument(projectId);
   const env = useStudio((s) => s.env)!;
   const items = useMemo(() => (project ? env.dataKind.groupItems(project) : []), [project, env.dataKind]);
   const itemIndex = useStudio((s) => s.itemIndex);
   const aiOpen = useStudio((s) => s.aiOpen);
   const toggleAi = useStudio((s) => s.toggleAi);
+  const leftOpen = useShell((s) => s.studioLeft);
   const save = useAutosave(projectId);
   const viewport = useViewport();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -236,6 +244,7 @@ function Studio({ projectId }: { projectId: string }) {
         onShowShortcuts={() => setShortcutsOpen(true)}
         onShowSettings={() => setSettingsOpen(true)}
         showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
+        showLeftToggle={viewport !== "phone" && env.panels.left.length > 0}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
       {settingsOpen && (
@@ -251,7 +260,8 @@ function Studio({ projectId }: { projectId: string }) {
           layout={env.spec.layout ?? null}
           slots={{
             viewer: <div className="flex h-full min-h-0 flex-col">{canvas}</div>,
-            "slot:left": env.panels.left.length > 0 ? left : null,
+            // Hidden (with the rail hidden too) the canvas takes the full width; tools don't depend on any panel.
+            "slot:left": env.panels.left.length > 0 && leftOpen ? left : null,
             // Below the desktop breakpoint the right slot is a sheet (see below).
             "slot:right": showRight && viewport === "desktop" ? right : null,
             "slot:bottom": bottomPanels,
@@ -284,45 +294,50 @@ const RESUME_DEBOUNCE_MS = 1000;
  * Resume (todo6 D9, Phase 7): where this person is (task, item, frame or slice, tool) is
  * written to the project as they work, debounced and on `pagehide`. It's restored when the
  * Studio was opened to resume (Overview's "Open Studio", Home's "Resume", the Studio nav
- * item; router state, so a reload restores too), never on a plain link to the task.
+ * item: router state `{ resume: true }`, or `?resume` in the URL) and on a reload, never on
+ * a plain link to the task.
  */
 function useResume(taskId: string, items: StudioItem[], env: ResolvedEnv) {
   const routeProject = useParams().projectId;
-  const known = useProjectSummary(routeProject).data;
-  const projectId = known?.id;
+  const summary = useProjectSummary(routeProject);
+  const projectId = summary.data?.id;
   const location = useLocation();
-  const wantRestore = !!(location.state as { resume?: boolean } | null)?.resume;
-  const resume = useQuery({ queryKey: ["projects", projectId, "resume"], queryFn: () => api<{ resume: ResumeState | null }>(`/projects/${projectId}/resume`), enabled: !!projectId && wantRestore, staleTime: 0 });
-  const restored = useRef(false);
+  const [byReload] = useState(() => openedByReload(location.pathname));
+  const wantRestore = byReload || !!(location.state as { resume?: boolean } | null)?.resume || new URLSearchParams(location.search).has("resume");
+  const resume = useQuery({ queryKey: ["projects", projectId, "resume"], queryFn: () => api<{ resume: ResumeState | null }>(`/projects/${encodeURIComponent(projectId!)}/resume`), enabled: !!projectId && wantRestore, staleTime: 0, gcTime: 0 });
+  // Settled: restored, or nothing to restore. Writes wait for it, so item 0 never overwrites
+  // what is about to be restored.
+  const [settled, setSettled] = useState(!wantRestore);
   useEffect(() => {
+    if (settled || summary.isLoading || (projectId && resume.isLoading) || !items.length) return;
+    setSettled(true);
+    markReloadRestored();
     const r = resume.data?.resume;
-    if (restored.current || !r || r.taskId !== taskId || !items.length) return;
-    restored.current = true;
+    if (!r || r.taskId !== taskId) return;
     const s = useStudio.getState();
     const at = items.findIndex((i) => i.id === r.itemId);
     if (at >= 0) s.setItemIndex(at);
     if (r.tool && env.tools.some((t) => t.name === r.tool)) s.setTool(r.tool);
-    // Frame or slice: the renderer reads the requested placement once it mounts.
-    if (r.placement && r.itemId) publish(r.itemId, "requestedPlacement", r.placement);
-  }, [resume.data, taskId, items, env]);
+    // Frame or slice: the renderer applies it once it can (useRequestedPlacement).
+    if (at >= 0 && r.placement && Object.keys(r.placement).length) publish(items[at].id, REQUESTED_PLACEMENT, r.placement);
+  }, [settled, summary.isLoading, projectId, resume.isLoading, resume.data, taskId, items, env]);
 
   const itemIndex = useStudio((s) => s.itemIndex);
   const tool = useStudio((s) => s.tool);
   const itemId = items[itemIndex]?.id;
-  const placement = useRuntime<{ frame?: number }>(itemId, "playhead");
-  const view = useRuntime<{ slice?: number; plane?: string }>(itemId, "viewportState");
-  const body = useMemo(
-    () => (projectId && itemId ? { taskId, itemId, tool, placement: { ...(placement?.frame !== undefined ? { frame: placement.frame } : {}), ...(view?.slice !== undefined ? { slice: view.slice, plane: view.plane } : {}) } } : null),
-    [projectId, taskId, itemId, tool, placement?.frame, view?.slice, view?.plane],
-  );
+  const playhead = useRuntime<{ frame?: number; slice?: number }>(itemId, "playhead");
+  const view = useRuntime<{ activePlane?: Plane; slices?: Partial<Record<Plane, number>> }>(itemId, "viewportState");
+  // Until the renderer applies a requested placement, that's where the person is.
+  const requested = useRuntime<Placement>(itemId, REQUESTED_PLACEMENT);
+  const key = JSON.stringify(requested ?? placementOf(playhead, view));
+  const body = useMemo(() => (settled && projectId && itemId ? { taskId, itemId, tool, placement: JSON.parse(key) as Placement } : null), [settled, projectId, taskId, itemId, tool, key]);
   const latest = useRef(body);
   latest.current = body;
   useEffect(() => {
-    // Don't overwrite what we're about to restore with item 0.
-    if (!body || !projectId || (wantRestore && !restored.current && resume.isLoading)) return;
+    if (!body || !projectId) return;
     const t = setTimeout(() => void putResume(projectId, body).catch(() => undefined), RESUME_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [body, projectId, wantRestore, resume.isLoading]);
+  }, [body, projectId]);
   useEffect(() => {
     if (!projectId) return;
     const flush = () => {
@@ -498,6 +513,7 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
         s().setActiveLabel(label);
       },
       showShortcuts,
+      toggleSidePanel: () => useShell.getState().toggleStudioLeft(),
     },
     { priority: SHELL_PRIORITY, scope: ns("core") },
   );

@@ -11,6 +11,7 @@ import { hslToRgb, labelColor, resolveLabelColor, resolveToken } from "@studio/p
 import { labelNames } from "@studio/contracts/environment";
 import { matches } from "@studio/ui/keys";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
+import { useRequestedPlacement } from "@studio/plugin-ui-sdk/runtime";
 import type { Annotation, Pt } from "@studio/contracts/types";
 import { CineConfigSchema } from "../config";
 import {
@@ -151,7 +152,7 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
   const { add, update, select, toggleSelect, batch, setViewerStatus, toggleLabelHidden } = useHost.getState();
 
   const grid = useMemo<Grid | null>(
-    () => (cine ? { nx: cine.dims[0], ny: cine.dims[1], nz: cine.dims[2], frames: cine.frames, spacing: cine.spacing } : null),
+    () => (cine ? { nx: cine.dims[0], ny: cine.dims[1], nz: cine.dims[2], frames: cine.frames, spacing: cine.spacing, calibrated: cine.calibrated } : null),
     [cine],
   );
 
@@ -230,6 +231,9 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
     [goto],
   );
 
+  // Resume (and other shell navigation) opens on a slice and frame once the cine is loaded.
+  useRequestedPlacement(item.id, !!grid, (p) => goto(clampIndex(p.slice ?? pos.current.slice, nz), clampIndex(p.frame ?? pos.current.frame, nt)));
+
   // A contour belongs to one frame and slice; moving away abandons it.
   useEffect(() => {
     setDraft([]);
@@ -255,7 +259,7 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
     const phase = keyFrameOf.has(frame) ? ` (${keyFrameOf.get(frame)})` : "";
     const w = win[1] - win[0], l = (win[0] + win[1]) / 2;
     setViewerStatus(
-      `Slice ${slice + 1}/${nz} · Frame ${frame + 1}/${nt}${phase} · W ${w.toFixed(0)} L ${l.toFixed(0)} · ${Math.round(camera.scale * dx * 100)}% · ${dx.toFixed(2)}×${dy.toFixed(2)}×${cine.spacing[2].toFixed(1)} mm`,
+      `Slice ${slice + 1}/${nz} · Frame ${frame + 1}/${nt}${phase} · W ${w.toFixed(0)} L ${l.toFixed(0)} · ${Math.round(camera.scale * dx * 100)}% · ${cine.calibrated ? `${dx.toFixed(2)}×${dy.toFixed(2)}×${cine.spacing[2].toFixed(1)} mm` : "No pixel spacing"}`,
     );
   }, [cine, slice, frame, keyFrameOf, win, camera.scale, dx, dy, nz, nt, setViewerStatus]);
 
@@ -747,3 +751,5 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
     </div>
   );
 }
+
+const clampIndex = (i: number, n: number) => Math.max(0, Math.min(n - 1, Math.round(i)));

@@ -118,16 +118,16 @@ export async function saveEnvironment(projectId: string, doc: { revision: number
 
 /**
  * The document a task's Studio opens (todo6 Phase 7): a `Project`-shaped document, so every
- * data kind's `groupItems(project)` works unchanged. With the kernel it's
- * `GET /v1/tasks/:id/document`; without it, seed tasks are their manifest projects, read
- * from `/seed/manifest.json` as before (e2e tests inject projects there).
+ * data kind's `groupItems(project)` works unchanged. It's `GET /v1/tasks/:id/document`, served
+ * by the kernel or, without it, by the dev seed server's stand-in (same shape). In seed mode a
+ * task the stand-in doesn't know falls back to `/seed/manifest.json`, where e2e tests inject
+ * extra projects.
  */
 export async function fetchTaskDocument(taskId: string): Promise<Project | undefined> {
   const { kernel } = runtimeConfig();
-  if (kernel) {
-    const res = await fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
-    if (res.status === 404) return undefined;
-    return normalizeProject(await json<RawProject>(res));
-  }
+  const res = await fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
+  if (res.ok) return normalizeProject(await json<RawProject>(res));
+  if (kernel && res.status === 404) return undefined;
+  if (kernel) await json(res);
   return (await fetchProjects()).find((p) => p.id === taskId);
 }

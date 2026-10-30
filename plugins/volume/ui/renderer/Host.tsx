@@ -5,6 +5,7 @@ import { CornerText, OrientationMarkers, TextPrompt, type PromptRequest } from "
 import { formatWL } from "@studio/renderers/cornerstone/viewControls";
 import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
+import { useRequestedPlacement } from "@studio/plugin-ui-sdk/runtime";
 import { cn } from "@studio/ui/utils";
 import type { Plane } from "@studio/contracts/types";
 import { VOLUME_COMMANDS as C } from "../commands";
@@ -167,6 +168,11 @@ export function MprRenderer({ project, item, config, runtime }: RendererProps) {
 
   // ---------------------------------------------------------------- status line + runtime
   const lastState = useRef("");
+  // Resume (and other shell navigation) opens on a plane's slice once the view is built.
+  useRequestedPlacement(item.id, viewReady, (p) => {
+    if (p.slice !== undefined) engine.goToSlice(p.plane ?? activeCell, p.slice);
+  });
+
   useEffect(() => {
     if (!viewReady) return;
     const slices: Partial<Record<Plane, number>> = {};
@@ -180,7 +186,8 @@ export function MprRenderer({ project, item, config, runtime }: RendererProps) {
       .filter(Boolean);
     const r = engine.readout;
     setViewerStatus(
-      [...parts, `${engine.spacingText()} mm`, formatWL(engine.activeVoi()), r ? `[${r.ijk.join(", ")}] = ${Math.round(r.value * 100) / 100}` : ""].filter(Boolean).join(" · "),
+      // Millimetres only when the images declare their spacing (docs/ux.md §8).
+      [...parts, engine.ready ? (engine.spacingText() ? `${engine.spacingText()} mm` : "No voxel spacing") : "", formatWL(engine.activeVoi()), r ? `[${r.ijk.join(", ")}] = ${Math.round(r.value * 100) / 100}` : ""].filter(Boolean).join(" · "),
     );
     const state = { layout, sequence, activePlane: activeCell, slices };
     const key = JSON.stringify(state);

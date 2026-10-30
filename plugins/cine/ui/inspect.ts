@@ -11,7 +11,7 @@ export const inspectCine: InspectFn = (a, { env, item, runtime }) => {
   const config = cineConfig(env);
   const grid = runtime.get<Grid>(RUNTIME.grid);
   const sx = grid?.spacing[0] ?? 1, sy = grid?.spacing[1] ?? 1;
-  const unit = grid ? "mm" : "px";
+  const unit = grid && grid.calibrated !== false ? "mm" : "px";
   const rows: [string, string][] = [];
   if (isPhase(a)) {
     const kf = config.keyFrames.find((k) => k.id === a.attributes.phase);

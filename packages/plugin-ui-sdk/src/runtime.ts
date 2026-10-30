@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { createStore, useStore } from "zustand";
+import type { Placement } from "@studio/contracts/types";
 import type { RuntimeApi } from "./module";
 
 /**
@@ -7,7 +9,7 @@ import type { RuntimeApi } from "./module";
  * Replaces the module-level singletons viewers used to keep for this.
  *
  * Well-known keys (docs/modules.md): `playhead` ({ frame, time }), `grid` ({ spacing, dims }),
- * `signalInfo` ({ fs, … }), `viewportState`, `status`.
+ * `signalInfo` ({ fs, … }), `viewportState`, `status`, `requestedPlacement` (below).
  */
 type Values = Record<string, Record<string, unknown>>;
 
@@ -45,4 +47,24 @@ export function runtimeFor(itemId: string): RuntimeApi {
 /** Re-render whenever anything is published for an item (for readers that go through `runtime.get`). */
 export function useRuntimeVersion(itemId: string | undefined): Record<string, unknown> | undefined {
   return useStore(runtimeStore, (s) => (itemId ? s.values[itemId] : undefined));
+}
+
+/**
+ * Where the shell asks a renderer to open an item (resume, todo6 D9): a `Placement`
+ * ({ frame?, slice?, plane? }, 0-based) published under this key before or after the renderer
+ * mounts. A renderer that navigates (video, cine, volume) applies it with `useRequestedPlacement`
+ * once it is ready, which also clears it; renderers without frames or slices ignore it.
+ */
+export const REQUESTED_PLACEMENT = "requestedPlacement";
+
+/** Apply the requested placement once the renderer is `ready` (and again if a new one arrives). */
+export function useRequestedPlacement(itemId: string, ready: boolean, apply: (p: Placement) => void): void {
+  const requested = useRuntime<Placement>(itemId, REQUESTED_PLACEMENT);
+  const applyRef = useRef(apply);
+  applyRef.current = apply;
+  useEffect(() => {
+    if (!ready || !requested) return;
+    publish(itemId, REQUESTED_PLACEMENT, undefined);
+    applyRef.current(requested);
+  }, [itemId, ready, requested]);
 }

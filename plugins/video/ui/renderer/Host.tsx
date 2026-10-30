@@ -16,6 +16,7 @@ import { useVideoCommands } from "./useVideoCommands";
 import { VideoEngine } from "./VideoEngine";
 import { VideoTimeline } from "./VideoTimeline";
 import { assetUrl, useHost, visibleFor } from "@studio/plugin-ui-sdk";
+import { useRequestedPlacement } from "@studio/plugin-ui-sdk/runtime";
 
 /** "Per-frame shape" drawing mode survives switching videos. */
 let perFrameDefault = false;
@@ -108,6 +109,8 @@ function VideoHost({ project, item, runtime }: RendererProps) {
   }, [s.playing, editor]);
 
   // ---- runtime + status
+  // Resume (and other shell navigation) opens on a frame once the decoder can seek.
+  useRequestedPlacement(item.id, engine.ready, (p) => p.frame !== undefined && engine.seek(p.frame));
   useEffect(() => runtime.publish("playhead", { frame, time: frame / fps }), [runtime, frame, fps]);
   useEffect(() => () => runtime.publish("playhead", undefined), [runtime]);
   const decodeLabel = mode === "exact" ? "exact frames (WebCodecs)" : mode === "loading" ? "indexing frames…" : `video seek (${s.fallbackReason ?? "fallback"})`;

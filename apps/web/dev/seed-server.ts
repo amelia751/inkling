@@ -25,14 +25,13 @@ const RES = NAMING.resourcePrefix;
  *                                         bundled plugin (the kernel serves this when it runs)
  *   /api/agent/*                        → not here: Vite proxies it to the agent service (apps/agent)
  * Annotations and environments live in seed-data/.annotations/ and .environments/ so seed
- * files are never modified. Validation runs the app's own registry and resolver through
+ * files are never modified (`annotationsDir` moves annotations elsewhere: e2e runs use a temp copy). Validation runs the app's own registry and resolver through
  * Vite's SSR loader (src/server-entry.ts).
  */
 type ServerApi = typeof import("@/server-entry");
 
 /** `kernel`: the Python kernel serves annotations and workspace state (vite.config.ts proxies /api). */
-export function seedServer(seedRoot: string, { kernel = false }: { kernel?: boolean } = {}): Plugin {
-  const annotationsDir = path.join(seedRoot, ".annotations");
+export function seedServer(seedRoot: string, { kernel = false, annotationsDir = path.join(seedRoot, ".annotations") }: { kernel?: boolean; annotationsDir?: string } = {}): Plugin {
   const environmentsDir = path.join(seedRoot, ".environments");
   const types: Record<string, string> = {
     ".json": "application/json",

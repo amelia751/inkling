@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { defineConfig, type Plugin, type ProxyOptions } from "vite";
 import react from "@vitejs/plugin-react";
@@ -18,6 +19,17 @@ const kernel = process.env[envVar("KERNEL")] === "1";
 const kernelUrl = process.env[envVar("KERNEL_URL")] ?? "http://127.0.0.1:8000";
 if (kernel) process.env[`VITE_${NAMING.envPrefix}KERNEL`] = "1";
 const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments)(\/|$|\?)/;
+
+// <envPrefix>E2E=1: a frozen dev server for Playwright runs (see `server` below). It keeps
+// annotations in a fresh temp copy of e2e/fixtures/annotations/, so no test reads or writes the
+// developer's seed-data/.annotations. <envPrefix>WEB_ANNOTATIONS_DIR picks the folder explicitly.
+const e2e = !!process.env[envVar("E2E")];
+function e2eAnnotations(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `${NAMING.resourcePrefix}-e2e-annotations-`));
+  fs.cpSync(path.resolve(__dirname, "e2e/fixtures/annotations"), dir, { recursive: true });
+  return dir;
+}
+const annotationsDir = process.env[envVar("WEB_ANNOTATIONS_DIR")] ?? (e2e && !kernel ? e2eAnnotations() : undefined);
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
@@ -86,14 +98,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel }),
+    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir }),
     schemaFiles,
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
   ],
-  // <envPrefix>E2E=1: a frozen dev server for Playwright runs, so edits elsewhere can't reload the page mid-test.
+  // E2E: frozen, so edits elsewhere can't reload the page mid-test.
   server: {
-    ...(process.env[envVar("E2E")] ? { hmr: false, watch: null } : {}),
+    ...(e2e ? { hmr: false, watch: null } : {}),
     // Workspace packages and first-party plugins live outside apps/web.
     fs: { allow: [REPO_ROOT] },
     // /api/agent goes to the agent service; with the kernel on, the rest of /api goes there (agentProxy is listed first).

@@ -1,0 +1,85 @@
+{
+  "revision": 1,
+  "annotations": [
+    {
+      "itemId": "video-endoscopy/16e7e461-a9a7-4b04-8d2c-155de3eb1c90.mp4",
+      "label": "polyp",
+      "geometry": {
+        "type": "box",
+        "x": 157.2996289424861,
+        "y": 140.4392393320965,
+        "w": 7.434601113172533,
+        "h": 166.91326530612244,
+        "frame": 0
+      },
+      "id": "e80c58f7-7103-46cd-a92a-a064d8568e37",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:22:12.244Z"
+    },
+    {
+      "itemId": "video-endoscopy/16e7e461-a9a7-4b04-8d2c-155de3eb1c90.mp4",
+      "label": "polyp",
+      "geometry": {
+        "type": "box",
+        "x": 234.71382189239333,
+        "y": 228.4188311688312,
+        "w": 79.4179035250464,
+        "h": 45.07096474953616,
+        "frame": 0
+      },
+      "id": "03835349-fe7a-4b29-80cc-71fa926769d5",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:22:13.483Z"
+    },
+    {
+      "itemId": "video-endoscopy/16e7e461-a9a7-4b04-8d2c-155de3eb1c90.mp4",
+      "label": "polyp",
+      "geometry": {
+        "type": "box",
+        "x": 324.6595547309833,
+        "y": 124.40538033395177,
+        "w": 115.94805194805195,
+        "h": 51.02365491651207,
+        "frame": 0
+      },
+      "id": "82ad252b-bab0-4ad7-8197-2aef5a67f3f6",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:22:14.227Z"
+    },
+    {
+      "itemId": "video-endoscopy/44c8c58b-e226-4f10-adf4-b8f91b71c476.mp4",
+      "label": "polyp",
+      "geometry": {
+        "type": "box",
+        "x": 185.48933209647495,
+        "y": 189.30890538033395,
+        "w": 37.778293135436,
+        "h": 22.04081632653063,
+        "frame": 0
+      },
+      "id": "152a716a-5847-4a0f-8346-17b0fb882a99",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:22:16.192Z"
+    },
+    {
+      "itemId": "video-endoscopy/44c8c58b-e226-4f10-adf4-b8f91b71c476.mp4",
+      "label": "polyp",
+      "geometry": {
+        "type": "box",
+        "x": 362.32931354359926,
+        "y": 183.2852504638219,
+        "w": 40.34137291280149,
+        "h": 9.03756957328386,
+        "frame": 0
+      },
+      "id": "20217838-fe70-4890-8aad-c39678b0c6fd",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:22:16.878Z"
+    }
+  ]
+}

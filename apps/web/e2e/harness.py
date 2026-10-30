@@ -4,9 +4,10 @@ Run a dev server first (`INKLING_E2E=1 pnpm exec vite --port <port> --strictPort
 INKLING_E2E turns off hot reload so concurrent edits can't reload the page mid-test), then
 `python3 e2e/<viewer>_test.py --port <port> [--browser chromium|webkit|firefox]`.
 
-Every test goes through `open_studio`, which intercepts annotation saves so a test can
-never modify seed-data/.annotations: PUTs are answered with a fake "saved" document and
-recorded on `Studio.saves` for assertions. Extra fixture files (e.g. synthetic DICOM) and
+The e2e dev server keeps annotations in a temp copy of e2e/fixtures/annotations/ (see
+vite.config.ts), so no test reads or writes the developer's seed-data/.annotations. On top of
+that, every test goes through `open_studio`, which intercepts annotation saves: PUTs are
+answered with a fake "saved" document and recorded on `Studio.saves` for assertions. Extra fixture files (e.g. synthetic DICOM) and
 extra manifest projects can be injected the same way, without touching seed-data/.
 """
 
@@ -15,6 +16,8 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -67,7 +70,15 @@ class Studio:
         return path
 
 
+def check_seeds() -> None:
+    """Fail fast when seed-data/ is missing or its manifest is out of date (`fetch-seeds.py --check`)."""
+    res = subprocess.run([sys.executable, str(REPO / "tools" / "fetch-seeds.py"), "--check"], capture_output=True, text=True)
+    if res.returncode:
+        sys.exit(f"seed data: {res.stdout.strip() or res.stderr.strip()}")
+
+
 def parse_args() -> argparse.Namespace:
+    check_seeds()
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, required=True)
     ap.add_argument("--browser", default="chromium", choices=["chromium", "webkit", "firefox"])
@@ -99,8 +110,8 @@ def open_studio(
     extra_projects: appended to the served manifest's `projects`.
     init_script: JS run before any page script (e.g. to delete window.VideoDecoder).
     device_scale_factor: HiDPI rendering (2 = retina).
-    fixture_annotations: answer the annotations GET with exactly these, so a test never
-      depends on what happens to be saved in seed-data/.annotations.
+    fixture_annotations: answer the annotations GET with exactly these, instead of the
+      server's copy of e2e/fixtures/annotations/<dataset>.json.
     workspace_state: answer the workspace's active-plugin state (Workspace API) with this.
     """
     ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=device_scale_factor)

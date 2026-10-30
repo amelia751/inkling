@@ -1,0 +1,117 @@
+{
+  "revision": 1,
+  "annotations": [
+    {
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "P wave",
+      "geometry": {
+        "type": "interval",
+        "lead": "III",
+        "start": 1.926,
+        "end": 4.212
+      },
+      "id": "cc17644e-c72c-4c99-992c-76d2ea5563fd",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:12:04.044Z"
+    },
+    {
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "P wave",
+      "geometry": {
+        "type": "interval",
+        "lead": "II",
+        "start": 5.415,
+        "end": 7.691
+      },
+      "id": "10967cd2-29fc-49e3-9d1e-ace18b313440",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:12:04.927Z"
+    },
+    {
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "P wave",
+      "geometry": {
+        "type": "interval",
+        "lead": "II",
+        "start": 5.823,
+        "end": 7.01
+      },
+      "id": "3c0dd8bb-79c6-4cb8-be39-dd6880672730",
+      "provenance": "human-created",
+      "author": "local-expert",
+      "createdAt": "2026-10-29T18:12:05.694Z"
+    },
+    {
+      "provenance": "human-created",
+      "author": "local-expert",
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "P wave",
+      "geometry": {
+        "type": "interval",
+        "lead": "V2",
+        "start": 3.122,
+        "end": 5.11
+      },
+      "id": "731627b7-007d-4622-97c1-651841f5998a",
+      "createdAt": "2026-10-29T19:42:44.855Z"
+    },
+    {
+      "provenance": "human-created",
+      "author": "local-expert",
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "P wave",
+      "geometry": {
+        "type": "interval",
+        "lead": "aVF",
+        "start": 4.694,
+        "end": 7.36
+      },
+      "id": "03835900-a4ee-48cc-a5fc-6765af1e31d0",
+      "createdAt": "2026-10-29T19:42:45.787Z"
+    },
+    {
+      "provenance": "human-created",
+      "author": "local-expert",
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "QRS complex",
+      "geometry": {
+        "type": "beat",
+        "lead": "V1",
+        "t": 1.372,
+        "code": "N"
+      },
+      "id": "97535f8e-bd36-4054-aa7f-1f9ddf6768cf",
+      "createdAt": "2026-10-29T19:42:48.240Z"
+    },
+    {
+      "provenance": "human-created",
+      "author": "local-expert",
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "QRS complex",
+      "geometry": {
+        "type": "beat",
+        "lead": "aVF",
+        "t": 2.214,
+        "code": "N"
+      },
+      "id": "b3b61728-388a-485c-a84a-e887edfbf068",
+      "createdAt": "2026-10-29T19:42:49.091Z"
+    },
+    {
+      "provenance": "human-created",
+      "author": "local-expert",
+      "itemId": "ecg-waveform/HR00001.json",
+      "label": "QRS complex",
+      "geometry": {
+        "type": "beat",
+        "lead": "V1",
+        "t": 2.39,
+        "code": "N"
+      },
+      "id": "811ba9ac-db3b-4c47-85b8-db3ec800762c",
+      "createdAt": "2026-10-29T19:42:49.522Z"
+    }
+  ]
+}

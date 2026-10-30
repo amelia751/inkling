@@ -24,6 +24,9 @@ export interface SeedAsset {
   mpp?: number | null;
   magnification?: string | null;
   tiles?: number;
+  /** Uploaded files (task documents): the original file name and its source node; `path` is content-addressed. */
+  name?: string;
+  nodeId?: string;
 }
 
 export interface Project {
@@ -452,3 +455,95 @@ export interface ActivityEntry {
 
 /** GET /v1/tasks/:id/document: a `Project`-shaped document, so every viewer works unchanged. */
 export type TaskDocument = Project & { projectId?: string };
+
+// ---- Explore (todo6 Phase 5) -------------------------------------------------------------------
+
+export interface RelationshipTargetRef {
+  nodeId: string;
+  name: string;
+  path: string;
+  kind: "file" | "folder";
+}
+
+/** `evidence` of a relationship proposal: computed by the kernel, recomputed on every edit. */
+export interface RelationshipEvidence {
+  column: string;
+  target: "files" | "folders";
+  rule: "exact" | "normalized" | "numeric";
+  ruleLabel: string;
+  rows: number;
+  matched: number;
+  unmatched: number;
+  ambiguous: number;
+  skipped: number;
+  resolved: number;
+  empty: number;
+  repeatedIds: number;
+  examples: { row: number; value: string; target: RelationshipTargetRef; manual?: boolean }[];
+  unmatchedRows: { row: number; value: string }[];
+  ambiguousRows: { row: number; value: string; candidates: RelationshipTargetRef[] }[];
+  why: string[];
+  summary?: string;
+}
+
+export interface ExploreRecord {
+  id: string;
+  type: "series" | "table" | "documents" | "files";
+  title: string;
+  detail?: string | null;
+  status: "detected" | "proposed" | "confirmed";
+  nodeId?: string | null;
+  proposalId?: string;
+  strength?: ProposalStrength;
+}
+
+export interface ExploreTaskRow {
+  id: string;
+  title: string;
+  detail?: string | null;
+  status: "proposed" | "confirmed";
+  taskId?: string;
+  datasetId?: string;
+  proposalId?: string;
+  strength?: ProposalStrength;
+}
+
+export interface QualityItem {
+  id: string;
+  type: "privacy" | "unsupported" | "duplicate" | "series" | "mismatch" | "missing";
+  severity: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+  target: ProjectTarget;
+}
+
+/** GET /v1/projects/:id/explore: Summary (files → records → tasks) and the Quality list. */
+export interface ExploreSummary {
+  files: { total: number; byKind: { kind: string; label: string; count: number }[]; facts: string[] };
+  records: ExploreRecord[];
+  tasks: ExploreTaskRow[];
+  quality: QualityItem[];
+  clean: boolean;
+  openProposals: number;
+  readyProposalId?: string;
+}
+
+/** GET /v1/proposals/:id/preview: what confirming a dataset proposal will do. */
+export interface ProposalPreview {
+  proposal: Proposal;
+  title?: string;
+  taskTitle?: string;
+  preset?: string;
+  kind?: string;
+  files?: number;
+  heldFiles?: number;
+  items?: number;
+  grouping?: string;
+  groups?: { label: string; count: number }[];
+  labelClasses?: string[];
+  importedLabels?: number;
+  labelsFrom?: string | null;
+  alsoConfirms?: Proposal[];
+  blocking?: { nodeId: string; reason: string }[];
+  examples?: { nodeId: string; name: string; label: string | null }[];
+}

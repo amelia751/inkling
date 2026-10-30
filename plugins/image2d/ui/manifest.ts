@@ -13,7 +13,7 @@ const CANVAS = `${IMAGE2D}.renderers.canvas-raster`;
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
-    name: a.path.split("/").pop() ?? a.path,
+    name: a.name ?? a.path.split("/").pop() ?? a.path,
     group: a.label ? a.label[0].toUpperCase() + a.label.slice(1) : "Images",
     assets: [a],
     sourceLabel: a.label,

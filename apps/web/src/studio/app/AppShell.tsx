@@ -10,6 +10,7 @@ import { FullPageMessage } from "./routes/shared";
 import { HomePage } from "./routes/HomePage";
 import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
+import { ExplorePage } from "./routes/ExplorePage";
 import { LEGACY, LegacyRedirect, SectionFrame, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage, VersionsPage } from "@/studio/core/versioning";
 
@@ -30,7 +31,7 @@ const router = createBrowserRouter([
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   { path: "/projects/:projectId/sources/:nodeId?", element: <SectionFrame title="Sources" description="The files you brought, exactly as uploaded." /> },
-  { path: "/projects/:projectId/explore/:tab?", element: <SectionFrame title="Explore" description={`What ${NAMING.displayName} found in your files and how they fit together.`} /> },
+  { path: "/projects/:projectId/explore/:tab?", element: <ExplorePage /> },
   { path: "/projects/:projectId/datasets", element: <SectionFrame title="Datasets" description="The datasets and tasks built from your sources." /> },
   { path: "/projects/:projectId/datasets/:datasetId", element: <SectionFrame title="Dataset" description="Its tasks, versions and exports." /> },
   { path: "/projects/:projectId/datasets/:datasetId/versions", element: <VersionsPage /> },

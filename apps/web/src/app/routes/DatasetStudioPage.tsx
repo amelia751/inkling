@@ -10,7 +10,6 @@ import { ShortcutsDialog } from "@/components/studio/ShortcutsDialog";
 import { ViewportHost } from "@/components/studio/ViewportHost";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useViewport } from "@/lib/use-media-query";
-import { useNoSwipeBack } from "@/lib/use-no-swipe-back";
 import { fetchAnnotations, fetchEnvironment, saveAnnotations } from "@/lib/api";
 import { setLabelClasses } from "@/lib/labels";
 import { ANNOTATIONS_VERSION } from "@/migrations/annotations-v1-to-v2";
@@ -112,7 +111,6 @@ function Studio({ projectId }: { projectId: string }) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEnvBindings(env);
-  useNoSwipeBack();
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
   // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
@@ -173,7 +171,7 @@ function Studio({ projectId }: { projectId: string }) {
   const right = <SlotTabs slot="right" only={rightIds} env={env} project={project} items={items} item={item} />;
 
   return (
-    <div className="studio-root flex h-full flex-col">
+    <div className="flex h-full flex-col">
       <StudioTopBar
         project={project}
         onRetrySave={save}

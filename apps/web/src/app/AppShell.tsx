@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from "react-router";
+import { useNoSwipeBack } from "@/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { ExportPage } from "./routes/ExportPage";
 import { ReviewPage } from "./routes/ReviewPage";
@@ -14,5 +15,7 @@ const router = createBrowserRouter([
 ]);
 
 export function AppShell() {
+  // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).
+  useNoSwipeBack();
   return <RouterProvider router={router} />;
 }

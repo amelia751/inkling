@@ -436,10 +436,11 @@
 .rjsf-inkling .error-detail, .rjsf-inkling .text-danger { color: var(--color-danger, #d33); font-size: 0.75rem; }
 .rjsf-inkling button[type="submit"] { height: 2rem; padding: 0 0.75rem; border-radius: 0.375rem; background: var(--color-primary); color: var(--color-primary-foreground); font-size: 0.875rem; }
 
-/* A two-finger horizontal swipe on a Mac trackpad means "back" to the browser; in the Studio
-   it should pan the canvas instead (Chrome / Edge / Firefox honour this; see useNoSwipeBack). */
-html:has(.studio-root),
-body:has(.studio-root) {
+/* A two-finger horizontal swipe on a Mac trackpad means "back" to the browser. Inkling turns
+   that off everywhere: swipes pan canvases and scroll strips instead of leaving the page
+   (Chrome / Edge / Firefox honour this; Safari is handled by useNoSwipeBack). */
+html,
+body {
   overscroll-behavior-x: none;
 }
 

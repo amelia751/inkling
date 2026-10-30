@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 
 /**
- * Stop the trackpad "swipe back" gesture while the Studio is open, so a horizontal swipe
- * pans the image instead of leaving the page. CSS `overscroll-behavior-x: none` covers
+ * Stop the trackpad "swipe back" gesture on every page, so a horizontal swipe pans the
+ * image or scrolls a strip instead of leaving the page. CSS `overscroll-behavior-x: none` covers
  * Chromium and Firefox; Safari ignores it, so horizontal wheel events that nothing on the
  * page can scroll are cancelled here. Back stays available through the browser button,
  * ⌘[ and the in-app navigation.

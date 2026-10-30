@@ -9,7 +9,8 @@ import {
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
 import { useProjectList } from "@/studio/lib/projects-api";
-import { newProjectUrl, projectsUrl, projectUrl, type ProjectSection } from "@/studio/lib/routes";
+import { projectsUrl, projectUrl, type ProjectSection } from "@/studio/lib/routes";
+import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 
 const TRIGGER = "press flex h-7 min-w-0 items-center gap-1 rounded-lg bg-generic py-1.5 pl-[9px] pr-1.5 text-sm text-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]";
@@ -64,6 +65,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
   const { data: projects } = useProjectList();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const setNewProject = useShell((s) => s.setNewProject);
   const section = (/^\/projects\/[^/]+\/([^/]+)/.exec(pathname)?.[1] ?? "overview") as ProjectSection;
 
   return (
@@ -91,10 +93,8 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
             <ProjectsIcon className="text-muted-foreground" /> All projects
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link to={newProjectUrl()}>
-            <AddDataIcon className="text-muted-foreground" /> New project
-          </Link>
+        <DropdownMenuItem onSelect={() => setNewProject(true)} data-testid="switcher-new-project">
+          <AddDataIcon className="text-muted-foreground" /> New project
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

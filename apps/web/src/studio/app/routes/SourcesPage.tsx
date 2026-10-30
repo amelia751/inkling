@@ -22,7 +22,7 @@ import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
-import { setShellContext, useCommands } from "@/extension-host/commands";
+import { useCommands } from "@/extension-host/commands";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { AddDataButton, DropZone, useAddData } from "@/studio/components/uploads/uploads";
 import { ImportsList, ImportSummary } from "@/studio/components/sources/imports";
@@ -67,12 +67,6 @@ export function SourcesPage() {
   const project = useProjectSummary(projectId).data;
   const prefs = useSourcesPrefs();
   const addData = useAddData(projectId);
-
-  // The Sources keys (`when: section == sources`) apply on this page only.
-  useEffect(() => {
-    setShellContext({ section: "sources" });
-    return () => setShellContext({});
-  }, []);
 
   const sources = useSources(projectId);
   const sourceList = useMemo(() => sources.data ?? [], [sources.data]);

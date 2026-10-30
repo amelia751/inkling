@@ -1,3 +1,4 @@
+import { NAMING } from "@studio/contracts/naming";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
 import { useNoSwipeBack } from "@/studio/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
@@ -30,7 +31,7 @@ const router = createBrowserRouter([
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   { path: "/projects/:projectId/sources/:nodeId?", element: <SourcesPage /> },
-  { path: "/projects/:projectId/explore/:tab?", element: <SectionFrame title="Explore" description="What Inkling found in your files and how they fit together." /> },
+  { path: "/projects/:projectId/explore/:tab?", element: <SectionFrame title="Explore" description={`What ${NAMING.displayName} found in your files and how they fit together.`} /> },
   { path: "/projects/:projectId/datasets", element: <SectionFrame title="Datasets" description="The datasets and tasks built from your sources." /> },
   { path: "/projects/:projectId/datasets/:datasetId", element: <SectionFrame title="Dataset" description="Its tasks, versions and exports." /> },
   { path: "/projects/:projectId/datasets/:datasetId/versions", element: <VersionsPage /> },

@@ -1,4 +1,4 @@
-import type { AgentContext, AgentEvent, ChatTurn } from "../../src/lib/agent/protocol";
+import type { AgentContext, AgentEvent, ChatTurn } from "@/studio/lib/agent/protocol";
 import { runTool, toolSpecs, toolTitle } from "./tools";
 import { envVar, NAMING } from "@studio/plugin-contracts/naming";
 

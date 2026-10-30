@@ -82,13 +82,13 @@ Use actual shadcn CLI generation for UI primitives, rather than assuming every s
 
 **Viewer design: modules, environments, presets.** Do **not** fork OHIF; copy its extension/mode pattern (and VS Code `contributes` + `when`, Label Studio `name`/`toName`, JupyterLab `requires`). Cornerstone3D remains the SDK for radiology renderers.
 
-- **Platform** (`apps/web/src/platform/`): module contract, registry, environment schema (zod), resolver with structured errors, `when`-clause evaluator, runtime context, command registry, agent catalogue. No domain code.
+- **Extension host** (`apps/web/src/extension-host/`, contract in `packages/plugin-ui-sdk`): module contract, registry, environment schema (zod), resolver with structured errors, `when`-clause evaluator, runtime context, command registry, agent catalogue. No domain code.
 - **Kits** (`kits/`): domain-neutral building blocks: 2D vector overlay, viewport chrome, timeline, file I/O (NIfTI, DICOM, WFDB, video), Cornerstone glue.
-- **Modules** (`modules/<id>/`): a pure-data `manifest.ts` plus a lazy `load()` returning implementations keyed by contribution id. Contributions are addressed `<module>.<type>.<name>`, e.g. `inkling.wsi.renderers.osd`.
-- **Environments**: JSON documents (seed manifest, `platform/presets/*.json`, or agent-written) that pick modules and configure them. Validated against a JSON Schema generated from the live registry.
+- **Modules** (`plugins/<name>/ui/`): a pure-data `manifest.ts` plus a lazy `load()` returning implementations keyed by contribution id. Contributions are addressed `<module>.<type>.<name>`, e.g. `inkling.wsi.renderers.osd`.
+- **Environments**: JSON documents (seed manifest, `registry/presets/*.json`, or agent-written) that pick modules and configure them. Validated against a JSON Schema generated from the live registry.
 
 ```ts
-// platform/module.ts (abridged)
+// packages/plugin-ui-sdk/src/module.ts (abridged)
 export interface ModuleManifest {
   id: string; version: string; title: string; description: string;
   requires?: string[];
@@ -178,18 +178,13 @@ inkling/
 │   │       │   ├── annotation/
 │   │       │   ├── reviews/
 │   │       │   └── publishing/
-│   │       ├── platform/             # Module contract, registry, resolver, when, commands, runtime, catalogue, agent tools
-│   │       │   └── presets/          # Environment JSON: image-2d, volume-3d, ecg, video, cine-4d, pathology, generic-image…
-│   │       ├── kits/                 # overlay2d, viewport-chrome, timeline, io, cornerstone (domain-neutral)
-│   │       ├── modules/              # core, image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, dicom-export, _template
-│   │       ├── bundle.ts             # The one place that lists bundled modules
-│   │       ├── migrations/           # Stored annotation upgrades (v1 → v2 core geometries)
-│   │       ├── components/ui/
-│   │       ├── hooks/
-│   │       ├── lib/api/
-│   │       ├── stores/
-│   │       ├── styles/
-│   │       └── tests/
+│   │       ├── studio/               # Shell: app/ (routes), components/, stores/, lib/, styles/
+│   │       │   └── core/             # Built-in Studio contributions (files, labels, select, pan…), not a plugin
+│   │       ├── extension-host/       # Registry, resolver, when, commands, catalogue, agent tools, host API binding
+│   │       │   ├── agent-panels/     # Tier 2 declarative + tier 3 sandboxed agent UI
+│   │       │   └── bundled.ts        # The one place that lists bundled plugins
+│   │       ├── main.tsx
+│   │       └── server-entry.ts       # What the dev server and emit-schemas load through Vite SSR
 │   ├── api/
 │   │   ├── Dockerfile
 │   │   └── app/
@@ -230,8 +225,15 @@ inkling/
 │       │   └── thumbnails.py
 │       └── tests/
 ├── packages/
-│   ├── contracts/                    # Shared TS types and generated API client
-│   └── design-system/                # Optional after UI stabilizes
+│   ├── plugin-contracts/             # Canonical types, environment schema, migrations, naming config
+│   ├── plugin-ui-sdk/                # Module contract, resolved-env types, runtime bus, host API (useHost)
+│   ├── studio-ui/                    # shadcn components, icons, cn(), key and shortcut display
+│   └── studio-renderers/             # Trusted renderers and kits: cornerstone, overlay2d, timeline, viewport-chrome, io
+├── plugins/                          # First-party plugins: <name>/ui (image2d, volume, timeseries, video, cine,
+│                                     #   cardiac-metrics, wsi, text-spans, export-dicom, _template)
+├── registry/
+│   └── presets/                      # Workspace templates (environment JSON)
+├── schemas/                          # Emitted JSON Schemas, catalogue and naming.json
 ├── infra/
 │   ├── docker-compose.yml
 │   ├── docker-compose.dicom.yml       # Optional Orthanc

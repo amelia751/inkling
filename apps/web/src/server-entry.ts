@@ -3,12 +3,12 @@
  * through Vite's SSR module loader: the bundled registry plus pure platform functions, so
  * server-side validation uses exactly the client's modules and resolver.
  */
-import "./bundle";
-import { catalogPrompt, describeCatalog, environmentJsonSchema } from "./platform/catalog";
-import type { EnvironmentSpec } from "./platform/environment";
-import { patchSpec, type JsonPatchOperation } from "./platform/patch";
-import { registry } from "./platform/registry";
-import { resolveEnvironment, type EnvError } from "./platform/resolve";
+import "@/extension-host/bundled";
+import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
+import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
+import { registry } from "@/extension-host/registry";
+import { resolveEnvironment, type EnvError } from "@/extension-host/resolve";
 
 export const catalog = () => describeCatalog(registry);
 export const prompt = () => catalogPrompt(registry);
@@ -32,4 +32,4 @@ export function patch(spec: EnvironmentSpec, ops: JsonPatchOperation[]): Validat
 export { NAMING, envVar } from "@studio/plugin-contracts/naming";
 
 /** The environment a manifest project boots with (v1 entries are migrated). */
-export { normalizeProject } from "./lib/api";
+export { normalizeProject } from "@/studio/lib/api";

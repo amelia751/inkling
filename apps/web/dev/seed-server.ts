@@ -3,7 +3,10 @@ import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
 // Loaded by vite.config.ts (bundled by esbuild before aliases exist), so a relative import.
-import { RES } from "../../../packages/plugin-contracts/src/naming";
+// Loaded by vite.config.ts, which can't import workspace TS: read the emitted naming config.
+import NAMING from "../../../schemas/naming.json";
+
+const RES = NAMING.resourcePrefix;
 
 /**
  * Dev-only stand-in for the FastAPI backend (inkling.md §3.2):
@@ -24,7 +27,7 @@ import { RES } from "../../../packages/plugin-contracts/src/naming";
  * files are never modified. Validation runs the app's own registry and resolver through
  * Vite's SSR loader (src/server-entry.ts).
  */
-type ServerApi = typeof import("../src/server-entry");
+type ServerApi = typeof import("@/server-entry");
 
 export function seedServer(seedRoot: string): Plugin {
   const annotationsDir = path.join(seedRoot, ".annotations");

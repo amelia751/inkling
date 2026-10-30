@@ -6,11 +6,15 @@ import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
 import { aliases, REPO_ROOT } from "./aliases";
-import { envVar, NAMING } from "../../packages/plugin-contracts/src/naming";
+// The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
+// reads the emitted copy of packages/plugin-contracts/src/naming.ts.
+import NAMING from "../../schemas/naming.json";
+
+const envVar = (name: string) => `${NAMING.envPrefix}${name}`;
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
-const adaptersDir = fs.realpathSync(path.resolve(__dirname, "node_modules/@cornerstonejs/adapters"));
+const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/node_modules/@cornerstonejs/adapters"));
 const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
 
 export default defineConfig({
@@ -33,7 +37,7 @@ export default defineConfig({
     alias: [
       ...aliases,
       // vtk.js (via Cornerstone) imports xmlbuilder2, which needs Node's `events`; we never parse VTK XML.
-      { find: "xmlbuilder2", replacement: path.resolve(__dirname, "src/kits/cornerstone/xmlbuilder2-stub.ts") },
+      { find: "xmlbuilder2", replacement: path.resolve(REPO_ROOT, "packages/studio-renderers/src/cornerstone/xmlbuilder2-stub.ts") },
       { find: "dcmjs", replacement: dcmjsEntry },
     ],
   },

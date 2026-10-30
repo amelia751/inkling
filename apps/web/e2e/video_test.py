@@ -28,7 +28,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from harness import Studio, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import Studio, open_studio, parse_args, src_url, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 SEED = ROOT / "seed-data"
@@ -53,8 +53,8 @@ class V:
     def install(self):
         self.p.evaluate(
             """async () => {
-                window.__s = (await import('/src/stores/studio.ts')).useStudio;
-                window.__tracks = await import('/src/modules/video/tracks.ts');
+                window.__s = (await import('/src/studio/stores/studio.ts')).useStudio;
+                window.__tracks = await import('""" + src_url("plugins/video/ui/tracks.ts") + """');
             }"""
         )
 
@@ -760,8 +760,8 @@ def t_exporters(v: V, ctx):
     item = v.item_id()
     blobs = v.p.evaluate(
         """async () => {
-            const { registry } = await import('/src/platform/registry.ts');
-            const items = (await import('/src/lib/items.ts')).projectItems;
+            const { registry } = await import('/src/extension-host/registry.ts');
+            const items = (await import('/src/studio/lib/items.ts')).projectItems;
             const manifest = await (await fetch('/seed/manifest.json')).json();
             const project = manifest.projects.find((p) => p.id === 'video-endoscopy');
             const ctx = { project, items: items(project), annotations: window.__s.getState().annotations };

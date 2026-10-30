@@ -1,0 +1,31 @@
+{
+  "name": "@studio/plugins",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dependencies of the first-party plugins under plugins/*/ui (split into one package per plugin in todo2 Phase 5)",
+  "dependencies": {
+    "@cornerstonejs/adapters": "5.14.0",
+    "@cornerstonejs/core": "5.14.0",
+    "@cornerstonejs/metadata": "5.14.0",
+    "@cornerstonejs/nifti-volume-loader": "5.14.0",
+    "@cornerstonejs/tools": "5.14.0",
+    "@cornerstonejs/utils": "5.14.0",
+    "@kitware/vtk.js": "36.4.1",
+    "dicom-parser": "1.8.21",
+    "digital-filter": "2.4.3",
+    "gl-matrix": "3.4.3",
+    "nifti-reader-js": "^0.6.8",
+    "openseadragon": "6.1.1",
+    "polyclip-ts": "0.16.8",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/openseadragon": "6.0.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "vitest": "^5.0.5"
+  }
+}

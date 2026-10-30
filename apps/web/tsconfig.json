@@ -72,6 +72,7 @@
     "vitest.config.ts",
     "aliases.ts",
     "../../packages/*/src",
-    "../../plugins/*/ui"
+    "../../plugins/*/ui",
+    "vitest.setup.ts"
   ]
 }

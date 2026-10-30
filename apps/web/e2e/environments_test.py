@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import RUNTIME, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
 results: list[tuple[str, bool, str]] = []
@@ -57,7 +57,7 @@ def env_summary(st) -> dict:
 
 
 def runtime(st, item_id: str, key: str):
-    return st.page.evaluate(f"async () => (await import('/src/platform/runtime.ts')).getRuntime({item_id!r}, {key!r})")
+    return st.page.evaluate(f"async () => (await import('{RUNTIME}')).getRuntime({item_id!r}, {key!r})")
 
 
 def t_sensor(browser, port):
@@ -127,9 +127,9 @@ def t_text(browser, port):
         ok = bool(spans) and spans[0]["label"] == "LOC" and spans[0]["g"] == {"type": "inkling.text-spans.span", "start": 44, "end": 50, "text": "London"}
         check("text: selecting text stores a span with the active class", ok, str(spans))
         out = st.page.evaluate("""async () => {
-          const { registry } = await import('/src/platform/registry.ts');
+          const { registry } = await import('/src/extension-host/registry.ts');
           const ex = await registry.loadImpl('inkling.text-spans.exporters.jsonl');
-          const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+          const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
           const items = s.env.dataKind.groupItems({ assets: [{ path: 'ner-demo/ner.txt' }] });
           return await (await ex.build({ project: {}, items, annotations: s.annotations })).text();
         }""")

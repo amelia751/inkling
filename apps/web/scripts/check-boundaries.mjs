@@ -1,90 +1,115 @@
-// Enforces the module architecture's layering (docs/modules.md, todo/todo.md §1):
-//   platform  → nothing below it (no kits, modules or Studio components)
-//   kits      → platform only (never a module)
-//   modules   → platform, kits, and other modules' manifest.ts / public.ts only
-//   shell     → platform (never a module directly; src/bundle.ts is the one composition root)
-// Usage: node scripts/check-boundaries.mjs [--strict]. Without --strict, files listed in
-// scripts/boundaries-allowlist.json only warn; --strict ignores the allowlist.
+// Enforces the plugin layering (docs/modules.md, todo/todo2.md §1.9):
+//   packages/plugin-contracts  → nothing internal
+//   packages/plugin-ui-sdk     → contracts
+//   packages/studio-ui         → nothing internal
+//   packages/studio-renderers  → sdk, contracts, studio-ui
+//   plugins/*/ui               → sdk, contracts, studio-ui, studio-renderers, and other plugins'
+//                                manifest.ts / public.ts only
+//   extension-host             → sdk, contracts, studio-ui (bundled.ts and host.tsx are the
+//                                composition roots and may import anything)
+//   studio (shell)             → extension-host, sdk, contracts, studio-ui; never @plugins/*
+//   studio/core                → like the shell, plus studio-renderers (the built-in tools)
+// Tests (*.test.ts, *.test-helpers.ts) may reach into the host to set up a real registry.
+// Also: no brand name in code (D3). Usage: node scripts/check-boundaries.mjs [--strict].
+// Without --strict, files listed in scripts/boundaries-allowlist.json only warn.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 
-const root = new URL("../src", import.meta.url).pathname;
+const repo = new URL("../../..", import.meta.url).pathname;
+const webSrc = join(repo, "apps/web/src");
 const strict = process.argv.includes("--strict");
 const allowFile = new URL("./boundaries-allowlist.json", import.meta.url).pathname;
 const allowlist = !strict && existsSync(allowFile) ? JSON.parse(readFileSync(allowFile, "utf8")) : [];
 
-const walk = (dir) =>
-  readdirSync(dir).flatMap((name) => {
-    const p = join(dir, name);
-    return statSync(p).isDirectory() ? walk(p) : /\.(tsx?|jsx?|mjs)$/.test(name) ? [p] : [];
-  });
+const codeFiles = (dir) =>
+  !existsSync(dir)
+    ? []
+    : readdirSync(dir).flatMap((name) => {
+        const p = join(dir, name);
+        if (name === "node_modules") return [];
+        return statSync(p).isDirectory() ? codeFiles(p) : /\.(tsx?|mjs)$/.test(name) && !name.endsWith(".d.ts") ? [p] : [];
+      });
 
 const IMPORT = /(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s+["']([^"']+)["']/gm;
 
-/** Repo-relative target ("platform/registry.ts") of an import, or null for packages. */
-function target(file, spec) {
+/** Layer (and plugin name / path inside it) of a repo-relative path. */
+function layerOfPath(rel) {
+  let m;
+  if ((m = /^packages\/(plugin-contracts|plugin-ui-sdk|studio-ui|studio-renderers)\//.exec(rel))) return { layer: m[1] };
+  if ((m = /^plugins\/([^/]+)\/ui\/(.*)$/.exec(rel))) return { layer: "plugin", plugin: m[1], rest: m[2] };
+  if (rel.startsWith("apps/web/src/extension-host/")) return { layer: "host", rest: rel.slice("apps/web/src/extension-host/".length) };
+  if (rel.startsWith("apps/web/src/studio/core/")) return { layer: "core" };
+  if (rel.startsWith("apps/web/src/studio/") || /^apps\/web\/src\/[^/]+$/.test(rel)) return { layer: "shell" };
+  return { layer: "other" };
+}
+
+/** Layer of an import target, or null for third-party packages. */
+function layerOfImport(file, spec) {
+  let m;
+  if ((m = /^@studio\/([^/]+)/.exec(spec))) return { layer: m[1] };
+  if ((m = /^@plugins\/([^/]+)\/(.*)$/.exec(spec))) return { layer: "plugin", plugin: m[1], rest: m[2] };
   let abs;
-  if (spec.startsWith("@/")) abs = join(root, spec.slice(2));
+  if (spec.startsWith("@/")) abs = join(webSrc, spec.slice(2));
   else if (spec.startsWith(".")) abs = resolve(dirname(file), spec);
   else return null;
-  return relative(root, abs).replace(/\.(tsx?|jsx?)$/, "");
+  return layerOfPath(relative(repo, abs));
 }
 
-const layer = (rel) => {
-  if (rel === "bundle") return "root";
-  const top = rel.split("/")[0];
-  if (top === "platform" || top === "kits" || top === "modules") return top;
-  if (top === "app" || top === "lib" || (top === "components" && rel.startsWith("components/studio"))) return "shell";
-  return "other";
+const ALLOWED = {
+  "plugin-contracts": [],
+  "plugin-ui-sdk": ["plugin-contracts"],
+  "studio-ui": [],
+  "studio-renderers": ["plugin-ui-sdk", "plugin-contracts", "studio-ui"],
+  plugin: ["plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers"],
+  host: ["plugin-ui-sdk", "plugin-contracts", "studio-ui"],
+  shell: ["host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "core"],
+  // Studio built-ins (files, labels, select, pan…): contributes like a plugin, lives in the shell.
+  core: ["shell", "host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers"],
 };
-const moduleOf = (rel) => rel.split("/")[1];
-const isPublicEntry = (rel) => /^modules\/[^/]+\/(manifest|public)$/.test(rel) || /^modules\/[^/]+$/.test(rel);
+const isPublicEntry = (rest) => /^(manifest|public)(\.tsx?)?$/.test(rest);
+const COMPOSITION_ROOTS = new Set(["bundled", "host"]);
 
-function violation(from, to) {
-  const a = layer(from), b = layer(to);
-  if (a === "platform" && (b === "modules" || b === "kits" || to.startsWith("components/studio"))) return "platform must not depend on modules, kits or Studio components";
-  if (a === "kits" && b === "modules") return "kits must not depend on modules";
-  if (a === "kits" && to.startsWith("components/studio")) return "kits must not depend on Studio components";
-  if (a === "modules" && b === "modules" && moduleOf(from) !== moduleOf(to) && !isPublicEntry(to))
-    return `modules/${moduleOf(from)} may only import modules/${moduleOf(to)}/manifest.ts or public.ts`;
-  if (a === "modules" && (to.startsWith("app/") || to.startsWith("components/studio"))) return "modules must not import the Studio shell; use RendererProps and platform/runtime";
-  if (a === "shell" && b === "modules") return "the shell reaches modules only through platform/ (registry, ViewportHost)";
-  // viewers/ is the pre-module code; it shrinks to nothing as each viewer converts (todo phase 6).
-  if ((a === "modules" || a === "kits" || a === "shell" || a === "platform") && to.startsWith("viewers/")) return "legacy viewers/ code: move it into the module (or a kit) that owns it";
-  return null;
+function violation(fromRel, from, to) {
+  if (from.layer === "other") return null;
+  if (to.layer === from.layer) {
+    if (to.layer === "plugin" && to.plugin !== from.plugin && !isPublicEntry(to.rest)) return `plugins/${from.plugin} may only import plugins/${to.plugin}/ui/manifest.ts or public.ts`;
+    return null;
+  }
+  if (from.layer === "host" && COMPOSITION_ROOTS.has(from.rest.replace(/\.tsx?$/, ""))) return null;
+  if (/\.test\.tsx?$|\.test-helpers\.ts$/.test(fromRel) && (to.layer === "host" || to.layer === "shell" || to.layer === "plugin")) return null;
+  if (ALLOWED[from.layer]?.includes(to.layer)) return null;
+  const name = { plugin: "plugins/*/ui", host: "extension-host", shell: "the Studio shell" }[from.layer] ?? `packages/${from.layer}`;
+  const target = { plugin: "@plugins/*", host: "extension-host", shell: "the Studio shell (apps/web/src/studio)" }[to.layer] ?? `@studio/${to.layer}`;
+  const hint = from.layer === "plugin" || from.layer === "studio-renderers" ? " (use the host API in @studio/plugin-ui-sdk)" : "";
+  return `${name} must not depend on ${target}${hint}`;
 }
 
+const roots = ["apps/web/src", "packages", "plugins"].map((d) => join(repo, d));
 const errors = [], warnings = [];
-for (const file of walk(root)) {
-  const from = relative(root, file).replace(/\.(tsx?|jsx?|mjs)$/, "");
+for (const file of roots.flatMap(codeFiles)) {
+  const fromRel = relative(repo, file);
+  const from = layerOfPath(fromRel);
   const src = readFileSync(file, "utf8");
   const lines = src.split("\n");
   for (const m of src.matchAll(IMPORT)) {
     const spec = m[1] ?? m[2] ?? m[3];
-    const to = target(file, spec);
+    const to = layerOfImport(file, spec);
     if (!to) continue;
-    const why = violation(from, to);
+    const why = violation(fromRel, from, to);
     if (!why) continue;
     const line = src.slice(0, m.index).split("\n").length;
-    const msg = `${relative(root, file)}:${line}  ${lines[line - 1].trim()}\n    → ${why}`;
-    (allowlist.some((p) => from.startsWith(p)) ? warnings : errors).push(msg);
+    const msg = `${fromRel}:${line}  ${lines[line - 1].trim()}\n    → ${why}`;
+    (allowlist.some((p) => fromRel.startsWith(p)) ? warnings : errors).push(msg);
   }
 }
 
 // ---- No brand name in code (todo/todo2.md D3) -------------------------------------
 // The product name lives only in packages/plugin-contracts/src/naming.ts. Comments, docs,
 // presets and fixtures may mention it; code (strings and identifiers) may not.
-const repo = new URL("../../..", import.meta.url).pathname;
 const BRAND = /\binkling\b/i;
 const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "packages", "plugins"].map((d) => join(repo, d)).filter(existsSync);
 const brandExempt = (rel) => rel.endsWith("plugin-contracts/src/naming.ts") || rel.includes("__fixtures__") || rel.includes("/node_modules/");
-const codeFiles = (dir) =>
-  readdirSync(dir).flatMap((name) => {
-    const p = join(dir, name);
-    if (name === "node_modules") return [];
-    return statSync(p).isDirectory() ? codeFiles(p) : /\.(tsx?|mjs)$/.test(name) && !name.endsWith(".d.ts") ? [p] : [];
-  });
 for (const file of brandRoots.flatMap(codeFiles)) {
   const rel = relative(repo, file);
   if (brandExempt(rel)) continue;

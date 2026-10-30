@@ -1,4 +1,4 @@
-import type { AgentCard, AgentContext } from "../../src/lib/agent/protocol";
+import type { AgentCard, AgentContext } from "@/studio/lib/agent/protocol";
 
 /**
  * Agent tools. All of them run against the text snapshot the panel sends, so

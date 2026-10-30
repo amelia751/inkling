@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).parent))
-from harness import Studio, launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import RUNTIME, Studio, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 REC = json.loads((ROOT / "seed-data/ecg-waveform/HR00001.json").read_text())
@@ -914,8 +914,8 @@ def t_exporters(browser, port):
     drag(st, (g.x(1.6), g.y(3)), (g.x(2.2), g.y(3)), mods=["Shift"])
     b64 = st.page.evaluate(
         """async () => {
-        const { registry } = await import('/src/platform/registry.ts'); const items = await import('/src/lib/items.ts');
-        const st = await import('/src/stores/studio.ts'); const api = await import('/src/lib/api.ts');
+        const { registry } = await import('/src/extension-host/registry.ts'); const items = await import('/src/studio/lib/items.ts');
+        const st = await import('/src/studio/stores/studio.ts'); const api = await import('/src/studio/lib/api.ts');
         const project = (await api.fetchProjects()).find(p => p.id === 'ecg-waveform');
         const ctx = { project, items: items.projectItems(project), annotations: st.useStudio.getState().annotations };
         const out = {};
@@ -992,8 +992,8 @@ def t_light_theme_and_inspect(browser, port):
     press(st, "Tab")
     sid = st.store("s => s.selectedId")
     rows = st.page.evaluate(
-        f"""async () => {{ const {{ registry }} = await import('/src/platform/registry.ts'); const st = await import('/src/stores/studio.ts');
-        const {{ runtimeFor }} = await import('/src/platform/runtime.ts'); const inspect = await registry.loadImpl('inkling.timeseries.inspectors.main');
+        f"""async () => {{ const {{ registry }} = await import('/src/extension-host/registry.ts'); const st = await import('/src/studio/stores/studio.ts');
+        const {{ runtimeFor }} = await import('{RUNTIME}'); const inspect = await registry.loadImpl('inkling.timeseries.inspectors.main');
         const s = st.useStudio.getState(); const a = s.annotations.find(x => x.id === '{sid}');
         return inspect(a, {{ env: s.env, project: null, item: {{ id: '{ITEM}' }}, runtime: runtimeFor('{ITEM}') }}); }}"""
     )

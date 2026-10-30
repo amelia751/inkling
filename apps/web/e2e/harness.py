@@ -22,6 +22,25 @@ from typing import Any
 from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 
+REPO = Path(__file__).resolve().parents[3]
+
+# Browser URLs of modules tests import directly. Shell and host files live under apps/web/src
+# (served at /src/...); packages and plugins live outside the Vite root and are served at
+# /@fs/<absolute path>, the same URL the app itself loads them from (so module state is shared).
+STORE = "/src/studio/stores/studio.ts"
+REGISTRY = "/src/extension-host/registry.ts"
+
+
+def src_url(repo_path: str) -> str:
+    """URL for a repo-relative module path, e.g. src_url('plugins/cine/ui/model.ts')."""
+    if repo_path.startswith("apps/web/src/"):
+        return "/" + repo_path[len("apps/web/"):]
+    return f"/@fs{REPO / repo_path}"
+
+
+RUNTIME = src_url("packages/plugin-ui-sdk/src/runtime.ts")
+
+
 @dataclass
 class Studio:
     page: Page
@@ -31,13 +50,13 @@ class Studio:
     def store(self, expr: str = "s => s") -> Any:
         """Evaluate a selector against the zustand store state, e.g. `s => s.annotations.length`."""
         return self.page.evaluate(
-            f"async () => {{ const m = await import('/src/stores/studio.ts'); return ({expr})(m.useStudio.getState()); }}"
+            f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}"
         )
 
     def act(self, expr: str) -> Any:
         """Call store actions, e.g. `s => s.setTool('box')`."""
         return self.page.evaluate(
-            f"async () => {{ const m = await import('/src/stores/studio.ts'); return ({expr})(m.useStudio.getState()); }}"
+            f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}"
         )
 
     def shot(self, name: str, out: Path) -> Path:

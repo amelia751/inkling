@@ -1,5 +1,5 @@
 {
-  "name": "web",
+  "name": "@studio/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,9 +10,8 @@
     "typecheck": "tsc -b",
     "check:icons": "node scripts/check-icons.mjs",
     "test": "vitest run",
-    "check:boundaries": "node scripts/check-boundaries.mjs",
-    "emit:schemas": "node scripts/emit-schemas.mjs",
-    "mcp": "node scripts/mcp.mjs"
+    "check:boundaries": "node ../../tools/check-boundaries.mjs",
+    "emit:schemas": "node scripts/emit-schemas.mjs"
   },
   "dependencies": {
     "@babel/runtime": "^7.29.10",
@@ -52,7 +51,6 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2",
     "@originjs/vite-plugin-commonjs": "1.0.3",
     "@studio/agent": "workspace:*",
     "@tailwindcss/vite": "^4",

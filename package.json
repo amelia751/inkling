@@ -1,20 +1,42 @@
 {
   "name": "studio",
   "private": true,
+  "packageManager": "pnpm@12.11.2",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.0.0",
+      "onFail": "download"
+    }
+  },
   "scripts": {
-    "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter web build",
-    "seeds": "uv run scripts/fetch-seeds.py",
-    "mcp": "pnpm --filter web mcp",
+    "dev": "turbo run dev --env-mode=loose --filter=@studio/web --filter=@studio/api --filter=@studio/agent --filter=@studio/worker",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint",
+    "affected": "turbo run test typecheck lint --filter=...[origin/main]",
+    "check:boundaries": "node tools/check-boundaries.mjs",
+    "check:python-imports": "uv run lint-imports",
+    "emit:schemas": "pnpm --filter @studio/web emit:schemas",
+    "build:registry": "node tools/build-registry.mjs",
+    "seeds": "uv run tools/fetch-seeds.py",
+    "seeds:upload": "uv run tools/fetch-seeds.py --upload",
+    "mcp": "pnpm --filter @studio/mcp dev",
     "agent": "pnpm --filter @studio/agent dev",
     "agent:test": "pnpm --filter @studio/agent test",
     "agent:live": "pnpm --filter @studio/agent test:live",
-    "typecheck": "pnpm --filter web typecheck",
-    "test": "pnpm --filter web test",
-    "check:boundaries": "pnpm --filter web check:boundaries",
-    "emit:schemas": "pnpm --filter web emit:schemas",
-    "api": "cd apps/api && uv run uvicorn studio_api.app:app --port 8000",
-    "test:api": "cd apps/api && uv run pytest -q",
-    "build:registry": "node scripts/build-registry.mjs"
+    "api": "pnpm --filter @studio/api dev",
+    "test:api": "pnpm --filter @studio/api test",
+    "infra:up": "docker compose -f infra/docker/compose.yaml --profile deps up -d --wait",
+    "infra:down": "docker compose -f infra/docker/compose.yaml --profile deps down",
+    "stack:up": "docker compose -f infra/docker/compose.yaml --profile full up -d --build --wait",
+    "stack:down": "docker compose -f infra/docker/compose.yaml --profile full down",
+    "k8s:build": "kubectl kustomize infra/k8s/overlays/dev",
+    "k8s:dev-keys": "node tools/versioning-keys.mjs --namespace studio-dev"
+  },
+  "devDependencies": {
+    "turbo": "2.11.9",
+    "typescript": "^5"
   }
 }

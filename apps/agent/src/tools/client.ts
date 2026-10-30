@@ -19,7 +19,12 @@ export class ClientToolBridge {
   private readonly pending = new Map<string, Pending>();
 
   constructor(
-    private readonly opts: { timeoutS: number; emit: (req: { callId: string; name: string; input: unknown }) => void },
+    private readonly opts: {
+      timeoutS: number;
+      emit: (req: { callId: string; name: string; input: unknown }) => void;
+      /** Every awaited request ends here once: answered, timed out or cancelled. */
+      onSettled?: (callId: string) => void;
+    },
   ) {}
 
   request(callId: string, name: string, input: unknown, signal?: AbortSignal): Promise<ClientToolResultRequest> {
@@ -29,6 +34,7 @@ export class ClientToolBridge {
         clearTimeout(timer);
         this.pending.delete(callId);
         signal?.removeEventListener("abort", onAbort);
+        this.opts.onSettled?.(callId);
       };
       const onAbort = () => {
         done();

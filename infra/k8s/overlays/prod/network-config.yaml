@@ -1,0 +1,10 @@
+# Build-time only (not applied): values for `replacements` in kustomization.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-config
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  # CIDR of the managed Postgres / Redis / object-storage endpoints (placeholder).
+  DATA_SERVICES_CIDR: 10.30.0.0/16

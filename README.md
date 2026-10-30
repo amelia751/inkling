@@ -17,6 +17,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 │   ├── api/         kernel + plugin control plane (Python, FastAPI)
 │   ├── agent/       AI agent runtime (Node, pi + Daytona sandboxes)
 │   ├── worker/      runs plugin jobs (Python)
+│   ├── versioning/  dataset versioning: branches, commits, reviews, merges (Go)
 │   └── mcp/         MCP server exposing Studio tools to outside agents
 ├── plugins/         first-party plugins (UI + optional worker + manifest)
 ├── packages/        shared libraries, imported but never deployed alone
@@ -88,7 +89,10 @@ Node 24 service built on the pi coding agent (`@earendil-works/pi-coding-agent`)
 Python process that pulls jobs from the queue and runs plugin tools (for example segmentation inference) through `plugin-sdk-py`. It acks and retries jobs and enforces resource budgets. All first-party `plugins/*/worker` packages are installed in one image. Kubernetes scales it on queue depth with KEDA, down to zero when idle.
 
 ### `apps/mcp`: MCP server (`@studio/mcp`)
-Exposes the Studio environment tools (describe, list, patch the workspace, run commands) over the Model Context Protocol, so outside agents (Claude Desktop, Cursor and so on) can drive the Studio. It calls `apps/api` and never reads app internals.
+Exposes the Studio environment tools (catalogue, get/validate/patch an environment) over the Model Context Protocol (stdio), so outside agents (Claude Desktop, Cursor and so on) can drive the Studio. It calls a running Studio over HTTP and never imports another app. The catalogue and validation routes still live in the web dev server (they run the TypeScript registry); see `apps/mcp/README.md`.
+
+### `apps/versioning`: dataset versioning (`@studio/versioning`)
+Go service that turns datasets into Git-like repositories: branches, commits, review requests, semantic diffs, three-way merges and releases. Postgres for metadata, object storage for content. Design: `docs/versioning.md`; API: `schemas/versioning/openapi.yaml`. Only `apps/api` (and its workers) call it.
 
 ---
 
@@ -101,15 +105,17 @@ plugins/<name>/
 ├── plugin.yaml       manifest: id, version, compatibility, capabilities, runtime, providers,
 │                     UI contributions, skills, permissions, resources, event subscriptions
 ├── ui/               viewers, tools, panels, commands (TypeScript/React, trusted first-party code)
-├── contributions.json  declarative UI rendered by trusted renderers (what third-party/generated plugins ship)
-├── worker/           optional Python package: tool implementations and providers
+│   └── contributions.json  declarative UI rendered by trusted renderers (what third-party/generated plugins ship)
+├── package.json      the plugin's pnpm package (exports ./ui/*)
+├── pyproject.toml    optional Python worker: src/<package>/ tool implementations and providers,
+├── uv.lock           with its own lock (each plugin version gets its own locked environment)
 ├── skills/           instructions the agent loads when the plugin is active
 └── tests/
 ```
 
 | Plugin | What it adds |
 |---|---|
-| `_template/` | Starting point for new plugins. `tools/new-plugin` copies it, and so does the agent's plugin builder. |
+| `_template/` | Starting point for new plugins. `node tools/new-plugin.mjs <name>` copies it, and so does the agent's plugin builder. |
 | `image2d/` | 2-D images and DICOM (X-ray, CT slices): window/level, measurements, 2-D annotations. |
 | `volume/` | 3-D volumes (MRI/CT): MPR views, 3-D rendering, segmentation masks. |
 | `cine/` | 4-D / cine loops (for example cardiac MRI) with frame playback. |
@@ -146,10 +152,10 @@ plugins/<name>/
 | `infra/docker/` | Shared base images and `compose.yaml`. Profile `deps` runs Postgres, Redis and MinIO for local dev. Profile `full` runs every app image behind a router, like production. |
 | `infra/k8s/` | Kustomize. `base/<app>/` holds the Deployment, Service, HPA/KEDA, PDB and ConfigMap for each app. `base/jobs/` holds DB migrations and the sandbox sweeper CronJob. `overlays/{dev,staging,prod}/` holds replicas, image digests, managed endpoints and NetworkPolicies. |
 | `infra/terraform/` | Cloud resources (cluster, buckets, database), when there is a cloud. |
-| `tools/` | `fetch-seeds.py` (download sample data, `--upload` to object storage), `check-boundaries.mjs`, `rename-namespace.mjs`, `emit-schemas.mjs`, `new-plugin`. |
+| `tools/` | `fetch-seeds.py` (download sample data, `--upload` to object storage), `check-boundaries.mjs` (import rules + no brand in code), `build-registry.mjs`, `rename-namespace.mjs`, `new-plugin.mjs`. (`apps/web/scripts/emit-schemas.mjs` writes `schemas/` because it runs the TS registry.) |
 | `tests/e2e/` | Cross-service tests against the `full` compose stack: agent runs, plugin install/activate, segmentation jobs, and the `plugins.md` acceptance tests. |
 | `docs/` | `product.md` (what the product is), `ui.md`, `agent.md`, `plugins.md`, `modules.md`, `running.md`, `adr/` (architecture decisions, starting with the monorepo layout). |
-| `todo/` | The implementation plans: `todo1.md` (agent runtime), `todo2.md` (plugins), `todo3.md` (monorepo and scaling). |
+| `todo/` | The implementation plans: `todo1.md` (agent runtime), `todo2.md` (plugins), `todo3.md` (monorepo and scaling), `todo4.md` (dataset versioning). |
 | `secrets/` | Local `.env` files per service (`daytona.env`, `models.env`, `agent.env`, …), mode 0600 and git-ignored. Only `README.md` and `*.example` are committed. In Kubernetes these become Secrets. |
 | `seed-data/` | Sample datasets (X-ray, brain MRI, cardiac 4-D, ECG, pathology WSI, endoscopy video), fetched per their licences. Only `README.md` is committed. |
 | `.github/workflows/` | `ci.yml` (affected typecheck/lint/test, boundaries, kubeconform, secret scan). `images.yml` (build and push only changed app images, with SBOM). `e2e.yml`. |

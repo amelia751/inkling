@@ -24,8 +24,13 @@ from ..plugins import installer, policy
 router = APIRouter(prefix="/api/v1/worker")
 
 
+# Dev only (production requires API_WORKER_TOKEN): the token a worker on the same machine
+# assumes when none is set, so `pnpm dev` needs no setup (studio_worker.config).
+DEV_WORKER_TOKEN = "dev-only-worker-token"
+
+
 def worker_token() -> str:
-    return env("API_WORKER_TOKEN") or f"dev-worker:{settings().secret_key[:16]}"
+    return settings().worker_token or env("API_WORKER_TOKEN") or DEV_WORKER_TOKEN
 
 
 def _auth(x_worker_token: str = Header(default="")) -> None:
@@ -49,9 +54,11 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
             if f"secrets.use:{name}" in grants:
                 use_tokens[name] = secrets.issue_use_token(j.workspace_id, j.plugin_id, j.version, name, hosts, j.job_id, ttl_s=j.timeout_s + 60)
     runtime = manifest.get("runtime") or {}
+    active = installer.active(db, j.workspace_id).get(j.plugin_id)
+    entry = installer.catalog.get(j.plugin_id, j.version)
     return {
-        "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s},
-        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": installer.active(db, j.workspace_id).get(j.plugin_id).artifact_digest if installer.active(db, j.workspace_id).get(j.plugin_id) else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(installer.catalog.get(j.plugin_id, j.version)) or ""), "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
+        "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent},
+        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": active.artifact_digest if active else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(entry) or "") if entry else "", "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
         "provider": provider,
         "config": installer.current_config(db, j.workspace_id, j.plugin_id),
         "sessionToken": token,
@@ -78,11 +85,18 @@ def fail(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)
     return jobs.job_dict(j)
 
 
+@router.post("/jobs/{job_id}/release", dependencies=[Depends(_auth)])
+def release(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    """A worker that is shutting down (SIGTERM) hands its job back to the queue."""
+    j = jobs.release(db, job_id, str(body.get("workerId")))
+    return jobs.job_dict(j)
+
+
 @router.post("/events/deliver", dependencies=[Depends(_auth)])
 def deliver(db: Session = Depends(get_session)):
-    from ..kernel import events
+    from ..kernel import eventbus
 
-    return {"delivered": events.deliver(db)}
+    return {"delivered": eventbus.deliver(db)}
 
 
 # ---- Built-in subscriptions and versioning checks (todo4 Phase 6) ----------------------------

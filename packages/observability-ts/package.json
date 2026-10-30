@@ -1,0 +1,20 @@
+{
+  "name": "@studio/observability-ts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared service conventions for Node services: JSON logger, request ids, W3C traceparent, optional OpenTelemetry export",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pino": "10.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5"
+  }
+}

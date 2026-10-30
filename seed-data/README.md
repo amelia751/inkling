@@ -1,8 +1,8 @@
 # Seed data
 
 Small, license-tracked development samples, one per imaging family. Fetch with
-`pnpm seeds` (runs `scripts/fetch-seeds.py`; needs a logged-in Kaggle CLI and ffmpeg).
-Pass project ids to fetch a subset, e.g. `uv run scripts/fetch-seeds.py pathology-wsi`.
+`pnpm seeds` (runs `tools/fetch-seeds.py`; needs a logged-in Kaggle CLI and ffmpeg).
+Pass project ids to fetch a subset, e.g. `uv run tools/fetch-seeds.py pathology-wsi`.
 The files themselves are never committed.
 
 | Project | Source (Kaggle) | Sample | Served as | License note |

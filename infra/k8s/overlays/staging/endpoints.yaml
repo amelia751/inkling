@@ -1,0 +1,38 @@
+# Managed service endpoints for staging (placeholders: replace with the real hosts). Only
+# non-secret parts live here; anything with a password goes in the app's Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  INKLING_REDIS_URL: rediss://staging-redis.internal.example.com:6380/0
+  INKLING_S3_ENDPOINT: https://s3.us-east-1.amazonaws.com
+  INKLING_S3_BUCKET: staging-assets
+  INKLING_S3_REGION: us-east-1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+data:
+  AGENT_REDIS_URL: rediss://staging-redis.internal.example.com:6380/1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+data:
+  KEDA_REDIS_ADDRESS: staging-redis.internal.example.com:6380
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versioning-config
+data:
+  INKLING_VERSIONING_OBJECT_ENDPOINT: ""
+  INKLING_VERSIONING_OBJECT_PATH_STYLE: "false"
+  INKLING_VERSIONING_OBJECT_BUCKET: staging-versioning-objects
+  INKLING_VERSIONING_MANIFEST_BUCKET: staging-versioning-manifests
+  INKLING_VERSIONING_REDIS_URL: rediss://staging-redis.internal.example.com:6380/2
+# Database URLs carry credentials, so they are in the Secrets; for reference the hosts are
+#   staging-pg.internal.example.com:5432  databases `studio` (api, versioning schema) and `agent`.

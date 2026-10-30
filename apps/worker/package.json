@@ -1,0 +1,11 @@
+{
+  "name": "@studio/worker",
+  "private": true,
+  "description": "Python plugin worker host (uv workspace member); scripts run through uv",
+  "scripts": {
+    "dev": "uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8000",
+    "test": "uv run --package studio-worker pytest -q",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run pyright src"
+  }
+}

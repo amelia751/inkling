@@ -8,7 +8,7 @@ import NAMING from "../../../schemas/naming.json";
 const RES = NAMING.resourcePrefix;
 
 /**
- * Dev-only stand-in for the FastAPI backend (inkling.md §3.2):
+ * Dev-only stand-in for the FastAPI backend (docs/product.md §3.2):
  *   GET   /seed/*                       → files under seed-data/
  *   GET   /api/annotations/:projectId   → saved annotation document (or empty)
  *   PUT   /api/annotations/:projectId   → persist annotation document

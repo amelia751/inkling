@@ -1,0 +1,26 @@
+# Build context = repo root for every apps/<app>/Dockerfile (todo/todo3.md D.1).
+# Keep it small: dependencies are installed inside the image, never copied from the host.
+.git
+.github
+.worktrees
+.claude
+.turbo
+**/.turbo
+**/node_modules
+**/dist
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.tsbuildinfo
+**/.vite
+**/.data
+**/e2e/.artifacts
+tests/e2e/.artifacts
+seed-data
+secrets
+.env
+.env.*
+**/.DS_Store
+infra/k8s
+docs
+todo

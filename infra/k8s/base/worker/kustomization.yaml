@@ -1,0 +1,9 @@
+# worker: plugin job runner, scaled by KEDA on the Redis ready list.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - pdb.yaml
+  - scaledobject.yaml

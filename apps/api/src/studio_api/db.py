@@ -16,6 +16,18 @@ class Base(DeclarativeBase):
     pass
 
 
+def normalize_url(url: str) -> str:
+    """`postgres://` / `postgresql://` (what managed services hand out) → the psycopg 3 driver."""
+    for scheme in ("postgres://", "postgresql://"):
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url[len(scheme):]
+    return url
+
+
+def is_postgres() -> bool:
+    return engine().dialect.name == "postgresql"
+
+
 _engine: Engine | None = None
 _Session: sessionmaker[Session] | None = None
 
@@ -23,10 +35,11 @@ _Session: sessionmaker[Session] | None = None
 def engine() -> Engine:
     global _engine, _Session
     if _engine is None:
-        url = settings().database_url
+        url = normalize_url(settings().database_url)
         if url.startswith("sqlite:///") and not url.startswith("sqlite:///:memory:"):
             settings().data_dir.mkdir(parents=True, exist_ok=True)
-        kw: dict = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {}
+        # Postgres: every replica keeps a small pool; pre-ping drops connections a failover killed.
+        kw: dict = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {"pool_pre_ping": True, "pool_size": 5, "max_overflow": 10}
         if url == "sqlite:///:memory:":
             from sqlalchemy.pool import StaticPool
 

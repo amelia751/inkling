@@ -22,7 +22,6 @@ from cs_helpers import (  # noqa: E402
     Results,
     open_with_fixtures,
     button,
-    angle_deg,
     blob_from_exporter,
     check,
     click,
@@ -334,7 +333,7 @@ def main() -> int:
             click(st.page, left1)
             wait_for(lambda: len(st.store("s => s.selectedIds")) == 1, "single select")
             click(st.page, left2, ["Shift"])
-            sel = wait_for(lambda: (lambda s: s if len(s) == 2 else None)(st.store("s => s.selectedIds")), "shift-click adds")
+            wait_for(lambda: (lambda s: s if len(s) == 2 else None)(st.store("s => s.selectedIds")), "shift-click adds")
             st.shot("multiselect", out)
             click(st.page, left2, [MOD])
             wait_for(lambda: len(st.store("s => s.selectedIds")) == 1, f"{MOD}-click toggles off")

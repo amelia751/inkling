@@ -2,6 +2,7 @@ import type { EnvironmentSpec, LabelGroup } from "@studio/plugin-contracts/envir
 import { migrateDocument } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
 import type { AnnotationDocument, Project } from "@studio/plugin-contracts/types";
 import { canonicalId } from "@studio/plugin-contracts/naming";
+import { apiUrl } from "@/extension-host/runtime-config";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -78,14 +79,14 @@ export const MIGRATED_V1_TYPES = new Set<string>([
 ]);
 
 export async function fetchAnnotations(projectId: string): Promise<AnnotationDocument> {
-  const doc = migrateDocument(await json<AnnotationDocument>(await fetch(`/api/annotations/${projectId}`)), MIGRATED_V1_TYPES);
+  const doc = migrateDocument(await json<AnnotationDocument>(await fetch(apiUrl(`/annotations/${projectId}`))), MIGRATED_V1_TYPES);
   // Module geometry types are full ids (`<namespace>.<module>.<name>`); keep old namespaces readable.
   return { ...doc, annotations: doc.annotations.map((a) => (canonicalId(a.geometry.type) === a.geometry.type ? a : { ...a, geometry: { ...a.geometry, type: canonicalId(a.geometry.type) } as typeof a.geometry })) };
 }
 
 export async function saveAnnotations(projectId: string, doc: AnnotationDocument): Promise<AnnotationDocument> {
   return json(
-    await fetch(`/api/annotations/${projectId}`, {
+    await fetch(apiUrl(`/annotations/${projectId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),
@@ -102,12 +103,12 @@ export interface EnvironmentDocument {
 
 /** The project's saved environment edits (agent or human), or `environment: null` when it runs its manifest environment. */
 export async function fetchEnvironment(projectId: string): Promise<EnvironmentDocument> {
-  return json(await fetch(`/api/environments/${projectId}`));
+  return json(await fetch(apiUrl(`/environments/${projectId}`)));
 }
 
 export async function saveEnvironment(projectId: string, doc: { revision: number; environment: EnvironmentSpec; author?: string }): Promise<EnvironmentDocument> {
   return json(
-    await fetch(`/api/environments/${projectId}`, {
+    await fetch(apiUrl(`/environments/${projectId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),

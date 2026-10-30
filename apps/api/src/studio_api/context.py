@@ -14,6 +14,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from studio_observability import request_id as obs_request_id
 
 from .config import settings
 from .db import get_session
@@ -66,7 +67,8 @@ def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[s
 
 
 def resolve_context(request: Request, db: Session) -> RequestContext:
-    correlation = request.headers.get("X-Correlation-Id") or uuid.uuid4().hex
+    # One id per request: the middleware's (X-Request-Id, else X-Correlation-Id, else new).
+    correlation = obs_request_id() or request.headers.get("X-Correlation-Id") or uuid.uuid4().hex
     idem = request.headers.get("Idempotency-Key")
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):

@@ -1,0 +1,27 @@
+[project]
+name = "studio-observability"
+version = "0.1.0"
+description = "Shared service conventions: JSON logs, request ids, W3C traceparent, optional OpenTelemetry (todo/todo3.md E.4)"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.optional-dependencies]
+# OpenTelemetry is only switched on when OTEL_EXPORTER_OTLP_ENDPOINT is set; images that
+# want traces install this extra (`--extra otel` on the app).
+otel = [
+    "opentelemetry-sdk>=1.38",
+    "opentelemetry-exporter-otlp-proto-http>=1.38",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.2"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/studio_observability"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

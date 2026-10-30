@@ -3,13 +3,17 @@ name = "studio-worker"
 version = "0.1.0"
 description = "Runs plugin jobs from the kernel in isolated per-plugin processes (docs/plugins.md §5.1, §10)"
 requires-python = ">=3.12,<3.13"
-dependencies = ["httpx>=0.28"]
+dependencies = ["httpx>=0.28", "studio-observability"]
+
+[project.optional-dependencies]
+otel = ["studio-observability[otel]"]
 
 [dependency-groups]
 dev = ["pytest>=9.2", "studio-api", "uvicorn>=0.54", "pyyaml>=6.0"]
 
 [tool.uv.sources]
-studio-api = { path = "../api", editable = true }
+studio-api = { workspace = true }
+studio-observability = { workspace = true }
 
 [project.scripts]
 studio-worker = "studio_worker.main:main"

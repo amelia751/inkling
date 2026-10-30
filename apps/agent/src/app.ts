@@ -3,12 +3,14 @@ import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
-import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import { PROFILES, profileAvailable } from "./agent/profiles.ts";
+import { SERVICE_NAME, SERVICE_VERSION } from "./cluster/naming.ts";
 import type { Config } from "./config.ts";
+import { streamRunEvents } from "./http/events.ts";
+import { registerServiceRoutes } from "./http/service.ts";
 import type { Logger } from "./log.ts";
-import type { AgentEvent, AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "./protocol.ts";
+import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "./protocol.ts";
 import { sanitizeError } from "./runtime/events.ts";
 import { HttpError, type SessionService } from "./runtime/sessions.ts";
 
@@ -24,8 +26,6 @@ export interface AppDeps {
   /** Cached readiness (Daytona reachability, egress tier); never called on the liveness path. */
   ready?: () => Promise<ReadyCheck>;
 }
-
-const HEARTBEAT_MS = 15_000;
 
 const clientToolSchema = z.object({
   name: z.string().min(1).max(64),
@@ -102,11 +102,17 @@ function tokenMatches(header: string | undefined, token: string): boolean {
 }
 
 /**
- * Private HTTP API (todo1 §6). Every route except /health/* needs the service bearer token; the
+ * Private HTTP API (todo1 §6). Every /v1 route needs the service bearer token (probes and /version don't); the
  * Vite proxy (dev) or apps/api (prod) adds it, so the browser never holds it.
  */
 export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
   const app = new Hono();
+
+  registerServiceRoutes(app, {
+    log,
+    info: { service: SERVICE_NAME, version: SERVICE_VERSION, gitSha: config.gitSha },
+    readiness: () => sessions.cluster.readiness(),
+  });
 
   app.onError((err, c) => {
     if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
@@ -144,7 +150,7 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
     return c.json(res, 201);
   });
 
-  app.get("/v1/sessions/:id", async (c) => c.json((await sessions.get(c.req.param("id"))).info()));
+  app.get("/v1/sessions/:id", async (c) => c.json(await sessions.describe(await sessions.get(c.req.param("id")))));
 
   app.delete("/v1/sessions/:id", async (c) => {
     await sessions.delete(c.req.param("id"));
@@ -158,45 +164,13 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
     return c.json(res, 202);
   });
 
-  app.get("/v1/runs/:runId/events", (c) => {
-    const { run } = sessions.findRun(c.req.param("runId"));
+  app.get("/v1/runs/:runId/events", async (c) => {
+    const runId = c.req.param("runId");
+    const run = await sessions.lookupRun(runId);
     const fromHeader = Number(c.req.header("last-event-id"));
     const fromQuery = Number(c.req.query("after"));
     const after = Math.max(Number.isFinite(fromHeader) ? fromHeader : 0, Number.isFinite(fromQuery) ? fromQuery : 0);
-    c.header("Cache-Control", "no-store");
-    c.header("X-Accel-Buffering", "no");
-    return streamSSE(c, async (stream) => {
-      let last = after;
-      const queue: AgentEvent[] = [];
-      let wake: (() => void) | undefined;
-      const unsubscribe = run.events.subscribe((e) => {
-        queue.push(e);
-        wake?.();
-      });
-      stream.onAbort(() => wake?.());
-      const heartbeat = setInterval(() => void stream.write(": keep-alive\n\n").catch(() => {}), HEARTBEAT_MS);
-      try {
-        // Replay first; events that arrived meanwhile are deduplicated by seq.
-        queue.unshift(...run.events.after(after));
-        if (run.events.oldestSeq > after + 1)
-          await stream.writeSSE({ data: JSON.stringify({ type: "status", text: "Some earlier events are no longer available.", seq: 0, runId: run.id, at: Date.now() }) });
-        for (;;) {
-          while (queue.length) {
-            const e = queue.shift()!;
-            if (e.seq <= last) continue;
-            last = e.seq;
-            await stream.writeSSE({ id: String(e.seq), data: JSON.stringify(e) });
-            if (e.type === "done") return;
-          }
-          if (stream.aborted || run.events.closed) return;
-          await new Promise<void>((r) => (wake = r));
-          wake = undefined;
-        }
-      } finally {
-        clearInterval(heartbeat);
-        unsubscribe();
-      }
-    });
+    return streamRunEvents(c, { bus: sessions.cluster.bus, run, after, lookup: () => sessions.lookupRun(runId) });
   });
 
   app.post("/v1/runs/:runId/cancel", async (c) => {
@@ -205,12 +179,12 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
   });
 
   app.post("/v1/runs/:runId/client-tools/:callId", async (c) => {
-    const accepted = sessions.answerClientTool(c.req.param("runId"), c.req.param("callId"), await body(c, schemas.clientTool));
+    const accepted = await sessions.answerClientTool(c.req.param("runId"), c.req.param("callId"), await body(c, schemas.clientTool));
     return accepted ? c.json({ ok: true }) : c.json({ error: "no pending call with that id (already answered, timed out or cancelled)" }, 409);
   });
 
   app.post("/v1/approvals/:approvalId", async (c) => {
-    const accepted = sessions.decideApproval(c.req.param("approvalId"), await body(c, schemas.approval));
+    const accepted = await sessions.decideApproval(c.req.param("approvalId"), await body(c, schemas.approval));
     return accepted ? c.json({ ok: true }) : c.json({ error: "no pending approval with that id" }, 404);
   });
 

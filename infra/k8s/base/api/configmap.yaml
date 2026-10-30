@@ -1,0 +1,25 @@
+# Non-secret settings for apps/api (keys carry the naming config's envPrefix). Endpoints
+# here point at the in-cluster deps (overlays/dev); staging/prod patch in managed ones.
+# Secrets (database URL with password, secret key, worker token, S3 keys) are in api-secrets.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  INKLING_API_ENV: production
+  INKLING_API_CREATE_TABLES: "0"
+  INKLING_API_DEV_TRUST_HEADERS: "1"
+  INKLING_REDIS_URL: redis://redis:6379/0
+  INKLING_JOB_QUEUE: redis
+  INKLING_EVENT_BUS: redis
+  INKLING_BLOB_STORE: s3
+  INKLING_S3_ENDPOINT: http://s3:9000
+  INKLING_S3_BUCKET: assets
+  INKLING_S3_REGION: us-east-1
+  INKLING_REPO_ROOT: /app
+  # Dataset versioning: the api signs a 60 s JWT per call with the key in `api-versioning-jwt`;
+  # the service verifies with the matching public key in the `versioning-jwks` ConfigMap.
+  INKLING_API_VERSIONING_URL: http://versioning:8090
+  INKLING_API_VERSIONING_JWT_KEY_FILE: /etc/api/versioning/jwt.key
+  INKLING_API_VERSIONING_JWKS_FILE: /tmp/versioning-jwks.json
+  INKLING_API_VERSIONING_JWT_KID: api

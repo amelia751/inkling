@@ -1,0 +1,13 @@
+{
+  "name": "@studio/api",
+  "private": true,
+  "description": "Python kernel and plugin control plane (uv workspace member); scripts run through uv",
+  "scripts": {
+    "dev": "uv run --package studio-api uvicorn studio_api.app:app --reload --port 8000",
+    "test": "uv run --package studio-api pytest -q",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run pyright src",
+    "migrate": "uv run --package studio-api alembic upgrade head",
+    "contracts:check": "uv run --package studio-api python scripts/gen_contracts.py --check"
+  }
+}

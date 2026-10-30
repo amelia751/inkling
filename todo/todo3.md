@@ -5,6 +5,48 @@
 2. Settle a monorepo layout where every deployable unit can be built, configured and scaled on its own: Docker images, Kubernetes, autoscaling.
 3. Keep it compatible with `todo1.md` (agent runtime) and `todo2.md` (plugins), which other agents are doing right now. This file never asks you to edit them.
 
+## Status (2026-10-30)
+
+Branch `todo3-monorepo` (`.worktrees/todo3`), with `main` at 38d0646 merged in (todo2 Phases 7–9, todo4 Phase 6, todo5's plan).
+
+- **Phase A:** the sibling folders `../inkling-modular` and `../inkling-plugins` are gone, and their branches were merged earlier. `.worktrees/` and `.claude/worktrees/` are git-ignored, and `AGENTS.md` has "Parallel work". Branch cleanup and the push are below.
+- **Phase B:** done. Two deviations: `versioning.md` also moved to `docs/`, and `builder_test.py` (added on `main`, spans web, api and agent) moved to `tests/e2e/`. `apps/web/dev/seed-server.ts` stays as the zero-infra dev mode.
+- **Phase C:** done. Two deviations, both documented in their files:
+  - `pnpm-workspace.yaml` lists `plugins/*` because a plugin's `package.json` sits at the plugin root.
+  - Plugin workers aren't uv workspace members, because each keeps its own `uv.lock` for the worker's per-plugin environments.
+- **Phase D:** done for `web`, `api`, `agent`, `worker`, `versioning` and `mcp`.
+  - `pnpm stack:up` builds and runs everything from images.
+  - All three overlays render, and kubeconform `-strict` passes 134/134 resources including the CRDs.
+  - api → versioning JWTs: compose shares a `devtoken keygen` pair. In k8s, Secret `api-versioning-jwt` and ConfigMap `versioning-jwks` are created by `tools/versioning-keys.mjs` (`pnpm k8s:dev-keys`); no key is committed.
+- **Phase E:** done.
+  - agent: `SessionStore` (file|postgres), `RunEventBus` (memory|redis Streams), a run coordinator with leases, and SIGTERM drain.
+  - api: `BlobStore` (local|s3), `JobQueue` (sql|redis), `EventBus` (sql|redis).
+  - Every service: `/healthz`, `/readyz`, `/version`, JSON logs, `traceparent` propagation, config validated at startup.
+  - `fetch-seeds.py --upload`.
+- **Phase F:** `ci.yml`, `images.yml` and `e2e.yml` are written, but haven't run on GitHub yet (nothing pushed).
+- **Phase G:** done.
+
+Done-when, checked on 2026-10-30:
+1. Yes, apart from the leftover in-repo worktrees listed under "What's left".
+2. Yes, after two fixes: the turbo `dev` script now passes the environment through (`--env-mode=loose`; strict mode was dropping `AGENT_*`, `INKLING_*` and the model keys), and a worker pointed at a loopback kernel now uses the API's dev token. `pnpm dev` brings up web, api, agent and worker, all ready.
+3. Yes.
+4. Not run: no kind/k3d cluster here (the manifests are validated offline).
+5. Yes in compose, with `--scale api=3 --scale agent=3 --scale worker=3`:
+   - `tests/e2e/plugins_test.py` passes 8/8 and `builder_test.py` 9/9;
+   - agent runs created on one replica stream and resume (`Last-Event-ID`) from the others.
+6. The brand appears only where allowed, plus the env prefix in `infra/` (`tools/rename-namespace.mjs` rewrites it). todo5 Phase 4 tracks the rest.
+
+### What's left
+
+- Merge `todo3-monorepo` into `main` and push (needs the user's go-ahead).
+- Delete the worktrees and branches that `main` already contains:
+  - `.claude/worktrees/agent-*` (one is locked) and their `worktree-agent-*` branches;
+  - `.worktrees/base`;
+  - `conv-*`.
+- `wip/main-daytona` has one commit that isn't on `main`. It's the pre-restructure WIP, already ported selectively. Delete it once the user agrees.
+- Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (todo4 Phase 6).
+- First CI run on GitHub. `apps/versioning` lint needs `golangci-lint`; CI installs it, local machines may not have it.
+
 ---
 
 ## Why things are "in anhlam" today

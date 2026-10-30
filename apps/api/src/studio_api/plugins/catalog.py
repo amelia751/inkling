@@ -1,6 +1,6 @@
 """Registry catalog (docs/plugins.md §7.1): search and inspect plugin versions.
 
-Sources: the curated `registry/index.json` (built by scripts/build-registry.mjs from
+Sources: the curated `registry/index.json` (built by tools/build-registry.mjs from
 plugins/*/plugin.yaml) plus the private store of generated artifacts (Phase 9, trust tier
 `generated`). Studio built-ins (core, overlay2d, cornerstone, timeline) are listed as
 `builtin`: always present, never installed, but dependencies can name them.

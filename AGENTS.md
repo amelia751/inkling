@@ -1,18 +1,49 @@
 # Working on Inkling
 
-pnpm monorepo; the app is `apps/web` (React 19, Vite 7, TypeScript, zustand, Tailwind +
-shadcn). Seed data is fetched locally with `pnpm seeds` and is gitignored.
+pnpm + uv monorepo, orchestrated by Turborepo. Deployables are `apps/*` (`web`: React 19,
+Vite 7, TypeScript, zustand, Tailwind + shadcn; `api` and `worker`: Python 3.12; `agent` and
+`mcp`: Node 24; `versioning`: Go). Seed data is fetched locally with `pnpm seeds` and is
+gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`.
+
+## Layout rules
+
+- `apps/*` are deployables: one Dockerfile, one k8s Deployment each. **Never import across
+  `apps/*`**; apps talk over HTTP and events. Shared code goes in `packages/*`, which never
+  import `apps/*` or `plugins/*`. Plugins live in `plugins/` (not under `apps/`).
+  `node tools/check-boundaries.mjs` and `uv run lint-imports` enforce this.
+- Services are stateless: state in Postgres, blobs through the `BlobStore`, queue and events
+  through `JobQueue` / `EventBus` / the agent's run-event bus. Never keep request state in
+  process memory or on local disk (except `/tmp`), or replicas > 1 break.
+- Config comes only from env vars (named with the naming config's `envPrefix` in Python);
+  `secrets/*.env` is a dev overlay. Every HTTP service serves `/healthz`, `/readyz`, `/version`.
+
+## Parallel work
+
+Several agents may work at once. Each takes its own worktree **inside** the repo, never a
+sibling folder in `~`:
+
+```sh
+git worktree add .worktrees/<branch> -b <branch>    # .worktrees/ is git-ignored
+git worktree remove .worktrees/<branch> && git worktree prune
+```
+
+Don't switch branches or commit in someone else's checkout.
 
 ## Checks
 
-Run these in `apps/web` before you hand work back:
+From the repo root: `pnpm typecheck`, `pnpm test` and `pnpm lint` (Turborepo, every
+package; `pnpm affected` for only what changed vs `origin/main`), `pnpm check:boundaries`,
+`pnpm check:python-imports`, `uv run ruff check apps packages tools tests`.
+
+In `apps/web` before you hand work back:
 
 - `pnpm typecheck`
 - `pnpm test` (vitest unit tests: extension host, packages, plugins)
 - `pnpm check:boundaries` and `pnpm check:icons`
 - `pnpm emit:schemas --check` (fails if generated schemas are stale; run `pnpm emit:schemas`)
 - e2e: start a frozen dev server with `INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort`,
-  then run `python3 e2e/<name>_test.py --port 5199`. The `data-testid`s and store fields
+  then run `python3 e2e/<name>_test.py --port 5199`. Tests that span services (agent,
+  plugin install + worker) are in `tests/e2e/`. The `data-testid`s and store fields
   those tests use are a regression contract: keep them working.
 
 ## Architecture in one paragraph
@@ -43,13 +74,14 @@ Read `docs/modules.md`.
 5. Bind keys with `useCommands({ name: handler }, { scope: MODULE_ID })`; declare the command
    (keys, `when`, label) in the manifest. Never hard-code a key in a component.
 6. Register the plugin in `apps/web/src/extension-host/bundled.ts` (one import, one array
-   entry) and add its `@plugins/<name>/*` path to `apps/web/tsconfig.json`.
+   entry) and add its `@plugins/<name>/*` path to `apps/web/tsconfig.json`. A plugin with a
+   Python worker keeps its own `pyproject.toml` + `uv.lock` (not a uv workspace member).
 7. Add a preset (`registry/presets/<id>.json`) if it boots a Studio on its own.
 8. Run `pnpm emit:schemas` and add an e2e smoke test.
 
 ## Rules
 
-- Layers (enforced by `check:boundaries`): contracts and studio-ui import nothing internal;
+- Layers (enforced by `tools/check-boundaries.mjs`): contracts and studio-ui import nothing internal;
   the SDK only contracts; renderers the SDK, contracts and studio-ui; plugins those plus
   other plugins' `manifest.ts` / `public.ts`; the shell never imports `@plugins/*` and
   reaches plugins only through the registry.

@@ -1,7 +1,8 @@
 """Asset API (docs/plugins.md §6): metadata, short-lived signed URLs, derived artifacts.
 
 In dev the assets of a workspace are the files of the seed project with the same id
-(seed-data/manifest.json), served from seed-data/. Signed URLs are HMAC'd with the kernel
+(seed-data/manifest.json). Bytes live in the BlobStore (`blobstore.assets()`: seed-data/ in
+dev, the `assets` bucket in a cluster); derived artifacts in `blobstore.data()`. Signed URLs are HMAC'd with the kernel
 key; a URL works for one workspace until it expires, whoever holds it, and nothing else.
 """
 
@@ -20,6 +21,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
 from ..models import Artifact, Asset
@@ -60,11 +62,16 @@ def asset_dict(a: Asset) -> dict:
     return {"id": a.id, "path": a.path, "mediaType": a.media_type, "role": a.role, "size": a.size}
 
 
-def _seed_project(workspace_id: str) -> dict | None:
-    manifest = settings().seed_root / "manifest.json"
-    if not manifest.is_file():
+def seed_manifest() -> dict | None:
+    """seed-data/manifest.json, read through the BlobStore (None when there is none)."""
+    try:
+        return json.loads(blobstore.assets().read("manifest.json"))
+    except blobstore.BlobNotFound:
         return None
-    for p in json.loads(manifest.read_text()).get("projects", []):
+
+
+def _seed_project(workspace_id: str) -> dict | None:
+    for p in (seed_manifest() or {}).get("projects", []):
         if p.get("id") == workspace_id:
             return p
     return None
@@ -79,8 +86,11 @@ def ensure_seed_assets(db: Session, ctx: RequestContext) -> None:
         path = a.get("path")
         if not path:
             continue
-        f = settings().seed_root / path
-        db.add(Asset(workspace_id=ctx.workspace_id, path=path, media_type=media_type_of(path), role=a.get("role"), size=f.stat().st_size if f.is_file() else None))
+        size = a.get("bytes")
+        if not isinstance(size, int):
+            info = blobstore.assets().stat(path) if ".." not in Path(path).parts else None
+            size = info.size if info else None
+        db.add(Asset(workspace_id=ctx.workspace_id, path=path, media_type=media_type_of(path), role=a.get("role"), size=size))
     db.flush()
 
 
@@ -99,7 +109,35 @@ def get_asset(db: Session, ctx: RequestContext, asset_id: str) -> Asset:
     return a
 
 
+def companion_key(db: Session, ctx: RequestContext, path: str) -> str | None:
+    """A file that belongs to a registered asset without being one: the tiles of a Deep Zoom
+    image (`<name>_files/<level>/<x>_<y>.jpeg` next to the asset `<name>.dzi`). Its key, or None."""
+    head, sep, _ = path.partition("_files/")
+    if not sep or ".." in Path(path).parts:
+        return None
+    ensure_seed_assets(db, ctx)
+    if db.scalar(select(Asset.id).where(Asset.workspace_id == ctx.workspace_id, Asset.path == f"{head}.dzi")) is None:
+        return None
+    try:
+        key = blobstore.safe_key(path)
+    except blobstore.BlobNotFound:
+        return None
+    return key if blobstore.assets().stat(key) is not None else None
+
+
+def asset_key(a: Asset) -> str:
+    """The asset's BlobStore key (its seed path), checked: no traversal, and the object exists."""
+    try:
+        key = blobstore.safe_key(a.path)
+    except blobstore.BlobNotFound:
+        raise HTTPException(404, "asset file missing") from None
+    if blobstore.assets().stat(key) is None:
+        raise HTTPException(404, "asset file missing")
+    return key
+
+
 def asset_file(a: Asset) -> Path:
+    """Local-store only (dev tools); services stream through `asset_key` + the BlobStore."""
     # Lexical containment (seed folders may be symlinks into a shared data checkout).
     root = Path(os.path.normpath(settings().seed_root))
     f = Path(os.path.normpath(root / a.path))
@@ -141,12 +179,10 @@ def create_artifact(db: Session, ctx: RequestContext, data: bytes, media_type: s
     art = Artifact(workspace_id=ctx.workspace_id, media_type=media_type, path="", source_asset_id=source_asset_id, created_by=ctx.principal)
     db.add(art)
     db.flush()
-    d = settings().data_dir / "artifacts" / ctx.workspace_id
-    d.mkdir(parents=True, exist_ok=True)
     ext = mimetypes.guess_extension(media_type) or ".bin"
-    f = d / f"{art.id}{ext}"
-    f.write_bytes(data)
-    art.path = str(f)
+    # `path` is the key in the data BlobStore (shared by every replica), not a local file.
+    art.path = f"artifacts/{ctx.workspace_id}/{art.id}{ext}"
+    blobstore.data().put(art.path, data, media_type)
     return art
 
 
@@ -154,4 +190,18 @@ def read_artifact(db: Session, ctx: RequestContext, artifact_id: str) -> tuple[A
     art = db.get(Artifact, artifact_id)
     if art is None or art.workspace_id != ctx.workspace_id:
         raise HTTPException(404, "no such artifact in this workspace")
-    return art, Path(art.path).read_bytes()
+    return art, artifact_bytes(art)
+
+
+def artifact_bytes(art: Artifact) -> bytes:
+    if Path(art.path).is_absolute():  # written by an older kernel straight to its data dir
+        return Path(art.path).read_bytes()
+    try:
+        return blobstore.data().read(art.path)
+    except blobstore.BlobNotFound:
+        raise HTTPException(404, "artifact content missing") from None
+
+
+def asset_head(a: Asset, n: int = 65536) -> bytes:
+    """The first `n` bytes of an asset (enough for image headers)."""
+    return b"".join(blobstore.assets().iter_range(asset_key(a), 0, n - 1))

@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from studio_api import config, db
-from studio_api.naming import ns
+from studio_api.naming import env, ns
 
 
 def png(w: int, h: int) -> bytes:
@@ -39,12 +39,23 @@ def seed(tmp_path: Path) -> Path:
     return root
 
 
+def database_url_for_tests() -> str:
+    """`<envPrefix>TEST_DATABASE_URL` runs the suite against that database (e.g. Postgres);
+    every test starts from empty tables. Default: in-memory SQLite."""
+    return env("TEST_DATABASE_URL") or "sqlite:///:memory:"
+
+
 @pytest.fixture
 def make_client(seed: Path, tmp_path: Path):
     def make(**overrides) -> TestClient:
-        s = config.load_settings(database_url="sqlite:///:memory:", seed_root=seed, data_dir=tmp_path / "data", secret_key="test-secret-key", **overrides)
+        overrides = {"database_url": database_url_for_tests(), "seed_root": seed, "data_dir": tmp_path / "data", "secret_key": "test-secret-key", **overrides}
+        s = config.load_settings(**overrides)
         config.set_settings(s)
         db.reset_engine()
+        if not s.database_url.startswith("sqlite"):
+            from studio_api import models  # noqa: F401
+
+            db.Base.metadata.drop_all(db.engine())
         from studio_api.app import create_app
 
         return TestClient(create_app())

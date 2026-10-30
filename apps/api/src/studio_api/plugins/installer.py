@@ -17,7 +17,6 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..config import settings
 from ..context import RequestContext
 from ..kernel import audit, events
 from ..models import InstallRequest, PluginCapability, PluginPackage, PluginVersion, WorkspaceEnvironment, WorkspacePlugin, WorkspacePluginConfig, WorkspacePluginHistory
@@ -50,14 +49,24 @@ def active_manifests(db: Session, workspace_id: str) -> list[tuple[WorkspacePlug
     return [(r, manifest_of(db, r.plugin_id, r.version)) for r in active(db, workspace_id).values()]
 
 
+def _seed_workspace(workspace_id: str) -> dict | None:
+    """seed-data/<workspace>/workspace.json, through the BlobStore."""
+    from .. import blobstore
+
+    try:
+        return json.loads(blobstore.assets().read(f"{workspace_id}/workspace.json"))
+    except blobstore.BlobNotFound:
+        return None
+
+
 def bootstrap(db: Session, ctx: RequestContext) -> None:
     """A new workspace starts with the first-party UI plugins (or seed-data/<ws>/workspace.json's list)."""
     if installations(db, ctx.workspace_id):
         return
     wanted: list[str] | None = None
-    f = settings().seed_root / ctx.workspace_id / "workspace.json"
-    if f.is_file():
-        wanted = [canonical_id(p["pluginId"] if isinstance(p, dict) else p) for p in json.loads(f.read_text()).get("plugins", [])]
+    raw = _seed_workspace(ctx.workspace_id)
+    if raw is not None:
+        wanted = [canonical_id(p["pluginId"] if isinstance(p, dict) else p) for p in raw.get("plugins", [])]
     boot = RequestContext(ctx.workspace_id, "system:bootstrap", ctx.correlation_id)
     for e in catalog.entries():
         if e.trust_tier != "first-party" or e.runtime != "browser-bundled":

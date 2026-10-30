@@ -172,10 +172,10 @@ def _load_manifest(c: Call, ref: str, token: str | None = None) -> tuple[str, di
     if OID_RE.fullmatch(ref) and (c.repo_id, ref) in _MANIFESTS:
         return ref, _MANIFESTS[(c.repo_id, ref)]
     tok = token or auth.mint(c.ctx, [READ, CHECKOUT])
-    samples, anns, cursor, ontology, oid, root = [], [], None, None, ref, None
+    samples, anns, cursor, ontology, oid = [], [], None, None, ref
     while True:
         page = client().create_checkout(tok, c.repo_id, {"ref": ref, "limit": 1000, "include_urls": False, **({"cursor": cursor} if cursor else {})})
-        oid, root, ontology = page["commit_oid"], page.get("manifest_root"), page.get("ontology") or {"revision_id": "empty", "classes": []}
+        oid, ontology = page["commit_oid"], page.get("ontology") or {"revision_id": "empty", "classes": []}
         samples += page.get("samples") or []
         anns += page.get("annotations") or []
         cursor = page.get("next_cursor")
@@ -344,11 +344,11 @@ def op_dataset_create(c: Call, body: dict) -> tuple[int, dict]:
     if existing:
         c.repo_id = existing.repo_id
         return 200, op_dataset_get(c, {})[1] | {"created": False}
-    req: dict = {"name": str(body.get("name") or c.dataset_id)[:200]}
+    req: dict[str, Any] = {"name": str(body.get("name") or c.dataset_id)[:200]}
     if body.get("required_approvals") is not None:
         req["required_approvals"] = int(body["required_approvals"])
     repo = client().create_repo(c.token(), req, _key("dataset.create", c.ctx.workspace_id, c.dataset_id))
-    repo_id = repo.get("id") or (repo.get("repo") or {}).get("id")
+    repo_id = str(repo.get("id") or (repo.get("repo") or {}).get("id") or "")
     c.db.add(DatasetRepo(workspace_id=c.ctx.workspace_id, dataset_id=c.dataset_id, repo_id=repo_id, created_by=c.ctx.principal))
     c.db.flush()
     c.repo_id = repo_id
@@ -502,7 +502,7 @@ def op_document(c: Call, body: dict) -> tuple[int, dict]:
 def op_review_open(c: Call, body: dict) -> tuple[int, dict]:
     source = str(body.get("source_branch") or work_branch(c.ctx, c.dataset_id))
     target = str(body.get("target_branch") or "main")
-    req = {"title": str(body.get("title") or f"Changes from {source}")[:300], "source_branch": source, "target_branch": target}
+    req: dict[str, Any] = {"title": str(body.get("title") or f"Changes from {source}")[:300], "source_branch": source, "target_branch": target}
     if body.get("description"):
         req["description"] = str(body["description"])[:20000]
     if body.get("draft"):
@@ -536,9 +536,9 @@ def op_review_resolve(c: Call, body: dict) -> tuple[int, dict]:
     cur = client().get_review(token, c.repo_id, rid)
     source, target = body.get("source_oid") or cur["source_oid"], body.get("target_oid") or cur.get("checked_target_oid")
     out = []
-    _, tm = _load_manifest(c, target, token) if any((x.get("choice") == "custom" and x.get("annotation")) for x in body.get("resolutions") or []) else (None, None)
+    _, tm = _load_manifest(c, str(target), token) if any((x.get("choice") == "custom" and x.get("annotation")) for x in body.get("resolutions") or []) else (None, None)
     for x in body.get("resolutions") or []:
-        res = {"conflict_key": str(x["conflict_key"]), "choice": str(x["choice"])}
+        res: dict[str, Any] = {"conflict_key": str(x["conflict_key"]), "choice": str(x["choice"])}
         if res["choice"] == "custom":
             if x.get("annotation"):
                 m = json.loads(json.dumps(tm))

@@ -24,3 +24,11 @@ secrets/*
 apps/api/.data/
 apps/worker/.data/
 .pytest_cache/
+
+# Parallel work: worktrees live inside the repo, never as sibling folders (todo/todo3.md R2)
+.worktrees/
+.claude/worktrees/
+
+# Turborepo cache and build outputs
+.turbo/
+tests/e2e/.artifacts/

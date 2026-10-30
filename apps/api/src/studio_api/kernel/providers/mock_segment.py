@@ -11,7 +11,7 @@ import zlib
 
 from ...models import Asset
 from ...naming import plugin_schema_version
-from ..assets import asset_file
+from ..assets import asset_head
 
 CAPABILITY = "image.segment"
 
@@ -30,9 +30,9 @@ MANIFEST = {
 }
 
 
-def image_size(path) -> tuple[int, int]:
+def image_size(path_or_bytes) -> tuple[int, int]:
     """(width, height) from a PNG or JPEG header, without decoding pixels."""
-    data = path.read_bytes()[:65536]
+    data = (path_or_bytes if isinstance(path_or_bytes, bytes) else path_or_bytes.read_bytes())[:65536]
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return struct.unpack(">II", data[16:24])
     if data[:2] == b"\xff\xd8":
@@ -65,7 +65,7 @@ def ellipse_rle(w: int, h: int, cx: float, cy: float, rx: float, ry: float) -> l
 
 def run(payload: dict, asset: Asset) -> dict:
     """Fixed masks: one centred ellipse, plus one per point prompt. Deterministic."""
-    w, h = image_size(asset_file(asset))
+    w, h = image_size(asset_head(asset))
     shapes = [(w / 2, h / 2, w / 6, h / 8, "center")]
     for i, p in enumerate(payload.get("prompts") or []):
         if p.get("type") == "point" and p.get("positive", True):

@@ -39,6 +39,8 @@ jobs:
         run: pnpm affected --filter='!@studio/versioning'
       - name: Module boundaries (TS)
         run: node tools/check-boundaries.mjs
+      - name: Names (packages = folders, env vars read only in config modules)
+        run: node tools/check-names.mjs
       - name: Import contracts (Python)
         run: uv run lint-imports
       - name: Ruff

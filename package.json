@@ -17,6 +17,7 @@
     "lint": "turbo run lint",
     "affected": "turbo run test typecheck lint --filter=...[origin/main]",
     "check:boundaries": "node tools/check-boundaries.mjs",
+    "check:names": "node tools/check-names.mjs",
     "check:python-imports": "uv run lint-imports",
     "emit:schemas": "pnpm --filter @studio/web emit:schemas",
     "build:registry": "node tools/build-registry.mjs",

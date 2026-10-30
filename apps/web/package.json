@@ -11,6 +11,7 @@
     "check:icons": "node scripts/check-icons.mjs",
     "test": "vitest run",
     "check:boundaries": "node ../../tools/check-boundaries.mjs",
+    "check:names": "node ../../tools/check-names.mjs",
     "emit:schemas": "node scripts/emit-schemas.mjs"
   },
   "dependencies": {

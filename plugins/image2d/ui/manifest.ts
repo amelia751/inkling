@@ -1,8 +1,8 @@
-import { ImageIcon } from "@studio/studio-ui/icons";
+import { ImageIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { StackConfigSchema } from "./view";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 export const IMAGE2D = ns("image2d");
 const RASTER = `${IMAGE2D}.dataKinds.raster`;

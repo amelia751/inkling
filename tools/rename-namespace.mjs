@@ -5,7 +5,7 @@
 // Every JSON string or key that is an id under `<old>.` (or mentions one inside a `when`
 // clause or other text) becomes `<new>.`. Files: plugins/*/plugin.yaml, registry/presets/*.json, seed-data
 // manifests, saved environments and annotations, and e2e / plugin fixtures. Edit
-// packages/plugin-contracts/src/naming.ts first (namespace = <new>, legacyNamespaces += <old>)
+// packages/contracts/src/naming.ts first (namespace = <new>, legacyNamespaces += <old>)
 // so documents that this script doesn't reach keep resolving.
 //
 // Deployment config (todo/done/todo3.md D.4) can't read the naming config at run time, so it spells

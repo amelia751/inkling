@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Checkbox } from "@studio/studio-ui/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/studio-ui/ui/dialog";
-import { WarningIcon } from "@studio/studio-ui/icons";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import { Checkbox } from "@studio/ui/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
+import { WarningIcon } from "@studio/ui/icons";
 import type { InstallRequest, PlanItem } from "@/studio/lib/plugins-api";
 
 /**

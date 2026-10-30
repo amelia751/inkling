@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import { isTextSpan, type TextSpan } from "./manifest";
 import { segments, snap, spanGeometry } from "./spans";

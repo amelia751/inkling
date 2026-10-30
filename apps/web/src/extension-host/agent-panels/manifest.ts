@@ -1,6 +1,6 @@
 import * as z from "zod";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 /**
  * Agent-generated UI, behind the `agentPanels` flag (docs/modules.md, safety tiers 2 and 3).

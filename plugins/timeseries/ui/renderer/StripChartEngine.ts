@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import type { StripChartConfig } from "../config";
 import { snapToExtremum, wavePeak } from "../dsp";
 import * as M from "../model";

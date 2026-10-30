@@ -1,4 +1,4 @@
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { envOf } from "./environment";
 
 /** Group a project's raw assets into the items an expert annotates one at a time (the env's data kind decides how). */

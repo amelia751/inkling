@@ -1,5 +1,5 @@
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, FitIcon, GridIcon, HideIcon, ShowIcon } from "@studio/studio-ui/icons";
-import { ToolbarButton, ToolbarSep } from "@studio/studio-renderers/viewport-chrome/controls";
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, FitIcon, GridIcon, HideIcon, ShowIcon } from "@studio/ui/icons";
+import { ToolbarButton, ToolbarSep } from "@studio/renderers/viewport-chrome/controls";
 import type { CineConfig } from "../config";
 import type { PhaseMark } from "../model";
 

@@ -1,17 +1,17 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { DoneIcon, ExportIcon, AnnotateIcon, WarningIcon } from "@studio/studio-ui/icons";
+import { DoneIcon, ExportIcon, AnnotateIcon, WarningIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { describeGeometry, ProvenanceBadge } from "@/studio/components/annotation/provenance";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Card, CardHeader, CardTitle } from "@studio/studio-ui/ui/card";
-import { SegmentedControl } from "@studio/studio-ui/ui/segmented-control";
+import { Button } from "@studio/ui/ui/button";
+import { Card, CardHeader, CardTitle } from "@studio/ui/ui/card";
+import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { fetchAnnotations } from "@/studio/lib/api";
 import { projectItems } from "@/studio/lib/items";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { envOf } from "@/studio/lib/environment";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { FullPageMessage, useProject } from "./shared";
 
 export function ReviewPage() {

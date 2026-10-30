@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import "@/extension-host/bundled";
-import { migrateDocument } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
+import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { describeGeometry } from "@/extension-host/describe";
 import type { InspectFn } from "@studio/plugin-ui-sdk/module";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
-import type { Annotation, Geometry, Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, StudioItem } from "@studio/contracts/types";
 import { fromGeoJSON, toAsapXml, toCountsCsv, toQuPathGeoJSON } from "./io";
 import { countPoints, inspectRows } from "./measure";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const project = { id: "p", labels: ["tumor", "stroma", "lymphocytes"], assets: [] } as unknown as Project;
 const item: StudioItem = { id: "s1", name: "slide", group: "Slides", assets: [{ path: "s1.dzi", slide: "TCGA-1", mpp: 0.25 } as StudioItem["assets"][number]], dataKind: ns("wsi.dataKinds.raster-pyramid") };

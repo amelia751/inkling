@@ -1,5 +1,5 @@
 import OpenSeadragon from "openseadragon";
-import type { View } from "@studio/studio-renderers/overlay2d/transform";
+import type { View } from "@studio/renderers/overlay2d/transform";
 
 /**
  * The OpenSeadragon adapter for kits/overlay2d's transform: rebuild the affine

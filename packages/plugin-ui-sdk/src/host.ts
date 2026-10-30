@@ -1,5 +1,5 @@
 import { createContext, createElement, useContext, useSyncExternalStore, type ReactNode } from "react";
-import type { Annotation } from "@studio/plugin-contracts";
+import type { Annotation } from "@studio/contracts";
 import type { InspectContext } from "./module";
 import type { EnvError, ResolvedCommand, ResolvedEnv, ResolveResult } from "./resolved";
 

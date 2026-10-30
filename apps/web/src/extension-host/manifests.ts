@@ -1,7 +1,7 @@
 import yaml from "js-yaml";
-import { canonicalDoc } from "@studio/plugin-contracts/naming";
-import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
-import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
+import { canonicalDoc } from "@studio/contracts/naming";
+import { PluginManifest } from "@studio/contracts/plugin-manifest";
+import { UiContributions } from "@studio/contracts/ui-contributions";
 
 /**
  * Data-only plugin manifests (todo2 §2.2): every `plugins/<name>/plugin.yaml` and its

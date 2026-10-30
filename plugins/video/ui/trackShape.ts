@@ -1,5 +1,5 @@
-import { registerShapeUtil, shapeUtil, type BBox, type ShapeUtil } from "@studio/studio-renderers/overlay2d/shapes";
-import type { Geometry } from "@studio/plugin-contracts/types";
+import { registerShapeUtil, shapeUtil, type BBox, type ShapeUtil } from "@studio/renderers/overlay2d/shapes";
+import type { Geometry } from "@studio/contracts/types";
 import { applyShape, frameGeometry, shapeAt, shapeData, type TrackGeometry } from "./tracks";
 
 /**

@@ -99,7 +99,7 @@ inkling/
 │   ├── semantic-diff.schema.json
 │   └── events.schema.json
 ├── packages/
-│   ├── plugin-contracts/            # Existing canonical TS/Zod contracts
+│   ├── contracts/            # Existing canonical TS/Zod contracts
 │   └── api-client/                  # Generated TS client, not direct DB access
 ├── infra/
 │   ├── docker/                      # Add service and MinIO bucket provisioning

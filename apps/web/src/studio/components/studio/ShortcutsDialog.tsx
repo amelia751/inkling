@@ -1,7 +1,7 @@
 import { Fragment } from "react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@studio/studio-ui/ui/dialog";
-import { Shortcut } from "@studio/studio-ui/ui/kbd";
-import { GROUP_ORDER, type ShortcutGroup } from "@studio/studio-ui/shortcuts";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
+import { Shortcut } from "@studio/ui/ui/kbd";
+import { GROUP_ORDER, type ShortcutGroup } from "@studio/ui/shortcuts";
 import type { ResolvedCommand, ResolvedEnv } from "@/extension-host/resolve";
 
 /** The "?" sheet: the environment's tools and the commands its `when` clauses can enable. */

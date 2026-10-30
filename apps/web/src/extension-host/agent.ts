@@ -1,11 +1,11 @@
 import { catalogPrompt, describeCatalog } from "./catalog";
 import { execute } from "./commands";
-import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "./patch";
 import { PLUGIN_PACKAGES } from "./manifests";
 import { registry } from "./registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "./resolve";
-import { NAMING, NS } from "@studio/plugin-contracts/naming";
+import { NAMING, NS } from "@studio/contracts/naming";
 
 /**
  * The agent surface (todo phase 8): tools an assistant calls to inspect and edit the

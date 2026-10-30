@@ -3,7 +3,7 @@ import "@/extension-host/bundled";
 import { createRegistry, registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import example from "./manifest";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 describe("module template", () => {
   it("resolves its README environment next to the bundled modules", async () => {

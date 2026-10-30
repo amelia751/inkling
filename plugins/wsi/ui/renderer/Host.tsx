@@ -1,16 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { FlipHorizontalIcon, FitIcon, RotateLeftIcon, RotateRightIcon, TagIcon, UploadIcon, ZoomInIcon, ZoomOutIcon } from "@studio/studio-ui/icons";
-import { regionOf } from "@studio/studio-renderers/overlay2d/regions";
-import { CanvasNotice } from "@studio/studio-renderers/viewport-chrome/CanvasNotice";
-import { cn } from "@studio/studio-ui/utils";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { FlipHorizontalIcon, FitIcon, RotateLeftIcon, RotateRightIcon, TagIcon, UploadIcon, ZoomInIcon, ZoomOutIcon } from "@studio/ui/icons";
+import { regionOf } from "@studio/renderers/overlay2d/regions";
+import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
+import { cn } from "@studio/ui/utils";
+import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { fromGeoJSON } from "../io";
 import { WSI, type WsiConfig } from "../manifest";
 import { INITIAL_UI, WsiController, type UiState } from "./controller";
 import { NEUTRAL_ADJUST, type Adjustments } from "./wand";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { execute, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 const MAGNIFICATIONS = [1.25, 5, 10, 20, 40];

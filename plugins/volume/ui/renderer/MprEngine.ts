@@ -1,11 +1,11 @@
 import { Enums as CoreEnums, type RenderingEngine, cache, setVolumesForViewports, utilities as csUtils, volumeLoader, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
-import { CornerstoneBridge, type LabelmapAccess } from "@studio/studio-renderers/cornerstone/bridge";
-import { ensureCornerstone, getRenderingEngine } from "@studio/studio-renderers/cornerstone/init";
-import { exposeForTests } from "@studio/studio-renderers/cornerstone/interactions";
-import { confidenceConnected, floodFill2D, interpolateSlices, removeIslands } from "@studio/studio-renderers/cornerstone/regionOps";
-import { encodeMask, maskId } from "@studio/studio-renderers/cornerstone/rle";
-import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@studio/studio-renderers/cornerstone/toolGroup";
+import { CornerstoneBridge, type LabelmapAccess } from "@studio/renderers/cornerstone/bridge";
+import { ensureCornerstone, getRenderingEngine } from "@studio/renderers/cornerstone/init";
+import { exposeForTests } from "@studio/renderers/cornerstone/interactions";
+import { confidenceConnected, floodFill2D, interpolateSlices, removeIslands } from "@studio/renderers/cornerstone/regionOps";
+import { encodeMask, maskId } from "@studio/renderers/cornerstone/rle";
+import { applyBrushOptions, bindPrimaryTool, createToolGroup } from "@studio/renderers/cornerstone/toolGroup";
 import {
   CT_PRESETS,
   flip,
@@ -21,17 +21,17 @@ import {
   setVoi,
   wlToRange,
   type VoiRange,
-} from "@studio/studio-renderers/cornerstone/viewControls";
-import { loadVolume } from "@studio/studio-renderers/io/nifti";
-import { directionLetters, releaseFocusAfterPointer } from "@studio/studio-renderers/viewport-chrome/bar";
+} from "@studio/renderers/cornerstone/viewControls";
+import { loadVolume } from "@studio/renderers/io/nifti";
+import { directionLetters, releaseFocusAfterPointer } from "@studio/renderers/viewport-chrome/bar";
 import type { RuntimeApi } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Plane, Project, SeedAsset, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Plane, Project, SeedAsset, StudioItem } from "@studio/contracts/types";
 import type { Cell, Layout } from "../config";
 import type { VolumeSource } from "../dataKind";
 import { labelIndexForValue } from "../labelValues";
 import { planeAxis, planeFromNormal, volumeConverter, type VolumeGeometry } from "./convert";
 import { loadSource, scalarArray } from "./volumeCache";
-import { NAMING, RES } from "@studio/plugin-contracts/naming";
+import { NAMING, RES } from "@studio/contracts/naming";
 import { LOCAL_AUTHOR, useHost } from "@studio/plugin-ui-sdk";
 
 const LABELMAP = tools.Enums.SegmentationRepresentations.Labelmap;

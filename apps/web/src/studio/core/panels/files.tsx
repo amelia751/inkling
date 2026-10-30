@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { DoneIcon, SearchIcon, TodoIcon } from "@studio/studio-ui/icons";
-import { Input } from "@studio/studio-ui/ui/input";
-import { ScrollArea } from "@studio/studio-ui/ui/scroll-area";
-import { cn } from "@studio/studio-ui/utils";
+import { DoneIcon, SearchIcon, TodoIcon } from "@studio/ui/icons";
+import { Input } from "@studio/ui/ui/input";
+import { ScrollArea } from "@studio/ui/ui/scroll-area";
+import { cn } from "@studio/ui/utils";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useStudio } from "@/studio/stores/studio";
-import type { StudioItem } from "@studio/plugin-contracts/types";
+import type { StudioItem } from "@studio/contracts/types";
 
 /** `inkling.core.panels.files`: the project's items by group, with per-group progress and a filter. */
 export function FilesPanel({ items }: PanelProps) {

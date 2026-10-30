@@ -1,4 +1,4 @@
-import { NAMING, configureNaming } from "@studio/plugin-contracts/naming";
+import { NAMING, configureNaming } from "@studio/contracts/naming";
 
 /**
  * Runtime settings (todo/done/todo3.md D.1): nothing environment-specific is baked into the

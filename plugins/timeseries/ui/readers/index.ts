@@ -1,5 +1,5 @@
 import { getRuntime, publish } from "@studio/plugin-ui-sdk/runtime";
-import type { StudioItem } from "@studio/plugin-contracts/types";
+import type { StudioItem } from "@studio/contracts/types";
 import { csvReader } from "./csv";
 import { infoOf, type RecordInfo, type Recording, type SignalReader } from "./types";
 import { wfdbReader } from "./wfdb";

@@ -1,8 +1,8 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { hslToRgb, resolveLabelColor } from "@studio/plugin-ui-sdk/labels";
-import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/contracts/types";
 import { measurementLength } from "./measure";
-import { regionArea, regionOf, regionPerimeter } from "@studio/studio-renderers/overlay2d/regions";
+import { regionArea, regionOf, regionPerimeter } from "@studio/renderers/overlay2d/regions";
 import { newAnnotation } from "@studio/plugin-ui-sdk";
 
 // ---------------------------------------------------------------- helpers

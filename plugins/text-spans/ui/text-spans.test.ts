@@ -3,10 +3,10 @@ import "@/extension-host/bundled";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import { describeGeometry } from "@/extension-host/describe";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { SPAN } from "./manifest";
 import { segments, snap, spanGeometry, toJsonl } from "./spans";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const TEXT = "Ada Lovelace worked with Charles Babbage in London.";
 const ann = (id: string, start: number, end: number, label: string): Annotation => ({

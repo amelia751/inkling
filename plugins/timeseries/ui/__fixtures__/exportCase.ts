@@ -1,4 +1,4 @@
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 
 /**
  * A v1 annotation set covering every strip-chart export path (beats on a lead and on all

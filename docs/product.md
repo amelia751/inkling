@@ -228,10 +228,10 @@ inkling/
 │       │   └── thumbnails.py
 │       └── tests/
 ├── packages/
-│   ├── plugin-contracts/             # Canonical types, environment schema, migrations, naming config
+│   ├── contracts/             # Canonical types, environment schema, migrations, naming config
 │   ├── plugin-ui-sdk/                # Module contract, resolved-env types, runtime bus, host API (useHost)
-│   ├── studio-ui/                    # shadcn components, icons, cn(), key and shortcut display
-│   └── studio-renderers/             # Trusted renderers and kits: cornerstone, overlay2d, timeline, viewport-chrome, io
+│   ├── ui/                    # shadcn components, icons, cn(), key and shortcut display
+│   └── renderers/             # Trusted renderers and kits: cornerstone, overlay2d, timeline, viewport-chrome, io
 ├── plugins/                          # First-party plugins: <name>/ui (image2d, volume, timeseries, video, cine,
 │                                     #   cardiac-metrics, wsi, text-spans, dicom-export, _template)
 ├── registry/

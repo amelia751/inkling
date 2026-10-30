@@ -1,4 +1,4 @@
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { channelOf, codeOf, kindOf, peakOf, rangeOf, waveOf } from "./model";
 
 /** A delineated wave, read from its stored span (attributes.wave / attributes.peak). */

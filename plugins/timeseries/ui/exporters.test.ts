@@ -1,14 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "@/extension-host/bundled";
 import { MIGRATED_V1_TYPES } from "@/studio/lib/api";
-import { migrateDocument } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
+import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import { clearRuntime } from "@studio/plugin-ui-sdk/runtime";
 import type { ExporterImpl } from "@studio/plugin-ui-sdk/module";
 import golden from "./__fixtures__/export-golden.json";
 import { items, normaliseJson, project, stubFetch, untar, v1Annotations } from "./__fixtures__/exportCase";
-import { NS } from "@studio/plugin-contracts/naming";
+import { NS } from "@studio/contracts/naming";
 
 /**
  * Byte identity across the geometry migration: the v2 exporters, run on the migrated v1

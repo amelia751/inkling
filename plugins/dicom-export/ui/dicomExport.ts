@@ -1,13 +1,13 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import { cache, metaData, utilities as csUtils, type Types } from "@cornerstonejs/core";
 import { adaptersSEG, adaptersSR } from "@cornerstonejs/adapters";
 import { data as dcmjsData } from "dcmjs";
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
-import { KIND_TOOL, labelRgb } from "@studio/studio-renderers/cornerstone/bridge";
-import { isDicomPath, loadDicomSeries } from "@studio/studio-renderers/cornerstone/dicom";
-import { ensureCornerstone } from "@studio/studio-renderers/cornerstone/init";
-import { decodeMaskInto } from "@studio/studio-renderers/cornerstone/rle";
-import { NAMING, RES } from "@studio/plugin-contracts/naming";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
+import { KIND_TOOL, labelRgb } from "@studio/renderers/cornerstone/bridge";
+import { isDicomPath, loadDicomSeries } from "@studio/renderers/cornerstone/dicom";
+import { ensureCornerstone } from "@studio/renderers/cornerstone/init";
+import { decodeMaskInto } from "@studio/renderers/cornerstone/rle";
+import { NAMING, RES } from "@studio/contracts/naming";
 
 /**
  * DICOM SEG (masks) and DICOM SR TID 1500 (measurements) for items whose source images are

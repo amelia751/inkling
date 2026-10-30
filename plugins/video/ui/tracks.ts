@@ -1,5 +1,5 @@
-import type { Annotation, Geometry, Pt, TrackKeyframe } from "@studio/plugin-contracts/types";
-import { interpolateRings } from "@studio/studio-renderers/overlay2d/geometry";
+import type { Annotation, Geometry, Pt, TrackKeyframe } from "@studio/contracts/types";
+import { interpolateRings } from "@studio/renderers/overlay2d/geometry";
 
 /**
  * Object tracks (CVAT "track mode"). A track stores keyframes only; the shape on any

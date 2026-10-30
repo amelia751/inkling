@@ -1,4 +1,4 @@
-import type { Volume } from "@studio/studio-renderers/io/nifti";
+import type { Volume } from "@studio/renderers/io/nifti";
 
 export type Rgb = [number, number, number];
 

@@ -1,4 +1,4 @@
-"""Mask helpers for `image.segment` results (packages/plugin-contracts/src/capabilities/image.segment.ts).
+"""Mask helpers for `image.segment` results (packages/contracts/src/capabilities/image.segment.ts).
 
 Results use COCO-style uncompressed RLE: size [height, width], column-major runs starting
 with background. The kernel normalises them into the Studio's canonical mask geometry.

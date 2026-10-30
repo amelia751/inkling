@@ -54,9 +54,9 @@ The Studio shell runs an **environment** (JSON) that references **modules** (the
 a plugin, `docs/plugins.md`). First-party plugins live in `plugins/<name>/ui/` and contribute
 data kinds, renderers, tools, commands, panels, inspectors, exporters, label controls,
 review rules and presets. Shared building blocks (Cornerstone, overlay2d, timeline, viewport
-chrome, IO) are trusted renderers in `packages/studio-renderers`. Canonical types and the
-environment schema are `packages/plugin-contracts`; what a plugin may import is
-`packages/plugin-ui-sdk` (module contract, host API) and `packages/studio-ui` (shadcn,
+chrome, IO) are trusted renderers in `packages/renderers`. Canonical types and the
+environment schema are `packages/contracts`; what a plugin may import is
+`packages/plugin-ui-sdk` (module contract, host API) and `packages/ui` (shadcn,
 icons). The registry, resolver, `when` clauses, commands, catalogue and agent tools are the
 **extension host** (`apps/web/src/extension-host/`); the shell is `apps/web/src/studio/`.
 Read `docs/modules.md`.
@@ -83,18 +83,19 @@ Read `docs/modules.md`.
 
 ## Rules
 
-- Layers (enforced by `tools/check-boundaries.mjs`): contracts and studio-ui import nothing internal;
-  the SDK only contracts; renderers the SDK, contracts and studio-ui; plugins those plus
+- Layers (enforced by `tools/check-boundaries.mjs`): `@studio/contracts` and `@studio/ui` import
+  nothing internal; `@studio/plugin-ui-sdk` only contracts; `@studio/renderers` the SDK,
+  contracts and ui; plugins those plus
   other plugins' `manifest.ts` / `public.ts`; the shell never imports `@plugins/*` and
   reaches plugins only through the registry.
-- The product name appears in code only in `packages/plugin-contracts/src/naming.ts`; use
+- The product name appears in code only in `packages/contracts/src/naming.ts`; use
   `NAMING`, `ns()`, `NS` and `RES` everywhere else.
 - Domain constants (WFDB codes, cardiac structures, CT presets) live in module config
   defaults or preset vocabularies, never in kits or the platform.
 - Core geometries are domain-neutral (`box`, `polygon`, `span`, `instant`…); domain meaning
   goes in `annotation.attributes`. Stored v1 geometries migrate on load
-  (`packages/plugin-contracts/src/migrations/annotations-v1-to-v2.ts`).
-- Icons come only from `@studio/studio-ui/icons`.
+  (`packages/contracts/src/migrations/annotations-v1-to-v2.ts`).
+- Icons come only from `@studio/ui/icons`.
 - Never hand-edit generated files: `schemas/*.json`, `schemas/catalog.md`,
   `docs/modules-reference.md`. The web server serves the catalogue and environment schema from
   `schemas/` at `/catalog.json`, `/catalog.md` and `/schema/environment.v1.json`.

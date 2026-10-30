@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { loadVolume, type Volume } from "@studio/studio-renderers/io/nifti";
-import { CLOSE_RADIUS } from "@studio/studio-renderers/overlay2d/draw";
-import { hitVertex, pointInPolygon, polygonArea, rleDecode, rleEncode, rleForeground } from "@studio/studio-renderers/overlay2d/geometry";
-import { useViewport2D } from "@studio/studio-renderers/overlay2d/useViewport2D";
-import { CanvasNotice } from "@studio/studio-renderers/viewport-chrome/CanvasNotice";
-import { Legend } from "@studio/studio-renderers/viewport-chrome/legend";
-import { rangeBounds, Transport, useFramePlayback, type FrameRange, type PlayMode } from "@studio/studio-renderers/viewport-chrome/transport";
-import { useCanvasSize } from "@studio/studio-renderers/viewport-chrome/useCanvasSize";
+import { loadVolume, type Volume } from "@studio/renderers/io/nifti";
+import { CLOSE_RADIUS } from "@studio/renderers/overlay2d/draw";
+import { hitVertex, pointInPolygon, polygonArea, rleDecode, rleEncode, rleForeground } from "@studio/renderers/overlay2d/geometry";
+import { useViewport2D } from "@studio/renderers/overlay2d/useViewport2D";
+import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
+import { Legend } from "@studio/renderers/viewport-chrome/legend";
+import { rangeBounds, Transport, useFramePlayback, type FrameRange, type PlayMode } from "@studio/renderers/viewport-chrome/transport";
+import { useCanvasSize } from "@studio/renderers/viewport-chrome/useCanvasSize";
 import { hslToRgb, labelColor, resolveLabelColor, resolveToken } from "@studio/plugin-ui-sdk/labels";
-import { labelNames } from "@studio/plugin-contracts/environment";
-import { matches } from "@studio/studio-ui/keys";
+import { labelNames } from "@studio/contracts/environment";
+import { matches } from "@studio/ui/keys";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Pt } from "@studio/plugin-contracts/types";
+import type { Annotation, Pt } from "@studio/contracts/types";
 import { CineConfigSchema } from "../config";
 import {
   cellKey,
@@ -36,7 +36,7 @@ import { CineToolbar } from "./CineToolbar";
 import { copyCell, importReference, interpolateCells, type EditResult } from "./edits";
 import { dragMove, dragVertex, drawScene, edgeInsertIndex, EMPTY_CELL, pickAt, round2, stamp, type Drag, type PaintDrag } from "./engine";
 import { fullRange, percentileWindow, renderLabelMap, renderSlice, type Rgb } from "./render";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { brushSizeOf, commandDef, commandId, isEditable, newAnnotation, registerCommand, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 const SCOPE = [CINE, ns("core")];

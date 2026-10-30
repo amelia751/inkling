@@ -8,7 +8,7 @@ import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
 import { aliases, REPO_ROOT } from "./aliases";
 // The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
-// reads the emitted copy of packages/plugin-contracts/src/naming.ts.
+// reads the emitted copy of packages/contracts/src/naming.ts.
 import NAMING from "../../schemas/naming.json";
 
 /** The one place the web build and dev server read the environment: `env("API_URL")` → `<envPrefix>API_URL`. */
@@ -121,7 +121,7 @@ export default defineConfig({
     alias: [
       ...aliases,
       // vtk.js (via Cornerstone) imports xmlbuilder2, which needs Node's `events`; we never parse VTK XML.
-      { find: "xmlbuilder2", replacement: path.resolve(REPO_ROOT, "packages/studio-renderers/src/cornerstone/xmlbuilder2-stub.ts") },
+      { find: "xmlbuilder2", replacement: path.resolve(REPO_ROOT, "packages/renderers/src/cornerstone/xmlbuilder2-stub.ts") },
       { find: "dcmjs", replacement: dcmjsEntry },
     ],
   },

@@ -6,10 +6,10 @@
 // vite.config.ts serves those three at /schema/environment.v1.json, /catalog.json and /catalog.md.
 //   ../../docs/modules-reference.md    — the same, for humans
 //   ../../schemas/{plugin,ui-contributions,workspace}.v1.json, capabilities/*.json
-//                                      — contract schemas (packages/plugin-contracts) for the kernel
+//                                      — contract schemas (packages/contracts) for the kernel
 //   ../../schemas/versioning/annotation-revision.schema.json
 //                                      — the annotation revision contract read by apps/versioning
-//   ../../schemas/naming.json          — the naming config (packages/plugin-contracts/src/naming.ts)
+//   ../../schemas/naming.json          — the naming config (packages/contracts/src/naming.ts)
 //                                        for the Python kernel, worker, SDK, mcp.mjs and apps/agent
 // Never hand-edit these. `--check` exits 1 if they're stale (CI drift check).
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";

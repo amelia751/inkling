@@ -4,7 +4,7 @@ A studio for viewing, annotating and exporting medical and scientific data: imag
 
 This is a monorepo. Everything (web app, backend services, agent, plugins, shared libraries, infrastructure) lives here and is built with one set of tools.
 
-> The product name lives in exactly one place, the naming config (`packages/plugin-contracts/src/naming.ts`, exported as `schemas/naming.json`). Code and new files use brand-free names (`@studio/*`), so the product can be renamed by changing that config and running `tools/rename-namespace.mjs`.
+> The product name lives in exactly one place, the naming config (`packages/contracts/src/naming.ts`, exported as `schemas/naming.json`). Code and new files use brand-free names (`@studio/*`), so the product can be renamed by changing that config and running `tools/rename-namespace.mjs`.
 
 ---
 
@@ -39,7 +39,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 
 1. **`apps/*` never import each other.** They talk over HTTP and events only, so each one can be deployed and scaled on its own.
 2. **`packages/*` never import from `apps/*` or `plugins/*`.**
-3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `plugin-ui-sdk`, `plugin-contracts`, `studio-ui` and `studio-renderers`. `plugins/*/worker` imports only `plugin-sdk`.
+3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `@studio/plugin-ui-sdk`, `@studio/contracts`, `@studio/ui` and `@studio/renderers`. `plugins/*/worker` imports only `plugin-sdk`.
 
 ---
 
@@ -133,10 +133,10 @@ plugins/<name>/
 
 | Package | Language | What it is |
 |---|---|---|
-| `plugin-contracts/` | TS | Canonical types and zod schemas: environment spec, annotations, geometries, `plugin.yaml`, UI contributions, and the **naming config**. Emits `schemas/`. |
+| `contracts/` | TS | Canonical types and zod schemas: environment spec, annotations, geometries, `plugin.yaml`, UI contributions, and the **naming config**. Emits `schemas/`. |
 | `plugin-ui-sdk/` | TS | All a plugin's UI may import: `defineModule`, contribution types, `when` clause types, host API hooks (`useHost`, `assetUrl`, selection, annotations). |
-| `studio-ui/` | TS | Presentational building blocks: shadcn/ui components, icons, `cn` and other utils. No app state. |
-| `studio-renderers/` | TS | Heavy shared viewer engines plugins build on: cornerstone, 2-D overlay, timeline, viewport chrome, file IO, plus the trusted renderers declarative contributions map to (for example `mask-review`). |
+| `ui/` | TS | Presentational building blocks: shadcn/ui components, icons, `cn` and other utils. No app state. |
+| `renderers/` | TS | Heavy shared viewer engines plugins build on: cornerstone, 2-D overlay, timeline, viewport chrome, file IO, plus the trusted renderers declarative contributions map to (for example `mask-review`). |
 | `api-client/` | TS | Typed client for `apps/api`, generated from its OpenAPI spec. Used by `web`, `agent` and `mcp`. |
 | `plugin-sdk/` | Python | Worker-side SDK (`studio_plugin_sdk`): tool decorators, provider base classes, kernel client, job context, budgets. |
 | `observability-ts/`, `observability-py/` | TS, Python | Structured JSON logging and OpenTelemetry setup, so a trace follows one user action from web through api, agent and worker. |
@@ -148,7 +148,7 @@ plugins/<name>/
 | Folder | What it is |
 |---|---|
 | `registry/` | `presets/*.json`: workspace templates (radiology, pathology, cardiology, …) that pick plugins and layouts. `index.json`: the catalogue of installable plugins and versions the control plane resolves against. |
-| `schemas/` | JSON Schemas emitted from `plugin-contracts`: environment, annotations, `plugin.yaml`, contributions, `naming.json`. Python pydantic models are generated from these, so TS and Python can't drift. |
+| `schemas/` | JSON Schemas emitted from `contracts`: environment, annotations, `plugin.yaml`, contributions, `naming.json`. Python pydantic models are generated from these, so TS and Python can't drift. |
 | `infra/docker/` | Shared base images and `compose.yaml`. Profile `deps` runs Postgres, Redis and MinIO for local dev. Profile `full` runs every app image behind a router, like production. |
 | `infra/k8s/` | Kustomize. `base/<app>/` holds the Deployment, Service, HPA/KEDA, PDB and ConfigMap for each app. `base/jobs/` holds DB migrations and the sandbox sweeper CronJob. `overlays/{dev,staging,prod}/` holds replicas, image digests, managed endpoints and NetworkPolicies. |
 | `infra/terraform/` | Cloud resources (cluster, buckets, database), when there is a cloud. |

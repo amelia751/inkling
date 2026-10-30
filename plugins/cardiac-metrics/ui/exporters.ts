@@ -1,7 +1,7 @@
-import { fetchBodySize } from "@studio/studio-renderers/io/niftiIO";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { fetchBodySize } from "@studio/renderers/io/niftiIO";
+import { labelNames } from "@studio/contracts/environment";
 import type { ExporterImpl } from "@studio/plugin-ui-sdk/module";
-import type { Project } from "@studio/plugin-contracts/types";
+import type { Project } from "@studio/contracts/types";
 import { cineConfigFor, cineGridFor, cinePath, frameCoverage, pickCineItem, resolvePhases, STRUCT_KEYS, structuresOf } from "@plugins/cine/public";
 import { MetricsConfigSchema } from "./config";
 import { computeMetrics, mosteller } from "./metrics";

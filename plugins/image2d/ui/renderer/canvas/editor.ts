@@ -1,6 +1,6 @@
-import { HANDLE_CURSORS, shapeUtil, type Hit } from "@studio/studio-renderers/overlay2d/shapes";
-import { CLOSE_RADIUS } from "@studio/studio-renderers/overlay2d/draw";
-import type { Annotation, Geometry, Pt } from "@studio/plugin-contracts/types";
+import { HANDLE_CURSORS, shapeUtil, type Hit } from "@studio/renderers/overlay2d/shapes";
+import { CLOSE_RADIUS } from "@studio/renderers/overlay2d/draw";
+import type { Annotation, Geometry, Pt } from "@studio/contracts/types";
 
 /**
  * Tool state machine of the canvas-raster renderer: select / move / resize through the

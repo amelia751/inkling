@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { bindHost, HostProvider, type StudioHost } from "@studio/plugin-ui-sdk";
-import { configureShortcuts } from "@studio/studio-ui/shortcuts";
-import { ns } from "@studio/plugin-contracts/naming";
+import { configureShortcuts } from "@studio/ui/shortcuts";
+import { ns } from "@studio/contracts/naming";
 import { seedUrl } from "@/studio/lib/api";
 import { useStudio } from "@/studio/stores/studio";
 import { commandDef, commandId, execute, registerCommand, useCommands, useHotkeys } from "./commands";

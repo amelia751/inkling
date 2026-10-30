@@ -1,7 +1,7 @@
 import { Link } from "react-router";
-import { BrandIcon } from "@studio/studio-ui/icons";
-import { cn } from "@studio/studio-ui/utils";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import { BrandIcon } from "@studio/ui/icons";
+import { cn } from "@studio/ui/utils";
+import { NAMING } from "@studio/contracts/naming";
 
 export function BrandMark({ compact = false, className }: { compact?: boolean; className?: string }) {
   return (

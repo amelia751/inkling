@@ -1,9 +1,9 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
-import type { Annotation, Project, Pt, StudioItem } from "@studio/plugin-contracts/types";
+import { labelNames } from "@studio/contracts/environment";
+import type { Annotation, Project, Pt, StudioItem } from "@studio/contracts/types";
 import type { ExporterImpl } from "@studio/plugin-ui-sdk/module";
 import { keyframeAt, shapeAt, sortKeyframes, trackNumbers, type Box, type TrackGeometry } from "./tracks";
-import { zip } from "@studio/studio-renderers/io/zip";
-import { RES } from "@studio/plugin-contracts/naming";
+import { zip } from "@studio/renderers/io/zip";
+import { RES } from "@studio/contracts/naming";
 
 /** Frame count and rate of a video item, from the seed metadata. */
 export function videoTiming(item: StudioItem): { fps: number; frames: number; duration: number } {

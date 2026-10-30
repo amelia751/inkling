@@ -1,7 +1,7 @@
 """Contracts shared with the web app and plugins.
 
 `_generated/` holds pydantic models generated from the JSON Schemas that
-`pnpm emit:schemas` writes to schemas/ (from packages/plugin-contracts, zod).
+`pnpm emit:schemas` writes to schemas/ (from packages/contracts, zod).
 Regenerate with `uv run python scripts/gen_contracts.py` (apps/api); CI runs it with
 `--check` and fails on a diff. This module adds what JSON Schema can't express: the
 cross-field manifest rules, and normalisation of capability results into canonical

@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import "@/extension-host/bundled";
-import { migrateAnnotation } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
+import { migrateAnnotation } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
 import { runtimeFor } from "@studio/plugin-ui-sdk/runtime";
 import type { InspectFn } from "@studio/plugin-ui-sdk/module";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { measurementsConfig, statementsOf, stripConfig } from "./config";
 import { describeInstant, describeSpan } from "./geometries";
 import { beatTimes, measure } from "./measure";
@@ -15,7 +15,7 @@ import * as M from "./model";
 import { parseCsv } from "./readers/csv";
 import { niceStep } from "./renderer/draw";
 import { columnsFor, computeFrame } from "./renderer/layout";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 const ann = (geometry: unknown, attributes?: Annotation["attributes"], extra: Partial<Annotation> = {}): Annotation =>
   ({ id: Math.random().toString(36), itemId: "x", label: "L", geometry, attributes, provenance: "human-created", author: "me", createdAt: "", ...extra }) as Annotation;

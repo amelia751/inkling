@@ -1,9 +1,9 @@
 import { Link } from "react-router";
-import { Spinner } from "@studio/studio-ui/ui/spinner";
-import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/studio-ui/icons";
+import { Spinner } from "@studio/ui/ui/spinner";
+import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/ui/icons";
 import { DatasetSwitcher } from "@/studio/components/layout/dataset-switcher";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,16 +13,16 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@studio/studio-ui/ui/dropdown-menu";
-import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/studio-ui/ui/tooltip";
+} from "@studio/ui/ui/dropdown-menu";
+import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { BrandMark } from "@/studio/components/layout/brand";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { useTheme, type ThemePreference } from "@/studio/lib/theme";
 import { useWindowWidth } from "@/studio/lib/use-media-query";
 import { envLabel } from "@/studio/lib/format";
 import { useStudio } from "@/studio/stores/studio";
-import type { Project } from "@studio/plugin-contracts/types";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import type { Project } from "@studio/contracts/types";
+import { NAMING } from "@studio/contracts/naming";
 import { useVersioning, VersioningControls } from "@/studio/core/versioning";
 
 /**

@@ -271,15 +271,15 @@ importers:
       '@studio/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
+      '@studio/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@studio/plugin-cardiac-metrics':
         specifier: workspace:*
         version: link:../../plugins/cardiac-metrics
       '@studio/plugin-cine':
         specifier: workspace:*
         version: link:../../plugins/cine
-      '@studio/plugin-contracts':
-        specifier: workspace:*
-        version: link:../../packages/plugin-contracts
       '@studio/plugin-dicom-export':
         specifier: workspace:*
         version: link:../../plugins/dicom-export
@@ -307,12 +307,12 @@ importers:
       '@studio/plugin-wsi':
         specifier: workspace:*
         version: link:../../plugins/wsi
-      '@studio/studio-renderers':
+      '@studio/renderers':
         specifier: workspace:*
-        version: link:../../packages/studio-renderers
-      '@studio/studio-ui':
+        version: link:../../packages/renderers
+      '@studio/ui':
         specifier: workspace:*
-        version: link:../../packages/studio-ui
+        version: link:../../packages/ui
       '@tanstack/react-query':
         specifier: ^5.90.0
         version: 5.105.0(@types/react@19.3.0)(react@19.2.8)
@@ -422,6 +422,16 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/observability-py: {}
 
   packages/observability-ts:
@@ -436,16 +446,6 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
-
-  packages/plugin-contracts:
-    dependencies:
-      zod:
-        specifier: ^4.6.7
-        version: 4.6.7
-    devDependencies:
-      vitest:
-        specifier: ^5.0.5
-        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/plugin-sdk: {}
 
@@ -465,7 +465,7 @@ importers:
         specifier: ^19
         version: 19.3.0
 
-  packages/studio-renderers:
+  packages/renderers:
     dependencies:
       '@cornerstonejs/core':
         specifier: 5.14.0
@@ -529,7 +529,7 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/studio-ui:
+  packages/ui:
     dependencies:
       '@gravity-ui/icons':
         specifier: ^2.23.0

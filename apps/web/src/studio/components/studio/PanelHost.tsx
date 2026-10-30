@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { registry } from "@/extension-host/registry";
 import type { ResolvedEnv } from "@/extension-host/resolve";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 
 /** Renders one panel contribution by id (its module is preloaded with the environment). */
 export function PanelHost({ id, env, project, items, item }: { id: string; env: ResolvedEnv; project: Project; items: StudioItem[]; item: StudioItem | undefined }) {

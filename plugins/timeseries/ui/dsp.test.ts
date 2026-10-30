@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { decodeAtr, encodeAtr, parseHeader, ustar } from "@studio/studio-renderers/io/wfdb";
+import { decodeAtr, encodeAtr, parseHeader, ustar } from "@studio/renderers/io/wfdb";
 import { applyFilters, panTompkins, snapToExtremum, wavePeak } from "./dsp";
 
 /** The former node self-test of the ECG viewer (selftest.mjs), as unit tests. */

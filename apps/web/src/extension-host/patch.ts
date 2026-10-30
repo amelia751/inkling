@@ -1,5 +1,5 @@
 import { applyPatch, type Operation } from "rfc6902";
-import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
 import type { EnvError } from "./resolve";
 
 export type { Operation as JsonPatchOperation };

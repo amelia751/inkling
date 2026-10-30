@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 /**
- * Runtime names from the naming config (packages/plugin-contracts/src/naming.ts, emitted to
+ * Runtime names from the naming config (packages/contracts/src/naming.ts, emitted to
  * schemas/naming.json), so the product name never appears in this service's code (todo2 D3).
  * `NAMING_FILE` overrides the path (a deployed image that doesn't ship the repo); it's the one
  * env var without the prefix, because the prefix is read from that file.

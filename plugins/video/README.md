@@ -2,11 +2,11 @@
 
 Frame-accurate video annotation. The `frame-canvas` renderer decodes every frame exactly with
 WebCodecs (falling back to `<video>` seeking), plays through a requestVideoFrameCallback clock
-with an A–B loop range, and edits shapes per frame through `studio-renderers/overlay2d` ShapeUtils. Shapes
+with an A–B loop range, and edits shapes per frame through `renderers/overlay2d` ShapeUtils. Shapes
 drawn in Track mode become core `track` geometries (CVAT keyframe / outside / occluded
 semantics, interpolated between keyframes; `trackShape.ts` is the ShapeUtil that resolves a track
 at the playhead); Per-frame mode stores `box` / `polygon` / `keypoint` with `frame`. Segments and
-events are core `span` / `instant` on the `studio-renderers/timeline` lanes. The renderer publishes
+events are core `span` / `instant` on the `renderers/timeline` lanes. The renderer publishes
 `runtime.playhead` (`{ frame, time }`) for the inspector. Exports: CVAT for video 1.1, MOT CSV and
 temporal JSON.
 

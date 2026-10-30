@@ -1,4 +1,4 @@
-// Icons come only from packages/studio-ui/src/icons. Fails on direct imports of icon
+// Icons come only from packages/ui/src/icons. Fails on direct imports of icon
 // packages anywhere else in the app, packages or plugins (e.g. lucide-react pulled in by a
 // pasted shadcn component).
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -6,7 +6,7 @@ import { join, relative } from "node:path";
 
 const repo = new URL("../../..", import.meta.url).pathname;
 const roots = ["apps/web/src", "packages", "plugins"].map((d) => join(repo, d));
-const allowed = join(repo, "packages/studio-ui/src/icons");
+const allowed = join(repo, "packages/ui/src/icons");
 const banned = /from\s+["'](lucide-react|@gravity-ui\/icons[^"']*|react-icons[^"']*|@heroicons\/[^"']*|@radix-ui\/react-icons)["']/;
 
 const walk = (dir) =>
@@ -27,6 +27,6 @@ const bad = roots
   );
 
 if (bad.length) {
-  console.error(`Import icons from "@studio/studio-ui/icons" instead:\n${bad.join("\n")}`);
+  console.error(`Import icons from "@studio/ui/icons" instead:\n${bad.join("\n")}`);
   process.exit(1);
 }

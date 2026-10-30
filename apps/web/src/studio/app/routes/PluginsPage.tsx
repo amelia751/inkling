@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnnotateIcon, SearchIcon } from "@studio/studio-ui/icons";
-import { Badge } from "@studio/studio-ui/ui/badge";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Card } from "@studio/studio-ui/ui/card";
-import { Input } from "@studio/studio-ui/ui/input";
+import { AnnotateIcon, SearchIcon } from "@studio/ui/icons";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import { Card } from "@studio/ui/ui/card";
+import { Input } from "@studio/ui/ui/input";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { kernelEnabled } from "@/extension-host/kernel";

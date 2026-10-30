@@ -1,6 +1,6 @@
-import type { Annotation, Geometry, Pt } from "@studio/plugin-contracts/types";
-import { pathLength } from "@studio/studio-renderers/overlay2d/geometry";
-import { geometryBounds, pointInRegion, regionArea, regionOf, regionPerimeter, type Region } from "@studio/studio-renderers/overlay2d/regions";
+import type { Annotation, Geometry, Pt } from "@studio/contracts/types";
+import { pathLength } from "@studio/renderers/overlay2d/geometry";
+import { geometryBounds, pointInRegion, regionArea, regionOf, regionPerimeter, type Region } from "@studio/renderers/overlay2d/regions";
 
 const fmt = (n: number, digits = 1) => n.toLocaleString(undefined, { maximumFractionDigits: digits, minimumFractionDigits: n < 10 && n % 1 ? digits : 0 });
 

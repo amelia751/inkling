@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 
 /**
  * Small markdown renderer for model output: paragraphs, headings, lists, quotes,

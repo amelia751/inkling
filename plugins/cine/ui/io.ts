@@ -1,5 +1,5 @@
-import { fetchHeader } from "@studio/studio-renderers/io/niftiIO";
-import type { Annotation, StudioItem } from "@studio/plugin-contracts/types";
+import { fetchHeader } from "@studio/renderers/io/niftiIO";
+import type { Annotation, StudioItem } from "@studio/contracts/types";
 import type { Grid } from "./model";
 
 /** Exporter helpers shared with modules built on the cine (through public.ts). */

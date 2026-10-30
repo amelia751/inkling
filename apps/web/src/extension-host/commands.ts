@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { matches } from "@studio/studio-ui/keys";
+import { matches } from "@studio/ui/keys";
 import { fullId, registry } from "./registry";
 import type { ResolvedCommand } from "./resolve";
 import { when, type WhenContext } from "./when";

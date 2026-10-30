@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatWL } from "@studio/studio-renderers/cornerstone/viewControls";
-import { Loupe } from "@studio/studio-renderers/cornerstone/interactions";
-import { CornerText, TextPrompt, type PromptRequest } from "@studio/studio-renderers/viewport-chrome/bar";
-import { CanvasNotice } from "@studio/studio-renderers/viewport-chrome/CanvasNotice";
+import { formatWL } from "@studio/renderers/cornerstone/viewControls";
+import { Loupe } from "@studio/renderers/cornerstone/interactions";
+import { CornerText, TextPrompt, type PromptRequest } from "@studio/renderers/viewport-chrome/bar";
+import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import { StackConfigSchema, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";
 import { CornerstoneStackEngine } from "./CornerstoneStackEngine";
 import { useHoldToPan } from "./holdToPan";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { brushSizeOf, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 const SCOPES = [ns("image2d"), ns("cornerstone"), ns("core")];

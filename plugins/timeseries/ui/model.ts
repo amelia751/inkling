@@ -1,4 +1,4 @@
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 
 /**
  * Timeseries annotations in their stored (v2) form: core `span` / `instant` geometries with

@@ -1,7 +1,7 @@
 """Annotation API (docs/plugins.md §6): canonical document, provenance, review state, idempotent commits.
 
 The document is the one the Studio loads and saves (`AnnotationDocument` in
-packages/plugin-contracts/src/types). Plugin output reaches it only through `commit`, which
+packages/contracts/src/types). Plugin output reaches it only through `commit`, which
 is idempotent per key, so re-running a job never duplicates annotations (§14 #7).
 """
 
@@ -24,7 +24,7 @@ ANNOTATIONS_VERSION = 2
 PROVENANCE = {"human-created", "ai-suggested", "human-corrected"}
 REVIEW_STATES = {"pending", "accepted", "rejected", "edited"}
 
-# ---- v1 → v2 migration (port of packages/plugin-contracts/src/migrations/annotations-v1-to-v2.ts)
+# ---- v1 → v2 migration (port of packages/contracts/src/migrations/annotations-v1-to-v2.ts)
 
 V1_TYPES = {"interval", "beat", "wave", "rhythm", "phase", "segment", "event", "mark", "point"}
 

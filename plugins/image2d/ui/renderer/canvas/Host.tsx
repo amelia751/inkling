@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveLabelColor, resolveToken } from "@studio/plugin-ui-sdk/labels";
-import { drawHandles, drawPolygon } from "@studio/studio-renderers/overlay2d/draw";
-import { drawShape, shapeUtil } from "@studio/studio-renderers/overlay2d/shapes";
-import { CanvasNotice } from "@studio/studio-renderers/viewport-chrome/CanvasNotice";
-import { CornerText } from "@studio/studio-renderers/viewport-chrome/bar";
-import { useCanvasSize } from "@studio/studio-renderers/viewport-chrome/useCanvasSize";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { drawHandles, drawPolygon } from "@studio/renderers/overlay2d/draw";
+import { drawShape, shapeUtil } from "@studio/renderers/overlay2d/shapes";
+import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
+import { CornerText } from "@studio/renderers/viewport-chrome/bar";
+import { useCanvasSize } from "@studio/renderers/viewport-chrome/useCanvasSize";
+import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Geometry, Pt } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Pt } from "@studio/contracts/types";
 import { useHoldToPan } from "../holdToPan";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./camera";
 import { RasterEditor, type EditorEnv } from "./editor";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { assetUrl, isEditable, newAnnotation, useCommands, useHost, visibleFor } from "@studio/plugin-ui-sdk";
 
 const SCOPES = [ns("image2d"), ns("core")];

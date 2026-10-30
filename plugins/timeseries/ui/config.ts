@@ -1,6 +1,6 @@
 import * as z from "zod";
 import type { ResolvedEnv } from "@studio/plugin-ui-sdk";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * Config of the strip chart and its panel. Every domain value (ECG paper, lead order, WFDB

@@ -1,7 +1,7 @@
 import { resolveLabelColor, resolveToken } from "@studio/plugin-ui-sdk/labels";
-import { CLOSE_RADIUS, drawHandles, drawTag } from "@studio/studio-renderers/overlay2d/draw";
-import { drawShape, HANDLE_CURSORS, shapeUtil, type Hit, type ToScreen } from "@studio/studio-renderers/overlay2d/shapes";
-import type { Annotation, Geometry, Pt } from "@studio/plugin-contracts/types";
+import { CLOSE_RADIUS, drawHandles, drawTag } from "@studio/renderers/overlay2d/draw";
+import { drawShape, HANDLE_CURSORS, shapeUtil, type Hit, type ToScreen } from "@studio/renderers/overlay2d/shapes";
+import type { Annotation, Geometry, Pt } from "@studio/contracts/types";
 import { placeTrack, resolveTrack, unplace } from "../trackShape";
 import { applyShape, isSpatial, shapeData, shapeOnFrame, frameGeometry, type TrackGeometry } from "../tracks";
 

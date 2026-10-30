@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { defineModule } from "@studio/plugin-ui-sdk";
 import { BUILTIN_MODULES, MODULES } from "./bundled";
 import { describeCatalog } from "./catalog";

@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from "vitest";
  */
 describe("namespace rename", async () => {
   vi.resetModules();
-  const naming = await import("@studio/plugin-contracts/naming");
+  const naming = await import("@studio/contracts/naming");
   const OLD = naming.NAMING.namespace;
   naming.configureNaming({ namespace: "acme", legacyNamespaces: [OLD] });
   const { MODULES, presets } = await import("@/extension-host/bundled");

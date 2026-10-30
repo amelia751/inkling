@@ -1,9 +1,9 @@
-import { tool } from "@studio/studio-renderers/tool-catalog";
-import { IS_MAC } from "@studio/studio-ui/keys";
+import { tool } from "@studio/renderers/tool-catalog";
+import { IS_MAC } from "@studio/ui/keys";
 import { defineModule, type CommandContribution } from "@studio/plugin-ui-sdk/module";
 import { coreGeometries, legacyGeometries } from "./geometries";
 import { sourceLabelDisagreement, unlabeledItems } from "./reviewRules";
-import { NAMING, ns } from "@studio/plugin-contracts/naming";
+import { NAMING, ns } from "@studio/contracts/naming";
 
 export const CORE = ns("core");
 export const coreCommand = (name: string) => `${CORE}.commands.${name}`;
@@ -80,4 +80,4 @@ export default defineModule({
 });
 
 /** Keys shown for the copy-contour style families ("⌥ + arrows"). */
-export { modArrows } from "@studio/studio-ui/keys";
+export { modArrows } from "@studio/ui/keys";

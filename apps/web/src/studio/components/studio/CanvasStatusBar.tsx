@@ -1,6 +1,6 @@
-import { ChevronLeftIcon, ChevronRightIcon } from "@studio/studio-ui/icons";
+import { ChevronLeftIcon, ChevronRightIcon } from "@studio/ui/icons";
 import { useStudio } from "@/studio/stores/studio";
-import type { StudioItem } from "@studio/plugin-contracts/types";
+import type { StudioItem } from "@studio/contracts/types";
 
 export function CanvasStatusBar({ items }: { items: StudioItem[] }) {
   const itemIndex = useStudio((s) => s.itemIndex);

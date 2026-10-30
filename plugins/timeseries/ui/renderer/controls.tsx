@@ -1,7 +1,7 @@
-import { CardiacIcon as HeartPulse } from "@studio/studio-ui/icons";
-import { Spinner } from "@studio/studio-ui/ui/spinner";
-import { BarPick, BarSegmented, BarToggle } from "@studio/studio-renderers/viewport-chrome/controls";
-import { cn } from "@studio/studio-ui/utils";
+import { CardiacIcon as HeartPulse } from "@studio/ui/icons";
+import { Spinner } from "@studio/ui/ui/spinner";
+import { BarPick, BarSegmented, BarToggle } from "@studio/renderers/viewport-chrome/controls";
+import { cn } from "@studio/ui/utils";
 import type { Code, StripChartConfig } from "../config";
 import { isPassthrough, type FilterConfig } from "../dsp";
 import type { LayoutMode, ScaleMode } from "./layout";

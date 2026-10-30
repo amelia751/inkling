@@ -1,9 +1,9 @@
-import { labelNames } from "@studio/plugin-contracts/environment";
-import type { Annotation, Pt, StudioItem } from "@studio/plugin-contracts/types";
+import { labelNames } from "@studio/contracts/environment";
+import type { Annotation, Pt, StudioItem } from "@studio/contracts/types";
 import type { Exporter } from "@studio/plugin-ui-sdk/module";
-import { polygonArea } from "@studio/studio-renderers/overlay2d/geometry";
-import { toCocoRle } from "@studio/studio-renderers/cornerstone/rle";
-import { NAMING } from "@studio/plugin-contracts/naming";
+import { polygonArea } from "@studio/renderers/overlay2d/geometry";
+import { toCocoRle } from "@studio/renderers/cornerstone/rle";
+import { NAMING } from "@studio/contracts/naming";
 import { assetUrl } from "@studio/plugin-ui-sdk";
 
 async function imageSize(item: StudioItem, annotations: Annotation[]): Promise<[number, number]> {

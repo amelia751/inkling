@@ -54,7 +54,7 @@ Redis and S3 paths run when `<envPrefix>TEST_DATABASE_URL`, `<envPrefix>TEST_RED
 and `<envPrefix>TEST_S3_ENDPOINT` (+ `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`) are set.
 
 Contracts (`kernel/contracts/_generated/`) are generated from `schemas/*.json`, which
-`pnpm emit:schemas` writes from `packages/plugin-contracts` (zod). Settings come from
+`pnpm emit:schemas` writes from `packages/contracts` (zod). Settings come from
 `<envPrefix>API_*` env vars and `secrets/api.env` (`API_SECRET_KEY`).
 
 Session-token scopes for the plugin routes: `plugins.read` (search, inspect, docs, workspace

@@ -1,4 +1,4 @@
-"""Runtime names from the naming config (packages/plugin-contracts/src/naming.ts → schemas/naming.json).
+"""Runtime names from the naming config (packages/contracts/src/naming.ts → schemas/naming.json).
 
 The product name never appears in kernel code (todo2 D3): contribution ids, env vars and
 resource names all come from here.

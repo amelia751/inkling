@@ -1,9 +1,9 @@
 import * as z from "zod";
-import { SlideIcon } from "@studio/studio-ui/icons";
-import { tool } from "@studio/studio-renderers/tool-catalog";
+import { SlideIcon } from "@studio/ui/icons";
+import { tool } from "@studio/renderers/tool-catalog";
 import { defineModule, type GeometryContribution } from "@studio/plugin-ui-sdk/module";
-import type { Geometry, Project, StudioItem } from "@studio/plugin-contracts/types";
-import { ns } from "@studio/plugin-contracts/naming";
+import type { Geometry, Project, StudioItem } from "@studio/contracts/types";
+import { ns } from "@studio/contracts/naming";
 
 export const WSI = ns("wsi");
 const ON_OSD = `renderer == ${WSI}.renderers.osd`;

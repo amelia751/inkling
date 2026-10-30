@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { toggleKeyframe, toggleOccluded, toggleOutside, type TrackGeometry } from "../tracks";
 import type { FrameEditor } from "./FrameEditor";
 import type { VideoEngine } from "./VideoEngine";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { useCommands } from "@studio/plugin-ui-sdk";
 
 /** Arrows typed into a slider or tab list belong to that control. */

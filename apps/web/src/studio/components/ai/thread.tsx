@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@studio/studio-ui/icons";
-import { Button } from "@studio/studio-ui/ui/button";
-import { Spinner } from "@studio/studio-ui/ui/spinner";
+import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
+import { Spinner } from "@studio/ui/ui/spinner";
 import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { artifactUrl } from "@/studio/lib/agent/client";
 import { approveInstall, getInstallRequest, rejectInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { formatBytes } from "@/studio/lib/format";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
-import type { Project, StudioItem } from "@studio/plugin-contracts";
+import type { Project, StudioItem } from "@studio/contracts";
 import { AgentCardView } from "./cards";
 import { Markdown } from "./markdown";
 

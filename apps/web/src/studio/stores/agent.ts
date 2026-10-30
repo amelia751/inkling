@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/contracts/naming";
 import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";

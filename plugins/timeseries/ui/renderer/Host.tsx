@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { CanvasNotice } from "@studio/studio-renderers/viewport-chrome/CanvasNotice";
-import { useCanvasSize } from "@studio/studio-renderers/viewport-chrome/useCanvasSize";
-import { labelNames } from "@studio/plugin-contracts/environment";
-import { matches } from "@studio/studio-ui/keys";
+import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
+import { useCanvasSize } from "@studio/renderers/viewport-chrome/useCanvasSize";
+import { labelNames } from "@studio/contracts/environment";
+import { matches } from "@studio/ui/keys";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { useScreenScale } from "../calibration";
 import { parseStripConfig, TIMESERIES, type StripChartConfig } from "../config";
 import { detectSuggestions } from "../detect";
@@ -18,7 +18,7 @@ import { ChannelMenu, CONFIG_LAYOUT, DisplayBar, filterText, SPEEDS, ToolOptions
 import { overviewTimeAt, type Caliper } from "./draw";
 import { computeFrame } from "./layout";
 import { nextSuggestion, setCodeOfSelected, StripChartEngine } from "./StripChartEngine";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { isEditable, useCommands, useHost, useToolOption, visibleFor } from "@studio/plugin-ui-sdk";
 
 /**

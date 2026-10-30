@@ -1,5 +1,5 @@
-import { parseHeader } from "@studio/studio-renderers/io/wfdb";
-import type { StudioItem } from "@studio/plugin-contracts/types";
+import { parseHeader } from "@studio/renderers/io/wfdb";
+import type { StudioItem } from "@studio/contracts/types";
 import type { RecordInfo, Recording, SignalReader } from "./types";
 import { assetUrl } from "@studio/plugin-ui-sdk";
 

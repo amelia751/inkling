@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Annotation, AnnotationDocument } from "@studio/plugin-contracts/types";
+import type { Annotation, AnnotationDocument } from "@studio/contracts/types";
 import { api, fetchStatus, VersioningError, type VersionedDocument } from "./api";
 
 /**

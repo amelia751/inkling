@@ -1,7 +1,7 @@
-import { FileIcon, TagIcon } from "@studio/studio-ui/icons";
+import { FileIcon, TagIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import type { Annotation, Project, StudioItem } from "@studio/plugin-contracts/types";
-import { ns } from "@studio/plugin-contracts/naming";
+import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * Named-entity / span labelling on plain text. Written from the outside, against the

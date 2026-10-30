@@ -1,20 +1,20 @@
 // Repo-wide rules (docs/README.md, todo/done/todo3.md Phase B):
 //   1. apps/* never import each other: they talk over HTTP and events only.
 //   2. packages/* never import from apps/* or plugins/*.
-//   3. plugins/*/ui imports only the SDK, contracts, studio-ui and studio-renderers (below).
+//   3. plugins/*/ui imports only the SDK, contracts, ui and renderers (below).
 // (Python has the same rules as import-linter contracts in the root pyproject.toml.)
 //
 // Plugin layering inside the web build (docs/modules.md, todo/done/todo2.md §1.9):
-//   packages/plugin-contracts  → nothing internal
+//   packages/contracts  → nothing internal
 //   packages/plugin-ui-sdk     → contracts
-//   packages/studio-ui         → nothing internal
-//   packages/studio-renderers  → sdk, contracts, studio-ui
-//   plugins/*/ui               → sdk, contracts, studio-ui, studio-renderers, and other plugins'
+//   packages/ui         → nothing internal
+//   packages/renderers  → sdk, contracts, ui
+//   plugins/*/ui               → sdk, contracts, ui, renderers, and other plugins'
 //                                manifest.ts / public.ts only
-//   extension-host             → sdk, contracts, studio-ui (bundled.ts and host.tsx are the
+//   extension-host             → sdk, contracts, ui (bundled.ts and host.tsx are the
 //                                composition roots and may import anything)
-//   studio (shell)             → extension-host, sdk, contracts, studio-ui; never @plugins/*
-//   studio/core                → like the shell, plus studio-renderers (the built-in tools)
+//   studio (shell)             → extension-host, sdk, contracts, ui; never @plugins/*
+//   studio/core                → like the shell, plus renderers (the built-in tools)
 // Tests (*.test.ts, *.test-helpers.ts) may reach into the host to set up a real registry.
 // Also: no brand name in code (D3). Usage: node tools/check-boundaries.mjs.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -40,7 +40,7 @@ const IMPORT = /(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["
 /** Layer (and plugin name / path inside it) of a repo-relative path. */
 function layerOfPath(rel) {
   let m;
-  if ((m = /^packages\/(agent-protocol|plugin-contracts|plugin-ui-sdk|studio-ui|studio-renderers)\//.exec(rel))) return { layer: m[1] };
+  if ((m = /^packages\/(agent-protocol|contracts|plugin-ui-sdk|ui|renderers)\//.exec(rel))) return { layer: m[1] };
   if ((m = /^plugins\/([^/]+)\/ui\/(.*)$/.exec(rel))) return { layer: "plugin", plugin: m[1], rest: m[2] };
   if (rel.startsWith("apps/web/src/extension-host/")) return { layer: "host", rest: rel.slice("apps/web/src/extension-host/".length) };
   if (rel.startsWith("apps/web/src/studio/core/")) return { layer: "core" };
@@ -62,15 +62,15 @@ function layerOfImport(file, spec) {
 
 const ALLOWED = {
   "agent-protocol": [],
-  "plugin-contracts": [],
-  "plugin-ui-sdk": ["plugin-contracts"],
-  "studio-ui": [],
-  "studio-renderers": ["plugin-ui-sdk", "plugin-contracts", "studio-ui"],
-  plugin: ["plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers"],
-  host: ["plugin-ui-sdk", "plugin-contracts", "studio-ui"],
-  shell: ["host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "core", "agent-protocol"],
+  "contracts": [],
+  "plugin-ui-sdk": ["contracts"],
+  "ui": [],
+  "renderers": ["plugin-ui-sdk", "contracts", "ui"],
+  plugin: ["plugin-ui-sdk", "contracts", "ui", "renderers"],
+  host: ["plugin-ui-sdk", "contracts", "ui"],
+  shell: ["host", "plugin-ui-sdk", "contracts", "ui", "core", "agent-protocol"],
   // Studio built-ins (files, labels, select, pan…): contributes like a plugin, lives in the shell.
-  core: ["shell", "host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers", "agent-protocol"],
+  core: ["shell", "host", "plugin-ui-sdk", "contracts", "ui", "renderers", "agent-protocol"],
 };
 const isPublicEntry = (rest) => /^(manifest|public)(\.tsx?)?$/.test(rest);
 const COMPOSITION_ROOTS = new Set(["bundled", "host"]);
@@ -86,7 +86,7 @@ function violation(fromRel, from, to) {
   if (ALLOWED[from.layer]?.includes(to.layer)) return null;
   const name = { plugin: "plugins/*/ui", host: "extension-host", shell: "the Studio shell" }[from.layer] ?? `packages/${from.layer}`;
   const target = { plugin: "@plugins/*", host: "extension-host", shell: "the Studio shell (apps/web/src/studio)" }[to.layer] ?? `@studio/${to.layer}`;
-  const hint = from.layer === "plugin" || from.layer === "studio-renderers" ? " (use the host API in @studio/plugin-ui-sdk)" : "";
+  const hint = from.layer === "plugin" || from.layer === "renderers" ? " (use the host API in @studio/plugin-ui-sdk)" : "";
   return `${name} must not depend on ${target}${hint}`;
 }
 
@@ -169,11 +169,11 @@ for (const file of pyFiles(join(repo, "plugins"))) {
 }
 
 // ---- No brand name in code (todo/done/todo2.md D3) -------------------------------------
-// The product name lives only in packages/plugin-contracts/src/naming.ts. Comments, docs,
+// The product name lives only in packages/contracts/src/naming.ts. Comments, docs,
 // presets and fixtures may mention it; code (strings and identifiers) may not.
 const BRAND = /\binkling\b/i;
 const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "apps/mcp/src", "packages", "plugins", "tools"].map((d) => join(repo, d)).filter(existsSync);
-const brandExempt = (rel) => rel.endsWith("plugin-contracts/src/naming.ts") || rel === "tools/check-boundaries.mjs" || rel.includes("__fixtures__") || rel.includes("/node_modules/");
+const brandExempt = (rel) => rel.endsWith("contracts/src/naming.ts") || rel === "tools/check-boundaries.mjs" || rel.includes("__fixtures__") || rel.includes("/node_modules/");
 for (const file of brandRoots.flatMap(codeFiles)) {
   const rel = relative(repo, file);
   if (brandExempt(rel)) continue;
@@ -186,7 +186,7 @@ for (const file of brandRoots.flatMap(codeFiles)) {
       const text = node.getText(sf);
       if (!BRAND.test(text)) return;
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
-      errors.push(`${rel}:${line}  ${text.trim().slice(0, 100)}\n    → brand name in code: use NAMING / ns() from @studio/plugin-contracts/naming`);
+      errors.push(`${rel}:${line}  ${text.trim().slice(0, 100)}\n    → brand name in code: use NAMING / ns() from @studio/contracts/naming`);
       return;
     }
     ts.forEachChild(node, visit);

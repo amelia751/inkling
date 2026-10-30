@@ -14,11 +14,11 @@ import {
   ShowIcon as Eye,
   CleanupIcon as Sparkles,
   VolumeIcon as Box,
-} from "@studio/studio-ui/icons";
-import { COLORMAPS, CT_PRESETS } from "@studio/studio-renderers/cornerstone/viewControls";
-import { BarButton, BarLabel, BarSelect, BarSep, ViewportBar } from "@studio/studio-renderers/viewport-chrome/bar";
-import { formatCombo } from "@studio/studio-ui/keys";
-import type { Plane } from "@studio/plugin-contracts/types";
+} from "@studio/ui/icons";
+import { COLORMAPS, CT_PRESETS } from "@studio/renderers/cornerstone/viewControls";
+import { BarButton, BarLabel, BarSelect, BarSep, ViewportBar } from "@studio/renderers/viewport-chrome/bar";
+import { formatCombo } from "@studio/ui/keys";
+import type { Plane } from "@studio/contracts/types";
 import { LAYOUT_LABELS, PLANES, usesPlanePicker, type Layout } from "../config";
 import type { VolumeSource } from "../dataKind";
 import { VOLUME_COMMANDS as C } from "../commands";

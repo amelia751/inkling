@@ -1,4 +1,4 @@
-import type { Annotation, Geometry } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry } from "@studio/contracts/types";
 import { applyShape, nextTrackId, round2, shapeAt, shapeData, type Box, type TrackGeometry } from "../tracks";
 import type { DrawKind } from "./FrameEditor";
 import { isEditable, newAnnotation, useHost } from "@studio/plugin-ui-sdk";

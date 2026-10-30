@@ -1,4 +1,4 @@
-import type { EnvironmentSpec, LabelGroup } from "@studio/plugin-contracts";
+import type { EnvironmentSpec, LabelGroup } from "@studio/contracts";
 import type { ContributionOf, ContributionType, PanelSlot } from "./module";
 
 /**

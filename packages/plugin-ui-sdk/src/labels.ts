@@ -1,4 +1,4 @@
-import type { LabelClass } from "@studio/plugin-contracts/environment";
+import type { LabelClass } from "@studio/contracts/environment";
 
 /**
  * Label-class colors. A class's own `color` from the environment wins (a CSS color, or a

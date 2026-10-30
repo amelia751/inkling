@@ -1,5 +1,5 @@
-import type { Project, SeedAsset, StudioItem } from "@studio/plugin-contracts/types";
-import { ns } from "@studio/plugin-contracts/naming";
+import type { Project, SeedAsset, StudioItem } from "@studio/contracts/types";
+import { ns } from "@studio/contracts/naming";
 
 /**
  * The `volume` data kind: one item per subject, whose files (sequences, DICOM series,

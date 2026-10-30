@@ -1,5 +1,5 @@
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 
 /** DICOM SEG / SR writers, for any environment whose items are DICOM (Cornerstone renderers). */
 export default defineModule({

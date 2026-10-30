@@ -1,10 +1,10 @@
-import { CardiacIcon } from "@studio/studio-ui/icons";
+import { CardiacIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
-import { modArrows } from "@studio/studio-ui/keys";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import { modArrows } from "@studio/ui/keys";
+import type { Project, StudioItem } from "@studio/contracts/types";
 import { CineConfigSchema } from "./config";
 import { cineGeometries } from "./geometries";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 export const CINE = ns("cine");
 const core = (n: string) => `${NS}.core.commands.${n}`;

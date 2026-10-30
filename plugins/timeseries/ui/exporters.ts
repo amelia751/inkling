@@ -1,12 +1,12 @@
-import { encodeAtr, ustar, type AtrAnnotation, type TarEntry } from "@studio/studio-renderers/io/wfdb";
+import { encodeAtr, ustar, type AtrAnnotation, type TarEntry } from "@studio/renderers/io/wfdb";
 import type { ExportContext, ExporterImpl } from "@studio/plugin-ui-sdk/module";
 import { resolveSpec, type ResolvedEnv } from "@studio/plugin-ui-sdk";
-import type { Annotation, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, StudioItem } from "@studio/contracts/types";
 import { stripConfig, TIMESERIES } from "./config";
 import { channelOf, codeOf, kindOf, ownAttributes, peakOf, rangeOf, rhythmOf, waveOf, type Kind } from "./model";
 import { loadInfo, type RecordInfo } from "./readers";
 import { WfdbExportConfigSchema } from "./wfdbCodes";
-import { RES } from "@studio/plugin-contracts/naming";
+import { RES } from "@studio/contracts/naming";
 
 /**
  * WFDB / LUDB / CSV exports of span and instant annotations. They read the stored v2 form

@@ -22,14 +22,14 @@ workspace configuration = environment spec, extension host = `extension-host/`.
 
 | Layer | Folder | May import |
 |---|---|---|
-| Contracts | `packages/plugin-contracts` (`@studio/plugin-contracts`) | nothing internal |
+| Contracts | `packages/contracts` (`@studio/contracts`) | nothing internal |
 | Plugin UI SDK | `packages/plugin-ui-sdk` (`@studio/plugin-ui-sdk`) | contracts |
-| UI primitives | `packages/studio-ui` (`@studio/studio-ui`): shadcn, icons, `cn`, keys | nothing internal |
-| Trusted renderers / kits | `packages/studio-renderers` (`@studio/studio-renderers`) | sdk, contracts, studio-ui |
-| First-party plugins | `plugins/<name>/ui` (`@plugins/<name>/…`) | sdk, contracts, studio-ui, studio-renderers, other plugins' `manifest.ts` / `public.ts` |
-| Extension host | `apps/web/src/extension-host/` (registry, resolver, commands, catalog, agent tools, agent panels) | sdk, contracts, studio-ui |
-| Studio shell | `apps/web/src/studio/` (routes, components, store, lib) | extension-host, sdk, contracts, studio-ui; never `@plugins/*` |
-| Studio built-ins | `apps/web/src/studio/core/` (files, labels, select, pan…; not a plugin) | like the shell, plus studio-renderers |
+| UI primitives | `packages/ui` (`@studio/ui`): shadcn, icons, `cn`, keys | nothing internal |
+| Trusted renderers / kits | `packages/renderers` (`@studio/renderers`) | sdk, contracts, ui |
+| First-party plugins | `plugins/<name>/ui` (`@plugins/<name>/…`) | sdk, contracts, ui, renderers, other plugins' `manifest.ts` / `public.ts` |
+| Extension host | `apps/web/src/extension-host/` (registry, resolver, commands, catalog, agent tools, agent panels) | sdk, contracts, ui |
+| Studio shell | `apps/web/src/studio/` (routes, components, store, lib) | extension-host, sdk, contracts, ui; never `@plugins/*` |
+| Studio built-ins | `apps/web/src/studio/core/` (files, labels, select, pan…; not a plugin) | like the shell, plus renderers |
 | Composition roots | `extension-host/bundled.ts`, `extension-host/host.tsx` | everything: the bundled plugin list and the host API binding |
 
 `pnpm check:boundaries` enforces this (tests may reach into the host). It also rejects the
@@ -48,7 +48,7 @@ Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
 ### Adding a first-party plugin
 
 1. Copy `plugins/_template` to `plugins/<name>` and rename the module id (`ns("<name>")`).
-2. Import only from the SDK, contracts, studio-ui and studio-renderers; third-party
+2. Import only from the SDK, contracts, ui and renderers; third-party
    dependencies go in the plugin's own `package.json` (`@studio/plugin-<name>`), and the
    plugin's `plugin.yaml` describes it for the registry (`node tools/build-registry.mjs`).
 3. Add one import and one `MODULES` entry in `apps/web/src/extension-host/bundled.ts`, and a
@@ -57,7 +57,7 @@ Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
 
 ### Data-only manifests and declarative UI
 
-Every plugin also has `plugins/<name>/plugin.yaml` (schema: `packages/plugin-contracts/src/plugin-manifest.ts`,
+Every plugin also has `plugins/<name>/plugin.yaml` (schema: `packages/contracts/src/plugin-manifest.ts`,
 emitted as `schemas/plugin.v1.json`): id, version, capabilities, runtime, providers,
 permissions, licences, resources. The registry, installer and agent read it without running
 code; `extension-host/manifests.ts` validates every one at build time, and a test checks
@@ -95,7 +95,7 @@ Ids are `<moduleId>.<type>.<name>` (OHIF style), e.g. `inkling.wsi.renderers.osd
 contribution has a one-line `description`, may have a `configSchema` (zod) and an `example`.
 
 Module ids are `${namespace}.<module>`. The namespace comes from the naming config
-(`packages/plugin-contracts/src/naming.ts`, also emitted as `schemas/naming.json`), so never
+(`packages/contracts/src/naming.ts`, also emitted as `schemas/naming.json`), so never
 hardcode it: write `ns("wsi")` or `` `${NS}.core.commands.undo` ``. That file is the only
 place the product name may appear in code, and `check:boundaries` enforces this. Stored
 documents (presets, environments, annotation geometry types) keep full ids. After a rename,

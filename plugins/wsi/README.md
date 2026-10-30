@@ -1,7 +1,7 @@
 # inkling.wsi: tiled image pyramids
 
 Deep-zoom image pyramids (DZI; whole-slide pathology, but any tiled pyramid such as
-satellite imagery) on OpenSeadragon. Vector editing is studio-renderers/overlay2d's `OverlayEngine`
+satellite imagery) on OpenSeadragon. Vector editing is renderers/overlay2d's `OverlayEngine`
 (select / move / reshape, box, ellipse, polygon, freehand, polyline, length, points,
 brush and eraser on vector regions); this module adds the OSD transform, the navigator,
 colour adjustments and the magic wand (`inkling.wsi.tools.wand`, which reads tile pixels).

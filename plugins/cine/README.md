@@ -3,7 +3,7 @@
 Any 4D image series (slices × frames, e.g. a 4D NIfTI cine MRI, a time-lapse z-stack) as
 one study item (`volume-time`). The `slice-frame-canvas` renderer draws one slice and frame
 at a time with spline / polygon / freehand contours and brush masks, a slice × frame
-thumbnail matrix, playback (`studio-renderers/viewport-chrome` Transport), copy-forward
+thumbnail matrix, playback (`renderers/viewport-chrome` Transport), copy-forward
 (Alt / Shift+Alt + arrows), shape interpolation across frames or slices (optionally
 cyclic) and import of reference label volumes as editable splines.
 

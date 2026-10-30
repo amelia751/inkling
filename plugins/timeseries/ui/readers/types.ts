@@ -1,4 +1,4 @@
-import type { StudioItem } from "@studio/plugin-contracts/types";
+import type { StudioItem } from "@studio/contracts/types";
 
 /** A loaded multichannel recording: one Float32Array of samples per channel, uniformly sampled at `fs`. */
 export interface Recording {

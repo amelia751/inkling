@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { DeleteIcon, TodoIcon } from "@studio/studio-ui/icons";
-import { ScrollArea } from "@studio/studio-ui/ui/scroll-area";
+import { DeleteIcon, TodoIcon } from "@studio/ui/icons";
+import { ScrollArea } from "@studio/ui/ui/scroll-area";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
-import { cn } from "@studio/studio-ui/utils";
+import { cn } from "@studio/ui/utils";
 import { describeGeometry } from "@/extension-host/describe";
-import { labelNames } from "@studio/plugin-contracts/environment";
+import { labelNames } from "@studio/contracts/environment";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useStudio } from "@/studio/stores/studio";
 import { ProvenanceBadge } from "./provenance";

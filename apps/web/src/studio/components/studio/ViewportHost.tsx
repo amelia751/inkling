@@ -3,7 +3,7 @@ import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import { registry } from "@/extension-host/registry";
 import type { ResolvedEnv, ResolvedViewport } from "@/extension-host/resolve";
 import { runtimeFor } from "@studio/plugin-ui-sdk/runtime";
-import type { Project, StudioItem } from "@studio/plugin-contracts/types";
+import type { Project, StudioItem } from "@studio/contracts/types";
 
 /**
  * Mounts one viewport's renderer. The renderer implementation comes from the registry

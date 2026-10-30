@@ -61,8 +61,8 @@ the word in the right-hand column.
 1. `apps/*` never import each other. They talk over HTTP and events only, so each one can
    deploy and scale alone. Shared code goes in `packages/`.
 2. `packages/*` never import from `apps/*` or `plugins/*`.
-3. `plugins/*/ui` imports only `plugin-ui-sdk`, `plugin-contracts`, `studio-ui` and
-   `studio-renderers` (and other plugins' `manifest.ts` / `public.ts`). A plugin's Python
+3. `plugins/*/ui` imports only `@studio/plugin-ui-sdk`, `@studio/contracts`, `@studio/ui` and
+   `@studio/renderers` (and other plugins' `manifest.ts` / `public.ts`). A plugin's Python
    imports only `studio_plugin_sdk`.
 
 ## Old paths

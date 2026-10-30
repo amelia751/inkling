@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ns } from "@studio/plugin-contracts/naming";
+import { ns } from "@studio/contracts/naming";
 import { useCommands } from "@studio/plugin-ui-sdk";
 
 /**

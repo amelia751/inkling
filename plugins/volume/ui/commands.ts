@@ -1,6 +1,6 @@
 import type { CommandContribution } from "@studio/plugin-ui-sdk/module";
 import { VOLUME } from "./dataKind";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 /**
  * The volume renderer's own commands (declared in the manifest, handled by the renderer

@@ -1,5 +1,5 @@
 import { resolveLabelColor, resolveToken } from "@studio/plugin-ui-sdk/labels";
-import type { Annotation } from "@studio/plugin-contracts/types";
+import type { Annotation } from "@studio/contracts/types";
 import { channelOf, codeOf, kindOf, peakOf, rangeOf, rhythmOf, waveOf } from "../model";
 import { GUTTER, type Frame, type Panel, xOf } from "./layout";
 

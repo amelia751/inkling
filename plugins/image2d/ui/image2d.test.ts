@@ -3,12 +3,12 @@ import "@/extension-host/bundled";
 import { labelGroupsFrom } from "@/studio/lib/api";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
-import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/plugin-contracts/types";
+import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/contracts/types";
 import { cocoExporter } from "./exporters";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./renderer/canvas/camera";
 import { RasterEditor, roundGeometry, type EditorEnv } from "./renderer/canvas/editor";
 import { StackConfigSchema } from "./view";
-import { NAMING, ns } from "@studio/plugin-contracts/naming";
+import { NAMING, ns } from "@studio/contracts/naming";
 
 // ---------------------------------------------------------------- camera
 

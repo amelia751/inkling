@@ -3,14 +3,14 @@ import "@/extension-host/bundled";
 import { describeGeometry } from "@/extension-host/describe";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment } from "@/extension-host/resolve";
-import { migrateDocument } from "@studio/plugin-contracts/migrations/annotations-v1-to-v2";
-import type { Annotation, Pt } from "@studio/plugin-contracts/types";
+import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-v2";
+import type { Annotation, Pt } from "@studio/contracts/types";
 import { describeInstant } from "./geometries";
 import { cellAreas, cellLabelMap, frameCoverage, groupCells, isPhase, paintOrder, phaseOps, resolvePhases, ring, type Grid, type Structures } from "./model";
 import { cineConfig, CINE_RENDERER } from "./public";
 import { copyCell, importReference, interpolateCells } from "./renderer/edits";
 import { dragMove, dragVertex, edgeInsertIndex, pickAt } from "./renderer/engine";
-import { NS, ns } from "@studio/plugin-contracts/naming";
+import { NS, ns } from "@studio/contracts/naming";
 
 const LABELS = ["right ventricle", "myocardium", "left ventricle"];
 const S: Structures = { rv: "right ventricle", myo: "myocardium", lv: "left ventricle" };

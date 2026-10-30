@@ -1,4 +1,4 @@
-"""Runtime names from the naming config (packages/plugin-contracts/src/naming.ts →
+"""Runtime names from the naming config (packages/contracts/src/naming.ts →
 schemas/naming.json), so plugin code never hardcodes the product name (todo2 D3).
 
 The SDK is installed into each plugin's own locked `uv` environment, usually as a copy, so

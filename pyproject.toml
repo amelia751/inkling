@@ -11,7 +11,7 @@ requires-python = ">=3.12,<3.13"
 package = false
 
 [tool.uv.workspace]
-members = ["apps/api", "apps/worker", "packages/plugin-sdk-py", "packages/observability-py", "apps/web/e2e"]
+members = ["apps/api", "apps/worker", "packages/plugin-sdk", "packages/observability-py", "apps/web/e2e"]
 exclude = ["plugins/*"]
 
 [tool.uv.sources]

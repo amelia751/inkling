@@ -19,7 +19,7 @@ import uvicorn
 import yaml
 
 REPO = Path(__file__).resolve().parents[3]
-SDK = REPO / "packages" / "plugin-sdk-py"
+SDK = REPO / "packages" / "plugin-sdk"
 
 
 def png(w: int, h: int) -> bytes:

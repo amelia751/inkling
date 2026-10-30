@@ -9,7 +9,7 @@ dependencies = ["studio-plugin-sdk", "httpx>=0.28"]
 dev = ["pytest>=9.2", "pyyaml>=6.0", "jsonschema>=4.23"]
 
 [tool.uv.sources]
-studio-plugin-sdk = { path = "../../packages/plugin-sdk-py" }
+studio-plugin-sdk = { path = "../../packages/plugin-sdk" }
 
 [build-system]
 requires = ["hatchling"]

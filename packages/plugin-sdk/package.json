@@ -1,5 +1,5 @@
 {
-  "name": "@studio/plugin-sdk-py",
+  "name": "@studio/plugin-sdk",
   "private": true,
   "description": "Python plugin SDK (uv workspace member); scripts run through uv",
   "scripts": {

@@ -39,7 +39,7 @@ This is a monorepo. Everything (web app, backend services, agent, plugins, share
 
 1. **`apps/*` never import each other.** They talk over HTTP and events only, so each one can be deployed and scaled on its own.
 2. **`packages/*` never import from `apps/*` or `plugins/*`.**
-3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `plugin-ui-sdk`, `plugin-contracts`, `studio-ui` and `studio-renderers`. `plugins/*/worker` imports only `plugin-sdk-py`.
+3. **Plugins use only the SDKs.** `plugins/*/ui` imports only `plugin-ui-sdk`, `plugin-contracts`, `studio-ui` and `studio-renderers`. `plugins/*/worker` imports only `plugin-sdk`.
 
 ---
 
@@ -86,7 +86,7 @@ Node 24 service built on the pi coding agent (`@earendil-works/pi-coding-agent`)
 | `NOTICE` | Apache-2.0 attribution for code adapted from `@daytona/pi`. Keep it. |
 
 ### `apps/worker`: plugin job runner (`@studio/worker`)
-Python process that pulls jobs from the queue and runs plugin tools (for example segmentation inference) through `plugin-sdk-py`. It acks and retries jobs and enforces resource budgets. All first-party `plugins/*/worker` packages are installed in one image. Kubernetes scales it on queue depth with KEDA, down to zero when idle.
+Python process that pulls jobs from the queue and runs plugin tools (for example segmentation inference) through `plugin-sdk`. It acks and retries jobs and enforces resource budgets. All first-party `plugins/*/worker` packages are installed in one image. Kubernetes scales it on queue depth with KEDA, down to zero when idle.
 
 ### `apps/mcp`: MCP server (`@studio/mcp`)
 Exposes the Studio environment tools (catalogue, get/validate/patch an environment) over the Model Context Protocol (stdio), so outside agents (Claude Desktop, Cursor and so on) can drive the Studio. It calls a running Studio over HTTP and never imports another app. The catalogue and validation routes still live in the web dev server (they run the TypeScript registry); see `apps/mcp/README.md`.
@@ -138,7 +138,7 @@ plugins/<name>/
 | `studio-ui/` | TS | Presentational building blocks: shadcn/ui components, icons, `cn` and other utils. No app state. |
 | `studio-renderers/` | TS | Heavy shared viewer engines plugins build on: cornerstone, 2-D overlay, timeline, viewport chrome, file IO, plus the trusted renderers declarative contributions map to (for example `mask-review`). |
 | `api-client/` | TS | Typed client for `apps/api`, generated from its OpenAPI spec. Used by `web`, `agent` and `mcp`. |
-| `plugin-sdk-py/` | Python | Worker-side SDK (`studio_plugin_sdk`): tool decorators, provider base classes, kernel client, job context, budgets. |
+| `plugin-sdk/` | Python | Worker-side SDK (`studio_plugin_sdk`): tool decorators, provider base classes, kernel client, job context, budgets. |
 | `observability-ts/`, `observability-py/` | TS, Python | Structured JSON logging and OpenTelemetry setup, so a trace follows one user action from web through api, agent and worker. |
 
 ---

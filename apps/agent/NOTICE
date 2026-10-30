@@ -1,0 +1,18 @@
+@inkling/agent
+Copyright Inkling contributors.
+
+This package contains code adapted from @daytona/pi 0.191.2
+(https://www.npmjs.com/package/@daytona/pi), Copyright Daytona Platforms Inc.,
+licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0).
+
+Adapted files (modified; each carries an attribution header):
+  src/sandbox/exec.ts     from src/sandbox.ts, src/ops.ts, src/util.ts
+  src/sandbox/ops.ts      from src/ops.ts
+  src/sandbox/search.ts   from src/grep-tool.ts, src/find-tool.ts
+  src/tools/sandbox.ts    from src/tools.ts
+
+Changes include: per-session multi-sandbox use instead of one CLI-flag sandbox,
+streaming bash via Daytona sessions with real abort/timeout, signed preview URLs,
+a ripgrep glob-ordering fix (excludes after includes), and removal of the host
+fallback paths.

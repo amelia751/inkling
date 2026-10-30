@@ -15,7 +15,6 @@
     "@cornerstonejs/adapters": "5.14.0",
     "@cornerstonejs/core": "5.14.0",
     "@cornerstonejs/dicom-image-loader": "5.14.0",
-    "@cornerstonejs/labelmap-interpolation": "5.14.0",
     "@cornerstonejs/metadata": "5.14.0",
     "@cornerstonejs/nifti-volume-loader": "5.14.0",
     "@cornerstonejs/tools": "5.14.0",

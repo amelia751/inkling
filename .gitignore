@@ -13,3 +13,8 @@ seed-data/*
 # Playwright screenshots and traces
 apps/web/e2e/.artifacts/
 __pycache__/
+
+# Local secrets: only the README and example templates are versioned.
+secrets/*
+!secrets/README.md
+!secrets/*.example

@@ -4,6 +4,9 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
-    "seeds": "uv run scripts/fetch-seeds.py"
+    "seeds": "uv run scripts/fetch-seeds.py",
+    "agent": "pnpm --filter @inkling/agent dev",
+    "agent:test": "pnpm --filter @inkling/agent test",
+    "agent:live": "pnpm --filter @inkling/agent test:live"
   }
 }

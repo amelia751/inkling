@@ -26,7 +26,7 @@ export default defineConfig({
   },
   optimizeDeps: {
     // Cornerstone's loaders resolve their codec WASM and workers via import.meta.url, which pre-bundling breaks.
-    exclude: ["@cornerstonejs/dicom-image-loader", "@cornerstonejs/labelmap-interpolation"],
+    exclude: ["@cornerstonejs/dicom-image-loader"],
     include: ["dicom-parser"],
   },
   worker: { format: "es" },

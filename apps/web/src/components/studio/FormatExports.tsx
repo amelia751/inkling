@@ -12,7 +12,7 @@ import { adapterFor } from "@/viewers/registry";
  * GeoJSON, WFDB…). Always built from the server's saved revision, never unsaved edits.
  */
 export function FormatExports({ project, enabled }: { project: Project; enabled: boolean }) {
-  const exporters = adapterFor(project)?.exporters ?? [];
+  const exporters = (adapterFor(project)?.exporters ?? []).filter((e) => e.available?.(project) ?? true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (!exporters.length) return null;

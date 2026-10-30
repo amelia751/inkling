@@ -201,7 +201,7 @@ describe("install flow through the approval broker", () => {
       if (e.type !== "approval") return;
       approval = e;
       // The Studio: the user approves in InstallReview (their own kernel call), then the card.
-      k!.userApproves(e.detail!.requestId);
+      if (e.detail?.kind === "plugin-install") k!.userApproves(e.detail.requestId);
       expect((await h!.json("POST", `/v1/approvals/${e.approvalId}`, { decision: "approve" })).status).toBe(200);
     });
     expect(approval).toMatchObject({ toolName: "request_install_approval", detail: { kind: "plugin-install", requestId: "req_1", workspaceId: "demo" } });

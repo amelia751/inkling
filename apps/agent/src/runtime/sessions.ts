@@ -30,6 +30,7 @@ import { type SandboxEvent, SandboxManager, type SandboxRefStore } from "../sand
 import { reclaimForQuota } from "../sandbox/sweeper.ts";
 import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/client.ts";
 import { SeedApiDatasetSource, SessionDatasetSource, StudioSampleSource, createDatasetTools } from "../tools/dataset.ts";
+import { createProjectTools } from "../tools/project.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
@@ -343,8 +344,15 @@ export class SessionService {
     // Server tools win over browser tools of the same name (the kernel sees the workspace's installs).
     const clientSpecs = profile.kernel ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools;
     tools.push(...createClientTools(clientSpecs, profile.clientTools, ctx.bridge));
+    // Project tools for every profile (todo6 Phase 6): reads plus proposals, with the session's kernel token.
+    const kernel = new KernelClient({
+      baseUrl: this.config.kernelUrl,
+      workspaceId: meta.projectId,
+      token: () => ctx.kernelToken,
+      headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}),
+    });
+    tools.push(...createProjectTools(kernel));
     if (profile.kernel) {
-      const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: meta.projectId, token: () => ctx.kernelToken });
       tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
     }

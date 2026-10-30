@@ -13,8 +13,13 @@
  */
 export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task";
 
-/** Structured context for an approval card. `plugin-install` opens the Studio's install review. */
-export type ApprovalDetail = { kind: "plugin-install"; requestId: string; workspaceId: string };
+/**
+ * Structured context for an approval card. `plugin-install` opens the Studio's install review;
+ * `proposal` (propose_schema / propose_relationship) links to Explore, where a person confirms it.
+ */
+export type ApprovalDetail =
+  | { kind: "plugin-install"; requestId: string; workspaceId: string }
+  | { kind: "proposal"; proposalKind: "mapping" | "relationship"; workspaceId: string };
 
 export type RunStatus = "queued" | "running" | "awaiting_approval" | "completed" | "failed" | "cancelled" | "expired";
 
@@ -75,7 +80,19 @@ export type AgentCard =
   | { kind: "document"; title: string; filename: string; markdown: string }
   | { kind: "tool-switch"; tool: string; label?: string; reason: string }
   | { kind: "review-suggestions"; action: "accept" | "reject"; annotationIds: string[]; reason: string }
-  | { kind: "select-annotations"; annotationIds: string[]; reason: string };
+  | { kind: "select-annotations"; annotationIds: string[]; reason: string }
+  /** open_location: a button that opens a project place; the agent never navigates by itself. */
+  | { kind: "location"; label: string; target: LocationTarget; reason?: string };
+
+/** Where open_location points (the same shape as contracts' `ProjectTarget`; ids, never paths). */
+export interface LocationTarget {
+  section: "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity";
+  nodeId?: string;
+  proposalId?: string;
+  tab?: string;
+  taskId?: string;
+  datasetId?: string;
+}
 
 export type AgentEventBody =
   | { type: "start"; model: string }
@@ -107,8 +124,9 @@ export interface CreateSessionRequest {
   /** Restricted licence: no sandbox egress, approval before dataset uploads. */
   restricted?: boolean;
   /**
-   * builder / task profiles: a kernel session token the Studio minted for this workspace with the
-   * profile's scopes (POST /api/v1/sessions). Kept in memory only; refreshed with each message.
+   * A kernel session token the Studio minted for this workspace with the profile's scopes
+   * (POST /api/v1/sessions): the project tools (every profile) and the builder / task tools use
+   * it. Kept in memory only; refreshed with each message.
    */
   kernelToken?: string;
 }
@@ -125,7 +143,7 @@ export interface SendMessageRequest {
   context?: string;
   /** Dataset snapshot for the dataset tools; replaces the session's previous one. */
   snapshot?: DatasetSnapshot;
-  /** A fresh kernel token (builder / task profiles), replacing the session's previous one. */
+  /** A fresh kernel token, replacing the session's previous one. */
   kernelToken?: string;
 }
 

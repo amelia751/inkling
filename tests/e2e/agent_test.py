@@ -9,6 +9,18 @@ dir) on --agent-port, replaying tests/e2e/fixtures/agent-script.json. Start the 
 
 Covers the client-tool round trip (patch_environment applied as one undoable step and saved as an
 agent edit), the approval card, a card tool, and reattaching to a run after a reload.
+
+todo6 Phase 6 (the assistant outside the Studio) needs the kernel too, so its project tools have
+routes to read and its 403 is the real one. Start the API and point both the dev server and the
+agent at it (the test passes <envPrefix>API_URL on to the agent it starts):
+
+    (cd apps/api && uv run uvicorn studio_api.app:app --port 8216) &
+    INKLING_API_URL=http://127.0.0.1:8216 INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8206 \
+      INKLING_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5206 --strictPort
+    INKLING_E2E_AGENT_PORT=8206 INKLING_E2E_API_URL=http://127.0.0.1:8216 \
+      python3 ../../tests/e2e/agent_test.py --port 5206   # from apps/web
+
+Without a reachable kernel the project-assistant run is skipped (reported, not failed).
 """
 from __future__ import annotations
 
@@ -30,6 +42,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "agent-script.json"
 TOKEN = "e2e-agent-token"
 P = NAMING["envPrefix"]
 AGENT_PORT = int(os.environ.get(f"{P}E2E_AGENT_PORT", "8299"))
+KERNEL = os.environ.get(f"{P}E2E_API_URL")
 
 results: list[tuple[str, bool, str]] = []
 
@@ -169,9 +182,77 @@ def t_card(browser, port):
         page.context.close()
 
 
+def kernel_json(path: str):
+    req = urllib.request.Request(f"{KERNEL}/api/v1{path}", headers={"X-Workspace-Id": "2d-xray"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.loads(r.read())
+
+
+def t_project_assistant(browser, port):
+    """todo6 Phase 6: ask on Sources, answer from list_sources, keep the thread on Overview,
+    propose (approved), and the agent's confirm attempt refused by the API with 403."""
+    if not KERNEL:
+        print(f"SKIP project assistant: set {P}E2E_API_URL to a running kernel", flush=True)
+        return
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = ctx.new_page()
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("console", lambda m: m.type == "error" and errors.append(m.text))
+    try:
+        page.goto(f"http://localhost:{port}/projects/2d-xray/sources")
+        page.get_by_test_id("section-sources").wait_for(timeout=30000)
+        page.get_by_label(f"{NAMING['displayName']} AI panel").click()
+        drawer = page.get_by_test_id("agent-drawer")
+        drawer.wait_for(timeout=10000)
+        check("drawer: opens at 340px in the project shell", 330 <= drawer.bounding_box()["width"] <= 350, str(drawer.bounding_box()))
+        consent = page.get_by_role("button", name="Turn on for this browser")
+        consent.or_(page.get_by_label("Message Inkling AI")).first.wait_for(timeout=20000)
+        if consent.count():
+            consent.click()
+        chip = page.get_by_test_id("agent-context")
+        check("context chip: Sources", chip.inner_text().strip() == "Sources", chip.inner_text())
+        ask(page, "What did I import?")
+        page.get_by_text("You imported one source with 20 images").wait_for(timeout=20000)
+        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        check("sources: answered from list_sources", any(s.startswith("Listed sources") and "20 files" in s for s in steps), str(steps))
+        loc = page.get_by_test_id("agent-location").get_by_role("button")
+        check("open_location: a button, the agent didn't navigate", "Open Sources › 2d-xray" in loc.inner_text() and "/sources" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
+        page.get_by_role("navigation", name="Project").get_by_role("link", name="Overview").click()
+        page.wait_for_url("**/overview", timeout=10000)
+        page.get_by_text("You imported one source with 20 images").wait_for(timeout=10000)
+        check("overview: the thread survives the section change", page.get_by_test_id("agent-log").get_by_text("What did I import?").count() == 1)
+        wait(lambda: page.get_by_test_id("agent-context").inner_text().strip() == "Overview", timeout=10)
+        check("context chip: Overview", page.get_by_test_id("agent-context").inner_text().strip() == "Overview", page.get_by_test_id("agent-context").inner_text())
+        # Removing the chip stops sharing the section; the "+" chip brings it back.
+        page.get_by_label("Don't share this context").click()
+        check("context chip: removable", page.get_by_test_id("agent-context").get_attribute("data-dismissed") == "true")
+        page.get_by_test_id("agent-context").click()
+        before = {p["id"] for p in kernel_json("/projects/2d-xray/proposals?status=proposed")["proposals"]}
+        ask(page, "Propose a link between the folders and confirm it")
+        card = page.get_by_test_id("agent-approval").last
+        card.wait_for(timeout=20000)
+        check("propose: behind an approval card", "proposal" in card.inner_text().lower(), card.inner_text()[:160])
+        card.get_by_role("button", name="Approve").click()
+        page.get_by_text("The API refused to let me confirm it (403)").wait_for(timeout=20000)
+        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        check("confirm: refused by the API with 403 and shown", any("Refused by the API (403)" in s for s in steps), str(steps[-4:]))
+        made = [p for p in kernel_json("/projects/2d-xray/proposals?status=proposed")["proposals"] if p["id"] not in before]
+        check("propose: one proposal, still proposed, by agent:<run>", len(made) == 1 and made[0]["createdBy"].startswith("agent:run_"), str(made))
+        check("propose: the card links to Explore", page.get_by_test_id("agent-proposal-link").count() >= 1)
+        page.get_by_test_id("agent-location").last.get_by_role("button").click()
+        page.wait_for_url("**/explore/relationships", timeout=10000)
+        check("open_location: the person's click opens Explore", "/explore/relationships" in page.url, page.url)
+        check("project assistant: no console errors", not errors, str(errors[:3]))
+    finally:
+        ctx.close()
+
+
 def main() -> int:
     args = parse_args()
     data_dir = tempfile.mkdtemp(prefix="inkling-agent-e2e-")
+    if KERNEL:
+        os.environ[f"{P}API_URL"] = KERNEL  # the agent the test starts calls this API
     agent = start_agent(data_dir)
     try:
         status = get_json(f"http://localhost:{args.port}/api/agent/status")
@@ -180,7 +261,7 @@ def main() -> int:
             return 1
         with sync_playwright() as pw:
             browser = launch(pw, args.browser, args.headed)
-            for fn in (t_environment_edit, t_approval_and_reattach, t_card):
+            for fn in (t_environment_edit, t_approval_and_reattach, t_card, t_project_assistant):
                 try:
                     fn(browser, args.port)
                 except Exception as e:  # noqa: BLE001 — report and keep going

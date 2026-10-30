@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon } from "@studio/ui/icons";
+import { useNavigate } from "react-router";
+import { ArrowRightIcon, CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, InfoIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon } from "@studio/ui/icons";
 import type { IconComponent } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
@@ -11,26 +12,46 @@ import { cn } from "@studio/ui/utils";
 import type { CardState } from "@/studio/stores/agent";
 import { isEditable, useStudio } from "@/studio/stores/studio";
 import type { Project, StudioItem } from "@studio/contracts/types";
+import { targetUrl } from "@/studio/lib/routes";
+import { useShell } from "@/studio/stores/shell";
 import { Markdown } from "./markdown";
+
+/** What Studio-only cards act on: the open dataset and its items. */
+export interface StudioCardContext {
+  project: Project;
+  items: StudioItem[];
+}
 
 interface CardProps {
   card: AgentCard;
   state: CardState;
   setState: (s: CardState) => void;
-  project: Project;
-  items: StudioItem[];
+  projectId: string;
+  studio?: StudioCardContext;
 }
 
+type StudioProps = CardProps & StudioCardContext;
+
+/** Cards that act on the open Studio (items, tools, annotations). */
+const STUDIO_ONLY = new Set<AgentCard["kind"]>(["items", "label-schema", "tool-switch", "review-suggestions", "select-annotations"]);
+
 /** Interactive result of an agent tool. Nothing here changes annotations until the expert clicks. */
-export function AgentCardView(props: CardProps) {
-  const { card } = props;
+export function AgentCardView({ studio, ...rest }: CardProps) {
+  const { card } = rest;
+  if (card.kind === "location") return <LocationCard {...rest} card={card} />;
+  if (card.kind === "document") return <DocumentCard {...rest} card={card} />;
+  if (STUDIO_ONLY.has(card.kind) && !studio)
+    return (
+      <Shell icon={InfoIcon} title="Open the Studio to use this">
+        <p className="px-3 pb-3 text-muted-foreground">This suggestion acts on items and annotations in the Studio.</p>
+      </Shell>
+    );
+  const props = { ...rest, ...studio! } as StudioProps;
   switch (card.kind) {
     case "items":
       return <ItemsCard {...props} card={card} />;
     case "label-schema":
       return <LabelSchemaCard {...props} card={card} />;
-    case "document":
-      return <DocumentCard {...props} card={card} />;
     case "tool-switch":
       return <ToolSwitchCard {...props} card={card} />;
     case "review-suggestions":
@@ -76,7 +97,7 @@ function useReveal() {
   };
 }
 
-function ItemsCard({ card, items }: CardProps & { card: Extract<AgentCard, { kind: "items" }> }) {
+function ItemsCard({ card, items }: StudioProps & { card: Extract<AgentCard, { kind: "items" }> }) {
   const [all, setAll] = useState(false);
   const reveal = useReveal();
   const itemIndex = useStudio((s) => s.itemIndex);
@@ -118,7 +139,7 @@ function ItemsCard({ card, items }: CardProps & { card: Extract<AgentCard, { kin
   );
 }
 
-function LabelSchemaCard({ card, project }: CardProps & { card: Extract<AgentCard, { kind: "label-schema" }> }) {
+function LabelSchemaCard({ card, project }: StudioProps & { card: Extract<AgentCard, { kind: "label-schema" }> }) {
   const { copied, copy } = useCopy();
   const current = labelNames(project.labels);
   const names = card.labels.map((l) => l.name);
@@ -190,7 +211,7 @@ function DocumentCard({ card }: CardProps & { card: Extract<AgentCard, { kind: "
   );
 }
 
-function ToolSwitchCard({ card, state, setState }: CardProps & { card: Extract<AgentCard, { kind: "tool-switch" }> }) {
+function ToolSwitchCard({ card, state, setState }: StudioProps & { card: Extract<AgentCard, { kind: "tool-switch" }> }) {
   const meta = useStudio((s) => s.env?.tools.find((t) => t.name === card.tool));
   const active = useStudio((s) => s.tool === card.tool && (!card.label || s.activeLabel === card.label));
   const use = () => {
@@ -216,7 +237,7 @@ function ToolSwitchCard({ card, state, setState }: CardProps & { card: Extract<A
   );
 }
 
-function ReviewCard({ card, state, setState }: CardProps & { card: Extract<AgentCard, { kind: "review-suggestions" }> }) {
+function ReviewCard({ card, state, setState }: StudioProps & { card: Extract<AgentCard, { kind: "review-suggestions" }> }) {
   const annotations = useStudio((s) => s.annotations);
   const lockedLabels = useStudio((s) => s.lockedLabels);
   const pending = annotations.filter((a) => card.annotationIds.includes(a.id) && a.provenance === "ai-suggested");
@@ -260,7 +281,7 @@ function ReviewCard({ card, state, setState }: CardProps & { card: Extract<Agent
   );
 }
 
-function SelectCard({ card, items, state, setState }: CardProps & { card: Extract<AgentCard, { kind: "select-annotations" }> }) {
+function SelectCard({ card, items, state, setState }: StudioProps & { card: Extract<AgentCard, { kind: "select-annotations" }> }) {
   const annotations = useStudio((s) => s.annotations);
   const reveal = useReveal();
   const found = annotations.filter((a) => card.annotationIds.includes(a.id));
@@ -284,5 +305,29 @@ function SelectCard({ card, items, state, setState }: CardProps & { card: Extrac
     >
       <p className="px-3 pb-3 text-muted-foreground">{card.reason}</p>
     </Shell>
+  );
+}
+
+/**
+ * open_location: the agent points, the person goes. A button that opens a project place
+ * (by node, proposal or task id, never a path); the agent never navigates by itself.
+ */
+function LocationCard({ card, setState, projectId }: CardProps & { card: Extract<AgentCard, { kind: "location" }> }) {
+  const navigate = useNavigate();
+  const go = () => {
+    setState("applied");
+    // Off desktop the drawer covers the page; close it so the place is visible.
+    if (window.innerWidth < 1024) useShell.getState().setAssistant(false);
+    navigate(targetUrl(projectId, card.target));
+  };
+  const label = /^open\b/i.test(card.label) ? card.label : `Open ${card.label}`;
+  return (
+    <div className="flex flex-col gap-1 self-start" data-testid="agent-location">
+      {card.reason && <p className="text-muted-foreground">{card.reason}</p>}
+      <Button variant="outline" size="sm" className="self-start" onClick={go}>
+        {label}
+        <ArrowRightIcon />
+      </Button>
+    </div>
   );
 }

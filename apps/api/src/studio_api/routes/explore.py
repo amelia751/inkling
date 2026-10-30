@@ -13,7 +13,9 @@ answer 403 to any session token.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+import re
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
@@ -22,6 +24,18 @@ from ..kernel import explore, projects
 
 router = APIRouter(prefix="/api/v1")
 
+# The agent service names the run a proposal came from (todo6 Phase 6). It holds the session
+# token anyway, so the header only adds detail to an `agent:` author; it can't make one up.
+RUN_HEADER = "X-Agent-Run"
+RUN_RE = re.compile(r"run_[A-Za-z0-9-]{1,64}")
+
+
+def author(ctx: RequestContext, request: Request) -> str:
+    run = request.headers.get(RUN_HEADER) or ""
+    if ctx.scopes and ctx.principal.startswith("agent:") and RUN_RE.fullmatch(run):
+        return f"agent:{run}"
+    return ctx.principal
+
 
 @router.get("/projects/{project_id}/proposals")
 def list_proposals(project_id: str, status: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
@@ -29,12 +43,12 @@ def list_proposals(project_id: str, status: str | None = None, ctx: RequestConte
 
 
 @router.post("/projects/{project_id}/proposals", status_code=201)
-def create_proposal(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def create_proposal(project_id: str, request: Request, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.require_project(db, ctx, project_id)
     if ctx.scopes and not ctx.allows("proposals.write"):
         raise HTTPException(403, "this session can't propose changes")
     # The kernel names the author (`agent:<run>` or `user:…`) from the context, never the body.
-    created_by = ctx.principal
+    created_by = author(ctx, request)
     payload = body["payload"] if isinstance(body.get("payload"), dict) else {}
     evidence = body["evidence"] if isinstance(body.get("evidence"), dict) else {}
     pr = projects.create_proposal(db, ctx, p, str(body.get("kind") or ""), payload, evidence, str(body.get("strength") or "possible"), created_by)

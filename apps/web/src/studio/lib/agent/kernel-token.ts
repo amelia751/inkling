@@ -1,16 +1,21 @@
-import { apiUrl } from "@/extension-host/runtime-config";
+import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import type { ProfileName } from "@studio/agent-protocol";
 
 /**
- * Kernel session tokens for the builder and task agent profiles (docs/plugins.md §8). The Studio,
- * acting as the signed-in user, mints a narrower token bound to this workspace and hands it to
- * the agent service with each message; the agent never holds the user's own credentials. Scopes
- * mirror `KERNEL_SCOPES` in apps/agent/src/tools/kernel.ts. Neither includes `plugins.approve`:
- * installs are approved by the user in the install review, never by the agent.
+ * Kernel session tokens for the agent (docs/plugins.md §8). The Studio, acting as the signed-in
+ * user, mints a narrower token bound to this project and hands it to the agent service with each
+ * message; the agent never holds the user's own credentials. Every profile reads its project and
+ * may create proposals (todo6 Phase 6: `proposals.write`, never confirm: the kernel only lets a
+ * person confirm); builder and task add their own. Scopes mirror `KERNEL_SCOPES` in
+ * apps/agent/src/tools/kernel.ts. None includes `plugins.approve`: installs are approved by the
+ * user in the install review, never by the agent.
  */
-export const KERNEL_SCOPES: Partial<Record<ProfileName, string[]>> = {
-  builder: ["plugins.read", "plugins.manage", "plugins.author"],
-  task: ["assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
+  assistant: ["proposals.write"],
+  "environment-designer": ["proposals.write"],
+  coder: ["proposals.write"],
+  builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write"],
+  task: ["proposals.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 };
 
 const TTL_S = 3600;
@@ -19,7 +24,8 @@ const cache = new Map<string, { token: string; expiresAt: number }>();
 /** A token for this workspace and profile, reused until 10 minutes before it expires; undefined if the kernel isn't reachable. */
 export async function kernelToken(workspaceId: string, profile: ProfileName): Promise<string | undefined> {
   const scopes = KERNEL_SCOPES[profile];
-  if (!scopes) return undefined;
+  // Without the kernel (the dev seed server) there is nothing to mint a token from.
+  if (!scopes || !runtimeConfig().kernel) return undefined;
   const key = `${workspaceId}:${profile}`;
   const hit = cache.get(key);
   if (hit && hit.expiresAt - Date.now() > 10 * 60_000) return hit.token;

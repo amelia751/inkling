@@ -112,6 +112,13 @@ def test_agents_can_propose_but_never_confirm(client):
     assert pr["createdBy"] == "agent:run-1" and pr["status"] == "proposed"
     assert client.post(f"/api/v1/proposals/{pr['id']}/confirm", json={}, headers=agent).status_code == 403
     assert client.post(f"/api/v1/proposals/{pr['id']}/dismiss", headers=agent).status_code == 403
+    # The agent service names the run (todo6 Phase 6); only for agent tokens, and only a run id.
+    r2 = client.post(f"/api/v1/projects/{p['id']}/proposals", json={"kind": "mapping", "payload": {}}, headers={**agent, "X-Agent-Run": "run_0f3a-9"}).json()
+    assert r2["createdBy"] == "agent:run_0f3a-9"
+    bad = client.post(f"/api/v1/projects/{p['id']}/proposals", json={"kind": "mapping", "payload": {}}, headers={**agent, "X-Agent-Run": "user:mallory"}).json()
+    assert bad["createdBy"] == "agent:run-1"
+    mine = client.post(f"/api/v1/projects/{p['id']}/proposals", json={"kind": "mapping", "payload": {}}, headers={"X-Agent-Run": "run_x"}).json()
+    assert mine["createdBy"].startswith("user:")
     # A person can; the decision is audited and shows in Activity with the actor.
     assert client.post(f"/api/v1/proposals/{pr['id']}/confirm", json={}).json()["proposal"]["status"] == "confirmed"
     assert client.post(f"/api/v1/proposals/{pr['id']}/confirm", json={}).status_code == 409

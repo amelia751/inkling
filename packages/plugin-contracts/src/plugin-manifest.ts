@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { AnnotationDiffRules } from "./annotation-diff";
 import { NAMING } from "./naming";
 
 /**
@@ -118,6 +119,14 @@ export const PluginManifest = z
       .strict()
       .optional(),
     events: z.object({ subscribes: z.array(z.string()).default([]) }).strict().optional(),
+    /** Annotation semantics the plugin declares for platform services that can't run its code. */
+    annotations: z
+      .object({
+        /** Diff and merge rules per annotation kind for dataset versioning (todo4 V13). */
+        diff: AnnotationDiffRules.optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((m, ctx) => {

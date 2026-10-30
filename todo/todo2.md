@@ -17,15 +17,15 @@
 
 ## Status (2026-10-30)
 
-- **Phase 0:** partial. The naming config, the brand-literal check, the rename tooling and the docs are done. The baseline in 0.2 was never recorded, and the SDK and `apps/agent` don't read `schemas/naming.json` yet.
+- **Phase 0:** partial. The naming config, the brand-literal check, the rename tooling and the docs are done, and `packages/plugin-sdk-py` reads `schemas/naming.json` (the worker sends it with each job). The baseline in 0.2 was never recorded, and `apps/agent` doesn't read `schemas/naming.json` yet.
 - **Phase 1:** done. The whole e2e suite passes on merged `main` and the generated schemas are current.
-- **Phase 2:** done, except the root `README.md` for `plugins/export-dicom`.
+- **Phase 2:** done.
 - **Phase 3:** done.
 - **Phase 4:** done, except that no CI runs the contract drift check.
 - **Phase 5:** done.
-- **Phase 6:** partial. The SDK, worker, segmentation plugin, `studio.mask-review.v1` and budgets are in, and the exit e2e passes locally. Still missing: the SDK's `annotations.write` client, a Meta SAM adapter verified against the real API, and CI.
+- **Phase 6:** partial. The SDK (with an `annotations.write` client), the worker, the segmentation plugin, `studio.mask-review.v1` (with a unit test) and budgets are in, and the exit e2e passes locally. The Meta SAM adapter follows Meta's Model API docs as of 2026-10-30, but it can't decode masks until Meta's `meta-sam-parser` is added to the plugin's lock. There's no CI.
 - **Phase 7:** not started. It depends on `todo/todo1.md`, which is done (`apps/agent`, wire types in `packages/agent-protocol`). The environment-designer profile already accepts the browser's `list_capabilities` and `inspect_plugin` tools.
-- **Phase 8:** partial. Most of the §14 tests exist (`apps/api/tests`, `apps/worker/tests`, `plugins/segmentation/tests`). The agent builder-policy test and the rollback and tier-3 iframe web e2e tests don't.
+- **Phase 8:** partial. The §14 tests exist (`apps/api/tests`, `apps/worker/tests`, `plugins/segmentation/tests`), and `apps/web/e2e/plugin_isolation_test.py` covers the rollback and tier-3 iframe web e2e tests. Only the agent builder-policy test is missing.
 - **Phase 9:** not started.
 
 Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves things like `scripts/` and the docs, so the paths below may change.
@@ -33,15 +33,12 @@ Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves thin
 ### What's left
 
 - **Phase 0**
-  - `packages/plugin-sdk-py` reads `schemas/naming.json` instead of literals. `apps/agent` is covered in Phase 7.
-- **Phase 2**
-  - Add `plugins/export-dicom/README.md`.
+  - `apps/agent` reading `schemas/naming.json` is covered in Phase 7.
 - **Phase 4**
   - Wire `apps/api/scripts/gen_contracts.py --check`, `emit-schemas.mjs --check` and `build-registry.mjs --check` into CI. There is no CI config yet.
 - **Phase 6**
-  - Add an `annotations.write` client to `packages/plugin-sdk-py/src/studio_plugin_sdk/context.py`, or record that results go only through the gateway.
-  - Verify `plugins/segmentation/src/segmentation_plugin/providers/meta_sam.py` against Meta's current API docs.
-  - Run `apps/web/e2e/plugins_test.py` in CI (it passes locally). A unit test for `packages/studio-renderers/src/mask-review/MaskReview.tsx` would also help.
+  - Add Meta's `meta-sam-parser` (0.1.0, SAM License) to `plugins/segmentation/uv.lock` after a dependency and licence review. Until then `meta.sam` refuses before the billable call, because Meta's mask payloads are range-coded base85 and the parser is the only documented decoder.
+  - Run `apps/web/e2e/plugins_test.py` and `plugin_isolation_test.py` in CI. Both pass locally.
 - **Phase 7** (all)
   - `apps/agent/src/sandbox/defaults.ts` and the agent prompts read `schemas/naming.json` (`APP_LABEL` and `INKLING_SESSION` are still hardcoded).
   - Add `apps/agent/src/tools/kernel.ts` with the builder and task tools.
@@ -51,8 +48,6 @@ Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves thin
   - Put the §7.1 preference order in the builder prompt.
 - **Phase 8**
   - `apps/agent/test/unit/builder-policy.test.ts`.
-  - A rollback web e2e test.
-  - A web e2e test asserting the tier-3 iframe has `sandbox` without `allow-same-origin`.
 - **Phase 9** (all)
   - `create_plugin_sandbox` on `apps/agent/src/sandbox/`.
   - `run_plugin_checks`.
@@ -103,7 +98,7 @@ Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves thin
   } as const;
   export const ns = (local: string) => `${NAMING.namespace}.${local}`;
   ```
-- [ ] `scripts/emit-schemas.mjs` also writes `schemas/naming.json`, so the Python kernel, worker and SDK (Phases 4–6), `scripts/mcp.mjs` and `apps/agent` read the same values instead of their own literals. _(partial: `schemas/naming.json` is emitted and read by the kernel, worker, `mcp.mjs`, Vite config and e2e harness; `packages/plugin-sdk-py` and `apps/agent` still don't read it)_
+- [ ] `scripts/emit-schemas.mjs` also writes `schemas/naming.json`, so the Python kernel, worker and SDK (Phases 4–6), `scripts/mcp.mjs` and `apps/agent` read the same values instead of their own literals. _(partial: `schemas/naming.json` is emitted and read by the kernel, worker, `mcp.mjs`, Vite config, e2e harness and `packages/plugin-sdk-py` (`studio_plugin_sdk.naming`: the job's config from the worker, else `STUDIO_NAMING_FILE`, else the checkout; 2026-10-30). `apps/agent` still doesn't read it)_
 - [x] Replace literals in code with `ns(...)` / `NAMING.*`:
   - module id constants (`export const IMAGE2D = "inkling.image2d"` → `ns("image2d")`), in every `manifest.ts` and kit manifest;
   - `resolveDefaults.baseModules`;
@@ -288,7 +283,7 @@ The TypeScript manifests stay the source of truth for **trusted** code: function
 - [x] `scripts/emit-schemas.mjs`: also emit `schemas/plugin.v1.json`, `schemas/ui-contributions.v1.json` and `schemas/capabilities/*.json`. These are the shared source for the Python kernel (Phase 4 generates pydantic models from them).
 
 ### 2.2 A manifest for every first-party plugin
-- [ ] Write `plugins/<name>/plugin.yaml` for image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, text-spans and export-dicom. Use `runtime.kind: browser-bundled` and `ui.module: ui/manifest.ts`. Permissions are empty: these are UI-only and run in the trusted origin. Add a `README.md` at the plugin root (move the module README up one level). _(partial: every `plugin.yaml` exists; `plugins/export-dicom/README.md` is missing)_
+- [x] Write `plugins/<name>/plugin.yaml` for image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, text-spans and export-dicom. Use `runtime.kind: browser-bundled` and `ui.module: ui/manifest.ts`. Permissions are empty: these are UI-only and run in the trusted origin. Add a `README.md` at the plugin root (move the module README up one level). _(export-dicom had no module README; `plugins/export-dicom/README.md` written 2026-10-30)_
 - [x] Write `plugins/_template/plugin.yaml` plus a commented `ui/contributions.json`. This template is what the coder worker copies in Phase 9.
 - [x] `apps/web/src/extension-host/manifests.ts`: load the plugin manifests at build time (`import.meta.glob("../../../../plugins/*/plugin.yaml", { query: "?raw" })` plus `yaml` parse, or convert them to `plugin.json` if you'd rather not add a YAML dependency) and validate them against the contract.
 - [x] Test `extension-host/manifests.test.ts`:
@@ -388,7 +383,7 @@ New code. Nothing to move, except the dev seed endpoints.
 
 ## Phase 6. Python plugin worker and the reference segmentation plugin (`plugins.md` §5.1, §12)
 
-- [ ] `packages/plugin-sdk-py` (uv package `studio-plugin-sdk`, import name `studio_plugin_sdk`): _(partial: `Registry` tools, `ToolContext` with assets/jobs/brokered secrets, RLE/PNG mask helpers; no `annotations.write` client, results go back through the gateway)_
+- [x] `packages/plugin-sdk-py` (uv package `studio-plugin-sdk`, import name `studio_plugin_sdk`): _(2026-10-30: `ctx.annotations.write` posts to the new kernel route `POST /api/v1/annotations`. It is plugin sessions only, bound to the running job (`X-Job-Id`), and shape-checked like the gateway commit path. The kernel stamps author, provenance and id, writes are idempotent per key, and PUT document / review are refused for plugin sessions. Capability results still go only through the gateway's `finish`, which validates them against the capability schema. Tests: `apps/api/tests/test_annotations_write.py`, `packages/plugin-sdk-py/tests/test_naming_and_annotations.py`)_
   - a `register(tool)` decorator;
   - a `ToolContext` with scoped clients: `assets.read`, `annotations.write`, `jobs.progress`, `secrets.use(name)` (brokered);
   - no DB or network handles;
@@ -400,7 +395,7 @@ New code. Nothing to move, except the dev seed endpoints.
   - reports results to the gateway, which validates and commits them.
 
   A plugin crash fails only its own job (§14 #6).
-- [ ] `plugins/segmentation/` exactly per §5.1: _(partial: full layout and 9 passing tests; `meta_sam.py` is a placeholder not verified against Meta's current API)_
+- [ ] `plugins/segmentation/` exactly per §5.1: _(partial: full layout and 29 passing tests. On 2026-10-30, `meta_sam.py` was rewritten against Meta's Model API docs: `POST https://api.meta.ai/v1/responses`, model `sam-3.1`, Responses-style `input_text` + `input_image`, and Meta's box/point token grammar. The output is parsed into boxes plus box-local masks. Pricing is $2.50/1k images and egress is `api.meta.ai`; sources are in the file's docstring. Mask payload decoding needs Meta's `meta-sam-parser`, which isn't locked: adding the dependency was not approved in this pass)_
   - `plugin.yaml` (`id: <ns>.segmentation`, `runtime.kind: python-worker`);
   - `pyproject.toml` and `uv.lock`;
   - `skills/segmentation/SKILL.md`;
@@ -411,7 +406,7 @@ New code. Nothing to move, except the dev seed endpoints.
   - `meta_sam.py` must follow the **current** Meta API docs at integration time. Don't copy the §6.1 abstraction as if it were the upstream signature.
 - [x] `packages/studio-renderers/src/mask-review/`: a trusted `studio.mask-review.v1` renderer that overlays instances (reusing overlay2d/cornerstone mask drawing), with accept, reject and edit per instance. Edits write canonical annotations with provenance (`provider`, `model`, `prompt`, `review_status`).
 - [x] Budgets: estimate the cost before a batch from provider metadata (`effective_at`, `source_url`), and deny before any billable call (§14 #10).
-- [ ] **Exit (`plugins.md` Phase 1):** "Add segmentation" (by hand through the install dialog for now) activates the toolbar, masks work with the mock provider in CI, and no web deploy was needed. _(partial: `apps/web/e2e/plugins_test.py` passes 8/8 locally against the kernel and a worker (2026-10-30); there's no CI yet)_
+- [ ] **Exit (`plugins.md` Phase 1):** "Add segmentation" (by hand through the install dialog for now) activates the toolbar, masks work with the mock provider in CI, and no web deploy was needed. _(partial: `apps/web/e2e/plugins_test.py` passes 8/8 locally against the kernel and a worker (2026-10-30); there's no CI yet. `MaskReview.test.ts` covers the review panel)_
 
 ---
 
@@ -446,10 +441,10 @@ Each item from §14 becomes a test, kept in a single file per area:
 | 6 worker timeout doesn't affect API | `apps/worker/tests/test_isolation.py` |
 | 7 idempotent re-run | `test_jobs_idempotency.py` |
 | 8 provider switch preserves masks | `test_provider_switch.py` |
-| 9 rollback keeps annotations | `test_rollback.py` + web e2e |
+| 9 rollback keeps annotations | `test_rollback.py` + web e2e (`apps/web/e2e/plugin_isolation_test.py`) |
 | 10 budget denial before billable call | `test_budget.py` |
 | 11 dependency conflicts surfaced | `test_resolver.py` |
-| 12 generated UI never runs in the main origin | web e2e: a tier-3 iframe has `sandbox` without `allow-same-origin`; a contributions loader test rejects `renderer` values that aren't in the trusted registry |
+| 12 generated UI never runs in the main origin | web e2e: a tier-3 iframe has `sandbox` without `allow-same-origin` (`plugin_isolation_test.py`); a contributions loader test rejects `renderer` values that aren't in the trusted registry (`extension-host/declarative.test.ts`) |
 
 ---
 

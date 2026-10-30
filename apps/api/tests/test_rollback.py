@@ -36,3 +36,13 @@ def test_rollback_with_no_previous_pin_disables(registry_client):
     r = c.post("/api/v1/workspaces/ws-a/plugins/rollback", json={"pluginId": "test.seg"}, headers=ws("ws-a")).json()
     assert r["state"] == "DISABLED"
     assert c.post("/api/v1/commands", json={"tool": "test.seg.segment_objects", "input": {"asset_id": "img/a.png"}}, headers=ws("ws-a")).status_code == 403
+
+
+def test_configure_after_a_config_rollback_gets_a_fresh_revision(registry_client):
+    c = registry_client()
+    install(c, "ws-a", "test.seg")
+    cfg = lambda body: c.post("/api/v1/workspaces/ws-a/plugins/configure", json={"pluginId": "test.seg", "config": body}, headers=ws("ws-a"))  # noqa: E731
+    assert cfg({"budgetUsdPerJob": 0.5}).json()["configRevision"] == 1
+    assert c.post("/api/v1/workspaces/ws-a/plugins/rollback", json={"pluginId": "test.seg"}, headers=ws("ws-a")).json()["configRevision"] == 0
+    r = cfg({"budgetUsdPerJob": 0.25})
+    assert r.status_code == 200 and r.json()["configRevision"] == 2 and r.json()["config"] == {"budgetUsdPerJob": 0.25}

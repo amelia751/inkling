@@ -55,6 +55,15 @@ def validate_plugin_manifest(manifest: dict) -> list[str]:
         for c in p.get("implements") or []:
             if c not in caps:
                 errs.append(f"provider {p['id']} implements undeclared capability {c}")
+    kinds: set[str] = set()
+    for i, rule in enumerate(((manifest.get("annotations") or {}).get("diff")) or []):
+        g = rule.get("geometry") or {} if isinstance(rule, dict) else {}
+        if g.get("metric") == "iou" and not (isinstance(g.get("threshold"), (int, float)) and 0 < g["threshold"] <= 1):
+            errs.append(f"annotations.diff.{i}.geometry.threshold: iou threshold must be in (0, 1]")
+        if isinstance(rule, dict) and rule.get("kind") in kinds:
+            errs.append(f"annotations.diff.{i}.kind: more than one diff rule for {rule['kind']}")
+        if isinstance(rule, dict):
+            kinds.add(rule.get("kind"))
     if (manifest.get("runtime") or {}).get("kind") == "python-worker" and (manifest.get("ui") or {}).get("module"):
         errs.append("python-worker plugins can't ship a trusted TS module; use ui.contributions")
     return errs

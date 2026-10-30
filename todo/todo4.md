@@ -11,13 +11,13 @@ It's a new deployable Go service, `apps/versioning`, reached only through `apps/
 
 ## Status (2026-10-30)
 
-Audited against `main` after the commit "todo4: dataset versioning service (apps/versioning, Go) with schemas and generated Python client". `go build ./...` and `go vet ./...` pass. 56 items done, 7 partial, 15 open.
+Audited against `main` after the commit "todo4: dataset versioning service (apps/versioning, Go) with schemas and generated Python client". `go build ./...` and `go vet ./...` pass. 58 items done, 5 partial, 15 open (two partials closed on 2026-10-30).
 
 - **Phase 0 (scaffold):** done except `apps/versioning/README.md`, which doesn't exist.
 - **Phase 1 (Git metadata core):** done. Postgres storer passes go-git's `storage/test` suite; RLS, roles, commit protocol, checkout and integration tests exist. Benchmark numbers aren't recorded, and two unit tests are integration-only.
-- **Phase 2 (dataset semantics):** done, except that `plugin-contracts` doesn't own or emit the annotation-revision schema.
+- **Phase 2 (dataset semantics):** done. `plugin-contracts` owns and emits the annotation-revision schema (2026-10-30).
 - **Phase 3 (scale and recovery):** done in code (Parquet chunks, outbox relay, reconciler, GC, limits). The load test exists, but the 1M-entry run was interrupted and no results are recorded.
-- **Phase 4 (contracts):** partial. Schemas, `openapi.yaml`, Go stubs and the Python client exist. There's no `annotations.diff` block in `plugin-manifest.ts` and no CI drift check.
+- **Phase 4 (contracts):** partial. Schemas, `openapi.yaml`, Go stubs, the Python client and the `annotations.diff` block in `plugin-manifest.ts` exist. There's no CI drift check.
 - **Phase 5 (monorepo wiring):** not started. It waits for `todo3.md` (`turbo.json`, `infra/`, `.github/workflows/` and `docs/adr/` don't exist yet).
 - **Phase 6 (platform integration):** not started (no `routes/versioning.py`, web UI, agent tools, worker subscriber or e2e tests).
 - **Phase 7 (acceptance):** partial. Most criteria are covered by tests under different file names (`tests/integration/phase{1,2,3}_test.go`), but the stale-merge-target test, a release-verify integration test, k8s chaos, e2e flow C and the recorded load results are missing.
@@ -26,9 +26,8 @@ Audited against `main` after the commit "todo4: dataset versioning service (apps
 
 - **Phase 0:** write `apps/versioning/README.md` (how to run it, the architecture invariant, benchmark and load numbers).
 - **Phase 1:** record `make bench` results in the README; add unit tests for idempotency hit/miss/mismatch and foreign-tenant artifact rejection (in `internal/service/`).
-- **Phase 2:** make `packages/plugin-contracts` emit `schemas/versioning/annotation-revision.schema.json`.
 - **Phase 3:** re-run `make load` (100k, then `LOAD_ENTRIES=1000000`) after the interrupted 1M run, and record the results in `apps/versioning/README.md`.
-- **Phase 4:** add the `annotations.diff` block to `packages/plugin-contracts/src/plugin-manifest.ts` (and `schemas/plugin.v1.json`); run `make check-generated` in CI.
+- **Phase 4:** run `make check-generated` in CI.
 - **Phase 5 (after todo3):** `apps/versioning/Dockerfile`; the `versioning`, `minio-init` and `versioning-migrate` services in `infra/docker/compose.yaml`; `infra/k8s/base/versioning/`; `versioning-secrets`; a `go` job in `.github/workflows/ci.yml`; move `versioning.md` to `docs/versioning.md`; add a root `README.md` row; write `docs/adr/0002-versioning-storage.md`.
 - **Phase 6:** `apps/api/src/studio_api/routes/versioning.py` plus the kernel commands; the Studio save flow on `work/<actor>/<dataset>` branches; `apps/web/src/studio/core/versioning/`; agent tools in `apps/agent`; a worker subscriber for `versioning.review.opened`; `tests/e2e/versioning/` (flows A, B and C, plus `chaos_test.py`).
 - **Phase 7:** a merge stale-target test (409, review back to `CHECKING`); a release-verify integration test that iterates every release (today only the load test does this); a `gc/mark_test.go` checking that the reachable set covers all roots; recorded 1M results.
@@ -201,7 +200,7 @@ Sources:
 - [x] The manifest has `annotations: [{annotation_id, revision_id, sample_id, kind, ontology_rev, ref}]`. `ref` points to an immutable annotation-revision document in object storage (canonical JSON).
   - `kind` is one of `box2d`, `polygon2d`, `mask2d`, `region3d`, `timespan`, `measurement` and `textspan`, matching the geometries in `plugin-contracts`.
   - `coordinate_frame` and `calibration` are versioned fields (spec §3.3).
-- [ ] Map the Studio's annotation model (todo2 `plugin-contracts` geometries) to these kinds in `schemas/versioning/annotation-revision.schema.json`, with **one** owner: `plugin-contracts` emits it. _(partial: `schemas/versioning/annotation-revision.schema.json` exists, hand-written; `plugin-contracts` doesn't emit it, so it has no single owner yet)_
+- [x] Map the Studio's annotation model (todo2 `plugin-contracts` geometries) to these kinds in `schemas/versioning/annotation-revision.schema.json`, with **one** owner: `plugin-contracts` emits it. _(2026-10-30: zod source and `toAnnotationRevision` in `packages/plugin-contracts/src/annotation-revision.ts`. The mapping is box→box2d; polygon, polyline, spline and keypoint→polygon2d; 2D mask→mask2d (column-major RLE); 3D mask and point3d→region3d (voxel box); measurement→measurement; span and instant→timespan; module geometries via the plugin's `moduleKinds` (e.g. text spans→textspan). class, track, ellipse and multipolygon have no v1 kind. `pnpm emit:schemas` writes the file. Compared with the hand-written version, the only changes are an explicit `type: string` next to `const`/`enum`, a 2^53−1 `maximum` on integers, and a no-op `propertyNames`. `go test ./...` in `apps/versioning` passes)_
 
 ### 2.2 Semantic diff (spec §7)
 - [x] `semanticdiff/dispatcher.go`: compare manifest roots, then (Phase 3) chunk hashes, then entries. Outputs paginated change records: `sample.added|removed|replaced`, `annotation.added|removed|changed{fields}`, `ontology.*`, `grouping.*`.
@@ -271,7 +270,7 @@ Sources:
   - Go server interfaces via `oapi-codegen` (`go generate`);
   - a Python client for `apps/api` via `openapi-python-client`, output to `apps/api/src/studio_api/clients/versioning/` and regenerated in CI with a diff check;
   - no TS client, since browsers never call this service.
-- [ ] `plugin.yaml` schema (todo2 2.1): add the optional `annotations.diff` block (V13). This is a one-section edit to `plugin-manifest.ts`; coordinate with whoever owns todo2. _(partial: `schemas/versioning/annotation-diff-rules.schema.json` exists and the service validates against it; `packages/plugin-contracts/src/plugin-manifest.ts` has no `annotations.diff` block)_
+- [x] `plugin.yaml` schema (todo2 2.1): add the optional `annotations.diff` block (V13). This is a one-section edit to `plugin-manifest.ts`; coordinate with whoever owns todo2. _(2026-10-30: `annotations.diff` is a list of `AnnotationDiffRule`s (`packages/plugin-contracts/src/annotation-diff.ts`) matching the rule items of `annotation-diff-rules.schema.json`, at most one per kind and with iou thresholds in (0, 1]. A vitest checks the enums against that file. `schemas/plugin.v1.json` and the kernel's pydantic contracts are regenerated, and the kernel checks the same cross-field rules)_
 - [ ] A CI drift check: regenerate everything and `git diff --exit-code`. _(partial: `make check-generated` regenerates and runs `git diff --exit-code`; no CI workflow runs it — `.github/workflows/` doesn't exist)_
 
 ## Phase 5. Wiring into the monorepo (after todo3 C.3, D.2, D.3 and F exist)

@@ -40,6 +40,8 @@ def get_annotations(project_id: str, ctx: RequestContext = Depends(get_context),
 
 @router.put("/annotations/{project_id}")
 def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    if ctx.profile == "plugin":  # plugins write through POST /v1/annotations, never the whole document
+        raise HTTPException(403, "plugin sessions can't replace the annotation document")
     c = _project_ctx(ctx, project_id)
     ensure_workspace(db, c.workspace_id)
     return annotations.put_document(db, c, doc)
@@ -52,8 +54,24 @@ def list_annotations(item_id: str | None = None, label: str | None = None, limit
     return {"annotations": annotations.list_annotations(db, ctx, item_id, label, limit)}
 
 
+@router.post("/v1/annotations")
+def write_annotations(request: Request, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """`annotations.write` for plugin sessions (studio_plugin_sdk `ctx.annotations.write`).
+    Bound to the running job named in `X-Job-Id`; the kernel stamps identity and provenance."""
+    if ctx.profile != "plugin" or not ctx.allows("annotations.write"):
+        raise HTTPException(403, "this session can't write annotations (plugin sessions with annotations.write only)")
+    job_id = request.headers.get("X-Job-Id") or ""
+    if not job_id:
+        raise HTTPException(422, "X-Job-Id must name the job this write belongs to")
+    job = jobs.get(db, ctx, job_id)
+    ids = annotations.plugin_write(db, ctx, job, body.get("annotations"), key=ctx.idempotency_key)
+    return {"annotationIds": ids}
+
+
 @router.post("/v1/annotations/{annotation_id}/review")
 def review(annotation_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    if ctx.profile == "plugin":
+        raise HTTPException(403, "plugins can't review annotations")
     return annotations.set_review(db, ctx, annotation_id, str(body.get("status")))
 
 

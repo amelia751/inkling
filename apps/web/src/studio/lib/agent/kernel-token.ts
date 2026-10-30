@@ -9,7 +9,7 @@ import type { ProfileName } from "./protocol";
  */
 export const KERNEL_SCOPES: Partial<Record<ProfileName, string[]>> = {
   builder: ["plugins.read", "plugins.manage", "plugins.author"],
-  task: ["assets.read", "assets.write", "annotations.read", "commands.invoke"],
+  task: ["assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 };
 
 const TTL_S = 3600;

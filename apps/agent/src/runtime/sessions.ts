@@ -25,7 +25,7 @@ import { type SandboxEvent, SandboxManager, type SandboxRefStore } from "../sand
 import { reclaimForQuota } from "../sandbox/sweeper.ts";
 import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/client.ts";
 import { SeedApiDatasetSource, SessionDatasetSource, StudioSampleSource, createDatasetTools } from "../tools/dataset.ts";
-import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, createBuilderTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
+import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
@@ -322,7 +322,7 @@ export class SessionService {
     tools.push(...createClientTools(clientSpecs, profile.clientTools, ctx.bridge));
     if (profile.kernel) {
       const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: meta.projectId, token: () => ctx.kernelToken });
-      tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : createTaskTools(kernel)));
+      tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
     }
     if (profile.sandbox === true && this.sandboxes) tools.push(...this.sandboxTools(ctx));

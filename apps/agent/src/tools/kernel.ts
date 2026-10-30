@@ -38,7 +38,7 @@ export interface KernelAccess {
 /** Scopes the Studio mints for each profile's token; the kernel enforces them. */
 export const KERNEL_SCOPES = {
   builder: ["plugins.read", "plugins.manage", "plugins.author"],
-  task: ["assets.read", "assets.write", "annotations.read", "commands.invoke"],
+  task: ["assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 } as const;
 
 export class KernelClient {
@@ -411,6 +411,98 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
   });
 
   return [listAssets, invoke, createJob, jobStatus, listAnnotations, exportDataset];
+}
+
+// ---- Dataset versioning (todo4 Phase 6, versioning.md §16C) ------------------------------
+
+export const DATASET_TOOL_NAMES = ["dataset_branch", "dataset_commit", "dataset_diff", "dataset_open_review"] as const;
+
+interface Branch {
+  name: string;
+  commit_oid: string;
+  generation: number;
+}
+
+/**
+ * The agent works on its own `work/agent-*` branch of this workspace's dataset (the kernel picks
+ * the name and refuses any other branch). It can propose (commit, diff, open a review); approving
+ * and merging are never exposed, and the kernel refuses them for agent principals anyway.
+ */
+export function createDatasetVersioningTools(k: KernelClient): ToolDefinition<any, any, any>[] {
+  const command = <T>(local: string, input: Record<string, unknown>, signal?: AbortSignal, idem?: string) =>
+    k.post<{ result: T }>("/commands", { tool: ns(`versioning.${local}`), input: { dataset: k.workspaceId, ...input } }, signal, idem).then((r) => r.result);
+  const ensureBranch = (signal?: AbortSignal) => command<Branch>("branch", {}, signal);
+
+  const branch = defineTool({
+    name: "dataset_branch",
+    label: "Opening work branch",
+    description: "Create (or find) your own work branch of this dataset, from main. Returns its name and head commit. Every change you propose goes there, never to main.",
+    promptSnippet: "Your work branch of the dataset",
+    parameters: Type.Object({}),
+    async execute(_id, _args, signal) {
+      const b = await ensureBranch(signal);
+      return out(b, `${b.name} @ ${b.commit_oid.slice(0, 8)}`);
+    },
+  });
+
+  const commit = defineTool({
+    name: "dataset_commit",
+    label: "Committing to work branch",
+    description:
+      "Commit annotation changes to your work branch: `annotations` are Studio annotations upserted by id, `removeAnnotations` are ids to delete. " +
+      "Pass expectedHead from dataset_branch (or the previous commit) so a concurrent change is refused (409 stale_head) rather than overwritten.",
+    promptSnippet: "Commit annotation changes to your branch",
+    parameters: Type.Object({
+      message: Type.String({ maxLength: 500 }),
+      annotations: Type.Optional(Type.Array(Type.Record(Type.String(), Type.Unknown()), { maxItems: 2000 })),
+      removeAnnotations: Type.Optional(Type.Array(Type.String(), { maxItems: 2000 })),
+      expectedHead: Type.Optional(Type.String()),
+    }),
+    async execute(id, args, signal) {
+      const b = await ensureBranch(signal);
+      const r = await command<{ commit_oid: string; annotation_count: number }>(
+        "commit",
+        {
+          branch: b.name,
+          expected_head: args.expectedHead ?? b.commit_oid,
+          message: args.message,
+          tool: "agent",
+          changes: { annotations: args.annotations ?? [], remove_annotations: args.removeAnnotations ?? [] },
+        },
+        signal,
+        `agent:${id}`,
+      );
+      return out({ branch: b.name, ...r }, `${b.name} @ ${r.commit_oid.slice(0, 8)}`);
+    },
+  });
+
+  const diff = defineTool({
+    name: "dataset_diff",
+    label: "Diffing against main",
+    description: "Semantic diff of your work branch (or another ref) against main: samples and annotations added, removed or changed, with counts. Ids and enums only.",
+    promptSnippet: "What your branch changes versus main",
+    parameters: Type.Object({ head: Type.Optional(Type.String({ description: "Branch or commit; defaults to your work branch." })), base: Type.Optional(Type.String()) }),
+    async execute(_id, args, signal) {
+      const head = args.head ?? (await ensureBranch(signal)).name;
+      const r = await command<{ changes?: any[]; summary?: unknown }>("diff", { base: args.base ?? "main", head }, signal);
+      const changes = (r.changes ?? []).map((c) => ({ type: c.type, sample_id: c.sample_id, annotation_id: c.annotation_id, fields: c.fields }));
+      return out({ summary: r.summary, changes: changes.slice(0, 300), total: changes.length }, plural(changes.length, "change"));
+    },
+  });
+
+  const openReview = defineTool({
+    name: "dataset_open_review",
+    label: "Opening review",
+    description: "Ask for your work branch to be merged into main by opening a review. A human reviews and approves; you can't approve or merge.",
+    promptSnippet: "Propose your branch for review",
+    parameters: Type.Object({ title: Type.String({ maxLength: 200 }), description: Type.Optional(Type.String({ maxLength: 4000 })) }),
+    async execute(id, args, signal) {
+      const r = await command<{ review_id?: string; id?: string; status?: string }>("review.open", { title: args.title, description: args.description }, signal, `agent:${id}`);
+      return out(r, `Review ${String(r.review_id ?? r.id ?? "").slice(0, 12)} ${r.status ?? ""}`.trim());
+    },
+  });
+
+  return [branch, commit, diff, openReview];
 }
 
 // ---- Plugin authoring in a sandbox (§9, todo2 Phase 9) -------------------------------------

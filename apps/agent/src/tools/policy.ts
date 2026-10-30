@@ -68,6 +68,7 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | request_install_approval                                                 | ask (the Studio shows the install review) |
  * | activate / configure / disable / rollback_plugin                         | ask |
  * | invoke_capability, create_job (gateway runs, may bill)                   | ask |
+ * | dataset_open_review (dataset_branch/commit/diff: allow, work/agent-* only) | ask |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
  * | anything after a budget is exhausted                                     | deny |
  */
@@ -105,6 +106,8 @@ export function decide(
       return { kind: "ask", summary: `Disable ${str("pluginId")} in this workspace` };
     case "rollback_plugin":
       return { kind: "ask", summary: `Roll ${str("pluginId")} back to its previous version` };
+    case "dataset_open_review":
+      return { kind: "ask", summary: `Open a review to merge your work branch into main: ${str("title").slice(0, 200)}` };
     case "invoke_capability":
       return { kind: "ask", summary: `Run ${str("capability")} through the gateway (results arrive as AI suggestions to review)` };
     case "create_job": {

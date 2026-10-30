@@ -19,7 +19,7 @@ Audited against `main` after the commit "todo4: dataset versioning service (apps
 - **Phase 3 (scale and recovery):** done in code (Parquet chunks, outbox relay, reconciler, GC, limits). 100k load results are recorded in the README. The 1M re-run was cut off again (the Docker daemon went away 35 min in); its partial result is recorded.
 - **Phase 4 (contracts):** partial. Schemas, `openapi.yaml`, Go stubs, the Python client and the `annotations.diff` block in `plugin-manifest.ts` exist. There's no CI drift check.
 - **Phase 5 (monorepo wiring):** not started. It waits for `todo3.md` (`turbo.json`, `infra/`, `.github/workflows/` and `docs/adr/` don't exist yet).
-- **Phase 6 (platform integration):** done except the agent tools in `apps/agent`. `routes/versioning.py` and the `<ns>.versioning.*` kernel commands (JWT minting, agent policy, audit), the Studio's versioned save flow and `studio/core/versioning/` UI (off unless the kernel reports the service configured), the `diffPreview` registry, the worker's de-identification subscriber, and `tests/e2e/versioning/` flows A, B and C pass against the real Go service, Postgres and an S3 store in Docker. `chaos_test.py` is a documented skip until the k8s overlay exists (todo3).
+- **Phase 6 (platform integration):** done. Agent tools `dataset_branch|commit|diff|open_review` are in `apps/agent/src/tools/kernel.ts` (task profile; opening a review asks; approve and merge are never exposed and the kernel refuses them). `routes/versioning.py` and the `<ns>.versioning.*` kernel commands (JWT minting, agent policy, audit), the Studio's versioned save flow and `studio/core/versioning/` UI (off unless the kernel reports the service configured), the `diffPreview` registry, the worker's de-identification subscriber, and `tests/e2e/versioning/` flows A, B and C pass against the real Go service, Postgres and an S3 store in Docker. `chaos_test.py` is a documented skip until the k8s overlay exists (todo3).
 - **Phase 7 (acceptance):** partial. Most criteria are covered by tests under different file names (`tests/integration/phase{1,2,3}_test.go`), plus `tests/integration/stale_target_test.go`, `release_verify_test.go`, `gc_mark_test.go` and e2e flow C (`tests/e2e/versioning/flow_c_test.py`). k8s chaos and a complete 1M load result are missing.
 
 ### What's left
@@ -27,7 +27,7 @@ Audited against `main` after the commit "todo4: dataset versioning service (apps
 - **Phase 3:** complete the `LOAD_ENTRIES=1000000` run (100k is recorded; the 2026-10-30 1M attempt lost the Docker daemon 35 min in, during the first 1% update) and record it in `apps/versioning/README.md`. Run it alone and give Docker more memory.
 - **Phase 4:** run `make check-generated` in CI.
 - **Phase 5 (after todo3):** `apps/versioning/Dockerfile`; the `versioning`, `minio-init` and `versioning-migrate` services in `infra/docker/compose.yaml`; `infra/k8s/base/versioning/`; `versioning-secrets`; a `go` job in `.github/workflows/ci.yml`; move `versioning.md` to `docs/versioning.md`; add a root `README.md` row; write `docs/adr/0002-versioning-storage.md`.
-- **Phase 6:** agent tools in `apps/agent` (`dataset_branch`, `dataset_commit`, `dataset_diff`, `dataset_open_review` over the `<ns>.versioning.*` commands); `tests/e2e/versioning/chaos_test.py` for real once the dev k8s overlay exists (todo3). Plugin-contributed `diffPreview`s (mask, span) through module manifests; today only the built-in box/polygon preview is registered.
+- **Phase 6:** `tests/e2e/versioning/chaos_test.py` for real once the dev k8s overlay exists (todo3). Plugin-contributed `diffPreview`s (mask, span) through module manifests; today only the built-in box/polygon preview is registered.
 - **Phase 7:** recorded 1M results; k8s chaos. The stale-target, release-verify and GC-mark tests were added in `tests/integration/`.
 
 ---
@@ -307,7 +307,7 @@ Sources:
 
   Type-specific previews come from plugin renderers through a `diffPreview` contribution type, added to the todo2 2.3 renderer registry.
   - Done: off unless `GET /api/v1/versioning/status` is `ready` (so the plain save path and existing e2e are unchanged); `registerDiffPreview`/`diffPreviewFor` in `extension-host/trusted-renderers.tsx` with a built-in box/polygon preview. Pages: `/datasets/:id/versions` (history + revert, reviews, releases) and `/datasets/:id/versions/reviews/:reviewId`.
-- [ ] **Agent** (`apps/agent`, after todo1 is done): kernel tools `dataset_branch`, `dataset_commit`, `dataset_diff` and `dataset_open_review`, under the existing approval policy:
+- [x] **Agent** (`apps/agent`, after todo1 is done): kernel tools `dataset_branch`, `dataset_commit`, `dataset_diff` and `dataset_open_review`, under the existing approval policy:
   - commits to `work/agent-*` branches are allowed;
   - opening a review needs user approval;
   - approve and merge are **never** exposed to the agent (spec §16C).

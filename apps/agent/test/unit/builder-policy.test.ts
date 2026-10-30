@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { PROFILES } from "../../src/agent/profiles.ts";
 import { ns } from "../../src/naming.ts";
 import type { AgentEvent } from "../../src/protocol.ts";
-import { KernelClient, PLUGIN_DIR, createBuilderTools, createPluginSandboxTools, parseSandboxChecks, scaffoldFromTemplate, untrusted } from "../../src/tools/kernel.ts";
+import { KernelClient, PLUGIN_DIR, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, parseSandboxChecks, scaffoldFromTemplate, untrusted } from "../../src/tools/kernel.ts";
 import { type Budgets, type PolicyState, confined, decide } from "../../src/tools/policy.ts";
 import { FakeSandbox } from "./fake-sandbox.ts";
 import { ENV_TOOLS, harness } from "./harness.ts";
@@ -63,6 +63,8 @@ async function fakeKernel() {
     if (m) return send(200, requests.get(m[1]!));
     if (path.startsWith("/api/v1/plugins/artifacts"))
       return send(200, { ok: true, pluginId: ns("generated.counter"), version: "0.1.0", artifactDigest: "sha256:abc", errors: [], warnings: [], registered: !path.includes("dryRun") });
+    if (path === "/api/v1/commands" && String((JSON.parse(raw) as { tool?: string }).tool).includes(".versioning."))
+      return send(200, { result: { name: "work/agent-task/demo", commit_oid: "c0ffee00", generation: 1, changes: [{ type: "annotation.added", annotation_id: "a1" }] } });
     if (path === "/api/v1/commands") return send(202, { job: { jobId: "job_1", state: "queued", pluginId: SEG, tool: "segment_objects" } });
     send(404, { detail: `no route ${path}` });
   });
@@ -275,5 +277,22 @@ describe("plugin sandbox helpers (Phase 9)", () => {
     const bad = parseSandboxChecks('::deps ok\n2 failed\n::tests 1\n::licences [["evil","AGPL-3.0"],["ok","MIT"]]\n', 1);
     expect(bad).toMatchObject({ ok: false, tests: "1", licences: 2, copyleft: ["evil: AGPL-3.0"] });
     expect(parseSandboxChecks("::deps uv-missing\n", 3).problems[0]).toMatch(/uv isn't installed/);
+  });
+});
+
+describe("dataset versioning tools (todo4 Phase 6)", () => {
+  it("commit goes to the agent's own branch with expected_head; open_review asks; no approve or merge tool", async () => {
+    k = await fakeKernel();
+    const tools = new Map(createDatasetVersioningTools(new KernelClient({ baseUrl: k.url, workspaceId: "demo", token: () => KTOKEN })).map((t) => [t.name, t]));
+    expect([...tools.keys()].sort()).toEqual(["dataset_branch", "dataset_commit", "dataset_diff", "dataset_open_review"]);
+    await tools.get("dataset_commit")!.execute("c9", { message: "m", annotations: [{ id: "a1" }] }, undefined, undefined, {} as never);
+    const bodies = k.calls.map((c) => c.body as { tool: string; input: Record<string, unknown> });
+    expect(bodies.map((b) => b.tool)).toEqual([ns("versioning.branch"), ns("versioning.commit")]);
+    expect(bodies[1]!.input).toMatchObject({ dataset: "demo", branch: "work/agent-task/demo", expected_head: "c0ffee00" });
+    expect(k.calls[1]!.idem).toBe("agent:c9");
+    const budgets: Budgets = { maxToolCalls: 80, maxRunSeconds: 900, maxSpendUsd: 2 };
+    const st: PolicyState = { toolCalls: 0, startedAt: 0, spendUsd: 0, restricted: false, egressContained: false, userText: "" };
+    expect(decide({ toolName: "dataset_open_review", input: { title: "t" } }, st, budgets, {}, 0).kind).toBe("ask");
+    expect(decide({ toolName: "dataset_commit", input: {} }, st, budgets, {}, 0).kind).toBe("allow");
   });
 });

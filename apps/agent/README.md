@@ -85,7 +85,7 @@ The client picks a profile by name; the service decides its tools (`src/agent/pr
 | `environment-designer` | + environment client tools | none |
 | `coder` | + Daytona sandbox (needs Daytona) | none |
 | `builder` | builder tools (`inspect_workspace`, `list_capabilities`, `search_plugins`, `inspect_plugin`, `plan_plugin_change`, `stage_plugin`, `request_install_approval`, `activate_plugin`, `configure_plugin`, `disable_plugin`, `rollback_plugin`) + environment client tools (no `run_command`); with Daytona, also `create_plugin_sandbox`, `run_plugin_checks`, `build_plugin_artifact` and file tools confined to `/home/daytona/plugin` | `plugins.read`, `plugins.manage`, `plugins.author` |
-| `task` | `list_assets`, `invoke_capability`, `create_job`, `get_job_status`, `list_annotations`, `export_dataset` | `assets.read`, `assets.write`, `annotations.read`, `commands.invoke` |
+| `task` | `list_assets`, `invoke_capability`, `create_job`, `get_job_status`, `list_annotations`, `export_dataset`; dataset versioning: `dataset_branch`, `dataset_commit`, `dataset_diff`, `dataset_open_review` (own `work/agent-*` branch only; no approve or merge) | `assets.read`, `assets.write`, `annotations.read`, `commands.invoke`, `versioning.read`, `versioning.write`, `versioning.review`, `versioning.checkout` |
 
 Builder and task tools call `apps/api` (`AGENT_KERNEL_URL`) with a token the Studio mints for the
 session's workspace and sends as `kernelToken` with each message. The workspace and principal come

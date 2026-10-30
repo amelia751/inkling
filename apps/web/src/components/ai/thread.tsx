@@ -1,14 +1,31 @@
 import { useState } from "react";
-import { ChevronDownIcon, DoneIcon, ErrorIcon } from "@/components/icons";
+import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { artifactUrl } from "@/lib/agent/client";
+import { formatBytes } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/stores/agent";
 import type { Project, StudioItem } from "@/types";
 import { AgentCardView } from "./cards";
 import { Markdown } from "./markdown";
 
-const PAST: Record<string, string> = { Reading: "Read", Listing: "Listed", Checking: "Checked", Preparing: "Prepared", Drafting: "Drafted", Writing: "Wrote", Picking: "Picked", Finding: "Found" };
+const PAST: Record<string, string> = {
+  Reading: "Read",
+  Listing: "Listed",
+  Checking: "Checked",
+  Preparing: "Prepared",
+  Drafting: "Drafted",
+  Writing: "Wrote",
+  Picking: "Picked",
+  Finding: "Found",
+  Editing: "Edited",
+  Running: "Ran",
+  Validating: "Validated",
+  Previewing: "Previewed",
+  Uploading: "Uploaded",
+  Exporting: "Exported",
+};
 const pastTense = (title: string) => title.replace(/^(\w+)/, (w) => PAST[w] ?? w);
 
 export function UserMessage({ message }: { message: ChatMessage }) {
@@ -23,10 +40,22 @@ interface AssistantProps {
   project: Project;
   items: StudioItem[];
   onRetry?: () => void;
+  /** Undo an environment change the agent made (the Studio's env undo). */
+  onUndo?: (partId: string) => void;
 }
 
-export function AssistantMessage({ message, streaming, projectId, project, items, onRetry }: AssistantProps) {
+const SANDBOX_TEXT: Record<string, string> = {
+  creating: "Starting a sandbox…",
+  ready: "Sandbox ready",
+  resumed: "Sandbox resumed",
+  stopped: "Sandbox stopped",
+  deleted: "Sandbox deleted",
+  unavailable: "Sandbox unavailable; a new one starts on the next step",
+};
+
+export function AssistantMessage({ message, streaming, projectId, project, items, onRetry, onUndo }: AssistantProps) {
   const setCardState = useAgent((s) => s.setCardState);
+  const decide = useAgent((s) => s.decide);
   const groups = groupParts(message.parts);
   const idle = streaming && (message.parts.length === 0 || message.parts[message.parts.length - 1].type === "card");
 
@@ -37,6 +66,17 @@ export function AssistantMessage({ message, streaming, projectId, project, items
         const p = g.part;
         if (p.type === "text") return <Markdown key={i} text={p.text} />;
         if (p.type === "reasoning") return <Reasoning key={i} text={p.text} live={streaming && i === groups.length - 1} />;
+        if (p.type === "approval") return <ApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />;
+        if (p.type === "change") return <ChangeCard key={i} part={p} onUndo={onUndo && (() => onUndo(p.id))} />;
+        if (p.type === "artifact")
+          return (
+            <a key={i} href={artifactUrl(p.id)} download={p.name} className="flex items-center gap-2 self-start rounded-md border border-border px-2.5 py-1.5 hover:bg-generic">
+              <FileIcon className="size-3.5 shrink-0 text-hint" />
+              <span className="truncate">{p.name}</span>
+              <span className="shrink-0 text-hint">{formatBytes(p.bytes)}</span>
+            </a>
+          );
+        if (p.type === "status") return <p key={i} className="text-caption text-hint">{p.text}</p>;
         return (
           <AgentCardView
             key={i}
@@ -48,6 +88,11 @@ export function AssistantMessage({ message, streaming, projectId, project, items
           />
         );
       })}
+      {message.sandbox && (streaming || message.sandbox === "unavailable") && (
+        <p className={cn("text-caption", message.sandbox === "unavailable" ? "text-warning" : "text-hint")} data-testid="agent-sandbox">
+          {SANDBOX_TEXT[message.sandbox] ?? message.sandbox}
+        </p>
+      )}
       {idle && <p className="shimmer-text self-start">Thinking…</p>}
       {message.error && (
         <div className="flex items-start gap-2 rounded-lg bg-danger-tint px-3 py-2 text-danger">
@@ -58,8 +103,13 @@ export function AssistantMessage({ message, streaming, projectId, project, items
       )}
       {message.stopped && <p className="text-hint">Stopped.</p>}
       {!streaming && message.usage && (
-        <p className="text-caption text-hint" title={`${message.usage.inputTokens.toLocaleString()} tokens in · ${message.usage.outputTokens.toLocaleString()} out`}>
-          {message.model} · {(message.usage.inputTokens + message.usage.outputTokens).toLocaleString()} tokens
+        <p
+          className="text-caption text-hint"
+          title={`${message.usage.inputTokens.toLocaleString()} tokens in (${(message.usage.cachedTokens ?? 0).toLocaleString()} cached) · ${message.usage.outputTokens.toLocaleString()} out`}
+          data-testid="agent-usage"
+        >
+          {message.model} · {(message.usage.inputTokens + (message.usage.cachedTokens ?? 0) + message.usage.outputTokens).toLocaleString()} tokens
+          {message.usage.costUsd > 0 && ` · $${message.usage.costUsd < 0.01 ? message.usage.costUsd.toFixed(4) : message.usage.costUsd.toFixed(2)}`}
         </p>
       )}
     </div>
@@ -112,7 +162,59 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
           {JSON.stringify(part.input, null, 2)}
         </pre>
       )}
+      {part.output && (running || open) && (
+        <pre className="mt-1 mb-1.5 ml-5.5 max-h-40 overflow-auto rounded-md bg-generic px-2.5 py-1.5 font-mono text-code whitespace-pre-wrap text-muted-foreground" data-testid="agent-tool-output">
+          {part.output.length > 4000 ? `…${part.output.slice(-4000)}` : part.output}
+        </pre>
+      )}
     </li>
+  );
+}
+
+/** Consequential steps wait here; nothing runs until the expert approves. */
+function ApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; onDecide: (d: "approve" | "reject") => void }) {
+  const pending = part.state === "pending";
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-background" data-testid="agent-approval">
+      <header className="flex items-start gap-2 px-3 pt-2.5 pb-2">
+        <WarningIcon className="mt-px size-4 shrink-0 text-warning" />
+        <div className="min-w-0">
+          <h4 className="font-semibold">Approve this step?</h4>
+          <p className="text-muted-foreground">{part.summary}</p>
+        </div>
+      </header>
+      <pre className="mx-3 mb-2 max-h-28 overflow-auto rounded-md bg-generic px-2.5 py-1.5 font-mono text-code whitespace-pre-wrap text-muted-foreground">{part.inputPreview}</pre>
+      <footer className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+        {pending ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => onDecide("reject")}>Reject</Button>
+            <Button size="sm" onClick={() => onDecide("approve")}>Approve</Button>
+          </>
+        ) : (
+          <span className={cn("flex h-6 items-center gap-1", part.state === "approved" ? "text-positive" : "text-muted-foreground")}>
+            {part.state === "approved" ? <DoneIcon className="size-3.5" /> : <InfoIcon className="size-3.5" />}
+            {part.state === "approved" ? "Approved" : part.state === "rejected" ? "Rejected" : "Expired"}
+          </span>
+        )}
+      </footer>
+    </section>
+  );
+}
+
+/** An environment edit the agent applied: one Studio undo step. */
+function ChangeCard({ part, onUndo }: { part: Extract<MessagePart, { type: "change" }>; onUndo?: () => void }) {
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-border bg-prov-ai/10 px-2.5 py-1.5 text-xs" data-testid="agent-change">
+      <div className="min-w-0 flex-1">
+        <div className={part.undone ? "text-muted-foreground line-through" : "font-medium"}>Agent changed: {part.summary}</div>
+        {part.keys.length > 0 && <div className="text-muted-foreground">{part.keys.join(", ")}</div>}
+      </div>
+      {!part.undone && onUndo && (
+        <button onClick={onUndo} className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-muted-foreground hover:bg-generic hover:text-foreground">
+          <UndoIcon className="h-3 w-3" /> Undo
+        </button>
+      )}
+    </div>
   );
 }
 

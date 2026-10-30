@@ -1,0 +1,24 @@
+Inkling agent runtime (@inkling/agent)
+
+This package includes code adapted from @daytona/pi 0.191.2
+(https://github.com/daytonaio/daytona, libs/pi), the official pi integration for Daytona:
+
+  src/sandbox/ops.ts       (from src/ops.ts)
+  src/sandbox/exec.ts      (from src/sandbox.ts, src/ops.ts, src/util.ts)
+  src/sandbox/search.ts    (from src/grep-tool.ts, src/find-tool.ts)
+  src/tools/sandbox.ts     (tool wrapping, from src/tools.ts)
+
+Copyright Daytona Platforms Inc.
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use these files except
+in compliance with the License. You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+implied. See the License for the specific language governing permissions and limitations under the
+License.
+
+Modifications: per-session sandboxes instead of one global sandbox (no CLI flags), lazy
+acquisition through a session manager, background-safe and streaming exec, ripgrep with a grep/find
+fallback, Inkling-specific tools (run_python, preview_url, export_artifact, upload_dataset_sample).

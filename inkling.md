@@ -122,6 +122,9 @@ export interface ModuleManifest {
 | DICOM archive | Orthanc + DICOMweb plugin (P1) | Standards-based DICOM studies and image retrieval |
 | Tests/lint | pytest, pytest-asyncio, httpx, Ruff, mypy | Tests and static checks |
 | Observability | OpenTelemetry + error reporting | Traces, failures, job metrics without exposing PHI |
+| Agent runtime | **Node + pi** (`apps/agent`, TypeScript) with Daytona sandboxes | The Inkling AI agent loop, tools and approvals; a private service only the API (dev: the Vite proxy) talks to. See `agent.md` |
+
+The API, validation and workers stay Python/FastAPI. Only the agent runtime is Node: pi is a TypeScript harness, so it shares wire types with `apps/web` (`@inkling/agent/protocol`) and keeps model keys and sandbox credentials server-side.
 
 **Python dependencies sketch:**
 

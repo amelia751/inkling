@@ -74,6 +74,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^1.3.0",
+    "@inkling/agent": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@originjs/vite-plugin-commonjs": "1.0.3",
     "@tailwindcss/vite": "^4",

@@ -15,9 +15,7 @@ import type { Plugin } from "vite";
  *   PUT   /api/environments/:projectId  → replace (validated); { revision, environment, author }
  *   PATCH /api/environments/:projectId  → RFC 6902 JSON Patch (validated); { revision?, patch, author }
  *   GET   /api/environments/:projectId/history → every saved revision with author and time
- *   GET   /api/agent/status             → whether Claude credentials are configured
- *   POST  /api/agent/messages           → one Messages API turn for the Studio assistant
- *                                         (the browser runs the tool loop; the key stays here)
+ *   /api/agent/*                        → not here: Vite proxies it to the agent service (apps/agent)
  * Annotations and environments live in seed-data/.annotations/ and .environments/ so seed
  * files are never modified. Validation runs the app's own registry and resolver through
  * Vite's SSR loader (src/server-entry.ts).
@@ -71,7 +69,6 @@ export function seedServer(seedRoot: string): Plugin {
       const api = () => server.ssrLoadModule("/src/server-entry.ts") as Promise<ServerApi>;
       server.middlewares.use("/api/catalog", (req, res) => handleCatalog(req, res, api));
       server.middlewares.use("/api/environments", (req, res) => handleEnvironments(req, res, api, environmentsDir, seedRoot));
-      server.middlewares.use("/api/agent", (req, res) => handleAgent(req, res));
 
       server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];
@@ -208,46 +205,4 @@ function manifestEnvironment(seedRoot: string, id: string, m: ServerApi): unknow
   const manifest = JSON.parse(fs.readFileSync(path.join(seedRoot, "manifest.json"), "utf8")) as { projects: { id: string }[] };
   const raw = manifest.projects.find((p) => p.id === id);
   return raw ? m.normalizeProject(raw as never).environment : null;
-}
-
-// ---- Studio assistant ------------------------------------------------------------------
-
-const AGENT_MODEL = "claude-opus-5-5";
-
-/**
- * Relay one assistant turn to the Claude API. The browser owns the conversation and runs
- * the tools (they act on the live Studio); this side only holds the credentials. The SDK
- * resolves them from ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN or an `ant auth login` profile.
- */
-async function handleAgent(req: IncomingMessage, res: ServerResponse) {
-  const sub = (req.url ?? "/").split("?")[0];
-  const { default: Anthropic } = await import("@anthropic-ai/sdk");
-  if (sub === "/status" && req.method === "GET") {
-    const configured = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || fs.existsSync(path.join(process.env.HOME ?? "", ".config/anthropic")));
-    return sendJson(res, 200, { available: configured, model: AGENT_MODEL });
-  }
-  if (sub !== "/messages" || req.method !== "POST") return sendJson(res, 404, { error: "not found" });
-  const body = (await readBody(req)) as { system: string; messages: unknown[]; tools: unknown[] } | undefined;
-  if (!body?.messages?.length) return sendJson(res, 400, { error: "messages required" });
-  try {
-    const client = new Anthropic();
-    const message = await client.beta.messages.create({
-      model: AGENT_MODEL,
-      max_tokens: 16000,
-      output_config: { effort: "medium" },
-      // The catalogue is long and stable: cache system + tools across turns.
-      system: [{ type: "text", text: body.system, cache_control: { type: "ephemeral" } }],
-      tools: body.tools as never,
-      messages: body.messages as never,
-      // Refusals are re-run on a fallback model chosen by category.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-    } as never);
-    return sendJson(res, 200, message);
-  } catch (e) {
-    if (e instanceof Anthropic.AuthenticationError) return sendJson(res, 401, { error: "Claude credentials were rejected. Set ANTHROPIC_API_KEY or run `ant auth login`, then restart the dev server." });
-    if (e instanceof Anthropic.RateLimitError) return sendJson(res, 429, { error: "Rate limited by the Claude API; try again in a moment." });
-    if (e instanceof Anthropic.APIError) return sendJson(res, e.status ?? 502, { error: e.message });
-    return sendJson(res, 502, { error: e instanceof Error ? e.message : String(e) });
-  }
 }

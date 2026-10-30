@@ -1,0 +1,71 @@
+/**
+ * Manual GC for Inkling sandboxes (todo1 §4.6). Only `app=inkling` sandboxes in one env are touched.
+ *
+ *   pnpm --filter @inkling/agent sweep -- --dry-run                 list and plan (default)
+ *   pnpm --filter @inkling/agent sweep -- --stop                    stop idle started sandboxes
+ *   pnpm --filter @inkling/agent sweep -- --delete                  also delete orphans / expired
+ *   … --env test --label test=live --all                            every match, ignoring idle/age rules
+ */
+import { parseArgs } from "node:util";
+import { loadConfig } from "../src/config.ts";
+import { createDaytona } from "../src/sandbox/client.ts";
+import { listOwned, planSweep, toCandidate } from "../src/sandbox/sweeper.ts";
+import { loadDevSecrets } from "../src/secrets.ts";
+import { listSessionIds, sessionsDir } from "../src/runtime/sessions.ts";
+
+const { values } = parseArgs({
+  options: {
+    "dry-run": { type: "boolean" },
+    stop: { type: "boolean" },
+    delete: { type: "boolean" },
+    all: { type: "boolean" },
+    env: { type: "string" },
+    label: { type: "string", multiple: true },
+  },
+});
+
+loadDevSecrets();
+const { config } = loadConfig();
+const daytona = createDaytona(config);
+if (!daytona) {
+  console.error("DAYTONA_API_KEY is not set (secrets/daytona.env).");
+  process.exit(1);
+}
+const env = values.env ?? config.env;
+const labels = Object.fromEntries((values.label ?? []).map((l) => l.split("=") as [string, string]));
+const sandboxes = await listOwned(daytona, env, labels);
+const candidates = sandboxes.map(toCandidate);
+console.log(`${candidates.length} sandbox(es) with app=inkling env=${env}${values.label ? ` ${values.label.join(" ")}` : ""}`);
+for (const c of candidates) console.log(`  ${c.name.padEnd(48)} ${String(c.state).padEnd(10)} last=${c.lastActivityAt ?? "?"} session=${c.labels.session ?? "?"}`);
+
+// Sessions the local service has on disk (its .data dir); others count as orphans. Active runs
+// aren't visible from here, so pass --stop/--all only when the service is stopped.
+const known = listSessionIds(sessionsDir(config));
+const plan = values.all
+  ? { stop: candidates.filter((c) => c.state === "started"), delete: candidates.map((sandbox) => ({ sandbox, reason: "orphan" as const })) }
+  : planSweep(candidates, { env, now: Date.now(), activeSessions: new Set(), knownSessions: known, idleStopMin: config.sweep.idleStopMin, retentionDays: config.sweep.retentionDays, maxDeletes: 5 });
+
+console.log(`plan: stop ${plan.stop.length}, delete ${plan.delete.length}`);
+const byId = new Map(sandboxes.map((s) => [s.id, s]));
+if (!values.stop && !values.delete) {
+  for (const c of plan.stop) console.log(`  would stop   ${c.name}`);
+  for (const d of plan.delete) console.log(`  would delete ${d.sandbox.name} (${d.reason})`);
+  console.log("dry run; pass --stop or --delete to act.");
+  process.exit(0);
+}
+if (values.delete) {
+  for (const { sandbox: c, reason } of plan.delete) {
+    await byId.get(c.id)!.delete(60).then(
+      () => console.log(`deleted ${c.name} (${reason}) labels=${JSON.stringify(c.labels)}`),
+      (e) => console.error(`delete ${c.name} failed: ${(e as Error).message}`),
+    );
+  }
+}
+const deleted = new Set(values.delete ? plan.delete.map((d) => d.sandbox.id) : []);
+for (const c of plan.stop) {
+  if (deleted.has(c.id)) continue;
+  await byId.get(c.id)!.stop(60).then(
+    () => console.log(`stopped ${c.name}`),
+    (e) => console.error(`stop ${c.name} failed: ${(e as Error).message}`),
+  );
+}

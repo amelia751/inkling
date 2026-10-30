@@ -1,7 +1,13 @@
 packages:
   - "apps/*"
 allowBuilds:
+  "@google/genai": false
   esbuild: true
   core-js: false
   core-js-pure: false
   protobufjs: false
+minimumReleaseAgeExclude:
+  - "@daytona/analytics-api-client@0.227.0"
+  - "@daytona/api-client@0.227.0"
+  - "@daytona/sdk@0.227.0"
+  - "@daytona/toolbox-api-client@0.227.0"

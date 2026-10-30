@@ -5,6 +5,9 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "seeds": "uv run scripts/fetch-seeds.py",
-    "mcp": "pnpm --filter web mcp"
+    "mcp": "pnpm --filter web mcp",
+    "agent": "pnpm --filter @inkling/agent dev",
+    "agent:test": "pnpm --filter @inkling/agent test",
+    "agent:live": "pnpm --filter @inkling/agent test:live"
   }
 }

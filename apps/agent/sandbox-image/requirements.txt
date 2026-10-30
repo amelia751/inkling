@@ -1,0 +1,11 @@
+numpy==2.5.4
+scipy==1.18.1
+pandas==3.1.0
+pyarrow==26.0.0
+pillow==13.0.0
+scikit-image==0.26.0
+opencv-python-headless==5.0.0.93
+matplotlib==3.11.2
+pydicom==3.0.2
+nibabel==5.4.2
+SimpleITK==2.5.6

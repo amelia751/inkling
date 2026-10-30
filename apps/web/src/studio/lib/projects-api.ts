@@ -4,10 +4,12 @@ import type {
   AttentionItem,
   ChildrenPage,
   DatasetSummary,
+  ExploreSummary,
   ImportSession,
   ProjectOverview,
   ProjectSummary,
   Proposal,
+  ProposalPreview,
   ResumeState,
   ReviewQueue,
   SourceNode,
@@ -150,3 +152,19 @@ export function useDataset(projectId: string, datasetId: string) {
 export function useProjectDetail(id: string) {
   return useQuery({ queryKey: projectKeys.one(id), queryFn: () => fetchProject(id), staleTime: 5_000 });
 }
+
+// ---- Explore (todo6 Phase 5) ---------------------------------------------------------------------
+
+export const exploreKeys = {
+  summary: (projectId: string) => ["projects", projectId, "explore"] as const,
+  proposals: (projectId: string) => ["projects", projectId, "proposals", "all"] as const,
+  preview: (proposalId: string) => ["proposals", proposalId, "preview"] as const,
+};
+
+export const fetchExplore = (projectId: string) => api<ExploreSummary>(`/projects/${encodeURIComponent(projectId)}/explore`);
+export const fetchProposalPreview = (id: string) => api<ProposalPreview>(`/proposals/${encodeURIComponent(id)}/preview`);
+/** A relationship with another column, target, ID rule or row fixes; a mapping with another column or renamed classes; a dataset's name. */
+export const recomputeProposal = (id: string, body: Record<string, unknown>) => api<Proposal>(`/proposals/${encodeURIComponent(id)}/recompute`, { method: "POST", json: body });
+export const confirmProposal = (id: string, payload?: Record<string, unknown>) =>
+  api<{ proposal: Proposal; dataset?: DatasetSummary; task?: TaskSummary; importedLabels?: number }>(`/proposals/${encodeURIComponent(id)}/confirm`, { method: "POST", json: payload ? { payload } : {} });
+export const dismissProposal = (id: string) => api<{ proposal: Proposal }>(`/proposals/${encodeURIComponent(id)}/dismiss`, { method: "POST" });

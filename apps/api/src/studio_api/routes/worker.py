@@ -10,7 +10,7 @@ from __future__ import annotations
 import hmac
 import uuid
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
@@ -144,3 +144,39 @@ def versioning_run(body: dict = Body(...), db: Session = Depends(get_session)):
 
 
 
+
+
+# ---- Inspection of uploaded files (todo6 Phase 5.1) -----------------------------------------
+# The worker's built-in `inspect` subscriber reads `source.uploaded`, then the import's files
+# (ranged reads of the bytes), stores thumbnails and derived CSVs, and reports once.
+
+
+@router.get("/inspect/imports/{import_id}", dependencies=[Depends(_auth)])
+def inspect_import(import_id: str, db: Session = Depends(get_session)):
+    from ..kernel import inspection
+
+    return inspection.import_for_worker(db, import_id)
+
+
+@router.get("/inspect/nodes/{node_id}/content", dependencies=[Depends(_auth)])
+def inspect_content(node_id: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import assets, inspection
+    from ..streaming import blob_response
+
+    _, a = inspection.node_asset(db, node_id)
+    return blob_response(assets.store_of(a.path), assets.asset_key(a), "application/octet-stream", request)
+
+
+@router.put("/inspect/nodes/{node_id}/derived/{role}", dependencies=[Depends(_auth)])
+async def inspect_derived(node_id: str, role: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import inspection
+
+    data = await request.body()
+    return inspection.put_derived(db, node_id, role, data, request.headers.get("Content-Type", ""))
+
+
+@router.post("/inspect/imports/{import_id}/report", dependencies=[Depends(_auth)])
+def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import inspection
+
+    return inspection.report(db, import_id, body)

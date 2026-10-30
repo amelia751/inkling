@@ -2967,6 +2967,43 @@
         "summary": "Project Events"
       }
     },
+    "/api/v1/projects/{project_id}/explore": {
+      "get": {
+        "operationId": "explore_summary_api_v1_projects__project_id__explore_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Explore Summary"
+      }
+    },
     "/api/v1/projects/{project_id}/imports": {
       "get": {
         "operationId": "list_imports_api_v1_projects__project_id__imports_get",
@@ -3595,6 +3632,43 @@
           }
         },
         "summary": "Dismiss"
+      }
+    },
+    "/api/v1/proposals/{proposal_id}/preview": {
+      "get": {
+        "operationId": "preview_api_v1_proposals__proposal_id__preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposal_id",
+            "required": true,
+            "schema": {
+              "title": "Proposal Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview"
       }
     },
     "/api/v1/proposals/{proposal_id}/recompute": {
@@ -4297,6 +4371,215 @@
           }
         },
         "summary": "Deliver"
+      }
+    },
+    "/api/v1/worker/inspect/imports/{import_id}": {
+      "get": {
+        "operationId": "inspect_import_api_v1_worker_inspect_imports__import_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Import"
+      }
+    },
+    "/api/v1/worker/inspect/imports/{import_id}/report": {
+      "post": {
+        "operationId": "inspect_report_api_v1_worker_inspect_imports__import_id__report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Report"
+      }
+    },
+    "/api/v1/worker/inspect/nodes/{node_id}/content": {
+      "get": {
+        "operationId": "inspect_content_api_v1_worker_inspect_nodes__node_id__content_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Content"
+      }
+    },
+    "/api/v1/worker/inspect/nodes/{node_id}/derived/{role}": {
+      "put": {
+        "operationId": "inspect_derived_api_v1_worker_inspect_nodes__node_id__derived__role__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "role",
+            "required": true,
+            "schema": {
+              "title": "Role",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Derived"
       }
     },
     "/api/v1/worker/jobs/{job_id}/complete": {

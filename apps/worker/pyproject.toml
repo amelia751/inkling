@@ -3,7 +3,14 @@ name = "studio-worker"
 version = "0.1.0"
 description = "Runs plugin jobs from the kernel in isolated per-plugin processes (docs/plugins.md §5.1, §10)"
 requires-python = ">=3.12,<3.13"
-dependencies = ["httpx>=0.28", "studio-observability"]
+dependencies = [
+    "httpx>=0.28",
+    "nibabel>=5.3",
+    "openpyxl>=3.1",
+    "pillow>=11.3",
+    "pydicom>=3.0",
+    "studio-observability",
+]
 
 [project.optional-dependencies]
 otel = ["studio-observability[otel]"]

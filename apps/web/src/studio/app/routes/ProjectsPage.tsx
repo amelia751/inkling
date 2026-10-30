@@ -1,3 +1,4 @@
+import { NAMING } from "@studio/contracts/naming";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -135,7 +136,7 @@ export function NewProjectPage() {
               </Button>
             </Card>
           ) : (
-            <DropZone onPick={setPicked} title="Drop files or folders here" hint="Optional. Originals are kept exactly as they are; Inkling reads them to find out what's there." />
+            <DropZone onPick={setPicked} title="Drop files or folders here" hint={`Optional. Originals are kept exactly as they are; ${NAMING.displayName} reads them to find out what's there.`} />
           )}
           {error && <p className="text-sm text-danger" role="alert">{error}</p>}
           <div className="flex justify-end gap-2">

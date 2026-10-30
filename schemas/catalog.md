@@ -111,6 +111,12 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.brushSmaller` — Shrink the active tool's size (when 'size' in tool.options)
 - `inkling.core.commands.brushLarger` — Grow the active tool's size (when 'size' in tool.options)
 - `inkling.core.commands.showShortcuts` — Open the keyboard shortcuts sheet
+- `inkling.core.commands.toggleNavigation` — Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)
+- `inkling.core.commands.quickLook` — Preview the selected file large; arrows step through its folder (when section == sources)
+- `inkling.core.commands.openItem` — Open the selected folder, or show the selected file's details (when section == sources)
+- `inkling.core.commands.parentFolder` — Show the folder that contains the current one (when section == sources)
+- `inkling.core.commands.focusSearch` — Search file names across the project's sources (when section == sources)
+- `inkling.core.commands.toggleAssistant` — Open or close the assistant, in any project section
 - `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)
 - `inkling.core.commands.cancelShape` — Cancel the shape being drawn (when 'drafting' in renderer.capabilities)
 - `inkling.core.commands.removeLastVertex` — Remove the last vertex of the shape being drawn (when 'vertexUndo' in renderer.capabilities)

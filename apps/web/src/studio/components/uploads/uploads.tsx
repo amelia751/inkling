@@ -1,3 +1,4 @@
+import { NAMING } from "@studio/contracts/naming";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -152,8 +153,8 @@ export function DropZone({ onPick, title, hint, className }: { onPick: (p: Picke
       <p className="text-body-2 font-semibold">{title}</p>
       {hint && <p className="max-w-md text-sm text-muted-foreground">{hint}</p>}
       <div className="mt-1 flex flex-wrap justify-center gap-2">
-        <Button variant="outline" size="lg" onClick={files}>Browse files</Button>
-        <Button variant="outline" size="lg" onClick={folder}>
+        <Button type="button" variant="outline" size="lg" onClick={files}>Browse files</Button>
+        <Button type="button" variant="outline" size="lg" onClick={folder}>
           <FolderIcon /> Browse folder
         </Button>
       </div>
@@ -203,7 +204,7 @@ function AttestationDialog() {
           <summary className="cursor-pointer text-brand">What counts?</summary>
           <p className="mt-2">
             De-identified means names, record numbers, birth dates and other identifiers are removed from file contents, headers and folder names.
-            Synthetic or public research data is fine. If you're unsure, ask your data protection office first. Inkling also checks headers and names for
+            Synthetic or public research data is fine. If you're unsure, ask your data protection office first. {NAMING.displayName} also checks headers and names for
             identifiers and holds what it finds for your review, but that check is a safety net, not de-identification.
           </p>
         </details>

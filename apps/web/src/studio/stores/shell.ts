@@ -28,6 +28,8 @@ interface ShellState {
   /** Set when something asked the composer to take focus ("Or tell Inkling…"). */
   assistantFocus: number;
   setAssistant: (open: boolean, focus?: boolean) => void;
+  /** The `toggleAssistant` command outside the Studio; Phase 6's drawer reads `assistantOpen`. */
+  toggleAssistant: () => void;
   setNav: (nav: NavPreference) => void;
   toggleStudioRail: () => void;
   visited: (p: RecentProject) => void;
@@ -60,6 +62,7 @@ export const useShell = create<ShellState>((set, get) => ({
     write(`${RES}-assistant-open`, open);
     set((s) => ({ assistantOpen: open, assistantFocus: focus ? s.assistantFocus + 1 : s.assistantFocus }));
   },
+  toggleAssistant: () => get().setAssistant(!get().assistantOpen, !get().assistantOpen),
   setNav: (nav) => {
     write(NAV_KEY, nav);
     set({ nav });

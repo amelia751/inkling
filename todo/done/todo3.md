@@ -45,6 +45,7 @@ Done-when, checked on 2026-10-30:
   - `conv-*`.
 - `wip/main-daytona` has one commit that isn't on `main`. It's the pre-restructure WIP, already ported selectively. Delete it once the user agrees.
 - Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (todo4 Phase 6).
+- E.4: Daytona `otelEnabled` / OTLP export from the agent (moved from todo1 §9).
 - First CI run on GitHub. `apps/versioning` lint needs `golangci-lint`; CI installs it, local machines may not have it.
 
 ---
@@ -304,6 +305,7 @@ Kubernetes only helps if any replica can serve any request. This is the real cod
 - [ ] OpenTelemetry traces and metrics through `packages/observability-{ts,py}`. Propagate `traceparent` from web to api, agent and worker, so one trace follows a user action through tools and jobs.
 - [ ] Config validated at startup (zod in TS, pydantic-settings in Python). Fail fast with the missing key names, never the values.
 - [ ] Version endpoint `/version` returning the git SHA (injected as a Docker build arg).
+- [ ] Later (moved from todo1 §9): Daytona's own traces, `new Daytona({ otelEnabled: true })` with OTLP export from `apps/agent`, and pi-telemetry contracts once they're stable.
 
 ---
 

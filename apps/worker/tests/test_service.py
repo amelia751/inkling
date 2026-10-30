@@ -1,4 +1,4 @@
-"""todo/todo3.md E.2/E.4 for the worker: env config, probes, prebuilt envs, graceful SIGTERM."""
+"""todo/done/todo3.md E.2/E.4 for the worker: env config, probes, prebuilt envs, graceful SIGTERM."""
 
 from __future__ import annotations
 

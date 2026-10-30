@@ -1,10 +1,10 @@
-// Repo-wide rules (docs/README.md, todo/todo3.md Phase B):
+// Repo-wide rules (docs/README.md, todo/done/todo3.md Phase B):
 //   1. apps/* never import each other: they talk over HTTP and events only.
 //   2. packages/* never import from apps/* or plugins/*.
 //   3. plugins/*/ui imports only the SDK, contracts, studio-ui and studio-renderers (below).
 // (Python has the same rules as import-linter contracts in the root pyproject.toml.)
 //
-// Plugin layering inside the web build (docs/modules.md, todo/todo2.md §1.9):
+// Plugin layering inside the web build (docs/modules.md, todo/done/todo2.md §1.9):
 //   packages/plugin-contracts  → nothing internal
 //   packages/plugin-ui-sdk     → contracts
 //   packages/studio-ui         → nothing internal
@@ -168,7 +168,7 @@ for (const file of pyFiles(join(repo, "plugins"))) {
   }
 }
 
-// ---- No brand name in code (todo/todo2.md D3) -------------------------------------
+// ---- No brand name in code (todo/done/todo2.md D3) -------------------------------------
 // The product name lives only in packages/plugin-contracts/src/naming.ts. Comments, docs,
 // presets and fixtures may mention it; code (strings and identifiers) may not.
 const BRAND = /\binkling\b/i;

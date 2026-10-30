@@ -1,5 +1,5 @@
 # Every PR (and main): affected checks, boundaries, drift checks, Go, Kubernetes manifests,
-# secret scanning (todo/todo3.md F).
+# secret scanning (todo/done/todo3.md F).
 name: ci
 
 on:

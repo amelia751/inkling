@@ -1,6 +1,6 @@
 # apps/versioning
 
-The dataset versioning service (`versioning.md`, `todo/todo4.md`). Datasets are
+The dataset versioning service (`versioning.md`, `todo/done/todo4.md`). Datasets are
 Git-like repositories with branches, commits, review requests, semantic diffs,
 three-way merges and releases. It is an internal Go service: only `apps/api`
 calls it, using short-lived Ed25519 service JWTs.

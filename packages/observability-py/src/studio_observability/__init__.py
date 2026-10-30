@@ -1,4 +1,4 @@
-"""Shared service conventions for the Python apps (todo/todo3.md E.4).
+"""Shared service conventions for the Python apps (todo/done/todo3.md E.4).
 
     from studio_observability import setup_service, RequestContextMiddleware, outgoing_headers
 

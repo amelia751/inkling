@@ -6,7 +6,7 @@
 **Scope:** `apps/agent` and its integration with `apps/web`, `apps/api`, `apps/worker`, and external providers  
 **Technology:** `apps/agent` is TypeScript on Node ≥ 22.19 with **pi** (`@earendil-works/pi-coding-agent` 1.4.0), Hono and Daytona (`@daytona/sdk` 0.227.0); `apps/api` stays Python/FastAPI with PostgreSQL. Temporal optionally, later.
 
-> This document began as a design guide for a Python agent on Pydantic AI Harness. `todo/todo1.md` replaced that framework choice with pi; §2–§7 and §8.3 describe the Node service as built, and everything else (boundaries, trust model, approval matrix, lifecycle rules, event contract) still applies. pi ships about three releases a week: dependencies are pinned exactly and upgraded deliberately (§17). Sources: pi's bundled docs (`node_modules/@earendil-works/pi-coding-agent/docs/`), https://www.daytona.io/docs/.
+> This document began as a design guide for a Python agent on Pydantic AI Harness. `todo/done/todo1.md` replaced that framework choice with pi; §2–§7 and §8.3 describe the Node service as built, and everything else (boundaries, trust model, approval matrix, lifecycle rules, event contract) still applies. pi ships about three releases a week: dependencies are pinned exactly and upgraded deliberately (§17). Sources: pi's bundled docs (`node_modules/@earendil-works/pi-coding-agent/docs/`), https://www.daytona.io/docs/.
 
 ## 1. Product goals and non-goals
 
@@ -77,7 +77,7 @@ Object storage: immutable dataset versions, sandbox artifact exports
 ```text
 inkling/
 ├── docs/agent.md                    # THIS specification
-├── todo/todo1.md                    # the pi + Daytona plan this section implements
+├── todo/done/todo1.md                    # the pi + Daytona plan this section implements
 ├── secrets/                         # git-ignored except README.md and *.example (dev only)
 ├── apps/
 │   ├── web/                         # React + Vite Studio

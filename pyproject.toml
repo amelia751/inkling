@@ -1,4 +1,4 @@
-# uv workspace root (todo/todo3.md C.2). One lock (uv.lock) for the services and shared
+# uv workspace root (todo/done/todo3.md C.2). One lock (uv.lock) for the services and shared
 # libraries. Plugin workers (plugins/*/pyproject.toml) are deliberately NOT members: the
 # worker gives every plugin version its own locked environment (`uv sync --locked --project
 # plugins/<name>`), so each plugin keeps its own uv.lock (docs/plugins.md §5.1, §10).
@@ -49,7 +49,7 @@ pythonVersion = "3.12"
 typeCheckingMode = "basic"
 exclude = ["**/node_modules", "**/.venv", "**/_generated", "**/__pycache__", "apps/api/src/studio_api/clients"]
 
-# Python boundaries (todo/todo3.md C.4). `pnpm check:python-imports` / CI run `lint-imports`.
+# Python boundaries (todo/done/todo3.md C.4). `pnpm check:python-imports` / CI run `lint-imports`.
 [tool.importlinter]
 root_packages = ["studio_api", "studio_worker", "studio_plugin_sdk", "studio_observability"]
 include_external_packages = false

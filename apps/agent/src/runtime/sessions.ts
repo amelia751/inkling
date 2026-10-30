@@ -695,7 +695,7 @@ export class SessionService {
   }
 
   /**
-   * SIGTERM (todo/todo3.md E.1): refuse new runs, give local runs until `graceMs` to finish, then
+   * SIGTERM (todo/done/todo3.md E.1): refuse new runs, give local runs until `graceMs` to finish, then
    * end the rest as interrupted (the user resumes by sending again). Returns how many were interrupted.
    */
   async drain(graceMs: number): Promise<number> {

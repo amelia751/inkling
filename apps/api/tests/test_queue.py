@@ -1,4 +1,4 @@
-"""JobQueue + EventBus (todo/todo3.md E.2): one job is leased by exactly one claimer, killed
+"""JobQueue + EventBus (todo/done/todo3.md E.2): one job is leased by exactly one claimer, killed
 workers' jobs come back, and the Redis ready list mirrors the claimable jobs (KEDA scales on
 its length). Postgres runs with `<envPrefix>TEST_DATABASE_URL`, Redis with `<envPrefix>TEST_REDIS_URL`."""
 

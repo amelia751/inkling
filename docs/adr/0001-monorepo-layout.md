@@ -1,7 +1,7 @@
 # ADR 0001: Monorepo layout that scales to Kubernetes
 
 - Status: accepted (2026-10-30)
-- Plan: `todo/todo3.md`
+- Plan: `todo/done/todo3.md`
 
 ## Context
 

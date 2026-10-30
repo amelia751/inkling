@@ -1,4 +1,4 @@
-"""JobQueue (todo/todo3.md E.2): how workers find the next job. The DB row is always the
+"""JobQueue (todo/done/todo3.md E.2): how workers find the next job. The DB row is always the
 source of truth for a job's state; the queue only decides *which* job a claim looks at.
 
 - `sql` (default): scan `plugin_jobs` for the oldest claimable row. On Postgres the scan

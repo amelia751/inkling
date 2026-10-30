@@ -40,7 +40,7 @@ export interface CoordinatorDeps {
 }
 
 /**
- * Everything that lets several replicas share sessions (todo/todo3.md E.1):
+ * Everything that lets several replicas share sessions (todo/done/todo3.md E.1):
  *
  * - run records with a lease: the replica running a loop heartbeats; a run whose replica went quiet
  *   for AGENT_RUN_LEASE_S is marked `interrupted` by whoever reads it next;

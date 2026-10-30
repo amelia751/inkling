@@ -50,7 +50,7 @@
 
 ## Old paths
 
-`todo/todo1.md`, `todo/todo2.md` and older plans cite files where they used to be:
+`todo/done/todo1.md`, `todo/done/todo2.md` and older plans cite files where they used to be:
 
 | Old path | New path |
 |---|---|

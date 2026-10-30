@@ -1,4 +1,4 @@
-# End-to-end (todo/todo3.md F): the compose `full` stack from images, then the cross-service
+# End-to-end (todo/done/todo3.md F): the compose `full` stack from images, then the cross-service
 # tests (tests/e2e) and the web browser tests (apps/web/e2e). Daytona-live tests run only on a
 # schedule or by hand, with the key from repository secrets, and always sweep afterwards.
 name: e2e

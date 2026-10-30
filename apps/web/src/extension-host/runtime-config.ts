@@ -1,7 +1,7 @@
 import { NAMING, configureNaming } from "@studio/plugin-contracts/naming";
 
 /**
- * Runtime settings (todo/todo3.md D.1): nothing environment-specific is baked into the
+ * Runtime settings (todo/done/todo3.md D.1): nothing environment-specific is baked into the
  * bundle, so one web image runs in every environment. `main.tsx` fetches `/config.json`
  * (served by the web image's nginx from a ConfigMap or a compose volume) before the app
  * loads. When it's absent (the Vite dev server, tests) the same-origin defaults below apply,

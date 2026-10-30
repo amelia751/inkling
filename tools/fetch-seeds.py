@@ -19,7 +19,7 @@ Format conversions (originals are kept next to the converted files):
 
 Usage:  uv run tools/fetch-seeds.py [project-id ...]   # requires the kaggle CLI, logged in
 
-Object storage (todo/todo3.md E.3): ``--upload`` then puts ``seed-data/`` into the
+Object storage (todo/done/todo3.md E.3): ``--upload`` then puts ``seed-data/`` into the
 ``assets`` bucket that ``apps/api`` serves from (``BLOB_STORE=s3``), with keys equal to the
 paths in ``manifest.json`` (plus ``manifest.json`` itself, each project's
 ``workspace.json`` and every Deep Zoom tile next to a ``.dzi``). ``--upload-only`` skips
@@ -387,7 +387,7 @@ def with_environment(project: dict) -> dict:
     return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
 
 
-# ---- Upload to object storage (todo/todo3.md E.3) -------------------------------------------
+# ---- Upload to object storage (todo/done/todo3.md E.3) -------------------------------------------
 
 
 def env(name: str, default: str | None = None) -> str | None:

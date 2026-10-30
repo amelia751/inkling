@@ -1,4 +1,4 @@
-"""Kernel settings, validated at startup (todo/todo3.md D.4, E.4).
+"""Kernel settings, validated at startup (todo/done/todo3.md D.4, E.4).
 
 Every key is read from the environment as `<envPrefix><NAME>` (the prefix comes from
 schemas/naming.json; `naming.env`). `secrets/api.env` is an optional dev overlay (keys with
@@ -109,7 +109,7 @@ class Settings(BaseModel):
     versioning_kid: str = "api-dev"
     extra: dict[str, str] = Field(default_factory=dict)
 
-    # Stateless deployment (todo/todo3.md E.2): where state, blobs, jobs and events live.
+    # Stateless deployment (todo/done/todo3.md E.2): where state, blobs, jobs and events live.
     env: Literal["dev", "production"] = "dev"
     create_tables: bool = True
     repo_root: Path = REPO_ROOT

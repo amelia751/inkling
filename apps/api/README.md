@@ -34,7 +34,7 @@ Then run the web app against it: `INKLING_KERNEL=1 pnpm dev` (the env-var prefix
 | Service conventions: liveness, readiness (DB, Redis, BlobStore), version | `routes/ops.py` | `/healthz`, `/readyz`, `/version` (no auth, no access log) |
 | Seed files and saved environments for the SPA in production (shapes of `apps/web/dev/seed-server.ts`) | `routes/environments.py` | `/seed/*`, `/api/environments/:id[/history]`; `POST /api/environments/validate` and `/api/catalog*` answer 501 (dev server only: they need the TypeScript registry, so the kernel stores environments without server-side validation) |
 
-## Stateless deployment (todo/todo3.md E.2)
+## Stateless deployment (todo/done/todo3.md E.2)
 
 Every replica is interchangeable: state in the database, bytes in the BlobStore, job and
 event hand-off behind interfaces. Dev needs none of it (SQLite, `seed-data/`, DB queue).

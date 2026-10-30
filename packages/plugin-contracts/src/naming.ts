@@ -1,5 +1,5 @@
 /**
- * The only file that may contain the product name (todo/todo2.md, D3). Everything else
+ * The only file that may contain the product name (todo/done/todo2.md, D3). Everything else
  * reads runtime identifiers from here: contribution-id namespace, schema prefix, resource
  * and storage prefixes, env-var prefix and the display name. `scripts/emit-schemas.mjs`
  * writes the same values to `schemas/naming.json` for the Python kernel, the worker, the

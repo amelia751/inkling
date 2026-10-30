@@ -1,4 +1,4 @@
-"""The worker's probe server (todo/todo3.md E.4): a few lines of stdlib HTTP on a side thread.
+"""The worker's probe server (todo/done/todo3.md E.4): a few lines of stdlib HTTP on a side thread.
 
     GET /healthz → the process is up
     GET /readyz  → the kernel answers, and the worker isn't shutting down

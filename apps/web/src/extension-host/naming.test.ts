@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * A rename is a config change (todo/todo2.md D3): with the namespace switched to `acme` and
+ * A rename is a config change (todo/done/todo2.md D3): with the namespace switched to `acme` and
  * the old one kept in `legacyNamespaces`, documents stored with old full ids (presets, seed
  * manifests, saved environments, annotation geometry types) still resolve.
  */

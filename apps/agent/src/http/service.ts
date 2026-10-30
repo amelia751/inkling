@@ -17,7 +17,7 @@ export interface Readiness {
 const QUIET = new Set(["/healthz", "/readyz", "/version", "/health/live", "/health/ready"]);
 
 /**
- * Service conventions shared by every deployable (todo/todo3.md E.4). Register before any other
+ * Service conventions shared by every deployable (todo/done/todo3.md E.4). Register before any other
  * route: the request-context middleware must wrap them all.
  *
  * - `X-Request-Id` accepted (or minted) and echoed; W3C `traceparent` continued. Both land in every

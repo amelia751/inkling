@@ -2,7 +2,7 @@ import type { RunStatus } from "@studio/agent-protocol";
 
 /**
  * Durable state of the agent service, behind one interface so any replica can serve any request
- * (todo/todo3.md E.1). `file` (dev, one process) keeps today's `.data/` layout; `postgres` is for
+ * (todo/done/todo3.md E.1). `file` (dev, one process) keeps today's `.data/` layout; `postgres` is for
  * everything with more than one replica.
  *
  * What lives here: session meta, the pi transcript (JSONL entries, header first), run records (status,

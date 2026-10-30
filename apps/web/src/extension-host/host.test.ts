@@ -8,7 +8,7 @@ import { resolveEnvironment } from "./resolve";
 import { studioHost } from "./host";
 
 /**
- * Plugins depend only on the SDK (todo/todo2.md §1.6): with a hand-written host (a plain
+ * Plugins depend only on the SDK (todo/done/todo2.md §1.6): with a hand-written host (a plain
  * object store, no Zustand, no shell imports), every plugin's renderers and panels render.
  */
 function fakeHost(): StudioHost {

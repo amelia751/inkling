@@ -1,4 +1,4 @@
-"""Worker settings, from `<envPrefix>`-named env vars only (todo/todo3.md D.4), validated at
+"""Worker settings, from `<envPrefix>`-named env vars only (todo/done/todo3.md D.4), validated at
 startup: a missing key stops the process with its name, never a value.
 
 | Key (without prefix)     | Default                                   | Meaning |

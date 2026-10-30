@@ -1,4 +1,4 @@
-# Local stacks (todo/todo3.md D.2). Run from the repo root:
+# Local stacks (todo/done/todo3.md D.2). Run from the repo root:
 #   pnpm infra:up    # profile deps: Postgres, Redis, S3 (RustFS) + bucket init, for `pnpm dev`
 #   pnpm stack:up    # profile full: deps + every app image behind one router on :8080
 #   pnpm infra:down / pnpm stack:down   (add `-v` to drop the data volumes)

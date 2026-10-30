@@ -1,6 +1,6 @@
 # @studio/agent
 
-The Studio's AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` (`AGENT_HOST=0.0.0.0` in containers) and only the Vite proxy (dev) or `apps/api` (later) talks to it. Any number of replicas can run behind a plain Service; see [Scaling](#scaling-replicas). Design: [`docs/agent.md`](../../docs/agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
+The Studio's AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` (`AGENT_HOST=0.0.0.0` in containers) and only the Vite proxy (dev) or `apps/api` (later) talks to it. Any number of replicas can run behind a plain Service; see [Scaling](#scaling-replicas). Design: [`docs/agent.md`](../../docs/agent.md); plan: [`todo/done/todo1.md`](../../todo/done/todo1.md).
 
 ## Run
 

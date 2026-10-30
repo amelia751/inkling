@@ -1,4 +1,4 @@
-"""todo/todo3.md E.4: probes, version, request ids + traceparent, config validated at startup."""
+"""todo/done/todo3.md E.4: probes, version, request ids + traceparent, config validated at startup."""
 
 from __future__ import annotations
 

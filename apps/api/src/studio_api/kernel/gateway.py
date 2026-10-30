@@ -29,6 +29,15 @@ from .providers import mock_segment
 BUILTIN = ns("kernel.builtin")
 
 
+class Denied(Exception):
+    """A policy or budget denial. Routes turn it into a response (not an exception) so the
+    audit entry recording the denial is committed with the request."""
+
+    def __init__(self, status: int, detail: Any):
+        super().__init__(str(detail))
+        self.status, self.detail = status, detail
+
+
 def _resolve(db: Session, ctx: RequestContext, body: dict) -> tuple[str, str, dict, str, str | None]:
     """→ (plugin_id, version, manifest, tool, capability)."""
     tool_id: str | None = body.get("tool")
@@ -81,8 +90,37 @@ def budget(db: Session, ctx: RequestContext, plugin_id: str, manifest: dict) -> 
     return min(limit, cap) if cap is not None else limit
 
 
-def dispatch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, dict]:
+def dispatch_batch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, dict]:
+    """A batch (`inputs: [...]`): one job per input, but the whole batch is priced and checked
+    against the budget first, so a denial happens before any billable call starts (§14 #10)."""
+    inputs = body.get("inputs")
+    if not isinstance(inputs, list) or not inputs:
+        raise HTTPException(422, "inputs must be a non-empty list")
+    plugin_id, version, manifest, tool, capability = _resolve(db, ctx, body)
+    cap = (manifest.get("resources") or {}).get("maxImagesPerJob")
+    if cap is not None and len(inputs) > cap:
+        raise HTTPException(422, f"batch of {len(inputs)} exceeds {plugin_id}'s maxImagesPerJob ({cap})")
+    cfg = installer.current_config(db, ctx.workspace_id, plugin_id) if plugin_id != BUILTIN else {}
+    provs = manifest.get("providers") or []
+    pid = body.get("provider") or cfg.get("provider")
+    provider = next((p for p in provs if p["id"] == pid), None) if pid else (provs[0] if provs else None)
+    total = round(sum(estimate(manifest, provider, capability, i if isinstance(i, dict) else {}) for i in inputs), 6)
+    limit = cfg.get("budgetUsdPerBatch", budget(db, ctx, plugin_id, manifest))
+    if total > 0 and (limit is None or total > limit):
+        audit.record(db, ctx, "gateway.budget_denied", target=f"{plugin_id}.{tool}", after={"estimateUsd": total, "budgetUsd": limit, "items": len(inputs)})
+        raise Denied(402, {"message": "estimated batch cost exceeds the budget", "estimateUsd": total, "budgetUsd": limit, "items": len(inputs)})
+    out = []
+    for i, item in enumerate(inputs):
+        sub = RequestContext(ctx.workspace_id, ctx.principal, ctx.correlation_id, f"{ctx.idempotency_key}:{i}" if ctx.idempotency_key else None, ctx.scopes, ctx.profile)
+        _, res = dispatch(db, sub, {**{k: v for k, v in body.items() if k != "inputs"}, "input": item}, budget_checked=True)
+        out.append(res.get("job"))
+    return 202, {"jobs": out, "estimateUsd": total}
+
+
+def dispatch(db: Session, ctx: RequestContext, body: dict, *, budget_checked: bool = False) -> tuple[int, dict]:
     """Returns (HTTP status, body): 200 with the result for inline runs, 202 with a job for worker runs."""
+    if "inputs" in body:
+        return dispatch_batch(db, ctx, body)
     plugin_id, version, manifest, tool, capability = _resolve(db, ctx, body)
     raw_input = body.get("input") or {}
     if not isinstance(raw_input, dict):
@@ -115,7 +153,7 @@ def dispatch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, dict]:
         missing = policy.missing(db, ctx.workspace_id, plugin_id, version, needed)
         if missing:
             audit.record(db, ctx, "gateway.denied", target=f"{plugin_id}.{tool}", after={"missing": missing})
-            raise HTTPException(403, {"message": f"{plugin_id}@{version} lacks granted permissions", "missing": missing})
+            raise Denied(403, {"message": f"{plugin_id}@{version} lacks granted permissions", "missing": missing})
 
     # Assets named in the input must exist in *this* workspace.
     asset_id = payload.get("asset_id")
@@ -124,11 +162,14 @@ def dispatch(db: Session, ctx: RequestContext, body: dict) -> tuple[int, dict]:
         payload.setdefault("item_id", asset.path)
 
     # Budget: deny before any billable call (§14 #10).
+    if provider and provider.get("hosting") == "hosted" and not provider.get("pricing"):
+        audit.record(db, ctx, "gateway.budget_denied", target=f"{plugin_id}.{tool}", after={"provider": provider["id"], "reason": "no published pricing"})
+        raise Denied(402, {"message": f"provider {provider['id']} has no published pricing, so its spend can't be estimated; add pricing (effectiveAt, sourceUrl) to the plugin first", "provider": provider["id"]})
     cost = estimate(manifest, provider, capability, payload)
     limit = budget(db, ctx, plugin_id, manifest)
-    if cost > 0 and (limit is None or cost > limit):
+    if cost > 0 and not budget_checked and (limit is None or cost > limit):
         audit.record(db, ctx, "gateway.budget_denied", target=f"{plugin_id}.{tool}", after={"estimateUsd": cost, "budgetUsd": limit, "provider": provider and provider["id"]})
-        raise HTTPException(402, {"message": "estimated cost exceeds the budget", "estimateUsd": cost, "budgetUsd": limit, "provider": provider and provider["id"]})
+        raise Denied(402, {"message": "estimated cost exceeds the budget", "estimateUsd": cost, "budgetUsd": limit, "provider": provider and provider["id"]})
 
     runtime = (manifest.get("runtime") or {}).get("kind")
     job, created = jobs.enqueue(

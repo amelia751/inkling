@@ -147,3 +147,24 @@ def registry_client(make_client, tmp_path: Path):
         return make_client(registry_dir=reg, **overrides)
 
     return make
+
+
+def worker_headers() -> dict:
+    from studio_api.routes.worker import worker_token
+
+    return {"X-Worker-Token": worker_token()}
+
+
+def run_worker_once(c, result, cost=None, worker="w1"):
+    """Act as apps/worker: claim one job and report `result` (dict, or callable(claim) -> dict)."""
+    claim = c.post("/api/v1/worker/claim", json={"workerId": worker}, headers=worker_headers()).json()
+    assert claim["job"], "no job to claim"
+    body = result(claim) if callable(result) else result
+    r = c.post(f"/api/v1/worker/jobs/{claim['job']['jobId']}/complete", json={"workerId": worker, "result": body, "costUsd": cost}, headers=worker_headers())
+    assert r.status_code == 200, r.text
+    return claim, r.json()
+
+
+def mask_result(provider="mock", model="mock-1", h=30, w=40):
+    counts = [0, h * w]  # all foreground, column-major
+    return {"instances": [{"instance_id": "a", "mask": {"encoding": "rle", "size": [h, w], "counts": counts}}], "provider": provider, "model": model}

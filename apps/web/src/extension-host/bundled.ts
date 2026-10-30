@@ -22,6 +22,8 @@ import textSpans from "@plugins/text-spans/manifest";
 import experimental from "./agent-panels/manifest";
 import { featureEnabled } from "./flags";
 import { declarativeModule } from "./contributions-loader";
+import { registerTrustedRenderer } from "./trusted-renderers";
+import { MaskReview, MaskReviewConfig } from "@studio/studio-renderers/mask-review/MaskReview";
 import { PLUGIN_PACKAGES } from "./manifests";
 // Binds the plugin host API (useHost, assetUrl, commands) before any plugin code runs.
 import "./host";
@@ -39,6 +41,9 @@ export const presets = defineModule({
 
 /** Studio built-ins: always present, not plugins (no plugin.yaml, never installed per workspace). */
 export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, presets];
+
+// Trusted renderers shipped with the build that declarative plugins may name (fail closed otherwise).
+registerTrustedRenderer("studio.mask-review.v1", { component: MaskReview, configSchema: MaskReviewConfig, description: "Review AI-suggested masks: accept, reject or edit each instance" });
 
 /**
  * Plugins without trusted code of their own: `plugins/<name>/plugin.yaml` + `ui/contributions.json`

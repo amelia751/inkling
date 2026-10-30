@@ -29,7 +29,16 @@ def inspect(plugin_id: str, version: str | None = None):
     e = catalog.get(plugin_id, version)
     if e is None:
         raise HTTPException(404, f"{plugin_id} is not in the registry")
-    return {**e.summary(), "versions": [v.version for v in catalog.versions(plugin_id)], "manifest": e.manifest}
+    out = {**e.summary(), "versions": [v.version for v in catalog.versions(plugin_id)], "manifest": e.manifest}
+    # Declarative UI (ui/contributions.json) travels as data: the web registers it at runtime,
+    # so activating a plugin needs no web deploy.
+    rel = (e.manifest.get("ui") or {}).get("contributions")
+    d = catalog.package_dir(e)
+    if rel and d and (d / rel).is_file():
+        import json
+
+        out["contributions"] = json.loads((d / rel).read_text())
+    return out
 
 
 @router.get("/workspaces/{workspace_id}/plugins")

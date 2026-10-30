@@ -17,7 +17,7 @@ import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/ex
 import { labelClasses, regionLabelNames } from "@studio/plugin-contracts/environment";
 import { digitOf, matches } from "@studio/studio-ui/keys";
 import { registry } from "@/extension-host/registry";
-import { applyWorkspace, fetchWorkspaceState } from "@/extension-host/workspace";
+import { applyWorkspace, fetchWorkspaceState, loadRemotePlugins } from "@/extension-host/workspace";
 import { prepareAssetUrls } from "@/extension-host/kernel";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
@@ -45,7 +45,9 @@ function useEnvironment(project: Project | undefined): Boot {
     queryKey: ["workspace", project?.id],
     queryFn: async () => {
       await prepareAssetUrls(project!.id);
-      return fetchWorkspaceState(project!.id);
+      const state = await fetchWorkspaceState(project!.id);
+      await loadRemotePlugins(state);
+      return state;
     },
     enabled: !!project,
     staleTime: Infinity,

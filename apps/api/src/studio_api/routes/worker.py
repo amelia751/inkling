@@ -49,7 +49,7 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
     runtime = manifest.get("runtime") or {}
     return {
         "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s},
-        "plugin": {"id": j.plugin_id, "version": j.version, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(installer.catalog.get(j.plugin_id, j.version)) or ""), "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
+        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": installer.active(db, j.workspace_id).get(j.plugin_id).artifact_digest if installer.active(db, j.workspace_id).get(j.plugin_id) else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(installer.catalog.get(j.plugin_id, j.version)) or ""), "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
         "provider": provider,
         "config": installer.current_config(db, j.workspace_id, j.plugin_id),
         "sessionToken": token,

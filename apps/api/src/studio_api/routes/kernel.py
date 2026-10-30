@@ -118,7 +118,10 @@ def asset_content(asset_id: str, ctx: RequestContext = Depends(get_context), db:
 def command(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if not ctx.allows("commands.invoke"):
         raise HTTPException(403, "this session can't invoke commands")
-    status, out = gateway.dispatch(db, ctx, body)
+    try:
+        status, out = gateway.dispatch(db, ctx, body)
+    except gateway.Denied as d:
+        return JSONResponse({"detail": d.detail}, status_code=d.status)
     return JSONResponse(out, status_code=status)
 
 

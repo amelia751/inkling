@@ -22,9 +22,12 @@ export { listCapabilities } from "@/extension-host/agent";
 /** Dev workspace state when seed-data/<project>/workspace.json is absent: every bundled plugin active. */
 export function allBundledState(workspaceId: string) {
   const builtin = new Set(BUILTIN_MODULES.map((m) => m.id));
-  return { workspaceId, plugins: registry.listAvailable().filter((m) => !builtin.has(m.id)).map((m) => ({ pluginId: m.id, version: m.version, state: "ACTIVATED" })) };
+  // Plugins with a worker runtime need the kernel; without it they'd show UI that can't run.
+  const needsKernel = new Set(PLUGIN_PACKAGES.packages.filter((p) => p.manifest.runtime.kind === "python-worker").map((p) => p.manifest.id));
+  return { workspaceId, plugins: registry.listAvailable().filter((m) => !builtin.has(m.id) && !needsKernel.has(m.id)).map((m) => ({ pluginId: m.id, version: m.version, state: "ACTIVATED" })) };
 }
-export { PLUGIN_PACKAGES } from "@/extension-host/manifests";
+import { PLUGIN_PACKAGES } from "@/extension-host/manifests";
+export { PLUGIN_PACKAGES };
 export const prompt = () => catalogPrompt(registry);
 export const schema = () => environmentJsonSchema(registry);
 

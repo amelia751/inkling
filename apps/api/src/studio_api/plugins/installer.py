@@ -207,9 +207,10 @@ def validate(db: Session, ctx: RequestContext, request_id: str) -> InstallReques
         errs = validate_plugin_manifest(e.manifest)
         checks[e.id] = {"manifest": "ok" if not errs else errs}
         problems += [f"{e.id}: {x}" for x in errs]
-        for p in e.manifest.get("providers") or []:
-            if p.get("hosting") == "hosted" and not p.get("pricing"):
-                problems.append(f"{e.id}: hosted provider {p['id']} must publish pricing (effectiveAt, sourceUrl) before billable calls")
+        unpriced = [p["id"] for p in e.manifest.get("providers") or [] if p.get("hosting") == "hosted" and not p.get("pricing")]
+        if unpriced:
+            # Not a rejection: the gateway refuses billable calls to these until pricing is published.
+            checks[e.id]["unpricedHostedProviders"] = unpriced
         if e.trust_tier == "generated" and (e.manifest.get("ui") or {}).get("module"):
             problems.append(f"{e.id}: generated plugins may only use declarative UI (ui.contributions)")
     r.checks = {**(r.checks or {}), **checks}

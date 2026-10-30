@@ -10,6 +10,7 @@ import { SandboxPanel } from "./agent-panels/panels/sandbox";
  * Trusted renderers (docs/plugins.md §5.3): precompiled components that declarative
  * contributions name by a versioned id. A plugin supplies descriptors and data, never
  * React code. Names not in this registry fail closed (contributions-loader shows a notice).
+ * Renderers from packages/studio-renderers are added by the composition root (bundled.ts).
  */
 export interface TrustedRendererProps extends PanelProps {
   /** What the descriptor's `dataBinding` asked for, resolved by the host. */

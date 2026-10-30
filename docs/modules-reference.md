@@ -118,6 +118,8 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.openItem` — Open the selected folder, or show the selected file's details (when section == sources)
 - `inkling.core.commands.parentFolder` — Show the folder that contains the current one (when section == sources)
 - `inkling.core.commands.focusSearch` — Search file names across the project's sources (when section == sources)
+- `inkling.core.commands.quickLookPrevious` — In Quick Look, show the previous file of the folder (when section == sources)
+- `inkling.core.commands.quickLookNext` — In Quick Look, show the next file of the folder (when section == sources)
 - `inkling.core.commands.toggleAssistant` — Open or close the assistant, in any project section
 - `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)
 - `inkling.core.commands.cancelShape` — Cancel the shape being drawn (when 'drafting' in renderer.capabilities)

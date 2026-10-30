@@ -150,7 +150,7 @@ def main() -> int:
         # Reveal: a link to a nested file opens its folders and selects it.
         node = page.evaluate("async () => (await (await fetch('/api/v1/projects/2d-xray/search?q=IM-0010')).json()).items[0].id")
         page.goto(f"{base}/projects/2d-xray/sources/{node}")
-        page.wait_for_selector(f"[role=treeitem][aria-selected=true]:has-text('IM-0010-0001.jpeg')", timeout=15000)
+        page.wait_for_selector("[role=treeitem][aria-selected=true]:has-text('IM-0010-0001.jpeg')", timeout=15000)
         check("a deep link reveals the file in the tree", True)
         check("the file is selected in the listing", page.locator("[data-testid=inspector] h2").inner_text() == "IM-0010-0001.jpeg")
 

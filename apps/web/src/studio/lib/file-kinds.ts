@@ -86,6 +86,8 @@ export function nodeIcon(n: Pick<SourceNode, "kind" | "detectedKind" | "name">, 
 export function kindLabel(n: Pick<SourceNode, "kind" | "detectedKind" | "name" | "childCount" | "descendantCount" | "facts">): string {
   if (n.kind === "folder") return `Folder · ${n.descendantCount.toLocaleString()} ${n.descendantCount === 1 ? "file" : "files"}`;
   const kind = nodeKind(n);
+  // Not inspected yet and no extension we know: say nothing we don't know.
+  if (!n.detectedKind && kind === "unknown" && n.kind === "file") return "File";
   const modality = typeof n.facts?.modality === "string" ? `${n.facts.modality} ` : "";
   if (n.kind === "sequence") return `${modality}${KINDS[kind]?.plural ?? "Files"} · ${n.childCount.toLocaleString()}`;
   if (kind === "dicom-series" && modality) return `${modality.trim()} series`;

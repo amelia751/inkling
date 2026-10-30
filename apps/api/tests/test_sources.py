@@ -93,3 +93,16 @@ def test_upload_limits_come_from_settings(make_client):
     many = _session_body({f"l/{i}.txt": bytes([i]) for i in range(3)})
     r = client.post(f"/api/v1/projects/{p['id']}/imports", json=many)
     assert r.status_code == 413 and "Too many files" in r.json()["detail"]
+
+
+def test_redropping_a_folder_onto_its_own_source_skips_everything(client):
+    p = client.post("/api/v1/projects", json={"title": "Redrop"}).json()
+    files = {"study/a/x.png": png(5, 5), "study/b.csv": b"k,v\n1,2\n"}
+    _import(client, p["id"], files)
+    src = client.get(f"/api/v1/projects/{p['id']}/sources").json()["sources"][0]
+    # The same folder, dropped while its source is open (the source root is the target).
+    again = client.post(f"/api/v1/projects/{p['id']}/imports", json={**_session_body(files, prefix="r"), "targetNodeId": src["rootNodeId"]}).json()
+    assert {f["state"] for f in again["files"]} == {"skipped_duplicate"}
+    # A different folder dropped onto it still nests, as in any file browser.
+    other = client.post(f"/api/v1/projects/{p['id']}/imports", json={**_session_body({"extra/y.png": png(6, 6)}, prefix="o"), "targetNodeId": src["rootNodeId"]}).json()
+    assert other["files"][0]["relPath"] == "extra/y.png"

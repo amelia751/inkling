@@ -142,8 +142,11 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         base = node.rel_path
     title = _title_of([w[1] for w in wanted], body.get("title"))
     tops = {w[1].split("/", 1)[0] for w in wanted}
-    if node is None and len(tops) == 1 and all("/" in w[1] for w in wanted):
-        # A dropped folder is the source's root: its files are relative to it.
+    one_folder = len(tops) == 1 and all("/" in w[1] for w in wanted)
+    if one_folder and (node is None or next(iter(tops)) == node.name):
+        # A dropped folder is the source's root: its files are relative to it. Dropped onto
+        # a folder of the same name (the same folder again, e.g. a re-drop on its source),
+        # it merges into that folder instead of nesting a copy inside it.
         wanted = [(fid, rel.split("/", 1)[1], size, sha) for fid, rel, size, sha in wanted]
 
     # (source, path inside it, sha) of every file already in the project.

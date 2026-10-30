@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "dev": "turbo run dev --filter=@studio/web --filter=@studio/api --filter=@studio/agent --filter=@studio/worker",
+    "dev": "turbo run dev --env-mode=loose --filter=@studio/web --filter=@studio/api --filter=@studio/agent --filter=@studio/worker",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",

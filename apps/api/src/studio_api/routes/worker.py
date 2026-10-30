@@ -24,8 +24,13 @@ from ..plugins import installer, policy
 router = APIRouter(prefix="/api/v1/worker")
 
 
+# Dev only (production requires API_WORKER_TOKEN): the token a worker on the same machine
+# assumes when none is set, so `pnpm dev` needs no setup (studio_worker.config).
+DEV_WORKER_TOKEN = "dev-only-worker-token"
+
+
 def worker_token() -> str:
-    return settings().worker_token or env("API_WORKER_TOKEN") or f"dev-worker:{settings().secret_key[:16]}"
+    return settings().worker_token or env("API_WORKER_TOKEN") or DEV_WORKER_TOKEN
 
 
 def _auth(x_worker_token: str = Header(default="")) -> None:

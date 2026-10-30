@@ -20,11 +20,19 @@ P = config.naming()["envPrefix"]
 
 def test_settings_fail_fast_with_key_names(monkeypatch):
     monkeypatch.delenv(P + "API_WORKER_TOKEN", raising=False)
+    monkeypatch.setenv(P + "KERNEL_URL", "http://api:8000")
     monkeypatch.setenv(P + "WORKER_HEALTH_PORT", "not-a-port")
     with pytest.raises(config.SettingsError) as e:
         config.load_settings()
     assert e.value.missing == [P + "API_WORKER_TOKEN"] and e.value.invalid == [P + "WORKER_HEALTH_PORT"]
     assert "not-a-port" not in str(e.value)
+
+
+def test_dev_token_only_against_a_local_kernel(monkeypatch):
+    monkeypatch.delenv(P + "API_WORKER_TOKEN", raising=False)
+    monkeypatch.delenv(P + "WORKER_HEALTH_PORT", raising=False)
+    monkeypatch.setenv(P + "KERNEL_URL", "http://127.0.0.1:8000")
+    assert config.load_settings().token == config.DEV_WORKER_TOKEN
 
 
 def test_settings_from_env(monkeypatch, tmp_path):

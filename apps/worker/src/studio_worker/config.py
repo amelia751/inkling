@@ -4,7 +4,7 @@ startup: a missing key stops the process with its name, never a value.
 | Key (without prefix)     | Default                                   | Meaning |
 |--------------------------|-------------------------------------------|---------|
 | KERNEL_URL               | http://127.0.0.1:8000                     | the api (kernel) the worker claims jobs from |
-| API_WORKER_TOKEN         | (required)                                | shared worker token (the api's `API_WORKER_TOKEN`) |
+| API_WORKER_TOKEN         | required, except against a loopback kernel | shared worker token (the api's `API_WORKER_TOKEN`); a dev kernel on this machine accepts `dev-only-worker-token` |
 | WORKER_DATA_DIR          | apps/worker/.data in a checkout, else <tmp>/<resourcePrefix>-worker | scratch: plugin HOME/cwd, envs built at run time |
 | WORKER_ENVS_DIR          | <data dir>/envs                           | prebuilt plugin envs (`--prepare-envs`); may be read-only |
 | WORKER_BUILD_ENVS        | 1                                         | build a missing env at run time (`uv sync --locked`); images set 0 |
@@ -27,6 +27,9 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
+
+DEV_WORKER_TOKEN = "dev-only-worker-token"
 
 
 def _find_repo_root() -> Path:
@@ -102,7 +105,10 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
             invalid.append(key_name(name))
             return kind(default)
 
+    kernel_url = (overrides.pop("kernel_url", None) or env("KERNEL_URL", "http://127.0.0.1:8000") or "").rstrip("/")
     token = overrides.pop("token", None) or env("API_WORKER_TOKEN")
+    if not token and urlsplit(kernel_url).hostname in ("127.0.0.1", "localhost", "::1"):
+        token = DEV_WORKER_TOKEN  # the api's dev fallback (`pnpm dev`); a production api rejects it
     if require_token and not token:
         missing.append(key_name("API_WORKER_TOKEN"))
     data_dir = Path(overrides.pop("data_dir", None) or env("WORKER_DATA_DIR") or default_data_dir())
@@ -111,7 +117,7 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         invalid.append(key_name("WORKER_BUILD_ENVS"))
     plugins = [p.strip() for p in (env("WORKER_PLUGINS") or "").split(",") if p.strip()] or None
     s = WorkerSettings(
-        kernel_url=(overrides.pop("kernel_url", None) or env("KERNEL_URL", "http://127.0.0.1:8000") or "").rstrip("/"),
+        kernel_url=kernel_url,
         token=token or "",
         data_dir=data_dir,
         envs_dir=Path(overrides.pop("envs_dir", None) or env("WORKER_ENVS_DIR") or data_dir / "envs"),

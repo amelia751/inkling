@@ -22,6 +22,7 @@ import {
   type IconComponent,
 } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { proposalContext, useAgentContext } from "@/studio/lib/agent/providers";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
@@ -42,6 +43,7 @@ import {
   NeedsApiError,
   recomputeProposal,
   searchNodes,
+  useProjectDetail,
 } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { exploreUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
@@ -70,6 +72,10 @@ export function ExplorePage() {
   const summary = useQuery({ queryKey: exploreKeys.summary(projectId), queryFn: () => fetchExplore(projectId), staleTime: 5_000, retry: (n, e) => !(e instanceof NeedsApiError) && n < 2 });
   const proposals = useQuery({ queryKey: exploreKeys.proposals(projectId), queryFn: () => fetchProposals(projectId), staleTime: 5_000, retry: (n, e) => !(e instanceof NeedsApiError) && n < 2 });
   const all = proposals.data ?? [];
+  const project = useProjectDetail(projectId).data;
+  const focused = all.find((p) => p.id === selected);
+  // What the assistant sees here: the selected proposal (todo6 Phase 6), never file contents.
+  useAgentContext(useMemo(() => (project ? proposalContext({ id: project.id, title: project.title, restricted: project.restricted }, focused) : null), [project, focused]));
   const select = (t: Tab, id?: string | null) => navigate(exploreUrl(projectId, t, id ?? undefined), { replace: true });
   const openRel = all.filter((p) => p.kind === "relationship" && p.status === "proposed").length;
   const openMap = all.filter((p) => p.kind === "mapping" && p.status === "proposed").length;

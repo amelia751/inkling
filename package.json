@@ -1,5 +1,5 @@
 {
-  "name": "studio",
+  "name": "studio-workspace",
   "private": true,
   "packageManager": "pnpm@12.11.2",
   "devEngines": {

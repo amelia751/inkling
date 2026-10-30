@@ -6,6 +6,22 @@
 
 **Audit date:** 2026-10-30, against `main` 581922d plus todo3's fb13ecb.
 
+## Status (2026-10-30)
+
+Done on branch `todo5-naming` (from `main` 3439eae, after todo2 Phase 7–9 and todo3 merged), one commit per step. D1–D4 took the recommended options.
+
+Checks: `pnpm typecheck` (10 tasks, the Python packages included), `pnpm test`, `check:boundaries`, `check:names`, `check:icons`, `emit:schemas --check`, `build-registry --check`, `contracts:check`, `dump_openapi --check`, `lint-imports`, `ruff`, `go vet` + `go test ./...` and segmentation's own pytest are green. The full `apps/web/e2e` suite passed twice in a row (10/10 files both times; at the start, image2d and volume3d failed because the local annotations had drifted). With the new env names, `tests/e2e/plugins_test.py` passed 8/8, `agent_test.py` 13/13 and `builder_test.py` 9/9, run against a local api + worker. On a fresh SQLite database the first agent and builder run each hit a 500 from an existing workspace get-or-create race (in `BACKLOG.md`); every later run was clean.
+
+Where the work differs from the plan:
+
+- **1.2:** every merged branch and worktree is deleted. `wip/main-daytona` is kept (the user's call: it has one commit that isn't on `main`). `todo2-phase7-9` was already gone.
+- **1.4:** `emit:schemas` now writes the catalogue prompt to `schemas/catalog.md`, so all three URLs are served from `schemas/`.
+- **1.5:** `plugins/dicom-export/README.md` already existed; only the secrets line was left.
+- **1.6:** the e2e dev server (`<P>E2E=1`) copies `apps/web/e2e/fixtures/annotations/` to a temp folder at startup (`<P>WEB_ANNOTATIONS_DIR` overrides). `2d-xray.json` there rebuilds the five boxes image2d expects; the other fixtures are copies of the last local state.
+- **3:** the scheme was applied beyond the table: `<P>WEB_URL` (the agent's `AGENT_STUDIO_URL`, the MCP server's `<P>URL`), `<P>MCP_AUTHOR`, `<P>LOG_FORMAT`, `<P>E2E_API_URL`, nginx's `AGENT_UPSTREAM` → `<P>AGENT_URL`, the SDK's `STUDIO_NAMING_FILE` → `NAMING_FILE`, and the integration harness's `VERBOSE` → `<P>VERSIONING_TEST_VERBOSE`. `<P>ENV` takes `development|test|production` everywhere (the API used `dev`). The env-read check lives in `tools/check-names.mjs`, next to the package-name rule. The exit grep still matches `tools/migrate-env.mjs`, whose job is to map the old names.
+- **4:** the real gap was `\b`: `_`, digits and camelCase humps now count as boundaries. That found more leaks than listed: image2d's COCO extras (`${RES}_class`, `_id`, `_provenance`, `_measurements`) and its `__${RES}2d` / `__${RES}Raster` hooks. The brand check now also scans `apps/agent`, whose tests hard-coded sandbox names and labels. Neither the WSI nor the COCO importer reads those metadata keys, so there was no legacy reader to extend. As D3 allows, comments and the spelled-out env prefix in `infra/`, Dockerfiles and nginx templates (rewritten by `tools/rename-namespace.mjs`) still mention the brand.
+- **Found on the way:** `schemas/api/openapi.json` and the api-client types were stale on `main` (regenerated), and CI's `uv sync` installed neither the workspace members nor observability's `otel` extra, which `lint-imports` and pyright need.
+
 ---
 
 ## 0. The naming model (decide once, then apply mechanically)
@@ -42,61 +58,61 @@ There are three kinds of name, and today they're mixed up.
 
 So `studio_api` is the right pattern. It looked messy only because the pattern wasn't applied everywhere. The places that break it are listed in Phase 2.
 
-- [ ] **D1. Flat imports or a namespace package.** **Recommended: keep flat `studio_<role>`.**
+- [x] **D1. Flat imports or a namespace package.** **Recommended: keep flat `studio_<role>`.**
   - A PEP 420 namespace (`studio.api`, `studio.worker`, `studio.plugin_sdk`) reads nicer, but pytest rootdirs, pyright, hatchling `packages =` and import-linter root packages all need special handling.
   - The flat form maps one-to-one from the dist name (`studio-api` → `studio_api`), and import-linter already uses it.
-- [ ] **D2. "Kernel" or "api".** **Recommended: the service is `api` everywhere it's configured or deployed.**
+- [x] **D2. "Kernel" or "api".** **Recommended: the service is `api` everywhere it's configured or deployed.**
   - That covers env vars, URLs, images and docs headings.
   - "Kernel" stays an architecture word for the stable core inside it (`studio_api/kernel/`, `docs/plugins.md` §6).
   - Today one service has three names: the `INKLING_KERNEL` and `INKLING_KERNEL_URL` env vars, the `apps/api` folder, and "Kernel and control plane" in its README.
-- [ ] **D3. Env-var scheme.** **Recommended:** `<P><ROLE>_<KEY>` for settings a service owns, and `<P><ROLE>_URL` and `<P><ROLE>_TOKEN` for how other services reach it.
+- [x] **D3. Env-var scheme.** **Recommended:** `<P><ROLE>_<KEY>` for settings a service owns, and `<P><ROLE>_URL` and `<P><ROLE>_TOKEN` for how other services reach it.
   - Settings every service shares: `<P>ENV` (`development|test|production`) and `<P>LOG_LEVEL`.
   - Unprefixed names are allowed only for third-party standards (`DAYTONA_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OTEL_*`) and for `NAMING_FILE`. `NAMING_FILE` can't carry the prefix because the prefix is read from that file.
-- [ ] **D4. Package folders drop the redundant `studio-` and `plugin-` words** (see 2.2). **Recommended: yes, done as one codemod commit.**
+- [x] **D4. Package folders drop the redundant `studio-` and `plugin-` words** (see 2.2). **Recommended: yes, done as one codemod commit.**
 
 ---
 
 ## Phase 1. Trim (cheap, no renames; can start right after the merges)
 
 ### 1.1 Plans
-- [ ] Move finished plans to `todo/done/`:
+- [x] Move finished plans to `todo/done/`:
   - `todo/todo.md` (modular viewers, done);
   - `todo/phase6-brief.md` (the brief for the `conv-*` agents, done);
   - `todo/todo1.md` (done).
   - Copy todo1's one open "Later" item (Daytona `otelEnabled` / OTLP export) into todo3 Phase E.4, which owns OpenTelemetry.
-- [ ] Once todo2 Phase 7–9 and todo3 land, add `todo/BACKLOG.md`.
+- [x] Once todo2 Phase 7–9 and todo3 land, add `todo/BACKLOG.md`.
   - It holds only the open items from the "What's left" sections of todo2, todo3 and todo4, one line each with a link back to the section.
   - Then archive any plan whose remaining items all moved there.
 
 ### 1.2 Branches and worktrees (ask the user first; none of these are on `main`)
-- [ ] `conv-cine`, `conv-image2d`, `conv-timeseries`, `conv-video`, `conv-volume`, `conv-wsi`.
+- [x] `conv-cine`, `conv-image2d`, `conv-timeseries`, `conv-video`, `conv-volume`, `conv-wsi`.
   - These are the per-viewer conversions; `modular-viewers` (merged) already replaced them.
   - Before deleting, check each with `git log --oneline main..conv-<x>`.
 - [ ] `wip/main-daytona`: the old `main` uncommitted work, in the pre-restructure layout; the merged code replaces all of it.
-- [ ] After the agents finish: `todo2-phase7-9`, `todo3-monorepo`, `.worktrees/todo3`, and the three locked `.claude/worktrees/agent-*` worktrees with their `worktree-agent-*` branches.
+- [x] After the agents finish: `todo2-phase7-9`, `todo3-monorepo`, `.worktrees/todo3`, and the three locked `.claude/worktrees/agent-*` worktrees with their `worktree-agent-*` branches.
   - Remove them with `git worktree remove`, then `git worktree prune`.
 
 ### 1.3 Dead code and shims
-- [ ] Delete `apps/agent/src/protocol.ts` (a one-line `export type *` shim). Import `@studio/agent-protocol` directly in `apps/agent/src`, `scripts/smoke.ts` and `test/unit/*`.
-- [ ] Delete `apps/web/src/studio/lib/agent/protocol.ts` (a re-export). Its three importers (`stores/agent.ts`, `components/ai/cards.tsx`, `core/panels/ai.tsx`) use `@studio/agent-protocol`.
-- [ ] `tools/boundaries-allowlist.json` is `[]`. Delete it and its loading code; add it back when there's a real exception.
-- [ ] `.gitignore`: replace the per-app `.data/` lines with `**/.data/`. `apps/agent/.data/` and `apps/versioning` need it too.
+- [x] Delete `apps/agent/src/protocol.ts` (a one-line `export type *` shim). Import `@studio/agent-protocol` directly in `apps/agent/src`, `scripts/smoke.ts` and `test/unit/*`.
+- [x] Delete `apps/web/src/studio/lib/agent/protocol.ts` (a re-export). Its three importers (`stores/agent.ts`, `components/ai/cards.tsx`, `core/panels/ai.tsx`) use `@studio/agent-protocol`.
+- [x] `tools/boundaries-allowlist.json` is `[]`. Delete it and its loading code; add it back when there's a real exception.
+- [x] `.gitignore`: replace the per-app `.data/` lines with `**/.data/`. `apps/agent/.data/` and `apps/versioning` need it too.
 
 ### 1.4 Generated duplicates
-- [ ] `apps/web/public/catalog.json`, `public/catalog.md` and `public/schema/environment.v1.json` are copies of `schemas/catalog.json` and `schemas/environment.v1.json`, written by `emit:schemas`.
+- [x] `apps/web/public/catalog.json`, `public/catalog.md` and `public/schema/environment.v1.json` are copies of `schemas/catalog.json` and `schemas/environment.v1.json`, written by `emit:schemas`.
   - Serve `schemas/` from Vite instead: a dev middleware, plus a copy step in `build`.
   - Stop tracking the copies.
   - Keep the URLs (`/catalog.json`, `/schema/environment.v1.json`), because agents and the MCP server read them.
 
 ### 1.5 Secrets and docs hygiene
-- [ ] `secrets/README.md`: remove the line saying the Daytona key was copied from another project (`jetrun/kiwi/...`). It's unrelated, and naming where a key came from doesn't belong in the repo. Keep the rotation instructions.
-- [ ] `plugins/export-dicom/` is the only plugin without a `README.md`. Add one with the same sections as the others (todo2 Phase 2 left this open).
+- [x] `secrets/README.md`: remove the line saying the Daytona key was copied from another project (`jetrun/kiwi/...`). It's unrelated, and naming where a key came from doesn't belong in the repo. Keep the rotation instructions.
+- [x] `plugins/export-dicom/` is the only plugin without a `README.md`. Add one with the same sections as the others (todo2 Phase 2 left this open).
 
 ### 1.6 Make the e2e suite self-contained
-- [ ] `apps/web/e2e/image2d_test.py` passes only when the untracked `seed-data/.annotations/2d-xray.json` happens to be in the canonical state. A local edit breaks it.
+- [x] `apps/web/e2e/image2d_test.py` passes only when the untracked `seed-data/.annotations/2d-xray.json` happens to be in the canonical state. A local edit breaks it.
   - Have the harness point the dev server at a temp copy of the annotations folder (an env var such as `<P>WEB_ANNOTATIONS_DIR`), seeded from `fixture_annotations`.
   - Then no test reads or writes the developer's real annotations.
-- [ ] `seed-data/manifest.json` must be version 2. Have `tools/fetch-seeds.py --check` fail on an old manifest, and call it from the harness before the run starts.
+- [x] `seed-data/manifest.json` must be version 2. Have `tools/fetch-seeds.py --check` fail on an old manifest, and call it from the harness before the run starts.
 
 **Exit:** all checks green (the `AGENTS.md` list, plus `uv run pytest` and `go test ./...`), the full e2e suite passes twice in a row, and `git branch` shows only `main` and branches in active use.
 
@@ -119,16 +135,16 @@ So `studio_api` is the right pattern. It looked messy only because the pattern w
 | `packages/studio-renderers` (`@studio/studio-renderers`) | `packages/renderers` (`@studio/renderers`) | Same |
 | `packages/plugin-contracts` (`@studio/plugin-contracts`) | `packages/contracts` (`@studio/contracts`) | It holds the environment schema, workspace, media types and naming, not only plugin contracts. Everything imports it. |
 
-- [ ] Steps:
+- [x] Steps:
   1. `git mv` each folder.
   2. Run a codemod over `@studio/<old>` → `@studio/<new>` in TS, TSX, MJS, JSON and MD files.
   3. Update `apps/web/tsconfig.json` `paths`, `apps/web/aliases.ts`, the `tools/check-boundaries.mjs` layer names, and `AGENTS.md`.
   4. Run `pnpm install`, then all checks.
   5. Update the docs, including the `AGENTS.md` "Rules" layer list.
-- [ ] `packages/plugin-ui-sdk` and `packages/agent-protocol` already follow the rule; keep them.
+- [x] `packages/plugin-ui-sdk` and `packages/agent-protocol` already follow the rule; keep them.
 
 ### 2.3 Enforce it
-- [ ] Add a check to `tools/check-boundaries.mjs` (or a new `tools/check-names.mjs`). For every workspace member, the package name must equal `@studio/<folder>`, or `@studio/plugin-<folder>` under `plugins/`. Python dist names get the same check. It runs in CI with the others.
+- [x] Add a check to `tools/check-boundaries.mjs` (or a new `tools/check-names.mjs`). For every workspace member, the package name must equal `@studio/<folder>`, or `@studio/plugin-<folder>` under `plugins/`. Python dist names get the same check. It runs in CI with the others.
 
 **Exit:** `rg '@studio/(studio-ui|studio-renderers|plugin-contracts|plugin-sdk-py)'` finds nothing outside `todo/done/`, and all checks are green.
 
@@ -150,7 +166,7 @@ Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the w
 | `LOAD_ENTRIES`, `LOAD_RESULTS`, `VERBOSE` (versioning load test) | `INKLING_VERSIONING_LOAD_*` | `make load` only |
 | `INKLING_API_*`, `INKLING_VERSIONING_*`, `INKLING_AGENT_URL`, `INKLING_E2E` | unchanged | — |
 
-- [ ] Each service reads env vars in exactly one place, through an `env("<ROLE>_KEY")` helper that adds the prefix:
+- [x] Each service reads env vars in exactly one place, through an `env("<ROLE>_KEY")` helper that adds the prefix:
   - `apps/agent/src/config.ts`
   - `apps/api/src/studio_api/config.py`
   - `apps/worker/src/studio_worker/main.py` (moved into a `config.py`)
@@ -158,11 +174,11 @@ Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the w
   - `apps/web/vite.config.ts`
 
   A check fails on `process.env.X`, `os.environ` and `os.Getenv` anywhere else (third-party names are on an explicit list).
-- [ ] Migration in one commit:
+- [x] Migration in one commit:
   - Update `secrets/*.env.example`, `secrets/README.md`, the e2e harness, `tests/e2e/*`, the app READMEs and `docs/agent.md`.
   - Add `tools/migrate-env.mjs`, which rewrites the key names in a developer's local `secrets/*.env` in place without printing values. For example, it renames `INTERNAL_AGENT_SERVICE_TOKEN` in `secrets/agent.env`.
   - Nothing is deployed yet, so no fallback to the old names.
-- [ ] `apps/api/README.md` heading: "API service (`apps/api`): kernel and plugin control plane". `docs/plugins.md` keeps "kernel" for the concept.
+- [x] `apps/api/README.md` heading: "API service (`apps/api`): kernel and plugin control plane". `docs/plugins.md` keeps "kernel" for the concept.
 
 **Exit:** `rg -n 'KERNEL_URL|INKLING_KERNEL|APP_ENV|INTERNAL_AGENT_SERVICE_TOKEN|AGENT_NAMING_FILE|NAMING_CONFIG'` finds nothing outside `todo/`. The agent e2e and plugins e2e pass with the new names.
 
@@ -172,10 +188,10 @@ Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the w
 
 `check-boundaries` catches the brand in plain string and identifier tokens, but it misses these:
 
-- [ ] `plugins/volume/ui/renderer/MprEngine.ts`: the e2e hook is `` `__inkling3d` `` (a template literal). Change it to `` `__${RES}3d` ``, update `apps/web/e2e/volume3d_test.py` to read the name from `schemas/naming.json`, and add template-literal text to the brand check.
-- [ ] `plugins/wsi/ui/io.ts`: exported GeoJSON uses the metadata keys `inkling_item` and `inkling_provenance`. Change them to `${RES}_item` and `${RES}_provenance`. The importer also accepts `legacyNamespaces` prefixes, so files exported before a rename still load. Update `wsi.test.ts`.
-- [ ] `plugins/*/plugin.yaml` hard-codes `schemaVersion: inkling.plugins/v1` and `id: inkling.<x>`. That's allowed (they're data, and `tools/rename-namespace.mjs` rewrites them). Add one test asserting that every `plugin.yaml` id starts with `NAMING.namespace`, so a rename can't half-apply.
-- [ ] Generated `apps/api/.../_generated/plugin_v1.py` contains `Literal['inkling.plugins/v1']`. That's fine because it's generated, but put `_generated/` on the brand check's skip list explicitly.
+- [x] `plugins/volume/ui/renderer/MprEngine.ts`: the e2e hook is `` `__inkling3d` `` (a template literal). Change it to `` `__${RES}3d` ``, update `apps/web/e2e/volume3d_test.py` to read the name from `schemas/naming.json`, and add template-literal text to the brand check.
+- [x] `plugins/wsi/ui/io.ts`: exported GeoJSON uses the metadata keys `inkling_item` and `inkling_provenance`. Change them to `${RES}_item` and `${RES}_provenance`. The importer also accepts `legacyNamespaces` prefixes, so files exported before a rename still load. Update `wsi.test.ts`.
+- [x] `plugins/*/plugin.yaml` hard-codes `schemaVersion: inkling.plugins/v1` and `id: inkling.<x>`. That's allowed (they're data, and `tools/rename-namespace.mjs` rewrites them). Add one test asserting that every `plugin.yaml` id starts with `NAMING.namespace`, so a rename can't half-apply.
+- [x] Generated `apps/api/.../_generated/plugin_v1.py` contains `Literal['inkling.plugins/v1']`. That's fine because it's generated, but put `_generated/` on the brand check's skip list explicitly.
 
 **Exit:** `rg -i inkling` outside `naming.ts`, `schemas/naming.json`, `plugin.yaml`, `_generated/`, `docs/`, `todo/`, READMEs and e2e assertions on visible text returns nothing.
 
@@ -197,7 +213,7 @@ These words are used loosely across `docs/`, `AGENTS.md` and code comments. Add 
 | **Preset** | an environment shipped in `registry/presets/` | — |
 | **Workspace** | per-project plugin activation and settings (`workspace.v1.json`) | a pnpm or uv workspace (call those **repo workspaces** in docs) |
 
-- [ ] `infra/k8s/overlays/{dev,staging,prod}` keep their folder names; docs call them stages, never environments.
+- [x] `infra/k8s/overlays/{dev,staging,prod}` keep their folder names; docs call them stages, never environments.
 
 **Exit:** the glossary exists, and `AGENTS.md` links to it in its first paragraph.
 

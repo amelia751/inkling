@@ -9,6 +9,9 @@ line links back to the section that explains it. Take an item by moving it into 
 - Run `make check-generated` for `apps/versioning` in CI's `go` job. [todo4 Phase 4](done/todo4.md#whats-left)
 - `apps/versioning` lint needs `golangci-lint`; CI installs it, local machines may not. [todo3](done/todo3.md#whats-left)
 
+## API
+- First requests on a fresh database race to create the same workspace and asset rows (`UNIQUE constraint failed: workspaces.id`, `assets.workspace_id, assets.path`), so the Studio's first page load can get 500s. Make the get-or-create idempotent (insert … on conflict do nothing, then select). Seen in `tests/e2e/agent_test.py` / `builder_test.py` against a new SQLite db (todo5 verification).
+
 ## Kubernetes
 - Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (today a documented skip). [todo3](done/todo3.md#whats-left), [todo4 Phase 6/7](done/todo4.md#whats-left)
 
@@ -27,4 +30,4 @@ line links back to the section that explains it. Take an item by moving it into 
 - Daytona `otelEnabled` / OTLP export from `apps/agent`, and pi-telemetry contracts once they're stable. [todo3 E.4](done/todo3.md#e4-shared-conventions-every-service), from [todo1 §9](done/todo1.md#9-observability-and-cost)
 
 ## Repo hygiene
-- Delete the merged worktrees and branches (`conv-*`, `wip/main-daytona`, `todo3-monorepo`, `.worktrees/*`, `.claude/worktrees/agent-*`). Tracked in [todo5 1.2](todo5.md#12-branches-and-worktrees-ask-the-user-first-none-of-these-are-on-main).
+- Decide on `wip/main-daytona` (one commit not on `main`: the pre-restructure WIP, ported selectively); every other merged branch and worktree is gone. [todo5 1.2](todo5.md#12-branches-and-worktrees-ask-the-user-first-none-of-these-are-on-main)

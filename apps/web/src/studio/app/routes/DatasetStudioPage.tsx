@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
@@ -17,6 +17,7 @@ import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/ex
 import { labelClasses, regionLabelNames } from "@studio/plugin-contracts/environment";
 import { digitOf, matches } from "@studio/studio-ui/keys";
 import { registry } from "@/extension-host/registry";
+import { applyWorkspace, fetchWorkspaceState } from "@/extension-host/workspace";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish } from "@studio/plugin-ui-sdk/runtime";
@@ -38,9 +39,20 @@ type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | {
  */
 function useEnvironment(project: Project | undefined): Boot {
   const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project, staleTime: Infinity });
+  // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
+  const workspace = useQuery({ queryKey: ["workspace", project?.id], queryFn: () => fetchWorkspaceState(project!.id), enabled: !!project, staleTime: Infinity });
   const [boot, setBoot] = useState<Boot>({ status: "loading" });
+  const [applied, setApplied] = useState(false);
   useEffect(() => {
-    if (!project || saved.isLoading) return;
+    if (workspace.isLoading || workspace.error) return;
+    applyWorkspace(workspace.data ?? null);
+    setApplied(true);
+  }, [workspace.isLoading, workspace.error, workspace.data]);
+  // Re-resolve when plugins are enabled or disabled (e.g. enabling one this environment needs).
+  const activation = useSyncExternalStore((l) => registry.subscribe(l), () => registry.activationVersion);
+  useEffect(() => {
+    if (workspace.error) return setBoot({ status: "failed", message: String(workspace.error) });
+    if (!project || saved.isLoading || !applied) return;
     const spec = saved.data?.environment ?? project.environment;
     const r = resolveEnvironment(spec, registry);
     if (r.errors) return setBoot({ status: "errors", errors: r.errors });
@@ -51,7 +63,7 @@ function useEnvironment(project: Project | undefined): Boot {
     return () => {
       live = false;
     };
-  }, [project, saved.isLoading, saved.data]);
+  }, [project, saved.isLoading, saved.data, applied, activation, workspace.error]);
   return boot;
 }
 
@@ -113,6 +125,7 @@ function Studio({ projectId }: { projectId: string }) {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   useEnvBindings(env, items);
+  useActivationSync(env);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
   // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
@@ -222,6 +235,33 @@ function Studio({ projectId }: { projectId: string }) {
   );
 }
 
+
+/**
+ * Re-resolve when the workspace's active plugins change (enable / disable without a reload).
+ * The new environment replaces the old one without an undo step; annotations stay in the
+ * store whatever happens, and types of a disabled plugin show as unavailable.
+ */
+function useActivationSync(env: ResolvedEnv) {
+  const activation = useSyncExternalStore(
+    (l) => registry.subscribe(l),
+    () => registry.activationVersion,
+  );
+  const first = useRef(activation);
+  useEffect(() => {
+    if (activation === first.current) return;
+    first.current = activation;
+    const r = resolveEnvironment(env.source, registry);
+    if (r.errors) {
+      console.warn("[plugins] the environment no longer resolves with this workspace's plugins", r.errors);
+      return;
+    }
+    let live = true;
+    Promise.all(r.env.modules.map((m) => registry.preload(m.id))).then(() => live && useStudio.getState().setEnv(r.env, { record: false }));
+    return () => {
+      live = false;
+    };
+  }, [activation, env.source]);
+}
 
 /** Bind the environment's commands and label colors for as long as it runs. */
 function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {

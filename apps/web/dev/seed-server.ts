@@ -15,11 +15,15 @@ const RES = NAMING.resourcePrefix;
  *   PUT   /api/annotations/:projectId   → persist annotation document
  *   GET   /api/catalog                  → module / contribution catalogue (agent surface)
  *   GET   /api/catalog/schema           → environment JSON Schema with registered-id enums
+ *   GET   /api/catalog/capabilities     → capabilities of active plugins (plugin.yaml)
+ *   GET   /api/catalog/plugins/:id      → one plugin's manifest and declarative UI
  *   POST  /api/environments/validate    → resolve a spec; structured errors
  *   GET   /api/environments/:projectId  → saved environment edits ({ environment: null } if none)
  *   PUT   /api/environments/:projectId  → replace (validated); { revision, environment, author }
  *   PATCH /api/environments/:projectId  → RFC 6902 JSON Patch (validated); { revision?, patch, author }
  *   GET   /api/environments/:projectId/history → every saved revision with author and time
+ *   GET   /api/v1/workspaces/:id/state → active plugins: seed-data/<id>/workspace.json, else every
+ *                                         bundled plugin; the kernel serves this in Phase 5
  *   GET   /api/agent/status             → whether Claude credentials are configured
  *   POST  /api/agent/messages           → one Messages API turn for the Studio assistant
  *                                         (the browser runs the tool loop; the key stays here)
@@ -77,6 +81,15 @@ export function seedServer(seedRoot: string): Plugin {
       server.middlewares.use("/api/catalog", (req, res) => handleCatalog(req, res, api));
       server.middlewares.use("/api/environments", (req, res) => handleEnvironments(req, res, api, environmentsDir, seedRoot));
       server.middlewares.use("/api/agent", (req, res) => handleAgent(req, res));
+      server.middlewares.use("/api/v1/workspaces", async (req, res, next) => {
+        const m = /^\/([a-z0-9-]+)\/state$/.exec((req.url ?? "").split("?")[0]);
+        if (!m || req.method !== "GET") return next();
+        const file = path.join(seedRoot, m[1], "workspace.json");
+        if (!fs.existsSync(file)) return sendJson(res, 200, (await api()).allBundledState(m[1]));
+        const raw = JSON.parse(fs.readFileSync(file, "utf8")) as { plugins?: (string | { pluginId: string; version?: string })[] };
+        const plugins = (raw.plugins ?? []).map((p) => (typeof p === "string" ? { pluginId: p, version: "0.0.0", state: "ACTIVATED" } : { version: "0.0.0", state: "ACTIVATED", ...p }));
+        return sendJson(res, 200, { workspaceId: m[1], plugins });
+      });
 
       server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];
@@ -139,6 +152,12 @@ async function handleCatalog(req: IncomingMessage, res: ServerResponse, api: () 
   const m = await api();
   const sub = (req.url ?? "/").split("?")[0];
   if (sub === "/schema") return sendJson(res, 200, m.schema());
+  if (sub === "/capabilities") return sendJson(res, 200, m.listCapabilities());
+  const plugin = /^\/plugins\/(.+)$/.exec(sub);
+  if (plugin) {
+    const pkg = m.PLUGIN_PACKAGES.packages.find((p) => p.manifest.id === decodeURIComponent(plugin[1]));
+    return pkg ? sendJson(res, 200, { manifest: pkg.manifest, declarativeUi: pkg.contributions }) : sendJson(res, 404, { error: "unknown plugin" });
+  }
   if (sub === "/prompt") {
     res.setHeader("Content-Type", "text/markdown");
     return res.end(m.prompt());

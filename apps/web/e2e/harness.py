@@ -23,6 +23,7 @@ from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 
 REPO = Path(__file__).resolve().parents[3]
+NAMING = json.loads((REPO / "schemas" / "naming.json").read_text())
 
 # Browser URLs of modules tests import directly. Shell and host files live under apps/web/src
 # (served at /src/...); packages and plugins live outside the Vite root and are served at
@@ -90,6 +91,7 @@ def open_studio(
     init_script: str | None = None,
     device_scale_factor: float = 1,
     fixture_annotations: list[dict[str, Any]] | None = None,
+    workspace_state: dict[str, Any] | None = None,
 ) -> Studio:
     """Open /datasets/<dataset> with saves intercepted.
 
@@ -99,6 +101,7 @@ def open_studio(
     device_scale_factor: HiDPI rendering (2 = retina).
     fixture_annotations: answer the annotations GET with exactly these, so a test never
       depends on what happens to be saved in seed-data/.annotations.
+    workspace_state: answer the workspace's active-plugin state (Workspace API) with this.
     """
     ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=device_scale_factor)
     if init_script:
@@ -121,6 +124,9 @@ def open_studio(
 
     page.route("**/api/annotations/**", annotations)
 
+    if workspace_state is not None:
+        page.route(f"**/api/v1/workspaces/{dataset}/state", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(workspace_state)))
+
     if extra_projects:
         def manifest(route: Route) -> None:
             res = route.fetch()
@@ -139,4 +145,4 @@ def open_studio(
     return studio
 
 
-__all__ = ["Studio", "parse_args", "launch", "open_studio", "sync_playwright"]
+__all__ = ["NAMING", "REGISTRY", "RUNTIME", "STORE", "Studio", "launch", "open_studio", "parse_args", "src_url", "sync_playwright"]

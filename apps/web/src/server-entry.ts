@@ -9,7 +9,7 @@ import { NAMING } from "@studio/plugin-contracts/naming";
 import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
 import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
 import { WorkspaceState } from "@studio/plugin-contracts/workspace";
-import "@/extension-host/bundled";
+import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/plugin-contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
@@ -17,6 +17,14 @@ import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError } from "@/extension-host/resolve";
 
 export const catalog = () => describeCatalog(registry);
+export { listCapabilities } from "@/extension-host/agent";
+
+/** Dev workspace state when seed-data/<project>/workspace.json is absent: every bundled plugin active. */
+export function allBundledState(workspaceId: string) {
+  const builtin = new Set(BUILTIN_MODULES.map((m) => m.id));
+  return { workspaceId, plugins: registry.listAvailable().filter((m) => !builtin.has(m.id)).map((m) => ({ pluginId: m.id, version: m.version, state: "ACTIVATED" })) };
+}
+export { PLUGIN_PACKAGES } from "@/extension-host/manifests";
 export const prompt = () => catalogPrompt(registry);
 export const schema = () => environmentJsonSchema(registry);
 

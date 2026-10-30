@@ -54,5 +54,8 @@ export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline
 for (const m of MODULES) registry.registerModule(m);
 // Agent-generated panels (safety tiers 2–3) exist only when the agentPanels flag is on.
 if (featureEnabled("agentPanels")) registry.registerModule(experimental);
+// Built-ins are active in every workspace; plugins only where the workspace activated them
+// (extension-host/workspace.ts). Until a workspace is applied, everything bundled is active.
+registry.pin([...BUILTIN_MODULES.map((m) => m.id), ...(featureEnabled("agentPanels") ? [experimental.id] : [])]);
 // Every environment gets the Studio core, whatever it references.
 resolveDefaults.baseModules = [core.id];

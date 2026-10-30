@@ -70,6 +70,18 @@ action becomes a command with `surface: "toolbar"` and a `when` built from `visi
 (`item.mediaType =~ …`), and runs through the command gateway (`extension-host/gateway.ts`).
 Surfaces map to today's slots in `extension-host/surfaces.ts`.
 
+### Workspace activation
+
+The registry separates **available** plugins (everything bundled) from **active** ones (what
+this workspace installed). Lookups, the resolver and the agent's catalogue see active
+plugins only; built-ins are pinned. The Studio reads the workspace state from
+`GET /api/v1/workspaces/:id/state` (the kernel's Workspace API; in dev the seed server serves
+`seed-data/<project>/workspace.json`, or every bundled plugin) and calls `applyWorkspace`.
+`registry.activate` / `deactivate` change the set at runtime and the Studio re-resolves
+without a reload. `requires` is pulled from available plugins only, and a missing one is
+reported. Annotations of a disabled plugin's geometry types stay in the store and show as
+"unavailable type".
+
 **Trust rule (todo2 D2).** First-party plugins are trusted code compiled into the web build,
 so their `ui/` folder may contain React. Third-party and agent-authored plugins may only ship
 `plugin.yaml` plus `ui/contributions.json` that name trusted renderers; they never run their

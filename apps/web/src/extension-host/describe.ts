@@ -12,7 +12,10 @@ export function describeGeometry(a: Annotation, env?: ResolvedEnv | null): strin
   const candidates = (env?.geometries ?? registry.list("geometries")).filter((g) => g.type === type && g.describe);
   const g = candidates[candidates.length - 1] ?? registry.geometry(type);
   if (g?.describe) return g.describe(a.geometry, a);
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  const name = type.charAt(0).toUpperCase() + type.slice(1);
+  // A module type (`<module>.<name>`) whose plugin this workspace doesn't run: kept and
+  // shown, never dropped (docs/plugins.md §14 #9).
+  return !g && type.includes(".") ? `${name} (unavailable type)` : name;
 }
 
 /**

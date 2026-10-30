@@ -18,13 +18,28 @@ export const fullId = (moduleId: string, type: ContributionType, name: string) =
  * Indexes modules and their contributions. One instance (`registry`) serves the app; tests
  * create their own with `createRegistry()`.
  */
+export interface ActivationResult {
+  activated: string[];
+  /** Requirements that aren't available (never silently added; docs/plugins.md §14 #11). */
+  missing: { module: string; requires: string }[];
+}
+
 export class Registry {
+  /** Every registered module: what this build *could* run (bundled, known). */
   private modules = new Map<string, ModuleManifest>();
+  /**
+   * Modules active in the current workspace; `null` = all available (tests, server tooling).
+   * Pinned modules (Studio built-ins) are always active.
+   */
+  private active: Set<string> | null = null;
+  private pinned = new Set<string>();
   private byId = new Map<string, Registered<ContributionType>>();
   private impls = new Map<string, Promise<ModuleImpl>>();
   private listeners = new Set<() => void>();
   /** Bumped on every registration so memoised lookups (useSyncExternalStore) can invalidate. */
   version = 0;
+  /** Bumped only when the set of active modules changes (registration, activation). */
+  activationVersion = 0;
 
   /** Idempotent: registering the same manifest object twice is a no-op; a different one with the same id throws. */
   registerModule(m: ModuleManifest): void {
@@ -44,8 +59,7 @@ export class Registry {
       this.byId.set(c.id, c);
       if (c.kind === "presets") this.byId.set(`preset:${c.name}`, c);
     }
-    this.version++;
-    this.listeners.forEach((l) => l());
+    this.changed();
   }
 
   subscribe(l: () => void): () => void {
@@ -53,32 +67,129 @@ export class Registry {
     return () => this.listeners.delete(l);
   }
 
-  module(id: string): ModuleManifest | undefined {
-    return this.modules.get(canonicalId(id));
+  private changed(): void {
+    this.activationVersion++;
+    this.version++;
+    this.listeners.forEach((l) => l());
   }
 
-  listModules(): ModuleManifest[] {
+  // ---- Activation (todo2 Phase 3) ----------------------------------------------------------
+
+  /** Modules that are active in every workspace (the Studio core and kits). */
+  pin(ids: string[]): void {
+    ids.forEach((id) => this.pinned.add(canonicalId(id)));
+    this.changed();
+  }
+
+  isActive(moduleId: string): boolean {
+    const id = canonicalId(moduleId);
+    return this.modules.has(id) && (this.active === null || this.active.has(id) || this.pinned.has(id));
+  }
+
+  /** Every registered module, active or not. */
+  listAvailable(): ModuleManifest[] {
     return [...this.modules.values()];
   }
 
+  activeIds(): string[] {
+    return this.listModules().map((m) => m.id);
+  }
+
+  /**
+   * Make exactly `ids` (plus pinned modules) active, pulling in their `requires` from the
+   * available modules. Requirements that aren't available are reported and their
+   * dependents stay inactive.
+   */
+  setActive(ids: string[] | null): ActivationResult {
+    if (ids === null) {
+      this.active = null;
+      this.changed();
+      return { activated: [...this.modules.keys()], missing: [] };
+    }
+    const next = new Set<string>();
+    const missing: ActivationResult["missing"] = [];
+    const add = (id: string, path: string[]): boolean => {
+      const m = this.modules.get(id);
+      if (!m) return false;
+      if (next.has(id) || this.pinned.has(id)) return true;
+      if (path.includes(id)) return true;
+      for (const req of m.requires ?? []) {
+        const r = canonicalId(req);
+        if (!this.modules.has(r)) {
+          missing.push({ module: id, requires: r });
+          return false;
+        }
+        if (!add(r, [...path, id])) return false;
+      }
+      next.add(id);
+      return true;
+    };
+    for (const id of ids.map(canonicalId)) if (this.modules.has(id)) add(id, []);
+    this.active = next;
+    this.changed();
+    return { activated: [...next], missing };
+  }
+
+  /** Activate one module (and its available requirements) in the current workspace. */
+  activate(moduleId: string): ActivationResult {
+    const ids = this.active === null ? [...this.modules.keys()] : [...this.active];
+    return this.setActive([...ids, canonicalId(moduleId)]);
+  }
+
+  /** Deactivate one module. Its annotations stay in the store; their geometry type shows as unavailable. */
+  deactivate(moduleId: string): void {
+    const id = canonicalId(moduleId);
+    const ids = (this.active === null ? [...this.modules.keys()] : [...this.active]).filter((x) => x !== id);
+    // Modules that require it can't stay active without it.
+    const keep = ids.filter((x) => !(this.modules.get(x)?.requires ?? []).map(canonicalId).includes(id));
+    this.setActive(keep);
+  }
+
+  module(id: string): ModuleManifest | undefined {
+    const m = this.modules.get(canonicalId(id));
+    return m && this.isActive(m.id) ? m : undefined;
+  }
+
+  /** A registered module whether or not it's active (manifests, activation UI). */
+  availableModule(id: string): ModuleManifest | undefined {
+    return this.modules.get(canonicalId(id));
+  }
+
+  /** Modules active in the current workspace. Everything below sees active modules only. */
+  listModules(): ModuleManifest[] {
+    return [...this.modules.values()].filter((m) => this.isActive(m.id));
+  }
+
+  /** Active contribution by full id. */
+  private find(id: string): Registered<ContributionType> | undefined {
+    const c = this.byId.get(canonicalId(id));
+    return c && this.isActive(c.module) ? c : undefined;
+  }
+
   has(id: string): boolean {
-    return this.byId.has(canonicalId(id));
+    return !!this.find(id);
   }
 
   /** Any contribution by full id, whatever its type. */
   lookup(id: string): Registered<ContributionType> | undefined {
-    return this.byId.get(canonicalId(id));
+    return this.find(id);
   }
 
   get<T extends ContributionType>(type: T, id: string): Registered<T> | undefined {
-    const c = this.byId.get(canonicalId(id));
+    const c = this.find(id);
     return c && c.kind === type ? (c as unknown as Registered<T>) : undefined;
   }
 
   list<T extends ContributionType>(type: T, filter?: (c: Registered<T>) => boolean): Registered<T>[] {
     const out: Registered<T>[] = [];
-    for (const [key, c] of this.byId) if (c.kind === type && key === c.id && (!filter || filter(c as unknown as Registered<T>))) out.push(c as unknown as Registered<T>);
+    for (const [key, c] of this.byId)
+      if (c.kind === type && key === c.id && this.isActive(c.module) && (!filter || filter(c as unknown as Registered<T>))) out.push(c as unknown as Registered<T>);
     return out;
+  }
+
+  /** An inactive module's contribution, for "unavailable type" notices. */
+  lookupAvailable(id: string): Registered<ContributionType> | undefined {
+    return this.byId.get(canonicalId(id));
   }
 
   /** Geometry contribution by `geometry.type` (core types are bare, module types `<module>.<name>`). */

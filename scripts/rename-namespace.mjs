@@ -51,7 +51,7 @@ const targets = [
   ...jsonFiles(join(root, "seed-data/.annotations")),
   ...readdirSync(join(root, "seed-data")).flatMap((d) => (existsSync(join(root, "seed-data", d)) && statSync(join(root, "seed-data", d)).isDirectory() ? jsonFiles(join(root, "seed-data", d)).filter((f) => /environment[^/]*\.json$|workspace\.json$/.test(f)) : [])),
   ...jsonFiles(join(root, "apps/web/e2e/fixtures")),
-  ...(existsSync(join(root, "plugins")) ? readdirSync(join(root, "plugins")).flatMap((p) => jsonFiles(join(root, "plugins", p))) : []),
+  ...(existsSync(join(root, "plugins")) ? readdirSync(join(root, "plugins")).filter((p) => p !== "node_modules" && p !== "package.json").flatMap((p) => jsonFiles(join(root, "plugins", p))) : []),
 ];
 
 let changed = 0;

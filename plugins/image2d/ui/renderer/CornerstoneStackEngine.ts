@@ -13,7 +13,7 @@ import { webImageId } from "@studio/renderers/cornerstone/webImageLoader";
 import { releaseFocusAfterPointer } from "@studio/renderers/viewport-chrome/bar";
 import type { StackConfig, WandMode } from "../view";
 import { imageConverter } from "./convert";
-import { NAMING } from "@studio/contracts/naming";
+import { NAMING, RES } from "@studio/contracts/naming";
 import { assetUrl, useHost } from "@studio/plugin-ui-sdk";
 
 const { SegmentationRepresentations } = tools.Enums;
@@ -285,7 +285,7 @@ export class CornerstoneStackEngine {
     };
     this.status = "ready";
     this.o.onChange();
-    exposeForTests(`__inkling2d`, {
+    exposeForTests(`__${RES}2d`, {
       viewport: () => engine.getViewport(ids.viewport),
       imageId,
       props: () => {
@@ -304,7 +304,7 @@ export class CornerstoneStackEngine {
   dispose(): void {
     this.cancelled = true;
     if (this.frame) cancelAnimationFrame(this.frame);
-    exposeForTests(`__inkling2d`, null);
+    exposeForTests(`__${RES}2d`, null);
     const s = this.session;
     this.session = null;
     if (s) {

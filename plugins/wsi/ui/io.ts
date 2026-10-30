@@ -4,6 +4,7 @@ import type { Annotation, Geometry, Project, Pt, StudioItem } from "@studio/cont
 import { measurementLength } from "./measure";
 import { regionArea, regionOf, regionPerimeter } from "@studio/renderers/overlay2d/regions";
 import { newAnnotation } from "@studio/plugin-ui-sdk";
+import { RES } from "@studio/contracts/naming";
 
 // ---------------------------------------------------------------- helpers
 
@@ -97,7 +98,7 @@ export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotatio
         isLocked: !!a.locked,
         ...(name ? { name } : {}),
         ...(measurementsOf(a, mppOf(item)) ? { measurements: measurementsOf(a, mppOf(item)) } : {}),
-        metadata: { inkling_item: slideName(item), inkling_provenance: a.provenance },
+        metadata: { [`${RES}_item`]: slideName(item), [`${RES}_provenance`]: a.provenance },
       },
     });
   }
@@ -111,7 +112,7 @@ export function toQuPathGeoJSON(project: Project, items: StudioItem[], annotatio
         classification: { name: p.label, color: labelRgb(labels, p.label) },
         isLocked: false,
         measurements: { "Num points": p.coords.length },
-        metadata: { inkling_item: slideName(byId.get(p.item)!) },
+        metadata: { [`${RES}_item`]: slideName(byId.get(p.item)!) },
       },
     });
   }

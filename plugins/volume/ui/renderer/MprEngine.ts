@@ -523,7 +523,7 @@ export class MprEngine {
 
     return () => {
       cancelled = true;
-      exposeForTests(`__inkling3d`, null);
+      exposeForTests(`__${RES}3d`, null);
       const v = built;
       if (this.view === v) this.view = null;
       if (!v) return;
@@ -549,9 +549,9 @@ export class MprEngine {
     };
   }
 
-  /** Window hooks the e2e suite drives (`window.__inkling3d`). */
+  /** Window hooks the e2e suite drives (`window.__<resourcePrefix>3d`). */
   private exposeTestHooks(s: Session, engine: RenderingEngine, ids: Partial<Record<Cell, string>>) {
-    exposeForTests(`__inkling3d`, {
+    exposeForTests(`__${RES}3d`, {
       cells: () => Object.keys(ids),
       props: (cell: Cell) => {
         const vp = engine.getViewport(ids[cell]!) as Types.IVolumeViewport;

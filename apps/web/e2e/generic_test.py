@@ -19,7 +19,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from cs_helpers import Results, blob_from_exporter, check, click, close, drag, item_annotations, new_annotations, wait_for  # noqa: E402
-from harness import open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, open_studio, parse_args, sync_playwright  # noqa: E402
+
+# Dev-only window hooks the viewers expose (named from the naming config).
+HOOK_2D = f"__{NAMING['resourcePrefix']}2d"
+HOOK_RASTER = f"__{NAMING['resourcePrefix']}Raster"
 
 SEED = Path(__file__).resolve().parents[3] / "seed-data" / "manifest.json"
 DATASET = "generic-xray"
@@ -45,14 +49,14 @@ def generic_project() -> dict:
 
 def open_generic(browser, port):
     st = open_studio(browser, port, DATASET, extra_projects=[generic_project()], fixture_annotations=[])
-    wait_for(lambda: st.page.evaluate("() => !!window.__inklingRaster"), "canvas-raster ready", 60)
+    wait_for(lambda: st.page.evaluate(f"() => !!window.{HOOK_RASTER}"), "canvas-raster ready", 60)
     wait_for(lambda: st.store("s => s.projectId") == DATASET, "annotations loaded")
     time.sleep(0.4)
     return st
 
 
 def img(st, x, y):
-    return tuple(st.page.evaluate(f"() => window.__inklingRaster.canvasOf({x}, {y})"))
+    return tuple(st.page.evaluate(f"() => window.{HOOK_RASTER}.canvasOf({x}, {y})"))
 
 
 def item_id(st) -> str:
@@ -95,9 +99,9 @@ def main() -> int:
             check(env["renderer"] == "inkling.image2d.renderers.canvas-raster", env)
             check(env["tools"] == ["inkling.core.tools.select", "inkling.core.tools.pan", "inkling.overlay2d.tools.box", "inkling.overlay2d.tools.polygon", "inkling.overlay2d.tools.keypoint"], env["tools"])
             check(env["exporters"] == ["inkling.image2d.exporters.coco"], env["exporters"])
-            check(st.page.evaluate("() => !window.__inkling2d && !document.querySelector('canvas.cornerstone-canvas')"), "no Cornerstone viewport")
+            check(st.page.evaluate(f"() => !window.{HOOK_2D} && !document.querySelector('canvas.cornerstone-canvas')"), "no Cornerstone viewport")
             check(st.page.locator("[data-testid=raster-canvas]").count() == 1, "raster canvas")
-            size = st.page.evaluate("() => window.__inklingRaster.size")
+            size = st.page.evaluate(f"() => window.{HOOK_RASTER}.size")
             check(size == [1857, 1317], size)
             st.shot("load", out)
             return f"{env['renderer']}, image {size}"
@@ -123,7 +127,7 @@ def main() -> int:
             # Backspace drops the last vertex while drawing; Enter closes.
             click(st.page, img(st, 900, 900)); time.sleep(0.1)
             st.page.keyboard.press("Backspace")
-            check(len(st.page.evaluate("() => window.__inklingRaster.draft().points")) == 4, "Backspace removed a vertex")
+            check(len(st.page.evaluate(f"() => window.{HOOK_RASTER}.draft().points")) == 4, "Backspace removed a vertex")
             st.page.keyboard.press("Enter")
             g = wait_for(lambda: new_annotations(st, item, before), "polygon stored", 10)[0]["geometry"]
             check(g["type"] == "polygon" and len(g["points"]) == 4, g)
@@ -132,7 +136,7 @@ def main() -> int:
             # Escape abandons a polygon in progress.
             click(st.page, img(st, 1000, 1000)); click(st.page, img(st, 1100, 1000))
             st.page.keyboard.press("Escape")
-            check(st.page.evaluate("() => window.__inklingRaster.draft()") is None, "Escape cancels the draft")
+            check(st.page.evaluate(f"() => window.{HOOK_RASTER}.draft()") is None, "Escape cancels the draft")
             check(len(new_annotations(st, item, before)) == 1, "cancelled polygon not stored")
             return "4-vertex polygon via Enter; Backspace and Escape"
 
@@ -175,31 +179,31 @@ def main() -> int:
             return f"moved, resized to {g['w']}×{g['h']}, deleted, undone"
 
         def t_view(st, item):
-            c0 = st.page.evaluate("() => window.__inklingRaster.camera()")
+            c0 = st.page.evaluate(f"() => window.{HOOK_RASTER}.camera()")
             p = img(st, 900, 600)
             st.page.mouse.move(*p)
             st.page.mouse.wheel(0, -400)
             time.sleep(0.3)
-            c1 = st.page.evaluate("() => window.__inklingRaster.camera()")
+            c1 = st.page.evaluate(f"() => window.{HOOK_RASTER}.camera()")
             check(c1["scale"] > c0["scale"] * 1.2, f"wheel zooms {c0} → {c1}")
             q = img(st, 900, 600)
             close(q[0], p[0], 1.5, "zoom keeps the cursor point x"); close(q[1], p[1], 1.5, "zoom keeps the cursor point y")
             tool(st, "h", "pan")
             drag(st.page, p, (p[0] + 120, p[1] + 60))
-            c2 = st.page.evaluate("() => window.__inklingRaster.camera()")
+            c2 = st.page.evaluate(f"() => window.{HOOK_RASTER}.camera()")
             close(c2["tx"] - c1["tx"], 120, 2, "pan x"); close(c2["ty"] - c1["ty"], 60, 2, "pan y")
             # Space-drag pans with a drawing tool and draws nothing.
             tool(st, "r", "box")
             st.page.keyboard.down("Space")
             drag(st.page, p, (p[0] - 100, p[1]))
             st.page.keyboard.up("Space")
-            c3 = st.page.evaluate("() => window.__inklingRaster.camera()")
+            c3 = st.page.evaluate(f"() => window.{HOOK_RASTER}.camera()")
             close(c3["tx"] - c2["tx"], -100, 2, "space pan")
             check(not item_annotations(st, item), "space-drag draws nothing")
             st.page.mouse.move(5, 5)
             st.page.keyboard.press("0")
             time.sleep(0.2)
-            c4 = st.page.evaluate("() => window.__inklingRaster.camera()")
+            c4 = st.page.evaluate(f"() => window.{HOOK_RASTER}.camera()")
             close(c4["scale"], c0["scale"], 1e-6, "fit (0) restores the scale")
             return f"zoom {c0['scale']:.3f}→{c1['scale']:.3f}, pan, space-pan, fit"
 

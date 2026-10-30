@@ -11,7 +11,7 @@ import type { Annotation, Geometry, Pt } from "@studio/contracts/types";
 import { useHoldToPan } from "../holdToPan";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./camera";
 import { RasterEditor, type EditorEnv } from "./editor";
-import { ns } from "@studio/contracts/naming";
+import { RES, ns } from "@studio/contracts/naming";
 import { assetUrl, isEditable, newAnnotation, useCommands, useHost, visibleFor } from "@studio/plugin-ui-sdk";
 
 const SCOPES = [ns("image2d"), ns("core")];
@@ -20,8 +20,8 @@ const SCOPES = [ns("image2d"), ns("core")];
 function exposeForTests(api: Record<string, unknown> | null) {
   if (!import.meta.env.DEV) return;
   const w = window as unknown as Record<string, unknown>;
-  if (api) w.__inklingRaster = api;
-  else delete w.__inklingRaster;
+  if (api) w[`__${RES}Raster`] = api;
+  else delete w[`__${RES}Raster`];
 }
 
 /**

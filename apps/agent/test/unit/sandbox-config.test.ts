@@ -6,6 +6,9 @@ import { ConfigError, describeSecrets, loadConfig, withPrefix } from "../../src/
 import { createParams, sandboxLabels, sandboxName } from "../../src/sandbox/defaults.ts";
 import { snapshotName } from "../../src/sandbox/snapshot.ts";
 import { loadDevSecrets, maskSecret, parseEnvFile } from "../../src/secrets.ts";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 describe("secrets", () => {
   it("parses env files", () => {
@@ -18,7 +21,7 @@ describe("secrets", () => {
   });
 
   it("never overrides the real environment and skips production", () => {
-    const dir = mkdtempSync(join(tmpdir(), "inkling-secrets-"));
+    const dir = mkdtempSync(join(tmpdir(), `${RES}-secrets-`));
     writeFileSync(join(dir, "a.env"), "KEEP=file\nNEW=file\n");
     const env: NodeJS.ProcessEnv = { KEEP: "real" };
     expect(loadDevSecrets(env, dir)).toEqual(["NEW"]);
@@ -62,12 +65,12 @@ describe("sandbox defaults", () => {
   const who = { sessionId: "S_1/x", projectId: "p 1", owner: "me@x.com", profile: "coder" };
 
   it("names are deterministic and DNS-safe", () => {
-    expect(sandboxName("test", "S_1/x")).toBe("inkling-test-s-1-x");
+    expect(sandboxName("test", "S_1/x")).toBe(`${RES}-test-s-1-x`);
     expect(sandboxName("development", "a".repeat(100)).length).toBeLessThanOrEqual(63);
   });
 
   it("labels carry the sweep keys with a safe charset", () => {
-    expect(sandboxLabels("test", who)).toEqual({ app: "inkling", env: "test", session: "S_1_x", project: "p_1", owner: "me_x.com", profile: "coder" });
+    expect(sandboxLabels("test", who)).toEqual({ app: RES, env: "test", session: "S_1_x", project: "p_1", owner: "me_x.com", profile: "coder" });
   });
 
   it("private, lifecycle-bounded, no egress overrides unless the tier allows it", () => {
@@ -89,6 +92,6 @@ describe("snapshot name", () => {
     expect(snapshotName("numpy==2.5.4")).toBe(a);
     expect(snapshotName("numpy==2.5.4\r\n")).toBe(a);
     expect(snapshotName("numpy==2.5.5")).not.toBe(a);
-    expect(a).toMatch(/^inkling-agent-[0-9a-f]{12}$/);
+    expect(a).toMatch(new RegExp(`^${RES}-agent-[0-9a-f]{12}$`));
   });
 });

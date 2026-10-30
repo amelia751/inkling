@@ -2,11 +2,14 @@ import type { Sandbox } from "@daytona/sdk";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { SandboxUnavailableError } from "../../src/sandbox/client.ts";
-import { SANDBOX_CWD } from "../../src/sandbox/defaults.ts";
+import { SANDBOX_CWD, SANDBOX_LOG_DIR } from "../../src/sandbox/defaults.ts";
 import { ExecAbortedError, execCommand, streamCommand, withRecovery } from "../../src/sandbox/exec.ts";
 import { SandboxManager } from "../../src/sandbox/manager.ts";
 import { createSandboxTools } from "../../src/tools/sandbox.ts";
 import { LIVE_LABELS, assertNoLeftovers, config, daytona, live, runId } from "./setup.ts";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 const sessionId = runId();
 const owner = { sessionId, projectId: "live-test", owner: "ci", profile: "coder", labels: LIVE_LABELS };
@@ -46,8 +49,8 @@ describe.skipIf(!live)("Daytona live", () => {
   it("creates with labels, lifecycle and started state", async () => {
     expect(events).toEqual(["creating", "ready"]);
     expect(sandbox.state).toBe("started");
-    expect(sandbox.labels).toMatchObject({ app: "inkling", env: config.env, session: sessionId, test: "live" });
-    expect(sandbox.name).toBe(`inkling-${config.env}-${sessionId}`);
+    expect(sandbox.labels).toMatchObject({ app: RES, env: config.env, session: sessionId, test: "live" });
+    expect(sandbox.name).toBe(`${RES}-${config.env}-${sessionId}`);
     expect(sandbox.public).toBe(false);
   });
 
@@ -60,7 +63,7 @@ describe.skipIf(!live)("Daytona live", () => {
 
   it("the sandbox environment holds no host credentials", async () => {
     const env = await call("bash", { command: "env" });
-    expect(env).toContain("INKLING_SESSION=");
+    expect(env).toContain(`${NAMING.envPrefix}SESSION=`);
     // Daytona injects its own sandbox metadata (DAYTONA_SANDBOX_ID, _REGION_ID, …); host credentials never get in.
     expect(env).not.toMatch(/^(DAYTONA_API_KEY|DAYTONA_API_URL|DAYTONA_TARGET|\w*AGENT_TOKEN|OPENAI_\w*|ANTHROPIC_\w*)=/m);
     for (const v of [config.daytona?.apiKey, ...Object.values(config.providerKeys)]) if (v) expect(env).not.toContain(v);
@@ -126,21 +129,21 @@ describe.skipIf(!live)("Daytona live", () => {
     expect(out).toContain("40000");
     expect(out).toMatch(/bytes omitted/);
     const log = /Full log in the sandbox: (\S+)\]/.exec(out)?.[1];
-    expect(log).toMatch(/^\/home\/daytona\/\.inkling\/logs\//);
+    expect(log?.startsWith(`${SANDBOX_LOG_DIR}/`)).toBe(true);
     const wc = await execCommand(sandbox, `wc -l < ${log}`, { backgroundSafe: false });
     expect(wc.output.trim()).toBe("40000");
   }, 60_000);
 
   it("write → read → edit → read, ls, find, grep", async () => {
-    await call("write", { path: "pkg/hello.py", content: "print('inkling-ok')\n# marker-abc\n" });
-    expect(await call("read", { path: "pkg/hello.py" })).toContain("inkling-ok");
-    await call("edit", { path: "pkg/hello.py", edits: [{ oldText: "inkling-ok", newText: "inkling-edited" }] });
-    expect(await call("read", { path: `${SANDBOX_CWD}/pkg/hello.py` })).toContain("inkling-edited");
+    await call("write", { path: "pkg/hello.py", content: `print('${RES}-ok')\n# marker-abc\n` });
+    expect(await call("read", { path: "pkg/hello.py" })).toContain(`${RES}-ok`);
+    await call("edit", { path: "pkg/hello.py", edits: [{ oldText: `${RES}-ok`, newText: `${RES}-edited` }] });
+    expect(await call("read", { path: `${SANDBOX_CWD}/pkg/hello.py` })).toContain(`${RES}-edited`);
     expect(await call("ls", { path: "pkg" })).toContain("hello.py");
     expect(await call("find", { pattern: "*.py" })).toContain("pkg/hello.py");
     expect(await call("grep", { pattern: "marker-abc" })).toMatch(/hello\.py:2:.*marker-abc/);
     expect(await call("grep", { pattern: "nope-not-here" })).toMatch(/No matches/);
-    expect(await call("bash", { command: "python3 pkg/hello.py" })).toContain("inkling-edited");
+    expect(await call("bash", { command: "python3 pkg/hello.py" })).toContain(`${RES}-edited`);
   }, 60_000);
 
   it("run_python keeps state across calls and reports errors", async () => {
@@ -185,7 +188,7 @@ describe.skipIf(!live)("Daytona live", () => {
   }, 180_000);
 
   it("a deleted sandbox surfaces SandboxUnavailableError (never the host)", async () => {
-    const victim = await daytona!.create({ labels: { app: "inkling", env: config.env, test: "live", session: `${sessionId}-victim` }, autoDeleteInterval: 30 }, { timeout: 120 });
+    const victim = await daytona!.create({ labels: { app: RES, env: config.env, test: "live", session: `${sessionId}-victim` }, autoDeleteInterval: 30 }, { timeout: 120 });
     await victim.delete(60, true);
     await expect(withRecovery(victim, () => victim.process.executeCommand("echo hi"))).rejects.toBeInstanceOf(SandboxUnavailableError);
   }, 180_000);

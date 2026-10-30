@@ -34,7 +34,10 @@ from cs_helpers import (  # noqa: E402
     validate_dicom,
     wait_for,
 )
-from harness import open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, open_studio, parse_args, sync_playwright  # noqa: E402
+
+# Dev-only window hooks the viewers expose (named from the naming config).
+HOOK_2D = f"__{NAMING['resourcePrefix']}2d"
 
 ITEM = "2d-xray/normal/IM-0001-0001.jpeg"
 BOX1 = {"x": 469.11, "y": 291.83, "w": 162.8, "h": 157.41}
@@ -44,18 +47,18 @@ MOD = "Meta" if sys.platform == "darwin" else "Control"
 
 def open_2d(browser, port, dataset="2d-xray", **kw):
     st = open_with_fixtures(open_studio, browser, port, dataset, kw["fixtures"], kw["extra_projects"]) if kw.get("fixtures") else open_studio(browser, port, dataset, **kw)
-    wait_for(lambda: st.page.evaluate("() => !!window.__inkling2d"), "2D viewer ready", 90)
+    wait_for(lambda: st.page.evaluate(f"() => !!window.{HOOK_2D}"), "2D viewer ready", 90)
     wait_for(lambda: st.store("s => s.projectId") == dataset, "annotations loaded")
     time.sleep(0.8)
     return st
 
 
 def img(st, x, y):
-    return tuple(st.page.evaluate(f"() => window.__inkling2d.canvasOf({x}, {y})"))
+    return tuple(st.page.evaluate(f"() => window.{HOOK_2D}.canvasOf({x}, {y})"))
 
 
 def props(st):
-    return st.page.evaluate("() => window.__inkling2d.props()")
+    return st.page.evaluate(f"() => window.{HOOK_2D}.props()")
 
 
 KEY_TOOL = {"v": "select", "h": "pan", "z": "zoom", "w": "windowLevel", "c": "crosshairs", "r": "box", "o": "ellipse", "p": "polygon",

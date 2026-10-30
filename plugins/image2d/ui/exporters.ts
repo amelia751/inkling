@@ -3,7 +3,7 @@ import type { Annotation, Pt, StudioItem } from "@studio/contracts/types";
 import type { Exporter } from "@studio/plugin-ui-sdk/module";
 import { polygonArea } from "@studio/renderers/overlay2d/geometry";
 import { toCocoRle } from "@studio/renderers/cornerstone/rle";
-import { NAMING } from "@studio/contracts/naming";
+import { NAMING, RES } from "@studio/contracts/naming";
 import { assetUrl } from "@studio/plugin-ui-sdk";
 
 async function imageSize(item: StudioItem, annotations: Annotation[]): Promise<[number, number]> {
@@ -41,8 +41,8 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
  * COCO detection/segmentation JSON. Boxes → bbox; polygons, freehand and ellipse ROIs →
  * polygon segmentation; masks → uncompressed RLE (column-major, COCO convention);
  * keypoints and probes → single-keypoint annotations. Whole-image class labels are kept
- * as `images[].inkling_class`; other measurements (length, angle…) go to
- * `inkling_measurements` since COCO has no slot for them.
+ * as `images[].<resourcePrefix>_class`; other measurements (length, angle…) go to
+ * `<resourcePrefix>_measurements` since COCO has no slot for them.
  */
 export const cocoExporter: Exporter = {
   id: "coco",
@@ -68,7 +68,7 @@ export const cocoExporter: Exporter = {
         file_name: item.assets[0]?.path ?? item.id,
         width,
         height,
-        ...(cls ? { inkling_class: cls.label, inkling_class_id: catId(cls.label) } : {}),
+        ...(cls ? { [`${RES}_class`]: cls.label, [`${RES}_class_id`]: catId(cls.label) } : {}),
       };
     });
     const imageId = new Map(items.map((item, i) => [item.id, i + 1]));
@@ -83,8 +83,8 @@ export const cocoExporter: Exporter = {
         image_id,
         category_id: catId(a.label),
         iscrowd: 0,
-        inkling_id: a.id,
-        inkling_provenance: a.provenance,
+        [`${RES}_id`]: a.id,
+        [`${RES}_provenance`]: a.provenance,
       };
       if (g.type === "box") {
         out.push({ ...base, bbox: [g.x, g.y, g.w, g.h].map(r2), area: r2(g.w * g.h), segmentation: [] });
@@ -125,7 +125,7 @@ export const cocoExporter: Exporter = {
         });
         out.push({ ...base, segmentation: rle, area: g.voxels ?? 0, bbox: maxX < 0 ? [0, 0, 0, 0] : [minX, minY, maxX - minX + 1, maxY - minY + 1] });
       } else if (g.type === "measurement") {
-        measurements.push({ image_id, label: a.label, kind: g.kind, points: g.points, unit: g.unit, stats: g.stats, text: g.text, inkling_id: a.id });
+        measurements.push({ image_id, label: a.label, kind: g.kind, points: g.points, unit: g.unit, stats: g.stats, text: g.text, [`${RES}_id`]: a.id });
       }
     }
     const doc = {
@@ -134,7 +134,7 @@ export const cocoExporter: Exporter = {
       images,
       categories,
       annotations: out,
-      ...(measurements.length ? { inkling_measurements: measurements } : {}),
+      ...(measurements.length ? { [`${RES}_measurements`]: measurements } : {}),
     };
     return new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" });
   },

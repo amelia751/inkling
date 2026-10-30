@@ -8,7 +8,7 @@ import { cocoExporter } from "./exporters";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./renderer/canvas/camera";
 import { RasterEditor, roundGeometry, type EditorEnv } from "./renderer/canvas/editor";
 import { StackConfigSchema } from "./view";
-import { NAMING, ns } from "@studio/contracts/naming";
+import { NAMING, RES, ns } from "@studio/contracts/naming";
 
 // ---------------------------------------------------------------- camera
 
@@ -233,17 +233,17 @@ describe("COCO exporter", () => {
     expect(doc).toEqual({
       info: { description: "P", version: "1.0", date_created: "2026-10-29T12:00:00.000Z", contributor: `${NAMING.displayName}` },
       licenses: [{ id: 1, name: "CC0" }],
-      images: [{ id: 1, file_name: "a.png", width: 640, height: 480, inkling_class: "dog", inkling_class_id: 2 }],
+      images: [{ id: 1, file_name: "a.png", width: 640, height: 480, [`${RES}_class`]: "dog", [`${RES}_class_id`]: 2 }],
       categories: [
         { id: 1, name: "cat", supercategory: "p" },
         { id: 2, name: "dog", supercategory: "p" },
       ],
       annotations: [
-        { id: 1, image_id: 1, category_id: 1, iscrowd: 0, inkling_id: "1", inkling_provenance: "human-created", bbox: [10, 20, 30, 40], area: 1200, segmentation: [] },
-        { id: 2, image_id: 1, category_id: 2, iscrowd: 0, inkling_id: "2", inkling_provenance: "human-created", bbox: [0, 0, 10, 10], area: 50, segmentation: [[0, 0, 10, 0, 10, 10]] },
-        { id: 3, image_id: 1, category_id: 1, iscrowd: 0, inkling_id: "3", inkling_provenance: "human-created", keypoints: [5, 6, 2], num_keypoints: 1, bbox: [5, 6, 0, 0], area: 0 },
+        { id: 1, image_id: 1, category_id: 1, iscrowd: 0, [`${RES}_id`]: "1", [`${RES}_provenance`]: "human-created", bbox: [10, 20, 30, 40], area: 1200, segmentation: [] },
+        { id: 2, image_id: 1, category_id: 2, iscrowd: 0, [`${RES}_id`]: "2", [`${RES}_provenance`]: "human-created", bbox: [0, 0, 10, 10], area: 50, segmentation: [[0, 0, 10, 0, 10, 10]] },
+        { id: 3, image_id: 1, category_id: 1, iscrowd: 0, [`${RES}_id`]: "3", [`${RES}_provenance`]: "human-created", keypoints: [5, 6, 2], num_keypoints: 1, bbox: [5, 6, 0, 0], area: 0 },
       ],
-      inkling_measurements: [{ image_id: 1, label: "cat", kind: "length", points: [[0, 0], [3, 4]], unit: "px", stats: { length: 5 }, inkling_id: "5" }],
+      [`${RES}_measurements`]: [{ image_id: 1, label: "cat", kind: "length", points: [[0, 0], [3, 4]], unit: "px", stats: { length: 5 }, [`${RES}_id`]: "5" }],
     });
     expect(cocoExporter.filename(project)).toBe("p-coco.json");
   });

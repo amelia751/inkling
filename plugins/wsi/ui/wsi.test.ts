@@ -8,7 +8,7 @@ import { resolveEnvironment } from "@/extension-host/resolve";
 import type { Annotation, Geometry, Project, StudioItem } from "@studio/contracts/types";
 import { fromGeoJSON, toAsapXml, toCountsCsv, toQuPathGeoJSON } from "./io";
 import { countPoints, inspectRows } from "./measure";
-import { ns } from "@studio/contracts/naming";
+import { RES, ns } from "@studio/contracts/naming";
 
 const project = { id: "p", labels: ["tumor", "stroma", "lymphocytes"], assets: [] } as unknown as Project;
 const item: StudioItem = { id: "s1", name: "slide", group: "Slides", assets: [{ path: "s1.dzi", slide: "TCGA-1", mpp: 0.25 } as StudioItem["assets"][number]], dataKind: ns("wsi.dataKinds.raster-pyramid") };
@@ -29,8 +29,8 @@ describe("wsi: mark → keypoint", () => {
     const fc = toQuPathGeoJSON(project, [item], annotations);
     const pts = fc.features.filter((f) => f.geometry?.type.endsWith("Point")).map((f) => ({ ...f, id: "x" }));
     expect(pts).toEqual([
-      { type: "Feature", id: "x", geometry: { type: "MultiPoint", coordinates: [[10, 10], [20, 10], [30, 10]] }, properties: { objectType: "annotation", classification: { name: "tumor", color: expect.any(Array) }, isLocked: false, measurements: { "Num points": 3 }, metadata: { inkling_item: "TCGA-1" } } },
-      { type: "Feature", id: "x", geometry: { type: "Point", coordinates: [50, 50] }, properties: { objectType: "annotation", classification: { name: "lymphocytes", color: expect.any(Array) }, isLocked: false, measurements: { "Num points": 1 }, metadata: { inkling_item: "TCGA-1" } } },
+      { type: "Feature", id: "x", geometry: { type: "MultiPoint", coordinates: [[10, 10], [20, 10], [30, 10]] }, properties: { objectType: "annotation", classification: { name: "tumor", color: expect.any(Array) }, isLocked: false, measurements: { "Num points": 3 }, metadata: { [`${RES}_item`]: "TCGA-1" } } },
+      { type: "Feature", id: "x", geometry: { type: "Point", coordinates: [50, 50] }, properties: { objectType: "annotation", classification: { name: "lymphocytes", color: expect.any(Array) }, isLocked: false, measurements: { "Num points": 1 }, metadata: { [`${RES}_item`]: "TCGA-1" } } },
     ]);
   });
 

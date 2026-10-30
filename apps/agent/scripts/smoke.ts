@@ -16,11 +16,14 @@ import type { AgentEvent } from "@studio/agent-protocol";
 import { SessionService } from "../src/runtime/sessions.ts";
 import { createDaytona } from "../src/sandbox/client.ts";
 import { loadDevSecrets } from "../src/secrets.ts";
+import { NAMING } from "../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 process.env[envName("ENV")] ??= "test";
 loadDevSecrets();
 const token = "smoke-token-0123456789abcdef";
-const dataDir = mkdtempSync(join(tmpdir(), "inkling-smoke-"));
+const dataDir = mkdtempSync(join(tmpdir(), `${RES}-smoke-`));
 const { config } = loadConfig({ ...process.env, ...withPrefix({ AGENT_TOKEN: token, AGENT_DATA_DIR: dataDir, AGENT_MAX_SPEND_USD: "0.50" }) });
 const daytona = createDaytona(config);
 if (!daytona || !config.providerKeys[config.model.provider]) {
@@ -43,7 +46,7 @@ const { sessionId } = (await (await call("POST", "/v1/sessions", { projectId: "s
 const t0 = Date.now();
 try {
   const { runId } = (await (
-    await call("POST", `/v1/sessions/${sessionId}/messages`, { text: "In the sandbox, create hello.py printing 'inkling-ok', run it, and report stdout." })
+    await call("POST", `/v1/sessions/${sessionId}/messages`, { text: `In the sandbox, create hello.py printing '${RES}-ok', run it, and report stdout.` })
   ).json()) as { runId: string };
   const res = await call("GET", `/v1/runs/${runId}/events`);
   const events: AgentEvent[] = [];
@@ -69,7 +72,7 @@ try {
   const usage = events.filter((e): e is Extract<AgentEvent, { type: "usage" }> => e.type === "usage");
   console.log(`\nassistant: ${text.trim().slice(0, 400)}\n`);
   check("run completed", events.at(-1)?.type === "done" && (events.at(-1) as any).status === "completed", String((events.at(-1) as any)?.status));
-  check("final text contains inkling-ok", text.includes("inkling-ok"));
+  check(`final text contains ${RES}-ok`, text.includes(`${RES}-ok`));
   check("sandbox became ready", events.some((e) => e.type === "sandbox" && (e.state === "ready" || e.state === "resumed")));
   check("used bash or write", events.some((e) => e.type === "tool-call" && (e.name === "bash" || e.name === "write" || e.name === "run_python")));
   const tokensIn = usage.reduce((n, u) => n + u.inputTokens, 0);

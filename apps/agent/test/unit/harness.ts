@@ -8,12 +8,15 @@ import { loadConfig, withPrefix } from "../../src/config.ts";
 import { createLogger } from "../../src/log.ts";
 import type { AgentEvent, ClientToolSpec, DatasetSnapshot } from "@studio/agent-protocol";
 import { SessionService } from "../../src/runtime/sessions.ts";
+import { NAMING } from "../../src/naming.ts";
+
+const RES = NAMING.resourcePrefix;
 
 export const TOKEN = "test-service-token-0123456789";
 
 /** A real pi runtime + session service + HTTP app on a scripted model; no network. */
 export async function harness(fixture: ScriptFixture, env: Record<string, string> = {}, extraTools: ToolDefinition<any, any, any>[] = []) {
-  const dir = mkdtempSync(join(tmpdir(), "inkling-agent-"));
+  const dir = mkdtempSync(join(tmpdir(), `${RES}-agent-`));
   const { config } = loadConfig(withPrefix({
     ENV: "test",
     AGENT_MODEL: "scripted",

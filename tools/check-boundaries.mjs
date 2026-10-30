@@ -171,9 +171,13 @@ for (const file of pyFiles(join(repo, "plugins"))) {
 // ---- No brand name in code (todo/done/todo2.md D3) -------------------------------------
 // The product name lives only in packages/contracts/src/naming.ts. Comments, docs,
 // presets and fixtures may mention it; code (strings and identifiers) may not.
-const BRAND = /\binkling\b/i;
-const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "apps/mcp/src", "packages", "plugins", "tools"].map((d) => join(repo, d)).filter(existsSync);
-const brandExempt = (rel) => rel.endsWith("contracts/src/naming.ts") || rel === "tools/check-boundaries.mjs" || rel.includes("__fixtures__") || rel.includes("/node_modules/");
+// Underscores, digits and camelCase humps count as boundaries too: `__inkling3d`,
+// `inkling_item`, `__inklingRaster`, `useInkling`.
+const BRAND = /(?:(?<![A-Za-z])|(?<=[a-z]))(?:inkling|Inkling|INKLING)(?![a-z])/;
+const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "apps/agent/src", "apps/agent/scripts", "apps/agent/test", "apps/mcp/src", "packages", "plugins", "tools"].map((d) => join(repo, d)).filter(existsSync);
+// Generated code (`_generated/`, e.g. the kernel's plugin_v1.py `Literal['<ns>.plugins/v1']`)
+// is rewritten by its generator, never by hand.
+const brandExempt = (rel) => rel.endsWith("contracts/src/naming.ts") || rel === "tools/check-boundaries.mjs" || rel.includes("__fixtures__") || rel.includes("/_generated/") || rel.includes("/node_modules/");
 for (const file of brandRoots.flatMap(codeFiles)) {
   const rel = relative(repo, file);
   if (brandExempt(rel)) continue;

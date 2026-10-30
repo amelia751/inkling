@@ -1,4 +1,8 @@
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import yaml from "js-yaml";
 import { describe, expect, it } from "vitest";
+import { NAMING } from "@studio/contracts/naming";
 import { BUILTIN_MODULES, MODULES } from "./bundled";
 import { PLUGIN_PACKAGES, parsePluginManifest } from "./manifests";
 import { registry } from "./registry";
@@ -15,6 +19,15 @@ describe("plugin.yaml manifests", () => {
     expect(m, `no bundled module ${p.manifest.id}`).toBeDefined();
     expect(m!.version).toBe(p.manifest.version);
     for (const req of Object.keys(p.manifest.requires ?? {})) expect(m!.requires ?? [], `${p.dir} requires ${req}`).toContain(req);
+  });
+
+  // plugin.yaml spells the namespace out (tools/rename-namespace.mjs rewrites it), so check the
+  // raw files, before canonicalDoc maps legacy ids: a rename must not half-apply.
+  const pluginsDir = join(__dirname, "../../../../plugins");
+  it.each(readdirSync(pluginsDir).filter((d) => existsSync(join(pluginsDir, d, "plugin.yaml"))))("%s/plugin.yaml uses the current namespace", (dir) => {
+    const raw = yaml.load(readFileSync(join(pluginsDir, dir, "plugin.yaml"), "utf8"), { schema: yaml.JSON_SCHEMA }) as { id: string; schemaVersion: string };
+    expect(raw.id.startsWith(`${NAMING.namespace}.`), raw.id).toBe(true);
+    expect(raw.schemaVersion.startsWith(`${NAMING.schemaPrefix}.`), raw.schemaVersion).toBe(true);
   });
 
   it("every bundled plugin module has a plugin.yaml", () => {

@@ -42,7 +42,7 @@ docker run -d --rm -p 56379:6379 redis:7
 INKLING_AGENT_TEST_DATABASE_URL=postgres://postgres:test@127.0.0.1:55432/postgres INKLING_AGENT_TEST_REDIS_URL=redis://127.0.0.1:56379 pnpm agent:test
 pnpm --filter @studio/agent typecheck
 pnpm agent:live                                # real Daytona: one labelled sandbox, always deleted
-INKLING_SNAPSHOT_LIVE=1 pnpm agent:live        # also builds/checks the snapshot (slow, manual)
+INKLING_AGENT_SNAPSHOT_LIVE=1 pnpm agent:live        # also builds/checks the snapshot (slow, manual)
 pnpm --filter @studio/agent smoke             # real model + Daytona end to end; prints tokens and cost
 ```
 

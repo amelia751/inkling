@@ -140,8 +140,8 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:e12d2e085da7789b0ef805e478fe98ae84c52d785d66fc616fee0820350da197",
-      "path": "plugins/export-dicom",
+      "artifactDigest": "sha256:3c69ea315f9183049e7492fb9457a0e0d0ef687a5bc57819e8f5ea7b21f10d2c",
+      "path": "plugins/dicom-export",
       "capabilities": [
         "dataset.export.dicom"
       ],
@@ -279,7 +279,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:ddcf2bc527f719f0b8322235a84708d37e1ac5442039ee738a6969b8113fa41f",
+      "artifactDigest": "sha256:776ce48f57fd19120c51f9782363641eeae045653314f129ad9579d9ebbd7445",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"

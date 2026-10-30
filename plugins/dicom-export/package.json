@@ -1,5 +1,5 @@
 {
-  "name": "@studio/plugin-export-dicom",
+  "name": "@studio/plugin-dicom-export",
   "version": "1.0.0",
   "private": true,
   "type": "module",

@@ -12,7 +12,7 @@ import timeline from "@studio/studio-renderers/timeline/manifest";
 import cardiacMetrics from "@plugins/cardiac-metrics/manifest";
 import cine from "@plugins/cine/manifest";
 import core from "@/studio/core/manifest";
-import dicomExport from "@plugins/export-dicom/manifest";
+import dicomExport from "@plugins/dicom-export/manifest";
 import image2d from "@plugins/image2d/manifest";
 import timeseries from "@plugins/timeseries/manifest";
 import video from "@plugins/video/manifest";

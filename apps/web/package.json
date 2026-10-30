@@ -22,7 +22,7 @@
     "@studio/plugin-cardiac-metrics": "workspace:*",
     "@studio/plugin-cine": "workspace:*",
     "@studio/plugin-contracts": "workspace:*",
-    "@studio/plugin-export-dicom": "workspace:*",
+    "@studio/plugin-dicom-export": "workspace:*",
     "@studio/plugin-image2d": "workspace:*",
     "@studio/plugin-template": "workspace:*",
     "@studio/plugin-text-spans": "workspace:*",

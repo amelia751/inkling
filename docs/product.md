@@ -233,7 +233,7 @@ inkling/
 │   ├── studio-ui/                    # shadcn components, icons, cn(), key and shortcut display
 │   └── studio-renderers/             # Trusted renderers and kits: cornerstone, overlay2d, timeline, viewport-chrome, io
 ├── plugins/                          # First-party plugins: <name>/ui (image2d, volume, timeseries, video, cine,
-│                                     #   cardiac-metrics, wsi, text-spans, export-dicom, _template)
+│                                     #   cardiac-metrics, wsi, text-spans, dicom-export, _template)
 ├── registry/
 │   └── presets/                      # Workspace templates (environment JSON)
 ├── schemas/                          # Emitted JSON Schemas, catalogue and naming.json

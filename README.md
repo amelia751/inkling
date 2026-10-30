@@ -124,7 +124,7 @@ plugins/<name>/
 | `video/` | Video (for example endoscopy), with frame-accurate segments and labels. |
 | `wsi/` | Whole-slide pathology images (OpenSeadragon), with region annotations. |
 | `text-spans/` | Text documents with span labelling. |
-| `export-dicom/` | DICOM export of annotations and masks (SEG/SR). |
+| `dicom-export/` | DICOM export of annotations and masks (SEG/SR). |
 | `segmentation/` | Reference worker plugin: mask proposals from SAM-style providers (mock, Meta SAM, local SAM), reviewed in the `mask-review` renderer. |
 
 ---

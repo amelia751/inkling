@@ -280,9 +280,9 @@ importers:
       '@studio/plugin-contracts':
         specifier: workspace:*
         version: link:../../packages/plugin-contracts
-      '@studio/plugin-export-dicom':
+      '@studio/plugin-dicom-export':
         specifier: workspace:*
-        version: link:../../plugins/export-dicom
+        version: link:../../plugins/dicom-export
       '@studio/plugin-image2d':
         specifier: workspace:*
         version: link:../../plugins/image2d
@@ -650,7 +650,7 @@ importers:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
 
-  plugins/export-dicom:
+  plugins/dicom-export:
     dependencies:
       '@cornerstonejs/adapters':
         specifier: 5.14.0

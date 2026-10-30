@@ -34,7 +34,7 @@ const annotationsDir = env("WEB_ANNOTATIONS_DIR") ?? (e2e && !kernel ? e2eAnnota
 
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
-const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/export-dicom/node_modules/@cornerstonejs/adapters"));
+const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/dicom-export/node_modules/@cornerstonejs/adapters"));
 const dcmjsEntry = path.resolve(adaptersDir, "../../dcmjs/build/dcmjs.es.js");
 
 /**

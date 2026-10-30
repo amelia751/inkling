@@ -63,8 +63,8 @@
       "@plugins/text-spans/*": [
         "../../plugins/text-spans/ui/*"
       ],
-      "@plugins/export-dicom/*": [
-        "../../plugins/export-dicom/ui/*"
+      "@plugins/dicom-export/*": [
+        "../../plugins/dicom-export/ui/*"
       ]
     }
   },

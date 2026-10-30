@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { PX_PER_MM } from "./renderer/layout";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Screen calibration for true paper scale.
@@ -15,7 +16,7 @@ import { PX_PER_MM } from "./renderer/layout";
  * in devicePixelRatio, so calibrate at the zoom level you work at there.
  */
 export const CARD_MM = 85.6;
-const KEY = "inkling.signal.devicePxPerMm.v1";
+const KEY = ns("signal.devicePxPerMm.v1");
 
 export function loadDevicePxPerMm(): number | null {
   try {

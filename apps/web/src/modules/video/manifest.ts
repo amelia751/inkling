@@ -2,9 +2,10 @@ import { VideoIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import type { Project, StudioItem } from "@/types";
 import { videoGeometries } from "./geometries";
+import { NS, ns } from "@studio/plugin-contracts/naming";
 
-export const VIDEO = "inkling.video";
-const core = (n: string) => `inkling.core.commands.${n}`;
+export const VIDEO = ns("video");
+const core = (n: string) => `${NS}.core.commands.${n}`;
 
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
@@ -22,7 +23,7 @@ export default defineModule({
   version: "1.0.0",
   title: "Video",
   description: "Frame-accurate video (mp4 / webm) with tracks interpolated between keyframes, per-frame shapes, segments and events on a timeline.",
-  requires: ["inkling.overlay2d", "inkling.timeline"],
+  requires: [ns("overlay2d"), ns("timeline")],
   contributes: {
     dataKinds: [
       { id: "video", label: "Video", icon: VideoIcon, itemNoun: "video", match: { ext: [".mp4", ".webm", ".zip"] }, groupItems, description: "One item per video file (or frame archive)" },

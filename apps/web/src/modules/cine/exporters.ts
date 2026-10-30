@@ -5,6 +5,7 @@ import type { Project } from "@/types";
 import { cineGridFor, pickCineItem } from "./io";
 import { cellKey, cellLabelMap, groupCells, isContour, myoArea, perimeterMm, resolvePhases, ring, ringArea, STRUCT_KEYS, STRUCT_SHORT, structureOf } from "./model";
 import { cineConfigFor, structuresOf } from "./public";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 /** Label map (NIfTI) and contours (JSON). The cardiac function CSV lives in inkling.cardiac-metrics. */
 export const cineExporters: Record<string, ExporterImpl> = {
@@ -25,7 +26,7 @@ export const cineExporters: Record<string, ExporterImpl> = {
       }
       // "1=RV 2=MYO 3=LV" for the seed labels: value = label position, named by structure role.
       const legend = labels.map((l, i) => `${i + 1}=${structureOf(s, l) ? STRUCT_SHORT[structureOf(s, l)!] : l}`).join(" ");
-      const nii = writeLabelNifti(header, [grid.nx, grid.ny, grid.nz, grid.frames], data, `Inkling cine labels ${legend}`);
+      const nii = writeLabelNifti(header, [grid.nx, grid.ny, grid.nz, grid.frames], data, `${NAMING.displayName} cine labels ${legend}`);
       return gzip(nii);
     },
   },

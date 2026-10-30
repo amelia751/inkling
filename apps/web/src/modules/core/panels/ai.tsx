@@ -8,6 +8,7 @@ import { installEnvironment, persistEnvironment } from "@/lib/environment-edits"
 import { AGENT_TOOLS, agentSystemPrompt, changedKeys, environmentContext, runAgentTool, type AgentHost } from "@/platform/agent";
 import type { PanelProps } from "@/platform/module";
 import { useStudio } from "@/stores/studio";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 type Msg = Anthropic.Beta.BetaMessageParam;
 type Block = Anthropic.Beta.BetaContentBlock;
@@ -107,10 +108,10 @@ export function AiPanel({ project, item }: PanelProps) {
   };
 
   return (
-    <aside className="flex h-full flex-col bg-[var(--bg-primary)]" aria-label="Inkling AI">
+    <aside className="flex h-full flex-col bg-[var(--bg-primary)]" aria-label={`${NAMING.displayName} AI`}>
       <div className="flex h-10 items-center gap-2 border-b border-[var(--border-color)] px-3">
         <AiIcon className="size-4 text-ai-text" />
-        <span className="text-sm font-medium">Inkling AI</span>
+        <span className="text-sm font-medium">{NAMING.displayName} AI</span>
         <button onClick={toggleAi} className="ml-auto rounded p-1 text-muted-foreground hover:bg-[var(--bg-tertiary)]" aria-label="Close assistant">
           <CloseIcon className="h-3.5 w-3.5" />
         </button>
@@ -160,7 +161,7 @@ export function AiPanel({ project, item }: PanelProps) {
               }
             }}
             disabled={!available}
-            placeholder={available ? "Ask Inkling to change this environment…" : "Ask Inkling…"}
+            placeholder={available ? `Ask ${NAMING.displayName} to change this environment…` : `Ask ${NAMING.displayName}…`}
             className="min-h-9 resize-none text-sm"
             rows={1}
           />

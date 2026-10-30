@@ -15,6 +15,7 @@ import * as M from "./model";
 import { parseCsv } from "./readers/csv";
 import { niceStep } from "./renderer/draw";
 import { columnsFor, computeFrame } from "./renderer/layout";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const ann = (geometry: unknown, attributes?: Annotation["attributes"], extra: Partial<Annotation> = {}): Annotation =>
   ({ id: Math.random().toString(36), itemId: "x", label: "L", geometry, attributes, provenance: "human-created", author: "me", createdAt: "", ...extra }) as Annotation;
@@ -125,20 +126,20 @@ describe("environments", () => {
     expect(env.labels.map((g) => g.name)).toEqual(["labels", "statements"]);
     const st = statementsOf(env, measurementsConfig(env));
     expect(st.items.find((s) => s.name === "AF")).toEqual({ id: "Atrial fibrillation", name: "AF", code: "164889003" });
-    expect(env.panels.right.map((p) => p.id)).toEqual(["inkling.timeseries.panels.measurements", "inkling.core.panels.ai"]);
-    expect(env.commands.find((c) => c.id === "inkling.timeseries.commands.setBeatCode")?.keys).toContain("shift+n");
+    expect(env.panels.right.map((p) => p.id)).toEqual([ns("timeseries.panels.measurements"), ns("core.panels.ai")]);
+    expect(env.commands.find((c) => c.id === ns("timeseries.commands.setBeatCode"))?.keys).toContain("shift+n");
   });
   it("a non-ECG timeseries uses the same module with its own classes and a plain grid", () => {
     const r = resolveEnvironment(
       {
-        data: { kind: "inkling.timeseries.dataKinds.multichannel-timeseries" },
-        viewports: [{ name: "main", renderer: "inkling.timeseries.renderers.strip-chart", config: { reader: "csv", grid: "plain", unit: "g", track: { channel: "activity", label: "Activity" }, trackCodes: [{ id: "walk" }, { id: "run" }] } }],
-        tools: ["inkling.core.tools.select", "inkling.timeseries.tools.interval", "inkling.timeseries.tools.beat", "inkling.timeseries.tools.rhythm"],
+        data: { kind: ns("timeseries.dataKinds.multichannel-timeseries") },
+        viewports: [{ name: "main", renderer: ns("timeseries.renderers.strip-chart"), config: { reader: "csv", grid: "plain", unit: "g", track: { channel: "activity", label: "Activity" }, trackCodes: [{ id: "walk" }, { id: "run" }] } }],
+        tools: [ns("core.tools.select"), ns("timeseries.tools.interval"), ns("timeseries.tools.beat"), ns("timeseries.tools.rhythm")],
         labels: [{ name: "events", control: "TimeSeriesLabels", classes: [{ id: "step" }, { id: "fall" }] }],
-        panels: { right: ["inkling.timeseries.panels.measurements"] },
+        panels: { right: [ns("timeseries.panels.measurements")] },
       },
       registry,
-      { baseModules: ["inkling.core"] },
+      { baseModules: [ns("core")] },
     );
     expect(r.errors).toBeUndefined();
     const cfg = stripConfig(r.env);
@@ -147,13 +148,13 @@ describe("environments", () => {
   it("the README environment resolves", () => {
     const md = readFileSync(join(__dirname, "README.md"), "utf8");
     const spec = JSON.parse(/```json\n([\s\S]*?)```/.exec(md)![1]);
-    const r = resolveEnvironment(spec, registry, { baseModules: ["inkling.core"] });
+    const r = resolveEnvironment(spec, registry, { baseModules: [ns("core")] });
     expect(r.errors).toBeUndefined();
     expect(stripConfig(r.env).trackCodes.map((c) => c.id)).toEqual(["walk", "run", "rest"]);
   });
   it("the inspector reads fs from runtime.signalInfo and names codes from the config", async () => {
     const env = resolveEnvironment({ extends: "preset:ecg" }, registry).env!;
-    const inspect = await registry.loadImpl<InspectFn>("inkling.timeseries.inspectors.main");
+    const inspect = await registry.loadImpl<InspectFn>(ns("timeseries.inspectors.main"));
     const runtime = runtimeFor("rec");
     runtime.publish("signalInfo", { record: "r", fs: 500, samples: 5000, channels: ["II"] });
     const s = M.beat("all", 0.7, "V");

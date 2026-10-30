@@ -15,6 +15,7 @@ import { labelNames } from "@/platform/environment";
 import { FormatExports } from "@/components/studio/FormatExports";
 import { cn } from "@/lib/utils";
 import { FullPageMessage, useProject } from "./shared";
+import { NAMING, NS, RES } from "@studio/plugin-contracts/naming";
 
 /** Download-only export for the MVP; public publishing is out of scope (ui.md §11). */
 export function ExportPage() {
@@ -31,7 +32,7 @@ export function ExportPage() {
     const items = projectItems(project);
     return {
       annotationsVersion: saved.data.annotationsVersion ?? 1,
-      format: "inkling-annotations/v1",
+      format: `${RES}-annotations/v1`,
       exportedAt: new Date().toISOString(),
       dataset: {
         id: project.id,
@@ -42,7 +43,7 @@ export function ExportPage() {
         source: project.source,
         license: project.license,
         revision: saved.data.revision,
-        annotationMethod: "Manual annotation in Inkling Studio",
+        annotationMethod: `Manual annotation in ${NAMING.displayName} Studio`,
         limitations: "Development seed sample. Not for clinical use. Verify the source license before redistribution.",
       },
       items: items.map((i) => ({ id: i.id, name: i.name, files: i.assets.map((a) => ({ path: a.path, sha256: a.sha256 })), sourceLabel: i.sourceLabel })),
@@ -55,7 +56,7 @@ export function ExportPage() {
   if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export…" loading />;
   if (!project || !bundle) return <FullPageMessage title="Dataset not found" />;
 
-  const fileName = `${project.id}-r${bundle.dataset.revision}.inkling.json`;
+  const fileName = `${project.id}-r${bundle.dataset.revision}.${NS}.json`;
   const download = () => {
     const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
     const a = document.createElement("a");

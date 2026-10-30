@@ -7,6 +7,7 @@
 // scripts/boundaries-allowlist.json only warn; --strict ignores the allowlist.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import ts from "typescript";
 
 const root = new URL("../src", import.meta.url).pathname;
 const strict = process.argv.includes("--strict");
@@ -69,6 +70,39 @@ for (const file of walk(root)) {
     const msg = `${relative(root, file)}:${line}  ${lines[line - 1].trim()}\n    → ${why}`;
     (allowlist.some((p) => from.startsWith(p)) ? warnings : errors).push(msg);
   }
+}
+
+// ---- No brand name in code (todo/todo2.md D3) -------------------------------------
+// The product name lives only in packages/plugin-contracts/src/naming.ts. Comments, docs,
+// presets and fixtures may mention it; code (strings and identifiers) may not.
+const repo = new URL("../../..", import.meta.url).pathname;
+const BRAND = /\binkling\b/i;
+const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "packages", "plugins"].map((d) => join(repo, d)).filter(existsSync);
+const brandExempt = (rel) => rel.endsWith("plugin-contracts/src/naming.ts") || rel.includes("__fixtures__") || rel.includes("/node_modules/");
+const codeFiles = (dir) =>
+  readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name);
+    if (name === "node_modules") return [];
+    return statSync(p).isDirectory() ? codeFiles(p) : /\.(tsx?|mjs)$/.test(name) && !name.endsWith(".d.ts") ? [p] : [];
+  });
+for (const file of brandRoots.flatMap(codeFiles)) {
+  const rel = relative(repo, file);
+  if (brandExempt(rel)) continue;
+  const src = readFileSync(file, "utf8");
+  if (!BRAND.test(src)) continue;
+  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const visit = (node) => {
+    const leaf = ts.isStringLiteralLike(node) || ts.isTemplateLiteralToken(node) || ts.isIdentifier(node) || ts.isPrivateIdentifier(node) || node.kind === ts.SyntaxKind.JsxText;
+    if (leaf) {
+      const text = node.getText(sf);
+      if (!BRAND.test(text)) return;
+      const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
+      errors.push(`${rel}:${line}  ${text.trim().slice(0, 100)}\n    → brand name in code: use NAMING / ns() from @studio/plugin-contracts/naming`);
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
 }
 
 if (warnings.length) console.warn(`Boundary exceptions (allowlisted, ${warnings.length}):\n${warnings.join("\n")}\n`);

@@ -1,3 +1,4 @@
+import { RES } from "@studio/plugin-contracts/naming";
 /**
  * Binary writers for WFDB export: MIT-format annotation files (.atr) and a minimal POSIX
  * ustar archive to bundle one annotation file per record into a single download.
@@ -129,8 +130,8 @@ export function ustar(entries: TarEntry[], mtime = Math.floor(Date.now() / 1000)
     put("0", 156, 1);
     put("ustar\0", 257, 6);
     put("00", 263, 2);
-    put("inkling", 265, 32);
-    put("inkling", 297, 32);
+    put(RES, 265, 32);
+    put(RES, 297, 32);
     let sum = 0;
     for (const b of h) sum += b;
     put(sum.toString(8).padStart(6, "0") + "\0 ", 148, 8);

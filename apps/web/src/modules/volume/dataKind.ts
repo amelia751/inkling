@@ -1,11 +1,12 @@
 import type { Project, SeedAsset, StudioItem } from "@/types";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * The `volume` data kind: one item per subject, whose files (sequences, DICOM series,
  * reference segmentations) travel together. `volumeSources` splits a subject into the
  * volumes the renderer can show; the sequence picker is driven by it. Pure.
  */
-export const VOLUME = "inkling.volume";
+export const VOLUME = ns("volume");
 export const VOLUME_KIND = `${VOLUME}.dataKinds.volume`;
 
 const isDicomPath = (p: string) => /\.dcm$/i.test(p);

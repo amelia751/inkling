@@ -10,8 +10,9 @@ import type { ResolvedEnv } from "@/platform/resolve";
 import { resolveEnvironment } from "@/platform/resolve";
 import { CineConfigSchema, type CineConfig } from "./config";
 import type { FrameMetrics, Grid, Structures } from "./model";
+import { ns } from "@studio/plugin-contracts/naming";
 
-export const CINE = "inkling.cine";
+export const CINE = ns("cine");
 export const CINE_RENDERER = `${CINE}.renderers.slice-frame-canvas`;
 /** `execute(GOTO_COMMAND, { slice?, frame? })` shows a slice / frame in the renderer. */
 export const GOTO_COMMAND = `${CINE}.commands.goTo`;

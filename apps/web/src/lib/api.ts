@@ -1,6 +1,7 @@
 import type { EnvironmentSpec, LabelGroup } from "@/platform/environment";
 import { migrateDocument } from "@/migrations/annotations-v1-to-v2";
 import type { AnnotationDocument, Project } from "@/types";
+import { canonicalId } from "@studio/plugin-contracts/naming";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -77,8 +78,9 @@ export const MIGRATED_V1_TYPES = new Set<string>([
 ]);
 
 export async function fetchAnnotations(projectId: string): Promise<AnnotationDocument> {
-  const doc = await json<AnnotationDocument>(await fetch(`/api/annotations/${projectId}`));
-  return migrateDocument(doc, MIGRATED_V1_TYPES);
+  const doc = migrateDocument(await json<AnnotationDocument>(await fetch(`/api/annotations/${projectId}`)), MIGRATED_V1_TYPES);
+  // Module geometry types are full ids (`<namespace>.<module>.<name>`); keep old namespaces readable.
+  return { ...doc, annotations: doc.annotations.map((a) => (canonicalId(a.geometry.type) === a.geometry.type ? a : { ...a, geometry: { ...a.geometry, type: canonicalId(a.geometry.type) } as typeof a.geometry })) };
 }
 
 export async function saveAnnotations(projectId: string, doc: AnnotationDocument): Promise<AnnotationDocument> {

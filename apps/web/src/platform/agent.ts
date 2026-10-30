@@ -4,6 +4,7 @@ import type { EnvironmentSpec } from "./environment";
 import { patchSpec, type JsonPatchOperation } from "./patch";
 import { registry } from "./registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "./resolve";
+import { NAMING, NS } from "@studio/plugin-contracts/naming";
 
 /**
  * The agent surface (todo phase 8): tools an assistant calls to inspect and edit the
@@ -81,7 +82,7 @@ export const AGENT_TOOLS: AgentTool[] = [
   },
   {
     name: "run_command",
-    description: "Run a command contribution by id (e.g. inkling.timeseries.commands.detectBeats). Returns whether a mounted handler took it.",
+    description: `Run a command contribution by id (e.g. ${NS}.timeseries.commands.detectBeats). Returns whether a mounted handler took it.`,
     input_schema: { type: "object", properties: { id: { type: "string" }, args: {} }, required: ["id"], additionalProperties: false },
   },
 ];
@@ -165,7 +166,7 @@ export async function runAgentTool(name: string, input: Record<string, unknown>,
 /** Stable system prompt (cacheable): role, rules and the catalogue. Per-turn state goes in user messages. */
 export function agentSystemPrompt(): string {
   return [
-    "You are Inkling's annotation-environment assistant inside Inkling Studio. Experts annotate data (medical images, video, signals, slides, or anything else) in an environment: a JSON spec that picks registered modules — a data kind, viewports (renderers), tools, panels, exporters and label groups.",
+    `You are ${NAMING.displayName}'s annotation-environment assistant inside ${NAMING.displayName} Studio. Experts annotate data (medical images, video, signals, slides, or anything else) in an environment: a JSON spec that picks registered modules — a data kind, viewports (renderers), tools, panels, exporters and label groups.`,
     "You help them shape that environment: add or remove tools and panels, define label classes (colors, hotkeys, attributes), switch renderers, set renderer config, pick export formats, rebind keys. You can't write code or invent modules; only ids in the catalogue below exist.",
     "Work like this: call get_environment first; for anything non-trivial, preview_environment the full spec; then patch_environment with a minimal JSON Patch against `source` and a short summary. If a tool returns errors, fix them using each error's path and suggestion and try again. Every applied change is one step the expert can undo, so prefer small patches. Explain what you changed in a sentence or two.",
     "Never change annotations; you edit the environment only. Run commands only when the expert asks.",

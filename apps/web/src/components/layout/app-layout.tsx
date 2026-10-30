@@ -8,8 +8,9 @@ import { DatasetSwitcher } from "@/components/layout/dataset-switcher";
 import { ThemeSwitch } from "@/components/layout/theme-switch";
 import { useViewport } from "@/lib/use-media-query";
 import { cn } from "@/lib/utils";
+import { RES } from "@studio/plugin-contracts/naming";
 
-const SIDEBAR_KEY = "inkling-sidebar-open";
+const SIDEBAR_KEY = `${RES}-sidebar-open`;
 
 /**
  * Shell for every page except the Studio (which stays full-bleed around the

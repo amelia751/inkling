@@ -6,6 +6,7 @@ import { describeGeometry } from "@/platform/describe";
 import type { Annotation } from "@/types";
 import { SPAN } from "./manifest";
 import { segments, snap, spanGeometry, toJsonl } from "./spans";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const TEXT = "Ada Lovelace worked with Charles Babbage in London.";
 const ann = (id: string, start: number, end: number, label: string): Annotation => ({
@@ -30,7 +31,7 @@ describe("text-spans", () => {
     expect(r.errors).toBeUndefined();
     expect(r.env!.viewports[0].renderer.space).toBe("text");
     expect(r.env!.tools.map((t) => t.name)).toEqual(["select", "entity"]);
-    expect(registry.geometry(SPAN)?.module).toBe("inkling.text-spans");
+    expect(registry.geometry(SPAN)?.module).toBe(ns("text-spans"));
     expect(describeGeometry(ann("1", 0, 12, "PER"), r.env)).toBe("“Ada Lovelace” · chars 0–12");
   });
 });

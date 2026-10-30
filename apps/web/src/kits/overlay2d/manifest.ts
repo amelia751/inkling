@@ -1,6 +1,7 @@
 import * as z from "zod";
 import { tool } from "@/kits/tool-catalog";
 import { defineModule } from "@/platform/module";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Vector editing on a 2D image plane (todo phase 4). Any renderer declaring
@@ -12,7 +13,7 @@ const PLANE = "renderer.space == image2d";
 const size = z.object({ size: z.number().int().min(2).max(120).default(16).describe("Diameter in screen pixels") });
 
 export default defineModule({
-  id: "inkling.overlay2d",
+  id: ns("overlay2d"),
   version: "1.0.0",
   title: "2D overlay tools",
   description: "Box, ellipse, polygon, freehand, polyline, spline, keypoint, brush and eraser on any image-plane renderer.",

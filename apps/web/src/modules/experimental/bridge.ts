@@ -3,6 +3,7 @@ import type { ResolvedEnv } from "@/platform/resolve";
 import type { Annotation, Geometry, StudioItem } from "@/types";
 import type { StudioState } from "@/stores/studio";
 import type { STORE_SELECTORS } from "./manifest";
+import { RES } from "@studio/plugin-contracts/naming";
 
 /** Pure logic of the agent panels, kept apart from React so it can be tested. */
 
@@ -82,12 +83,12 @@ export const BRIDGE_SCRIPT = SANDBOX_CSP + `<script>
     if (e.source !== parent || !e.data || typeof e.data !== "object") return;
     const { reply, type, payload } = e.data;
     if (reply !== undefined && waiting.has(reply)) { waiting.get(reply)(payload); waiting.delete(reply); return; }
-    if (type === "inkling:item") dispatchEvent(new CustomEvent("inkling:item", { detail: payload }));
+    if (type === "${RES}:item") dispatchEvent(new CustomEvent("${RES}:item", { detail: payload }));
   });
   const ask = (type, payload) => new Promise((resolve) => { const id = ++seq; waiting.set(id, resolve); parent.postMessage({ id, type, payload }, "*"); });
-  window.inkling = {
-    getAnnotations: () => ask("inkling:getAnnotations"),
-    propose: (annotations) => ask("inkling:propose", annotations),
+  window.${RES} = {
+    getAnnotations: () => ask("${RES}:getAnnotations"),
+    propose: (annotations) => ask("${RES}:propose", annotations),
   };
 })();
 </script>`;

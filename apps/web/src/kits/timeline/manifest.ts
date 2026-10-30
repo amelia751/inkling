@@ -1,5 +1,6 @@
 import { tool } from "@/kits/tool-catalog";
 import { defineModule } from "@/platform/module";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Time-axis tools for renderers with the `time` capability: spans and instants on a timeline.
@@ -9,7 +10,7 @@ import { defineModule } from "@/platform/module";
 const TIME = "'time' in renderer.capabilities";
 
 export default defineModule({
-  id: "inkling.timeline",
+  id: ns("timeline"),
   version: "1.0.0",
   title: "Timeline tools",
   description: "Label spans and point-in-time events on any renderer with a time axis.",

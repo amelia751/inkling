@@ -4,6 +4,7 @@ import type { Annotation, Pt, StudioItem } from "@/types";
 import type { Exporter } from "@/platform/module";
 import { polygonArea } from "@/kits/overlay2d/geometry";
 import { toCocoRle } from "@/kits/cornerstone/rle";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 async function imageSize(item: StudioItem, annotations: Annotation[]): Promise<[number, number]> {
   const asset = item.assets[0];
@@ -128,7 +129,7 @@ export const cocoExporter: Exporter = {
       }
     }
     const doc = {
-      info: { description: project.title, version: "1.0", date_created: new Date().toISOString(), contributor: "Inkling" },
+      info: { description: project.title, version: "1.0", date_created: new Date().toISOString(), contributor: `${NAMING.displayName}` },
       licenses: [{ id: 1, name: project.license }],
       images,
       categories,

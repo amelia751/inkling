@@ -2,13 +2,14 @@ import * as z from "zod";
 import { FileIcon, KeypointIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import type { Project, StudioItem } from "@/types";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Copy this folder to start a module (AGENTS.md). Rename `example` everywhere, keep the
  * manifest pure data (types, icons, zod schemas, small pure functions), put components in
  * impl.ts, register it in src/bundle.ts and run `pnpm emit:schemas`.
  */
-export const EXAMPLE = "inkling.example";
+export const EXAMPLE = ns("example");
 
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({ id: a.path, name: a.path.split("/").pop() ?? a.path, group: "Files", assets: [a], dataKind: `${EXAMPLE}.dataKinds.file` }));

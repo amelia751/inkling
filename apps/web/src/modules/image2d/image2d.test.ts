@@ -8,6 +8,7 @@ import { cocoExporter } from "./exporters";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./renderer/canvas/camera";
 import { RasterEditor, roundGeometry, type EditorEnv } from "./renderer/canvas/editor";
 import { StackConfigSchema } from "./view";
+import { NAMING, ns } from "@studio/plugin-contracts/naming";
 
 // ---------------------------------------------------------------- camera
 
@@ -177,34 +178,34 @@ describe("image2d module", () => {
     const r = resolveEnvironment({ extends: "preset:generic-image", labels: labelGroupsFrom(["a", "b"]) }, registry);
     expect(r.errors).toBeUndefined();
     const env = r.env!;
-    expect(env.viewports[0].renderer.id).toBe("inkling.image2d.renderers.canvas-raster");
-    expect(env.tools.map((t) => t.id)).toEqual(["inkling.core.tools.select", "inkling.core.tools.pan", "inkling.overlay2d.tools.box", "inkling.overlay2d.tools.polygon", "inkling.overlay2d.tools.keypoint"]);
+    expect(env.viewports[0].renderer.id).toBe(ns("image2d.renderers.canvas-raster"));
+    expect(env.tools.map((t) => t.id)).toEqual([ns("core.tools.select"), ns("core.tools.pan"), ns("overlay2d.tools.box"), ns("overlay2d.tools.polygon"), ns("overlay2d.tools.keypoint")]);
     expect(env.tools.map((t) => t.creates)).toEqual([undefined, undefined, "box", "polygon", "keypoint"]);
-    expect(env.exporters.map((e) => e.id)).toEqual(["inkling.image2d.exporters.coco"]);
+    expect(env.exporters.map((e) => e.id)).toEqual([ns("image2d.exporters.coco")]);
     const commands = env.commands.map((c) => c.id);
-    expect(commands).toEqual(expect.arrayContaining(["inkling.image2d.commands.fitView", "inkling.core.commands.finishShape", "inkling.core.commands.cancelShape", "inkling.core.commands.removeLastVertex", "inkling.core.commands.holdToPan"]));
-    expect(commands.filter((c) => c.startsWith("inkling.cornerstone.") || c === "inkling.image2d.commands.cancelManipulation")).toEqual([]);
-    expect(env.spec.overrides).toEqual([{ id: "inkling.cornerstone.tools.cobb", disabled: true }]);
+    expect(commands).toEqual(expect.arrayContaining([ns("image2d.commands.fitView"), ns("core.commands.finishShape"), ns("core.commands.cancelShape"), ns("core.commands.removeLastVertex"), ns("core.commands.holdToPan")]));
+    expect(commands.filter((c) => c.startsWith(ns("cornerstone.")) || c === ns("image2d.commands.cancelManipulation"))).toEqual([]);
+    expect(env.spec.overrides).toEqual([{ id: ns("cornerstone.tools.cobb"), disabled: true }]);
   });
 
   it("preset:image-2d keeps cobb, binds the stack's view keys and puts the view controls in the viewport bar", () => {
     const env = resolveEnvironment({ extends: "preset:image-2d" }, registry).env!;
     expect(env.tools.map((t) => t.name)).toContain("cobb");
-    expect(env.panels["viewport-bar"].map((p) => p.id)).toEqual(["inkling.image2d.panels.viewControls"]);
+    expect(env.panels["viewport-bar"].map((p) => p.id)).toEqual([ns("image2d.panels.viewControls")]);
     const keys = Object.fromEntries(env.commands.map((c) => [c.id, c.keys]));
-    expect(keys["inkling.image2d.commands.fitView"]).toEqual(["0", "="]);
-    expect(keys["inkling.cornerstone.commands.invertImage"]).toEqual(["shift+i"]);
-    expect(keys["inkling.core.commands.rotateView"]).toEqual(["shift+r"]);
-    expect(keys["inkling.image2d.commands.cancelManipulation"]).toEqual(["Escape"]);
+    expect(keys[ns("image2d.commands.fitView")]).toEqual(["0", "="]);
+    expect(keys[ns("cornerstone.commands.invertImage")]).toEqual(["shift+i"]);
+    expect(keys[ns("core.commands.rotateView")]).toEqual(["shift+r"]);
+    expect(keys[ns("image2d.commands.cancelManipulation")]).toEqual(["Escape"]);
   });
 
   it("stack config defaults every control on and validates overrides", () => {
     const d = StackConfigSchema.parse({});
     expect([d.windowLevel, d.invert, d.flip, d.rotate, d.colormap, d.interpolation, d.magnifier]).toEqual([true, true, true, true, true, true, true]);
     expect(d.ctPresets.map((p) => p.id)).toContain("lung");
-    const r = resolveEnvironment({ extends: "preset:image-2d", viewports: [{ name: "main", renderer: "inkling.image2d.renderers.cornerstone-stack", config: { windowLevel: false } }] }, registry);
+    const r = resolveEnvironment({ extends: "preset:image-2d", viewports: [{ name: "main", renderer: ns("image2d.renderers.cornerstone-stack"), config: { windowLevel: false } }] }, registry);
     expect(r.env!.viewports[0].config.windowLevel).toBe(false);
-    const bad = resolveEnvironment({ extends: "preset:image-2d", viewports: [{ name: "main", renderer: "inkling.image2d.renderers.cornerstone-stack", config: { invert: "no" } }] }, registry);
+    const bad = resolveEnvironment({ extends: "preset:image-2d", viewports: [{ name: "main", renderer: ns("image2d.renderers.cornerstone-stack"), config: { invert: "no" } }] }, registry);
     expect(bad.errors?.[0].code).toBe("invalid-config");
   });
 });
@@ -230,7 +231,7 @@ describe("COCO exporter", () => {
     ];
     const doc = JSON.parse(await (await cocoExporter.build({ project, items, annotations })).text());
     expect(doc).toEqual({
-      info: { description: "P", version: "1.0", date_created: "2026-10-29T12:00:00.000Z", contributor: "Inkling" },
+      info: { description: "P", version: "1.0", date_created: "2026-10-29T12:00:00.000Z", contributor: `${NAMING.displayName}` },
       licenses: [{ id: 1, name: "CC0" }],
       images: [{ id: 1, file_name: "a.png", width: 640, height: 480, inkling_class: "dog", inkling_class_id: 2 }],
       categories: [

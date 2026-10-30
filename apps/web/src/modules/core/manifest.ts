@@ -3,8 +3,9 @@ import { IS_MAC } from "@/platform/keys";
 import { defineModule, type CommandContribution } from "@/platform/module";
 import { coreGeometries, legacyGeometries } from "./geometries";
 import { sourceLabelDisagreement, unlabeledItems } from "./reviewRules";
+import { NAMING, ns } from "@studio/plugin-contracts/naming";
 
-export const CORE = "inkling.core";
+export const CORE = ns("core");
 export const coreCommand = (name: string) => `${CORE}.commands.${name}`;
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -60,7 +61,7 @@ export default defineModule({
       { id: "files", title: "Files", slot: "left", description: "The project's items, grouped, with per-item progress and a filter" },
       { id: "labels", title: "Labels", slot: "left", description: "Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector" },
       { id: "review", title: "Review", slot: "left", description: "Every annotation with provenance, and the items with none yet" },
-      { id: "ai", title: "Inkling AI", slot: "right", description: "Assistant that can read and edit this environment (agent tools)" },
+      { id: "ai", title: `${NAMING.displayName} AI`, slot: "right", description: "Assistant that can read and edit this environment (agent tools)" },
     ],
     labelControls: [
       { id: "Labels", geometries: ["box", "ellipse", "polygon", "multipolygon", "polyline", "spline", "keypoint", "point3d", "measurement", "mask", "span", "instant", "track"], description: "Classes for any drawn geometry" },

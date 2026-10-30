@@ -15,6 +15,7 @@ import { webImageId } from "@/kits/cornerstone/webImageLoader";
 import { releaseFocusAfterPointer } from "@/kits/viewport-chrome/bar";
 import type { StackConfig, WandMode } from "../view";
 import { imageConverter } from "./convert";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 const { SegmentationRepresentations } = tools.Enums;
 let mountSeq = 0;
@@ -180,7 +181,7 @@ export class CornerstoneStackEngine {
         segmentationId: ids.segmentation,
         representation: { type: SegmentationRepresentations.Labelmap, data: { imageIds: [labelmap.imageId] } },
         config: {
-          label: "Inkling mask",
+          label: `${NAMING.displayName} mask`,
           segments: Object.fromEntries(labelNames(project.labels).map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
         },
       },
@@ -285,7 +286,7 @@ export class CornerstoneStackEngine {
     };
     this.status = "ready";
     this.o.onChange();
-    exposeForTests("__inkling2d", {
+    exposeForTests(`__inkling2d`, {
       viewport: () => engine.getViewport(ids.viewport),
       imageId,
       props: () => {
@@ -304,7 +305,7 @@ export class CornerstoneStackEngine {
   dispose(): void {
     this.cancelled = true;
     if (this.frame) cancelAnimationFrame(this.frame);
-    exposeForTests("__inkling2d", null);
+    exposeForTests(`__inkling2d`, null);
     const s = this.session;
     this.session = null;
     if (s) {

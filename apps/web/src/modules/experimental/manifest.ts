@@ -1,5 +1,6 @@
 import * as z from "zod";
 import { defineModule } from "@/platform/module";
+import { NS, ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Agent-generated UI, behind the `agentPanels` flag (docs/modules.md, safety tiers 2 and 3).
@@ -10,7 +11,7 @@ import { defineModule } from "@/platform/module";
  *   top navigation). Its only channel is a postMessage bridge that can read the current
  *   item's annotations and propose new ones, which arrive validated and `ai-suggested`.
  */
-export const EXPERIMENTAL = "inkling.experimental";
+export const EXPERIMENTAL = ns("experimental");
 
 export const STORE_SELECTORS = ["annotations.count", "annotations.item", "items.total", "items.annotated", "selection.count", "activeLabel", "tool", "labels.counts"] as const;
 
@@ -32,7 +33,7 @@ export const DeclarativeConfig = z.object({
 
 export const SandboxConfig = z.object({
   title: z.string().default("Sandboxed tool"),
-  html: z.string().default("<p>No content.</p>").describe("A complete HTML document; talk to the Studio with window.inkling.getAnnotations() / .propose([...])"),
+  html: z.string().default("<p>No content.</p>").describe(`A complete HTML document; talk to the Studio with window.${NS}.getAnnotations() / .propose([...])`),
   height: z.number().int().min(120).max(2000).default(480),
 });
 

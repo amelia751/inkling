@@ -44,6 +44,7 @@
     "@rjsf/core": "^6.11.0",
     "@rjsf/utils": "^6.11.0",
     "@rjsf/validator-ajv8": "^6.11.0",
+    "@studio/plugin-contracts": "workspace:*",
     "@tanstack/react-query": "^5.90.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

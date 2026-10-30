@@ -1,6 +1,7 @@
 import { commandDef } from "@/platform/commands";
 import { formatCombo } from "@/platform/keys";
 import type { CommandGroup } from "@/platform/module";
+import { NS } from "@studio/plugin-contracts/naming";
 
 /**
  * Keyboard shortcuts are commands contributed by modules (`commands` in a manifest) and
@@ -16,7 +17,7 @@ export const GROUP_ORDER: ShortcutGroup[] = ["Edit", "Navigate", "Labels", "Draw
 export type ShortcutId = string;
 
 export function resolveShortcut(id: ShortcutId) {
-  return commandDef(id) ?? commandDef(`inkling.core.commands.${id}`);
+  return commandDef(id) ?? commandDef(`${NS}.core.commands.${id}`);
 }
 
 /** The UI string for a command: its `display`, else its first combo. */

@@ -1,3 +1,4 @@
+import { canonicalId } from "@studio/plugin-contracts/naming";
 import {
   CONTRIBUTION_TYPES,
   type ContributionOf,
@@ -61,7 +62,7 @@ export class Registry {
   }
 
   module(id: string): ModuleManifest | undefined {
-    return this.modules.get(id);
+    return this.modules.get(canonicalId(id));
   }
 
   listModules(): ModuleManifest[] {
@@ -69,16 +70,16 @@ export class Registry {
   }
 
   has(id: string): boolean {
-    return this.byId.has(id);
+    return this.byId.has(canonicalId(id));
   }
 
   /** Any contribution by full id, whatever its type. */
   lookup(id: string): Registered<ContributionType> | undefined {
-    return this.byId.get(id);
+    return this.byId.get(canonicalId(id));
   }
 
   get<T extends ContributionType>(type: T, id: string): Registered<T> | undefined {
-    const c = this.byId.get(id);
+    const c = this.byId.get(canonicalId(id));
     return c && c.kind === type ? (c as unknown as Registered<T>) : undefined;
   }
 
@@ -90,12 +91,14 @@ export class Registry {
 
   /** Geometry contribution by `geometry.type` (core types are bare, module types `<module>.<name>`). */
   geometry(type: string): Registered<"geometries"> | undefined {
-    return this.list("geometries", (g) => g.type === type)[0];
+    const t = canonicalId(type);
+    return this.list("geometries", (g) => g.type === t)[0];
   }
 
   /** Modules whose renderers can display a data kind. */
   modulesFor(dataKind: string): ModuleManifest[] {
-    const ids = new Set(this.list("renderers", (r) => r.consumes.includes(dataKind)).map((r) => r.module));
+    const kind = canonicalId(dataKind);
+    const ids = new Set(this.list("renderers", (r) => r.consumes.includes(kind)).map((r) => r.module));
     return [...ids].map((id) => this.modules.get(id)!);
   }
 
@@ -114,7 +117,7 @@ export class Registry {
 
   /** The implementation behind a contribution id (renderer component, panel, inspector fn, exporter). */
   async loadImpl<T = unknown>(id: string): Promise<T> {
-    const c = this.byId.get(id);
+    const c = this.byId.get(canonicalId(id));
     if (!c) throw new RegistryError(`Unknown contribution "${id}"`);
     const impl = await this.loadModule(c.module);
     const bucket = (impl as Record<string, Record<string, unknown> | undefined>)[c.kind];
@@ -125,7 +128,7 @@ export class Registry {
 
   /** Synchronously available implementation, if the module has already loaded. */
   peekImpl<T = unknown>(id: string): T | undefined {
-    const c = this.byId.get(id);
+    const c = this.byId.get(canonicalId(id));
     return c ? (this.loaded.get(c.module) as Record<string, Record<string, unknown>> | undefined)?.[c.kind]?.[c.name] as T | undefined : undefined;
   }
 

@@ -5,10 +5,11 @@ import { shortcutLabel } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 import { BarIconButton } from "@/kits/viewport-chrome/controls";
 import type { DecodeMode } from "./VideoEngine";
+import { NS } from "@studio/plugin-contracts/naming";
 
 export type Adjust = { brightness: number; contrast: number; saturation: number };
 export const NO_ADJUST: Adjust = { brightness: 100, contrast: 100, saturation: 100 };
-export const cmd = (name: string) => `inkling.video.commands.${name}`;
+export const cmd = (name: string) => `${NS}.video.commands.${name}`;
 
 /** Top-left of the stage: track vs per-frame drawing mode, and how frames are decoded. */
 export function ModeBar({ perFrame, onPerFrame, mode, fallbackReason }: { perFrame: boolean; onPerFrame: (v: boolean) => void; mode: DecodeMode; fallbackReason: string | null }) {

@@ -2,6 +2,7 @@ import * as core from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
 import { cornerstoneNiftiImageLoader, init as niftiInit } from "@cornerstonejs/nifti-volume-loader";
 import { loadWebImage, WEB_IMAGE_SCHEME } from "@/kits/cornerstone/webImageLoader";
+import { RES } from "@studio/plugin-contracts/naming";
 
 /**
  * One-time Cornerstone3D setup shared by the 2D and 3D viewers: core + tools init,
@@ -83,7 +84,7 @@ let engine: core.RenderingEngine | null = null;
  */
 export function getRenderingEngine(): core.RenderingEngine {
   if (!engine || (engine as unknown as { hasBeenDestroyed?: boolean }).hasBeenDestroyed) {
-    engine = new core.RenderingEngine("inkling-engine");
+    engine = new core.RenderingEngine(`${RES}-engine`);
   }
   return engine;
 }

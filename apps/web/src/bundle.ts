@@ -21,11 +21,12 @@ import wsi from "@/modules/wsi/manifest";
 import textSpans from "@/modules/text-spans/manifest";
 import experimental from "@/modules/experimental/manifest";
 import { featureEnabled } from "@/platform/flags";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /** Presets are environment JSON only (platform/presets/*.json), registered as one module. */
 const presetFiles = import.meta.glob<PresetContribution>("./platform/presets/*.json", { eager: true, import: "default" });
 export const presets = defineModule({
-  id: "inkling.presets",
+  id: ns("presets"),
   version: "1.0.0",
   title: "Presets",
   description: "Ready-made environments: the six medical Studios and generic starting points. Use with `extends`.",

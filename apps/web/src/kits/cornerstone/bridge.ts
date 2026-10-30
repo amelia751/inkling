@@ -8,6 +8,7 @@ import type { Annotation, Geometry, MeasurementKind, Project } from "@/types";
 import { setLiveStats, clearLiveStats } from "@/kits/cornerstone/liveStats";
 import { decodeMaskInto, encodeMask, maskId, sameCounts } from "@/kits/cornerstone/rle";
 import { T } from "@/kits/cornerstone/init";
+import { RES } from "@studio/plugin-contracts/naming";
 
 type CsAnnotation = tools.Types.Annotation;
 const { Events, SegmentationRepresentations } = tools.Enums;
@@ -489,7 +490,7 @@ export class CornerstoneBridge {
         try {
           annState.addAnnotation(ann, (spec.metadata.FrameOfReferenceUID as string) ?? "");
         } catch (e) {
-          console.warn("[inkling] could not show annotation", a.id, e);
+          console.warn(`[${RES}] could not show annotation`, a.id, e);
           continue;
         }
         this.styleAnnotation(a);
@@ -627,7 +628,7 @@ export class CornerstoneBridge {
         },
       );
     } catch (e) {
-      console.warn("[inkling] segmentation style", e);
+      console.warn(`[${RES}] segmentation style`, e);
     }
     for (const label of this.labels) {
       const seg = this.segmentIndex(label);

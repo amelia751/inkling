@@ -7,6 +7,7 @@ import { stripConfig, TIMESERIES } from "./config";
 import { channelOf, codeOf, kindOf, ownAttributes, peakOf, rangeOf, rhythmOf, waveOf, type Kind } from "./model";
 import { loadInfo, type RecordInfo } from "./readers";
 import { WfdbExportConfigSchema } from "./wfdbCodes";
+import { RES } from "@studio/plugin-contracts/naming";
 
 /**
  * WFDB / LUDB / CSV exports of span and instant annotations. They read the stored v2 form
@@ -157,7 +158,7 @@ const ludbExporter: ExporterImpl = {
         statements: anns.filter((a) => a.geometry.type === "class").map((a) => ({ ...base(a), snomed: a.attributes?.snomed ?? null })),
       };
     });
-    return json({ project: ctx.project.id, format: "inkling-ecg/1 (LUDB-style)", exportedAt: new Date().toISOString(), records });
+    return json({ project: ctx.project.id, format: `${RES}-ecg/1 (LUDB-style)`, exportedAt: new Date().toISOString(), records });
   },
 };
 

@@ -59,7 +59,7 @@ export function ModuleConfigDialog({ open, onOpenChange, env, projectId }: { ope
         <div className="space-y-6 px-6 py-5">
           {!items.length && <p className="text-sm text-muted-foreground">Nothing in this environment has settings.</p>}
           {items.map((it) => (
-            <section key={it.id} className="rjsf-inkling" aria-label={it.id}>
+            <section key={it.id} className="rjsf-studio" aria-label={it.id}>
               <h3 className="mb-0.5 text-sm font-semibold">{it.title}</h3>
               <p className="mb-2 font-mono text-[11px] text-muted-foreground">{it.id}</p>
               <Form

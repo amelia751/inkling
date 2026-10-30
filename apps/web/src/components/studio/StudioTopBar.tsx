@@ -22,6 +22,7 @@ import { useWindowWidth } from "@/lib/use-media-query";
 import { envLabel } from "@/lib/format";
 import { useStudio } from "@/stores/studio";
 import type { Project } from "@/types";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 /**
  * Sizes are container queries on the header, so it adapts to its own width:
@@ -76,11 +77,11 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         {showAi && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label="Inkling AI panel">
+              <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label={`${NAMING.displayName} AI panel`}>
                 <AiIcon />
               </Button>
             </TooltipTrigger>
-            <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} Inkling AI`} />
+            <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} ${NAMING.displayName} AI`} />
           </Tooltip>
         )}
         {onShowSettings && (

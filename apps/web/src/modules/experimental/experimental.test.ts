@@ -4,23 +4,24 @@ import { createRegistry, registry } from "@/platform/registry";
 import { resolveEnvironment } from "@/platform/resolve";
 import experimental from "./manifest";
 import { selectValue, vetProposals } from "./bridge";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const reg = createRegistry([...registry.listModules(), experimental]);
 const env = resolveEnvironment(
   {
     extends: "preset:generic-image",
     labels: [{ name: "objects", control: "RectangleLabels", classes: [{ id: "cat" }] }],
-    panels: { right: ["inkling.experimental.panels.declarative", "inkling.experimental.panels.sandbox"] },
-    overrides: [{ id: "inkling.experimental.panels.declarative", config: { blocks: [{ type: "stat", label: "Boxes", value: { store: "annotations.item" } }] } }],
+    panels: { right: [ns("experimental.panels.declarative"), ns("experimental.panels.sandbox")] },
+    overrides: [{ id: ns("experimental.panels.declarative"), config: { blocks: [{ type: "stat", label: "Boxes", value: { store: "annotations.item" } }] } }],
   },
   reg,
-  { baseModules: ["inkling.core"] },
+  { baseModules: [ns("core")] },
 ).env!;
 
 describe("agent panels", () => {
   it("validates declarative panel config through the environment", () => {
-    expect(env.configs["inkling.experimental.panels.declarative"]).toMatchObject({ title: "Agent panel", blocks: [{ type: "stat" }] });
-    const bad = resolveEnvironment({ extends: "preset:generic-image", panels: { right: ["inkling.experimental.panels.declarative"] }, overrides: [{ id: "inkling.experimental.panels.declarative", config: { blocks: [{ type: "script", code: "alert(1)" }] } }] }, reg, { baseModules: ["inkling.core"] });
+    expect(env.configs[ns("experimental.panels.declarative")]).toMatchObject({ title: "Agent panel", blocks: [{ type: "stat" }] });
+    const bad = resolveEnvironment({ extends: "preset:generic-image", panels: { right: [ns("experimental.panels.declarative")] }, overrides: [{ id: ns("experimental.panels.declarative"), config: { blocks: [{ type: "script", code: "alert(1)" }] } }] }, reg, { baseModules: [ns("core")] });
     expect(bad.errors?.[0].code).toBe("invalid-config");
   });
 

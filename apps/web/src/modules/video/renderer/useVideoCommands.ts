@@ -3,6 +3,7 @@ import { useCommands } from "@/platform/commands";
 import { toggleKeyframe, toggleOccluded, toggleOutside, type TrackGeometry } from "../tracks";
 import type { FrameEditor } from "./FrameEditor";
 import type { VideoEngine } from "./VideoEngine";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /** Arrows typed into a slider or tab list belong to that control. */
 const ownedArrow = (e: KeyboardEvent) => e.key.startsWith("Arrow") && !!(e.target as HTMLElement | null)?.closest?.('[role="slider"],[role="tab"]');
@@ -52,7 +53,7 @@ export function useVideoCommands(o: {
       cancelShape: () => editor.cancelDraft(),
       removeLastVertex: () => editor.removeLastVertex(),
     },
-    { scope: ["inkling.video", "inkling.core"] },
+    { scope: [ns("video"), ns("core")] },
   );
 
   // The release half of the Space hold.

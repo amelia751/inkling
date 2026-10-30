@@ -10,6 +10,7 @@ import { cellAreas, cellLabelMap, frameCoverage, groupCells, isPhase, paintOrder
 import { cineConfig, CINE_RENDERER } from "./public";
 import { copyCell, importReference, interpolateCells } from "./renderer/edits";
 import { dragMove, dragVertex, edgeInsertIndex, pickAt } from "./renderer/engine";
+import { NS, ns } from "@studio/plugin-contracts/naming";
 
 const LABELS = ["right ventricle", "myocardium", "left ventricle"];
 const S: Structures = { rv: "right ventricle", myo: "myocardium", lv: "left ventricle" };
@@ -30,7 +31,7 @@ const ann = (label: string, geometry: Annotation["geometry"], attributes?: Annot
 }) as unknown as Annotation;
 const newAnn = (init: { label: string; geometry: Annotation["geometry"]; attributes: Annotation["attributes"] }) => ann(init.label, init.geometry, init.attributes);
 
-describe("inkling.cine model", () => {
+describe(`${NS}.cine model`, () => {
   it("paints roles last (LV carves the myocardium ring), other labels first", () => {
     expect(paintOrder(["other", ...LABELS], S)).toEqual(["other", ...LABELS]);
     expect(paintOrder(["left ventricle", "myocardium", "right ventricle"], S)).toEqual(["right ventricle", "myocardium", "left ventricle"]);
@@ -84,7 +85,7 @@ describe("inkling.cine model", () => {
   });
 });
 
-describe("inkling.cine edits", () => {
+describe(`${NS}.cine edits`, () => {
   const lv = ann("left ventricle", { type: "spline", points: square(2, 2, 8), slice: 1, frame: 0 }, { source: "manual" });
   const cells = groupCells([lv], "study");
   const all = () => true;
@@ -119,7 +120,7 @@ describe("inkling.cine edits", () => {
   });
 });
 
-describe("inkling.cine engine", () => {
+describe(`${NS}.cine engine`, () => {
   const g = { type: "spline" as const, points: square(0, 0, 10), slice: 0, frame: 0 };
   it("edits through ShapeUtils with 0.01 precision", () => {
     expect(dragVertex({ kind: "vertex", id: "x", index: 1, points: g.points }, [12.3456, 1.004])[1]).toEqual([12.35, 1]);
@@ -138,29 +139,29 @@ describe("inkling.cine engine", () => {
   });
 });
 
-describe("inkling.cine environment", () => {
+describe(`${NS}.cine environment`, () => {
   it("preset:cine-4d configures structures and key frames, and includes cardiac metrics", () => {
     const env = resolveEnvironment({ extends: "preset:cine-4d" }, registry).env!;
     expect(cineConfig(env).structures).toEqual(S);
     expect(cineConfig(env).keyFrames.map((k) => k.id)).toEqual(["ED", "ES"]);
-    expect(env.panels.right.map((p) => p.id)).toContain("inkling.cardiac-metrics.panels.metrics");
-    expect(env.exporters.map((e) => e.id)).toContain("inkling.cardiac-metrics.exporters.function-csv");
+    expect(env.panels.right.map((p) => p.id)).toContain(ns("cardiac-metrics.panels.metrics"));
+    expect(env.exporters.map((e) => e.id)).toContain(ns("cardiac-metrics.exporters.function-csv"));
     const a = ann("left ventricle", { type: "instant", frame: 0 }, { kind: "phase", phase: "ED" });
     expect(describeGeometry(a, env)).toBe("ED · frame 1");
   });
   it("works without cardiac vocabulary: no structures, no key frames, no metrics", () => {
     const r = resolveEnvironment(
       {
-        data: { kind: "inkling.cine.dataKinds.volume-time" },
+        data: { kind: ns("cine.dataKinds.volume-time") },
         viewports: [{ name: "main", renderer: CINE_RENDERER }],
-        tools: ["inkling.core.tools.select", "inkling.overlay2d.tools.polygon"],
-        exporters: ["inkling.cine.exporters.acdc-nifti"],
+        tools: [ns("core.tools.select"), ns("overlay2d.tools.polygon")],
+        exporters: [ns("cine.exporters.acdc-nifti")],
         labels: [{ name: "cells", control: "PolygonLabels", classes: [{ id: "nucleus" }] }],
       },
       registry,
     );
     expect(r.errors).toBeUndefined();
     expect(cineConfig(r.env)).toEqual({ structures: {}, keyFrames: [] });
-    expect(r.env!.panels.right.map((p) => p.id)).not.toContain("inkling.cardiac-metrics.panels.metrics");
+    expect(r.env!.panels.right.map((p) => p.id)).not.toContain(ns("cardiac-metrics.panels.metrics"));
   });
 });

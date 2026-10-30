@@ -8,6 +8,7 @@ import { clearRuntime } from "@/platform/runtime";
 import type { ExporterImpl } from "@/platform/module";
 import golden from "./__fixtures__/export-golden.json";
 import { items, normaliseJson, project, stubFetch, untar, v1Annotations } from "./__fixtures__/exportCase";
+import { NS } from "@studio/plugin-contracts/naming";
 
 /**
  * Byte identity across the geometry migration: the v2 exporters, run on the migrated v1
@@ -18,7 +19,7 @@ describe("timeseries exporters (v1 → v2 byte identity)", () => {
   const migrated = migrateDocument({ revision: 1, annotations: v1Annotations }, MIGRATED_V1_TYPES).annotations;
   const env = resolveEnvironment({ extends: "preset:ecg" }, registry).env!;
   const run = async (id: string, withEnv: boolean) => {
-    const e = await registry.loadImpl<ExporterImpl>(`inkling.timeseries.exporters.${id}`);
+    const e = await registry.loadImpl<ExporterImpl>(`${NS}.timeseries.exporters.${id}`);
     const blob = await e.build({ project, items, annotations: migrated, env: withEnv ? env : undefined });
     return { name: e.filename(project), bytes: new Uint8Array(await blob.arrayBuffer()) };
   };

@@ -135,5 +135,5 @@ export function StudioLayout({ slots, layout, storageKey }: StudioLayoutProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, JSON.stringify(layout ?? null)]);
 
-  return <DockviewReact className="inkling-dockview min-h-0 flex-1" components={components} onReady={onReady} disableDnd />;
+  return <DockviewReact className="studio-dockview min-h-0 flex-1" components={components} onReady={onReady} disableDnd />;
 }

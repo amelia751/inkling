@@ -8,9 +8,10 @@ import { resolveEnvironment } from "@/platform/resolve";
 import type { Annotation, Geometry, Project, StudioItem } from "@/types";
 import { fromGeoJSON, toAsapXml, toCountsCsv, toQuPathGeoJSON } from "./io";
 import { countPoints, inspectRows } from "./measure";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const project = { id: "p", labels: ["tumor", "stroma", "lymphocytes"], assets: [] } as unknown as Project;
-const item: StudioItem = { id: "s1", name: "slide", group: "Slides", assets: [{ path: "s1.dzi", slide: "TCGA-1", mpp: 0.25 } as StudioItem["assets"][number]], dataKind: "inkling.wsi.dataKinds.raster-pyramid" };
+const item: StudioItem = { id: "s1", name: "slide", group: "Slides", assets: [{ path: "s1.dzi", slide: "TCGA-1", mpp: 0.25 } as StudioItem["assets"][number]], dataKind: ns("wsi.dataKinds.raster-pyramid") };
 const ann = (id: string, geometry: Geometry, label = "tumor"): Annotation => ({ id, itemId: "s1", label, geometry, provenance: "human-created", author: "t", createdAt: "" });
 const square: Geometry = { type: "polygon", points: [[0, 0], [100, 0], [100, 100], [0, 100]] };
 
@@ -57,12 +58,12 @@ describe("wsi: mark → keypoint", () => {
 
 describe("wsi module", () => {
   it("the pathology preset resolves with the counts and adjust panels", () => {
-    const res = resolveEnvironment({ extends: "preset:pathology" }, registry, { baseModules: ["inkling.core"] });
+    const res = resolveEnvironment({ extends: "preset:pathology" }, registry, { baseModules: [ns("core")] });
     expect(res.errors).toBeUndefined();
     const env = res.env!;
-    expect(env.panels.right.map((p) => p.id)).toContain("inkling.wsi.panels.counts");
-    expect(env.panels["viewport-bar"].map((p) => p.id)).toEqual(["inkling.wsi.panels.adjust"]);
-    expect(env.commands.map((c) => c.id)).toEqual(expect.arrayContaining(["inkling.wsi.commands.toggleClassNames", "inkling.wsi.commands.importGeoJSON", "inkling.core.commands.rotateView", "inkling.core.commands.holdToPan"]));
+    expect(env.panels.right.map((p) => p.id)).toContain(ns("wsi.panels.counts"));
+    expect(env.panels["viewport-bar"].map((p) => p.id)).toEqual([ns("wsi.panels.adjust")]);
+    expect(env.commands.map((c) => c.id)).toEqual(expect.arrayContaining([ns("wsi.commands.toggleClassNames"), ns("wsi.commands.importGeoJSON"), ns("core.commands.rotateView"), ns("core.commands.holdToPan")]));
     expect(env.viewports[0].config).toEqual({ showNavigator: true });
     expect(describeGeometry(ann("k", { type: "keypoint", x: 12.4, y: 7.6 }), env)).toBe("Point · 12, 8");
   });
@@ -70,22 +71,22 @@ describe("wsi module", () => {
   it("resolves the README environment", () => {
     const res = resolveEnvironment(
       {
-        data: { kind: "inkling.wsi.dataKinds.raster-pyramid" },
-        viewports: [{ name: "main", renderer: "inkling.wsi.renderers.osd", config: { mpp: 0.25 } }],
-        tools: ["inkling.core.tools.select", "inkling.core.tools.pan", "inkling.overlay2d.tools.polygon", "inkling.wsi.tools.brush", "inkling.wsi.tools.wand", "inkling.wsi.tools.mark"],
-        panels: { left: ["inkling.core.panels.files", "inkling.core.panels.labels"], right: ["inkling.wsi.panels.counts"], "viewport-bar": ["inkling.wsi.panels.adjust"] },
-        exporters: ["inkling.wsi.exporters.qupath-geojson", "inkling.wsi.exporters.point-counts-csv"],
+        data: { kind: ns("wsi.dataKinds.raster-pyramid") },
+        viewports: [{ name: "main", renderer: ns("wsi.renderers.osd"), config: { mpp: 0.25 } }],
+        tools: [ns("core.tools.select"), ns("core.tools.pan"), ns("overlay2d.tools.polygon"), ns("wsi.tools.brush"), ns("wsi.tools.wand"), ns("wsi.tools.mark")],
+        panels: { left: [ns("core.panels.files"), ns("core.panels.labels")], right: [ns("wsi.panels.counts")], "viewport-bar": [ns("wsi.panels.adjust")] },
+        exporters: [ns("wsi.exporters.qupath-geojson"), ns("wsi.exporters.point-counts-csv")],
         labels: [{ name: "tissue", control: "PolygonLabels", classes: [{ id: "tumor" }, { id: "stroma" }] }],
       },
       registry,
-      { baseModules: ["inkling.core"] },
+      { baseModules: [ns("core")] },
     );
     expect(res.errors).toBeUndefined();
     expect(res.env!.viewports[0].config).toEqual({ mpp: 0.25, showNavigator: true });
   });
 
   it("the inspector reads mpp from the runtime", async () => {
-    const inspect = await registry.loadImpl<InspectFn>("inkling.wsi.inspectors.main");
+    const inspect = await registry.loadImpl<InspectFn>(ns("wsi.inspectors.main"));
     const rows = (mpp: number | undefined) => Object.fromEntries(inspect!(ann("r", square), { env: null as never, project, item, runtime: { publish: () => {}, get: <T,>(k: string) => (k === "mpp" ? (mpp as T) : undefined) } }));
     expect(rows(0.5).Area).toBe("2,500 µm²");
     expect(rows(undefined)).toMatchObject({ Area: "10,000 px²", Scale: "µm/px unknown" });

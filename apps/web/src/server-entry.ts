@@ -29,5 +29,7 @@ export function patch(spec: EnvironmentSpec, ops: JsonPatchOperation[]): Validat
   return validate(p.spec);
 }
 
+export { NAMING, envVar } from "@studio/plugin-contracts/naming";
+
 /** The environment a manifest project boots with (v1 entries are migrated). */
 export { normalizeProject } from "./lib/api";

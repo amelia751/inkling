@@ -5,6 +5,7 @@ import { volumeCommands } from "./commands";
 import { mprConfigSchema } from "./config";
 import { groupItems, VOLUME, VOLUME_KIND } from "./dataKind";
 import { volumeGeometries } from "./geometries";
+import { ns } from "@studio/plugin-contracts/naming";
 
 export { VOLUME };
 
@@ -15,7 +16,7 @@ export default defineModule({
   version: "1.1.0",
   title: "3D volumes",
   description: "NIfTI and DICOM series on Cornerstone3D MPR viewports (axial / coronal / sagittal + 3D) with crosshairs, 3D labelmaps and measurements.",
-  requires: ["inkling.cornerstone"],
+  requires: [ns("cornerstone")],
   contributes: {
     dataKinds: [
       {

@@ -1,8 +1,9 @@
 import { defineModule } from "@/platform/module";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /** DICOM SEG / SR writers, for any environment whose items are DICOM (Cornerstone renderers). */
 export default defineModule({
-  id: "inkling.dicom-export",
+  id: ns("dicom-export"),
   version: "1.0.0",
   title: "DICOM export",
   description: "Masks as DICOM SEG and measurements as DICOM SR (TID 1500), referencing the source DICOM images.",

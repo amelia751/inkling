@@ -10,6 +10,7 @@ import { groupItems, initialSource, referenceAsset, volumeSources } from "./data
 import { labelmapNifti, masksJsonDocument } from "./exporters";
 import { describeLandmark, point3dSchema } from "./geometries";
 import { labelIndexForValue, labelValue } from "./labelValues";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const asset = (path: string, extra: Record<string, string> = {}) => ({ path, sha256: "", bytes: 0, ...extra });
 const brats = {
@@ -29,8 +30,8 @@ describe("volume data kind", () => {
   it("groups assets by subject and splits sequences / DICOM series", () => {
     const items = groupItems(brats);
     expect(items.map((i) => [i.id, i.assets.length, i.dataKind])).toEqual([
-      ["S1", 3, "inkling.volume.dataKinds.volume"],
-      ["S2", 1, "inkling.volume.dataKinds.volume"],
+      ["S1", 3, ns("volume.dataKinds.volume")],
+      ["S2", 1, ns("volume.dataKinds.volume")],
     ]);
     const src = volumeSources(items[0].assets);
     expect(src.map((s) => [s.key, s.kind, s.paths.length])).toEqual([
@@ -69,24 +70,24 @@ describe("MPR config", () => {
     expect(r.env!.viewports[0].config).toMatchObject({ layout: "mpr", plane: "axial" });
     const ids = r.env!.commands.map((c) => c.id);
     for (const id of [
-      "inkling.volume.commands.stepSlice",
-      "inkling.volume.commands.firstLastSlice",
-      "inkling.volume.commands.fitView",
-      "inkling.volume.commands.cancelManipulation",
-      "inkling.volume.commands.interpolateSlices",
-      "inkling.cornerstone.commands.invertImage",
-      "inkling.cornerstone.commands.rotateViewLeft",
-      "inkling.core.commands.rotateView",
-      "inkling.core.commands.holdToPan",
+      ns("volume.commands.stepSlice"),
+      ns("volume.commands.firstLastSlice"),
+      ns("volume.commands.fitView"),
+      ns("volume.commands.cancelManipulation"),
+      ns("volume.commands.interpolateSlices"),
+      ns("cornerstone.commands.invertImage"),
+      ns("cornerstone.commands.rotateViewLeft"),
+      ns("core.commands.rotateView"),
+      ns("core.commands.holdToPan"),
     ])
       expect(ids).toContain(id);
     // ↑/↓ step slices, not items; PageUp/PageDown still change item.
-    const prev = r.env!.commands.find((c) => c.id === "inkling.core.commands.prevItem")!;
+    const prev = r.env!.commands.find((c) => c.id === ns("core.commands.prevItem"))!;
     expect(prev.keys).toEqual(["ArrowLeft", "PageUp"]);
   });
 
   it("rejects an unknown layout in the environment", () => {
-    const r = resolveEnvironment({ extends: "preset:volume-3d", viewports: [{ name: "main", renderer: "inkling.volume.renderers.cornerstone-mpr", config: { layout: "4x4" } }] }, registry);
+    const r = resolveEnvironment({ extends: "preset:volume-3d", viewports: [{ name: "main", renderer: ns("volume.renderers.cornerstone-mpr"), config: { layout: "4x4" } }] }, registry);
     expect(r.errors?.length).toBeGreaterThan(0);
   });
 });

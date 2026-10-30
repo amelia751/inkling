@@ -1,5 +1,6 @@
 import type { CommandContribution } from "@/platform/module";
 import { VOLUME } from "./dataKind";
+import { NS, ns } from "@studio/plugin-contracts/naming";
 
 /**
  * The volume renderer's own commands (declared in the manifest, handled by the renderer
@@ -14,7 +15,7 @@ export const volumeCommands: CommandContribution[] = [
     label: "Previous or next slice",
     group: "Navigate",
     repeat: true,
-    shadows: ["inkling.core.commands.prevItem", "inkling.core.commands.nextItem"],
+    shadows: [ns("core.commands.prevItem"), ns("core.commands.nextItem")],
     description: "Scroll the active plane (↑ previous, ↓ next)",
   },
   { id: "firstLastSlice", keys: ["Home", "End"], display: "Home / End", label: "First or last slice", group: "Navigate", description: "Jump to the first (Home) or last (End) slice of the active plane" },
@@ -32,7 +33,7 @@ export const volumeCommands: CommandContribution[] = [
   { id: "similarFill", label: "Wand: similar intensity", group: "Drawing", when: "tool == wand", description: "Wand clicks flood the connected region on the clicked slice within ±8% of the window" },
 ];
 
-const cs = (name: string) => `inkling.cornerstone.commands.${name}`;
+const cs = (name: string) => `${NS}.cornerstone.commands.${name}`;
 const own = (name: string) => `${VOLUME}.commands.${name}`;
 
 /** Full ids of every command the renderer handles (its own, Cornerstone's and core's). */
@@ -50,6 +51,6 @@ export const VOLUME_COMMANDS = {
   flipV: cs("flipVertical"),
   rotateLeft: cs("rotateViewLeft"),
   magnifier: cs("toggleMagnifier"),
-  rotateRight: "inkling.core.commands.rotateView",
-  holdToPan: "inkling.core.commands.holdToPan",
+  rotateRight: ns("core.commands.rotateView"),
+  holdToPan: ns("core.commands.holdToPan"),
 } as const;

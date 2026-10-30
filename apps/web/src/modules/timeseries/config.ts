@@ -1,12 +1,13 @@
 import * as z from "zod";
 import type { ResolvedEnv } from "@/platform/resolve";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Config of the strip chart and its panel. Every domain value (ECG paper, lead order, WFDB
  * beat codes, rhythms, wave names) is a config value set by a preset (`preset:ecg`); the
  * defaults describe a plain multichannel recording with no vocabulary.
  */
-export const TIMESERIES = "inkling.timeseries";
+export const TIMESERIES = ns("timeseries");
 export const STRIP_CHART = `${TIMESERIES}.renderers.strip-chart`;
 export const MEASUREMENTS_PANEL = `${TIMESERIES}.panels.measurements`;
 
@@ -55,7 +56,7 @@ export const StripChartConfigSchema = z.object({
   defaultWave: z.string().optional().describe("Wave drawn when the active label names none of `waves`"),
   instantLabel: z.string().optional().describe("Label class given to new instants (else the active label)"),
   ecg: z.boolean().default(false).describe("ECG extras: Pan–Tompkins beat detection, QT/QTc caliper, heart rate and PR/QRS/QT measurements"),
-  displayKey: z.string().default("inkling.timeseries.display.v1").describe("localStorage key for the expert's display settings"),
+  displayKey: z.string().default(ns("timeseries.display.v1")).describe("localStorage key for the expert's display settings"),
 });
 export type StripChartConfig = z.infer<typeof StripChartConfigSchema>;
 

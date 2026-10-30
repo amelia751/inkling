@@ -11,6 +11,7 @@ import { describeInstant, describeSpan, describeTrack } from "./geometries";
 import { inspectVideo } from "./inspect";
 import { placeTrack, registerTrackShape, resolveTrack, unplace } from "./trackShape";
 import { shapeAt, toggleOccluded, toggleOutside, trackSpans, type TrackGeometry } from "./tracks";
+import { ns } from "@studio/plugin-contracts/naming";
 
 registerTrackShape();
 
@@ -29,7 +30,7 @@ const ann = (id: string, geometry: Geometry, extra: Partial<Annotation> = {}): A
   ...extra,
 }) as Annotation;
 
-const item: StudioItem = { id: "v.mp4", name: "v.mp4", group: "Videos", dataKind: "inkling.video.dataKinds.video", assets: [{ path: "video/v.mp4", fps: 25, frames: 50, width: 64, height: 48 } as StudioItem["assets"][number]] };
+const item: StudioItem = { id: "v.mp4", name: "v.mp4", group: "Videos", dataKind: ns("video.dataKinds.video"), assets: [{ path: "video/v.mp4", fps: 25, frames: 50, width: 64, height: 48 } as StudioItem["assets"][number]] };
 const project = { id: "vid", title: "Videos", labels: [{ name: "classes", control: "Labels", classes: [{ id: "polyp" }, { id: "bleeding" }] }], assets: item.assets } as unknown as Project;
 
 describe("tracks", () => {
@@ -91,7 +92,7 @@ describe("geometries", () => {
   it("the video preset resolves with the video geometry refinements", () => {
     const { env, errors } = resolveEnvironment({ extends: "preset:video" }, registry);
     expect(errors).toBeUndefined();
-    expect(env!.geometries.filter((g) => g.id.startsWith("inkling.video.")).map((g) => g.type)).toEqual(["span", "instant", "track"]);
+    expect(env!.geometries.filter((g) => g.id.startsWith(ns("video."))).map((g) => g.type)).toEqual(["span", "instant", "track"]);
   });
 });
 

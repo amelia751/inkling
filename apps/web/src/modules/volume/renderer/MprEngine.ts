@@ -32,6 +32,7 @@ import type { VolumeSource } from "../dataKind";
 import { labelIndexForValue } from "../labelValues";
 import { planeAxis, planeFromNormal, volumeConverter, type VolumeGeometry } from "./convert";
 import { loadSource, scalarArray } from "./volumeCache";
+import { NAMING, RES } from "@studio/plugin-contracts/naming";
 
 const LABELMAP = tools.Enums.SegmentationRepresentations.Labelmap;
 
@@ -188,7 +189,7 @@ export class MprEngine {
           segmentationId,
           representation: { type: LABELMAP, data: { volumeId: segVolumeId, referencedVolumeId: primaryVolumeId } },
           config: {
-            label: "Inkling mask",
+            label: `${NAMING.displayName} mask`,
             segments: Object.fromEntries(labels.map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
           },
         },
@@ -277,7 +278,7 @@ export class MprEngine {
             this.events.refReady(true);
           }
         } catch (e) {
-          console.warn("[inkling] reference mask unavailable", e);
+          console.warn(`[${RES}] reference mask unavailable`, e);
         }
       }
     })().catch((e: Error) => {
@@ -385,7 +386,7 @@ export class MprEngine {
       try {
         tg.setToolEnabled(tools.ScaleOverlayTool.toolName);
       } catch (e) {
-        console.warn("[inkling] scale overlay unavailable", e);
+        console.warn(`[${RES}] scale overlay unavailable`, e);
       }
       if (ids["3d"]) {
         tools.ToolGroupManager.destroyToolGroup(toolGroup3dId);
@@ -522,7 +523,7 @@ export class MprEngine {
 
     return () => {
       cancelled = true;
-      exposeForTests("__inkling3d", null);
+      exposeForTests(`__inkling3d`, null);
       const v = built;
       if (this.view === v) this.view = null;
       if (!v) return;
@@ -550,7 +551,7 @@ export class MprEngine {
 
   /** Window hooks the e2e suite drives (`window.__inkling3d`). */
   private exposeTestHooks(s: Session, engine: RenderingEngine, ids: Partial<Record<Cell, string>>) {
-    exposeForTests("__inkling3d", {
+    exposeForTests(`__inkling3d`, {
       cells: () => Object.keys(ids),
       props: (cell: Cell) => {
         const vp = engine.getViewport(ids[cell]!) as Types.IVolumeViewport;
@@ -945,7 +946,7 @@ function applyRefStyle(s: Session, viewportIds: string[], visible: boolean) {
       },
     );
   } catch (e) {
-    console.warn("[inkling] reference style", e);
+    console.warn(`[${RES}] reference style`, e);
   }
   for (const id of viewportIds) {
     try {

@@ -1,14 +1,15 @@
 import type { AgentContext, AgentEvent, ChatTurn } from "../../src/lib/agent/protocol";
 import { runTool, toolSpecs, toolTitle } from "./tools";
+import { envVar, NAMING } from "@studio/plugin-contracts/naming";
 
 const MAX_STEPS = 8;
 
-export const agentModel = () => process.env.INKLING_AGENT_MODEL ?? process.env.OPENAI_MODEL ?? "gpt-6.1-sol";
+export const agentModel = () => process.env[envVar("AGENT_MODEL")] ?? process.env.OPENAI_MODEL ?? "gpt-6.1-sol";
 export const agentConfigured = () => !!process.env.OPENAI_API_KEY;
 
 function instructions(ctx: AgentContext): string {
   const current = ctx.items.find((i) => i.id === ctx.currentItemId);
-  return `You are Inkling AI, an assistant inside a medical-imaging annotation studio. You help domain experts (radiologists, cardiologists, pathologists) who are not ML engineers plan, check and document their annotation work.
+  return `You are ${NAMING.displayName} AI, an assistant inside a medical-imaging annotation studio. You help domain experts (radiologists, cardiologists, pathologists) who are not ML engineers plan, check and document their annotation work.
 
 What you can and cannot do:
 - You see a text snapshot only: dataset metadata, item names, label set and annotation summaries. You never see pixels, signals or video. Never claim to have looked at an image, and never invent coordinates, contours, measurements or diagnoses.

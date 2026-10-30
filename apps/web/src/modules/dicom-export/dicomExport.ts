@@ -7,6 +7,7 @@ import { KIND_TOOL, labelRgb } from "@/kits/cornerstone/bridge";
 import { isDicomPath, loadDicomSeries } from "@/kits/cornerstone/dicom";
 import { ensureCornerstone } from "@/kits/cornerstone/init";
 import { decodeMaskInto } from "@/kits/cornerstone/rle";
+import { NAMING, RES } from "@studio/plugin-contracts/naming";
 
 /**
  * DICOM SEG (masks) and DICOM SR TID 1500 (measurements) for items whose source images are
@@ -44,13 +45,13 @@ function dropNaN(node: unknown, path: string) {
     // Keys that are not DICOM keywords (helper fields leaked into the dataset) would be
     // written with a NaN tag.
     if (!/^\d+$/.test(k) && !["Alphabetic", "Ideographic", "Phonetic"].includes(k) && !dcmjsData.DicomMetaDictionary.nameMap[k] && !/^[0-9A-Fa-f]{8}$/.test(k)) {
-      console.warn(`[inkling] DICOM export: dropping non-DICOM attribute ${path}${k}`);
+      console.warn(`[${RES}] DICOM export: dropping non-DICOM attribute ${path}${k}`);
       delete (node as Record<string, unknown>)[k];
       continue;
     }
     const bad = (x: unknown) => typeof x === "number" && Number.isNaN(x);
     if (bad(v) || (Array.isArray(v) && v.some(bad))) {
-      console.warn(`[inkling] DICOM export: dropping ${path}${k} (NaN)`);
+      console.warn(`[${RES}] DICOM export: dropping ${path}${k} (NaN)`);
       delete (node as Record<string, unknown>)[k];
     } else if (typeof v === "object") dropNaN(v, `${path}${k}.`);
   }
@@ -150,7 +151,7 @@ export async function buildDicomSeg({ project, item, annotations }: Ctx): Promis
   // so give it 16-bit copies.
   const segImages = images.map((im) => ({ ...im, voxelManager: { ...im.voxelManager, getScalarData: () => Uint16Array.from(im.getPixelData() as ArrayLike<number>) } }));
   const result = adaptersSEG.Cornerstone3D.Segmentation.generateSegmentation(segImages, labelmap3D, await naturalizedMetadata(imageIds), {
-    SeriesDescription: `Inkling masks: ${project.title}`,
+    SeriesDescription: `${NAMING.displayName} masks: ${project.title}`,
   });
   return toBlob(result.dataset);
 }
@@ -224,7 +225,7 @@ export async function buildDicomSr({ project, item, annotations }: Ctx): Promise
   }
   if (!Object.keys(toolState).length) throw new Error(`“${item.name}” has no measurements to export`);
   const report = adaptersSR.Cornerstone3D.MeasurementReport.generateReport(toolState, await naturalizedMetadata(imageIds), {
-    SeriesDescription: `Inkling measurements: ${project.title}`,
+    SeriesDescription: `${NAMING.displayName} measurements: ${project.title}`,
   });
   return toBlob(report.dataset);
 }

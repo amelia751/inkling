@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useCommands } from "@/platform/commands";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * `inkling.core.commands.holdToPan` (Space by default): pan with the primary button while
@@ -19,7 +20,7 @@ export function useHoldToPan(enabled: boolean): boolean {
         }
       },
     },
-    { scope: "inkling.core", enabled },
+    { scope: ns("core"), enabled },
   );
   useEffect(() => {
     const release = (e: KeyboardEvent | FocusEvent) => {

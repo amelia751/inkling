@@ -1,6 +1,7 @@
 import { imageLoader, metaData, utilities as csUtils } from "@cornerstonejs/core";
 import { seedUrl } from "@/lib/api";
 import { absoluteUrl, ensureDicom } from "@/kits/cornerstone/init";
+import { NS } from "@studio/plugin-contracts/naming";
 
 export const isDicomPath = (p: string) => /\.dcm$/i.test(p);
 
@@ -51,7 +52,7 @@ export function patchPlaneGeometry(imageId: string) {
     imageOrientationPatient: plane.imageOrientationPatient ?? [1, 0, 0, 0, 1, 0],
     rowCosines: plane.rowCosines ?? [1, 0, 0],
     columnCosines: plane.columnCosines ?? [0, 1, 0],
-    frameOfReferenceUID: plane.frameOfReferenceUID ?? `inkling.dx.${imageId}`,
+    frameOfReferenceUID: plane.frameOfReferenceUID ?? `${NS}.dx.${imageId}`,
   };
   planeOverrides.set(imageId, fix);
   if (!overrideProvider) {

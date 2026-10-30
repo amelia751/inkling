@@ -38,8 +38,9 @@ import { CineToolbar } from "./CineToolbar";
 import { copyCell, importReference, interpolateCells, type EditResult } from "./edits";
 import { dragMove, dragVertex, drawScene, edgeInsertIndex, EMPTY_CELL, pickAt, round2, stamp, type Drag, type PaintDrag } from "./engine";
 import { fullRange, percentileWindow, renderLabelMap, renderSlice, type Rgb } from "./render";
+import { ns } from "@studio/plugin-contracts/naming";
 
-const SCOPE = [CINE, "inkling.core"];
+const SCOPE = [CINE, ns("core")];
 
 /** Index of the key that fired `name` in its active binding (direction families such as ← → ↑ ↓), or -1. */
 function keyIndex(e: KeyboardEvent | undefined, name: string): number {

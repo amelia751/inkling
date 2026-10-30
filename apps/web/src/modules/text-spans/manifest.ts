@@ -1,13 +1,14 @@
 import { FileIcon, TagIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import type { Annotation, Project, StudioItem } from "@/types";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Named-entity / span labelling on plain text. Written from the outside, against the
  * public contract only: it changes no file outside this folder except its one line in
  * src/bundle.ts. Spans are a module geometry (`inkling.text-spans.span`, character offsets).
  */
-export const TEXT = "inkling.text-spans";
+export const TEXT = ns("text-spans");
 export const SPAN = `${TEXT}.span` as const;
 
 export interface TextSpan {
@@ -69,11 +70,11 @@ export default defineModule({
         spec: {
           data: { kind: `${TEXT}.dataKinds.text` },
           viewports: [{ name: "main", renderer: `${TEXT}.renderers.reader` }],
-          tools: ["inkling.core.tools.select", `${TEXT}.tools.entity`],
+          tools: [ns("core.tools.select"), `${TEXT}.tools.entity`],
           labels: [{ name: "entities", control: "SpanLabels", classes: [{ id: "PER", color: "#ef476f" }, { id: "ORG", color: "#118ab2" }, { id: "LOC", color: "#06d6a0" }] }],
-          panels: { left: ["inkling.core.panels.files", "inkling.core.panels.labels", "inkling.core.panels.review"], right: ["inkling.core.panels.ai"] },
+          panels: { left: [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")], right: [ns("core.panels.ai")] },
           exporters: [`${TEXT}.exporters.jsonl`],
-          reviewRules: ["inkling.core.reviewRules.unlabeled-items"],
+          reviewRules: [ns("core.reviewRules.unlabeled-items")],
         },
       },
     ],

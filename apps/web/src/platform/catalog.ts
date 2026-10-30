@@ -2,6 +2,7 @@ import * as z from "zod";
 import { EnvironmentSpecSchema } from "./environment";
 import { CONTRIBUTION_TYPES, type ContributionType } from "./module";
 import type { Registered, Registry } from "./registry";
+import { NAMING, ns } from "@studio/plugin-contracts/naming";
 
 /**
  * The agent's view of what can be composed (kiwifs `kiwi_widget_reference` style): every
@@ -51,7 +52,7 @@ function defaultExample(c: Registered<ContributionType>): unknown {
     case "renderers":
       return { data: { kind: (c as Registered<"renderers">).consumes[0] }, viewports: [{ name: "main", renderer: c.id }] };
     case "tools":
-      return { tools: ["inkling.core.tools.select", c.id] };
+      return { tools: [ns("core.tools.select"), c.id] };
     case "panels":
       return { panels: { [(c as Registered<"panels">).slot]: [c.id] } };
     case "exporters":
@@ -93,7 +94,7 @@ export function describeCatalog(registry: Registry): Catalog {
 /** Compact markdown for the assistant's system prompt. */
 export function catalogPrompt(registry: Registry): string {
   const lines = [
-    "# Inkling environment catalogue",
+    `# ${NAMING.displayName} environment catalogue`,
     "An environment spec (JSON) picks a data kind, viewports (renderers), tools, panels, exporters and label groups by full id `<module>.<type>.<name>`.",
     "Validate before saving; fix errors using their `path` and `suggestion`.",
     "",
@@ -150,6 +151,6 @@ export function environmentJsonSchema(registry: Registry): Record<string, unknow
   const controls = registry.list("labelControls").map((c) => c.name);
   const groupDef = schema.$defs?.LabelGroup ?? p.labels.items;
   if (controls.length) groupDef.properties.control = { type: "string", enum: controls, description: groupDef.properties.control?.description };
-  schema.$id = "inkling://schema/environment/v1";
+  schema.$id = `${NAMING.schemaPrefix}://schema/environment/v1`;
   return schema;
 }

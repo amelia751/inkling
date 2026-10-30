@@ -9,8 +9,9 @@ import { brushSizeOf, toolOption, useStudio } from "@/stores/studio";
 import { StackConfigSchema, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";
 import { CornerstoneStackEngine } from "./CornerstoneStackEngine";
 import { useHoldToPan } from "./holdToPan";
+import { ns } from "@studio/plugin-contracts/naming";
 
-const SCOPES = ["inkling.image2d", "inkling.cornerstone", "inkling.core"];
+const SCOPES = [ns("image2d"), ns("cornerstone"), ns("core")];
 
 /**
  * Thin React host for `inkling.image2d.renderers.cornerstone-stack`: mounts the engine,

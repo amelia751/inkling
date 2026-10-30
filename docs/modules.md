@@ -29,6 +29,14 @@ edit them by hand.
 Ids are `<moduleId>.<type>.<name>` (OHIF style), e.g. `inkling.wsi.renderers.osd`. Every
 contribution has a one-line `description`, may have a `configSchema` (zod) and an `example`.
 
+Module ids are `${namespace}.<module>`. The namespace comes from the naming config
+(`packages/plugin-contracts/src/naming.ts`, also emitted as `schemas/naming.json`), so never
+hardcode it: write `ns("wsi")` or `` `${NS}.core.commands.undo` ``. That file is the only
+place the product name may appear in code, and `check:boundaries` enforces this. Stored
+documents (presets, environments, annotation geometry types) keep full ids. After a rename,
+the old namespace goes into `legacyNamespaces` so those documents still resolve, and
+`node scripts/rename-namespace.mjs --from <old> --to <new>` rewrites them.
+
 | Type | What it is |
 |---|---|
 | `dataKinds` | How assets are recognised and grouped into items (`groupItems`), the item noun and icon |

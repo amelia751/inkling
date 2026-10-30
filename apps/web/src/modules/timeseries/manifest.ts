@@ -6,6 +6,7 @@ import type { Project, StudioItem } from "@/types";
 import { MeasurementsConfigSchema, StripChartConfigSchema, TIMESERIES } from "./config";
 import { geometries } from "./geometries";
 import { WfdbExportConfigSchema } from "./wfdbCodes";
+import { ns } from "@studio/plugin-contracts/naming";
 
 export { TIMESERIES } from "./config";
 const ON_STRIP = `renderer == ${TIMESERIES}.renderers.strip-chart`;
@@ -81,7 +82,7 @@ export default defineModule({
         label: "Scroll the time window",
         group: "Navigate",
         repeat: true,
-        shadows: ["inkling.core.commands.prevItem", "inkling.core.commands.nextItem"],
+        shadows: [ns("core.commands.prevItem"), ns("core.commands.nextItem")],
         description: "Scroll the visible time window",
       },
       { id: "zoomTime", keys: ["=", "+", "-"], display: "+ / −", label: "Zoom time (paper: speed)", group: "View", repeat: true, description: "Zoom the time axis" },

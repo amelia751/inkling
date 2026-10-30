@@ -4,6 +4,7 @@ import type { PanelProps } from "@/platform/module";
 import { useStudio, visibleFor } from "@/stores/studio";
 import { BRIDGE_SCRIPT, vetProposals } from "../bridge";
 import type { SandboxConfig } from "../manifest";
+import { RES } from "@studio/plugin-contracts/naming";
 
 type Config = z.infer<typeof SandboxConfig>;
 
@@ -29,9 +30,9 @@ export function SandboxPanel({ env, item, config }: PanelProps) {
       const { id, type, payload } = e.data as { id: number; type: string; payload: unknown };
       const reply = (p: unknown) => win.postMessage({ reply: id, payload: p }, "*");
       const s = useStudio.getState();
-      if (type === "inkling:getAnnotations") {
+      if (type === `${RES}:getAnnotations`) {
         reply({ item: item && { id: item.id, name: item.name }, annotations: item ? visibleFor(s.annotations, item.id, s.hiddenLabels) : [] });
-      } else if (type === "inkling:propose") {
+      } else if (type === `${RES}:propose`) {
         if (!item) return reply({ added: 0, rejected: ["no item open"] });
         const { ok, rejected } = vetProposals(payload, env);
         const now = new Date().toISOString();
@@ -45,7 +46,7 @@ export function SandboxPanel({ env, item, config }: PanelProps) {
   }, [env, item]);
 
   useEffect(() => {
-    frame.current?.contentWindow?.postMessage({ type: "inkling:item", payload: item && { id: item.id, name: item.name } }, "*");
+    frame.current?.contentWindow?.postMessage({ type: `${RES}:item`, payload: item && { id: item.id, name: item.name } }, "*");
   }, [item]);
 
   return (

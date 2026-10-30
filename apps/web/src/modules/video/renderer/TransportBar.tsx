@@ -22,9 +22,10 @@ import type { Annotation } from "@/types";
 import { isSpatial, keyframeAt, shapeAt, sortKeyframes, toggleKeyframe, toggleOccluded, toggleOutside, type TrackGeometry } from "../tracks";
 import { cmd } from "./StageBars";
 import type { VideoEngine, VideoState } from "./VideoEngine";
+import { NS } from "@studio/plugin-contracts/naming";
 
 const RATES = [0.25, 0.5, 1, 1.5, 2];
-const core = (n: string) => `inkling.core.commands.${n}`;
+const core = (n: string) => `${NS}.core.commands.${n}`;
 /** The n-th bound combo of a command, formatted ("" when unbound). */
 const key = (id: string, n = 0) => {
   const k = resolveShortcut(id)?.keys[n];

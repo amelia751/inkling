@@ -20,6 +20,7 @@ import { ChannelMenu, CONFIG_LAYOUT, DisplayBar, filterText, SPEEDS, ToolOptions
 import { overviewTimeAt, type Caliper } from "./draw";
 import { computeFrame } from "./layout";
 import { nextSuggestion, setCodeOfSelected, StripChartEngine } from "./StripChartEngine";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * `inkling.timeseries.renderers.strip-chart`: the React host. Loads the recording through
@@ -418,7 +419,7 @@ export function StripChartHost({ env, item, config, runtime }: RendererProps) {
         setCalibrating(true);
       },
     },
-    { enabled: !!rec, scope: [TIMESERIES, "inkling.core"] },
+    { enabled: !!rec, scope: [TIMESERIES, ns("core")] },
   );
 
   // ---------------------------------------------------------------- render

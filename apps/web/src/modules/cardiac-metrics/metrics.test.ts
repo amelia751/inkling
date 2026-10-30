@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { FrameMetrics, StructKey } from "@/modules/cine/public";
 import { computeMetrics, mosteller } from "./metrics";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const frame = (f: number, lv: number | null, rv: number | null, myo: number | null): FrameMetrics => {
   const status = (v: number | null) => (v === null ? "empty" : "complete");
@@ -13,7 +14,7 @@ const frame = (f: number, lv: number | null, rv: number | null, myo: number | nu
   };
 };
 
-describe("inkling.cardiac-metrics", () => {
+describe(ns("cardiac-metrics"), () => {
   const frames = [frame(0, 120, 130, 80), frame(1, 90, 100, null), frame(2, 50, 60, 76)];
 
   it("computes EDV/ESV/SV/EF and LV mass", () => {

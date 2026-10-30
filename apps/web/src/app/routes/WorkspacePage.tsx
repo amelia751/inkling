@@ -10,6 +10,7 @@ import { projectItems } from "@/lib/items";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/types";
 import { FullPageMessage, useProjects, useSavedAnnotations } from "./shared";
+import { NAMING } from "@studio/plugin-contracts/naming";
 
 export function WorkspacePage() {
   const { data: projects, isLoading, error } = useProjects();
@@ -49,7 +50,7 @@ export function WorkspacePage() {
           <section aria-labelledby="byo-heading" className="mt-10">
             <h2 id="byo-heading" className="mb-1 text-body font-semibold">Bring your own data</h2>
             <p className="mb-3 text-sm text-muted-foreground">
-              These sources restrict redistribution, so Inkling doesn't bundle them. You'll be able to open your own authorized copy when their viewers ship.
+              These sources restrict redistribution, so {NAMING.displayName} doesn't bundle them. You'll be able to open your own authorized copy when their viewers ship.
             </p>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {byo.map((p) => <DatasetCard key={p.id} project={p} />)}

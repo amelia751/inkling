@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Contract between the Cornerstone stack renderer and its viewport-bar panel. The renderer
@@ -76,11 +77,11 @@ export interface ViewControls {
 
 /** Full ids of the commands the stack renderer handles (the panel shows their keys). */
 export const COMMANDS = {
-  invert: "inkling.cornerstone.commands.invertImage",
-  flipH: "inkling.cornerstone.commands.flipHorizontal",
-  flipV: "inkling.cornerstone.commands.flipVertical",
-  rotateLeft: "inkling.cornerstone.commands.rotateViewLeft",
-  rotateRight: "inkling.core.commands.rotateView",
-  magnifier: "inkling.cornerstone.commands.toggleMagnifier",
-  fit: "inkling.image2d.commands.fitView",
+  invert: ns("cornerstone.commands.invertImage"),
+  flipH: ns("cornerstone.commands.flipHorizontal"),
+  flipV: ns("cornerstone.commands.flipVertical"),
+  rotateLeft: ns("cornerstone.commands.rotateViewLeft"),
+  rotateRight: ns("core.commands.rotateView"),
+  magnifier: ns("cornerstone.commands.toggleMagnifier"),
+  fit: ns("image2d.commands.fitView"),
 } as const;

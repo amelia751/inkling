@@ -1,4 +1,5 @@
 import type * as z from "zod";
+import { canonicalDoc } from "@studio/plugin-contracts/naming";
 import { EnvironmentSpecSchema, labelClasses, type EnvironmentSpec, type LabelGroup, type ViewportSpec } from "./environment";
 import { normalizeCombo } from "./keys";
 import type { ContributionType, PanelSlot } from "./module";
@@ -177,7 +178,8 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const errors: EnvError[] = [];
   const err = (e: EnvError) => errors.push(e);
 
-  const parsed = EnvironmentSpecSchema.safeParse(input);
+  // Stored documents keep full ids; legacy namespaces (a rename) map to the current one.
+  const parsed = EnvironmentSpecSchema.safeParse(canonicalDoc(input));
   if (!parsed.success) {
     return { errors: parsed.error.issues.map((i) => ({ path: zodPath(i), code: "schema" as const, message: i.message })) };
   }
@@ -191,7 +193,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
       if (seen.includes(pid)) return err({ path: p, code: "extends-cycle", message: `Preset "${pid}" extends itself (${[...seen, pid].join(" → ")})` });
       const preset = registry.get("presets", pid) ?? registry.get("presets", pid.replace(/^preset:/, ""));
       if (!preset) return err({ path: p, code: "unknown-contribution", message: `Unknown preset "${pid}"`, suggestion: suggestPreset(registry, pid) });
-      base = mergeSpecs(base, expand(preset.spec, p, [...seen, pid]));
+      base = mergeSpecs(base, expand(canonicalDoc(preset.spec), p, [...seen, pid]));
     });
     return mergeSpecs(base, spec);
   };

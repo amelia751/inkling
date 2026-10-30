@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { streamAgent } from "@/lib/agent/client";
 import type { AgentCard, AgentContext, AgentEvent, ChatTurn } from "@/lib/agent/protocol";
+import { RES } from "@studio/plugin-contracts/naming";
 
 export type CardState = "open" | "applied" | "dismissed";
 
@@ -139,7 +140,7 @@ export const useAgent = create<AgentState>()(
       };
     },
     {
-      name: "inkling-ai",
+      name: `${RES}-ai`,
       version: 1,
       partialize: (s) => ({ consent: s.consent, threads: s.threads }),
     },

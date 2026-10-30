@@ -1,6 +1,7 @@
 import * as z from "zod";
 import { tool } from "@/kits/tool-catalog";
 import { defineModule } from "@/platform/module";
+import { ns } from "@studio/plugin-contracts/naming";
 
 /**
  * Cornerstone3D tools and view commands, for renderers that declare the `cornerstone`
@@ -12,7 +13,7 @@ const sized = z.object({ size: z.number().int().min(2).max(120).default(16).desc
 const thresholdBrush = sized.extend({ threshold: z.boolean().default(false).describe("Only paint pixels whose intensity is inside the current window") });
 
 export default defineModule({
-  id: "inkling.cornerstone",
+  id: ns("cornerstone"),
   version: "1.0.0",
   title: "Cornerstone3D tools",
   description: "Radiology tools on Cornerstone3D viewports: zoom, crosshairs, ROI shapes, measurements, threshold brush, flood fill, view transforms.",

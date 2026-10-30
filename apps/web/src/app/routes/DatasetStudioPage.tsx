@@ -22,6 +22,7 @@ import { clearRuntime, publish } from "@/platform/runtime";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/stores/studio";
 import type { Project, StudioItem } from "@/types";
 import { FullPageMessage, useProject } from "./shared";
+import { NAMING, RES, ns } from "@studio/plugin-contracts/naming";
 
 const AUTOSAVE_MS = 800;
 // The schema form library only loads when the settings dialog opens.
@@ -132,7 +133,7 @@ function Studio({ projectId }: { projectId: string }) {
   const main = env.viewports[0];
   // The assistant toggles with the AI button; other right-slot panels (measurements,
   // metrics…) are always shown.
-  const AI = "inkling.core.panels.ai";
+  const AI = ns("core.panels.ai");
   const hasAi = env.panels.right.some((p) => p.id === AI);
   const rightIds = env.panels.right.map((p) => p.id).filter((id) => id !== AI || aiOpen);
   const showRight = rightIds.length > 0;
@@ -190,7 +191,7 @@ function Studio({ projectId }: { projectId: string }) {
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       ) : (
         <StudioLayout
-          storageKey={`inkling-layout-${projectId}-${viewport}`}
+          storageKey={`${RES}-layout-${projectId}-${viewport}`}
           layout={env.spec.layout ?? null}
           slots={{
             viewer: <div className="flex h-full min-h-0 flex-col">{canvas}</div>,
@@ -211,7 +212,7 @@ function Studio({ projectId }: { projectId: string }) {
       )}
       {viewport !== "desktop" && env.panels.right.length > 0 && (
         <Sheet open={aiOpen} onOpenChange={(open) => open !== aiOpen && toggleAi()}>
-          <SheetContent side="right" title="Inkling AI" showClose={false}>
+          <SheetContent side="right" title={`${NAMING.displayName} AI`} showClose={false}>
             <SlotTabs slot="right" env={env} project={project} items={items} item={item} />
           </SheetContent>
         </Sheet>
@@ -235,7 +236,7 @@ function useEnvBindings(env: ResolvedEnv) {
         "env.tools": env.tools.map((t) => t.name),
       };
     });
-    if (import.meta.env.DEV) console.debug(`[inkling] environment ${env.id}: ${env.modules.map((m) => `${m.id}@${m.version}`).join(", ")}`);
+    if (import.meta.env.DEV) console.debug(`[${RES}] environment ${env.id}: ${env.modules.map((m) => `${m.id}@${m.version}`).join(", ")}`);
     return () => setActiveCommands([]);
   }, [env]);
 }
@@ -341,7 +342,7 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
       },
       showShortcuts,
     },
-    { priority: SHELL_PRIORITY, scope: "inkling.core" },
+    { priority: SHELL_PRIORITY, scope: ns("core") },
   );
 
   // Tool and label-class hotkeys come from their contributions.

@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin } from "vite";
+// Loaded by vite.config.ts (bundled by esbuild before aliases exist), so a relative import.
+import { RES } from "../../../packages/plugin-contracts/src/naming";
 
 /**
  * Dev-only stand-in for the FastAPI backend (inkling.md §3.2):
@@ -38,7 +40,7 @@ export function seedServer(seedRoot: string): Plugin {
   };
 
   return {
-    name: "inkling-seed-server",
+    name: `${RES}-seed-server`,
     configureServer(server) {
       server.middlewares.use("/seed", (req, res, next) => {
         const rel = decodeURIComponent((req.url ?? "/").split("?")[0]);

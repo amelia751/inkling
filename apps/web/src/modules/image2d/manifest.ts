@@ -2,8 +2,9 @@ import { ImageIcon } from "@/components/icons";
 import { defineModule } from "@/platform/module";
 import type { Project, StudioItem } from "@/types";
 import { StackConfigSchema } from "./view";
+import { ns } from "@studio/plugin-contracts/naming";
 
-export const IMAGE2D = "inkling.image2d";
+export const IMAGE2D = ns("image2d");
 const RASTER = `${IMAGE2D}.dataKinds.raster`;
 const STACK = `${IMAGE2D}.renderers.cornerstone-stack`;
 const CANVAS = `${IMAGE2D}.renderers.canvas-raster`;
@@ -26,7 +27,7 @@ export default defineModule({
   title: "2D images",
   description:
     "Single-frame images (PNG, JPEG, single-frame DICOM): a Cornerstone3D stack viewport with window/level, measurements and masks for radiology, or a light canvas renderer with boxes, polygons and keypoints for natural images.",
-  requires: ["inkling.cornerstone"],
+  requires: [ns("cornerstone")],
   contributes: {
     dataKinds: [
       { id: "raster", label: "2D image", icon: ImageIcon, itemNoun: "image", match: { ext: [".png", ".jpg", ".jpeg", ".webp", ".dcm"] }, groupItems, description: "Single-frame images, one item per file" },
@@ -49,7 +50,7 @@ export default defineModule({
         description: "Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools",
         example: {
           viewports: [{ name: "main", renderer: CANVAS }],
-          tools: ["inkling.core.tools.select", "inkling.core.tools.pan", "inkling.overlay2d.tools.box", "inkling.overlay2d.tools.polygon", "inkling.overlay2d.tools.keypoint"],
+          tools: [ns("core.tools.select"), ns("core.tools.pan"), ns("overlay2d.tools.box"), ns("overlay2d.tools.polygon"), ns("overlay2d.tools.keypoint")],
         },
       },
     ],

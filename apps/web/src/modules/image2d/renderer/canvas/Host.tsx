@@ -14,8 +14,9 @@ import type { Annotation, Geometry, Pt } from "@/types";
 import { useHoldToPan } from "../holdToPan";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./camera";
 import { RasterEditor, type EditorEnv } from "./editor";
+import { ns } from "@studio/plugin-contracts/naming";
 
-const SCOPES = ["inkling.image2d", "inkling.core"];
+const SCOPES = [ns("image2d"), ns("core")];
 
 /** Dev-only handle for e2e tests (image pixel → client coordinates, camera). */
 function exposeForTests(api: Record<string, unknown> | null) {

@@ -12,6 +12,7 @@ import { fromGeoJSON } from "../io";
 import { WSI, type WsiConfig } from "../manifest";
 import { INITIAL_UI, WsiController, type UiState } from "./controller";
 import { NEUTRAL_ADJUST, type Adjustments } from "./wand";
+import { ns } from "@studio/plugin-contracts/naming";
 
 const MAGNIFICATIONS = [1.25, 5, 10, 20, 40];
 const fmtMag = (m: number) => (m < 10 ? m.toFixed(1) : String(Math.round(m)));
@@ -84,7 +85,7 @@ export function OsdRenderer({ project, item, config, runtime }: RendererProps) {
         importer.open();
       },
     },
-    { scope: [WSI, "inkling.core"] },
+    { scope: [WSI, ns("core")] },
   );
 
   // Status bar: dimensions, magnification, scale, object counts.

@@ -3,8 +3,9 @@ import { SlideIcon } from "@/components/icons";
 import { tool } from "@/kits/tool-catalog";
 import { defineModule, type GeometryContribution } from "@/platform/module";
 import type { Geometry, Project, StudioItem } from "@/types";
+import { ns } from "@studio/plugin-contracts/naming";
 
-export const WSI = "inkling.wsi";
+export const WSI = ns("wsi");
 const ON_OSD = `renderer == ${WSI}.renderers.osd`;
 const size = z.object({ size: z.number().int().min(2).max(120).default(16).describe("Diameter in screen pixels") });
 const tolerance = z.object({ tolerance: z.number().int().min(4).max(100).default(28).describe("Colour tolerance. Shift-click adds to the selected region, Alt-click subtracts") });
@@ -42,7 +43,7 @@ export default defineModule({
   version: "1.1.0",
   title: "Tiled image pyramids",
   description: "Deep-zoom image pyramids (DZI) on OpenSeadragon with vector regions, brush/eraser on regions, magic wand, point counting and µm measurements.",
-  requires: ["inkling.overlay2d"],
+  requires: [ns("overlay2d")],
   contributes: {
     dataKinds: [
       { id: "raster-pyramid", label: "Whole-slide", icon: SlideIcon, itemNoun: "slide", match: { ext: [".dzi", ".svs", ".tiff"] }, groupItems, description: "One item per pyramid (slide); thumbnails are skipped" },

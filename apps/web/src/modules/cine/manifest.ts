@@ -4,9 +4,10 @@ import { modArrows } from "@/modules/core/manifest";
 import type { Project, StudioItem } from "@/types";
 import { CineConfigSchema } from "./config";
 import { cineGeometries } from "./geometries";
+import { NS, ns } from "@studio/plugin-contracts/naming";
 
-export const CINE = "inkling.cine";
-const core = (n: string) => `inkling.core.commands.${n}`;
+export const CINE = ns("cine");
+const core = (n: string) => `${NS}.core.commands.${n}`;
 
 /** The whole study (cine + reference segmentations) is one item. */
 function groupItems(project: Project): StudioItem[] {
@@ -26,7 +27,7 @@ export default defineModule({
   version: "1.0.0",
   title: "Slice × frame cine",
   description: "Any slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, key frames, playback, copy-forward, interpolation and reference import.",
-  requires: ["inkling.overlay2d"],
+  requires: [ns("overlay2d")],
   contributes: {
     dataKinds: [
       { id: "volume-time", label: "4D cine", icon: CardiacIcon, itemNoun: "study", match: { ext: [".nii", ".nii.gz"] }, groupItems, description: "A 4D series plus reference segmentations, as one study" },

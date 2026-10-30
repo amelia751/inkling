@@ -1,0 +1,8 @@
+{
+  "displayName": "Inkling",
+  "namespace": "inkling",
+  "schemaPrefix": "inkling",
+  "resourcePrefix": "inkling",
+  "envPrefix": "INKLING_",
+  "legacyNamespaces": []
+}

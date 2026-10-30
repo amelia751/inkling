@@ -3,6 +3,7 @@ import type { Annotation, Project, Pt, StudioItem } from "@/types";
 import type { ExporterImpl } from "@/platform/module";
 import { keyframeAt, shapeAt, sortKeyframes, trackNumbers, type Box, type TrackGeometry } from "./tracks";
 import { zip } from "@/kits/io/zip";
+import { RES } from "@studio/plugin-contracts/naming";
 
 /** Frame count and rate of a video item, from the seed metadata. */
 export function videoTiming(item: StudioItem): { fps: number; frames: number; duration: number } {
@@ -140,7 +141,7 @@ function temporalJson(project: Project, items: StudioItem[], annotations: Annota
   const r3 = (v: number) => Math.round(v * 1000) / 1000;
   return JSON.stringify(
     {
-      format: "inkling-video-temporal",
+      format: `${RES}-video-temporal`,
       version: 1,
       project: { id: project.id, title: project.title, labels: labelNames(project.labels) },
       exportedAt: new Date().toISOString(),

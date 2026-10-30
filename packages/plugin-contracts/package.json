@@ -1,0 +1,11 @@
+{
+  "name": "@studio/plugin-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Canonical types and schemas shared by the web app, the kernel and plugins",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  }
+}

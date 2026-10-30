@@ -1,10 +1,14 @@
 {
-  "name": "inkling",
+  "name": "studio",
   "private": true,
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "seeds": "uv run scripts/fetch-seeds.py",
-    "mcp": "pnpm --filter web mcp"
+    "mcp": "pnpm --filter web mcp",
+    "typecheck": "pnpm --filter web typecheck",
+    "test": "pnpm --filter web test",
+    "check:boundaries": "pnpm --filter web check:boundaries",
+    "emit:schemas": "pnpm --filter web emit:schemas"
   }
 }

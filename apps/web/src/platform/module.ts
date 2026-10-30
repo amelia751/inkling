@@ -238,7 +238,8 @@ export interface ModuleManifest {
   version: string;
   title: string;
   description: string;
-  engines?: { inkling?: string };
+  /** Host API range this module was built against (`studio`), checked at registration later. */
+  engines?: { studio?: string };
   /** Module ids that must be present (JupyterLab `requires`). Pulled in automatically when registered. */
   requires?: string[];
   /** Used when present, never required. */

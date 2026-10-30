@@ -49,6 +49,7 @@ COPY --chmod=0755 apps/web/nginx/05-tmp-dirs.sh /docker-entrypoint.d/05-tmp-dirs
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 USER 101
 ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
     AGENT_UPSTREAM=http://agent:8100 \
     INTERNAL_AGENT_SERVICE_TOKEN="" \
     GIT_SHA=${GIT_SHA}

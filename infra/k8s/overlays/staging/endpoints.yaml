@@ -34,12 +34,5 @@ data:
   INKLING_VERSIONING_OBJECT_BUCKET: staging-versioning-objects
   INKLING_VERSIONING_MANIFEST_BUCKET: staging-versioning-manifests
   INKLING_VERSIONING_REDIS_URL: rediss://staging-redis.internal.example.com:6380/2
----
 # Database URLs carry credentials, so they are in the Secrets; for reference the hosts are
 #   staging-pg.internal.example.com:5432  databases `studio` (api, versioning schema) and `agent`.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: web-config
-data:
-  AGENT_UPSTREAM: http://agent:8100

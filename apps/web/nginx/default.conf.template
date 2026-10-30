@@ -1,12 +1,21 @@
 # Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
 # Only ${VAR}s defined in the environment are substituted (Dockerfile ENV sets defaults):
-#   AGENT_UPSTREAM                 the agent service (default http://agent:8100)
+#   AGENT_UPSTREAM                 the agent service (default http://agent:8100); a name the
+#                                  resolver can answer without search domains (k8s: the FQDN)
+#   NGINX_LOCAL_RESOLVERS          the nameservers in /etc/resolv.conf (set by the image's
+#                                  entrypoint, NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1)
 #   INTERNAL_AGENT_SERVICE_TOKEN   bearer the proxy adds; it never reaches the browser
 #   GIT_SHA                        build revision for /version
 server {
   listen 8080;
   server_name _;
   root /usr/share/nginx/html;
+
+  # Re-resolve the agent's name every 10 s and spread requests over every address it returns,
+  # so replicas added after nginx started get traffic (compose `--scale agent=N`). In
+  # Kubernetes the name is the Service's one ClusterIP either way.
+  resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+  resolver_timeout 3s;
 
   # Probes (unauthenticated, not logged).
   location = /healthz { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
@@ -25,7 +34,9 @@ server {
   # The agent service: /api/agent/* → <agent>/v1/* with the service bearer (what the Vite
   # proxy does in dev). SSE run streams: no buffering, no compression, hour-long timeouts.
   location /api/agent/ {
-    proxy_pass ${AGENT_UPSTREAM}/v1/;
+    set $agent_upstream ${AGENT_UPSTREAM};
+    rewrite ^/api/agent/(.*)$ /v1/$1 break;
+    proxy_pass $agent_upstream;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header Authorization "Bearer ${INTERNAL_AGENT_SERVICE_TOKEN}";

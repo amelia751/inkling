@@ -52,11 +52,13 @@ spec:
             - name: http
               containerPort: 8080
           env:
-            - name: AGENT_UPSTREAM
+            # nginx's resolver doesn't apply search domains: name the Service in full.
+            - name: POD_NAMESPACE
               valueFrom:
-                configMapKeyRef:
-                  name: web-config
-                  key: AGENT_UPSTREAM
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AGENT_UPSTREAM
+              value: http://agent.$(POD_NAMESPACE).svc.cluster.local:8100
           envFrom:
             - secretRef:
                 name: web-secrets

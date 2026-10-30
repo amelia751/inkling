@@ -59,10 +59,16 @@ func validationErr(err error) error {
 
 const artifactBatch = 10_000
 
+// artifactReader is the slice of *db.Queries that checkArtifacts needs; unit
+// tests substitute an in-memory fake.
+type artifactReader interface {
+	ArtifactsBySHA(ctx context.Context, arg db.ArtifactsBySHAParams) ([]db.VersioningArtifact, error)
+}
+
 // checkArtifacts verifies referenced hashes are registered for this tenant,
 // not purged, and that sample object sizes match. Knowing a hash is never
 // enough: a foreign tenant's artifact is simply absent under RLS.
-func (s *Service) checkArtifacts(ctx context.Context, q *db.Queries, tenant string, m *manifests.Manifest) (map[string]db.VersioningArtifact, error) {
+func (s *Service) checkArtifacts(ctx context.Context, q artifactReader, tenant string, m *manifests.Manifest) (map[string]db.VersioningArtifact, error) {
 	hashes := m.ArtifactHashes()
 	found := make(map[string]db.VersioningArtifact, len(hashes))
 	for i := 0; i < len(hashes); i += artifactBatch {

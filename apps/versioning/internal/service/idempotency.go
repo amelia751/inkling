@@ -35,9 +35,15 @@ func newIdem(repo, scope, key string, req any) (idem, error) {
 	return idem{repo: repo, scope: scope, key: key, hash: manifests.HashHex(b)}, nil
 }
 
+// idemReader is the slice of *db.Queries that lookupIdem needs; unit tests
+// substitute an in-memory fake.
+type idemReader interface {
+	GetIdempotency(ctx context.Context, arg db.GetIdempotencyParams) (db.VersioningIdempotencyRecord, error)
+}
+
 // lookup returns the stored response for a replay, or 422 if the key was
 // used with a different request.
-func lookupIdem(ctx context.Context, q *db.Queries, tenant string, k idem) (json.RawMessage, bool, error) {
+func lookupIdem(ctx context.Context, q idemReader, tenant string, k idem) (json.RawMessage, bool, error) {
 	rec, err := q.GetIdempotency(ctx, db.GetIdempotencyParams{TenantID: tenant, RepoID: k.repo, Branch: k.scope, IdempotencyKey: k.key})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, false, nil

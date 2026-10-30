@@ -5,7 +5,7 @@ import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { streamSSE } from "hono/streaming";
 import { z } from "zod";
-import { PROFILES } from "./agent/profiles.ts";
+import { PROFILES, profileAvailable } from "./agent/profiles.ts";
 import type { Config } from "./config.ts";
 import type { Logger } from "./log.ts";
 import type { AgentEvent, AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "./protocol.ts";
@@ -71,8 +71,14 @@ const schemas = {
     clientTools: z.array(clientToolSchema).max(64).optional(),
     catalogPrompt: z.string().max(200_000).optional(),
     restricted: z.boolean().optional(),
+    kernelToken: z.string().min(16).max(512).optional(),
   }),
-  message: z.object({ text: z.string().min(1).max(32_000), context: z.string().max(200_000).optional(), snapshot: snapshotSchema.optional() }),
+  message: z.object({
+    text: z.string().min(1).max(32_000),
+    context: z.string().max(200_000).optional(),
+    snapshot: snapshotSchema.optional(),
+    kernelToken: z.string().min(16).max(512).optional(),
+  }),
   clientTool: z.object({ ok: z.boolean(), output: z.unknown() }),
   approval: z.object({ decision: z.enum(["approve", "reject"]), note: z.string().max(2000).optional() }),
 };
@@ -126,7 +132,7 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
       provider: config.model.provider,
       model: config.model.id,
       sandbox: sessions.sandboxes ? "daytona" : "off",
-      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => !PROFILES[p].sandbox || !!sessions.sandboxes),
+      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes)),
     };
     return c.json(status);
   });

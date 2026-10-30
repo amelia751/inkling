@@ -7,7 +7,14 @@
  * POST /v1/runs/:runId/client-tools/:callId and POST /v1/approvals/:approvalId.
  */
 
-export type ProfileName = "assistant" | "environment-designer" | "coder";
+/**
+ * `builder` changes which plugins run in the workspace (kernel builder tools, no data writes);
+ * `task` uses active capabilities through the gateway (no plugin changes). docs/plugins.md §8.
+ */
+export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task";
+
+/** Structured context for an approval card. `plugin-install` opens the Studio's install review. */
+export type ApprovalDetail = { kind: "plugin-install"; requestId: string; workspaceId: string };
 
 export type RunStatus = "queued" | "running" | "awaiting_approval" | "completed" | "failed" | "cancelled" | "expired";
 
@@ -81,7 +88,7 @@ export type AgentEventBody =
   | { type: "usage"; inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number }
   | { type: "status"; text: string }
   | { type: "client-tool"; callId: string; name: string; input: unknown }
-  | { type: "approval"; approvalId: string; toolCallId: string; toolName: string; summary: string; inputPreview: string; expiresAt: number }
+  | { type: "approval"; approvalId: string; toolCallId: string; toolName: string; summary: string; inputPreview: string; expiresAt: number; detail?: ApprovalDetail }
   | { type: "approval-resolved"; approvalId: string; decision: "approve" | "reject" }
   | { type: "sandbox"; state: SandboxState; sandboxId?: string }
   | { type: "artifact"; id: string; name: string; bytes: number; sha256: string }
@@ -99,6 +106,11 @@ export interface CreateSessionRequest {
   catalogPrompt?: string;
   /** Restricted licence: no sandbox egress, approval before dataset uploads. */
   restricted?: boolean;
+  /**
+   * builder / task profiles: a kernel session token the Studio minted for this workspace with the
+   * profile's scopes (POST /api/v1/sessions). Kept in memory only; refreshed with each message.
+   */
+  kernelToken?: string;
 }
 
 export interface CreateSessionResponse {
@@ -113,6 +125,8 @@ export interface SendMessageRequest {
   context?: string;
   /** Dataset snapshot for the dataset tools; replaces the session's previous one. */
   snapshot?: DatasetSnapshot;
+  /** A fresh kernel token (builder / task profiles), replacing the session's previous one. */
+  kernelToken?: string;
 }
 
 export interface SendMessageResponse {

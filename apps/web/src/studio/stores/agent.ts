@@ -3,7 +3,8 @@ import { RES } from "@studio/plugin-contracts/naming";
 import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
-import type { AgentCard, AgentContext, AgentEvent, ClientToolSpec, ProfileName, SandboxState } from "@/studio/lib/agent/protocol";
+import { kernelToken } from "@/studio/lib/agent/kernel-token";
+import type { AgentCard, AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, SandboxState } from "@/studio/lib/agent/protocol";
 
 export type CardState = "open" | "applied" | "dismissed";
 export type ApprovalState = "pending" | "approved" | "rejected" | "expired";
@@ -13,7 +14,7 @@ export type MessagePart =
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
   | { type: "card"; id: string; card: AgentCard; state: CardState }
-  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number }
+  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail }
   | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
   | { type: "artifact"; id: string; name: string; bytes: number }
   | { type: "status"; text: string };
@@ -136,7 +137,7 @@ function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
       return { ...m, parts };
     }
     case "approval":
-      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt });
+      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt, detail: e.detail });
       return { ...m, parts };
     case "approval-resolved": {
       const i = at((p) => p.type === "approval" && p.id === e.approvalId);
@@ -261,6 +262,7 @@ export const useAgent = create<AgentState>()(
           clientTools: opts.clientTools,
           catalogPrompt: opts.catalogPrompt,
           restricted: opts.restricted,
+          kernelToken: await kernelToken(projectId, opts.profile),
         });
         set((s) => ({ sessions: { ...s.sessions, [projectId]: { sessionId: res.sessionId, profile: res.profile } } }));
         return res.sessionId;
@@ -290,7 +292,7 @@ export const useAgent = create<AgentState>()(
           const context = [opts.context, ...notes].join("\n");
           try {
             let sessionId = await ensureSession(projectId, opts);
-            const req = { text, context, snapshot: opts.snapshot };
+            const req = { text, context, snapshot: opts.snapshot, kernelToken: await kernelToken(projectId, opts.profile) };
             const res = await sendMessage(sessionId, req).catch(async (err) => {
               // The service restarted without this session: start a fresh one (history stays on screen).
               if (!(err instanceof AgentHttpError) || err.status !== 404) throw err;

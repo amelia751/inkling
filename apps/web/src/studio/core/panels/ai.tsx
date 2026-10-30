@@ -47,6 +47,8 @@ const PROFILES: { id: ProfileName; label: string; hint: string }[] = [
   { id: "assistant", label: "Dataset assistant", hint: "Questions, checks, label sets, docs" },
   { id: "environment-designer", label: "Environment designer", hint: "Also edits tools, panels, labels" },
   { id: "coder", label: "Coder (sandbox)", hint: "Also runs code in a private sandbox" },
+  { id: "builder", label: "Plugin builder", hint: "Finds, installs and builds plugins; you approve installs" },
+  { id: "task", label: "Task runner", hint: "Runs installed capabilities, e.g. segmentation" },
 ];
 
 /** One line for an environment tool's row (the model gets the full result). */
@@ -71,8 +73,18 @@ function envSummary(name: string, out: Awaited<ReturnType<typeof runAgentTool>>,
   }
 }
 
+/** The builder gets these from the kernel (workspace installs) and may not run Studio commands. */
+const BUILDER_EXCLUDED = new Set(["run_command", "list_capabilities", "inspect_plugin"]);
+
 /** Tools the browser registers for a profile; the service checks them against its own allowlist. */
-const clientToolsFor = (profile: ProfileName) => (profile === "assistant" ? CARD_TOOLS : [...CARD_TOOLS, ...ENV_TOOLS]);
+const clientToolsFor = (profile: ProfileName) =>
+  profile === "assistant" || profile === "task"
+    ? CARD_TOOLS
+    : profile === "builder"
+      ? [...CARD_TOOLS, ...ENV_TOOLS.filter((t) => !BUILDER_EXCLUDED.has(t.name))]
+      : [...CARD_TOOLS, ...ENV_TOOLS];
+/** Profiles that see (and may edit) the environment. */
+const envProfile = (profile: ProfileName) => profile !== "assistant" && profile !== "task";
 
 /**
  * `inkling.core.panels.ai`: Inkling AI (ui.md §3, right sidebar), backed by the agent service
@@ -187,10 +199,10 @@ function Conversation({ project, items, item, thread, status, running, busy }: {
     void send(project.id, t, {
       profile,
       clientTools: clientToolsFor(profile),
-      catalogPrompt: profile === "assistant" ? undefined : agentSystemPrompt(),
+      catalogPrompt: envProfile(profile) ? agentSystemPrompt() : undefined,
       restricted: !!project.restricted,
       snapshot: buildAgentContext(project, items),
-      context: turnContext(project, item, profile !== "assistant"),
+      context: turnContext(project, item, envProfile(profile)),
     });
   };
   const retry = () => {
@@ -263,7 +275,9 @@ function EmptyState({ project, profile, onAsk }: { project: Project; profile: Pr
     { icon: RegionIcon, text: "Suggest a contour" },
     { icon: DocumentIcon, text: "Prepare dataset documentation" },
   ];
-  if (profile !== "assistant") prompts.splice(2, 0, { icon: SettingsIcon, text: "Add a polygon tool and a “car” class in red" });
+  if (envProfile(profile) && profile !== "builder") prompts.splice(2, 0, { icon: SettingsIcon, text: "Add a polygon tool and a “car” class in red" });
+  if (profile === "builder") prompts.splice(0, 2, { icon: SettingsIcon, text: "Add segmentation to this workspace" }, { icon: SearchIcon, text: "Which plugins are installed here?" });
+  if (profile === "task") prompts.splice(0, 0, { icon: RegionIcon, text: `Segment objects in three ${noun}` });
   if (profile === "coder") prompts.splice(0, 0, { icon: DocumentIcon, text: `Compute basic statistics for three ${noun} in the sandbox` });
   return (
     <div className="flex flex-col gap-5 px-3 pt-6 pb-4">
@@ -272,7 +286,15 @@ function EmptyState({ project, profile, onAsk }: { project: Project; profile: Pr
         <h3 className="text-body-2 font-semibold">How can I help with this dataset?</h3>
         <p className="mt-1 text-muted-foreground">
           I can check progress, find gaps, explain warnings, and draft label definitions or documentation for {project.title}
-          {profile === "assistant" ? "." : profile === "coder" ? ". I can also reshape this workspace and run analysis code in a private sandbox." : ". I can also reshape this workspace: tools, panels and labels."}
+          {profile === "assistant"
+            ? "."
+            : profile === "coder"
+              ? ". I can also reshape this workspace and run analysis code in a private sandbox."
+              : profile === "builder"
+                ? ". I can also find, install and build plugins for this workspace; you approve every install."
+                : profile === "task"
+                  ? ". I can also run this workspace's installed capabilities; you approve each run."
+                  : ". I can also reshape this workspace: tools, panels and labels."}
         </p>
       </div>
       <ul className="flex flex-col">

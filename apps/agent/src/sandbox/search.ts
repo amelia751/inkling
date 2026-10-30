@@ -3,7 +3,7 @@
  * Copyright Daytona Platforms Inc. SPDX-License-Identifier: Apache-2.0. See ../../NOTICE.
  *
  * pi's find/grep spawn fd/ripgrep on the HOST and Daytona's searchFiles only matches basenames, so
- * both run inside the sandbox. Inkling snapshots always have bash; ripgrep is preferred, with a GNU
+ * both run inside the sandbox. Our snapshots always have bash; ripgrep is preferred, with a GNU
  * grep / find fallback for the default Daytona image.
  */
 import type { Sandbox } from "@daytona/sdk";

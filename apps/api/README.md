@@ -26,11 +26,24 @@ Then run the web app against it: `INKLING_KERNEL=1 pnpm dev` (the env-var prefix
 | Events (outbox, rate limit, depth guard) | `kernel/events.py` | `POST /api/v1/events` |
 | Secrets broker (encrypted at rest, proxied use) | `kernel/secrets.py` | `/api/v1/secrets…` |
 | Workspace and audit | `plugins/installer.py`, `kernel/audit.py` | `/api/v1/workspaces/:id/state`, `/api/v1/audit` |
-| Registry, resolver, installer, policy | `plugins/` | `/api/v1/plugins…`, `/api/v1/workspaces/:id/plugins/…` |
+| Registry, resolver, installer, policy | `plugins/` | `/api/v1/plugins…`, `/api/v1/workspaces/:id/plugins/…`, `/api/v1/workspaces/:id/capabilities`, `/api/v1/plugins/:id/docs` |
+| Artifact builder for agent-authored plugins (checks, digest, Ed25519 dev signature, private store, `trustTier: generated`, workspace-only) | `plugins/artifacts.py` | `POST /api/v1/plugins/artifacts[?dryRun=true&base=…]` (tarball body) |
 
 Contracts (`kernel/contracts/_generated/`) are generated from `schemas/*.json`, which
 `pnpm emit:schemas` writes from `packages/plugin-contracts` (zod). Settings come from
 `<envPrefix>API_*` env vars and `secrets/api.env` (`API_SECRET_KEY`).
+
+Session-token scopes for the plugin routes: `plugins.read` (search, inspect, docs, workspace
+plugins and capabilities), `plugins.manage` (plan, stage, low-risk activate, configure, disable,
+rollback, reject), `plugins.author` (artifact builds) and `plugins.approve` (approve, grant). The
+Studio mints agent tokens without `plugins.approve` (apps/agent README, Profiles), so an agent can
+stage an install but only the user can approve it. Dev header identities have no scopes and may do
+everything.
+
+Generated artifacts live in `<data dir>/plugin-artifacts/<id>/<version>/` and are listed in
+`<data dir>/registry-generated.json`; the dev signing key is `<data dir>/plugin-signing.key`.
+`stage` re-digests the stored tree and verifies the signature; the install plan carries the code
+diff against the template, the forked plugin or the previous version.
 
 Set `<envPrefix>API_BUILTIN_MOCK_SEGMENT=1` to enable the kernel's built-in mock
 `image.segment` provider (the Phase 4 exit path, without installing a plugin).

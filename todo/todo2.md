@@ -24,9 +24,9 @@
 - **Phase 4:** done, except that no CI runs the contract drift check.
 - **Phase 5:** done.
 - **Phase 6:** partial. The SDK, worker, segmentation plugin, `studio.mask-review.v1` and budgets are in, and the exit e2e passes locally. Still missing: the SDK's `annotations.write` client, a Meta SAM adapter verified against the real API, and CI.
-- **Phase 7:** not started. It depends on `todo/todo1.md`, which is done (`apps/agent`, wire types in `packages/agent-protocol`). The environment-designer profile already accepts the browser's `list_capabilities` and `inspect_plugin` tools.
-- **Phase 8:** partial. Most of the §14 tests exist (`apps/api/tests`, `apps/worker/tests`, `plugins/segmentation/tests`). The agent builder-policy test and the rollback and tier-3 iframe web e2e tests don't.
-- **Phase 9:** not started.
+- **Phase 7:** done. `apps/agent` reads `schemas/naming.json` (`src/naming.ts`); `src/tools/kernel.ts` has the builder and task tools; `builder` and `task` profiles; install approvals go through the approval broker into the Studio's install review (`approval.detail.kind = "plugin-install"`); skills/READMEs are fetched lazily and wrapped as untrusted; `policy.ts` refuses `stage_plugin` (and sandbox/build) unless the user asked for a plugin change in this run; the §7.1 preference order is in `prompts/builder.md`. The kernel now enforces `plugins.read|manage|author|approve` scopes, and agent tokens never get `plugins.approve`.
+- **Phase 8:** partial. Most of the §14 tests exist (`apps/api/tests`, `apps/worker/tests`, `plugins/segmentation/tests`, `apps/agent/test/unit/builder-policy.test.ts`). The rollback and tier-3 iframe web e2e tests don't.
+- **Phase 9:** done, with two limits (below). `create_plugin_sandbox` / `run_plugin_checks` / `build_plugin_artifact` in `apps/agent/src/tools/kernel.ts`; `apps/api/src/studio_api/plugins/artifacts.py` (checks, digest, Ed25519 dev signature, private store, `trust_tier: generated`, visible to the authoring workspace only); the install review shows the code diff. Verified live on Daytona + a real kernel (`apps/agent/test/live/plugin-build.live.test.ts`, 2026-10-30).
 
 Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves things like `scripts/` and the docs, so the paths below may change.
 
@@ -42,22 +42,13 @@ Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves thin
   - Add an `annotations.write` client to `packages/plugin-sdk-py/src/studio_plugin_sdk/context.py`, or record that results go only through the gateway.
   - Verify `plugins/segmentation/src/segmentation_plugin/providers/meta_sam.py` against Meta's current API docs.
   - Run `apps/web/e2e/plugins_test.py` in CI (it passes locally). A unit test for `packages/studio-renderers/src/mask-review/MaskReview.tsx` would also help.
-- **Phase 7** (all)
-  - `apps/agent/src/sandbox/defaults.ts` and the agent prompts read `schemas/naming.json` (`APP_LABEL` and `INKLING_SESSION` are still hardcoded).
-  - Add `apps/agent/src/tools/kernel.ts` with the builder and task tools.
-  - Add `builder` and `task` profiles in `apps/agent/src/agent/profiles.ts`.
-  - Route install approvals through the approval broker and `InstallReview.tsx`.
-  - Prompt hygiene, plus a `policy.ts` rule that blocks `stage_plugin` unless the user asked for it in this run.
-  - Put the §7.1 preference order in the builder prompt.
 - **Phase 8**
-  - `apps/agent/test/unit/builder-policy.test.ts`.
   - A rollback web e2e test.
   - A web e2e test asserting the tier-3 iframe has `sandbox` without `allow-same-origin`.
-- **Phase 9** (all)
-  - `create_plugin_sandbox` on `apps/agent/src/sandbox/`.
-  - `run_plugin_checks`.
-  - `apps/api/src/studio_api/plugins/artifacts.py`: digest, signing, artifact store and `trust_tier: generated`.
-  - Show the code diff in the install review dialog.
+- **Phase 9** (follow-ups, not blocking)
+  - Forking an existing plugin into the sandbox (preference step 4): `create_plugin_sandbox` only scaffolds from `plugins/_template`. Needs a kernel route that serves a package's files.
+  - Generated `python-worker` plugins pass the build checks, but `studio-plugin-sdk` is only resolvable through a path source, so the worker can't install them from the artifact store until the SDK is on an internal index.
+  - On Daytona tiers 1–2 (no egress rules), the plugin-build sandbox keeps the org's default network; it has no bash, only file tools and `run_plugin_checks`.
 
 ---
 
@@ -419,16 +410,16 @@ New code. Nothing to move, except the dev seed endpoints.
 
 Coordinate with the `todo/todo1.md` work: start only after its sessions, client tools and approvals sections have landed, and add to them rather than reworking them.
 
-- [ ] Naming: `apps/agent` currently hardcodes the brand in `src/sandbox/defaults.ts` (`APP_LABEL`, sandbox name prefix) and in its prompts. Read these from `schemas/naming.json` (`resourcePrefix`, `displayName`) instead (D3).
-- [ ] `apps/agent/src/tools/kernel.ts`: server tools that call `apps/api` with a session-scoped token. The principal and workspace come from the session record, never from tool arguments.
+- [x] Naming: `apps/agent` currently hardcodes the brand in `src/sandbox/defaults.ts` (`APP_LABEL`, sandbox name prefix) and in its prompts. Read these from `schemas/naming.json` (`resourcePrefix`, `displayName`) instead (D3). _(`src/naming.ts`; prompts use `{{displayName}}`; `AGENT_NAMING_FILE` overrides the path)_
+- [x] `apps/agent/src/tools/kernel.ts`: server tools that call `apps/api` with a session-scoped token. The principal and workspace come from the session record, never from tool arguments.
   - **Builder** tools (`plugins.md` §8.1): `inspect_workspace`, `list_capabilities`, `search_plugins`, `inspect_plugin`, `plan_plugin_change`, `stage_plugin`, `run_plugin_checks`, `request_install_approval`, `activate_plugin`, `configure_plugin`, `disable_plugin`, `rollback_plugin`, and `create_plugin_sandbox` (Phase 9).
   - **Task** tools (`plugins.md` §8.2): `list_assets`, `invoke_capability`, `create_job`, `get_job_status`, `list_annotations`, `export_dataset`.
-- [ ] `apps/agent/src/agent/profiles.ts`: add a `builder` profile (builder tools plus environment client tools, no data-plane writes) and a `task` profile (task tools only), so the two permission sets stay separate (§8).
-- [ ] Approval: `request_install_approval` and `activate_plugin` always go through the existing approval broker and the web install-review dialog. Activation for an approved, low-risk settings change can take the streamlined path (§7.2).
-- [ ] Prompt hygiene:
+- [x] `apps/agent/src/agent/profiles.ts`: add a `builder` profile (builder tools plus environment client tools, no data-plane writes) and a `task` profile (task tools only), so the two permission sets stay separate (§8).
+- [x] Approval: `request_install_approval` and `activate_plugin` always go through the existing approval broker and the web install-review dialog. Activation for an approved, low-risk settings change can take the streamlined path (§7.2).
+- [x] Prompt hygiene:
   - The agent sees capability summaries. It fetches full schemas and `SKILL.md` lazily (`inspect_plugin`), never all at once (§8.2).
   - Plugin skills and READMEs are wrapped as untrusted content (§10). A skill can't make the agent install code (§14 #4); `policy.ts` blocks `stage_plugin` unless the user asked for it in this run.
-- [ ] Preference order (§7.1) in the builder prompt: installed, then vetted plugin, then compose, then fork in sandbox, then author new.
+- [x] Preference order (§7.1) in the builder prompt: installed, then vetted plugin, then compose, then fork in sandbox, then author new.
 
 ---
 
@@ -457,16 +448,16 @@ Each item from §14 becomes a test, kept in a single file per area:
 
 Start only after Phases 4–6, because it needs the registry, validator and worker.
 
-- [ ] `create_plugin_sandbox` uses the existing Daytona layer in `apps/agent/src/sandbox/`. It copies `plugins/_template` into a fresh sandbox (labelled `purpose=plugin-build`) with `networkBlockAll` or a package-index-only allowlist, and fake credentials.
-- [ ] The coder edits only the mounted plugin source. `run_plugin_checks` runs `uv sync --locked`, the plugin's tests, manifest validation and a dependency and licence scan inside the sandbox.
-- [ ] The artifact builder (`apps/api/src/studio_api/plugins/artifacts.py`):
+- [x] `create_plugin_sandbox` uses the existing Daytona layer in `apps/agent/src/sandbox/`. It copies `plugins/_template` into a fresh sandbox (labelled `purpose=plugin-build`) with `networkBlockAll` or a package-index-only allowlist, and fake credentials. _(the template minus its trusted TS UI, id rewritten, `ui.module` dropped; package-index allowlist where the org tier allows egress rules)_
+- [x] The coder edits only the mounted plugin source. `run_plugin_checks` runs `uv sync --locked`, the plugin's tests, manifest validation and a dependency and licence scan inside the sandbox.
+- [x] The artifact builder (`apps/api/src/studio_api/plugins/artifacts.py`):
   - takes the package as a tarball;
   - computes a digest and signature (a dev signing key; sigstore later);
   - stores it in a private artifact store (a local dir in dev);
   - registers it with `trust_tier: generated`.
 
   Generated plugins may only use declarative UI (D2).
-- [ ] Review: the install dialog shows the code diff as well as the permissions, and installs to the current workspace only, with rollback.
+- [x] Review: the install dialog shows the code diff as well as the permissions, and installs to the current workspace only, with rollback.
 
 ---
 

@@ -22,7 +22,7 @@ from ..context import RequestContext
 from ..kernel import audit, events
 from ..models import InstallRequest, PluginCapability, PluginPackage, PluginVersion, WorkspaceEnvironment, WorkspacePlugin, WorkspacePluginConfig, WorkspacePluginHistory
 from ..naming import canonical_id
-from . import catalog, digest, policy, resolver
+from . import artifacts, catalog, digest, policy, resolver
 
 ACTIVE = "ACTIVATED"
 
@@ -131,6 +131,8 @@ def _plan_doc(db: Session, ctx: RequestContext, res: resolver.Resolution, target
                 "dataResidency": sorted({p.get("hosting") or "unknown" for p in providers}) or ["in-workspace"],
                 "uiSurfaces": sorted({a.get("surface") for a in ui.get("toolbarActions", [])} | {p.get("surface") for p in ui.get("panels", [])}),
                 "licenses": e.licenses or {"code": e.manifest.get("license")},
+                # Agent-authored code: the reviewer sees exactly what changed (§9).
+                **({"codeDiff": e.review} if e.trust_tier == "generated" and e.review else {}),
             }
         )
     return {"target": target, "install": items, "errors": res.errors, "conflicts": res.conflicts, "risk": risk}
@@ -140,6 +142,9 @@ def plan(db: Session, ctx: RequestContext, plugin_id: str, version: str | None =
     bootstrap(db, ctx)
     pid = canonical_id(plugin_id)
     res = resolver.resolve(pid, version, {k: v.version for k, v in active(db, ctx.workspace_id).items()})
+    for e in res.install:
+        if not e.visible_to(ctx.workspace_id):
+            res.errors.append({"code": "not_found", "message": f"{e.id}@{e.version} isn't available in this workspace"})
     doc = _plan_doc(db, ctx, res, pid)
     target = next((e for e in res.install if e.id == pid), None)
     req = InstallRequest(workspace_id=ctx.workspace_id, plugin_id=pid, version=target.version if target else (version or "?"), state="RESOLVED" if res.ok else "REJECTED", plan=doc, requested_by=ctx.principal)
@@ -184,8 +189,11 @@ def stage(db: Session, ctx: RequestContext, request_id: str) -> InstallRequest:
             problems.append(f"{e.id}@{e.version}: digest mismatch (registry {e.artifact_digest}, staged {got})")
         if e.runtime == "python-worker" and not (d / "uv.lock").is_file():
             problems.append(f"{e.id}: python-worker plugins must ship uv.lock")
-        if e.trust_tier == "generated" and not e.manifest.get("signature") and not (d / ".signature").is_file():
-            problems.append(f"{e.id}: generated artifacts must be signed")
+        if e.trust_tier == "generated":
+            if not e.visible_to(ctx.workspace_id):
+                problems.append(f"{e.id}: generated in another workspace")
+            elif bad := artifacts.verify(e, got):
+                problems.append(f"{e.id}@{e.version}: {bad}")
     if problems:
         return _reject(db, ctx, r, problems)
     r.state = "STAGED"
@@ -225,7 +233,7 @@ def _register_version(db: Session, e: catalog.Entry) -> None:
     if db.get(PluginPackage, e.id) is None:
         db.add(PluginPackage(id=e.id, publisher=e.publisher, license=e.manifest.get("license", ""), trust_tier=e.trust_tier))
     if db.get(PluginVersion, (e.id, e.version)) is None:
-        db.add(PluginVersion(plugin_id=e.id, version=e.version, artifact_digest=e.artifact_digest, manifest=e.manifest, signature=e.manifest.get("signature")))
+        db.add(PluginVersion(plugin_id=e.id, version=e.version, artifact_digest=e.artifact_digest, manifest=e.manifest, signature=json.dumps(e.signature) if e.signature else None))
         for c in e.capabilities:
             db.add(PluginCapability(plugin_id=e.id, version=e.version, capability_id=c["id"], schema_ref=c.get("outputSchema")))
     db.flush()

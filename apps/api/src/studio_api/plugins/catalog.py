@@ -31,6 +31,13 @@ class Entry:
     path: str | None
     licenses: dict
     cost_hints: dict
+    signature: dict | None = None
+    # Generated plugins belong to the workspace that built them (§9); None = every workspace.
+    workspace_id: str | None = None
+    review: dict | None = None
+
+    def visible_to(self, workspace_id: str | None) -> bool:
+        return self.workspace_id is None or workspace_id is None or self.workspace_id == workspace_id
 
     @property
     def capabilities(self) -> list[dict]:
@@ -73,6 +80,9 @@ def _from_index(raw: dict) -> Entry:
         path=raw.get("path"),
         licenses=raw.get("licenses") or {},
         cost_hints=raw.get("costHints") or {},
+        signature=raw.get("signature"),
+        workspace_id=raw.get("workspaceId"),
+        review=raw.get("review"),
     )
 
 
@@ -110,10 +120,10 @@ def get(plugin_id: str, version: str | None = None) -> Entry | None:
     return next((e for e in vs if e.version == best), None)
 
 
-def search(query: str | None = None, capability: str | None = None, media_type: str | None = None) -> list[dict]:
+def search(query: str | None = None, capability: str | None = None, media_type: str | None = None, workspace_id: str | None = None) -> list[dict]:
     latest: dict[str, Entry] = {}
     for e in entries():
-        if e.trust_tier == "builtin":
+        if e.trust_tier == "builtin" or not e.visible_to(workspace_id):
             continue
         if e.id not in latest or semver.key(e.version) > semver.key(latest[e.id].version):
             latest[e.id] = e

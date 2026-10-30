@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { type Daytona, DaytonaNotFoundError, Image } from "@daytona/sdk";
+import { NAMING } from "../naming.ts";
 import { SANDBOX_HOME } from "./defaults.ts";
 
 export const REQUIREMENTS_PATH = resolve(import.meta.dirname, "../../sandbox-image/requirements.txt");
@@ -26,7 +27,7 @@ export function buildImage(requirementsPath = REQUIREMENTS_PATH): Image {
 /** Content-addressed: a changed recipe or requirement gets a new snapshot name automatically. */
 export function snapshotName(requirements: string, recipe = `${RECIPE_VERSION}|${PYTHON_VERSION}|${APT_PACKAGES.join(",")}|${JSON.stringify(SNAPSHOT_RESOURCES)}`): string {
   const hash = createHash("sha256").update(recipe).update("\0").update(requirements.replace(/\r\n/g, "\n").trim()).digest("hex");
-  return `inkling-agent-${hash.slice(0, 12)}`;
+  return `${NAMING.resourcePrefix}-agent-${hash.slice(0, 12)}`;
 }
 
 export function currentSnapshotName(requirementsPath = REQUIREMENTS_PATH): string {
@@ -76,7 +77,7 @@ export function ensureSnapshot(daytona: Daytona, opts: { onLogs?: (chunk: string
 }
 
 /**
- * Snapshot to create sandboxes from right now: the configured override, the Inkling snapshot if it's
+ * Snapshot to create sandboxes from right now: the configured override, our snapshot if it's
  * active, or `undefined` (Daytona's default image) with a warning so a chat never waits on a build.
  */
 export async function resolveSnapshot(

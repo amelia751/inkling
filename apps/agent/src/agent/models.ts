@@ -38,7 +38,9 @@ export function resolveModel(runtime: ModelRuntime, config: Config, ref = `${con
  * Fixture: `{ "scripts": [{ "when": "<regex on the latest user message>", "turns": [Turn, …] }] }`.
  * The first script whose `when` matches the latest user message is used; the turn index is the
  * number of assistant messages since that user message, so each run replays its script from the
- * start. Past the last turn the model says it has nothing scripted.
+ * start. Past the last turn the model says it has nothing scripted. A string argument
+ * `"{{last.a.b}}"` is replaced by field `a.b` of the latest tool result's JSON (e.g. a request id
+ * the previous call returned).
  */
 export interface ScriptTurn {
   text?: string;
@@ -57,6 +59,29 @@ export function loadScript(path: string): ScriptFixture {
 const textOf = (m: Message) =>
   typeof m.content === "string" ? m.content : m.content.map((c) => ("text" in c && typeof c.text === "string" ? c.text : "")).join("");
 
+function lastToolJson(messages: readonly Message[]): unknown {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i]!;
+    if (m.role !== "toolResult") continue;
+    try {
+      return JSON.parse(textOf(m));
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function resolveRefs(value: unknown, last: () => unknown): unknown {
+  if (typeof value === "string") {
+    const ref = value.match(/^\{\{last\.([\w.]+)\}\}$/)?.[1];
+    return ref ? ref.split(".").reduce<any>((o, k) => o?.[k], last()) : value;
+  }
+  if (Array.isArray(value)) return value.map((v) => resolveRefs(v, last));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveRefs(v, last)]));
+  return value;
+}
+
 export function scriptedReply(fixture: ScriptFixture, messages: readonly Message[]) {
   let lastUser = -1;
   for (let i = messages.length - 1; i >= 0; i--)
@@ -72,7 +97,8 @@ export function scriptedReply(fixture: ScriptFixture, messages: readonly Message
   const blocks: FauxContentBlock[] = [];
   if (step.thinking) blocks.push(fauxThinking(step.thinking));
   if (step.text) blocks.push(fauxText(step.text));
-  for (const c of step.toolCalls ?? []) blocks.push(fauxToolCall(c.name, (c.arguments ?? {}) as never));
+  const last = () => lastToolJson(messages);
+  for (const c of step.toolCalls ?? []) blocks.push(fauxToolCall(c.name, resolveRefs(c.arguments ?? {}, last) as never));
   return fauxAssistantMessage(blocks, { stopReason: step.toolCalls?.length ? "toolUse" : "stop" });
 }
 

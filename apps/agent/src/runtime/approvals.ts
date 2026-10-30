@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { ApprovalDetail } from "../protocol.ts";
 
 export interface ApprovalRequest {
   approvalId: string;
@@ -6,6 +7,8 @@ export interface ApprovalRequest {
   toolName: string;
   summary: string;
   inputPreview: string;
+  /** Structured context the Studio renders (e.g. the install review for plugin-install). */
+  detail?: ApprovalDetail;
 }
 
 export interface ApprovalDecision {

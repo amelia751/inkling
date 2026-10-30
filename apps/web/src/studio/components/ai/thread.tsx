@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@studio/studio-ui/icons";
 import { Button } from "@studio/studio-ui/ui/button";
 import { Spinner } from "@studio/studio-ui/ui/spinner";
+import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { artifactUrl } from "@/studio/lib/agent/client";
+import { approveInstall, getInstallRequest, rejectInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/studio-ui/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
@@ -66,7 +69,12 @@ export function AssistantMessage({ message, streaming, projectId, project, items
         const p = g.part;
         if (p.type === "text") return <Markdown key={i} text={p.text} />;
         if (p.type === "reasoning") return <Reasoning key={i} text={p.text} live={streaming && i === groups.length - 1} />;
-        if (p.type === "approval") return <ApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />;
+        if (p.type === "approval")
+          return p.detail?.kind === "plugin-install" ? (
+            <InstallApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />
+          ) : (
+            <ApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />
+          );
         if (p.type === "change") return <ChangeCard key={i} part={p} onUndo={onUndo && (() => onUndo(p.id))} />;
         if (p.type === "artifact")
           return (
@@ -197,6 +205,78 @@ function ApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "
           </span>
         )}
       </footer>
+    </section>
+  );
+}
+
+/**
+ * The agent asked to install a plugin (request_install_approval). Approving happens in the
+ * install review, as the user: the Studio calls the kernel's approve itself (agent tokens can't),
+ * then tells the agent. There is no one-click approve here on purpose.
+ */
+function InstallApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; onDecide: (d: "approve" | "reject") => void }) {
+  const qc = useQueryClient();
+  const detail = part.detail!;
+  const [request, setRequest] = useState<InstallRequest | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const pending = part.state === "pending";
+  const open = async () => {
+    setError(null);
+    try {
+      setRequest(await getInstallRequest(detail.workspaceId, detail.requestId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const finish = async (decision: "approve" | "reject", grant: string[] = []) => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (decision === "approve") await approveInstall(detail.workspaceId, detail.requestId, grant);
+      else await rejectInstall(detail.workspaceId, detail.requestId).catch(() => undefined);
+      setRequest(null);
+      onDecide(decision);
+      // The Studio re-reads the workspace state and activates the new plugin without a reload.
+      void qc.invalidateQueries({ queryKey: ["workspace", detail.workspaceId] });
+      void qc.invalidateQueries({ queryKey: ["plugins", detail.workspaceId] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-background" data-testid="agent-install-approval">
+      <header className="flex items-start gap-2 px-3 pt-2.5 pb-2">
+        <WarningIcon className="mt-px size-4 shrink-0 text-warning" />
+        <div className="min-w-0">
+          <h4 className="font-semibold">Review a plugin install</h4>
+          <p className="text-muted-foreground">The agent wants to install a plugin in this workspace. Review what it adds before approving.</p>
+          {error && <p className="mt-1 text-danger" role="alert">{error}</p>}
+        </div>
+      </header>
+      <footer className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
+        {pending ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => void finish("reject")} disabled={busy}>Reject</Button>
+            <Button size="sm" onClick={() => void open()} disabled={busy} data-testid="open-install-review">Review install</Button>
+          </>
+        ) : (
+          <span className={cn("flex h-6 items-center gap-1", part.state === "approved" ? "text-positive" : "text-muted-foreground")}>
+            {part.state === "approved" ? <DoneIcon className="size-3.5" /> : <InfoIcon className="size-3.5" />}
+            {part.state === "approved" ? "Installed" : part.state === "rejected" ? "Rejected" : "Expired"}
+          </span>
+        )}
+      </footer>
+      <InstallReview
+        request={request}
+        open={!!request}
+        busy={busy}
+        onApprove={(grant) => void finish("approve", grant)}
+        onReject={() => void finish("reject")}
+        onOpenChange={(o) => !o && setRequest(null)}
+      />
     </section>
   );
 }

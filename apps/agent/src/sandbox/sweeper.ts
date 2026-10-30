@@ -34,7 +34,7 @@ const lastSeen = (c: SweepCandidate) => {
   return Number.isFinite(t) ? t : ts(c.createdAt);
 };
 
-/** Only `app=inkling` sandboxes in this env are ever considered, even if the list call returned more. */
+/** Only `app=<resourcePrefix>` sandboxes in this env are ever considered, even if the list call returned more. */
 export function ownedBy(c: SweepCandidate, env: string): boolean {
   return c.labels.app === APP_LABEL && c.labels.env === env;
 }

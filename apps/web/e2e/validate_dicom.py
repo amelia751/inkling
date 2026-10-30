@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import sys
 
-import numpy as np
 import pydicom
 
 SEG_SOP = {"1.2.840.10008.5.1.4.1.1.66.4": "Segmentation", "1.2.840.10008.5.1.4.1.1.66.7": "Label Map Segmentation"}

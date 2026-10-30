@@ -1,11 +1,11 @@
 """Inkling AI against the real agent service (apps/agent) with a scripted model (todo1 §8.4).
 
 The test starts the agent service itself (AGENT_MODEL=scripted, AGENT_SANDBOX=off, a temp data
-dir) on --agent-port, replaying e2e/fixtures/agent-script.json. Start the dev server pointed at it:
+dir) on --agent-port, replaying tests/e2e/fixtures/agent-script.json. Start the dev server pointed at it:
 
     INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8299 INTERNAL_AGENT_SERVICE_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5299 --strictPort
-    python3 e2e/agent_test.py --port 5299
+    python3 ../../tests/e2e/agent_test.py --port 5299   # from apps/web
 
 Covers the client-tool round trip (patch_environment applied as one undoable step and saved as an
 agent edit), the approval card, a card tool, and reattaching to a run after a reload.
@@ -21,10 +21,11 @@ import time
 import urllib.request
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# The browser harness lives with the web-only tests (apps/web/e2e).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "web" / "e2e"))
 from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).parent / "fixtures" / "agent-script.json"
 TOKEN = "e2e-agent-token"
 AGENT_PORT = int(os.environ.get("INKLING_E2E_AGENT_PORT", "8299"))

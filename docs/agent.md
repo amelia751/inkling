@@ -76,7 +76,7 @@ Object storage: immutable dataset versions, sandbox artifact exports
 
 ```text
 inkling/
-├── agent.md                         # THIS specification
+├── docs/agent.md                    # THIS specification
 ├── todo/todo1.md                    # the pi + Daytona plan this section implements
 ├── secrets/                         # git-ignored except README.md and *.example (dev only)
 ├── apps/
@@ -384,7 +384,7 @@ Use `pytest` for business-logic/security tests, integration tests with synthetic
 
 **Security:** cross-tenant IDs, prompt injection in datasets/web/skills, symlinks and path traversal, secret extraction attempts, egress denied, malicious packages, failed cleanup, tool output redaction.
 
-**CI stages:** `pnpm install --frozen-lockfile`, `pnpm --filter @studio/agent typecheck`, `pnpm agent:test` (unit, scripted model, no network), web `tsc -b` + vitest, `apps/web/e2e/agent_test.py` against the scripted service, then `pnpm agent:live` / `smoke` on protected runners only. Keep expensive provider tests off pull requests and free of production keys.
+**CI stages:** `pnpm install --frozen-lockfile`, `pnpm --filter @studio/agent typecheck`, `pnpm agent:test` (unit, scripted model, no network), web `tsc -b` + vitest, `tests/e2e/agent_test.py` against the scripted service, then `pnpm agent:live` / `smoke` on protected runners only. Keep expensive provider tests off pull requests and free of production keys.
 
 **Metrics:** run success rate, completion accuracy, duration, model input/output/cached tokens, dollars/run, tool failure rate, sandbox provision time/active seconds/storage, approval latency, pipeline retries, event lag, leak/denial counters, runaway-loop counts. Use OpenTelemetry spans with `run_id`, `session_id`, `project_id` or non-PII hashed identifiers; sanitize content, secrets, and sensitive sample values. Build alerts for stuck runs and uncollected sandboxes.
 
@@ -460,7 +460,7 @@ A tenant member can open Inkling, start an agent session, request a **read-only 
 1. Read the pi changelog (`node_modules/@earendil-works/pi-coding-agent/CHANGELOG.md`) and the Daytona SDK release notes between the pinned and target versions.
 2. Bump the exact versions in `apps/agent/package.json` (`pi-coding-agent` and `pi-ai` together).
 3. Diff the `createAgentSession` options, `AgentSessionEvent`, `*Operations` and `ToolCallEvent` declarations; the projection (`runtime/events.ts`) and ops (`sandbox/ops.ts`) depend on them.
-4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @studio/agent smoke` and `apps/web/e2e/agent_test.py`.
+4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @studio/agent smoke` and `tests/e2e/agent_test.py`.
 5. Check `@daytona/pi` for fixes worth porting into `apps/agent/src/sandbox/` (keep the NOTICE).
 6. Review cost deltas and the default model list (`AGENT_MODEL_ALLOWLIST`).
 

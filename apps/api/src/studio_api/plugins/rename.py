@@ -1,5 +1,5 @@
 """Namespace rename as a data migration (todo2 D3): the kernel's counterpart of
-scripts/rename-namespace.mjs. Rewrites every stored id under `<old>.` to `<new>.`.
+tools/rename-namespace.mjs. Rewrites every stored id under `<old>.` to `<new>.`.
 
 Use from an Alembic revision after changing the naming config:
 

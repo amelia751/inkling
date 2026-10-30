@@ -152,7 +152,7 @@ Use version constraints and lockfiles (`uv.lock`, `pnpm-lock.yaml`) in the repo.
 
 ```text
 inkling/
-├── inkling.md                        # This specification
+├── docs/product.md                   # This specification
 ├── README.md
 ├── pnpm-workspace.yaml
 ├── package.json

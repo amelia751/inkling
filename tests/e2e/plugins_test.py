@@ -6,7 +6,7 @@ Needs the kernel and a worker (apps/api/README.md); the dev server runs with the
 proxy on:
 
     <envPrefix>KERNEL=1 <envPrefix>E2E=1 pnpm exec vite --port 5199 --strictPort
-    python3 e2e/plugins_test.py --port 5199
+    python3 ../../tests/e2e/plugins_test.py --port 5199   # from apps/web
 """
 
 from __future__ import annotations
@@ -15,7 +15,8 @@ import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# The browser harness lives with the web-only tests (apps/web/e2e).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "web" / "e2e"))
 
 from harness import NAMING, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 

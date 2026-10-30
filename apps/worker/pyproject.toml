@@ -9,7 +9,7 @@ dependencies = ["httpx>=0.28"]
 dev = ["pytest>=9.2", "studio-api", "uvicorn>=0.54", "pyyaml>=6.0"]
 
 [tool.uv.sources]
-studio-api = { path = "../api", editable = true }
+studio-api = { workspace = true }
 
 [project.scripts]
 studio-worker = "studio_worker.main:main"

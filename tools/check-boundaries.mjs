@@ -1,4 +1,10 @@
-// Enforces the plugin layering (docs/modules.md, todo/todo2.md §1.9):
+// Repo-wide rules (docs/README.md, todo/todo3.md Phase B):
+//   1. apps/* never import each other: they talk over HTTP and events only.
+//   2. packages/* never import from apps/* or plugins/*.
+//   3. plugins/*/ui imports only the SDK, contracts, studio-ui and studio-renderers (below).
+// (Python has the same rules as import-linter contracts in the root pyproject.toml.)
+//
+// Plugin layering inside the web build (docs/modules.md, todo/todo2.md §1.9):
 //   packages/plugin-contracts  → nothing internal
 //   packages/plugin-ui-sdk     → contracts
 //   packages/studio-ui         → nothing internal
@@ -10,13 +16,13 @@
 //   studio (shell)             → extension-host, sdk, contracts, studio-ui; never @plugins/*
 //   studio/core                → like the shell, plus studio-renderers (the built-in tools)
 // Tests (*.test.ts, *.test-helpers.ts) may reach into the host to set up a real registry.
-// Also: no brand name in code (D3). Usage: node scripts/check-boundaries.mjs [--strict].
-// Without --strict, files listed in scripts/boundaries-allowlist.json only warn.
+// Also: no brand name in code (D3). Usage: node tools/check-boundaries.mjs [--strict].
+// Without --strict, files listed in tools/boundaries-allowlist.json only warn.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 
-const repo = new URL("../../..", import.meta.url).pathname;
+const repo = new URL("..", import.meta.url).pathname;
 const webSrc = join(repo, "apps/web/src");
 const strict = process.argv.includes("--strict");
 const allowFile = new URL("./boundaries-allowlist.json", import.meta.url).pathname;
@@ -30,6 +36,8 @@ const codeFiles = (dir) =>
         if (name === "node_modules") return [];
         return statSync(p).isDirectory() ? codeFiles(p) : /\.(tsx?|mjs)$/.test(name) && !name.endsWith(".d.ts") ? [p] : [];
       });
+
+const listDirs = (dir) => (existsSync(dir) ? readdirSync(dir).filter((n) => statSync(join(dir, n)).isDirectory()) : []);
 
 const IMPORT = /(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s+["']([^"']+)["']/gm;
 
@@ -105,12 +113,71 @@ for (const file of roots.flatMap(codeFiles)) {
   }
 }
 
+// ---- Repo-wide rules 1 and 2 -------------------------------------------------------------
+// Workspace package names of apps (`@studio/web`, `@studio/agent`, …) count as the app.
+const APPS = listDirs(join(repo, "apps"));
+const appPackages = new Map(
+  APPS.flatMap((app) => {
+    const pj = join(repo, "apps", app, "package.json");
+    return existsSync(pj) ? [[JSON.parse(readFileSync(pj, "utf8")).name, app]] : [];
+  }),
+);
+/** The app (or "plugins") an import resolves into, or null. */
+function repoTarget(file, spec) {
+  if (appPackages.has(spec.split("/").slice(0, 2).join("/"))) return { app: appPackages.get(spec.split("/").slice(0, 2).join("/")) };
+  if (spec.startsWith("@plugins/")) return { plugins: true };
+  if (!spec.startsWith(".")) return null;
+  const rel = relative(repo, resolve(dirname(file), spec));
+  let m;
+  if ((m = /^apps\/([^/]+)\//.exec(rel))) return { app: m[1] };
+  if (rel.startsWith("plugins/")) return { plugins: true };
+  return null;
+}
+const repoRoots = [...APPS.map((a) => join("apps", a)), "packages"];
+for (const file of repoRoots.flatMap((d) => codeFiles(join(repo, d)))) {
+  const fromRel = relative(repo, file);
+  const fromApp = /^apps\/([^/]+)\//.exec(fromRel)?.[1];
+  const src = readFileSync(file, "utf8");
+  for (const m of src.matchAll(IMPORT)) {
+    const spec = m[1] ?? m[2] ?? m[3];
+    const to = repoTarget(file, spec);
+    if (!to) continue;
+    let why = null;
+    if (fromApp && to.app && to.app !== fromApp) why = `apps/${fromApp} must not import apps/${to.app}: apps talk over HTTP and events only`;
+    else if (!fromApp && to.app) why = `packages must not import apps/${to.app}`;
+    else if (!fromApp && to.plugins) why = "packages must not import plugins";
+    if (!why) continue;
+    const line = src.slice(0, m.index).split("\n").length;
+    errors.push(`${fromRel}:${line}  ${src.split("\n")[line - 1].trim()}\n    → ${why}`);
+  }
+}
+
+// ---- Rule 3 for Python plugin workers ----------------------------------------------------
+// Plugins aren't uv workspace members (each keeps its own lock), so import-linter can't see
+// them: a plugin's Python may import the SDK and third-party packages, never an app.
+const pyFiles = (dir) =>
+  !existsSync(dir)
+    ? []
+    : readdirSync(dir).flatMap((name) => {
+        const p = join(dir, name);
+        if (name === "node_modules" || name === ".venv" || name === "__pycache__") return [];
+        return statSync(p).isDirectory() ? pyFiles(p) : name.endsWith(".py") ? [p] : [];
+      });
+const PY_IMPORT = /^\s*(?:from|import)\s+(studio_api|studio_worker)\b/gm;
+for (const file of pyFiles(join(repo, "plugins"))) {
+  const src = readFileSync(file, "utf8");
+  for (const m of src.matchAll(PY_IMPORT)) {
+    const line = src.slice(0, m.index).split("\n").length;
+    errors.push(`${relative(repo, file)}:${line}  ${m[0].trim()}\n    → plugin workers import only studio_plugin_sdk (talk to the kernel through it)`);
+  }
+}
+
 // ---- No brand name in code (todo/todo2.md D3) -------------------------------------
 // The product name lives only in packages/plugin-contracts/src/naming.ts. Comments, docs,
 // presets and fixtures may mention it; code (strings and identifiers) may not.
 const BRAND = /\binkling\b/i;
-const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "packages", "plugins"].map((d) => join(repo, d)).filter(existsSync);
-const brandExempt = (rel) => rel.endsWith("plugin-contracts/src/naming.ts") || rel.includes("__fixtures__") || rel.includes("/node_modules/");
+const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "apps/mcp/src", "packages", "plugins", "tools"].map((d) => join(repo, d)).filter(existsSync);
+const brandExempt = (rel) => rel.endsWith("plugin-contracts/src/naming.ts") || rel === "tools/check-boundaries.mjs" || rel.includes("__fixtures__") || rel.includes("/node_modules/");
 for (const file of brandRoots.flatMap(codeFiles)) {
   const rel = relative(repo, file);
   if (brandExempt(rel)) continue;

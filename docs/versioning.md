@@ -104,7 +104,7 @@ inkling/
 ├── infra/
 │   ├── docker/                      # Add service and MinIO bucket provisioning
 │   └── k8s/base/versioning/         # Deployment, Service, probes, policies
-├── docs/versioning.md              # This document (or root versioning.md)
+├── docs/versioning.md              # This document
 └── tests/e2e/versioning/
 ```
 

@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # A plugin's package.json sits at the plugin root (its UI lives in ui/, exported as ./ui/*).
   - "plugins/*"
 allowBuilds:
   "@google/genai": false

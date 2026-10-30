@@ -17,7 +17,7 @@ Format conversions (originals are kept next to the converted files):
   * ACDC 4D .nii       → .nii.gz                                        stdlib gzip
   * TCGA .svs          → Deep Zoom (.dzi + JPEG tile pyramid)           openslide
 
-Usage:  uv run scripts/fetch-seeds.py [project-id ...]   # requires the kaggle CLI, logged in
+Usage:  uv run tools/fetch-seeds.py [project-id ...]   # requires the kaggle CLI, logged in
 """
 
 from __future__ import annotations

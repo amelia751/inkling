@@ -1,0 +1,72 @@
+# uv workspace root (todo/todo3.md C.2). One lock (uv.lock) for the services and shared
+# libraries. Plugin workers (plugins/*/pyproject.toml) are deliberately NOT members: the
+# worker gives every plugin version its own locked environment (`uv sync --locked --project
+# plugins/<name>`), so each plugin keeps its own uv.lock (docs/plugins.md §5.1, §10).
+[project]
+name = "studio-workspace"
+version = "0.0.0"
+requires-python = ">=3.12,<3.13"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["apps/api", "apps/worker", "packages/plugin-sdk-py", "apps/web/e2e"]
+exclude = ["plugins/*"]
+
+[tool.uv.sources]
+studio-api = { workspace = true }
+studio-worker = { workspace = true }
+studio-plugin-sdk = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14",
+    "pytest>=9.2",
+    "pyright>=1.1.407",
+    "import-linter>=2.5",
+]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+extend-exclude = ["**/_generated/**", "**/migrations/versions/**", "apps/api/src/studio_api/clients/**"]
+
+[tool.ruff.lint]
+# Ruff's defaults to start; widen (I, UP, B) in a dedicated formatting change, not alongside
+# feature work, so the diff stays reviewable.
+select = ["E4", "E7", "E9", "F"]
+ignore = ["E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# Browser tests chain short checks on one line.
+"apps/web/e2e/**" = ["E701", "E702"]
+"tests/e2e/**" = ["E701", "E702"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+exclude = ["**/node_modules", "**/.venv", "**/_generated", "**/__pycache__", "apps/api/src/studio_api/clients"]
+
+# Python boundaries (todo/todo3.md C.4). `pnpm check:python-imports` / CI run `lint-imports`.
+[tool.importlinter]
+root_packages = ["studio_api", "studio_worker", "studio_plugin_sdk"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "apps never import each other: the kernel does not import the worker"
+type = "forbidden"
+source_modules = ["studio_api"]
+forbidden_modules = ["studio_worker"]
+
+[[tool.importlinter.contracts]]
+name = "apps never import each other: the worker talks to the kernel over HTTP"
+type = "forbidden"
+source_modules = ["studio_worker"]
+forbidden_modules = ["studio_api"]
+
+[[tool.importlinter.contracts]]
+name = "the plugin SDK is a library: it imports no app"
+type = "forbidden"
+source_modules = ["studio_plugin_sdk"]
+forbidden_modules = ["studio_api", "studio_worker"]

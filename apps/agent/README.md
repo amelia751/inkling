@@ -1,6 +1,6 @@
 # @studio/agent
 
-The Inkling AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` and only the Vite proxy (dev) or `apps/api` (later) talks to it. Design: [`agent.md`](../../agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
+The Inkling AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` and only the Vite proxy (dev) or `apps/api` (later) talks to it. Design: [`docs/agent.md`](../../docs/agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
 
 ## Run
 
@@ -38,7 +38,7 @@ Studio e2e against this service (scripted model; the test starts the service its
 cd apps/web
 INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8299 INTERNAL_AGENT_SERVICE_TOKEN=e2e-agent-token \
   pnpm exec vite --port 5299 --strictPort &
-python3 e2e/agent_test.py --port 5299
+python3 ../../tests/e2e/agent_test.py --port 5299
 ```
 
 ## Sandboxes
@@ -93,4 +93,4 @@ Types: [`packages/agent-protocol`](../../packages/agent-protocol/src/index.ts), 
 
 ## Upgrading pi or the Daytona SDK
 
-Versions are pinned exactly. Follow the checklist in [`agent.md` §17](../../agent.md): read the changelogs, diff `createAgentSession` / `AgentSessionEvent` / `*Operations` / `ToolCallEvent`, re-record the event fixture if the stream changed, rerun unit, live, smoke and e2e, and check `@daytona/pi` for fixes worth porting (keep [`NOTICE`](NOTICE)).
+Versions are pinned exactly. Follow the checklist in [`docs/agent.md` §17](../../docs/agent.md): read the changelogs, diff `createAgentSession` / `AgentSessionEvent` / `*Operations` / `ToolCallEvent`, re-record the event fixture if the stream changed, rerun unit, live, smoke and e2e, and check `@daytona/pi` for fixes worth porting (keep [`NOTICE`](NOTICE)).

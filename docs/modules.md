@@ -49,7 +49,7 @@ Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
 1. Copy `plugins/_template` to `plugins/<name>` and rename the module id (`ns("<name>")`).
 2. Import only from the SDK, contracts, studio-ui and studio-renderers; third-party
    dependencies go in the plugin's own `package.json` (`@studio/plugin-<name>`), and the
-   plugin's `plugin.yaml` describes it for the registry (`node scripts/build-registry.mjs`).
+   plugin's `plugin.yaml` describes it for the registry (`node tools/build-registry.mjs`).
 3. Add one import and one `MODULES` entry in `apps/web/src/extension-host/bundled.ts`, and a
    `@plugins/<name>/*` path in `apps/web/tsconfig.json`.
 4. Run `pnpm emit:schemas` and the checks.
@@ -99,7 +99,7 @@ hardcode it: write `ns("wsi")` or `` `${NS}.core.commands.undo` ``. That file is
 place the product name may appear in code, and `check:boundaries` enforces this. Stored
 documents (presets, environments, annotation geometry types) keep full ids. After a rename,
 the old namespace goes into `legacyNamespaces` so those documents still resolve, and
-`node scripts/rename-namespace.mjs --from <old> --to <new>` rewrites them.
+`node tools/rename-namespace.mjs --from <old> --to <new>` rewrites them.
 
 | Type | What it is |
 |---|---|
@@ -196,14 +196,14 @@ The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
 
 ### From outside the app (MCP)
 
-`pnpm mcp` starts a stdio MCP server (`apps/web/scripts/mcp.mjs`) over a running dev server
+`pnpm mcp` starts a stdio MCP server (`apps/mcp/src/main.ts`) over a running dev server
 (`<envPrefix>URL`, e.g. `INKLING_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
 `patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.
 
 ```bash
-claude mcp add inkling -- node /abs/path/to/inkling/apps/web/scripts/mcp.mjs
+claude mcp add inkling -- pnpm --dir /abs/path/to/inkling mcp
 ```
 
 1. **Tier 1 (on):** the agent references trusted, bundled modules only.

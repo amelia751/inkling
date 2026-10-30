@@ -1,0 +1,10 @@
+{
+  "name": "@studio/plugin-sdk-py",
+  "private": true,
+  "description": "Python plugin SDK (uv workspace member); scripts run through uv",
+  "scripts": {
+    "test": "uv run --package studio-plugin-sdk pytest -q",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run pyright src"
+  }
+}

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Rewrites stored documents after a namespace rename (todo/todo2.md D3):
-//   node scripts/rename-namespace.mjs --from <old> --to <new> [--dry-run]
+//   node tools/rename-namespace.mjs --from <old> --to <new> [--dry-run]
 // Every JSON string or key that is an id under `<old>.` (or mentions one inside a `when`
 // clause or other text) becomes `<new>.`. Files: plugins/*/plugin.yaml, registry/presets/*.json, seed-data
 // manifests, saved environments and annotations, and e2e / plugin fixtures. Edit
@@ -18,7 +18,7 @@ const from = opt("from");
 const to = opt("to");
 const dry = args.includes("--dry-run");
 if (!from || !to || !/^[a-z][a-z0-9-]*$/.test(to)) {
-  console.error("usage: node scripts/rename-namespace.mjs --from <old> --to <new> [--dry-run]");
+  console.error("usage: node tools/rename-namespace.mjs --from <old> --to <new> [--dry-run]");
   process.exit(2);
 }
 

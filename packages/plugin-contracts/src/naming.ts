@@ -3,10 +3,10 @@
  * reads runtime identifiers from here: contribution-id namespace, schema prefix, resource
  * and storage prefixes, env-var prefix and the display name. `scripts/emit-schemas.mjs`
  * writes the same values to `schemas/naming.json` for the Python kernel, the worker, the
- * plugin SDK, `scripts/mcp.mjs` and `apps/agent`.
+ * plugin SDK, `apps/mcp` and `apps/agent`.
  *
  * Renaming = edit this file, add the old namespace to `legacyNamespaces`, then run
- * `node scripts/rename-namespace.mjs --from <old> --to <new>` for stored documents.
+ * `node tools/rename-namespace.mjs --from <old> --to <new>` for stored documents.
  */
 export const NAMING = {
   displayName: "Inkling",

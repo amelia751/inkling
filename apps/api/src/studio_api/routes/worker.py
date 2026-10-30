@@ -13,7 +13,7 @@ from fastapi import APIRouter, Body, Depends, Header, HTTPException
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..context import RequestContext, issue_session
+from ..context import issue_session
 from ..db import get_session
 from ..kernel import gateway, jobs, secrets
 from ..naming import env
@@ -47,9 +47,11 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
             if f"secrets.use:{name}" in grants:
                 use_tokens[name] = secrets.issue_use_token(j.workspace_id, j.plugin_id, j.version, name, hosts, j.job_id, ttl_s=j.timeout_s + 60)
     runtime = manifest.get("runtime") or {}
+    active = installer.active(db, j.workspace_id).get(j.plugin_id)
+    entry = installer.catalog.get(j.plugin_id, j.version)
     return {
         "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s},
-        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": installer.active(db, j.workspace_id).get(j.plugin_id).artifact_digest if installer.active(db, j.workspace_id).get(j.plugin_id) else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(installer.catalog.get(j.plugin_id, j.version)) or ""), "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
+        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": active.artifact_digest if active else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(entry) or "") if entry else "", "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
         "provider": provider,
         "config": installer.current_config(db, j.workspace_id, j.plugin_id),
         "sessionToken": token,

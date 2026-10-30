@@ -1,6 +1,6 @@
 /**
  * Composition root: the only file that knows which modules ship in this build. The shell
- * reaches modules only through the registry (enforced by scripts/check-boundaries.mjs).
+ * reaches modules only through the registry (enforced by tools/check-boundaries.mjs).
  * Adding a module = one import and one entry in MODULES.
  */
 import { defineModule, type ModuleManifest, type PresetContribution } from "@studio/plugin-ui-sdk/module";

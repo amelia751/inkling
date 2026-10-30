@@ -1,31 +1,35 @@
-#!/usr/bin/env node
 // `pnpm mcp`: an MCP server (stdio) that lets an outside agent (Claude Code, Cursor…)
 // inspect and boot Studio environments. It talks to a running Studio dev server over its
 // HTTP API, so every edit is validated by the app's own registry and resolver,
 // saved with author `agent:mcp`, and picked up by the Studio on reload.
 //
-//   <envPrefix>URL=http://localhost:5173 node apps/web/scripts/mcp.mjs
-//   claude mcp add <resourcePrefix> -- node /abs/path/apps/web/scripts/mcp.mjs
+//   <envPrefix>URL=http://localhost:5173 pnpm mcp
+//   claude mcp add <resourcePrefix> -- pnpm --dir /abs/path/to/repo mcp
 // Names (env vars, server name, copy) come from schemas/naming.json (`pnpm emit:schemas`).
+// The catalogue and environment routes are still served by the web dev server
+// (apps/web/dev/seed-server.ts); point <envPrefix>URL at apps/api once it serves them.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { readFileSync } from "node:fs";
 
-const NAMING = JSON.parse(readFileSync(new URL("../../../schemas/naming.json", import.meta.url), "utf8"));
-const env = (name) => process.env[`${NAMING.envPrefix}${name}`];
+type Naming = { envPrefix: string; resourcePrefix: string; displayName: string };
+type Result = { ok: boolean; status?: number; data: any };
+
+const NAMING: Naming = JSON.parse(readFileSync(new URL("../../../schemas/naming.json", import.meta.url), "utf8"));
+const env = (name: string) => process.env[`${NAMING.envPrefix}${name}`];
 
 const BASE = (env("URL") ?? "http://localhost:5173").replace(/\/$/, "");
 const AUTHOR = env("AGENT_AUTHOR") ?? "agent:mcp";
 
-async function http(method, path, body) {
+async function http(method: string, path: string, body?: unknown): Promise<Result> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
-  let data;
+  let data: unknown;
   try {
     data = JSON.parse(text);
   } catch {
@@ -34,7 +38,7 @@ async function http(method, path, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
-const obj = (properties, required = []) => ({ type: "object", properties, required, additionalProperties: false });
+const obj = (properties: Record<string, unknown>, required: string[] = []) => ({ type: "object", properties, required, additionalProperties: false });
 const PATCH = {
   type: "array",
   description: "RFC 6902 JSON Patch against the project's stored environment (`source` from get_environment)",
@@ -78,12 +82,12 @@ const TOOLS = [
   },
 ];
 
-async function call(name, args) {
+async function call(name: string, args: Record<string, any>): Promise<Result> {
   switch (name) {
     case "list_projects": {
       const r = await http("GET", "/seed/manifest.json");
       if (!r.ok) return r;
-      return { ok: true, data: r.data.projects.map((p) => ({ id: p.id, title: p.title, status: p.status, environment: p.environment?.extends ?? p.viewer, items: p.assets?.length })) };
+      return { ok: true, data: r.data.projects.map((p: any) => ({ id: p.id, title: p.title, status: p.status, environment: p.environment?.extends ?? p.viewer, items: p.assets?.length })) };
     }
     case "catalog":
       return http("GET", "/api/catalog/prompt");
@@ -95,7 +99,7 @@ async function call(name, args) {
       const r = await http("GET", "/api/catalog");
       if (!r.ok) return r;
       const id = String(args.id ?? "");
-      const hit = r.data.contributions.find((c) => c.id === id || (c.type === "presets" && `preset:${c.id.split(".").pop()}` === id));
+      const hit = r.data.contributions.find((c: any) => c.id === id || (c.type === "presets" && `preset:${c.id.split(".").pop()}` === id));
       return hit ? { ok: true, data: hit } : { ok: false, data: { error: `Unknown contribution "${id}"` } };
     }
     case "list_capabilities":
@@ -119,7 +123,7 @@ async function call(name, args) {
   }
 }
 
-const server = new Server({ name: NAMING.resourcePrefix, version: "1.0.0" }, { capabilities: { tools: {} }, instructions: `${NAMING.displayName} Studio environments: read `catalog`, then get_environment / validate_environment / patch_environment. Fix errors using their path and suggestion.` });
+const server = new Server({ name: NAMING.resourcePrefix, version: "1.0.0" }, { capabilities: { tools: {} }, instructions: `${NAMING.displayName} Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. Fix errors using their path and suggestion.` });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {

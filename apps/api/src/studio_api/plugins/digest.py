@@ -1,4 +1,4 @@
-"""Deterministic package digests (same algorithm as scripts/build-registry.mjs).
+"""Deterministic package digests (same algorithm as tools/build-registry.mjs).
 
 sha256 over the sorted list of `<posix path>\\0<sha256 of file>\\n` for every file in the
 package, excluding caches and local environments. A file-tree digest rather than a tarball

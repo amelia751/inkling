@@ -140,7 +140,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:8d30efd16b5f37fc221a7e22a4025ae8508783dd43e1bb619cd5c39926f4753d",
+      "artifactDigest": "sha256:e12d2e085da7789b0ef805e478fe98ae84c52d785d66fc616fee0820350da197",
       "path": "plugins/export-dicom",
       "capabilities": [
         "dataset.export.dicom"
@@ -279,7 +279,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:842e39b07a1e41d1655c31834e9679cbb62883dc9f7a7d08d452cca4c2cd000f",
+      "artifactDigest": "sha256:ddcf2bc527f719f0b8322235a84708d37e1ac5442039ee738a6969b8113fa41f",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"
@@ -297,7 +297,7 @@
           "jobs.create"
         ],
         "optional": [
-          "network.egress:graph.facebook.com",
+          "network.egress:api.meta.ai",
           "secrets.use:META_MODEL_API_KEY",
           "network.egress:sam.internal"
         ]
@@ -305,13 +305,20 @@
       "licenses": {
         "code": "Apache-2.0",
         "models": {
-          "meta.sam": "SAM License (see Meta's model card; not an OSI licence)"
+          "meta.sam": "SAM License (Meta; not an OSI licence)"
         },
         "services": {
-          "meta.sam": "Meta model API terms"
+          "meta.sam": "Meta Model API terms (dev.meta.ai)"
         }
       },
-      "costHints": {},
+      "costHints": {
+        "meta.sam": {
+          "unit": "image",
+          "usdPerUnit": 0.0025,
+          "effectiveAt": "2026-10-30",
+          "sourceUrl": "https://dev.meta.ai/docs/pricing-rate-limits"
+        }
+      },
       "compatibility": {
         "studio": ">=0.1.0 <1.0.0",
         "pluginApi": "^1"
@@ -366,7 +373,7 @@
             ],
             "hosting": "hosted",
             "egress": [
-              "graph.facebook.com"
+              "api.meta.ai"
             ],
             "secrets": [
               "META_MODEL_API_KEY"
@@ -377,8 +384,14 @@
               "boxes": true,
               "video": false
             },
-            "modelLicense": "SAM License (see Meta's model card; not an OSI licence)",
-            "serviceTerms": "Meta model API terms"
+            "pricing": {
+              "unit": "image",
+              "usdPerUnit": 0.0025,
+              "effectiveAt": "2026-10-30",
+              "sourceUrl": "https://dev.meta.ai/docs/pricing-rate-limits"
+            },
+            "modelLicense": "SAM License (Meta; not an OSI licence)",
+            "serviceTerms": "Meta Model API terms (dev.meta.ai)"
           },
           {
             "id": "local.sam",
@@ -410,7 +423,7 @@
             "jobs.create"
           ],
           "optional": [
-            "network.egress:graph.facebook.com",
+            "network.egress:api.meta.ai",
             "secrets.use:META_MODEL_API_KEY",
             "network.egress:sam.internal"
           ]

@@ -18,9 +18,12 @@ from studio_observability import request_id as obs_request_id
 
 from .config import settings
 from .db import get_session
-from .models import SessionToken, Workspace
+from .models import SessionDelegation, SessionToken, Workspace
 
 WORKSPACE_HEADER = "X-Workspace-Id"
+# Dev only (dev_trust_headers): act as another human user, e.g. two reviewers in one browser
+# session or e2e test. Only `user:` principals; agents always come with a session token.
+PRINCIPAL_HEADER = "X-Dev-Principal"
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,8 @@ class RequestContext:
     idempotency_key: str | None = None
     scopes: tuple[str, ...] = field(default_factory=tuple)
     profile: str | None = None
+    # Who an agent session acts for: the user who minted its token (POST /v1/sessions).
+    on_behalf_of: str | None = None
 
     def allows(self, scope: str) -> bool:
         """Session tokens carry scopes; dev header identities are full users."""
@@ -50,11 +55,13 @@ def ensure_workspace(db: Session, workspace_id: str) -> Workspace:
     return ws
 
 
-def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[str], ttl_s: int = 3600, profile: str | None = None) -> str:
+def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[str], ttl_s: int = 3600, profile: str | None = None, on_behalf_of: str | None = None) -> str:
     """A session-scoped token (agent run, worker). Returned once; only its hash is stored."""
     ensure_workspace(db, workspace_id)
     token = pysecrets.token_urlsafe(32)
     db.add(SessionToken(token_hash=hash_token(token), principal=principal, workspace_id=workspace_id, scopes=scopes, profile=profile, expires_at=datetime.now(UTC) + timedelta(seconds=ttl_s)))
+    if on_behalf_of:
+        db.add(SessionDelegation(token_hash=hash_token(token), on_behalf_of=on_behalf_of))
     db.flush()
     return token
 
@@ -72,12 +79,16 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
         asked = request.headers.get(WORKSPACE_HEADER)
         if asked and asked != row.workspace_id:
             raise HTTPException(403, "session token is bound to another workspace")
-        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile)
+        delegation = db.get(SessionDelegation, row.token_hash)
+        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None)
     if not settings().dev_trust_headers:
         raise HTTPException(401, "session token required")
     workspace = request.headers.get(WORKSPACE_HEADER) or "default"
     ensure_workspace(db, workspace)
-    return RequestContext(workspace, settings().dev_principal, correlation, idem)
+    principal = request.headers.get(PRINCIPAL_HEADER) or settings().dev_principal
+    if not principal.startswith("user:") or len(principal) > 128:
+        raise HTTPException(400, f"{PRINCIPAL_HEADER} must name a user: principal")
+    return RequestContext(workspace, principal, correlation, idem)
 
 
 def get_context(request: Request, db: Session = Depends(get_session)) -> RequestContext:

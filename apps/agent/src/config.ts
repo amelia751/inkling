@@ -51,6 +51,8 @@ const schema = z.object({
 
   /** The Studio (Vite dev server) for the seed API fallback and sample uploads. */
   AGENT_STUDIO_URL: z.string().url().default("http://localhost:5173"),
+  /** The kernel (apps/api) for the builder and task profiles' tools. */
+  AGENT_KERNEL_URL: z.string().url().default("http://127.0.0.1:8000"),
   AGENT_UPLOAD_MAX_FILES: int(20),
   AGENT_UPLOAD_MAX_MB: int(200),
   AGENT_SANDBOX_RETENTION_DAYS: int(7),
@@ -113,6 +115,7 @@ export interface Config {
   approvalTimeoutS: number;
   limits: { maxSessions: number; maxConcurrentRuns: number };
   studioUrl: string;
+  kernelUrl: string;
   upload: { maxFiles: number; maxBytes: number };
   sweep: { retentionDays: number; idleStopMin: number };
   egressProbe: "auto" | "off";
@@ -205,6 +208,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       approvalTimeoutS: e.AGENT_APPROVAL_TIMEOUT_S,
       limits: { maxSessions: e.AGENT_MAX_SESSIONS, maxConcurrentRuns: e.AGENT_MAX_CONCURRENT_RUNS },
       studioUrl: e.AGENT_STUDIO_URL,
+      kernelUrl: e.AGENT_KERNEL_URL,
       upload: { maxFiles: e.AGENT_UPLOAD_MAX_FILES, maxBytes: e.AGENT_UPLOAD_MAX_MB * 1024 * 1024 },
       sweep: { retentionDays: e.AGENT_SANDBOX_RETENTION_DAYS, idleStopMin: e.AGENT_SANDBOX_IDLE_STOP_MIN },
       egressProbe: e.AGENT_EGRESS_PROBE,

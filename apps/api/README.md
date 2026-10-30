@@ -26,7 +26,10 @@ Then run the web app against it: `INKLING_KERNEL=1 pnpm dev` (the env-var prefix
 | Events (outbox, rate limit, depth guard, EventBus) | `kernel/events.py`, `kernel/eventbus.py` | `POST /api/v1/events` |
 | Secrets broker (encrypted at rest, proxied use) | `kernel/secrets.py` | `/api/v1/secrets…` |
 | Workspace and audit | `plugins/installer.py`, `kernel/audit.py` | `/api/v1/workspaces/:id/state`, `/api/v1/audit` |
-| Registry, resolver, installer, policy | `plugins/` | `/api/v1/plugins…`, `/api/v1/workspaces/:id/plugins/…` |
+| Registry, resolver, installer, policy | `plugins/` | `/api/v1/plugins…`, `/api/v1/workspaces/:id/plugins/…`, `/api/v1/workspaces/:id/capabilities`, `/api/v1/plugins/:id/docs` |
+| Artifact builder for agent-authored plugins (checks, digest, Ed25519 dev signature, private store, `trustTier: generated`, workspace-only) | `plugins/artifacts.py` | `POST /api/v1/plugins/artifacts[?dryRun=true&base=…]` (tarball body) |
+| Dataset versioning (todo4 Phase 6): apps/versioning behind the kernel, 60 s Ed25519 service JWTs, agent policy, audit | `kernel/versioning/`, `routes/versioning.py` | `/api/v1/versioning/status`, `/api/v1/datasets…`; commands `<ns>.versioning.*` |
+| Built-in subscriptions (the worker's de-identification check) | `kernel/events.py`, `routes/worker.py` | `/api/v1/worker/subscriptions/{claim,ack}`, `/api/v1/worker/versioning/run` |
 
 | Service conventions: liveness, readiness (DB, Redis, BlobStore), version | `routes/ops.py` | `/healthz`, `/readyz`, `/version` (no auth, no access log) |
 | Seed files and saved environments for the SPA in production (shapes of `apps/web/dev/seed-server.ts`) | `routes/environments.py` | `/seed/*`, `/api/environments/:id[/history]`; `POST /api/environments/validate` and `/api/catalog*` answer 501 (dev server only: they need the TypeScript registry, so the kernel stores environments without server-side validation) |
@@ -53,6 +56,27 @@ and `<envPrefix>TEST_S3_ENDPOINT` (+ `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`
 Contracts (`kernel/contracts/_generated/`) are generated from `schemas/*.json`, which
 `pnpm emit:schemas` writes from `packages/plugin-contracts` (zod). Settings come from
 `<envPrefix>API_*` env vars and `secrets/api.env` (`API_SECRET_KEY`).
+
+Session-token scopes for the plugin routes: `plugins.read` (search, inspect, docs, workspace
+plugins and capabilities), `plugins.manage` (plan, stage, low-risk activate, configure, disable,
+rollback, reject), `plugins.author` (artifact builds) and `plugins.approve` (approve, grant). The
+Studio mints agent tokens without `plugins.approve` (apps/agent README, Profiles), so an agent can
+stage an install but only the user can approve it. Dev header identities have no scopes and may do
+everything.
+
+Generated artifacts live in `<data dir>/plugin-artifacts/<id>/<version>/` and are listed in
+`<data dir>/registry-generated.json`; the dev signing key is `<data dir>/plugin-signing.key`.
+`stage` re-digests the stored tree and verifies the signature; the install plan carries the code
+diff against the template, the forked plugin or the previous version.
+
+Dataset versioning is off until `<envPrefix>API_VERSIONING_URL` points at apps/versioning
+(or is `memory:` for an in-process stand-in without Go). The API signs a 60 s JWT per call
+with `.data/versioning-jwt.key` and writes the public half to `.data/versioning-jwks.json`
+(generated on first use; override with `<envPrefix>API_VERSIONING_JWT_KEY_FILE` /
+`_JWKS_FILE`); point the service's `<envPrefix>VERSIONING_JWT_PUBLIC_KEY_FILE` at the JWKS.
+Tenant is `<envPrefix>API_VERSIONING_TENANT` (`default`), project the workspace. In dev,
+`X-Dev-Principal: user:<name>` acts as another user. Run the e2e flows with
+`tests/e2e/versioning/run.py`.
 
 Set `<envPrefix>API_BUILTIN_MOCK_SEGMENT=1` to enable the kernel's built-in mock
 `image.segment` provider (the Phase 4 exit path, without installing a plugin).

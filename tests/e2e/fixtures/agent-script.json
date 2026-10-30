@@ -3,31 +3,136 @@
     {
       "when": "mitosis",
       "turns": [
-        { "text": "Let me look at the environment.", "toolCalls": [{ "name": "get_environment" }] },
+        {
+          "text": "Let me look at the environment.",
+          "toolCalls": [
+            {
+              "name": "get_environment"
+            }
+          ]
+        },
         {
           "toolCalls": [
             {
               "name": "patch_environment",
-              "arguments": { "patch": [{ "op": "add", "path": "/labels/0/classes/-", "value": { "id": "mitosis", "color": "#ff00aa" } }], "summary": "Add a mitosis class" }
+              "arguments": {
+                "patch": [
+                  {
+                    "op": "add",
+                    "path": "/labels/0/classes/-",
+                    "value": {
+                      "id": "mitosis",
+                      "color": "#ff00aa"
+                    }
+                  }
+                ],
+                "summary": "Add a mitosis class"
+              }
             }
           ]
         },
-        { "text": "Added a mitosis class." }
+        {
+          "text": "Added a mitosis class."
+        }
       ]
     },
     {
       "when": "class names",
       "turns": [
-        { "text": "That needs your OK first.", "toolCalls": [{ "name": "run_command", "arguments": { "id": "inkling.wsi.commands.toggleClassNames" } }] },
-        { "text": "The command ran." }
+        {
+          "text": "That needs your OK first.",
+          "toolCalls": [
+            {
+              "name": "run_command",
+              "arguments": {
+                "id": "inkling.wsi.commands.toggleClassNames"
+              }
+            }
+          ]
+        },
+        {
+          "text": "The command ran."
+        }
       ]
     },
     {
       "when": "unannotated",
       "turns": [
-        { "toolCalls": [{ "name": "list_items", "arguments": { "filter": "unannotated" } }] },
-        { "toolCalls": [{ "name": "show_items", "arguments": { "title": "Unannotated slides", "itemIds": ["TCGA-A6-5665"] } }] },
-        { "text": "Here is the slide still to do." }
+        {
+          "toolCalls": [
+            {
+              "name": "list_items",
+              "arguments": {
+                "filter": "unannotated"
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "show_items",
+              "arguments": {
+                "title": "Unannotated slides",
+                "itemIds": [
+                  "TCGA-A6-5665"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "text": "Here is the slide still to do."
+        }
+      ]
+    },
+    {
+      "when": "add segmentation",
+      "turns": [
+        {
+          "text": "Checking the registry.",
+          "toolCalls": [
+            {
+              "name": "search_plugins",
+              "arguments": {
+                "capability": "image.segment"
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "plan_plugin_change",
+              "arguments": {
+                "pluginId": "{{last.plugins.0.id}}"
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "stage_plugin",
+              "arguments": {
+                "requestId": "{{last.requestId}}"
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "request_install_approval",
+              "arguments": {
+                "requestId": "{{last.requestId}}"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Segmentation is installed."
+        }
       ]
     }
   ]

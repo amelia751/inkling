@@ -7,6 +7,8 @@ export * from "./naming";
 export * from "./types";
 export * from "./environment";
 export * from "./plugin-manifest";
+export * from "./annotation-revision";
+export * from "./annotation-diff";
 export * from "./ui-contributions";
 export * from "./workspace";
 export * from "./media-types";

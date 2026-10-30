@@ -11,27 +11,24 @@ It's a new deployable Go service, `apps/versioning`, reached only through `apps/
 
 ## Status (2026-10-30)
 
-Audited against `main` after the commit "todo4: dataset versioning service (apps/versioning, Go) with schemas and generated Python client". `go build ./...` and `go vet ./...` pass. 56 items done, 7 partial, 15 open.
+Audited against `main` after the commit "todo4: dataset versioning service (apps/versioning, Go) with schemas and generated Python client". `go build ./...` and `go vet ./...` pass. Updated 2026-10-30 after the README, benchmarks, unit tests, Phase 7 tests, the emitted annotation-revision schema and the `annotations.diff` block.
 
-- **Phase 0 (scaffold):** done except `apps/versioning/README.md`, which doesn't exist.
-- **Phase 1 (Git metadata core):** done. Postgres storer passes go-git's `storage/test` suite; RLS, roles, commit protocol, checkout and integration tests exist. Benchmark numbers aren't recorded, and two unit tests are integration-only.
-- **Phase 2 (dataset semantics):** done, except that `plugin-contracts` doesn't own or emit the annotation-revision schema.
-- **Phase 3 (scale and recovery):** done in code (Parquet chunks, outbox relay, reconciler, GC, limits). The load test exists, but the 1M-entry run was interrupted and no results are recorded.
-- **Phase 4 (contracts):** partial. Schemas, `openapi.yaml`, Go stubs and the Python client exist. There's no `annotations.diff` block in `plugin-manifest.ts` and no CI drift check.
+- **Phase 0 (scaffold):** done (`apps/versioning/README.md` added 2026-10-30).
+- **Phase 1 (Git metadata core):** done. Postgres storer passes go-git's `storage/test` suite; RLS, roles, commit protocol, checkout and integration tests exist. Benchmark numbers are recorded in the README, and the idempotency and foreign-tenant unit tests exist.
+- **Phase 2 (dataset semantics):** done. `plugin-contracts` owns and emits the annotation-revision schema (2026-10-30).
+- **Phase 3 (scale and recovery):** done in code (Parquet chunks, outbox relay, reconciler, GC, limits). 100k load results are recorded in the README. The 1M re-run was cut off again (the Docker daemon went away 35 min in); its partial result is recorded.
+- **Phase 4 (contracts):** partial. Schemas, `openapi.yaml`, Go stubs, the Python client and the `annotations.diff` block in `plugin-manifest.ts` exist. There's no CI drift check.
 - **Phase 5 (monorepo wiring):** not started. It waits for `todo3.md` (`turbo.json`, `infra/`, `.github/workflows/` and `docs/adr/` don't exist yet).
-- **Phase 6 (platform integration):** not started (no `routes/versioning.py`, web UI, agent tools, worker subscriber or e2e tests).
-- **Phase 7 (acceptance):** partial. Most criteria are covered by tests under different file names (`tests/integration/phase{1,2,3}_test.go`), but the stale-merge-target test, a release-verify integration test, k8s chaos, e2e flow C and the recorded load results are missing.
+- **Phase 6 (platform integration):** done. Agent tools `dataset_branch|commit|diff|open_review` are in `apps/agent/src/tools/kernel.ts` (task profile; opening a review asks; approve and merge are never exposed and the kernel refuses them). `routes/versioning.py` and the `<ns>.versioning.*` kernel commands (JWT minting, agent policy, audit), the Studio's versioned save flow and `studio/core/versioning/` UI (off unless the kernel reports the service configured), the `diffPreview` registry, the worker's de-identification subscriber, and `tests/e2e/versioning/` flows A, B and C pass against the real Go service, Postgres and an S3 store in Docker. `chaos_test.py` is a documented skip until the k8s overlay exists (todo3).
+- **Phase 7 (acceptance):** partial. Most criteria are covered by tests under different file names (`tests/integration/phase{1,2,3}_test.go`), plus `tests/integration/stale_target_test.go`, `release_verify_test.go`, `gc_mark_test.go` and e2e flow C (`tests/e2e/versioning/flow_c_test.py`). k8s chaos and a complete 1M load result are missing.
 
 ### What's left
 
-- **Phase 0:** write `apps/versioning/README.md` (how to run it, the architecture invariant, benchmark and load numbers).
-- **Phase 1:** record `make bench` results in the README; add unit tests for idempotency hit/miss/mismatch and foreign-tenant artifact rejection (in `internal/service/`).
-- **Phase 2:** make `packages/plugin-contracts` emit `schemas/versioning/annotation-revision.schema.json`.
-- **Phase 3:** re-run `make load` (100k, then `LOAD_ENTRIES=1000000`) after the interrupted 1M run, and record the results in `apps/versioning/README.md`.
-- **Phase 4:** add the `annotations.diff` block to `packages/plugin-contracts/src/plugin-manifest.ts` (and `schemas/plugin.v1.json`); run `make check-generated` in CI.
+- **Phase 3:** complete the `LOAD_ENTRIES=1000000` run (100k is recorded; the 2026-10-30 1M attempt lost the Docker daemon 35 min in, during the first 1% update) and record it in `apps/versioning/README.md`. Run it alone and give Docker more memory.
+- **Phase 4:** run `make check-generated` in CI.
 - **Phase 5 (after todo3):** `apps/versioning/Dockerfile`; the `versioning`, `minio-init` and `versioning-migrate` services in `infra/docker/compose.yaml`; `infra/k8s/base/versioning/`; `versioning-secrets`; a `go` job in `.github/workflows/ci.yml`; move `versioning.md` to `docs/versioning.md`; add a root `README.md` row; write `docs/adr/0002-versioning-storage.md`.
-- **Phase 6:** `apps/api/src/studio_api/routes/versioning.py` plus the kernel commands; the Studio save flow on `work/<actor>/<dataset>` branches; `apps/web/src/studio/core/versioning/`; agent tools in `apps/agent`; a worker subscriber for `versioning.review.opened`; `tests/e2e/versioning/` (flows A, B and C, plus `chaos_test.py`).
-- **Phase 7:** a merge stale-target test (409, review back to `CHECKING`); a release-verify integration test that iterates every release (today only the load test does this); a `gc/mark_test.go` checking that the reachable set covers all roots; recorded 1M results.
+- **Phase 6:** `tests/e2e/versioning/chaos_test.py` for real once the dev k8s overlay exists (todo3). Plugin-contributed `diffPreview`s (mask, span) through module manifests; today only the built-in box/polygon preview is registered.
+- **Phase 7:** recorded 1M results; k8s chaos. The stale-target, release-verify and GC-mark tests were added in `tests/integration/`.
 
 ---
 
@@ -120,7 +117,7 @@ Sources:
 - [x] `Makefile` targets: `generate`, `test`, `test-integration` (`-tags integration`), `fuzz`, `lint`, `vuln` (`govulncheck ./...`), `migrate-up`, `migrate-down`.
 - [x] `.golangci.yml`: `errcheck`, `govet`, `staticcheck`, `gosec`, `revive`, `bodyclose`, `sqlclosecheck`, `contextcheck`, `forbidigo`. Use `forbidigo` to ban `memory.NewStorage` outside `_test.go`, and `fmt.Print*` outside `cmd/`.
 - [x] `secrets/versioning.env.example`: the env vars from spec §15 with prefixes from V11, plus `…_JWT_PUBLIC_KEY_FILE` and `…_S3_ACCESS_KEY_ID/_SECRET`. Mention it in `secrets/README.md`.
-- [ ] `apps/versioning/README.md`: how to run it, and the architecture invariant from the last line of the spec.
+- [x] `apps/versioning/README.md`: how to run it, and the architecture invariant from the last line of the spec.
 
 ## Phase 1. Proven Git metadata core (spec §18 phase 1, focused on 2-D images)
 
@@ -152,7 +149,7 @@ Sources:
   - **`ShallowStorer`, `IndexStorer`:** no-ops or errors. Repos are bare with no worktree or index.
   - **`ConfigStorer`:** `repo_config` row. **`ModuleStorer`:** returns `ErrNotSupported`.
 - [x] Use go-git's storer conformance suite from `github.com/go-git/go-git/v5/storage/test` against the Postgres storer (testcontainers Postgres). Every test must pass.
-- [ ] Benchmarks: write and read 10k commits, and walk the ancestry of a 10k-commit chain. Record the numbers in the README. _(partial: `BenchmarkWrite10kCommits`, `BenchmarkRead10kCommitsCold`, `BenchmarkWalk10kAncestry` exist in `internal/gitengine/gitengine_integration_test.go`; numbers not recorded — `apps/versioning/README.md` doesn't exist)_
+- [x] Benchmarks: write and read 10k commits, and walk the ancestry of a 10k-commit chain. Record the numbers in the README. _(recorded 2026-10-30 in `apps/versioning/README.md`: write 15.8 s, cold read 3.8 s, cold walk 4.3 s, warm walk 17 ms)_
 
 ### 1.4 Object store adapter
 - [x] `internal/storage/blobstore.go`: an interface with `PutStaged(ctx, tenant, sha256, size, mediaType, r)` (streams, verifies the hash and length while uploading, rejects on mismatch), `Head`, `Get` (range reads), `PresignGet(ttl ≤ 5 min)`, `Delete` (GC only).
@@ -185,7 +182,7 @@ Sources:
 - [x] `POST /checkouts`: given a commit or tag plus an optional sample filter, returns the manifest (or a page of it) and **presigned GET URLs** (TTL ≤ 5 min, scoped to the listed objects). It writes an audit event for every checkout. A rate limit applies per actor.
 
 ### 1.8 Phase 1 tests (spec §17)
-- [ ] Unit: _(partial: canonical-hash `testing/quick` property test and `TestBranchNames` table exist; idempotency hit/miss/mismatch and foreign-tenant rejection are only covered by integration tests, no unit tests)_
+- [x] Unit: _(idempotency hit/miss/mismatch/scope in `internal/service/idempotency_test.go`, foreign-tenant rejection in `internal/service/artifacts_tenant_test.go`, against in-memory fakes)_
   - canonical hashing is stable across field order and Unicode normalisation (property test with `testing/quick`);
   - branch-name validation table, idempotency hit/miss/mismatch, rejection of foreign-tenant artifacts.
 - [x] Integration (`-tags integration`, testcontainers Postgres + MinIO):
@@ -201,7 +198,7 @@ Sources:
 - [x] The manifest has `annotations: [{annotation_id, revision_id, sample_id, kind, ontology_rev, ref}]`. `ref` points to an immutable annotation-revision document in object storage (canonical JSON).
   - `kind` is one of `box2d`, `polygon2d`, `mask2d`, `region3d`, `timespan`, `measurement` and `textspan`, matching the geometries in `plugin-contracts`.
   - `coordinate_frame` and `calibration` are versioned fields (spec §3.3).
-- [ ] Map the Studio's annotation model (todo2 `plugin-contracts` geometries) to these kinds in `schemas/versioning/annotation-revision.schema.json`, with **one** owner: `plugin-contracts` emits it. _(partial: `schemas/versioning/annotation-revision.schema.json` exists, hand-written; `plugin-contracts` doesn't emit it, so it has no single owner yet)_
+- [x] Map the Studio's annotation model (todo2 `plugin-contracts` geometries) to these kinds in `schemas/versioning/annotation-revision.schema.json`, with **one** owner: `plugin-contracts` emits it. _(2026-10-30: zod source and `toAnnotationRevision` in `packages/plugin-contracts/src/annotation-revision.ts`. The mapping is box→box2d; polygon, polyline, spline and keypoint→polygon2d; 2D mask→mask2d (column-major RLE); 3D mask and point3d→region3d (voxel box); measurement→measurement; span and instant→timespan; module geometries via the plugin's `moduleKinds` (e.g. text spans→textspan). class, track, ellipse and multipolygon have no v1 kind. `pnpm emit:schemas` writes the file. Compared with the hand-written version, the only changes are an explicit `type: string` next to `const`/`enum`, a 2^53−1 `maximum` on integers, and a no-op `propertyNames`. `go test ./...` in `apps/versioning` passes)_
 
 ### 2.2 Semantic diff (spec §7)
 - [x] `semanticdiff/dispatcher.go`: compare manifest roots, then (Phase 3) chunk hashes, then entries. Outputs paginated change records: `sample.added|removed|replaced`, `annotation.added|removed|changed{fields}`, `ontology.*`, `grouping.*`.
@@ -255,7 +252,7 @@ Sources:
   - sweep only objects that have been unreferenced for longer than `GC_GRACE_HOURS` and have no lease.
   - Sweeping is a separate, dry-run-by-default command, gated by a flag until retention is signed off (V9).
 - [x] Limits: `MAX_COMMIT_ENTRIES`, a maximum diff page size, a maximum commit-walk depth per request, per-actor rate limits on diff and checkout, and request timeouts (spec §14).
-- [ ] Load tests (`tests/load`, k6 or a Go harness against compose): _(partial: `tests/load/load_test.go` covers 100k/1M update→diff→merge→partial checkout, GC at 50 branches/200 releases, backup/restore; the 1M run was interrupted and no results are recorded in a README)_
+- [ ] Load tests (`tests/load`, k6 or a Go harness against compose): _(partial: `tests/load/load_test.go` covers 100k/1M update→diff→merge→partial checkout, GC at 50 branches/200 releases, backup/restore; 100k results recorded in `apps/versioning/README.md` (2026-10-30, all pass). The 1M re-run reached only put-manifest (5 m 22 s) and commit (60 ms) before the Docker daemon went away 35 min in; the partial result and why are in the README)_
   - 100k and 1M entries, with a 1% update → diff → merge → partial checkout;
   - GC at 50 branches and 200 releases;
   - backup/restore (`pg_dump` plus a bucket copy), then verify every release.
@@ -271,7 +268,7 @@ Sources:
   - Go server interfaces via `oapi-codegen` (`go generate`);
   - a Python client for `apps/api` via `openapi-python-client`, output to `apps/api/src/studio_api/clients/versioning/` and regenerated in CI with a diff check;
   - no TS client, since browsers never call this service.
-- [ ] `plugin.yaml` schema (todo2 2.1): add the optional `annotations.diff` block (V13). This is a one-section edit to `plugin-manifest.ts`; coordinate with whoever owns todo2. _(partial: `schemas/versioning/annotation-diff-rules.schema.json` exists and the service validates against it; `packages/plugin-contracts/src/plugin-manifest.ts` has no `annotations.diff` block)_
+- [x] `plugin.yaml` schema (todo2 2.1): add the optional `annotations.diff` block (V13). This is a one-section edit to `plugin-manifest.ts`; coordinate with whoever owns todo2. _(2026-10-30: `annotations.diff` is a list of `AnnotationDiffRule`s (`packages/plugin-contracts/src/annotation-diff.ts`) matching the rule items of `annotation-diff-rules.schema.json`, at most one per kind and with iou thresholds in (0, 1]. A vitest checks the enums against that file. `schemas/plugin.v1.json` and the kernel's pydantic contracts are regenerated, and the kernel checks the same cross-field rules)_
 - [ ] A CI drift check: regenerate everything and `git diff --exit-code`. _(partial: `make check-generated` regenerates and runs `git diff --exit-code`; no CI workflow runs it — `.github/workflows/` doesn't exist)_
 
 ## Phase 5. Wiring into the monorepo (after todo3 C.3, D.2, D.3 and F exist)
@@ -297,27 +294,31 @@ Sources:
 
 ## Phase 6. Platform integration (spec §18 phase 4; after todo2 Phases 2.3 and 4)
 
-- [ ] **`apps/api`** (`src/studio_api/routes/versioning.py`): the public routes mirror spec §10 under `/api/v1/datasets/{id}/…`.
+- [x] **`apps/api`** (`src/studio_api/routes/versioning.py`): the public routes mirror spec §10 under `/api/v1/datasets/{id}/…`.
   - Each handler authenticates the user, checks workspace permissions, mints the V4 JWT, calls the generated client, and writes a kernel audit entry.
   - Each route is registered as a kernel **command** (`<ns>.versioning.commit`, `.branch`, `.diff`, `.review.open`, `.review.approve`, `.merge`, `.release`, `.checkout`), so the gateway, the agent and MCP get them for free.
-- [ ] **Studio save flow:** today annotations are saved to the dataset. Switch to a working branch per user per dataset (`work/<actor-id>/<dataset>`). "Save" becomes a commit with `expected_head`; a 409 shows "someone else saved; refresh and re-apply". "Submit for review" opens a review into `main`.
-- [ ] **Web UI** (`apps/web/src/studio/core/versioning/`, V12):
+  - Done: `kernel/versioning/` (auth: dev key pair in `.data`, uuid5 tenant/project; client over the generated one; `service.py` operations; `fake.py` in-memory stand-in, also `API_VERSIONING_URL=memory:`). Agents never approve, merge, resolve, release or create datasets, and write only to `work/agent-*` (kernel-enforced, `versioning.denied` audit). Tests: `apps/api/tests/test_versioning.py`.
+- [x] **Studio save flow:** today annotations are saved to the dataset. Switch to a working branch per user per dataset (`work/<actor-id>/<dataset>`). "Save" becomes a commit with `expected_head`; a 409 shows "someone else saved; refresh and re-apply". "Submit for review" opens a review into `main`.
+- [x] **Web UI** (`apps/web/src/studio/core/versioning/`, V12):
   - a branch switcher in the top bar;
   - a history panel with a commit list and a revert action;
   - a review page (diff list grouped by sample, with a conflict-resolution UI choosing ours/theirs/custom, approvals and checks);
   - a releases list.
 
   Type-specific previews come from plugin renderers through a `diffPreview` contribution type, added to the todo2 2.3 renderer registry.
-- [ ] **Agent** (`apps/agent`, after todo1 is done): kernel tools `dataset_branch`, `dataset_commit`, `dataset_diff` and `dataset_open_review`, under the existing approval policy:
+  - Done: off unless `GET /api/v1/versioning/status` is `ready` (so the plain save path and existing e2e are unchanged); `registerDiffPreview`/`diffPreviewFor` in `extension-host/trusted-renderers.tsx` with a built-in box/polygon preview. Pages: `/datasets/:id/versions` (history + revert, reviews, releases) and `/datasets/:id/versions/reviews/:reviewId`.
+- [x] **Agent** (`apps/agent`, after todo1 is done): kernel tools `dataset_branch`, `dataset_commit`, `dataset_diff` and `dataset_open_review`, under the existing approval policy:
   - commits to `work/agent-*` branches are allowed;
   - opening a review needs user approval;
   - approve and merge are **never** exposed to the agent (spec §16C).
-- [ ] **Worker:** subscribe to `versioning.review.opened` to run the de-identification check, and post the result back through the api command.
-- [ ] **MCP:** nothing extra; the commands appear automatically through the gateway.
-- [ ] **e2e** (`tests/e2e/versioning/`):
+- [x] **Worker:** subscribe to `versioning.review.opened` to run the de-identification check, and post the result back through the api command.
+  - Done: the kernel publishes `versioning.review.opened` (and `…checks_requested` when a head move re-checks a review) into its outbox; `apps/worker/src/studio_worker/deid.py` claims them (`/api/v1/worker/subscriptions/claim|ack`), scans the changed samples' metadata (a deterministic dev check) and reports `deidentification` through `/api/v1/worker/versioning/run`.
+- [x] **MCP:** nothing extra; the commands appear automatically through the gateway.
+- [x] **e2e** (`tests/e2e/versioning/`, `run.py`; see its README):
   - flow A (initial upload, then `v1` visible);
   - flow B (two users edit the same annotation → conflict → resolve → merge → release);
   - flow C (an agent proposes a change on its branch → a human approves → merged; the agent's attempt to approve is rejected).
+  - `chaos_test.py` is a documented skip: it needs the dev k8s overlay (todo3).
 
 ## Phase 7. Acceptance (spec §17 MVP exit criteria and load checks)
 
@@ -326,10 +327,10 @@ Sources:
 | Refs survive restarts | `integration/restart_test.go` (1.8) + k8s pod-kill in `tests/e2e/versioning/chaos_test.py` |
 | Same data, reproducible commit, verified bytes | `manifests/canonical_test.go`, `integration/checkout_verify_test.go` |
 | Unapproved changes can't merge to protected `main` | `service/reviews_property_test.go`, e2e flow C |
-| A stale or concurrent write never replaces newer work | `concurrency/cas_test.go` (20 writers), `merge/stale_target_test.go` |
-| Every published version is retrievable and verified | `integration/release_verify_test.go` (iterates all releases) |
+| A stale or concurrent write never replaces newer work | `concurrency/cas_test.go` (20 writers), `merge/stale_target_test.go` (done as `tests/integration/stale_target_test.go`) |
+| Every published version is retrievable and verified | `integration/release_verify_test.go` (iterates all releases; done) |
 | Audit attributes every merge and revision | `integration/audit_test.go` |
-| The reconciler handles orphans without deleting reachable data | `integration/reconcile_test.go` + `gc/mark_test.go` (reachable set ⊇ all roots) |
+| The reconciler handles orphans without deleting reachable data | `integration/reconcile_test.go` + `gc/mark_test.go` (reachable set ⊇ all roots; done as `tests/integration/gc_mark_test.go`) |
 | Cross-tenant references are denied even with known hashes | `authz/tenant_test.go` + RLS test running raw SQL as `versioning_app` with the wrong `app.tenant_id` |
 | Scale | Phase 3 load results recorded, with 1M entries at a 1% update finishing diff and merge within the agreed budget |
 

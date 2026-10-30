@@ -1,6 +1,6 @@
 # @studio/agent
 
-The Inkling AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` (`AGENT_HOST=0.0.0.0` in containers) and only the Vite proxy (dev) or `apps/api` (later) talks to it. Any number of replicas can run behind a plain Service; see [Scaling](#scaling-replicas). Design: [`docs/agent.md`](../../docs/agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
+The Studio's AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` (`AGENT_HOST=0.0.0.0` in containers) and only the Vite proxy (dev) or `apps/api` (later) talks to it. Any number of replicas can run behind a plain Service; see [Scaling](#scaling-replicas). Design: [`docs/agent.md`](../../docs/agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
 
 ## Run
 
@@ -134,12 +134,38 @@ Not shared across replicas yet: artifact files (`/v1/artifacts/:id` is dev-only;
 
 Config is validated at startup; on error the process exits listing the key names (never values). Logs are JSON on stdout with `service`, `version`, `request_id` and `trace_id`; probes and `/version` are not access-logged.
 
+## Profiles
+
+The client picks a profile by name; the service decides its tools (`src/agent/profiles.ts`).
+
+| Profile | Tools | Kernel token scopes |
+|---|---|---|
+| `assistant` | dataset reads, cards | none |
+| `environment-designer` | + environment client tools | none |
+| `coder` | + Daytona sandbox (needs Daytona) | none |
+| `builder` | builder tools (`inspect_workspace`, `list_capabilities`, `search_plugins`, `inspect_plugin`, `plan_plugin_change`, `stage_plugin`, `request_install_approval`, `activate_plugin`, `configure_plugin`, `disable_plugin`, `rollback_plugin`) + environment client tools (no `run_command`); with Daytona, also `create_plugin_sandbox`, `run_plugin_checks`, `build_plugin_artifact` and file tools confined to `/home/daytona/plugin` | `plugins.read`, `plugins.manage`, `plugins.author` |
+| `task` | `list_assets`, `invoke_capability`, `create_job`, `get_job_status`, `list_annotations`, `export_dataset`; dataset versioning: `dataset_branch`, `dataset_commit`, `dataset_diff`, `dataset_open_review` (own `work/agent-*` branch only; no approve or merge) | `assets.read`, `assets.write`, `annotations.read`, `commands.invoke`, `versioning.read`, `versioning.write`, `versioning.review`, `versioning.checkout` |
+
+Builder and task tools call `apps/api` (`AGENT_KERNEL_URL`) with a token the Studio mints for the
+session's workspace and sends as `kernelToken` with each message. The workspace and principal come
+from that token, never from tool arguments. No agent token carries `plugins.approve`: installs are
+approved by the user in the Studio's install review, which `request_install_approval` opens through
+the approval broker (`approval.detail.kind = "plugin-install"`).
+
+Policy (`src/tools/policy.ts`): `stage_plugin`, `create_plugin_sandbox` and `build_plugin_artifact`
+are refused unless the user's own message in this run asks for a plugin change. Plugin skills and
+READMEs arrive in `<untrusted_plugin_content>` and can't authorise anything (docs/plugins.md §14 #4).
+Activating, configuring, disabling, rolling back and gateway runs ask first.
+
+Runtime names (sandbox labels and name prefix, env vars, log service name, the display name in
+prompts) come from `schemas/naming.json` (`src/naming.ts`).
+
 ## Layout
 
 | Path | What |
 |---|---|
 | `src/agent/` | session factory (no host discovery, no pi built-ins), profiles, `ModelRuntime` + scripted model, prompts |
-| `src/tools/` | `dataset` (server), `client` (browser bridge), `sandbox` (Daytona), `policy` (approval matrix + budgets) |
+| `src/tools/` | `dataset` (server), `client` (browser bridge), `sandbox` (Daytona), `kernel` (builder, task and plugin-build tools over apps/api), `policy` (approval matrix + budgets) |
 | `src/sandbox/` | Daytona client and errors, per-session manager, ops, exec, search, snapshot, sweeper, egress probe |
 | `src/runtime/` | sessions (registry, persistence through the store), runs, event projection + replay buffer, approvals |
 | `src/store/`, `src/bus/`, `src/cluster/` | `SessionStore` (file, Postgres + migrations), `RunEventBus` (memory, Redis Streams), `RunCoordinator` (run leases, inputs across replicas, event forwarding) |

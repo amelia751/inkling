@@ -7,6 +7,7 @@ import { ReviewPage } from "./routes/ReviewPage";
 import { PluginsPage } from "./routes/PluginsPage";
 import { FullPageMessage } from "./routes/shared";
 import { WorkspacePage } from "./routes/WorkspacePage";
+import { VersionReviewPage, VersionsPage } from "@/studio/core/versioning";
 
 const router = createBrowserRouter([
   { path: "/", element: <WorkspacePage /> },
@@ -21,6 +22,8 @@ const router = createBrowserRouter([
   { path: "/datasets/:datasetId/review", element: <ReviewPage /> },
   { path: "/datasets/:datasetId/plugins", element: <PluginsPage /> },
   { path: "/datasets/:datasetId/export", element: <ExportPage /> },
+  { path: "/datasets/:datasetId/versions", element: <VersionsPage /> },
+  { path: "/datasets/:datasetId/versions/reviews/:reviewId", element: <VersionReviewPage /> },
   { path: "*", element: <FullPageMessage title="Page not found" /> },
 ]);
 

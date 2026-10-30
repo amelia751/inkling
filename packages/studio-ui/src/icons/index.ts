@@ -36,6 +36,10 @@ export { default as SendIcon } from "@gravity-ui/icons/PaperPlane";
 export { default as LicenseIcon } from "@gravity-ui/icons/ShieldCheck";
 export { default as FileIcon } from "@gravity-ui/icons/FileCode";
 export { default as BrandIcon } from "@gravity-ui/icons/Droplet";
+// Dataset versioning
+export { default as BranchIcon } from "@gravity-ui/icons/CodeFork";
+export { default as MergeIcon } from "@gravity-ui/icons/CodeMerge";
+export { default as HistoryIcon } from "@gravity-ui/icons/ClockArrowRotateLeft";
 
 // Disclosure and direction
 export { default as ChevronDownIcon } from "@gravity-ui/icons/ChevronDown";

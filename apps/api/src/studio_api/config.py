@@ -18,6 +18,10 @@ that are missing or invalid, never their values.
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
 | API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
 | API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
+| API_VERSIONING_URL        | (none)                           | apps/versioning base URL; unset = versioning routes answer 503 |
+| API_VERSIONING_TENANT     | default                          | tenant sent to the versioning service |
+| API_VERSIONING_JWT_KEY_FILE / API_VERSIONING_JWKS_FILE | dev: generated | Ed25519 signing key / its public JWKS |
+| API_VERSIONING_JWT_AUDIENCE / _ISSUER | versioning / api     | JWT claims for versioning calls |
 | REDIS_URL                 | (none)                           | needed when JOB_QUEUE or EVENT_BUS is redis |
 | BLOB_STORE                | local                            | `local` (files) or `s3` |
 | S3_ENDPOINT               | (AWS)                            | S3-compatible endpoint, e.g. MinIO |
@@ -89,6 +93,17 @@ class Settings(BaseModel):
     event_rate_per_minute: int = 600
     event_max_depth: int = 4
     job_lease_s: int = 60
+    # Dataset versioning (todo4 Phase 6): apps/versioning's internal URL. Unset means the
+    # service isn't configured: the versioning routes answer 503 and the Studio keeps its
+    # plain save path. The API mints a 60 s Ed25519 JWT per call (todo4 V4) with the key in
+    # `versioning_key_file`; the service reads the public half from `versioning_jwks_file`
+    # (its <envPrefix>VERSIONING_JWT_PUBLIC_KEY_FILE). Both are generated in dev if absent.
+    versioning_url: str | None = None
+    versioning_tenant: str = "default"
+    versioning_key_file: Path | None = None
+    versioning_jwks_file: Path | None = None
+    versioning_audience: str = "versioning"
+    versioning_issuer: str = "api"
     extra: dict[str, str] = Field(default_factory=dict)
 
     # Stateless deployment (todo/todo3.md E.2): where state, blobs, jobs and events live.
@@ -130,6 +145,12 @@ _KEYS: dict[str, str] = {
     "dev_trust_headers": "API_DEV_TRUST_HEADERS",
     "builtin_mock_segment": "API_BUILTIN_MOCK_SEGMENT",
     "housekeeping_interval_s": "API_HOUSEKEEPING_INTERVAL_S",
+    "versioning_url": "API_VERSIONING_URL",
+    "versioning_tenant": "API_VERSIONING_TENANT",
+    "versioning_key_file": "API_VERSIONING_JWT_KEY_FILE",
+    "versioning_jwks_file": "API_VERSIONING_JWKS_FILE",
+    "versioning_audience": "API_VERSIONING_JWT_AUDIENCE",
+    "versioning_issuer": "API_VERSIONING_JWT_ISSUER",
     "redis_url": "REDIS_URL",
     "blob_store": "BLOB_STORE",
     "s3_endpoint": "S3_ENDPOINT",

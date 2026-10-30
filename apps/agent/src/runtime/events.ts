@@ -80,7 +80,7 @@ export function toolTitle(name: string, args: any, label?: string): string {
   }
 }
 
-/** Stateful projection of one run's pi events onto the Inkling panel contract. */
+/** Stateful projection of one run's pi events onto the Studio panel contract. */
 export class Projector {
   private readonly args = new Map<string, unknown>();
   private readonly progress = new Map<string, number>();

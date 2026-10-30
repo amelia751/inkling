@@ -37,6 +37,8 @@ export interface PlanItem {
   dataResidency: string[];
   uiSurfaces: string[];
   licenses: Record<string, unknown>;
+  /** Generated (agent-authored) plugins: what changed against the base (template, fork or previous version). */
+  codeDiff?: { base: string; added: string[]; changed: string[]; removed: string[]; diff: string; truncated: boolean };
 }
 
 export interface InstallRequest {
@@ -76,6 +78,7 @@ async function call<T>(workspaceId: string, method: string, path: string, body?:
 export const searchPlugins = (workspaceId: string, q = "") => call<{ plugins: PluginSummary[] }>(workspaceId, "GET", `/plugins${q ? `?q=${encodeURIComponent(q)}` : ""}`).then((r) => r.plugins);
 export const installedPlugins = (workspaceId: string) => call<{ plugins: InstalledPlugin[]; history: { pluginId: string; version: string; state: string; actor: string; at: string }[] }>(workspaceId, "GET", `/workspaces/${workspaceId}/plugins`);
 export const planInstall = (workspaceId: string, pluginId: string, version?: string) => call<InstallRequest>(workspaceId, "POST", `/workspaces/${workspaceId}/plugins/plan`, { pluginId, version });
+export const getInstallRequest = (workspaceId: string, requestId: string) => call<InstallRequest>(workspaceId, "GET", `/workspaces/${workspaceId}/plugins/requests/${encodeURIComponent(requestId)}`);
 export const stageInstall = (workspaceId: string, requestId: string) => call<InstallRequest>(workspaceId, "POST", `/workspaces/${workspaceId}/plugins/stage`, { requestId });
 export const approveInstall = (workspaceId: string, requestId: string, grantOptional: string[]) => call<InstallRequest>(workspaceId, "POST", `/workspaces/${workspaceId}/plugins/approve`, { requestId, grantOptional });
 export const rejectInstall = (workspaceId: string, requestId: string) => call<InstallRequest>(workspaceId, "POST", `/workspaces/${workspaceId}/plugins/reject`, { requestId });

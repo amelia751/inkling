@@ -104,6 +104,7 @@ function PlanSection({ item, primary, optional, onToggle }: { item: PlanItem; pr
           </div>
         ))}
       </dl>
+      {item.codeDiff && <CodeDiff diff={item.codeDiff} />}
       {primary && item.permissions.optional.length > 0 && (
         <fieldset className="mt-3 space-y-1.5">
           <legend className="mb-1 text-muted-foreground">Optional permissions (grant only what you need)</legend>
@@ -116,6 +117,28 @@ function PlanSection({ item, primary, optional, onToggle }: { item: PlanItem; pr
         </fieldset>
       )}
     </section>
+  );
+}
+
+/** Agent-authored code (§9): the reviewer sees every changed file before anything runs. */
+function CodeDiff({ diff }: { diff: NonNullable<PlanItem["codeDiff"]> }) {
+  const files = [...diff.added.map((f) => `+ ${f}`), ...diff.changed.map((f) => `~ ${f}`), ...diff.removed.map((f) => `- ${f}`)];
+  return (
+    <details className="mt-3" open data-testid="install-code-diff">
+      <summary className="cursor-pointer text-muted-foreground">
+        Code changes against {diff.base}: {files.length} file{files.length === 1 ? "" : "s"}
+      </summary>
+      <p className="mt-1 font-mono text-code text-muted-foreground">{files.join("  ")}</p>
+      <pre className="mt-2 max-h-80 overflow-auto rounded-md bg-generic p-2.5 font-mono text-code whitespace-pre">
+        {diff.diff.split("\n").map((line, i) => (
+          <span key={i} className={line.startsWith("+") && !line.startsWith("+++") ? "text-positive" : line.startsWith("-") && !line.startsWith("---") ? "text-danger" : undefined}>
+            {line}
+            {"\n"}
+          </span>
+        ))}
+      </pre>
+      {diff.truncated && <p className="mt-1 text-muted-foreground">The diff is truncated; the full package is in the artifact store.</p>}
+    </details>
   );
 }
 

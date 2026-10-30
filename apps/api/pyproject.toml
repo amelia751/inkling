@@ -17,6 +17,9 @@ dependencies = [
     "boto3>=1.35",
     "jsonpatch>=1.33",
     "studio-observability",
+    # The generated versioning client (src/studio_api/clients/versioning) needs these.
+    "attrs>=24.2",
+    "python-dateutil>=2.9",
 ]
 
 [project.optional-dependencies]

@@ -3,8 +3,9 @@
     uv run studio-worker [--kernel http://127.0.0.1:8000] [--once] [--plugins <id> …]
     uv run studio-worker --prepare-envs [--plugins <id|dir> …]     # image build time
 
-Loop: claim a job from the kernel → find the plugin's locked `uv` environment (prebuilt in
-`WORKER_ENVS_DIR`, or built once with `uv sync --locked`) → run `python -m
+Loop: run the built-in review checks (`deid.py`: the de-identification check for dataset
+reviews) → claim a job from the kernel → find the plugin's locked `uv` environment (prebuilt
+in `WORKER_ENVS_DIR`, or built once with `uv sync --locked`) → run `python -m
 studio_plugin_sdk.runner` in it as a separate process (own session, CPU and memory limits,
 a timeout, a minimal environment and an egress allowlist proxy) → forward progress →
 report the result or the error to the kernel, which validates and commits it. A plugin
@@ -38,6 +39,7 @@ from studio_observability import bound, httpx_request_hook, setup_service, trace
 
 from . import config, health
 from .config import env  # noqa: F401 — kept for callers that read namespaced env vars
+from .deid import DeidSubscriber
 from .egress import EgressProxy
 
 log = logging.getLogger("studio_worker")
@@ -82,6 +84,8 @@ class Worker:
         self.stopping = threading.Event()
         self._stop_at: float | None = None
         self.busy = False
+        # Built-in subscriber: the de-identification check for dataset reviews (todo4 Phase 6).
+        self.deid = DeidSubscriber(self.http)
 
     def request_stop(self) -> None:
         """SIGTERM: no new claims from now on; the current job gets the grace period."""
@@ -141,6 +145,7 @@ class Worker:
             "workspaceId": job["workspaceId"],
             "jobId": job_id,
             "traceparent": traceparent(),
+            "naming": NAMING,  # the SDK has no reliable path to schemas/ inside a plugin env
         }
         mem = plugin.get("memoryMb")
         home = self.data_dir / "home"
@@ -244,6 +249,10 @@ class Worker:
         if self.stopping.is_set():
             return False
         self.http.post("/api/v1/worker/events/deliver")
+        try:
+            self.deid.tick()
+        except httpx.HTTPError as e:
+            log.warning("review checks: %s", type(e).__name__)
         r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins})
         r.raise_for_status()
         claim = r.json()

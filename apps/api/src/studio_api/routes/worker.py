@@ -8,8 +8,10 @@ one broker use token per provider secret; the plugin process gets nothing else.
 from __future__ import annotations
 
 import hmac
+import uuid
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -90,6 +92,51 @@ def deliver(db: Session = Depends(get_session)):
     from ..kernel import eventbus
 
     return {"delivered": eventbus.deliver(db)}
+
+
+# ---- Built-in subscriptions and versioning checks (todo4 Phase 6) ----------------------------
+# The worker's de-identification check subscribes to `versioning.review.opened` (and
+# `…checks_requested`, published when a head move sends a review back to CHECKING). It reads
+# the review through the same kernel operations as everyone else, as a service principal
+# limited to reading and reporting checks, and posts the result back here.
+
+WORKER_VERSIONING_OPS = {"review.get", "diff", "checkout", "review.check"}
+WORKER_VERSIONING_SCOPES = ("versioning.read", "versioning.checkout", "versioning.checks")
+
+
+@router.post("/subscriptions/claim", dependencies=[Depends(_auth)])
+def claim_events(body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import events
+
+    subscriber = str(body.get("subscriber") or "")
+    types = [str(t) for t in body.get("types") or []]
+    if not subscriber or not types:
+        raise HTTPException(422, "subscriber and types are required")
+    evs = events.claim_for(db, subscriber, types, int(body.get("limit") or 20))
+    return {"events": [{"eventId": e.event_id, "type": e.type, "workspaceId": e.workspace_id, "payload": e.payload, "correlationId": e.correlation_id, "depth": e.depth} for e in evs]}
+
+
+@router.post("/subscriptions/ack", dependencies=[Depends(_auth)])
+def ack_events(body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import events
+
+    return {"acked": events.ack(db, str(body.get("subscriber") or ""), [str(x) for x in body.get("eventIds") or []])}
+
+
+@router.post("/versioning/run", dependencies=[Depends(_auth)])
+def versioning_run(body: dict = Body(...), db: Session = Depends(get_session)):
+    """Run a read or report-check versioning operation in a workspace, as the worker."""
+    from ..kernel.versioning import service as vservice
+
+    op = str(body.get("op") or "")
+    if op not in WORKER_VERSIONING_OPS:
+        raise HTTPException(403, f"the worker can't run {op!r}")
+    workspace = str(body.get("workspaceId") or "")
+    if not workspace:
+        raise HTTPException(422, "workspaceId is required")
+    ctx = RequestContext(workspace, f"service:{body.get('subscriber') or 'worker'}"[:128], str(body.get("correlationId") or uuid.uuid4().hex), scopes=WORKER_VERSIONING_SCOPES)
+    status, out = vservice.run(db, ctx, op, str(body.get("datasetId") or ""), body.get("body") or {})
+    return JSONResponse(out, status_code=status)
 
 
 

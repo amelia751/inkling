@@ -157,6 +157,57 @@ def commit(db: Session, ctx: RequestContext, annotations: list[dict], *, idempot
     return [a["id"] for a in checked]
 
 
+# Core (bare-named) geometry types a plugin may write; module geometries are `<module>.<name>`.
+CORE_GEOMETRIES = {"class", "box", "ellipse", "polygon", "multipolygon", "polyline", "spline", "keypoint", "point3d", "measurement", "mask", "span", "instant", "track"}
+
+
+def plugin_write(db: Session, ctx: RequestContext, job: Any, annotations: list[Any], *, key: str | None) -> list[str]:
+    """`annotations.write` for a plugin session (the SDK's `ctx.annotations.write`).
+
+    The same guarantees as the gateway's commit path, with identity from the context:
+    the write is bound to a running job of the calling plugin version, each annotation is
+    shape-checked (§14 #5), its item must be an asset of this workspace, and the kernel sets
+    `author`, `provenance` and the stored id, so a plugin can neither pose as a human nor
+    overwrite annotations it didn't write. Idempotent per (job, key) (§14 #7).
+    """
+    from . import assets
+
+    if job.state != "running" or ctx.principal != f"plugin:{job.plugin_id}@{job.version}":
+        raise HTTPException(409, "annotations can only be written by the plugin version running this job")
+    if not isinstance(annotations, list) or not annotations or len(annotations) > 1000:
+        raise HTTPException(422, "annotations must be a list of 1-1000 annotations")
+    now = datetime.now(UTC).isoformat()
+    out = []
+    for i, a in enumerate(annotations):
+        if not isinstance(a, dict):
+            raise HTTPException(422, f"annotations[{i}] must be an object")
+        local = str(a.get("id") or i)
+        attrs = {**(a.get("attributes") or {}), "job_id": job.job_id, "review_status": "pending"}
+        if job.provider:
+            attrs.setdefault("provider", job.provider)
+        stamped = {
+            **{k: v for k, v in a.items() if k not in ("author", "provenance", "createdAt", "updatedAt")},
+            "id": uuid.uuid5(uuid.NAMESPACE_URL, f"{job.job_id}/write/{local}").hex,
+            "author": ctx.principal,
+            "provenance": "ai-suggested",
+            "createdAt": now,
+            "attributes": attrs,
+        }
+        try:
+            validate_annotation(stamped)
+            t = canonical_id(stamped["geometry"]["type"])
+            if t not in CORE_GEOMETRIES and "." not in t:
+                raise ValueError(f"geometry type {t!r} is neither a core geometry nor a module geometry (<module>.<name>)")
+        except ValueError as e:
+            raise HTTPException(422, f"annotations[{i}]: {e}") from e
+        try:
+            assets.get_asset(db, ctx, stamped["itemId"])
+        except HTTPException as e:
+            raise HTTPException(422, f"annotations[{i}]: item {stamped['itemId']!r} isn't an asset of this workspace") from e
+        out.append(stamped)
+    return commit(db, ctx, out, idempotency_key=f"job:{job.job_id}:write:{key or uuid.uuid4().hex}", job_id=job.job_id, source=f"{job.plugin_id}.{job.tool}")
+
+
 def list_annotations(db: Session, ctx: RequestContext, item_id: str | None = None, label: str | None = None, limit: int = 1000) -> list[dict]:
     anns = get_document(db, ctx)["annotations"]
     if item_id:

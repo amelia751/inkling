@@ -7,6 +7,8 @@
 //   ../../docs/modules-reference.md    — the same, for humans
 //   ../../schemas/{plugin,ui-contributions,workspace}.v1.json, capabilities/*.json
 //                                      — contract schemas (packages/plugin-contracts) for the kernel
+//   ../../schemas/versioning/annotation-revision.schema.json
+//                                      — the annotation revision contract read by apps/versioning
 //   ../../schemas/naming.json          — the naming config (packages/plugin-contracts/src/naming.ts)
 //                                        for the Python kernel, worker, SDK, mcp.mjs and apps/agent
 // Never hand-edit these. `--check` exits 1 if they're stale (CI drift check).

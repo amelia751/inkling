@@ -1,7 +1,7 @@
 """Plugin process entry: `python -m studio_plugin_sdk.runner` (run by apps/worker).
 
 stdin: one JSON job {entrypoint, tool, input, kernelUrl, sessionToken, secretUseTokens,
-provider, config, workspaceId, jobId}. stdout: JSON lines — {"type": "progress", …} while
+provider, config, workspaceId, jobId, naming}. stdout: JSON lines — {"type": "progress", …} while
 running, then exactly one {"type": "result", "result": …} or {"type": "error", "error": …,
 "recoverable": bool}. Anything else a plugin prints goes to stderr, not the protocol.
 """
@@ -16,7 +16,8 @@ import traceback
 
 import httpx
 
-from .context import AssetsClient, JobsClient, SecretsClient, ToolContext
+from . import naming
+from .context import AnnotationsClient, AssetsClient, JobsClient, SecretsClient, ToolContext
 from .registry import Registry, ToolError
 
 
@@ -27,6 +28,8 @@ def main() -> int:
     # Plugin prints must not corrupt the protocol stream.
     sys.stdout = sys.stderr
     try:
+        if job.get("naming"):
+            naming.configure(job["naming"])  # before the plugin imports, so its ids use it
         mod_name, fn_name = job["entrypoint"].split(":")
         registry = Registry()
         getattr(importlib.import_module(mod_name), fn_name)(registry)
@@ -41,6 +44,7 @@ def main() -> int:
                 workspace_id=job["workspaceId"],
                 job_id=job["jobId"],
                 assets=AssetsClient(http),
+                annotations=AnnotationsClient(http, job["jobId"]),
                 jobs=JobsClient(emit),
                 secrets=SecretsClient(http, job.get("secretUseTokens") or {}),
                 provider=job.get("provider"),

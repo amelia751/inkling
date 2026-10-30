@@ -1,4 +1,5 @@
 import { pino } from "pino";
+import { NAMING } from "./naming.ts";
 
 export type Logger = pino.Logger;
 
@@ -10,7 +11,7 @@ export type Logger = pino.Logger;
 export function createLogger(level: string = process.env.LOG_LEVEL ?? "info"): Logger {
   return pino({
     level,
-    base: { svc: "inkling-agent" },
+    base: { svc: `${NAMING.resourcePrefix}-agent` },
     redact: {
       paths: [
         "apiKey",

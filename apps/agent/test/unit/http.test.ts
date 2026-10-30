@@ -52,7 +52,7 @@ describe("HTTP API", () => {
     expect((await h.app.request("/v1/status")).status).toBe(401);
     expect((await h.app.request("/v1/status", { headers: { authorization: "Bearer wrong" } })).status).toBe(401);
     const ok = await h.app.request("/v1/status", { headers: { authorization: `Bearer ${TOKEN}` } });
-    expect(await ok.json()).toMatchObject({ configured: true, provider: "scripted", sandbox: "off", profiles: ["assistant", "environment-designer"] });
+    expect(await ok.json()).toMatchObject({ configured: true, provider: "scripted", sandbox: "off", profiles: ["assistant", "environment-designer", "builder", "task"] });
   });
 
   it("validates bodies and rejects client tools outside the profile allowlist", async () => {

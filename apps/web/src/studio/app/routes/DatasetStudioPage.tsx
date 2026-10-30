@@ -26,6 +26,7 @@ import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/
 import type { Project, StudioItem } from "@studio/plugin-contracts/types";
 import { FullPageMessage, useProject } from "./shared";
 import { NAMING, RES, ns } from "@studio/plugin-contracts/naming";
+import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
 
 const AUTOSAVE_MS = 800;
 // The schema form library only loads when the settings dialog opens.
@@ -81,7 +82,9 @@ function useEnvironment(project: Project | undefined): Boot {
 export function DatasetStudioPage() {
   const { datasetId = "" } = useParams();
   const { project, isLoading, error } = useProject(datasetId);
-  const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => fetchAnnotations(datasetId), enabled: !!project, staleTime: Infinity });
+  // With dataset versioning on (the kernel reports it configured), this is the user's work
+  // branch; otherwise the plain document, exactly as before.
+  const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => loadDocument(datasetId, () => fetchAnnotations(datasetId)), enabled: !!project, staleTime: Infinity });
   const boot = useEnvironment(project);
   const projectId = useStudio((s) => s.projectId);
   const load = useStudio((s) => s.load);
@@ -319,10 +322,17 @@ function useAutosave(projectId: string) {
       const snapshot = s.annotations;
       s.markSaving();
       try {
-        const v2 = !snapshot.some((a) => LEGACY_TYPES.test(a.geometry.type));
-        const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot, ...(v2 ? { annotationsVersion: ANNOTATIONS_VERSION } : {}) });
-        useStudio.getState().markSaved(doc.revision, snapshot);
-      } catch {
+        if (useVersioning.getState().enabled) {
+          // A commit on the work branch with expected_head (core/versioning).
+          useStudio.getState().markSaved(await saveVersioned(projectId, snapshot), snapshot);
+        } else {
+          const v2 = !snapshot.some((a) => LEGACY_TYPES.test(a.geometry.type));
+          const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot, ...(v2 ? { annotationsVersion: ANNOTATIONS_VERSION } : {}) });
+          useStudio.getState().markSaved(doc.revision, snapshot);
+        }
+      } catch (e) {
+        // A stale head shows "someone else saved; refresh and re-apply" in the top bar.
+        if (!(e instanceof StaleHeadError)) console.warn("[save]", e);
         useStudio.getState().markError();
         return;
       } finally {

@@ -29,7 +29,7 @@ export interface SessionDeps {
  * A pi session with nothing discovered from disk: no AGENTS.md, skills, prompt templates, themes or
  * extensions from the host or ~/.pi. Only the tools passed in are enabled (pi's built-ins are not).
  */
-export async function createInklingSession(deps: SessionDeps): Promise<AgentSession> {
+export async function createStudioSession(deps: SessionDeps): Promise<AgentSession> {
   const settingsManager = SettingsManager.inMemory({ compaction: { enabled: true }, retry: { enabled: true, maxRetries: 2 } });
   const agentDir = join(dataDir(deps.config), "pi");
   const resourceLoader = new DefaultResourceLoader({

@@ -1,12 +1,13 @@
 import type { CreateSandboxFromSnapshotParams } from "@daytona/sdk";
 import type { Config } from "../config.ts";
+import { NAMING } from "../naming.ts";
 
 export const SANDBOX_HOME = "/home/daytona";
 export const SANDBOX_CWD = `${SANDBOX_HOME}/work`;
 export const SANDBOX_DATA_DIR = `${SANDBOX_HOME}/data`;
 export const SANDBOX_OUT_DIR = `${SANDBOX_HOME}/out`;
-export const SANDBOX_LOG_DIR = `${SANDBOX_HOME}/.inkling/logs`;
-export const APP_LABEL = "inkling";
+export const SANDBOX_LOG_DIR = `${SANDBOX_HOME}/.${NAMING.resourcePrefix}/logs`;
+export const APP_LABEL = NAMING.resourcePrefix;
 
 export interface SandboxOwner {
   sessionId: string;
@@ -17,7 +18,14 @@ export interface SandboxOwner {
   labels?: Record<string, string>;
   /** Restricted projects get no egress at all. */
   restricted?: boolean;
+  /** Narrower egress than the org default (plugin builds: the package index only). */
+  egressAllow?: string[];
+  /** Extra env vars (plugin builds: fake credentials, so code that reads them fails safely). */
+  envVars?: Record<string, string>;
 }
+
+/** Plugin-build sandboxes (todo2 Phase 9) may reach the Python package index and nothing else. */
+export const PACKAGE_INDEX_HOSTS = ["pypi.org", "files.pythonhosted.org"];
 
 const slug = (s: string) =>
   s
@@ -70,14 +78,16 @@ export function createParams(
     autoStopInterval: s.autoStopMin,
     autoArchiveInterval: s.autoArchiveMin,
     autoDeleteInterval: s.autoDeleteMin,
-    envVars: { INKLING_SESSION: who.sessionId, PYTHONUNBUFFERED: "1", MPLBACKEND: "Agg" },
+    envVars: { ...who.envVars, [`${NAMING.envPrefix}SESSION`]: who.sessionId, PYTHONUNBUFFERED: "1", MPLBACKEND: "Agg" },
   };
   if (s.ttlMin > 0) params.ttlMinutes = s.ttlMin;
   if (opts.snapshot) params.snapshot = opts.snapshot;
   const egress = opts.egress ?? DEFAULT_EGRESS;
   if (egress.canOverride) {
     if (who.restricted) params.networkBlockAll = true;
-    else params.domainAllowList = egress.allowDomains.slice(0, 100).join(",");
+    else params.domainAllowList = (who.egressAllow ?? egress.allowDomains).slice(0, 100).join(",");
   }
+  // Without override rights (tier 1–2) Daytona rejects any network setting, so a plugin-build
+  // sandbox keeps the org default there; it has no bash, only file tools and run_plugin_checks.
   return params;
 }

@@ -142,7 +142,7 @@ describe("approvals", () => {
 describe("policy (agent.md §10.1)", () => {
   const budgets: Budgets = { maxToolCalls: 80, maxRunSeconds: 900, maxSpendUsd: 2 };
   const now = 1_000_000;
-  const state = (s: Partial<PolicyState> = {}): PolicyState => ({ toolCalls: 0, startedAt: now, spendUsd: 0, restricted: false, egressContained: false, ...s });
+  const state = (s: Partial<PolicyState> = {}): PolicyState => ({ toolCalls: 0, startedAt: now, spendUsd: 0, restricted: false, egressContained: false, userText: "", ...s });
   const d = (toolName: string, input: Record<string, unknown> = {}, s?: Partial<PolicyState>, bytes?: number) =>
     decide({ toolName, input }, state(s), budgets, { bytes }, now).kind;
 

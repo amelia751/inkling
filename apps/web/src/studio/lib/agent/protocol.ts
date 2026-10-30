@@ -11,6 +11,7 @@ export type {
   AgentEventBody,
   AgentStatus,
   ApprovalDecisionRequest,
+  ApprovalDetail,
   ArtifactInfo,
   ClientToolResultRequest,
   ClientToolSpec,

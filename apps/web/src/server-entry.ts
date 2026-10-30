@@ -5,6 +5,7 @@
  */
 import * as z from "zod";
 import { imageSegment } from "@studio/plugin-contracts/capabilities";
+import { annotationRevisionJsonSchema } from "@studio/plugin-contracts/annotation-revision";
 import { NAMING } from "@studio/plugin-contracts/naming";
 import { PluginManifest } from "@studio/plugin-contracts/plugin-manifest";
 import { UiContributions } from "@studio/plugin-contracts/ui-contributions";
@@ -60,6 +61,8 @@ export function contractSchemas(): Record<string, unknown> {
     "workspace.v1.json": js(WorkspaceState, "workspace/v1"),
     "capabilities/image.segment.request.json": js(imageSegment.SegmentRequest, "capabilities/image.segment/request"),
     "capabilities/image.segment.result.json": js(imageSegment.SegmentResult, "capabilities/image.segment/result"),
+    // Read by apps/versioning (Go); keeps its file-relative $id.
+    "versioning/annotation-revision.schema.json": annotationRevisionJsonSchema(),
   };
 }
 

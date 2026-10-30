@@ -4,14 +4,14 @@ import { join } from "node:path";
 import type { Daytona, Sandbox } from "@daytona/sdk";
 import { type AgentSession, type ModelRuntime, SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { FileEntry } from "@earendil-works/pi-coding-agent";
-import { createInklingSession } from "../agent/factory.ts";
+import { createStudioSession } from "../agent/factory.ts";
 import type { RunEventBus } from "../bus/types.ts";
 import { MemoryRunEventBus } from "../bus/memory.ts";
 import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
 import { fileStore } from "../store/index.ts";
 import type { SessionStore, StoredMeta } from "../store/types.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
-import { PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
+import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
 import type { Config } from "../config.ts";
 import type { Logger } from "../log.ts";
 import type {
@@ -24,11 +24,13 @@ import type {
   SendMessageRequest,
   SessionInfo,
 } from "../protocol.ts";
-import { type EgressPolicy, SANDBOX_CWD } from "../sandbox/defaults.ts";
+import { NAMING } from "../naming.ts";
+import { type EgressPolicy, PACKAGE_INDEX_HOSTS, SANDBOX_CWD } from "../sandbox/defaults.ts";
 import { type SandboxEvent, SandboxManager, type SandboxRefStore } from "../sandbox/manager.ts";
 import { reclaimForQuota } from "../sandbox/sweeper.ts";
 import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/client.ts";
 import { SeedApiDatasetSource, SessionDatasetSource, StudioSampleSource, createDatasetTools } from "../tools/dataset.ts";
+import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
@@ -72,6 +74,8 @@ export class SessionContext {
   /** Set by SessionService: records approvals/client-tool calls (cluster/coordinator.ts) before emitting. */
   emitHook: ((body: Parameters<Run["events"]["push"]>[0]) => void) | undefined;
   onClientToolSettled: ((callId: string) => void) | undefined;
+  /** Kernel session token (builder / task); memory only, the Studio refreshes it per message. */
+  kernelToken: string | undefined;
   private unsubscribe: (() => void) | undefined;
 
   constructor(
@@ -92,7 +96,16 @@ export class SessionContext {
       onResolved: (approvalId, decision) => emit({ type: "approval-resolved", approvalId, decision: decision.decision }),
     });
     this.dataset = new SessionDatasetSource(meta.projectId, new SeedApiDatasetSource(meta.projectId, config.studioUrl));
-    this.policy = { toolCalls: 0, startedAt: Date.now(), spendUsd: 0, restricted: meta.restricted, egressContained };
+    this.policy = {
+      toolCalls: 0,
+      startedAt: Date.now(),
+      spendUsd: 0,
+      restricted: meta.restricted,
+      egressContained,
+      userText: "",
+      workspaceId: meta.projectId,
+      pathRoot: profile.kernel === "builder" ? PLUGIN_DIR : undefined,
+    };
   }
 
   get id(): string {
@@ -269,7 +282,7 @@ export class SessionService {
       throw new HttpError(429, `session limit (${this.config.limits.maxSessions}) reached; delete a session first`);
     const profileName = req.profile ?? "assistant";
     const profile = PROFILES[profileName];
-    if (profile.sandbox && !this.sandboxes) throw new HttpError(409, "The coder profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.");
+    if (profile.sandbox === true && !this.sandboxes) throw new HttpError(409, `The ${profileName} profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.`);
     const meta: SessionMeta = {
       id: `ses_${randomUUID()}`,
       projectId: req.projectId,
@@ -284,6 +297,7 @@ export class SessionService {
     const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: meta.id.slice(4) })).catch((err) => {
       throw err instanceof ClientToolError ? new HttpError(400, err.message) : err;
     });
+    ctx.kernelToken = req.kernelToken;
     const sm = ctx.piSession.sessionManager;
     await this.cluster.createSession(meta as unknown as StoredMeta, [sm.getHeader(), ...sm.getEntries()].filter(Boolean));
     ctx.persisted = sm.getEntries().length;
@@ -326,11 +340,18 @@ export class SessionService {
     const egress = this.deps.egress?.();
     const ctx = new SessionContext(meta, profile, this.config, !!egress?.canOverride);
     const tools: ToolDefinition<any, any, any>[] = [...createDatasetTools(ctx.dataset)];
-    tools.push(...createClientTools(meta.clientTools, profile.clientTools, ctx.bridge));
-    if (profile.sandbox && this.sandboxes) tools.push(...this.sandboxTools(ctx));
+    // Server tools win over browser tools of the same name (the kernel sees the workspace's installs).
+    const clientSpecs = profile.kernel ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools;
+    tools.push(...createClientTools(clientSpecs, profile.clientTools, ctx.bridge));
+    if (profile.kernel) {
+      const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: meta.projectId, token: () => ctx.kernelToken });
+      tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
+      if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
+    }
+    if (profile.sandbox === true && this.sandboxes) tools.push(...this.sandboxTools(ctx));
     tools.push(...(this.deps.extraTools ?? []));
 
-    const session = await createInklingSession({
+    const session = await createStudioSession({
       config: this.config,
       runtime: this.deps.runtime,
       cwd: SANDBOX_CWD,
@@ -377,6 +398,35 @@ export class SessionService {
       samples: new StudioSampleSource(ctx.dataset, this.config.studioUrl),
       uploadLimits: this.config.upload,
     });
+  }
+
+  /**
+   * Phase 9: the builder's sandbox holds one plugin's source. Labelled purpose=plugin-build, egress
+   * limited to the package index where the org tier allows rules, fake credentials, and file tools
+   * rooted at PLUGIN_DIR (policy denies paths outside it). No bash or run_python.
+   */
+  private pluginSandboxTools(ctx: SessionContext, kernel: KernelClient): ToolDefinition<any, any, any>[] {
+    const manager = this.sandboxes!;
+    const owner = {
+      sessionId: ctx.id,
+      projectId: ctx.meta.projectId,
+      owner: ctx.meta.owner,
+      profile: ctx.meta.profile,
+      restricted: ctx.meta.restricted,
+      labels: { purpose: "plugin-build" },
+      egressAllow: PACKAGE_INDEX_HOSTS,
+      envVars: { [`${NAMING.envPrefix}KERNEL_TOKEN`]: "fake-kernel-token", [`${NAMING.envPrefix}SECRET_USE_TOKEN`]: "fake-secret-token" },
+    };
+    const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
+    const files = createSandboxTools({
+      acquire,
+      cwd: PLUGIN_DIR,
+      onUnavailable: () => manager.forget(ctx.id),
+      execTimeoutS: this.config.sandbox.execTimeoutS,
+      outputMax: this.config.sandbox.outputMax,
+      artifactsDir: this.artifactsDir(ctx.id),
+    }).filter((t) => (PLUGIN_FILE_TOOLS as readonly string[]).includes(t.name));
+    return [...createPluginSandboxTools(kernel, { acquire, execTimeoutS: this.config.sandbox.execTimeoutS }), ...files];
   }
 
   private async facts(ctx: SessionContext, toolName: string, input: Record<string, unknown>): Promise<CallFacts> {
@@ -435,6 +485,7 @@ export class SessionService {
   // ---- runs ----------------------------------------------------------------------------------
 
   async send(ctx: SessionContext, req: SendMessageRequest): Promise<{ run: Run; steered: boolean }> {
+    if (req.kernelToken) ctx.kernelToken = req.kernelToken;
     if (req.snapshot) {
       try {
         ctx.dataset.update(req.snapshot as DatasetSnapshot);
@@ -445,6 +496,7 @@ export class SessionService {
     const text = req.context?.trim() ? `<studio_context>\n${req.context.trim()}\n</studio_context>\n\n${req.text}` : req.text;
     const active = ctx.activeRun;
     if (active && !active.done) {
+      ctx.policy.userText += `\n${req.text}`;
       if (active.status === "queued") active.pending.push(text);
       else await ctx.piSession.steer(text);
       return { run: active, steered: true };
@@ -464,6 +516,8 @@ export class SessionService {
       await this.cluster.steer(taken, text, req.snapshot as DatasetSnapshot | undefined);
       return { run: { id: taken.id } as Run, steered: true };
     }
+    // Only the user's own words this run can authorise plugin changes (policy INTENT_GATED).
+    ctx.policy.userText = req.text;
     ctx.activeRun = run;
     ctx.runs.set(run.id, run);
     this.runIndex.set(run.id, ctx);

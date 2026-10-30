@@ -19,7 +19,7 @@ export function shellQuote(arg: string): string {
  */
 export function backgroundSafe(command: string): string {
   return [
-    '__ink_out=$(mktemp 2>/dev/null || echo "/tmp/inkling-$$.out")',
+    '__ink_out=$(mktemp 2>/dev/null || echo "/tmp/agent-$$.out")',
     `( ${command}`,
     ') >"$__ink_out" 2>&1',
     "__ink_rc=$?",

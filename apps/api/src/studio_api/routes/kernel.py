@@ -28,7 +28,7 @@ def _project_ctx(ctx: RequestContext, project_id: str) -> RequestContext:
         raise HTTPException(400, "bad project id")
     if ctx.scopes and ctx.workspace_id != project_id:
         raise HTTPException(403, "session token is bound to another workspace")
-    return RequestContext(project_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile)
+    return RequestContext(project_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
 
 
 @router.get("/annotations/{project_id}")
@@ -234,7 +234,7 @@ def new_session(body: dict = Body(...), ctx: RequestContext = Depends(get_contex
     if ctx.scopes:
         raise HTTPException(403, "session tokens can't mint other tokens")
     scopes = [str(s) for s in body.get("scopes") or []]
-    token = issue_session(db, f"agent:{body.get('agent', 'builder')}", ctx.workspace_id, scopes, int(body.get("ttlSeconds") or 3600), body.get("profile"))
+    token = issue_session(db, f"agent:{body.get('agent', 'builder')}", ctx.workspace_id, scopes, int(body.get("ttlSeconds") or 3600), body.get("profile"), on_behalf_of=ctx.principal)
     audit.record(db, ctx, "sessions.issue", after={"scopes": scopes, "profile": body.get("profile")})
     return {"token": token, "workspaceId": ctx.workspace_id, "scopes": scopes}
 

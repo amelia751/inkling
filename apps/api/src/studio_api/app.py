@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .db import create_all
 from .naming import naming
-from .routes import kernel, plugins, worker
+from .routes import kernel, plugins, versioning, worker
 
 
 def create_app(*, init_db: bool = True) -> FastAPI:
@@ -17,6 +17,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(kernel.router)
     app.include_router(plugins.router)
     app.include_router(worker.router)
+    app.include_router(versioning.router)
 
     @app.get("/api/v1/health")
     def health():

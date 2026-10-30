@@ -291,3 +291,51 @@ class PluginAudit(Base):
     after_ref: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(64))
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---- Dataset versioning (todo4 Phase 6) ---------------------------------------------------
+# apps/versioning owns branches, commits, reviews and releases. The kernel keeps only what it
+# needs to route and attribute calls, plus the Studio's lossless annotation payloads.
+
+
+class DatasetRepo(Base):
+    """A workspace dataset → its versioning repository (an opaque uuid)."""
+
+    __tablename__ = "dataset_repos"
+    workspace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    repo_id: Mapped[str] = mapped_column(String(64))
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class SessionDelegation(Base):
+    """Who a session token acts for (its minter): the `on_behalf_of` of agent actors."""
+
+    __tablename__ = "session_delegations"
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    on_behalf_of: Mapped[str] = mapped_column(String(256))
+
+
+class VersionedAnnotationPayload(Base):
+    """The Studio annotation behind an annotation-revision ref, so a branch loads back into
+    the Studio losslessly (revisions carry only what the semantic diff needs)."""
+
+    __tablename__ = "versioned_annotation_payloads"
+    workspace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    ref: Mapped[str] = mapped_column(String(80), primary_key=True)
+    annotation_id: Mapped[str] = mapped_column(String(256), index=True)
+    # sha256(studio hash + ontology revision): saving an unchanged annotation reuses its ref.
+    cache_key: Mapped[str] = mapped_column(String(64), index=True)
+    annotation: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class EventConsumption(Base):
+    """Built-in subscribers (the worker's de-identification check) acknowledge outbox events
+    here, apart from plugin fan-out, so each subscriber handles each event once."""
+
+    __tablename__ = "event_consumptions"
+    subscriber: Mapped[str] = mapped_column(String(128), primary_key=True)
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

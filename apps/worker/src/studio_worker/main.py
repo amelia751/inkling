@@ -2,7 +2,8 @@
 
     uv run studio-worker --kernel http://127.0.0.1:8000 [--once] [--plugins <id> …]
 
-Loop: claim a job from the kernel → make sure the plugin's locked `uv` environment exists →
+Loop: run the built-in review checks (`deid.py`: the de-identification check for dataset
+reviews) → claim a job from the kernel → make sure the plugin's locked `uv` environment exists →
 run `python -m studio_plugin_sdk.runner` in it as a separate process (own session, CPU
 and memory limits, a timeout, a minimal environment and an egress allowlist proxy) →
 forward progress → report the result or the error to the kernel, which validates and
@@ -26,6 +27,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from .deid import DeidSubscriber
 from .egress import EgressProxy
 
 NAMING = json.loads((Path(__file__).resolve().parents[4] / "schemas" / "naming.json").read_text())
@@ -43,6 +45,8 @@ class Worker:
         self.worker_id = worker_id
         self.plugins = plugins
         self.uv = uv
+        # Built-in subscriber: the de-identification check for dataset reviews (todo4 Phase 6).
+        self.deid = DeidSubscriber(self.http)
 
     # ---- Environments --------------------------------------------------------------------
 
@@ -162,6 +166,10 @@ class Worker:
     def tick(self) -> bool:
         """Claim and run one job. Returns whether there was one."""
         self.http.post("/api/v1/worker/events/deliver")
+        try:
+            self.deid.tick()
+        except httpx.HTTPError as e:
+            print(f"[worker] review checks: {e}", file=sys.stderr)
         r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins})
         r.raise_for_status()
         claim = r.json()

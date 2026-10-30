@@ -39,6 +39,17 @@ class Settings:
     event_rate_per_minute: int = 600
     event_max_depth: int = 4
     job_lease_s: int = 60
+    # Dataset versioning (todo4 Phase 6): apps/versioning's internal URL. Unset means the
+    # service isn't configured: the versioning routes answer 503 and the Studio keeps its
+    # plain save path. The API mints a 60 s Ed25519 JWT per call (todo4 V4) with the key in
+    # `versioning_key_file`; the service reads the public half from `versioning_jwks_file`
+    # (its <envPrefix>VERSIONING_JWT_PUBLIC_KEY_FILE). Both are generated in dev if absent.
+    versioning_url: str | None = None
+    versioning_tenant: str = "default"
+    versioning_key_file: Path | None = None
+    versioning_jwks_file: Path | None = None
+    versioning_audience: str = "versioning"
+    versioning_issuer: str = "api"
     extra: dict[str, str] = field(default_factory=dict)
 
 
@@ -62,6 +73,12 @@ def load_settings(**overrides) -> Settings:
         secret_key=key,
         dev_trust_headers=(env("API_DEV_TRUST_HEADERS", "1") == "1"),
         builtin_mock_segment=(env("API_BUILTIN_MOCK_SEGMENT", "0") == "1"),
+        versioning_url=env("API_VERSIONING_URL") or file_env.get("API_VERSIONING_URL") or None,
+        versioning_tenant=env("API_VERSIONING_TENANT", "default") or "default",
+        versioning_key_file=Path(p) if (p := env("API_VERSIONING_JWT_KEY_FILE")) else None,
+        versioning_jwks_file=Path(p) if (p := env("API_VERSIONING_JWKS_FILE")) else None,
+        versioning_audience=env("API_VERSIONING_JWT_AUDIENCE", "versioning") or "versioning",
+        versioning_issuer=env("API_VERSIONING_JWT_ISSUER", "api") or "api",
     )
     for k, v in overrides.items():
         setattr(s, k, v)

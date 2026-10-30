@@ -12,6 +12,9 @@ dependencies = [
     "cryptography>=50",
     "pyyaml>=6.0",
     "httpx>=0.28",
+    # The generated versioning client (src/studio_api/clients/versioning) needs these.
+    "attrs>=24.2",
+    "python-dateutil>=2.9",
 ]
 
 [dependency-groups]

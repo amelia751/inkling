@@ -33,7 +33,7 @@ def _ws(ctx: RequestContext, workspace_id: str, scope: str = "plugins.manage") -
     if ctx.scopes and workspace_id != ctx.workspace_id:
         raise HTTPException(403, "session is bound to another workspace")
     _need(ctx, scope)
-    return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile)
+    return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
 
 
 def _visible(ctx: RequestContext, plugin_id: str, version: str | None = None) -> catalog.Entry:

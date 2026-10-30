@@ -28,6 +28,8 @@ Then run the web app against it: `INKLING_KERNEL=1 pnpm dev` (the env-var prefix
 | Workspace and audit | `plugins/installer.py`, `kernel/audit.py` | `/api/v1/workspaces/:id/state`, `/api/v1/audit` |
 | Registry, resolver, installer, policy | `plugins/` | `/api/v1/plugins…`, `/api/v1/workspaces/:id/plugins/…`, `/api/v1/workspaces/:id/capabilities`, `/api/v1/plugins/:id/docs` |
 | Artifact builder for agent-authored plugins (checks, digest, Ed25519 dev signature, private store, `trustTier: generated`, workspace-only) | `plugins/artifacts.py` | `POST /api/v1/plugins/artifacts[?dryRun=true&base=…]` (tarball body) |
+| Dataset versioning (todo4 Phase 6): apps/versioning behind the kernel, 60 s Ed25519 service JWTs, agent policy, audit | `kernel/versioning/`, `routes/versioning.py` | `/api/v1/versioning/status`, `/api/v1/datasets…`; commands `<ns>.versioning.*` |
+| Built-in subscriptions (the worker's de-identification check) | `kernel/events.py`, `routes/worker.py` | `/api/v1/worker/subscriptions/{claim,ack}`, `/api/v1/worker/versioning/run` |
 
 Contracts (`kernel/contracts/_generated/`) are generated from `schemas/*.json`, which
 `pnpm emit:schemas` writes from `packages/plugin-contracts` (zod). Settings come from
@@ -44,6 +46,15 @@ Generated artifacts live in `<data dir>/plugin-artifacts/<id>/<version>/` and ar
 `<data dir>/registry-generated.json`; the dev signing key is `<data dir>/plugin-signing.key`.
 `stage` re-digests the stored tree and verifies the signature; the install plan carries the code
 diff against the template, the forked plugin or the previous version.
+
+Dataset versioning is off until `<envPrefix>API_VERSIONING_URL` points at apps/versioning
+(or is `memory:` for an in-process stand-in without Go). The API signs a 60 s JWT per call
+with `.data/versioning-jwt.key` and writes the public half to `.data/versioning-jwks.json`
+(generated on first use; override with `<envPrefix>API_VERSIONING_JWT_KEY_FILE` /
+`_JWKS_FILE`); point the service's `<envPrefix>VERSIONING_JWT_PUBLIC_KEY_FILE` at the JWKS.
+Tenant is `<envPrefix>API_VERSIONING_TENANT` (`default`), project the workspace. In dev,
+`X-Dev-Principal: user:<name>` acts as another user. Run the e2e flows with
+`tests/e2e/versioning/run.py`.
 
 Set `<envPrefix>API_BUILTIN_MOCK_SEGMENT=1` to enable the kernel's built-in mock
 `image.segment` provider (the Phase 4 exit path, without installing a plugin).

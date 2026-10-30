@@ -23,6 +23,7 @@ import { envLabel } from "@/studio/lib/format";
 import { useStudio } from "@/studio/stores/studio";
 import type { Project } from "@studio/plugin-contracts/types";
 import { NAMING } from "@studio/plugin-contracts/naming";
+import { useVersioning, VersioningControls } from "@/studio/core/versioning";
 
 /**
  * Sizes are container queries on the header, so it adapts to its own width:
@@ -44,6 +45,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
   const aiOpen = useStudio((s) => s.aiOpen);
   const env = useStudio((s) => s.env);
   const toggleAi = useStudio((s) => s.toggleAi);
+  const versioned = useVersioning((s) => s.enabled && s.datasetId === project.id);
 
   return (
     <header className="@container flex h-12 shrink-0 items-center gap-2 border-b border-border bg-header text-foreground pl-2 pr-2 @[640px]:gap-3 @[640px]:pl-3.5 @[640px]:pr-3">
@@ -54,7 +56,8 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
       )}
       <BrandMark compact className="hidden shrink-0 @[480px]:flex" />
       <DatasetSwitcher datasetId={project.id} title={project.title} className="max-w-[min(280px,40cqw)] shrink" />
-      <Badge className="hidden @[760px]:inline-flex">Draft</Badge>
+      {!versioned && <Badge className="hidden @[760px]:inline-flex">Draft</Badge>}
+      <VersioningControls projectId={project.id} />
       {env && <span className="hidden shrink-0 text-sm text-muted-foreground @[900px]:inline" title={env.modules.map((m) => `${m.id}@${m.version}`).join("\n")}>{envLabel(env)}</span>}
       <SaveIndicator onRetry={onRetrySave} />
 

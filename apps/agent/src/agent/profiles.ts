@@ -13,6 +13,8 @@ export const ENVIRONMENT_TOOLS = [
   "validate_environment",
   "preview_environment",
   "patch_environment",
+  "list_capabilities",
+  "inspect_plugin",
   "run_command",
 ] as const;
 

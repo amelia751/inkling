@@ -492,7 +492,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:4910e176c14b70ea625b768a96ffe25fd0005e56c0d07ccf9eb92fd5e06be4d4",
+      "artifactDigest": "sha256:2ddbeb015c5e057caabb072607b566ebffff6afe4093e91159dd9abc63b523af",
       "path": "plugins/timeseries",
       "capabilities": [
         "signal.view",

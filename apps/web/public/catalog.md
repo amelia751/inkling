@@ -164,6 +164,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.cine.commands.goTo` — Show a slice and frame; args { slice?, frame? } (0-based)
 - `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions (when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.commands.importGeoJSON` — Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step (when renderer == inkling.wsi.renderers.osd)
+- `inkling.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 
 ## panels
 - `inkling.core.panels.files` — The project's items, grouped, with per-item progress and a filter (slot left)
@@ -175,6 +176,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.cardiac-metrics.panels.metrics` — Ventricular volumes and function, LV mass, the volume curve with an ED/ES suggestion, per-slice areas, Dice vs reference and body size (slot right)
 - `inkling.wsi.panels.counts` — Point counts per class on the slide, and inside the selected region with density per mm² (slot right)
 - `inkling.wsi.panels.adjust` — Brightness, contrast, gamma and saturation of the slide tiles (display only; the wand samples them) (slot viewport-bar)
+- `inkling.segmentation.panels.mask-review` — Review AI-suggested masks: accept, reject or edit each instance (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/; slot right)
 
 ## inspectors
 - `inkling.image2d.inspectors.main` — Physical measurements (mm, mm², HU) for Cornerstone annotations

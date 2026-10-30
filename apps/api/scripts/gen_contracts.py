@@ -41,6 +41,7 @@ def generate(dest: Path) -> dict[str, str]:
                     "--field-constraints",
                     "--disable-timestamp",
                     "--use-schema-description",
+                    "--set-default-enum-member",
                     "--class-name", {"plugin_v1": "PluginManifest", "ui_contributions_v1": "UiContributions", "workspace_v1": "WorkspaceState", "image_segment_request": "SegmentRequest", "image_segment_result": "SegmentResult"}[mod],
                 ],
                 check=True,

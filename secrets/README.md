@@ -7,6 +7,7 @@ Local development secrets. Everything in this folder is git-ignored except this 
 | `daytona.env` | `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET` | `apps/agent` sandboxes |
 | `models.env` | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | `apps/agent` model runtime |
 | `agent.env` | `INTERNAL_AGENT_SERVICE_TOKEN` | Vite proxy → `apps/agent` bearer auth (generated on first start if missing; the proxy reads it too) |
+| `versioning.env` | `VERSIONING_*` (with the naming config's env prefix), see `versioning.env.example` | `apps/versioning`: Postgres role, object-store endpoint and bucket credentials, JWT public key |
 
 How it's loaded: `apps/agent/src/secrets.ts` reads every `secrets/*.env` (`KEY=VALUE`, `#` comments) when `APP_ENV` is not `production`, and **never overrides** a variable already set in the real environment. Production reads only the real environment or a secret manager.
 

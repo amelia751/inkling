@@ -59,4 +59,4 @@ class SegmentResult(BaseModel):
     instances: list[MaskInstance]
     provider: str
     model: str
-    status: Status | None = 'completed'
+    status: Status | None = Status.completed

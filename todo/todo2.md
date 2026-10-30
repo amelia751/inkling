@@ -15,6 +15,52 @@
 
 ---
 
+## Status (2026-10-30)
+
+- **Phase 0:** partial. The naming config, the brand-literal check, the rename tooling and the docs are done. The baseline in 0.2 was never recorded, and the SDK and `apps/agent` don't read `schemas/naming.json` yet.
+- **Phase 1:** done. The whole e2e suite passes on merged `main` and the generated schemas are current.
+- **Phase 2:** done, except the root `README.md` for `plugins/export-dicom`.
+- **Phase 3:** done.
+- **Phase 4:** done, except that no CI runs the contract drift check.
+- **Phase 5:** done.
+- **Phase 6:** partial. The SDK, worker, segmentation plugin, `studio.mask-review.v1` and budgets are in, and the exit e2e passes locally. Still missing: the SDK's `annotations.write` client, a Meta SAM adapter verified against the real API, and CI.
+- **Phase 7:** not started. It depends on `todo/todo1.md`, which is done (`apps/agent`, wire types in `packages/agent-protocol`). The environment-designer profile already accepts the browser's `list_capabilities` and `inspect_plugin` tools.
+- **Phase 8:** partial. Most of the §14 tests exist (`apps/api/tests`, `apps/worker/tests`, `plugins/segmentation/tests`). The agent builder-policy test and the rollback and tier-3 iframe web e2e tests don't.
+- **Phase 9:** not started.
+
+Next after this plan comes `todo/todo3.md` (monorepo restructure). It moves things like `scripts/` and the docs, so the paths below may change.
+
+### What's left
+
+- **Phase 0**
+  - `packages/plugin-sdk-py` reads `schemas/naming.json` instead of literals. `apps/agent` is covered in Phase 7.
+- **Phase 2**
+  - Add `plugins/export-dicom/README.md`.
+- **Phase 4**
+  - Wire `apps/api/scripts/gen_contracts.py --check`, `emit-schemas.mjs --check` and `build-registry.mjs --check` into CI. There is no CI config yet.
+- **Phase 6**
+  - Add an `annotations.write` client to `packages/plugin-sdk-py/src/studio_plugin_sdk/context.py`, or record that results go only through the gateway.
+  - Verify `plugins/segmentation/src/segmentation_plugin/providers/meta_sam.py` against Meta's current API docs.
+  - Run `apps/web/e2e/plugins_test.py` in CI (it passes locally). A unit test for `packages/studio-renderers/src/mask-review/MaskReview.tsx` would also help.
+- **Phase 7** (all)
+  - `apps/agent/src/sandbox/defaults.ts` and the agent prompts read `schemas/naming.json` (`APP_LABEL` and `INKLING_SESSION` are still hardcoded).
+  - Add `apps/agent/src/tools/kernel.ts` with the builder and task tools.
+  - Add `builder` and `task` profiles in `apps/agent/src/agent/profiles.ts`.
+  - Route install approvals through the approval broker and `InstallReview.tsx`.
+  - Prompt hygiene, plus a `policy.ts` rule that blocks `stage_plugin` unless the user asked for it in this run.
+  - Put the §7.1 preference order in the builder prompt.
+- **Phase 8**
+  - `apps/agent/test/unit/builder-policy.test.ts`.
+  - A rollback web e2e test.
+  - A web e2e test asserting the tier-3 iframe has `sandbox` without `allow-same-origin`.
+- **Phase 9** (all)
+  - `create_plugin_sandbox` on `apps/agent/src/sandbox/`.
+  - `run_plugin_checks`.
+  - `apps/api/src/studio_api/plugins/artifacts.py`: digest, signing, artifact store and `trust_tier: generated`.
+  - Show the code diff in the install review dialog.
+
+---
+
 ## 0. Decisions to settle before starting
 
 | # | Question | Recommendation | Why |
@@ -45,7 +91,7 @@
 ## Phase 0. Baseline (half a day)
 
 ### 0.1 One naming config (do this first; every later step uses it)
-- [ ] `packages/plugin-contracts/src/naming.ts` (create this package early, or put the file in `apps/web/src/platform/naming.ts` and move it in step 1.2). It is the only file that may contain the product name:
+- [x] `packages/plugin-contracts/src/naming.ts` (create this package early, or put the file in `apps/web/src/platform/naming.ts` and move it in step 1.2). It is the only file that may contain the product name:
   ```ts
   export const NAMING = {
     displayName: "Inkling",          // UI copy, page titles, prompts
@@ -57,8 +103,8 @@
   } as const;
   export const ns = (local: string) => `${NAMING.namespace}.${local}`;
   ```
-- [ ] `scripts/emit-schemas.mjs` also writes `schemas/naming.json`, so the Python kernel, worker and SDK (Phases 4–6), `scripts/mcp.mjs` and `apps/agent` read the same values instead of their own literals.
-- [ ] Replace literals in code with `ns(...)` / `NAMING.*`:
+- [ ] `scripts/emit-schemas.mjs` also writes `schemas/naming.json`, so the Python kernel, worker and SDK (Phases 4–6), `scripts/mcp.mjs` and `apps/agent` read the same values instead of their own literals. _(partial: `schemas/naming.json` is emitted and read by the kernel, worker, `mcp.mjs`, Vite config and e2e harness; `packages/plugin-sdk-py` and `apps/agent` still don't read it)_
+- [x] Replace literals in code with `ns(...)` / `NAMING.*`:
   - module id constants (`export const IMAGE2D = "inkling.image2d"` → `ns("image2d")`), in every `manifest.ts` and kit manifest;
   - `resolveDefaults.baseModules`;
   - `bundled.ts` preset module id;
@@ -67,14 +113,14 @@
   - agent prompts in `platform/agent.ts`.
 
   Add a boundaries rule to `scripts/check-boundaries.mjs`: the regex `\binkling\b` (case-insensitive) is an error outside `naming.ts`, `registry/presets/*.json`, fixtures and docs.
-- [ ] Stored documents (presets, environment specs, annotations whose `geometry.type` is `<module>.<name>`) keep **full** ids, because they must stay readable on their own. Make them rename-safe:
+- [x] Stored documents (presets, environment specs, annotations whose `geometry.type` is `<module>.<name>`) keep **full** ids, because they must stay readable on their own. Make them rename-safe:
   - `extension-host/registry.ts`: `canonicalId(id)` maps any `legacyNamespaces` prefix to the current namespace, and every lookup (`get`, `resolve`, `when` clauses, geometry types) goes through it.
   - `scripts/rename-namespace.mjs --from <old> --to <new>`: rewrites `registry/presets/*.json`, `seed-data/**/environment*.json` and fixture files, and prints a summary. The kernel gets the same migration as an Alembic data migration in Phase 4.
   - Test `naming.test.ts`: with `namespace` changed to `acme` and `legacyNamespaces: ["inkling"]`, every preset still resolves and every e2e fixture environment validates.
-- [ ] Mention in `docs/modules.md` that module ids are `${namespace}.<module>` and must never be hardcoded.
+- [x] Mention in `docs/modules.md` that module ids are `${namespace}.<module>` and must never be hardcoded.
 
 ### 0.2 Record the baseline
-- [ ] On `modular-viewers`, run and record: `pnpm --filter web typecheck`, `pnpm --filter web test`, `pnpm --filter web check:boundaries --strict`, `pnpm --filter web emit:schemas` (expect no diff), and the e2e harness (`apps/web/e2e/*_test.py`).
+- [ ] On `modular-viewers`, run and record: `pnpm --filter web typecheck`, `pnpm --filter web test`, `pnpm --filter web check:boundaries --strict`, `pnpm --filter web emit:schemas` (expect no diff), and the e2e harness (`apps/web/e2e/*_test.py`). _(superseded: never recorded before the moves; the merged `main` run in Phase 1 is the baseline now)_
 - [ ] Note the facts that make Phase 1 cheap:
   - Only `src/bundle.ts` imports from `src/modules/**` or `src/kits/**`. Everything else goes through the registry.
   - `boundaries-allowlist.json` is empty.
@@ -121,55 +167,55 @@ schemas/                    # emitted JSON Schemas (was apps/web/public/schema/*
 Use `git mv` for every move so `git diff -M --stat` shows renames. Do it in the order below, because each step only depends on the ones before it.
 
 ### 1.1 Workspace wiring
-- [ ] `pnpm-workspace.yaml`: add `packages/*` to `packages:`. Leave `plugins/*` out until Phase 5 (D5).
-- [ ] Root `tsconfig.base.json` (new): shared `compilerOptions` (strict, `moduleResolution: bundler`, `jsx: react-jsx`). `apps/web/tsconfig.json` extends it.
-- [ ] `apps/web/tsconfig.json` `paths`: keep `"@/*": ["./src/*"]` and add `"@plugins/*": ["../../plugins/*/ui"]`.
-- [ ] `apps/web/vite.config.ts` and `vitest.config.ts`: add the same `@plugins` alias, and add `../../plugins` and `../../packages` to `server.fs.allow`.
-- [ ] Each new package gets a `package.json` (`"name": "@studio/<pkg>"`, `"type": "module"`, `"exports": { ".": "./src/index.ts", "./*": "./src/*.ts" }`, `"private": true`) and a `tsconfig.json` extending the base. Add them to `apps/web` dependencies as `"workspace:*"`.
+- [x] `pnpm-workspace.yaml`: add `packages/*` to `packages:`. Leave `plugins/*` out until Phase 5 (D5).
+- [x] Root `tsconfig.base.json` (new): shared `compilerOptions` (strict, `moduleResolution: bundler`, `jsx: react-jsx`). `apps/web/tsconfig.json` extends it.
+- [x] `apps/web/tsconfig.json` `paths`: keep `"@/*": ["./src/*"]` and add `"@plugins/*": ["../../plugins/*/ui"]`.
+- [x] `apps/web/vite.config.ts` and `vitest.config.ts`: add the same `@plugins` alias, and add `../../plugins` and `../../packages` to `server.fs.allow`.
+- [x] Each new package gets a `package.json` (`"name": "@studio/<pkg>"`, `"type": "module"`, `"exports": { ".": "./src/index.ts", "./*": "./src/*.ts" }`, `"private": true`) and a `tsconfig.json` extending the base. Add them to `apps/web` dependencies as `"workspace:*"`.
 
 ### 1.2 `packages/plugin-contracts` (canonical types)
-- [ ] Move `apps/web/src/types/` (Annotation, Geometry, Project, StudioItem, …) to `packages/plugin-contracts/src/types/`, re-exported from `src/index.ts`.
-- [ ] Move `apps/web/src/platform/environment.ts` (the zod environment spec) to `packages/plugin-contracts/src/environment.ts`.
-- [ ] Move `apps/web/src/migrations/annotations-v1-to-v2.ts` to `packages/plugin-contracts/src/migrations/`. It's an annotation-schema concern, which the kernel will need too.
-- [ ] Leave `apps/web/src/types/index.ts` as a one-line re-export (`export * from "@studio/plugin-contracts"`) for one PR, so shell files can move gradually. Delete it at the end of Phase 1.
+- [x] Move `apps/web/src/types/` (Annotation, Geometry, Project, StudioItem, …) to `packages/plugin-contracts/src/types/`, re-exported from `src/index.ts`.
+- [x] Move `apps/web/src/platform/environment.ts` (the zod environment spec) to `packages/plugin-contracts/src/environment.ts`.
+- [x] Move `apps/web/src/migrations/annotations-v1-to-v2.ts` to `packages/plugin-contracts/src/migrations/`. It's an annotation-schema concern, which the kernel will need too.
+- [x] Leave `apps/web/src/types/index.ts` as a one-line re-export (`export * from "@studio/plugin-contracts"`) for one PR, so shell files can move gradually. Delete it at the end of Phase 1.
 
 ### 1.3 `packages/plugin-ui-sdk` (what a plugin's UI may import)
-- [ ] Move `platform/module.ts` (`defineModule`, every `*Contribution`, `ModuleImpl`, `RendererProps`, `PanelProps`, `RuntimeApi`, …) to `packages/plugin-ui-sdk/src/module.ts`.
-- [ ] `module.ts` imports `ResolvedEnv`/`ResolvedViewport` from `resolve.ts`. Move only those **types** into `plugin-ui-sdk/src/resolved.ts`; `resolve.ts` (the logic) stays in the host and imports them. Do the same for any type `when.ts` exposes to manifests.
-- [ ] Move `lib/labels.ts` (17 uses) to `plugin-ui-sdk/src/labels.ts` if it's pure. If it reads the store, split it into a pure part (SDK) and a store part (host API, step 1.6).
-- [ ] Add `plugin-ui-sdk/src/host.ts`: the `StudioHost` interface and the `useHost()` hooks. At first these only re-export what the store provides (step 1.6 lists the selectors).
+- [x] Move `platform/module.ts` (`defineModule`, every `*Contribution`, `ModuleImpl`, `RendererProps`, `PanelProps`, `RuntimeApi`, …) to `packages/plugin-ui-sdk/src/module.ts`.
+- [x] `module.ts` imports `ResolvedEnv`/`ResolvedViewport` from `resolve.ts`. Move only those **types** into `plugin-ui-sdk/src/resolved.ts`; `resolve.ts` (the logic) stays in the host and imports them. Do the same for any type `when.ts` exposes to manifests.
+- [x] Move `lib/labels.ts` (17 uses) to `plugin-ui-sdk/src/labels.ts` if it's pure. If it reads the store, split it into a pure part (SDK) and a store part (host API, step 1.6).
+- [x] Add `plugin-ui-sdk/src/host.ts`: the `StudioHost` interface and the `useHost()` hooks. At first these only re-export what the store provides (step 1.6 lists the selectors).
 
 ### 1.4 `packages/studio-ui` (presentational primitives)
-- [ ] Move `components/ui/*`, `components/icons/*` and `lib/utils.ts` (`cn`) to `packages/studio-ui/src/`. Check nothing in them imports `@/stores` or `@/lib/api`. They're shadcn, so they shouldn't.
-- [ ] Update `components.json` (shadcn config) aliases to the new location so `shadcn add` keeps working.
-- [ ] `scripts/check-icons.mjs`: point it at the new icons path.
+- [x] Move `components/ui/*`, `components/icons/*` and `lib/utils.ts` (`cn`) to `packages/studio-ui/src/`. Check nothing in them imports `@/stores` or `@/lib/api`. They're shadcn, so they shouldn't.
+- [x] Update `components.json` (shadcn config) aliases to the new location so `shadcn add` keeps working.
+- [x] `scripts/check-icons.mjs`: point it at the new icons path.
 
 ### 1.5 `packages/studio-renderers` (was `kits/`)
-- [ ] `git mv apps/web/src/kits/{cornerstone,overlay2d,timeline,viewport-chrome,io} packages/studio-renderers/src/`. Also move `kits/tool-catalog.ts`.
-- [ ] Kits that have a `manifest.ts` (`cornerstone`, `overlay2d`, `timeline`) stay modules: they contribute tools, renderers and commands. Keep the manifest next to the kit and export it from `packages/studio-renderers/src/<kit>/manifest.ts`.
-- [ ] Rewrite imports inside kits:
+- [x] `git mv apps/web/src/kits/{cornerstone,overlay2d,timeline,viewport-chrome,io} packages/studio-renderers/src/`. Also move `kits/tool-catalog.ts`.
+- [x] Kits that have a `manifest.ts` (`cornerstone`, `overlay2d`, `timeline`) stay modules: they contribute tools, renderers and commands. Keep the manifest next to the kit and export it from `packages/studio-renderers/src/<kit>/manifest.ts`.
+- [x] Rewrite imports inside kits:
   - `@/platform/module` → `@studio/plugin-ui-sdk`
   - `@/types` → `@studio/plugin-contracts`
   - `@/components/*`, `@/lib/utils` → `@studio/studio-ui/*`
   - `@/stores/studio` (6 uses) → `@studio/plugin-ui-sdk` host hooks (step 1.6)
   - `@/kits/x` → relative `../x`
-- [ ] Move the Cornerstone dependencies (`@cornerstonejs/*`, `@kitware/vtk.js`, `dicom-parser`, `dcmjs`, …) from `apps/web/package.json` into `packages/studio-renderers/package.json`. Keep the exact versions, and keep any Vite `optimizeDeps` and worker config in `apps/web/vite.config.ts`.
+- [x] Move the Cornerstone dependencies (`@cornerstonejs/*`, `@kitware/vtk.js`, `dicom-parser`, `dcmjs`, …) from `apps/web/package.json` into `packages/studio-renderers/package.json`. Keep the exact versions, and keep any Vite `optimizeDeps` and worker config in `apps/web/vite.config.ts`.
 
 ### 1.6 Break the store and API coupling (the only real refactor in Phase 1)
 Modules and kits reach into the shell's Zustand store and seed API directly. Give them a host API instead, so a plugin's UI never imports `apps/web` internals.
 
-- [ ] In `plugin-ui-sdk/src/host.ts`, define hooks that cover exactly what modules use today:
+- [x] In `plugin-ui-sdk/src/host.ts`, define hooks that cover exactly what modules use today:
   - **State reads:** `annotations` (13), `tool` (9), `lockedLabels` (7), `selectedIds` (6), `hiddenLabels` (6), `activeLabel` (6), `selectedId` (4), `overlayOpacity` (4), `itemIndex` (2), `outlineOnly` (2).
   - **Actions:** `setViewerStatus` (5), `select` (3), `remove` (3), `setItemIndex` (2), `update`, `toggleLabelLocked`, `toggleLabelHidden`, `toggleAi`, `setOverlayOpacity`, `setClass`.
   - **Helpers:** `newAnnotation` (12), `isEditable` (12), `visibleFor` (9), `toolOption`/`useToolOption` (5), `brushSizeOf` (4), `LOCAL_AUTHOR` (3), the `Tool` type.
   - **Assets:** `assetUrl(path)` replaces `seedUrl` (14). Later it becomes the kernel Asset API's short-lived signed URL (§6).
   - **Labels:** `labelGroupsFrom` (1).
-- [ ] Implement the hooks once, in `apps/web/src/extension-host/host.tsx`, as a `<StudioHostProvider>` backed by the existing `useStudio` store. Wrap the Studio route in it.
-- [ ] Codemod: in `modules/**` and `kits/**`, replace `useStudio((s) => s.X)` with `useHost((s) => s.X)` (same selector shape, so the codemod is mechanical) and `seedUrl(` with `assetUrl(`.
-- [ ] Add a unit test that renders one renderer per module inside a fake `StudioHostProvider` (no Zustand). That proves plugins depend only on the SDK.
+- [x] Implement the hooks once, in `apps/web/src/extension-host/host.tsx`, as a `<StudioHostProvider>` backed by the existing `useStudio` store. Wrap the Studio route in it.
+- [x] Codemod: in `modules/**` and `kits/**`, replace `useStudio((s) => s.X)` with `useHost((s) => s.X)` (same selector shape, so the codemod is mechanical) and `seedUrl(` with `assetUrl(`.
+- [x] Add a unit test that renders one renderer per module inside a fake `StudioHostProvider` (no Zustand). That proves plugins depend only on the SDK.
 
 ### 1.7 Move modules into `plugins/`
-- [ ] `git mv` each module:
+- [x] `git mv` each module:
 
 | From `apps/web/src/` | To |
 |---|---|
@@ -187,22 +233,22 @@ Modules and kits reach into the shell's Zustand store and seed API directly. Giv
 | `modules/experimental` | `apps/web/src/extension-host/agent-panels` (host machinery for declarative and iframe UI) |
 | `platform/presets/*.json` | `registry/presets/*.json` |
 
-- [ ] Rewrite imports inside the moved modules:
+- [x] Rewrite imports inside the moved modules:
   - `@/platform/module` → `@studio/plugin-ui-sdk`
   - `@/platform/*` (other) → `@studio/plugin-ui-sdk`. If a module needs host internals, that's a bug to fix through the host API.
   - `@/kits/x` → `@studio/studio-renderers/x`
   - `@/types` → `@studio/plugin-contracts`
   - `@/components/*`, `@/lib/utils` → `@studio/studio-ui/*`
   - `@/modules/<other>/public` (7 cross-module imports, e.g. cardiac-metrics → cine) → `@plugins/<other>/public`
-- [ ] Each moved module keeps its README, tests and `__fixtures__`. Update `vitest.config.ts` `include` to pick up `../../plugins/*/ui/**/*.test.ts` and `../../packages/*/src/**/*.test.ts`.
+- [x] Each moved module keeps its README, tests and `__fixtures__`. Update `vitest.config.ts` `include` to pick up `../../plugins/*/ui/**/*.test.ts` and `../../packages/*/src/**/*.test.ts`.
 
 ### 1.8 Extension host and composition root
-- [ ] `git mv apps/web/src/platform apps/web/src/extension-host` (whatever is left after 1.2–1.3: `registry`, `resolve`, `runtime`, `commands`, `catalog`, `describe`, `patch`, `flags`, `keys`, `when`, `agent.ts` and the tests).
-- [ ] `git mv apps/web/src/bundle.ts apps/web/src/extension-host/bundled.ts`. It still lists the bundled first-party plugins, now imported from `@plugins/<name>/manifest` and `@studio/studio-renderers/<kit>/manifest`. Change the preset glob to `../../../../registry/presets/*.json`.
-- [ ] Move the shell into `apps/web/src/studio/`: `app/`, `components/{studio,layout,annotation,ai}`, `stores/`, `lib/` (minus what moved), `styles/`. The `@/` alias keeps working because it still points at `src/`; only path segments change.
+- [x] `git mv apps/web/src/platform apps/web/src/extension-host` (whatever is left after 1.2–1.3: `registry`, `resolve`, `runtime`, `commands`, `catalog`, `describe`, `patch`, `flags`, `keys`, `when`, `agent.ts` and the tests).
+- [x] `git mv apps/web/src/bundle.ts apps/web/src/extension-host/bundled.ts`. It still lists the bundled first-party plugins, now imported from `@plugins/<name>/manifest` and `@studio/studio-renderers/<kit>/manifest`. Change the preset glob to `../../../../registry/presets/*.json`.
+- [x] Move the shell into `apps/web/src/studio/`: `app/`, `components/{studio,layout,annotation,ai}`, `stores/`, `lib/` (minus what moved), `styles/`. The `@/` alias keeps working because it still points at `src/`; only path segments change.
 
 ### 1.9 Tooling, scripts, docs
-- [ ] `scripts/check-boundaries.mjs`: rewrite the layer table to:
+- [x] `scripts/check-boundaries.mjs`: rewrite the layer table to:
   - `packages/plugin-contracts` → imports nothing internal
   - `plugin-ui-sdk` → contracts
   - `studio-ui` → nothing internal
@@ -212,16 +258,16 @@ Modules and kits reach into the shell's Zustand store and seed API directly. Giv
   - `studio` (shell) → extension-host, sdk, contracts, studio-ui, **never** `@plugins/*`
 
   Keep `--strict` green.
-- [ ] `scripts/emit-schemas.mjs`: write to `schemas/` (and keep copying to `apps/web/public/schema/` and `public/catalog.json` for the dev server). Update the import paths.
-- [ ] `scripts/mcp.mjs`: update any imports of `platform/*`. Check `pnpm mcp` still lists modules and patches environments.
-- [ ] `dev/seed-server.ts` and `dev/agent/*`: update imports.
-- [ ] E2E: no URL changes are expected. Run the whole suite.
-- [ ] Docs:
+- [x] `scripts/emit-schemas.mjs`: write to `schemas/` (and keep copying to `apps/web/public/schema/` and `public/catalog.json` for the dev server). Update the import paths.
+- [x] `scripts/mcp.mjs`: update any imports of `platform/*`. Check `pnpm mcp` still lists modules and patches environments.
+- [x] `dev/seed-server.ts` and `dev/agent/*`: update imports.
+- [x] E2E: no URL changes are expected. Run the whole suite. _(2026-10-30 on merged `main`: shell, generic, image2d, volume3d, cine4d, signal, video, pathology, environments, agent 13/13 and plugins 8/8 pass; volume3d's islands step is flaky)_
+- [x] Docs:
   - `docs/modules.md`: layers table, folder paths, "adding a module" → "adding a first-party plugin", the D2 rule.
   - `docs/modules-reference.md`: regenerate.
   - `inkling.md`: layout tree.
   - `AGENTS.md`: where things live.
-- [ ] **Exit:**
+- [x] **Exit:** _(typecheck, 234 vitest tests, strict boundaries and `emit:schemas --check` pass after regenerating on 2026-10-30)_
   - All checks green.
   - `git diff -M50% --stat` shows mostly renames.
   - No change to any environment JSON, preset id or contribution id.
@@ -233,25 +279,25 @@ Modules and kits reach into the shell's Zustand store and seed API directly. Giv
 The TypeScript manifests stay the source of truth for **trusted** code: functions like `groupItems`, review-rule `check`, icons and zod schemas can't be data. This phase adds the `plugins.md` manifest **beside** them, so the registry, installer and agent can reason about plugins without executing code.
 
 ### 2.1 Contracts
-- [ ] `packages/plugin-contracts/src/plugin-manifest.ts`: a zod schema for `plugin.yaml` (`schemaVersion: <ns>.plugins/v1`, built from `SCHEMA_PREFIX` in `naming.ts`) following `plugins.md` §5.2. Fields: `id`, `name`, `version`, `publisher`, `license`, `compatibility` (`studio`, `pluginApi`), `capabilities[]`, `runtime`, `providers[]`, `ui.contributions`, `ui.module`, `skills[]`, `permissions.{required,optional}`, `resources`, `events.subscribes`.
+- [x] `packages/plugin-contracts/src/plugin-manifest.ts`: a zod schema for `plugin.yaml` (`schemaVersion: <ns>.plugins/v1`, built from `SCHEMA_PREFIX` in `naming.ts`) following `plugins.md` §5.2. Fields: `id`, `name`, `version`, `publisher`, `license`, `compatibility` (`studio`, `pluginApi`), `capabilities[]`, `runtime`, `providers[]`, `ui.contributions`, `ui.module`, `skills[]`, `permissions.{required,optional}`, `resources`, `events.subscribes`.
   - `runtime.kind` is one of `browser-bundled` (UI-only first-party plugins, new), `python-worker`, or `none`.
   - The `ui.module` field, which points a first-party plugin at its trusted TS manifest, is new as well.
   - Use `.strict()` so unknown privileged fields are rejected (§5.2).
-- [ ] `packages/plugin-contracts/src/ui-contributions.ts`: a zod schema for `ui/contributions.json` (§5.3): `toolbarActions[]`, `panels[]`, each with `id`, `surface`, `title`, `command` / `renderer`, `visibleWhen` / `dataBinding`.
-- [ ] `packages/plugin-contracts/src/capabilities/`: one file per capability id, starting with `image.segment` (request and result schemas from §6.1 as zod; mask encoding RLE or artifact PNG; pixel XYXY).
-- [ ] `scripts/emit-schemas.mjs`: also emit `schemas/plugin.v1.json`, `schemas/ui-contributions.v1.json` and `schemas/capabilities/*.json`. These are the shared source for the Python kernel (Phase 4 generates pydantic models from them).
+- [x] `packages/plugin-contracts/src/ui-contributions.ts`: a zod schema for `ui/contributions.json` (§5.3): `toolbarActions[]`, `panels[]`, each with `id`, `surface`, `title`, `command` / `renderer`, `visibleWhen` / `dataBinding`.
+- [x] `packages/plugin-contracts/src/capabilities/`: one file per capability id, starting with `image.segment` (request and result schemas from §6.1 as zod; mask encoding RLE or artifact PNG; pixel XYXY).
+- [x] `scripts/emit-schemas.mjs`: also emit `schemas/plugin.v1.json`, `schemas/ui-contributions.v1.json` and `schemas/capabilities/*.json`. These are the shared source for the Python kernel (Phase 4 generates pydantic models from them).
 
 ### 2.2 A manifest for every first-party plugin
-- [ ] Write `plugins/<name>/plugin.yaml` for image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, text-spans and export-dicom. Use `runtime.kind: browser-bundled` and `ui.module: ui/manifest.ts`. Permissions are empty: these are UI-only and run in the trusted origin. Add a `README.md` at the plugin root (move the module README up one level).
-- [ ] Write `plugins/_template/plugin.yaml` plus a commented `ui/contributions.json`. This template is what the coder worker copies in Phase 9.
-- [ ] `apps/web/src/extension-host/manifests.ts`: load the plugin manifests at build time (`import.meta.glob("../../../../plugins/*/plugin.yaml", { query: "?raw" })` plus `yaml` parse, or convert them to `plugin.json` if you'd rather not add a YAML dependency) and validate them against the contract.
-- [ ] Test `extension-host/manifests.test.ts`:
+- [ ] Write `plugins/<name>/plugin.yaml` for image2d, volume, timeseries, video, cine, cardiac-metrics, wsi, text-spans and export-dicom. Use `runtime.kind: browser-bundled` and `ui.module: ui/manifest.ts`. Permissions are empty: these are UI-only and run in the trusted origin. Add a `README.md` at the plugin root (move the module README up one level). _(partial: every `plugin.yaml` exists; `plugins/export-dicom/README.md` is missing)_
+- [x] Write `plugins/_template/plugin.yaml` plus a commented `ui/contributions.json`. This template is what the coder worker copies in Phase 9.
+- [x] `apps/web/src/extension-host/manifests.ts`: load the plugin manifests at build time (`import.meta.glob("../../../../plugins/*/plugin.yaml", { query: "?raw" })` plus `yaml` parse, or convert them to `plugin.json` if you'd rather not add a YAML dependency) and validate them against the contract.
+- [x] Test `extension-host/manifests.test.ts`:
   - every `plugin.yaml` validates;
   - its `id`/`version` equal the TS module's;
   - every module in `bundled.ts` has a `plugin.yaml`.
 
 ### 2.3 Declarative UI contributions with trusted renderers
-- [ ] `apps/web/src/extension-host/surfaces.ts`: map `plugins.md` surfaces to existing slots, so declarative contributions land where today's code-backed ones do:
+- [x] `apps/web/src/extension-host/surfaces.ts`: map `plugins.md` surfaces to existing slots, so declarative contributions land where today's code-backed ones do:
 
 | Surface | Slot / place today |
 |---|---|
@@ -260,19 +306,19 @@ The TypeScript manifests stay the source of truth for **trusted** code: function
 | `studio.panel.left` / `.right` / `.bottom` | `PanelSlot` left / right / bottom |
 | `command.palette` | `CommandContribution` |
 
-- [ ] `apps/web/src/extension-host/trusted-renderers.ts`: a registry from versioned renderer names to components.
+- [x] `apps/web/src/extension-host/trusted-renderers.ts`: a registry from versioned renderer names to components.
   - `studio.declarative-panel.v1` → the tier-2 panel from `agent-panels/`
   - `studio.sandbox-frame.v1` → the tier-3 iframe
   - later `studio.mask-review.v1` (Phase 6)
 
   Unknown names fail closed and show a "renderer not available" notice.
-- [ ] `apps/web/src/extension-host/contributions-loader.ts`: turn a plugin's `ui/contributions.json` into synthetic registry contributions under the plugin's id.
+- [x] `apps/web/src/extension-host/contributions-loader.ts`: turn a plugin's `ui/contributions.json` into synthetic registry contributions under the plugin's id.
   - A toolbar action becomes a command contribution with `when` built from `visibleWhen`.
   - A panel becomes a panel contribution whose component is the named trusted renderer, with `dataBinding` resolved through the tier-2 binding code (`agent-panels/bridge.ts`: `selectValue`, runtime keys).
 
   This makes "a plugin with no React" possible for non-first-party plugins.
-- [ ] Command dispatch: a declarative `command: "<ns>.<plugin>.<tool>"` goes to `extension-host/gateway.ts`. In this phase it only calls local command handlers. In Phase 4 it POSTs to the kernel command gateway.
-- [ ] Tests:
+- [x] Command dispatch: a declarative `command: "<ns>.<plugin>.<tool>"` goes to `extension-host/gateway.ts`. In this phase it only calls local command handlers. In Phase 4 it POSTs to the kernel command gateway.
+- [x] Tests:
   - a fixture plugin with only `plugin.yaml` and `contributions.json` shows a toolbar button on PNG items and not on DICOM;
   - an unknown renderer fails closed.
 
@@ -282,21 +328,21 @@ The TypeScript manifests stay the source of truth for **trusted** code: function
 
 Today every bundled module is registered at boot (`for (const m of MODULES) registry.registerModule(m)`). `plugins.md` requires per-workspace installation (acceptance test 1) and activation without a deploy (Phase 1 exit in `plugins.md`).
 
-- [ ] `packages/plugin-contracts/src/workspace.ts`: `WorkspaceInstallation { pluginId, version, artifactDigest?, configRevision, state }` and `WorkspaceState { workspaceId, plugins: WorkspaceInstallation[], environment: EnvironmentSpec }`.
-- [ ] `extension-host/registry.ts`:
+- [x] `packages/plugin-contracts/src/workspace.ts`: `WorkspaceInstallation { pluginId, version, artifactDigest?, configRevision, state }` and `WorkspaceState { workspaceId, plugins: WorkspaceInstallation[], environment: EnvironmentSpec }`.
+- [x] `extension-host/registry.ts`:
   - split *available* (bundled, known) from *active* (installed in this workspace);
   - add `activate(pluginId)`, `deactivate(pluginId)` and a change event;
   - `requires` still pulls in dependencies, but only from *available*, and a missing dependency is reported, not silently added (§14 #11).
-- [ ] `extension-host/resolve.ts` and `catalog.ts`: resolve and catalogue against *active* plugins only. The catalogue the agent sees (`/api/catalog`, `list_modules`) must not list inactive plugins.
-- [ ] `extension-host/bundled.ts`: register bundled plugins as *available*, then activate the set from the workspace state. In dev, read it from `seed-data/<project>/workspace.json` or default to "all bundled". In Phase 5, read it from the kernel Workspace API.
-- [ ] React: the Studio subscribes to registry changes and re-resolves. Enabling a plugin at runtime adds its tools and panels without a reload. Disabling it removes them; annotations of its geometry types stay in the store and are shown as "unavailable type" rather than dropped (§14 #9).
-- [ ] Agent tools (`extension-host/agent.ts`, `scripts/mcp.mjs`):
+- [x] `extension-host/resolve.ts` and `catalog.ts`: resolve and catalogue against *active* plugins only. The catalogue the agent sees (`/api/catalog`, `list_modules`) must not list inactive plugins.
+- [x] `extension-host/bundled.ts`: register bundled plugins as *available*, then activate the set from the workspace state. In dev, read it from `seed-data/<project>/workspace.json` or default to "all bundled". In Phase 5, read it from the kernel Workspace API.
+- [x] React: the Studio subscribes to registry changes and re-resolves. Enabling a plugin at runtime adds its tools and panels without a reload. Disabling it removes them; annotations of its geometry types stay in the store and are shown as "unavailable type" rather than dropped (§14 #9).
+- [x] Agent tools (`extension-host/agent.ts`, `scripts/mcp.mjs`):
   - add `list_capabilities` (from active manifests);
   - add `inspect_plugin(id)` (manifest + contribution summaries);
   - keep `list_modules`, `get_environment` and `patch_environment`.
 
   Install and activate tools come in Phase 7, through the kernel.
-- [ ] Tests:
+- [x] Tests:
   - two workspaces with different plugin sets see different catalogues;
   - activate then deactivate restores the previous resolved environment exactly;
   - e2e: enabling the WSI plugin (`<ns>.wsi`) on a workspace without it makes the pathology preset resolvable.
@@ -307,9 +353,9 @@ Today every bundled module is registered at boot (`for (const m of MODULES) regi
 
 New code. Nothing to move, except the dev seed endpoints.
 
-- [ ] Scaffold `apps/api` with `uv` (Python 3.12), FastAPI, pydantic v2, SQLAlchemy 2 + Alembic, SQLite in dev and Postgres later. Layout: `src/studio_api/{kernel,plugins,routes}/` (no `agents/`, per D1), `tests/`.
-- [ ] `kernel/contracts/`: generate pydantic models from `schemas/*.json` (`datamodel-code-generator`, pinned) into `kernel/contracts/_generated/`. CI fails if regeneration produces a diff.
-- [ ] Kernel APIs, each a router plus a service, all with `workspace_id`, principal, `correlation_id` and an idempotency key taken from the request context, **never** from the body (§6):
+- [x] Scaffold `apps/api` with `uv` (Python 3.12), FastAPI, pydantic v2, SQLAlchemy 2 + Alembic, SQLite in dev and Postgres later. Layout: `src/studio_api/{kernel,plugins,routes}/` (no `agents/`, per D1), `tests/`.
+- [ ] `kernel/contracts/`: generate pydantic models from `schemas/*.json` (`datamodel-code-generator`, pinned) into `kernel/contracts/_generated/`. CI fails if regeneration produces a diff. _(partial: `scripts/gen_contracts.py --check` exists and passes; no CI wires it in)_
+- [x] Kernel APIs, each a router plus a service, all with `workspace_id`, principal, `correlation_id` and an idempotency key taken from the request context, **never** from the body (§6):
   - **Assets:** metadata, short-lived signed URLs (HMAC in dev), derived artifacts. Port the seed-file serving from `apps/web/dev/seed-server.ts`.
   - **Annotations:** canonical schema (from `plugin-contracts`), provenance, review state, the v1→v2 migration. Port the `/api/annotations/:id` endpoints from the seed server.
   - **Command gateway:** `POST /v1/commands { capability | tool, input }`. It resolves the active plugin and version, validates input against the capability schema, checks grants and budget, routes to execution, validates output, then commits and writes the audit entry.
@@ -318,43 +364,43 @@ New code. Nothing to move, except the dev seed endpoints.
   - **Secrets broker:** secrets stored encrypted (dev key from `secrets/api.env`); workers receive a proxied call or a short-lived scoped token, never plaintext in agent context or the UI.
   - **Workspace API:** active plugin versions, config revisions, environment spec.
   - **Audit API:** append-only.
-- [ ] `apps/web/vite.config.ts`: proxy `/api/*` (except `/api/agent`) to `apps/api` on `127.0.0.1:8000`. Keep the seed server as a fallback behind a flag until the e2e suite passes against `apps/api`.
-- [ ] `apps/web/src/extension-host/gateway.ts`: POST plugin commands to `/api/v1/commands`. `assetUrl()` in the host API calls the Asset API.
-- [ ] **Exit (`plugins.md` Phase 0):** a hardcoded first-party `image.segment` command with a mock provider (fixed masks) runs through the gateway, stores provider-independent masks as canonical annotations, and they render in the image viewer.
+- [x] `apps/web/vite.config.ts`: proxy `/api/*` (except `/api/agent`) to `apps/api` on `127.0.0.1:8000`. Keep the seed server as a fallback behind a flag until the e2e suite passes against `apps/api`.
+- [x] `apps/web/src/extension-host/gateway.ts`: POST plugin commands to `/api/v1/commands`. `assetUrl()` in the host API calls the Asset API.
+- [x] **Exit (`plugins.md` Phase 0):** a hardcoded first-party `image.segment` command with a mock provider (fixed masks) runs through the gateway, stores provider-independent masks as canonical annotations, and they render in the image viewer.
 
 ---
 
 ## Phase 5. Control plane: registry, resolver, installer (`plugins.md` §7, §11)
 
-- [ ] `registry/index.json` (curated): one entry per plugin version with id, publisher, version, artifact digest, capabilities, media types, runtime, permissions, licence (code, model and service terms separately, §5.2), cost hints, compatibility and trust tier. `scripts/build-registry.mjs` builds it from `plugins/*/plugin.yaml` and digests each plugin folder (a tarball of `plugins/<name>` minus `ui/node_modules`).
-- [ ] Turn `plugins/*` into workspace packages now (D5): add `plugins/*` to `pnpm-workspace.yaml`, a `package.json` per plugin, and pinned versions.
-- [ ] `apps/api/src/studio_api/plugins/`:
+- [x] `registry/index.json` (curated): one entry per plugin version with id, publisher, version, artifact digest, capabilities, media types, runtime, permissions, licence (code, model and service terms separately, §5.2), cost hints, compatibility and trust tier. `scripts/build-registry.mjs` builds it from `plugins/*/plugin.yaml` and digests each plugin folder (a tarball of `plugins/<name>` minus `ui/node_modules`).
+- [x] Turn `plugins/*` into workspace packages now (D5): add `plugins/*` to `pnpm-workspace.yaml`, a `package.json` per plugin, and pinned versions.
+- [x] `apps/api/src/studio_api/plugins/`:
   - `catalog.py`: search and inspect the registry.
   - `resolver.py`: semver constraints, kernel API compatibility, cycles and conflicts, which are surfaced and never auto-rewritten (§14 #11).
   - `installer.py`: the §7.2 state machine (`REQUESTED → RESOLVED → STAGED → VALIDATED → AWAITING_APPROVAL → ACTIVATED | REJECTED`, then `DISABLED` / `ROLLED_BACK`), with atomic activation of `{plugin_id, version, artifact_digest, config_revision}`.
   - `policy.py`: grants per plugin version, workspace and actor, keeping *requested*, *granted* and *used* distinct (§10.1).
-- [ ] Alembic migration with the §11 tables: `plugin_packages`, `plugin_versions`, `workspace_plugins`, `workspace_plugin_grants`, `workspace_plugin_configs`, `plugin_capabilities`, `plugin_jobs`, `plugin_events`, `plugin_audit`.
-- [ ] Routes: `GET /v1/plugins`, `GET /v1/plugins/:id`, `POST /v1/workspaces/:id/plugins/plan`, `.../stage`, `.../approve`, `.../activate`, `.../disable`, `.../rollback`, `GET /v1/workspaces/:id/state`.
-- [ ] Web: an install-review dialog (`apps/web/src/studio/components/plugins/InstallReview.tsx`) shows the diff: modules, permissions, secrets, egress hosts, estimated spend, data residency and UI surfaces. Approve calls `.../approve`. Phase 3's activation reads `GET /v1/workspaces/:id/state`.
-- [ ] Settings page: installed plugins with version, state, disable and rollback.
+- [x] Alembic migration with the §11 tables: `plugin_packages`, `plugin_versions`, `workspace_plugins`, `workspace_plugin_grants`, `workspace_plugin_configs`, `plugin_capabilities`, `plugin_jobs`, `plugin_events`, `plugin_audit`.
+- [x] Routes: `GET /v1/plugins`, `GET /v1/plugins/:id`, `POST /v1/workspaces/:id/plugins/plan`, `.../stage`, `.../approve`, `.../activate`, `.../disable`, `.../rollback`, `GET /v1/workspaces/:id/state`.
+- [x] Web: an install-review dialog (`apps/web/src/studio/components/plugins/InstallReview.tsx`) shows the diff: modules, permissions, secrets, egress hosts, estimated spend, data residency and UI surfaces. Approve calls `.../approve`. Phase 3's activation reads `GET /v1/workspaces/:id/state`.
+- [x] Settings page: installed plugins with version, state, disable and rollback.
 
 ---
 
 ## Phase 6. Python plugin worker and the reference segmentation plugin (`plugins.md` §5.1, §12)
 
-- [ ] `packages/plugin-sdk-py` (uv package `studio-plugin-sdk`, import name `studio_plugin_sdk`):
+- [ ] `packages/plugin-sdk-py` (uv package `studio-plugin-sdk`, import name `studio_plugin_sdk`): _(partial: `Registry` tools, `ToolContext` with assets/jobs/brokered secrets, RLE/PNG mask helpers; no `annotations.write` client, results go back through the gateway)_
   - a `register(tool)` decorator;
   - a `ToolContext` with scoped clients: `assets.read`, `annotations.write`, `jobs.progress`, `secrets.use(name)` (brokered);
   - no DB or network handles;
   - `normalize` helpers for canonical masks (RLE, artifact PNG).
-- [ ] `apps/worker`:
+- [x] `apps/worker`:
   - pulls jobs from the kernel;
   - runs each plugin in its own process with a per-plugin `uv` environment from the plugin's `uv.lock`;
   - enforces timeout, CPU and memory limits and per-plugin egress (dev: allowlist through a proxy; prod: network policy);
   - reports results to the gateway, which validates and commits them.
 
   A plugin crash fails only its own job (§14 #6).
-- [ ] `plugins/segmentation/` exactly per §5.1:
+- [ ] `plugins/segmentation/` exactly per §5.1: _(partial: full layout and 9 passing tests; `meta_sam.py` is a placeholder not verified against Meta's current API)_
   - `plugin.yaml` (`id: <ns>.segmentation`, `runtime.kind: python-worker`);
   - `pyproject.toml` and `uv.lock`;
   - `skills/segmentation/SKILL.md`;
@@ -363,9 +409,9 @@ New code. Nothing to move, except the dev seed endpoints.
   - `tests/` (contracts, mock provider, permissions);
   - `fixtures/sample_image.png`.
   - `meta_sam.py` must follow the **current** Meta API docs at integration time. Don't copy the §6.1 abstraction as if it were the upstream signature.
-- [ ] `packages/studio-renderers/src/mask-review/`: a trusted `studio.mask-review.v1` renderer that overlays instances (reusing overlay2d/cornerstone mask drawing), with accept, reject and edit per instance. Edits write canonical annotations with provenance (`provider`, `model`, `prompt`, `review_status`).
-- [ ] Budgets: estimate the cost before a batch from provider metadata (`effective_at`, `source_url`), and deny before any billable call (§14 #10).
-- [ ] **Exit (`plugins.md` Phase 1):** "Add segmentation" (by hand through the install dialog for now) activates the toolbar, masks work with the mock provider in CI, and no web deploy was needed.
+- [x] `packages/studio-renderers/src/mask-review/`: a trusted `studio.mask-review.v1` renderer that overlays instances (reusing overlay2d/cornerstone mask drawing), with accept, reject and edit per instance. Edits write canonical annotations with provenance (`provider`, `model`, `prompt`, `review_status`).
+- [x] Budgets: estimate the cost before a batch from provider metadata (`effective_at`, `source_url`), and deny before any billable call (§14 #10).
+- [ ] **Exit (`plugins.md` Phase 1):** "Add segmentation" (by hand through the install dialog for now) activates the toolbar, masks work with the mock provider in CI, and no web deploy was needed. _(partial: `apps/web/e2e/plugins_test.py` passes 8/8 locally against the kernel and a worker (2026-10-30); there's no CI yet)_
 
 ---
 

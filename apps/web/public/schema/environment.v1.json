@@ -80,6 +80,7 @@
               "inkling.wsi",
               "inkling.dicom-export",
               "inkling.text-spans",
+              "inkling.segmentation",
               "inkling.presets"
             ]
           },
@@ -220,7 +221,8 @@
                   "inkling.timeseries.panels.measurements",
                   "inkling.cardiac-metrics.panels.metrics",
                   "inkling.wsi.panels.counts",
-                  "inkling.wsi.panels.adjust"
+                  "inkling.wsi.panels.adjust",
+                  "inkling.segmentation.panels.mask-review"
                 ]
               }
             },
@@ -237,7 +239,8 @@
                   "inkling.timeseries.panels.measurements",
                   "inkling.cardiac-metrics.panels.metrics",
                   "inkling.wsi.panels.counts",
-                  "inkling.wsi.panels.adjust"
+                  "inkling.wsi.panels.adjust",
+                  "inkling.segmentation.panels.mask-review"
                 ]
               }
             },
@@ -254,7 +257,8 @@
                   "inkling.timeseries.panels.measurements",
                   "inkling.cardiac-metrics.panels.metrics",
                   "inkling.wsi.panels.counts",
-                  "inkling.wsi.panels.adjust"
+                  "inkling.wsi.panels.adjust",
+                  "inkling.segmentation.panels.mask-review"
                 ]
               }
             },
@@ -271,7 +275,8 @@
                   "inkling.timeseries.panels.measurements",
                   "inkling.cardiac-metrics.panels.metrics",
                   "inkling.wsi.panels.counts",
-                  "inkling.wsi.panels.adjust"
+                  "inkling.wsi.panels.adjust",
+                  "inkling.segmentation.panels.mask-review"
                 ]
               }
             }
@@ -385,7 +390,8 @@
                   "inkling.cine.commands.copyContour",
                   "inkling.cine.commands.goTo",
                   "inkling.wsi.commands.toggleClassNames",
-                  "inkling.wsi.commands.importGeoJSON"
+                  "inkling.wsi.commands.importGeoJSON",
+                  "inkling.segmentation.commands.segment"
                 ]
               },
               "keys": {
@@ -564,6 +570,7 @@
                   "inkling.cine.commands.goTo",
                   "inkling.wsi.commands.toggleClassNames",
                   "inkling.wsi.commands.importGeoJSON",
+                  "inkling.segmentation.commands.segment",
                   "inkling.core.panels.files",
                   "inkling.core.panels.labels",
                   "inkling.core.panels.review",
@@ -573,6 +580,7 @@
                   "inkling.cardiac-metrics.panels.metrics",
                   "inkling.wsi.panels.counts",
                   "inkling.wsi.panels.adjust",
+                  "inkling.segmentation.panels.mask-review",
                   "inkling.image2d.inspectors.main",
                   "inkling.volume.inspectors.main",
                   "inkling.timeseries.inspectors.main",

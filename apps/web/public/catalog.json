@@ -99,6 +99,12 @@
       "description": "Plain-text documents with character-offset span labels (named entities, phrases); JSONL export in the spaCy / doccano shape."
     },
     {
+      "id": "inkling.segmentation",
+      "version": "1.0.0",
+      "title": "Segmentation",
+      "description": "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
+    },
+    {
       "id": "inkling.presets",
       "version": "1.0.0",
       "title": "Presets",
@@ -3407,6 +3413,22 @@
       }
     },
     {
+      "id": "inkling.segmentation.commands.segment",
+      "type": "commands",
+      "module": "inkling.segmentation",
+      "description": "Segment objects in this image (selected label, or the provider's)",
+      "label": "Segment",
+      "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.segmentation.commands.segment",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.panels.files",
       "type": "panels",
       "module": "inkling.core",
@@ -3591,6 +3613,21 @@
         "panels": {
           "viewport-bar": [
             "inkling.wsi.panels.adjust"
+          ]
+        }
+      }
+    },
+    {
+      "id": "inkling.segmentation.panels.mask-review",
+      "type": "panels",
+      "module": "inkling.segmentation",
+      "description": "Review AI-suggested masks: accept, reject or edit each instance",
+      "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
+      "slot": "right",
+      "example": {
+        "panels": {
+          "right": [
+            "inkling.segmentation.panels.mask-review"
           ]
         }
       }

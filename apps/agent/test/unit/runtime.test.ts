@@ -147,7 +147,7 @@ describe("policy (agent.md §10.1)", () => {
     decide({ toolName, input }, state(s), budgets, { bytes }, now).kind;
 
   it("reads and environment edits are allowed", () => {
-    for (const t of ["dataset_overview", "list_items", "get_environment", "patch_environment", "read", "ls", "show_items"]) expect(d(t)).toBe("allow");
+    for (const t of ["dataset_overview", "list_items", "get_environment", "patch_environment", "list_capabilities", "inspect_plugin", "read", "ls", "show_items"]) expect(d(t)).toBe("allow");
   });
   it("plain bash and python are allowed; network-ish ones ask unless egress is contained", () => {
     expect(d("bash", { command: "python3 a.py | head" })).toBe("allow");

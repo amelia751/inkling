@@ -32,7 +32,7 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
 /**
  * The `agent.md` §10.1 matrix (todo1 §3.4). Pure; the extension below applies it.
  *
- * | dataset / environment reads, patch_environment (undoable in the Studio) | allow |
+ * | dataset / environment / plugin reads, patch_environment (undoable)      | allow |
  * | bash / run_python                                                        | allow within budgets |
  * | network-ish commands (curl, wget, pip install, npm i, …)                 | ask unless egress is contained |
  * | upload_dataset_sample on a restricted project                            | ask |

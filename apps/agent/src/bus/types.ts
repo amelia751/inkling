@@ -1,4 +1,4 @@
-import type { AgentEvent, AgentEventBody } from "../protocol.ts";
+import type { AgentEvent, AgentEventBody } from "@studio/agent-protocol";
 import type { EventLog } from "../runtime/events.ts";
 
 /** What `read` yields: events in seq order, or `idle` every few seconds while nothing arrives. */

@@ -1,5 +1,5 @@
 import { Redis } from "ioredis";
-import type { AgentEvent, AgentEventBody } from "../protocol.ts";
+import type { AgentEvent, AgentEventBody } from "@studio/agent-protocol";
 import type { EventLog } from "../runtime/events.ts";
 import type { BusItem, RunEventBus } from "./types.ts";
 

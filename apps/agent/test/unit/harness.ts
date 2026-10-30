@@ -6,7 +6,7 @@ import { createModelRuntime, registerScriptedProvider, type ScriptFixture } from
 import { createApp } from "../../src/app.ts";
 import { loadConfig } from "../../src/config.ts";
 import { createLogger } from "../../src/log.ts";
-import type { AgentEvent, ClientToolSpec, DatasetSnapshot } from "../../src/protocol.ts";
+import type { AgentEvent, ClientToolSpec, DatasetSnapshot } from "@studio/agent-protocol";
 import { SessionService } from "../../src/runtime/sessions.ts";
 
 export const TOKEN = "test-service-token-0123456789";

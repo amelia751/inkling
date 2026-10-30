@@ -1,4 +1,4 @@
-import type { RunStatus } from "../protocol.ts";
+import type { RunStatus } from "@studio/agent-protocol";
 
 /**
  * Durable state of the agent service, behind one interface so any replica can serve any request

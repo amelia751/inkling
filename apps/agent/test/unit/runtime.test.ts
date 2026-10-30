@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 import { scriptedReply } from "../../src/agent/models.ts";
-import type { AgentEventBody } from "../../src/protocol.ts";
+import type { AgentEventBody } from "@studio/agent-protocol";
 import { ApprovalBroker } from "../../src/runtime/approvals.ts";
 import { EventLog, Projector, redactInput, sanitizeError } from "../../src/runtime/events.ts";
 import { Run } from "../../src/runtime/runs.ts";

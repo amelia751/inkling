@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 import { PROFILES } from "../../src/agent/profiles.ts";
 import { ns } from "../../src/naming.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { KernelClient, PLUGIN_DIR, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, parseSandboxChecks, scaffoldFromTemplate, untrusted } from "../../src/tools/kernel.ts";
 import { type Budgets, type PolicyState, confined, decide } from "../../src/tools/policy.ts";
 import { FakeSandbox } from "./fake-sandbox.ts";

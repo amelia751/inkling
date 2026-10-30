@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/studio-ui/ui/to
 import { CARD_TOOLS, CARD_TOOL_NAMES, runCardTool } from "@/studio/lib/agent/card-tools";
 import { fetchAgentStatus } from "@/studio/lib/agent/client";
 import { buildAgentContext, turnContext } from "@/studio/lib/agent/context";
-import type { AgentStatus, ClientToolSpec, ProfileName } from "@/studio/lib/agent/protocol";
+import type { AgentStatus, ClientToolSpec, ProfileName } from "@studio/agent-protocol";
 import { installEnvironment, persistEnvironment } from "@/studio/lib/environment-edits";
 import { itemNoun, pluralWord } from "@/studio/lib/format";
 import { cn } from "@studio/studio-ui/utils";

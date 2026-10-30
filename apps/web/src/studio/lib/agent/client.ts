@@ -7,7 +7,7 @@ import type {
   CreateSessionResponse,
   SendMessageRequest,
   SendMessageResponse,
-} from "./protocol";
+} from "@studio/agent-protocol";
 import { runtimeConfig } from "@/extension-host/runtime-config";
 
 /**

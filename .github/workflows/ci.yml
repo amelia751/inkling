@@ -33,7 +33,7 @@ jobs:
         with:
           enable-cache: true
       - run: pnpm install --frozen-lockfile
-      - run: uv sync --frozen
+      - run: uv sync --frozen --all-packages
       - name: Affected typecheck, lint, test
         # apps/versioning (Go) has its own job below.
         run: pnpm affected --filter='!@studio/versioning'

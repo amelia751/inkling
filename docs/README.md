@@ -57,7 +57,7 @@
 | `inkling.md` | `docs/product.md` |
 | `ui.md`, `agent.md`, `plugins.md`, `versioning.md` | `docs/ui.md`, `docs/agent.md`, `docs/plugins.md`, `docs/versioning.md` |
 | `scripts/fetch-seeds.py`, `scripts/build-registry.mjs`, `scripts/rename-namespace.mjs` | `tools/…` |
-| `apps/web/scripts/check-boundaries.mjs` (+ `boundaries-allowlist.json`) | `tools/check-boundaries.mjs` (+ `tools/boundaries-allowlist.json`), now with the repo-wide rules |
+| `apps/web/scripts/check-boundaries.mjs` (+ `boundaries-allowlist.json`) | `tools/check-boundaries.mjs`, now with the repo-wide rules (the empty allowlist was dropped in todo5) |
 | `apps/web/scripts/mcp.mjs` | `apps/mcp/src/main.ts` (`@studio/mcp`, `pnpm mcp`) |
 | `apps/web/e2e/agent_test.py`, `apps/web/e2e/plugins_test.py`, `e2e/fixtures/agent-script.json` | `tests/e2e/…` |
 | package `web` | `@studio/web` |

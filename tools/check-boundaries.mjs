@@ -16,17 +16,13 @@
 //   studio (shell)             → extension-host, sdk, contracts, studio-ui; never @plugins/*
 //   studio/core                → like the shell, plus studio-renderers (the built-in tools)
 // Tests (*.test.ts, *.test-helpers.ts) may reach into the host to set up a real registry.
-// Also: no brand name in code (D3). Usage: node tools/check-boundaries.mjs [--strict].
-// Without --strict, files listed in tools/boundaries-allowlist.json only warn.
+// Also: no brand name in code (D3). Usage: node tools/check-boundaries.mjs.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
 
 const repo = new URL("..", import.meta.url).pathname;
 const webSrc = join(repo, "apps/web/src");
-const strict = process.argv.includes("--strict");
-const allowFile = new URL("./boundaries-allowlist.json", import.meta.url).pathname;
-const allowlist = !strict && existsSync(allowFile) ? JSON.parse(readFileSync(allowFile, "utf8")) : [];
 
 const codeFiles = (dir) =>
   !existsSync(dir)
@@ -74,7 +70,7 @@ const ALLOWED = {
   host: ["plugin-ui-sdk", "plugin-contracts", "studio-ui"],
   shell: ["host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "core", "agent-protocol"],
   // Studio built-ins (files, labels, select, pan…): contributes like a plugin, lives in the shell.
-  core: ["shell", "host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers"],
+  core: ["shell", "host", "plugin-ui-sdk", "plugin-contracts", "studio-ui", "studio-renderers", "agent-protocol"],
 };
 const isPublicEntry = (rest) => /^(manifest|public)(\.tsx?)?$/.test(rest);
 const COMPOSITION_ROOTS = new Set(["bundled", "host"]);
@@ -95,7 +91,7 @@ function violation(fromRel, from, to) {
 }
 
 const roots = ["apps/web/src", "packages", "plugins"].map((d) => join(repo, d));
-const errors = [], warnings = [];
+const errors = [];
 for (const file of roots.flatMap(codeFiles)) {
   const fromRel = relative(repo, file);
   const from = layerOfPath(fromRel);
@@ -109,7 +105,7 @@ for (const file of roots.flatMap(codeFiles)) {
     if (!why) continue;
     const line = src.slice(0, m.index).split("\n").length;
     const msg = `${fromRel}:${line}  ${lines[line - 1].trim()}\n    → ${why}`;
-    (allowlist.some((p) => fromRel.startsWith(p)) ? warnings : errors).push(msg);
+    errors.push(msg);
   }
 }
 
@@ -198,9 +194,8 @@ for (const file of brandRoots.flatMap(codeFiles)) {
   visit(sf);
 }
 
-if (warnings.length) console.warn(`Boundary exceptions (allowlisted, ${warnings.length}):\n${warnings.join("\n")}\n`);
 if (errors.length) {
   console.error(`Module boundary violations (${errors.length}):\n${errors.join("\n")}`);
   process.exit(1);
 }
-console.log(`Module boundaries OK${strict ? " (strict)" : allowlist.length ? ` (${allowlist.length} allowlisted paths)` : ""}.`);
+console.log("Module boundaries OK.");

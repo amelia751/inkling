@@ -31,8 +31,8 @@ workspace configuration = environment spec, extension host = `extension-host/`.
 | Studio built-ins | `apps/web/src/studio/core/` (files, labels, select, pan…; not a plugin) | like the shell, plus studio-renderers |
 | Composition roots | `extension-host/bundled.ts`, `extension-host/host.tsx` | everything: the bundled plugin list and the host API binding |
 
-`pnpm check:boundaries` enforces this (tests may reach into the host); `--strict` ignores
-the allowlist. It also rejects the product name in code (see below).
+`pnpm check:boundaries` enforces this (tests may reach into the host). It also rejects the
+product name in code (see below).
 
 ### The host API
 

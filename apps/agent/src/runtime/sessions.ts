@@ -23,7 +23,7 @@ import type {
   RunStatus,
   SendMessageRequest,
   SessionInfo,
-} from "../protocol.ts";
+} from "@studio/agent-protocol";
 import { NAMING } from "../naming.ts";
 import { type EgressPolicy, PACKAGE_INDEX_HOSTS, SANDBOX_CWD } from "../sandbox/defaults.ts";
 import { type SandboxEvent, SandboxManager, type SandboxRefStore } from "../sandbox/manager.ts";

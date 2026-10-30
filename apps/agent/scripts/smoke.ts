@@ -12,7 +12,7 @@ import { createModelRuntime } from "../src/agent/models.ts";
 import { createApp } from "../src/app.ts";
 import { loadConfig } from "../src/config.ts";
 import { createLogger } from "../src/log.ts";
-import type { AgentEvent } from "../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { SessionService } from "../src/runtime/sessions.ts";
 import { createDaytona } from "../src/sandbox/client.ts";
 import { loadDevSecrets } from "../src/secrets.ts";

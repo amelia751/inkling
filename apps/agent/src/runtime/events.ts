@@ -1,5 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { AgentEvent, AgentEventBody } from "../protocol.ts";
+import type { AgentEvent, AgentEventBody } from "@studio/agent-protocol";
 
 const RING = 2000;
 

@@ -1,6 +1,6 @@
 import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import type { DatasetSnapshot } from "../protocol.ts";
+import type { DatasetSnapshot } from "@studio/agent-protocol";
 
 /**
  * Server tools over the text-only dataset snapshot (ported from the old apps/web/dev/agent/tools.ts).

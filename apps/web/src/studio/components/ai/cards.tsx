@@ -3,7 +3,7 @@ import { CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, ReviewIcon, Se
 import type { IconComponent } from "@studio/studio-ui/icons";
 import { Badge } from "@studio/studio-ui/ui/badge";
 import { Button } from "@studio/studio-ui/ui/button";
-import type { AgentCard } from "@/studio/lib/agent/protocol";
+import type { AgentCard } from "@studio/agent-protocol";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { labelNames } from "@studio/plugin-contracts/environment";
 import { useViewport } from "@/studio/lib/use-media-query";

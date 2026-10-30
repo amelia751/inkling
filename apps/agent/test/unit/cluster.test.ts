@@ -22,7 +22,7 @@ import { RedisRunEventBus } from "../../src/bus/redis.ts";
 import { INTERRUPTED_MESSAGE } from "../../src/cluster/coordinator.ts";
 import { loadConfig } from "../../src/config.ts";
 import { createLogger } from "../../src/log.ts";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { SessionService } from "../../src/runtime/sessions.ts";
 import { PostgresSessionStore } from "../../src/store/postgres.ts";
 import { ENV_TOOLS, TOKEN, snapshot } from "./harness.ts";

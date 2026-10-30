@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { AgentEvent } from "../../src/protocol.ts";
+import type { AgentEvent } from "@studio/agent-protocol";
 import { ENV_TOOLS, TOKEN, harness, snapshot } from "./harness.ts";
 
 type H = Awaited<ReturnType<typeof harness>>;

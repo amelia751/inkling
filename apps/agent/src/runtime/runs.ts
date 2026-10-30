@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { RunStatus } from "../protocol.ts";
+import type { RunStatus } from "@studio/agent-protocol";
 import { EventLog } from "./events.ts";
 
 const TRANSITIONS: Record<RunStatus, RunStatus[]> = {

@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
-import type { AgentCard, AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, SandboxState } from "@/studio/lib/agent/protocol";
+import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, SandboxState } from "@studio/agent-protocol";
 
 export type CardState = "open" | "applied" | "dismissed";
 export type ApprovalState = "pending" | "approved" | "rejected" | "expired";

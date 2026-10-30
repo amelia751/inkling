@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { ApprovalDetail } from "../protocol.ts";
+import type { ApprovalDetail } from "@studio/agent-protocol";
 
 export interface ApprovalRequest {
   approvalId: string;

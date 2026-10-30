@@ -35,6 +35,54 @@ class AssetsClient:
         return r.json()["assets"]
 
 
+class AnnotationsClient:
+    """Canonical annotations through the kernel's Annotation API (docs/plugins.md §6).
+
+    `write` posts to `POST /api/v1/annotations`, which applies the same checks as the
+    gateway's commit path: the session must hold `annotations.write`, the write is bound to
+    this running job (`X-Job-Id`), every annotation is shape-checked, its item must be an
+    asset of this workspace, and the kernel, not the plugin, sets `author`, `provenance`
+    (`ai-suggested`), `job_id` and the stored id (derived from the job, so a plugin can't
+    overwrite annotations it didn't write). Writes are idempotent per `key` within the job.
+
+    A capability's *result* (e.g. `image.segment` masks) still goes back through the
+    gateway, which validates it against the capability schema; use `write` for extra
+    annotations a tool produces that no capability result describes.
+    """
+
+    def __init__(self, http: httpx.Client, job_id: str):
+        self._http = http
+        self._job_id = job_id
+
+    def write(self, annotations: list[dict], *, key: str | None = None) -> list[str]:
+        """Commit annotations as one revision; returns their stored ids. `key` makes a retry a no-op."""
+        headers = {"X-Job-Id": self._job_id, **({"Idempotency-Key": key} if key else {})}
+        r = self._http.post("/api/v1/annotations", headers=headers, json={"annotations": annotations})
+        if r.status_code == 403:
+            raise PermissionError(_detail(r) or "this plugin wasn't granted annotations.write")
+        if r.status_code in (400, 404, 409, 422):
+            raise ValueError(f"annotations rejected: {_detail(r)}")
+        r.raise_for_status()
+        return list(r.json()["annotationIds"])
+
+    def list(self, *, item_id: str | None = None, label: str | None = None) -> list[dict]:
+        """Annotations of this workspace (needs `annotations.read`)."""
+        params = {k: v for k, v in (("item_id", item_id), ("label", label)) if v}
+        r = self._http.get("/api/v1/annotations", params=params)
+        if r.status_code == 403:
+            raise PermissionError("this plugin wasn't granted annotations.read")
+        r.raise_for_status()
+        return r.json()["annotations"]
+
+
+def _detail(r: httpx.Response) -> str:
+    try:
+        d = r.json().get("detail")
+    except ValueError:
+        return r.text[:300]
+    return d if isinstance(d, str) else json.dumps(d)[:500]
+
+
 class JobsClient:
     """Progress lines go to the worker over stdout (the protocol in runner.py)."""
 
@@ -82,6 +130,7 @@ class ToolContext:
     assets: AssetsClient
     jobs: JobsClient
     secrets: SecretsClient
+    annotations: AnnotationsClient | None = None
     provider: dict | None = None
     config: dict = field(default_factory=dict)
     http: httpx.Client | None = None  # kernel client (for the SDK's own clients); not for egress

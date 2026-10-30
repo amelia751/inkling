@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -342,7 +342,9 @@ def configure(db: Session, ctx: RequestContext, plugin_id: str, config: dict) ->
         if k in config and (not isinstance(config[k], (int, float)) or config[k] < 0):
             raise HTTPException(422, f"{k} must be a non-negative number")
     before = current_config(db, ctx.workspace_id, pid)
-    rev = row.config_revision + 1
+    # After a rollback the pinned revision isn't the newest one: never reuse a revision number.
+    latest = db.scalar(select(func.max(WorkspacePluginConfig.config_revision)).where(WorkspacePluginConfig.workspace_id == ctx.workspace_id, WorkspacePluginConfig.plugin_id == pid))
+    rev = max(row.config_revision, latest or 0) + 1
     db.add(WorkspacePluginConfig(workspace_id=ctx.workspace_id, plugin_id=pid, config_revision=rev, config_json={**before, **config}, secret_refs=[], created_by=ctx.principal))
     db.flush()
     _pin(db, ctx, pid, row.version, row.artifact_digest, rev, ACTIVE)

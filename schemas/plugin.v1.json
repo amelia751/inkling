@@ -377,6 +377,95 @@
             }
           },
           "additionalProperties": false
+        },
+        "annotations": {
+          "type": "object",
+          "properties": {
+            "diff": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "box2d",
+                      "polygon2d",
+                      "mask2d",
+                      "region3d",
+                      "timespan",
+                      "measurement",
+                      "textspan"
+                    ]
+                  },
+                  "compare_fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "class_id",
+                        "geometry",
+                        "confidence",
+                        "status",
+                        "reviewer_id",
+                        "attributes",
+                        "coordinate_frame",
+                        "calibration",
+                        "ontology_rev"
+                      ]
+                    }
+                  },
+                  "conflict_fields": {
+                    "description": "Divergent edits to these fields conflict; others take the reviewed source.",
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "class_id",
+                        "geometry",
+                        "confidence",
+                        "status",
+                        "reviewer_id",
+                        "attributes",
+                        "coordinate_frame",
+                        "calibration",
+                        "ontology_rev"
+                      ]
+                    }
+                  },
+                  "geometry": {
+                    "type": "object",
+                    "properties": {
+                      "metric": {
+                        "type": "string",
+                        "enum": [
+                          "iou",
+                          "max_vertex_delta_px",
+                          "abs_delta",
+                          "exact"
+                        ]
+                      },
+                      "threshold": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "metric",
+                      "threshold"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "kind",
+                  "geometry"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
         }
       },
       "required": [

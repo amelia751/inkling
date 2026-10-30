@@ -81,6 +81,7 @@ class Worker:
             "config": claim.get("config") or {},
             "workspaceId": job["workspaceId"],
             "jobId": job_id,
+            "naming": NAMING,  # the SDK has no reliable path to schemas/ inside a plugin env
         }
         mem = plugin.get("memoryMb")
         with EgressProxy(allowed) as proxy:

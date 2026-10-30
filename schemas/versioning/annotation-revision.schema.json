@@ -2,71 +2,309 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "annotation-revision.schema.json",
   "title": "AnnotationRevision",
-  "description": "Immutable annotation revision (versioning.md §3.3, todo4 2.1), stored as canonical JSON and referenced by content hash. Kinds match the plugin-contracts geometries; packages/plugin-contracts is the single owner that emits annotations in this shape.",
+  "description": "Immutable annotation revision (versioning.md §3.3, todo4 2.1), stored as canonical JSON and referenced by content hash. Generated from packages/plugin-contracts/src/annotation-revision.ts by `pnpm emit:schemas`; do not edit.",
   "type": "object",
-  "additionalProperties": false,
-  "required": ["schema_version", "annotation_id", "sample_id", "kind", "class_id", "ontology_rev", "geometry", "coordinate_frame", "status", "provenance"],
   "properties": {
-    "schema_version": {"const": "1"},
-    "annotation_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
-    "sample_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
-    "kind": {"enum": ["box2d", "polygon2d", "mask2d", "region3d", "timespan", "measurement", "textspan"]},
-    "class_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
-    "ontology_rev": {"type": "string"},
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
+    "annotation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "sample_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "box2d",
+        "polygon2d",
+        "mask2d",
+        "region3d",
+        "timespan",
+        "measurement",
+        "textspan"
+      ]
+    },
+    "class_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "ontology_rev": {
+      "type": "string"
+    },
     "geometry": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
-        "box": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "box2d: x, y, w, h"},
-        "points": {"type": "array", "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 3}},
-        "mask": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["size", "counts"],
-          "description": "Uncompressed column-major RLE; runs alternate background/foreground starting with background.",
-          "properties": {
-            "size": {"type": "array", "items": {"type": "integer", "minimum": 1}, "minItems": 2, "maxItems": 2},
-            "counts": {"type": "array", "items": {"type": "integer", "minimum": 0}}
+        "box": {
+          "minItems": 4,
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "description": "box2d: x, y, w, h"
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "minItems": 2,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
           }
         },
-        "box3d": {"type": "array", "items": {"type": "number"}, "minItems": 6, "maxItems": 6},
-        "start": {"type": "number"},
-        "end": {"type": "number"},
-        "value": {"type": "number"},
-        "unit": {"type": "string"}
-      }
+        "mask": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "minItems": 2,
+              "maxItems": 2,
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "counts": {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            }
+          },
+          "required": [
+            "size",
+            "counts"
+          ],
+          "additionalProperties": false,
+          "description": "Uncompressed column-major RLE; runs alternate background/foreground starting with background."
+        },
+        "box3d": {
+          "minItems": 6,
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "start": {
+          "type": "number"
+        },
+        "end": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
-    "coordinate_frame": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.+/-]{0,127}$"},
+    "coordinate_frame": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_.+/-]{0,127}$"
+    },
     "calibration": {
       "type": "object",
-      "additionalProperties": false,
       "properties": {
-        "pixel_spacing": {"type": "array", "items": {"type": "number"}},
-        "slice_thickness": {"type": "number"},
-        "units": {"type": "string"}
+        "pixel_spacing": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "slice_thickness": {
+          "type": "number"
+        },
+        "units": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "submitted",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "reviewer_id": {
+      "type": "string"
+    },
+    "attributes": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_.+/-]{0,127}$"
       }
     },
-    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
-    "status": {"enum": ["draft", "submitted", "accepted", "rejected"]},
-    "reviewer_id": {"type": "string"},
-    "attributes": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_.+/-]{0,127}$"}},
     "provenance": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["actor_id"],
       "properties": {
-        "actor_id": {"type": "string"},
-        "tool": {"type": "string"},
-        "parent_revision": {"type": "string"}
-      }
+        "actor_id": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "parent_revision": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "actor_id"
+      ],
+      "additionalProperties": false
     }
   },
+  "required": [
+    "schema_version",
+    "annotation_id",
+    "sample_id",
+    "kind",
+    "class_id",
+    "ontology_rev",
+    "geometry",
+    "coordinate_frame",
+    "status",
+    "provenance"
+  ],
+  "additionalProperties": false,
   "allOf": [
-    {"if": {"properties": {"kind": {"const": "box2d"}}}, "then": {"properties": {"geometry": {"required": ["box"]}}}},
-    {"if": {"properties": {"kind": {"const": "polygon2d"}}}, "then": {"properties": {"geometry": {"required": ["points"]}}}},
-    {"if": {"properties": {"kind": {"const": "mask2d"}}}, "then": {"properties": {"geometry": {"required": ["mask"]}}}},
-    {"if": {"properties": {"kind": {"const": "region3d"}}}, "then": {"properties": {"geometry": {"required": ["box3d"]}}}},
-    {"if": {"properties": {"kind": {"enum": ["timespan", "textspan"]}}}, "then": {"properties": {"geometry": {"required": ["start", "end"]}}}},
-    {"if": {"properties": {"kind": {"const": "measurement"}}}, "then": {"properties": {"geometry": {"required": ["points", "value"]}}}}
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "box2d"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "box"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "polygon2d"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "points"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "mask2d"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "mask"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "region3d"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "box3d"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "timespan",
+              "textspan"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "start",
+              "end"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "measurement"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "geometry": {
+            "required": [
+              "points",
+              "value"
+            ]
+          }
+        }
+      }
+    }
   ]
 }

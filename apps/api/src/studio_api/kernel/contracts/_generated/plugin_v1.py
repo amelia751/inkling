@@ -212,6 +212,77 @@ class Events(BaseModel):
     subscribes: list[str] | None = []
 
 
+class Kind(StrEnum):
+    box2d = 'box2d'
+    polygon2d = 'polygon2d'
+    mask2d = 'mask2d'
+    region3d = 'region3d'
+    timespan = 'timespan'
+    measurement = 'measurement'
+    textspan = 'textspan'
+
+
+class CompareField(StrEnum):
+    class_id = 'class_id'
+    geometry = 'geometry'
+    confidence = 'confidence'
+    status = 'status'
+    reviewer_id = 'reviewer_id'
+    attributes = 'attributes'
+    coordinate_frame = 'coordinate_frame'
+    calibration = 'calibration'
+    ontology_rev = 'ontology_rev'
+
+
+class ConflictField(StrEnum):
+    class_id = 'class_id'
+    geometry = 'geometry'
+    confidence = 'confidence'
+    status = 'status'
+    reviewer_id = 'reviewer_id'
+    attributes = 'attributes'
+    coordinate_frame = 'coordinate_frame'
+    calibration = 'calibration'
+    ontology_rev = 'ontology_rev'
+
+
+class Metric(StrEnum):
+    iou = 'iou'
+    max_vertex_delta_px = 'max_vertex_delta_px'
+    abs_delta = 'abs_delta'
+    exact = 'exact'
+
+
+class Geometry(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    metric: Metric
+    threshold: Annotated[float, Field(ge=0.0)]
+
+
+class DiffItem(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Kind
+    compare_fields: list[CompareField] | None = None
+    conflict_fields: Annotated[
+        list[ConflictField] | None,
+        Field(
+            description='Divergent edits to these fields conflict; others take the reviewed source.'
+        ),
+    ] = None
+    geometry: Geometry
+
+
+class Annotations(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    diff: list[DiffItem] | None = None
+
+
 class PluginManifest(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -247,3 +318,4 @@ class PluginManifest(BaseModel):
     permissions: Permissions
     resources: Resources | None = None
     events: Events | None = None
+    annotations: Annotations | None = None

@@ -63,7 +63,7 @@ def main() -> int:
             p.get_by_test_id(f"install-{seg}").click()
             p.wait_for_selector("[data-testid='install-review']", timeout=30000)
             review = p.inner_text("[data-testid='install-review']")
-            check("install review shows permissions, egress and licences", "assets.read" in review and "graph.facebook.com" in review and "Apache-2.0" in review, review[:200])
+            check("install review shows permissions, egress and licences", "assets.read" in review and "api.meta.ai" in review and "Apache-2.0" in review, review[:200])
             p.get_by_test_id("approve-install").click()
             wait(lambda: p.locator(f"[data-plugin='{seg}']").count() > 0, 30)
             check("installed in this workspace", p.locator(f"[data-plugin='{seg}']").count() == 1)

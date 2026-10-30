@@ -30,15 +30,18 @@ providers:
   - id: meta.sam
     implements: [image.segment]
     hosting: hosted
-    # Host to verify against Meta's current API docs at integration time.
-    egress: [graph.facebook.com]
+    # Meta Model API, SAM 3.1 (providers/meta_sam.py has the sources; checked 2026-10-30).
+    egress: [api.meta.ai]
     secrets: [META_MODEL_API_KEY]
+    # One text concept *or* box/point prompts per request (Meta can't mix them).
     features: { text: true, points: true, boxes: true, video: false }
-    # No pricing is published here: the gateway refuses billable calls to a hosted provider
-    # without a price (it can't estimate spend). Add pricing with effectiveAt and sourceUrl
-    # from Meta's current terms when integrating.
-    modelLicense: "SAM License (see Meta's model card; not an OSI licence)"
-    serviceTerms: "Meta model API terms"
+    pricing:
+      unit: image
+      usdPerUnit: 0.0025
+      effectiveAt: "2026-10-30"
+      sourceUrl: https://dev.meta.ai/docs/pricing-rate-limits
+    modelLicense: "SAM License (Meta; not an OSI licence)"
+    serviceTerms: "Meta Model API terms (dev.meta.ai)"
   - id: local.sam
     implements: [image.segment]
     hosting: self-hosted
@@ -54,7 +57,7 @@ permissions:
     - annotations.write
     - jobs.create
   optional:
-    - network.egress:graph.facebook.com
+    - network.egress:api.meta.ai
     - secrets.use:META_MODEL_API_KEY
     - network.egress:sam.internal
 resources:

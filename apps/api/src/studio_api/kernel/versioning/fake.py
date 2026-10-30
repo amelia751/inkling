@@ -139,7 +139,7 @@ class FakeVersioning:
             elif ref(t) == ref(b):
                 pick = o
             else:
-                conflicts.append({"conflict_key": f"annotation:{k}", "kind": "both_modified" if o and t else "modify_delete", "annotation_id": k, "sample_id": (o or t)["sample_id"], "base_ref": ref(b), "ours_ref": ref(o), "theirs_ref": ref(t)})
+                conflicts.append({"conflict_key": f"annotation:{k}", "kind": "both_modified" if o and t else "modify_delete", "annotation_id": k, "sample_id": (o or t or {})["sample_id"], "base_ref": ref(b), "ours_ref": ref(o), "theirs_ref": ref(t)})
                 pick = o
             if pick:
                 merged[k] = pick
@@ -309,7 +309,7 @@ class FakeVersioning:
                     changes.append({"type": "annotation.removed", "annotation_id": k, "sample_id": b["sample_id"], "class_id": b["class_id"], "kind": b["kind"], "base_ref": b["ref"]})
                 elif h and not b:
                     changes.append({"type": "annotation.added", "annotation_id": k, "sample_id": h["sample_id"], "class_id": h["class_id"], "kind": h["kind"], "head_ref": h["ref"]})
-                elif b["ref"] != h["ref"]:
+                elif b and h and b["ref"] != h["ref"]:
                     changes.append({"type": "annotation.changed", "annotation_id": k, "sample_id": h["sample_id"], "class_id": h["class_id"], "kind": h["kind"], "fields": ["geometry"], "base_ref": b["ref"], "head_ref": h["ref"]})
             summary: dict[str, int] = {}
             for ch in changes:

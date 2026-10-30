@@ -66,7 +66,7 @@ def write_annotations(request: Request, body: dict = Body(...), ctx: RequestCont
     if not job_id:
         raise HTTPException(422, "X-Job-Id must name the job this write belongs to")
     job = jobs.get(db, ctx, job_id)
-    ids = annotations.plugin_write(db, ctx, job, body.get("annotations"), key=ctx.idempotency_key)
+    ids = annotations.plugin_write(db, ctx, job, body.get("annotations") or [], key=ctx.idempotency_key)
     return {"annotationIds": ids}
 
 

@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..context import issue_session
+from ..context import RequestContext, issue_session
 from ..db import get_session
 from ..kernel import gateway, jobs, secrets
 from ..naming import env

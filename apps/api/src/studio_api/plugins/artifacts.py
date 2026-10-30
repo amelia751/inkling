@@ -251,6 +251,7 @@ def _base(base: str | None, plugin_id: str) -> tuple[str, dict[str, bytes]]:
         d = catalog.package_dir(e) if e else None
         if d is None or not d.is_dir():
             raise HTTPException(422, f"base {base} isn't in the registry")
+        assert e is not None
         return f"{e.id}@{e.version}", _read_tree(d)
     prev = catalog.versions(plugin_id)
     if base is None and prev and (d := catalog.package_dir(prev[-1])) and d.is_dir():

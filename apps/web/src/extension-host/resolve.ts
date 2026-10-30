@@ -238,7 +238,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const reviewRules = enabled((spec.reviewRules ?? []).map((id, i) => ref("reviewRules", id, `/reviewRules/${i}`)));
 
   // 8. Modules in play, and their requirements.
-  const moduleIds = new Set<string>(options.baseModules?.filter((m) => registry.module(m)) ?? []);
+  const moduleIds = new Set<string>([...(options.baseModules?.filter((m) => registry.module(m)) ?? []), ...registry.listModules().filter((m) => m.ambient).map((m) => m.id)]);
   Object.entries(spec.modules ?? {}).forEach(([id, range]) => {
     const m = registry.module(id);
     if (!m) return err({ path: `/modules/${escape(id)}`, code: "unknown-module", message: `Module "${id}" isn't registered` });
@@ -258,6 +258,13 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     }
   }
   const inModules = (c: { module: string; id: string }) => moduleIds.has(c.module) && !disabled.has(c.id);
+
+  // Panels that join their slot wherever their module is in play (declarative plugins).
+  for (const p of registry.list("panels", (x) => !!x.autoInclude && inModules(x))) {
+    if (checkedWhen(p.when, `/panels/${p.slot}`) === undefined && p.when) continue;
+    if (!mayBeTrue(p.when, context)) continue;
+    if (!panels[p.slot].some((x) => x.id === p.id)) panels[p.slot].push(p);
+  }
 
   // 9. Geometries in use; exporters must accept at least one.
   const geometries = registry.list("geometries", inModules);

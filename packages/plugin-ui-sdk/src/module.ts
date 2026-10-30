@@ -94,6 +94,12 @@ export interface CommandContribution extends ContributionBase {
   shadows?: string[];
   /** Claims its key only in some state and otherwise falls through, so sharing a key is intended. */
   contextual?: boolean;
+  /** Also shown as a button in the canvas toolbar (declarative toolbar actions, docs/plugins.md §5.3). */
+  surface?: "toolbar";
+  /** Icon name from the Studio icon set, for toolbar buttons of declarative plugins. */
+  iconName?: string;
+  /** Declarative plugins: the gateway command this runs (`<plugin>.<tool>`) and its static input. */
+  run?: { command: string; args?: Record<string, unknown> };
 }
 
 export type PanelSlot = "left" | "right" | "bottom" | "viewport-bar";
@@ -101,6 +107,10 @@ export type PanelSlot = "left" | "right" | "bottom" | "viewport-bar";
 export interface PanelContribution extends ContributionBase {
   title: string;
   slot: PanelSlot;
+  /** Joins its slot in every environment the module is part of (declarative plugin panels). */
+  autoInclude?: boolean;
+  /** When an auto-included panel applies, e.g. `item.mediaType =~ /^image\//`. */
+  when?: string;
 }
 
 export interface InspectorContribution extends ContributionBase {
@@ -246,6 +256,11 @@ export interface ModuleManifest {
   requires?: string[];
   /** Used when present, never required. */
   optional?: string[];
+  /**
+   * Joins every environment while registered, like the Studio core: declarative plugins
+   * whose toolbar actions and panels apply wherever their `when` holds.
+   */
+  ambient?: boolean;
   contributes: Contributions;
   load?: () => Promise<ModuleImpl | { default: ModuleImpl }>;
 }

@@ -53,6 +53,23 @@ Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
    `@plugins/<name>/*` path in `apps/web/tsconfig.json`.
 4. Run `pnpm emit:schemas` and the checks.
 
+### Data-only manifests and declarative UI
+
+Every plugin also has `plugins/<name>/plugin.yaml` (schema: `packages/plugin-contracts/src/plugin-manifest.ts`,
+emitted as `schemas/plugin.v1.json`): id, version, capabilities, runtime, providers,
+permissions, licences, resources. The registry, installer and agent read it without running
+code; `extension-host/manifests.ts` validates every one at build time, and a test checks
+that id and version match the TS module.
+
+A plugin without trusted code ships `ui/contributions.json` instead
+(`schemas/ui-contributions.v1.json`): toolbar actions that name a command, and panels that
+name a **trusted renderer** (`studio.declarative-panel.v1`, `studio.sandbox-frame.v1`,
+`studio.mask-review.v1`; see `extension-host/trusted-renderers.tsx`). Unknown renderers fail
+closed. `extension-host/contributions-loader.tsx` turns it into an ambient module: a toolbar
+action becomes a command with `surface: "toolbar"` and a `when` built from `visibleWhen`
+(`item.mediaType =~ …`), and runs through the command gateway (`extension-host/gateway.ts`).
+Surfaces map to today's slots in `extension-host/surfaces.ts`.
+
 **Trust rule (todo2 D2).** First-party plugins are trusted code compiled into the web build,
 so their `ui/` folder may contain React. Third-party and agent-authored plugins may only ship
 `plugin.yaml` plus `ui/contributions.json` that name trusted renderers; they never run their

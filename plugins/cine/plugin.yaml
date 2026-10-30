@@ -1,0 +1,26 @@
+# Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
+# source of truth for trusted UI code; this file is what the registry, installer and agent read.
+schemaVersion: inkling.plugins/v1
+id: inkling.cine
+name: Slice × frame cine
+version: 1.0.0
+description: "Slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, playback and copy-forward."
+publisher: first-party
+license: Proprietary
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+requires:
+  inkling.overlay2d: "^1"
+capabilities:
+  - id: cine.view
+    mediaTypes: [application/x-nifti]
+  - id: cine.annotate
+    mediaTypes: [application/x-nifti]
+runtime:
+  kind: browser-bundled
+ui:
+  module: ui/manifest.ts
+permissions:
+  required: []
+  optional: []

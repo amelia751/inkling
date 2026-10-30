@@ -21,6 +21,8 @@ import wsi from "@plugins/wsi/manifest";
 import textSpans from "@plugins/text-spans/manifest";
 import experimental from "./agent-panels/manifest";
 import { featureEnabled } from "./flags";
+import { declarativeModule } from "./contributions-loader";
+import { PLUGIN_PACKAGES } from "./manifests";
 // Binds the plugin host API (useHost, assetUrl, commands) before any plugin code runs.
 import "./host";
 import { ns } from "@studio/plugin-contracts/naming";
@@ -35,7 +37,19 @@ export const presets = defineModule({
   contributes: { presets: Object.values(presetFiles).sort((a, b) => a.id.localeCompare(b.id)) },
 });
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, presets];
+/** Studio built-ins: always present, not plugins (no plugin.yaml, never installed per workspace). */
+export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, presets];
+
+/**
+ * Plugins without trusted code of their own: `plugins/<name>/plugin.yaml` + `ui/contributions.json`
+ * only, turned into contributions on trusted renderers (contributions-loader.tsx).
+ */
+export const DECLARATIVE_MODULES: ModuleManifest[] = PLUGIN_PACKAGES.packages
+  .filter((p) => !p.manifest.ui?.module && p.contributions)
+  .map((p) => declarativeModule(p.manifest, p.contributions!));
+if (PLUGIN_PACKAGES.problems.length && import.meta.env?.DEV) console.warn("[plugins] invalid plugin manifests (not registered):", PLUGIN_PACKAGES.problems);
+
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
 
 for (const m of MODULES) registry.registerModule(m);
 // Agent-generated panels (safety tiers 2–3) exist only when the agentPanels flag is on.

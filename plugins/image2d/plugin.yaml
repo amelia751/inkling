@@ -1,0 +1,26 @@
+# Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
+# source of truth for trusted UI code; this file is what the registry, installer and agent read.
+schemaVersion: inkling.plugins/v1
+id: inkling.image2d
+name: 2D images
+version: 1.1.0
+description: "Single-frame raster and DICOM images on Cornerstone3D or a canvas, with shapes, masks and measurements."
+publisher: first-party
+license: Proprietary
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+requires:
+  inkling.cornerstone: "^1"
+capabilities:
+  - id: image.view
+    mediaTypes: [image/png, image/jpeg, image/webp, application/dicom]
+  - id: image.annotate
+    mediaTypes: [image/png, image/jpeg, image/webp, application/dicom]
+runtime:
+  kind: browser-bundled
+ui:
+  module: ui/manifest.ts
+permissions:
+  required: []
+  optional: []

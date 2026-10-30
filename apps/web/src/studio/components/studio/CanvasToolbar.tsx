@@ -1,6 +1,7 @@
 import { Fragment, useMemo } from "react";
 import * as z from "zod";
-import { RedoIcon, UndoIcon, type IconComponent } from "@studio/studio-ui/icons";
+import * as Icons from "@studio/studio-ui/icons";
+import { AiIcon, RedoIcon, UndoIcon, type IconComponent } from "@studio/studio-ui/icons";
 import { Separator } from "@studio/studio-ui/ui/separator";
 import { Slider } from "@studio/studio-ui/ui/slider";
 import { Button } from "@studio/studio-ui/ui/button";
@@ -11,6 +12,8 @@ import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { cn } from "@studio/studio-ui/utils";
 import { labelNames } from "@studio/plugin-contracts/environment";
 import type { Registered } from "@/extension-host/registry";
+import { execute } from "@/extension-host/commands";
+import { visibleToolbarCommands } from "@/extension-host/contributions-loader";
 import type { ResolvedEnv } from "@/extension-host/resolve";
 import { useStudio } from "@/studio/stores/studio";
 import type { Project, StudioItem } from "@studio/plugin-contracts/types";
@@ -32,6 +35,9 @@ export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv;
   const active = tools.find((t) => t.name === tool);
   const drawing = active?.creates !== undefined;
   const compact = tools.length > COMPACT_AFTER;
+  // Toolbar actions of declarative plugins (plugin.yaml + ui/contributions.json): shown where their `when` holds.
+  const selectionCount = useStudio((s) => s.selectedIds.length);
+  const actions = visibleToolbarCommands(env, item, { tool, "selection.count": selectionCount });
 
   return (
     <div className="@container hide-scrollbar flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background px-2" role="toolbar" aria-label="Annotation tools">
@@ -58,6 +64,21 @@ export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv;
               <ActionTooltipContent title={t.label} shortcut={t.hotkey} description={t.hint} />
             </Tooltip>
           </Fragment>
+        );
+      })}
+      {actions.length > 0 && <Separator orientation="vertical" className="mx-0.5 h-5" />}
+      {actions.map((c) => {
+        const Icon = (c.iconName && (Icons as unknown as Record<string, IconComponent>)[c.iconName]) || AiIcon;
+        return (
+          <Tooltip key={c.id}>
+            <TooltipTrigger asChild>
+              <Button variant="ghost-secondary" className="shrink-0 px-2" onClick={() => execute(c.id)} aria-label={c.label} data-toolbar-action={c.id}>
+                <Icon />
+                <span className="hidden @[720px]:inline">{c.label}</span>
+              </Button>
+            </TooltipTrigger>
+            <ActionTooltipContent title={c.label} shortcut={c.id} description={c.description} />
+          </Tooltip>
         );
       })}
       <Separator orientation="vertical" className="mx-1 h-5" />

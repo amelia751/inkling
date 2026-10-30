@@ -2,7 +2,7 @@
 // Rewrites stored documents after a namespace rename (todo/todo2.md D3):
 //   node scripts/rename-namespace.mjs --from <old> --to <new> [--dry-run]
 // Every JSON string or key that is an id under `<old>.` (or mentions one inside a `when`
-// clause or other text) becomes `<new>.`. Files: registry/presets/*.json, seed-data
+// clause or other text) becomes `<new>.`. Files: plugins/*/plugin.yaml, registry/presets/*.json, seed-data
 // manifests, saved environments and annotations, and e2e / plugin fixtures. Edit
 // packages/plugin-contracts/src/naming.ts first (namespace = <new>, legacyNamespaces += <old>)
 // so documents that this script doesn't reach keep resolving.
@@ -41,7 +41,7 @@ const jsonFiles = (dir, deep = true) =>
         const p = join(dir, name);
         if (name === "node_modules") return [];
         if (statSync(p).isDirectory()) return deep ? jsonFiles(p) : [];
-        return name.endsWith(".json") || name.endsWith(".jsonl") ? [p] : [];
+        return name.endsWith(".json") || name.endsWith(".jsonl") || name === "plugin.yaml" ? [p] : [];
       });
 
 const targets = [
@@ -58,7 +58,8 @@ let changed = 0;
 for (const file of [...new Set(targets)]) {
   const before = readFileSync(file, "utf8");
   let after;
-  if (file.endsWith(".jsonl")) after = before.split("\n").map((l) => (l.trim() ? JSON.stringify(walk(JSON.parse(l))) : l)).join("\n");
+  if (file.endsWith(".yaml")) after = renameText(before);
+  else if (file.endsWith(".jsonl")) after = before.split("\n").map((l) => (l.trim() ? JSON.stringify(walk(JSON.parse(l))) : l)).join("\n");
   else {
     let data;
     try {

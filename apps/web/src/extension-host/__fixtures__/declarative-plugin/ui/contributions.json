@@ -1,0 +1,25 @@
+{
+  "toolbarActions": [
+    {
+      "id": "segment",
+      "surface": "image.viewer.toolbar",
+      "title": "Segment",
+      "command": "inkling.fixture-segment.segment_objects",
+      "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg"] }
+    }
+  ],
+  "panels": [
+    {
+      "id": "summary",
+      "surface": "studio.panel.right",
+      "title": "Masks",
+      "renderer": "studio.declarative-panel.v1",
+      "config": { "title": "Masks", "blocks": [{ "type": "stat", "label": "Annotations", "value": { "store": "annotations.item" } }] }
+    },
+    {
+      "id": "unknown",
+      "surface": "annotation.inspector",
+      "renderer": "acme.evil-panel.v1"
+    }
+  ]
+}

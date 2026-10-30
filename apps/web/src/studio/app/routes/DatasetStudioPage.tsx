@@ -17,6 +17,7 @@ import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/ex
 import { labelClasses, regionLabelNames } from "@studio/plugin-contracts/environment";
 import { digitOf, matches } from "@studio/studio-ui/keys";
 import { registry } from "@/extension-host/registry";
+import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish } from "@studio/plugin-ui-sdk/runtime";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
@@ -111,7 +112,7 @@ function Studio({ projectId }: { projectId: string }) {
   useEffect(() => setSidebarOpen(false), [itemIndex]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  useEnvBindings(env);
+  useEnvBindings(env, items);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
 
   // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
@@ -223,8 +224,11 @@ function Studio({ projectId }: { projectId: string }) {
 
 
 /** Bind the environment's commands and label colors for as long as it runs. */
-function useEnvBindings(env: ResolvedEnv) {
+function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   useEffect(() => {
+    const current = () => itemsRef.current[useStudio.getState().itemIndex];
     setLabelClasses(labelClasses(env.labels));
     setActiveCommands(env.commands, () => {
       const s = useStudio.getState();
@@ -234,10 +238,19 @@ function useEnvBindings(env: ResolvedEnv) {
         "tool.options": Object.keys(s.toolOptions[s.tool] ?? {}),
         "selection.count": s.selectedIds.length,
         "env.tools": env.tools.map((t) => t.name),
+        "item.mediaType": itemMediaType(current()),
       };
     });
+    // Declarative plugin commands (toolbar actions) run through the command gateway.
+    const unbind = bindDeclarativeCommands(env, () => {
+      const it = current();
+      return { itemId: it?.id, assetIds: it?.assets.map((a) => a.path), selection: useStudio.getState().selectedIds };
+    });
     if (import.meta.env.DEV) console.debug(`[${RES}] environment ${env.id}: ${env.modules.map((m) => `${m.id}@${m.version}`).join(", ")}`);
-    return () => setActiveCommands([]);
+    return () => {
+      unbind();
+      setActiveCommands([]);
+    };
   }, [env]);
 }
 

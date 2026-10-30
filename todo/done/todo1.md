@@ -37,7 +37,7 @@ All paths are relative to the repo root.
 ```
 secrets/                         git-ignored except README.md and *.example
 ├── README.md                    what goes here, how it's loaded, rotation
-├── daytona.env                  DAYTONA_API_KEY / DAYTONA_API_URL / DAYTONA_TARGET (copied from jetrun)
+├── daytona.env                  DAYTONA_API_KEY / DAYTONA_API_URL / DAYTONA_TARGET
 └── models.env.example           OPENAI_API_KEY= / ANTHROPIC_API_KEY=
 
 apps/agent/                      NEW: Node service, package name @inkling/agent

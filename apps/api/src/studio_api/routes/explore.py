@@ -5,7 +5,11 @@
     GET   /api/v1/proposals/{id}
     POST  /api/v1/proposals/{id}/confirm            optional edited payload; people only
     POST  /api/v1/proposals/{id}/dismiss            people only
-    POST  /api/v1/proposals/{id}/recompute          a relationship with another column or ID rule
+    POST  /api/v1/proposals/{id}/recompute          a relationship with another column, target, ID rule or row
+                                                    fixes; a mapping with another column or renamed classes;
+                                                    a dataset with another name
+    GET   /api/v1/proposals/{id}/preview            what confirming a dataset proposal will do (action preview)
+    GET   /api/v1/projects/{id}/explore             Explore's Summary (files, records, tasks) and Quality list
 
 Agents may create proposals but never confirm them (docs/ux.md §9): confirm and dismiss
 answer 403 to any session token.
@@ -62,4 +66,16 @@ def dismiss(proposal_id: str, ctx: RequestContext = Depends(get_context), db: Se
 @router.post("/proposals/{proposal_id}/recompute")
 def recompute(proposal_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     pr, p = projects.require_proposal(db, ctx, proposal_id)
-    return projects.proposal_dict(explore.recompute_relationship(db, ctx, p, pr, body))
+    projects.require_project(db, ctx, p.id, write=True)
+    return projects.proposal_dict(explore.recompute(db, ctx, p, pr, body))
+
+
+@router.get("/proposals/{proposal_id}/preview")
+def preview(proposal_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    pr, p = projects.require_proposal(db, ctx, proposal_id)
+    return explore.preview(db, ctx, p, pr)
+
+
+@router.get("/projects/{project_id}/explore")
+def explore_summary(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    return explore.summary(db, projects.require_project(db, ctx, project_id))

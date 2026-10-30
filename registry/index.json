@@ -200,7 +200,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:e57a7c87e3a63e3a3bf061423d439915a7cd10f90dc8a0657fa0ec1aec37bcea",
+      "artifactDigest": "sha256:6f34885d6ec44ef5722a236a3146e163676cc5a9a16fbe94bfb62af88dfa03f6",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -652,7 +652,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:53c04d6b228c84d3fa9881d576241705b85111b7da219a3188dbf1314d34f4e7",
+      "artifactDigest": "sha256:cb7c25943dba2debfa8162d3414bbeb37db015e1862dc87691ba65a5f3e44ae0",
       "path": "plugins/volume",
       "capabilities": [
         "volume.view",
@@ -725,7 +725,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:9f22628dbf866b6f3468bef664a10bcd21cacdbdbdb74aeeab484f77e5f9c7b4",
+      "artifactDigest": "sha256:8550cc48ed61fad7ac5119cc102a439231066d52c60434ad3b1143e78a3d16a1",
       "path": "plugins/wsi",
       "capabilities": [
         "pyramid.view",

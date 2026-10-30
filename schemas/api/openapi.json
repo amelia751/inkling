@@ -3274,6 +3274,7 @@
     },
     "/api/v1/projects/{project_id}/review": {
       "get": {
+        "description": "The whole queue, filtered by type, severity and dataset; `facets` counts the unfiltered\nqueue for the filter controls. The Overview's attention block is its first five rows.",
         "operationId": "project_review_api_v1_projects__project_id__review_get",
         "parameters": [
           {
@@ -3283,6 +3284,54 @@
             "schema": {
               "title": "Project Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dataset",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dataset"
             }
           }
         ],

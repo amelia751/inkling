@@ -361,8 +361,20 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       }
       if (sub === "imports") return send(200, { imports: [] });
       if (sub === "proposals") return send(200, { proposals: [] });
-      if (sub === "review") return send(200, { items: review(p) });
-      if (sub === "activity") return send(200, { entries: [], nextCursor: null });
+      if (sub === "review") {
+        // Same shape and filters as the kernel's queue (seeds only ever have annotation rows).
+        const all = review(p);
+        const f = (k: string) => url.searchParams.get(k);
+        const items = all.filter((i) => (!f("type") || i.type === f("type")) && (!f("severity") || i.severity === f("severity")) && (!f("dataset") || i.datasetId === f("dataset")));
+        const count = (key: (i: (typeof all)[number]) => string) => all.reduce<Record<string, number>>((m, i) => ({ ...m, [key(i)]: (m[key(i)] ?? 0) + 1 }), {});
+        return send(200, { items, total: all.length, facets: { types: count((i) => i.type), severities: count((i) => i.severity), datasets: all.length ? [{ id: p.id, title: p.title, count: all.length }] : [] } });
+      }
+      if (sub === "activity") {
+        // Read-only: the one thing that happened to a sample is that it was loaded.
+        const at = createdAt();
+        const entries = url.searchParams.get("cursor") ? [] : [{ id: `seed:${p.id}`, action: "project.created", label: "added the sample", actor: SEED_PRINCIPAL, onBehalfOf: null, who: { kind: "system", name: "Sample data", onBehalfOf: null }, target: p.id, subject: p.title, details: {}, at, link: { section: "sources" } }];
+        return send(200, { entries, nextCursor: null });
+      }
       if (sub === "resume") return send(200, { resume: readResume(p.id) });
       if (sub === "events") {
         // No live updates without the kernel: an idle stream the browser can keep open.

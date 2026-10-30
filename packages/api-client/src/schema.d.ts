@@ -1006,7 +1006,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Project Review */
+        /**
+         * Project Review
+         * @description The whole queue, filtered by type, severity and dataset; `facets` counts the unfiltered
+         *     queue for the filter controls. The Overview's attention block is its first five rows.
+         */
         get: operations["project_review_api_v1_projects__project_id__review_get"];
         put?: never;
         post?: never;
@@ -4113,7 +4117,11 @@ export interface operations {
     };
     project_review_api_v1_projects__project_id__review_get: {
         parameters: {
-            query?: never;
+            query?: {
+                type?: string | null;
+                severity?: string | null;
+                dataset?: string | null;
+            };
             header?: never;
             path: {
                 project_id: string;

@@ -1,0 +1,21 @@
+# A plugin with no code: only this manifest and ui/contributions.json (todo2 §2.3 test).
+schemaVersion: inkling.plugins/v1
+id: inkling.fixture-segment
+name: Fixture segmentation
+version: 0.1.0
+publisher: test
+license: MIT
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+capabilities:
+  - id: image.segment
+    tool: segment_objects
+    mediaTypes: [image/png, image/jpeg]
+runtime:
+  kind: none
+ui:
+  contributions: ui/contributions.json
+permissions:
+  required: [assets.read, annotations.write]
+  optional: []

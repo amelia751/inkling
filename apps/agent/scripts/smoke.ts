@@ -3,7 +3,7 @@
  * the HTTP API in-process. Needs a model key (OPENAI_API_KEY or ANTHROPIC_API_KEY for AGENT_MODEL)
  * and DAYTONA_API_KEY. The sandbox is always deleted.
  *
- *   pnpm --filter @inkling/agent smoke
+ *   pnpm --filter @studio/agent smoke
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";

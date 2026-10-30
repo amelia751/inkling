@@ -1,0 +1,382 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/WorkspaceState",
+  "$defs": {
+    "WorkspaceState": {
+      "type": "object",
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkspaceInstallation"
+          }
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentSpec"
+        }
+      },
+      "required": [
+        "workspaceId",
+        "plugins"
+      ],
+      "additionalProperties": false
+    },
+    "WorkspaceInstallation": {
+      "type": "object",
+      "properties": {
+        "pluginId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "artifactDigest": {
+          "type": "string"
+        },
+        "configRevision": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "REQUESTED",
+            "RESOLVED",
+            "STAGED",
+            "VALIDATED",
+            "AWAITING_APPROVAL",
+            "ACTIVATED",
+            "REJECTED",
+            "DISABLED",
+            "ROLLED_BACK"
+          ]
+        }
+      },
+      "required": [
+        "pluginId",
+        "version",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "EnvironmentSpec": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "extends": {
+          "description": "Preset id(s), e.g. preset:pathology, deep-merged first",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "task": {
+          "description": "Free-form task name shown on dataset cards (classification, segmentation…)",
+          "type": "string"
+        },
+        "modules": {
+          "description": "Module id → semver range",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "data": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "Data kind contribution id"
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabelGroup"
+          }
+        },
+        "viewports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "renderer": {
+                "type": "string",
+                "description": "Renderer contribution id"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "name",
+              "renderer"
+            ]
+          }
+        },
+        "tools": {
+          "description": "Tool contribution ids in toolbar order",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "panels": {
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "right": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bottom": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "viewport-bar": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "exporters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reviewRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keybindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "Command contribution id"
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Replaces the command's default keys; [] unbinds it"
+              }
+            },
+            "required": [
+              "command",
+              "keys"
+            ]
+          }
+        },
+        "overrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Any contribution id in the environment"
+              },
+              "disabled": {
+                "type": "boolean"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id"
+            ]
+          }
+        },
+        "layout": {
+          "description": "null = auto layout from panel slots; else a dockview toJSON() document"
+        }
+      }
+    },
+    "LabelGroup": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control": {
+          "type": "string",
+          "description": "Label control id, e.g. Labels, RectangleLabels, PolygonLabels, Choices"
+        },
+        "toName": {
+          "description": "Viewport name this group labels; defaults to the first viewport",
+          "type": "string"
+        },
+        "multiple": {
+          "description": "Choices only: allow several classes per item",
+          "type": "boolean"
+        },
+        "classes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LabelClass"
+          }
+        },
+        "attributes": {
+          "description": "Attributes every class in the group carries",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Attribute"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "control",
+        "classes"
+      ]
+    },
+    "LabelClass": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Value stored on annotations (annotation.label)"
+        },
+        "name": {
+          "description": "Display name; defaults to id",
+          "type": "string"
+        },
+        "color": {
+          "description": "CSS color (#hex, hsl()) or a theme palette slot chart-1…chart-5",
+          "type": "string"
+        },
+        "hotkey": {
+          "description": "Combo that picks this class, e.g. \"1\" or \"shift+t\"",
+          "type": "string"
+        },
+        "parent": {
+          "description": "Parent class id, for hierarchies",
+          "type": "string"
+        },
+        "allowedGeometries": {
+          "description": "Geometry types this class may be drawn as",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "attributes": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/Attribute"
+          }
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "Attribute": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "string",
+            "number",
+            "enum"
+          ]
+        },
+        "values": {
+          "description": "Allowed values when type is enum",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    }
+  },
+  "$id": "inkling://schema/workspace/v1"
+}

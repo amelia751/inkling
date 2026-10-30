@@ -22,6 +22,26 @@ from typing import Any
 from playwright.sync_api import Browser, Page, Route, sync_playwright
 
 
+REPO = Path(__file__).resolve().parents[3]
+NAMING = json.loads((REPO / "schemas" / "naming.json").read_text())
+
+# Browser URLs of modules tests import directly. Shell and host files live under apps/web/src
+# (served at /src/...); packages and plugins live outside the Vite root and are served at
+# /@fs/<absolute path>, the same URL the app itself loads them from (so module state is shared).
+STORE = "/src/studio/stores/studio.ts"
+REGISTRY = "/src/extension-host/registry.ts"
+
+
+def src_url(repo_path: str) -> str:
+    """URL for a repo-relative module path, e.g. src_url('plugins/cine/ui/model.ts')."""
+    if repo_path.startswith("apps/web/src/"):
+        return "/" + repo_path[len("apps/web/"):]
+    return f"/@fs{REPO / repo_path}"
+
+
+RUNTIME = src_url("packages/plugin-ui-sdk/src/runtime.ts")
+
+
 @dataclass
 class Studio:
     page: Page
@@ -31,13 +51,13 @@ class Studio:
     def store(self, expr: str = "s => s") -> Any:
         """Evaluate a selector against the zustand store state, e.g. `s => s.annotations.length`."""
         return self.page.evaluate(
-            f"async () => {{ const m = await import('/src/stores/studio.ts'); return ({expr})(m.useStudio.getState()); }}"
+            f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}"
         )
 
     def act(self, expr: str) -> Any:
         """Call store actions, e.g. `s => s.setTool('box')`."""
         return self.page.evaluate(
-            f"async () => {{ const m = await import('/src/stores/studio.ts'); return ({expr})(m.useStudio.getState()); }}"
+            f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}"
         )
 
     def shot(self, name: str, out: Path) -> Path:
@@ -71,6 +91,7 @@ def open_studio(
     init_script: str | None = None,
     device_scale_factor: float = 1,
     fixture_annotations: list[dict[str, Any]] | None = None,
+    workspace_state: dict[str, Any] | None = None,
 ) -> Studio:
     """Open /datasets/<dataset> with saves intercepted.
 
@@ -80,6 +101,7 @@ def open_studio(
     device_scale_factor: HiDPI rendering (2 = retina).
     fixture_annotations: answer the annotations GET with exactly these, so a test never
       depends on what happens to be saved in seed-data/.annotations.
+    workspace_state: answer the workspace's active-plugin state (Workspace API) with this.
     """
     ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=device_scale_factor)
     if init_script:
@@ -102,6 +124,9 @@ def open_studio(
 
     page.route("**/api/annotations/**", annotations)
 
+    if workspace_state is not None:
+        page.route(f"**/api/v1/workspaces/{dataset}/state", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(workspace_state)))
+
     if extra_projects:
         def manifest(route: Route) -> None:
             res = route.fetch()
@@ -120,4 +145,4 @@ def open_studio(
     return studio
 
 
-__all__ = ["Studio", "parse_args", "launch", "open_studio", "sync_playwright"]
+__all__ = ["NAMING", "REGISTRY", "RUNTIME", "STORE", "Studio", "launch", "open_studio", "parse_args", "src_url", "sync_playwright"]

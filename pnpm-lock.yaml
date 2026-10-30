@@ -22,6 +22,9 @@ importers:
       '@hono/node-server':
         specifier: 2.1.5
         version: 2.1.5(hono@4.13.14)
+      '@studio/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
       hono:
         specifier: 4.13.14
         version: 4.13.14
@@ -56,9 +59,185 @@ importers:
       '@babel/runtime':
         specifier: ^7.29.10
         version: 7.29.10
-      '@cornerstonejs/adapters':
-        specifier: 5.14.0
-        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/tools@5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3))
+      '@rjsf/core':
+        specifier: ^6.11.0
+        version: 6.11.0(@rjsf/utils@6.11.0(react@19.2.8))(react@19.2.8)
+      '@rjsf/utils':
+        specifier: ^6.11.0
+        version: 6.11.0(react@19.2.8)
+      '@rjsf/validator-ajv8':
+        specifier: ^6.11.0
+        version: 6.11.0(@rjsf/utils@6.11.0(react@19.2.8))
+      '@studio/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@studio/plugin-cardiac-metrics':
+        specifier: workspace:*
+        version: link:../../plugins/cardiac-metrics
+      '@studio/plugin-cine':
+        specifier: workspace:*
+        version: link:../../plugins/cine
+      '@studio/plugin-contracts':
+        specifier: workspace:*
+        version: link:../../packages/plugin-contracts
+      '@studio/plugin-export-dicom':
+        specifier: workspace:*
+        version: link:../../plugins/export-dicom
+      '@studio/plugin-image2d':
+        specifier: workspace:*
+        version: link:../../plugins/image2d
+      '@studio/plugin-template':
+        specifier: workspace:*
+        version: link:../../plugins/_template
+      '@studio/plugin-text-spans':
+        specifier: workspace:*
+        version: link:../../plugins/text-spans
+      '@studio/plugin-timeseries':
+        specifier: workspace:*
+        version: link:../../plugins/timeseries
+      '@studio/plugin-ui-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-ui-sdk
+      '@studio/plugin-video':
+        specifier: workspace:*
+        version: link:../../plugins/video
+      '@studio/plugin-volume':
+        specifier: workspace:*
+        version: link:../../plugins/volume
+      '@studio/plugin-wsi':
+        specifier: workspace:*
+        version: link:../../plugins/wsi
+      '@studio/studio-renderers':
+        specifier: workspace:*
+        version: link:../../packages/studio-renderers
+      '@studio/studio-ui':
+        specifier: workspace:*
+        version: link:../../packages/studio-ui
+      '@tanstack/react-query':
+        specifier: ^5.90.0
+        version: 5.105.0(@types/react@19.3.0)(react@19.2.8)
+      ajv:
+        specifier: ^8.20.0
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
+      d3-array:
+        specifier: 3.2.4
+        version: 3.2.4
+      d3-interpolate:
+        specifier: 3.0.1
+        version: 3.0.1
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      dockview-react:
+        specifier: ^8.8.0
+        version: 8.8.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      js-yaml:
+        specifier: 4.3.2
+        version: 4.3.2
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+      react-router:
+        specifier: ^7.9.0
+        version: 7.18.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      rfc6902:
+        specifier: ^5.3.0
+        version: 5.3.0
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.8(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      tailwindcss-animate:
+        specifier: ^1.0.7
+        version: 1.0.7(tailwindcss@4.3.3)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+      zustand:
+        specifier: ^5.0.8
+        version: 5.0.16(@types/react@19.3.0)(react@19.2.8)
+    devDependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.2
+        version: 1.32.2(zod@4.6.7)
+      '@originjs/vite-plugin-commonjs':
+        specifier: 1.0.3
+        version: 1.0.3
+      '@studio/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@tailwindcss/vite':
+        specifier: ^4
+        version: 4.3.3(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.3.0(@types/react@19.3.0)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.0
+        version: 5.2.0(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/coverage-v8':
+        specifier: ^5.0.5
+        version: 5.0.5(vitest@5.0.5)
+      jsdom:
+        specifier: ^30.1.3
+        version: 30.1.3
+      tailwindcss:
+        specifier: ^4
+        version: 4.3.3
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vite:
+        specifier: ^7.1.0
+        version: 7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/agent-protocol: {}
+
+  packages/plugin-contracts:
+    dependencies:
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/plugin-ui-sdk:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+      zustand:
+        specifier: ^5.0.8
+        version: 5.0.16(@types/react@19.3.0)(react@19.2.8)
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+
+  packages/studio-renderers:
+    dependencies:
       '@cornerstonejs/core':
         specifier: 5.14.0
         version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
@@ -77,12 +256,49 @@ importers:
       '@cornerstonejs/utils':
         specifier: 5.14.0
         version: 5.14.0
-      '@gravity-ui/icons':
-        specifier: ^2.23.0
-        version: 2.23.0(react@19.2.8)
       '@kitware/vtk.js':
         specifier: 36.4.1
         version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      flatbush:
+        specifier: 4.6.2
+        version: 4.6.2
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+      mediabunny:
+        specifier: 1.63.0
+        version: 1.63.0
+      nifti-reader-js:
+        specifier: ^0.6.8
+        version: 0.6.9
+      polyclip-ts:
+        specifier: 0.16.8
+        version: 0.16.8
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      simplify-js:
+        specifier: 1.2.4
+        version: 1.2.4
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/studio-ui:
+    dependencies:
+      '@gravity-ui/icons':
+        specifier: ^2.23.0
+        version: 2.23.0(react@19.2.8)
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
         version: 1.2.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -122,168 +338,264 @@ importers:
       '@radix-ui/react-tabs':
         specifier: ^1.1.13
         version: 1.2.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@radix-ui/react-toggle':
-        specifier: ^1.1.10
-        version: 1.2.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-toggle-group':
         specifier: ^1.1.11
         version: 1.2.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.4.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      '@rjsf/core':
-        specifier: ^6.11.0
-        version: 6.11.0(@rjsf/utils@6.11.0(react@19.2.8))(react@19.2.8)
-      '@rjsf/utils':
-        specifier: ^6.11.0
-        version: 6.11.0(react@19.2.8)
-      '@rjsf/validator-ajv8':
-        specifier: ^6.11.0
-        version: 6.11.0(@rjsf/utils@6.11.0(react@19.2.8))
-      '@tanstack/react-query':
-        specifier: ^5.90.0
-        version: 5.105.0(@types/react@19.3.0)(react@19.2.8)
-      ajv:
-        specifier: ^8.20.0
-        version: 8.20.0
-      ajv-formats:
-        specifier: ^3.0.1
-        version: 3.0.1(ajv@8.20.0)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
-      d3-array:
-        specifier: 3.2.4
-        version: 3.2.4
-      d3-interpolate:
-        specifier: 3.0.1
-        version: 3.0.1
-      dicom-parser:
-        specifier: 1.8.21
-        version: 1.8.21
-      digital-filter:
-        specifier: 2.4.3
-        version: 2.4.3
-      dockview-react:
-        specifier: ^8.8.0
-        version: 8.8.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      flatbush:
-        specifier: 4.6.2
-        version: 4.6.2
-      gl-matrix:
-        specifier: 3.4.3
-        version: 3.4.3
-      mediabunny:
-        specifier: 1.63.0
-        version: 1.63.0
-      nifti-reader-js:
-        specifier: ^0.6.8
-        version: 0.6.9
-      openseadragon:
-        specifier: 6.1.1
-        version: 6.1.1
-      polyclip-ts:
-        specifier: 0.16.8
-        version: 0.16.8
       react:
         specifier: 19.2.8
         version: 19.2.8
       react-day-picker:
         specifier: ^9.12.0
         version: 9.14.0(react@19.2.8)
-      react-dom:
-        specifier: 19.2.8
-        version: 19.2.8(react@19.2.8)
-      react-router:
-        specifier: ^7.9.0
-        version: 7.18.5(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      rfc6902:
-        specifier: ^5.3.0
-        version: 5.3.0
-      simplify-js:
-        specifier: 1.2.4
-        version: 1.2.4
-      sonner:
-        specifier: ^2.0.7
-        version: 2.0.8(@types/react@19.3.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       tailwind-merge:
         specifier: ^3.4.0
         version: 3.7.0
-      tailwindcss-animate:
-        specifier: ^1.0.7
-        version: 1.0.7(tailwindcss@4.3.3)
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+
+  plugins/_template:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
       zod:
         specifier: ^4.6.7
         version: 4.6.7
-      zustand:
-        specifier: ^5.0.8
-        version: 5.0.16(@types/react@19.3.0)(react@19.2.8)
     devDependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^1.3.0
-        version: 1.3.0(zod@4.6.7)
-      '@inkling/agent':
-        specifier: workspace:*
-        version: link:../agent
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.32.2
-        version: 1.32.2(zod@4.6.7)
-      '@originjs/vite-plugin-commonjs':
-        specifier: 1.0.3
-        version: 1.0.3
-      '@tailwindcss/vite':
-        specifier: ^4
-        version: 4.3.3(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
-      '@types/node':
-        specifier: ^20
-        version: 20.19.43
-      '@types/openseadragon':
-        specifier: 6.0.0
-        version: 6.0.0
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/cardiac-metrics:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/cine:
+    dependencies:
+      polyclip-ts:
+        specifier: 0.16.8
+        version: 0.16.8
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/export-dicom:
+    dependencies:
+      '@cornerstonejs/adapters':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/tools@5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3))
+      '@cornerstonejs/core':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      '@cornerstonejs/metadata':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@cornerstonejs/utils':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@kitware/vtk.js':
+        specifier: 36.4.1
+        version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+
+  plugins/image2d:
+    dependencies:
+      '@cornerstonejs/core':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      '@cornerstonejs/metadata':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@cornerstonejs/tools':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3)
+      '@cornerstonejs/utils':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@kitware/vtk.js':
+        specifier: 36.4.1
+        version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/text-spans:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/timeseries:
+    dependencies:
+      digital-filter:
+        specifier: 2.4.3
+        version: 2.4.3
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/video:
+    dependencies:
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+    devDependencies:
       '@types/react':
         specifier: ^19
         version: 19.3.0
       '@types/react-dom':
         specifier: ^19
         version: 19.3.0(@types/react@19.3.0)
-      '@vitejs/plugin-react':
-        specifier: ^5.0.0
-        version: 5.2.0(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
-      '@vitest/coverage-v8':
-        specifier: ^5.0.5
-        version: 5.0.5(vitest@5.0.5)
-      jsdom:
-        specifier: ^30.1.3
-        version: 30.1.3
-      tailwindcss:
-        specifier: ^4
-        version: 4.3.3
-      typescript:
-        specifier: ^5
-        version: 5.9.3
-      vite:
-        specifier: ^7.1.0
-        version: 7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1)
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@20.19.43)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/volume:
+    dependencies:
+      '@cornerstonejs/core':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      '@cornerstonejs/metadata':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@cornerstonejs/nifti-volume-loader':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))
+      '@cornerstonejs/tools':
+        specifier: 5.14.0
+        version: 5.14.0(@cornerstonejs/core@5.14.0(@cornerstonejs/metadata@5.14.0)(@cornerstonejs/utils@5.14.0)(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@kitware/vtk.js@36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0))(@types/d3-array@3.2.1)(@types/d3-interpolate@3.0.4)(d3-array@3.2.4)(d3-interpolate@3.0.1)(gl-matrix@3.4.3)
+      '@cornerstonejs/utils':
+        specifier: 5.14.0
+        version: 5.14.0
+      '@kitware/vtk.js':
+        specifier: 36.4.1
+        version: 36.4.1(autoprefixer@10.6.2(postcss@8.5.32))(wslink@2.5.0)
+      dicom-parser:
+        specifier: 1.8.21
+        version: 1.8.21
+      gl-matrix:
+        specifier: 3.4.3
+        version: 3.4.3
+      nifti-reader-js:
+        specifier: ^0.6.8
+        version: 0.6.9
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  plugins/wsi:
+    dependencies:
+      openseadragon:
+        specifier: 6.1.1
+        version: 6.1.1
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/openseadragon':
+        specifier: 6.0.0
+        version: 6.0.0
+      '@types/react':
+        specifier: ^19
+        version: 19.3.0
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@24.19.2)(@vitest/coverage-v8@5.0.5)(jsdom@30.1.3)(vite@7.3.7(@types/node@24.19.2)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
   '@anthropic-ai/sdk@0.129.0':
     resolution: {integrity: sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw==}
-    hasBin: true
-    peerDependencies:
-      zod: ^3.25.0 || ^4.0.0
-    peerDependenciesMeta:
-      zod:
-        optional: true
-
-  '@anthropic-ai/sdk@1.3.0':
-    resolution: {integrity: sha512-k7z9BlLLPxfZH+ov7dS6EnaN/wiZeV8YNT1LZfrpAHIy7oY7pHr4UzirF9f2OlHtFEnRBOX+AZQ91Y5fK+TPTw==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -1960,6 +2272,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/js-yaml@4.0.9':
+    resolution: {integrity: sha512-k4MGaQl5TGo/iipqb2UDG2UwjXziSWkh0uysQelTlJpX1qGlpUZYm8PnO4DxG1qBomtJUdYJ6qR6xdIah10JLg==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -4081,14 +4396,6 @@ snapshots:
     optionalDependencies:
       zod: 4.6.7
 
-  '@anthropic-ai/sdk@1.3.0(zod@4.6.7)':
-    dependencies:
-      '@opentelemetry/api': 1.10.0
-      json-schema-to-ts: 3.1.1
-      standardwebhooks: 1.1.1
-    optionalDependencies:
-      zod: 4.6.7
-
   '@asamuzakjp/css-color@7.1.9':
     dependencies:
       '@csstools/css-calc': 3.4.3(@csstools/css-parser-algorithms@4.0.2(@csstools/css-tokenizer@4.0.2))(@csstools/css-tokenizer@4.0.2)
@@ -5958,6 +6265,8 @@ snapshots:
   '@types/dom-webcodecs@0.1.13': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/js-yaml@4.0.9': {}
 
   '@types/json-schema@7.0.15': {}
 

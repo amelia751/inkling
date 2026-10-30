@@ -1,0 +1,65 @@
+# Reference python-worker plugin (docs/plugins.md §5.1, §12). One capability, several
+# providers; output is always the provider-independent image.segment result, which the
+# kernel normalises into canonical mask annotations.
+schemaVersion: inkling.plugins/v1
+id: inkling.segmentation
+name: Segmentation
+version: 1.0.0
+description: "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
+publisher: first-party
+license: Apache-2.0
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+capabilities:
+  # Request and result schemas are the kernel's image.segment contract
+  # (schemas/capabilities/image.segment.*.json); a plugin can't redefine them.
+  - id: image.segment
+    tool: segment_objects
+    mediaTypes: [image/png, image/jpeg, image/webp]
+runtime:
+  kind: python-worker
+  entrypoint: segmentation_plugin.tools:register
+  maxExecutionSeconds: 180
+  concurrency: 4
+providers:
+  - id: mock
+    implements: [image.segment]
+    hosting: mock
+    features: { text: true, points: true, boxes: true, video: false }
+  - id: meta.sam
+    implements: [image.segment]
+    hosting: hosted
+    # Host to verify against Meta's current API docs at integration time.
+    egress: [graph.facebook.com]
+    secrets: [META_MODEL_API_KEY]
+    features: { text: true, points: true, boxes: true, video: false }
+    # No pricing is published here: the gateway refuses billable calls to a hosted provider
+    # without a price (it can't estimate spend). Add pricing with effectiveAt and sourceUrl
+    # from Meta's current terms when integrating.
+    modelLicense: "SAM License (see Meta's model card; not an OSI licence)"
+    serviceTerms: "Meta model API terms"
+  - id: local.sam
+    implements: [image.segment]
+    hosting: self-hosted
+    egress: [sam.internal]
+    features: { text: false, points: true, boxes: true, video: false }
+ui:
+  contributions: ui/contributions.json
+skills:
+  - skills/segmentation/SKILL.md
+permissions:
+  required:
+    - assets.read
+    - annotations.write
+    - jobs.create
+  optional:
+    - network.egress:graph.facebook.com
+    - secrets.use:META_MODEL_API_KEY
+    - network.egress:sam.internal
+resources:
+  defaultBudgetUsdPerJob: 1.00
+  maxBudgetUsdPerJob: 25.00
+  maxImagesPerJob: 1000
+events:
+  subscribes: []

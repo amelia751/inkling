@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/SegmentResult",
+  "$defs": {
+    "SegmentResult": {
+      "type": "object",
+      "properties": {
+        "instances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/MaskInstance"
+          }
+        },
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "status": {
+          "default": "completed",
+          "type": "string",
+          "enum": [
+            "completed",
+            "partial"
+          ]
+        }
+      },
+      "required": [
+        "instances",
+        "provider",
+        "model"
+      ],
+      "additionalProperties": false
+    },
+    "MaskInstance": {
+      "type": "object",
+      "properties": {
+        "instance_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "mask": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "type": "string",
+                  "const": "rle"
+                },
+                "size": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 2,
+                  "maxItems": 2
+                },
+                "counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                }
+              },
+              "required": [
+                "encoding",
+                "size",
+                "counts"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "type": "string",
+                  "const": "artifact-png"
+                },
+                "artifact_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "size": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "integer",
+                      "exclusiveMinimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  ],
+                  "items": false,
+                  "minItems": 2,
+                  "maxItems": 2
+                }
+              },
+              "required": [
+                "encoding",
+                "artifact_id",
+                "size"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "box_xyxy": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "items": false,
+          "minItems": 4,
+          "maxItems": 4
+        },
+        "label": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "instance_id",
+        "mask"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/capabilities/image.segment/result"
+}

@@ -1,5 +1,7 @@
 packages:
   - "apps/*"
+  - "packages/*"
+  - "plugins/*"
 allowBuilds:
   "@google/genai": false
   esbuild: true

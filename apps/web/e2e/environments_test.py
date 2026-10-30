@@ -15,7 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, REGISTRY, RUNTIME, launch, open_studio, parse_args, sync_playwright  # noqa: E402
 
 FIXTURES = Path(__file__).parent / "fixtures"
 results: list[tuple[str, bool, str]] = []
@@ -57,7 +57,7 @@ def env_summary(st) -> dict:
 
 
 def runtime(st, item_id: str, key: str):
-    return st.page.evaluate(f"async () => (await import('/src/platform/runtime.ts')).getRuntime({item_id!r}, {key!r})")
+    return st.page.evaluate(f"async () => (await import('{RUNTIME}')).getRuntime({item_id!r}, {key!r})")
 
 
 def t_sensor(browser, port):
@@ -104,6 +104,27 @@ def t_satellite(browser, port):
         st.page.context.close()
 
 
+def t_workspace_activation(browser, port):
+    """todo2 Phase 3: a workspace without the WSI plugin can't run the pathology preset; enabling it can."""
+    asset = {"path": "pathology-wsi/TCGA-A6-5665-01Z-00-DX1.dzi", "sha256": "", "bytes": 0, "slide": "tiles"}
+    ns = NAMING["namespace"]
+    state = {"workspaceId": "no-wsi", "plugins": [{"pluginId": f"{ns}.image2d", "version": "1.1.0", "state": "ACTIVATED"}]}
+    st = open_studio(browser, port, "no-wsi", extra_projects=[project("no-wsi", "pathology", [asset])], fixture_annotations=[], workspace_state=state)
+    try:
+        st.page.wait_for_selector("[data-testid='env-errors']", timeout=30000)
+        text = st.page.inner_text("[data-testid='env-errors']")
+        check("activation: pathology doesn't resolve without the WSI plugin", f"{ns}.wsi" in text, text[:160])
+        cat = st.page.evaluate(f"async () => (await import('{REGISTRY}')).registry.listModules().map(m => m.id)")
+        check("activation: the catalogue lists only active plugins", f"{ns}.wsi" not in cat and f"{ns}.image2d" in cat, str(cat))
+        st.page.evaluate(f"async () => (await import('{REGISTRY}')).registry.activate('{ns}.wsi')")
+        st.page.wait_for_selector("[data-testid='wsi-viewer']", timeout=30000)
+        env = wait(lambda: env_summary(st))
+        check("activation: enabling WSI boots the pathology Studio without a reload", bool(env) and env["renderer"] == f"{ns}.wsi.renderers.osd", str(env))
+        check("activation: no console errors", not [e for e in st.errors if "favicon" not in e], str(st.errors[:2]))
+    finally:
+        st.page.context.close()
+
+
 def t_text(browser, port):
     txt = FIXTURES / "ner.txt"
     p = project("ner-demo", "ner", [{"path": "ner-demo/ner.txt", "sha256": "", "bytes": txt.stat().st_size}])
@@ -127,9 +148,9 @@ def t_text(browser, port):
         ok = bool(spans) and spans[0]["label"] == "LOC" and spans[0]["g"] == {"type": "inkling.text-spans.span", "start": 44, "end": 50, "text": "London"}
         check("text: selecting text stores a span with the active class", ok, str(spans))
         out = st.page.evaluate("""async () => {
-          const { registry } = await import('/src/platform/registry.ts');
+          const { registry } = await import('/src/extension-host/registry.ts');
           const ex = await registry.loadImpl('inkling.text-spans.exporters.jsonl');
-          const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+          const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
           const items = s.env.dataKind.groupItems({ assets: [{ path: 'ner-demo/ner.txt' }] });
           return await (await ex.build({ project: {}, items, annotations: s.annotations })).text();
         }""")
@@ -190,7 +211,7 @@ def main() -> int:
     args = parse_args()
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
-        for fn in (t_sensor, t_drone, t_satellite, t_text, t_agent_panels):
+        for fn in (t_sensor, t_drone, t_satellite, t_workspace_activation, t_text, t_agent_panels):
             try:
                 fn(browser, args.port)
             except Exception as e:  # noqa: BLE001 — report and keep going

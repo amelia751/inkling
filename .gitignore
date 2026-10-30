@@ -18,3 +18,9 @@ __pycache__/
 secrets/*
 !secrets/README.md
 !secrets/*.example
+
+# Python kernel, worker and plugin environments and local state
+.venv/
+apps/api/.data/
+apps/worker/.data/
+.pytest_cache/

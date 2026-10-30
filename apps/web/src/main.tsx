@@ -1,11 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "@/lib/theme";
-import "@/bundle";
-import { AppShell } from "@/app/AppShell";
-import "@/styles/globals.css";
+import { TooltipProvider } from "@studio/studio-ui/ui/tooltip";
+import { ThemeProvider } from "@/studio/lib/theme";
+import "@/extension-host/bundled";
+import { AppShell } from "@/studio/app/AppShell";
+import "@/studio/styles/globals.css";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 

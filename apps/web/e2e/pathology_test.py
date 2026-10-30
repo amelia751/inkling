@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from harness import Studio, launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import Studio, launch, open_studio, parse_args, src_url, sync_playwright  # noqa: E402
 
 DATASET = "pathology-wsi"
 MPP = 0.252
@@ -132,7 +132,7 @@ class P:
         """Insert a fixture annotation through the store (as an import would); returns its id."""
         return self.page.evaluate(
             """async ([g, label, extra]) => {
-                const m = await import('/src/stores/studio.ts');
+                const m = await import('/src/studio/stores/studio.ts');
                 const s = m.useStudio.getState();
                 const a = m.newAnnotation({ itemId: s.annotations[0]?.itemId ?? window.__pathology.item.id, label, geometry: g, ...extra });
                 s.add(a);
@@ -233,7 +233,7 @@ def ellipse_and_shift_circle(p: P):
     assert near(g0["rx"], 1000, 30) and near(g0["ry"], 400, 30), g0
     assert near(g1["rx"], g1["ry"], 1), f"shift should make a circle: {g1}"
     rows = p.page.evaluate(
-        """async (a) => { const { registry } = await import('/src/platform/registry.ts'); const inspect = await registry.loadImpl('inkling.wsi.inspectors.main'); return inspect(a, { project: {}, item: { assets: [] }, runtime: { get: (k) => (k === 'mpp' ? 0.252 : undefined) } }); }""",
+        """async (a) => { const { registry } = await import('/src/extension-host/registry.ts'); const inspect = await registry.loadImpl('inkling.wsi.inspectors.main'); return inspect(a, { project: {}, item: { assets: [] }, runtime: { get: (k) => (k === 'mpp' ? 0.252 : undefined) } }); }""",
         a[0],
     )
     area_um2 = math.pi * g0["rx"] * g0["ry"] * MPP * MPP
@@ -314,7 +314,7 @@ def polyline_double_click_and_enter(p: P):
     a = p.anns()
     assert [x["geometry"]["type"] for x in a] == ["polyline", "polyline"], a
     assert len(a[0]["geometry"]["points"]) == 3 and len(a[1]["geometry"]["points"]) == 2, a
-    rows = dict(p.page.evaluate("""async (a) => { const m = await import('/src/modules/wsi/measure.ts'); return m.inspectRows(a, 0.252, []); }""", a[1]))
+    rows = dict(p.page.evaluate("""async (a) => { const m = await import('""" + src_url("plugins/wsi/ui/measure.ts") + """'); return m.inspectRows(a, 0.252, []); }""", a[1]))
     assert rows["Length"] in ("504 µm", "504.0 µm"), rows
 
 
@@ -768,10 +768,10 @@ def exporters_content(p: P):
     p.add({"type": "measurement", "kind": "length", "points": [[cx, cy], [cx, cy + 4000]], "space": "image", "stats": {"length_um": 1008}})
     out = p.page.evaluate(
         """async () => {
-            const { registry } = await import('/src/platform/registry.ts');
-            const { fetchProjects } = await import('/src/lib/api.ts');
+            const { registry } = await import('/src/extension-host/registry.ts');
+            const { fetchProjects } = await import('/src/studio/lib/api.ts');
             const project = (await fetchProjects()).find((x) => x.id === 'pathology-wsi');
-            const { useStudio } = await import('/src/stores/studio.ts');
+            const { useStudio } = await import('/src/studio/stores/studio.ts');
             const annotations = useStudio.getState().annotations;
             const itemId = annotations[0].itemId;
             const items = [{ id: itemId, name: 'slide', group: '', assets: project.assets.filter((a) => a.path.endsWith('.dzi')) }];

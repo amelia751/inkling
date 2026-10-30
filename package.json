@@ -1,13 +1,20 @@
 {
-  "name": "inkling",
+  "name": "studio",
   "private": true,
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "seeds": "uv run scripts/fetch-seeds.py",
     "mcp": "pnpm --filter web mcp",
-    "agent": "pnpm --filter @inkling/agent dev",
-    "agent:test": "pnpm --filter @inkling/agent test",
-    "agent:live": "pnpm --filter @inkling/agent test:live"
+    "agent": "pnpm --filter @studio/agent dev",
+    "agent:test": "pnpm --filter @studio/agent test",
+    "agent:live": "pnpm --filter @studio/agent test:live",
+    "typecheck": "pnpm --filter web typecheck",
+    "test": "pnpm --filter web test",
+    "check:boundaries": "pnpm --filter web check:boundaries",
+    "emit:schemas": "pnpm --filter web emit:schemas",
+    "api": "cd apps/api && uv run uvicorn studio_api.app:app --port 8000",
+    "test:api": "cd apps/api && uv run pytest -q",
+    "build:registry": "node scripts/build-registry.mjs"
   }
 }

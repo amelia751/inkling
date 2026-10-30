@@ -1,0 +1,27 @@
+{
+  "name": "@studio/plugin-volume",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "First-party plugin: see plugin.yaml and README.md",
+  "exports": {
+    "./*": "./ui/*"
+  },
+  "dependencies": {
+    "@cornerstonejs/core": "5.14.0",
+    "@cornerstonejs/metadata": "5.14.0",
+    "@cornerstonejs/nifti-volume-loader": "5.14.0",
+    "@cornerstonejs/tools": "5.14.0",
+    "@cornerstonejs/utils": "5.14.0",
+    "@kitware/vtk.js": "36.4.1",
+    "dicom-parser": "1.8.21",
+    "gl-matrix": "3.4.3",
+    "nifti-reader-js": "^0.6.8",
+    "react": "19.2.8",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "vitest": "^5.0.5"
+  }
+}

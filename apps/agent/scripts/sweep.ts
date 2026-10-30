@@ -1,9 +1,9 @@
 /**
  * Manual GC for Inkling sandboxes (todo1 §4.6). Only `app=inkling` sandboxes in one env are touched.
  *
- *   pnpm --filter @inkling/agent sweep -- --dry-run                 list and plan (default)
- *   pnpm --filter @inkling/agent sweep -- --stop                    stop idle started sandboxes
- *   pnpm --filter @inkling/agent sweep -- --delete                  also delete orphans / expired
+ *   pnpm --filter @studio/agent sweep -- --dry-run                 list and plan (default)
+ *   pnpm --filter @studio/agent sweep -- --stop                    stop idle started sandboxes
+ *   pnpm --filter @studio/agent sweep -- --delete                  also delete orphans / expired
  *   … --env test --label test=live --all                            every match, ignoring idle/age rules
  */
 import { parseArgs } from "node:util";

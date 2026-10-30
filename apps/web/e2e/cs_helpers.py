@@ -118,10 +118,10 @@ def blob_from_exporter(st, exporter_id: str) -> bytes:
     in the page with the live store, through the app's registry, and return the file bytes."""
     b64 = st.page.evaluate(
         f"""async () => {{
-          const {{ registry }} = await import('/src/platform/registry.ts');
-          const {{ projectItems }} = await import('/src/lib/items.ts');
-          const api = await import('/src/lib/api.ts');
-          const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+          const {{ registry }} = await import('/src/extension-host/registry.ts');
+          const {{ projectItems }} = await import('/src/studio/lib/items.ts');
+          const api = await import('/src/studio/lib/api.ts');
+          const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
           const project = (await api.fetchProjects()).find(p => p.id === s.projectId);
           const exporter = await registry.loadImpl({json.dumps(exporter_id)});
           const blob = await exporter.build({{ project, items: projectItems(project), annotations: s.annotations }});

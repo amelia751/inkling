@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/UiContributions",
+  "$defs": {
+    "UiContributions": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "$comment": {
+          "type": "string"
+        },
+        "toolbarActions": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][\\w.-]*$"
+              },
+              "surface": {
+                "type": "string",
+                "enum": [
+                  "image.viewer.toolbar",
+                  "command.palette"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": {
+                "type": "string"
+              },
+              "command": {
+                "type": "string",
+                "minLength": 1
+              },
+              "args": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "icon": {
+                "description": "Icon name from the Studio icon set",
+                "type": "string"
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "visibleWhen": {
+                "type": "object",
+                "properties": {
+                  "assetMediaType": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "when": {
+                    "type": "string"
+                  },
+                  "selection": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "surface",
+              "title",
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "panels": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][\\w.-]*$"
+              },
+              "surface": {
+                "type": "string",
+                "enum": [
+                  "annotation.inspector",
+                  "studio.panel.left",
+                  "studio.panel.right",
+                  "studio.panel.bottom"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "renderer": {
+                "type": "string",
+                "pattern": "^[a-z][\\w-]*(?:\\.[\\w-]+)*\\.v\\d+$"
+              },
+              "dataBinding": {
+                "type": "string",
+                "enum": [
+                  "annotations.currentSelection",
+                  "annotations.currentItem",
+                  "item.current",
+                  "none"
+                ]
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              "visibleWhen": {
+                "type": "object",
+                "properties": {
+                  "assetMediaType": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "when": {
+                    "type": "string"
+                  },
+                  "selection": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "id",
+              "surface",
+              "renderer"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/ui-contributions/v1"
+}

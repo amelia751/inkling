@@ -1,0 +1,397 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PluginManifest",
+  "$defs": {
+    "PluginManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "inkling.plugins/v1"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "description": {
+          "type": "string"
+        },
+        "publisher": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "compatibility": {
+          "type": "object",
+          "properties": {
+            "studio": {
+              "type": "string"
+            },
+            "pluginApi": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "studio",
+            "pluginApi"
+          ],
+          "additionalProperties": false
+        },
+        "requires": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "capabilities": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$",
+                "description": "Capability contract id, e.g. image.segment"
+              },
+              "inputSchema": {
+                "type": "string",
+                "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+              },
+              "outputSchema": {
+                "type": "string",
+                "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+              },
+              "tool": {
+                "description": "Tool that implements it (python-worker plugins)",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]*$"
+              },
+              "mediaTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "runtime": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "browser-bundled"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "python-worker"
+                },
+                "entrypoint": {
+                  "type": "string",
+                  "pattern": "^[a-z_][\\w.]*:[a-z_]\\w*$"
+                },
+                "maxExecutionSeconds": {
+                  "default": 180,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 3600
+                },
+                "concurrency": {
+                  "default": 1,
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 64
+                },
+                "memoryMb": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 65536
+                }
+              },
+              "required": [
+                "kind",
+                "entrypoint"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "none"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9.-]*)*$"
+              },
+              "implements": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+                }
+              },
+              "configSchema": {
+                "type": "string",
+                "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+              },
+              "secrets": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Z][A-Z0-9_]*$"
+                }
+              },
+              "egress": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "hosting": {
+                "type": "string",
+                "enum": [
+                  "hosted",
+                  "self-hosted",
+                  "local",
+                  "mock"
+                ]
+              },
+              "features": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {
+                  "type": [
+                    "boolean",
+                    "number",
+                    "string"
+                  ]
+                }
+              },
+              "pricing": {
+                "type": "object",
+                "properties": {
+                  "unit": {
+                    "type": "string",
+                    "enum": [
+                      "image",
+                      "frame",
+                      "request",
+                      "second"
+                    ]
+                  },
+                  "usdPerUnit": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "effectiveAt": {
+                    "type": "string",
+                    "description": "ISO date the price was read"
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "unit",
+                  "usdPerUnit",
+                  "effectiveAt",
+                  "sourceUrl"
+                ],
+                "additionalProperties": false
+              },
+              "modelLicense": {
+                "type": "string"
+              },
+              "serviceTerms": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "implements"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "ui": {
+          "type": "object",
+          "properties": {
+            "contributions": {
+              "description": "ui/contributions.json: declarative UI on trusted renderers",
+              "type": "string",
+              "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+            },
+            "module": {
+              "description": "Trusted TS manifest (first-party only)",
+              "type": "string",
+              "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "assets.read",
+                      "assets.write",
+                      "annotations.read",
+                      "annotations.write",
+                      "jobs.create",
+                      "events.publish"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^network\\.egress:[a-z0-9.-]+(?::\\d+)?$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^secrets\\.use:[A-Z][A-Z0-9_]*$"
+                  }
+                ]
+              }
+            },
+            "optional": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "assets.read",
+                      "assets.write",
+                      "annotations.read",
+                      "annotations.write",
+                      "jobs.create",
+                      "events.publish"
+                    ]
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^network\\.egress:[a-z0-9.-]+(?::\\d+)?$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^secrets\\.use:[A-Z][A-Z0-9_]*$"
+                  }
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "defaultBudgetUsdPerJob": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxBudgetUsdPerJob": {
+              "type": "number",
+              "minimum": 0
+            },
+            "maxImagesPerJob": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "additionalProperties": false
+        },
+        "events": {
+          "type": "object",
+          "properties": {
+            "subscribes": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "id",
+        "name",
+        "version",
+        "publisher",
+        "license",
+        "compatibility",
+        "runtime",
+        "permissions"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/plugin/v1"
+}

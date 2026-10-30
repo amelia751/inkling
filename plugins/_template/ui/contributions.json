@@ -1,0 +1,23 @@
+{
+  "$comment": "Declarative UI (docs/plugins.md §5.3). Third-party and agent-authored plugins ship only this file and plugin.yaml: no React. Each toolbar action names a command, which runs through the command gateway; each panel names a trusted renderer (`studio.declarative-panel.v1`, `studio.sandbox-frame.v1`, `studio.mask-review.v1`). Unknown renderers fail closed. `visibleWhen` takes assetMediaType (image/* wildcards), selection, or a `when` clause. Delete what you don't need.",
+  "toolbarActions": [
+    {
+      "id": "count-points",
+      "surface": "command.palette",
+      "title": "Count points",
+      "description": "Example action: runs the plugin's count_points tool through the gateway",
+      "command": "inkling.example.count_points",
+      "visibleWhen": { "assetMediaType": ["image/*"] }
+    }
+  ],
+  "panels": [
+    {
+      "id": "summary",
+      "surface": "studio.panel.right",
+      "title": "Example summary",
+      "renderer": "studio.declarative-panel.v1",
+      "dataBinding": "annotations.currentItem",
+      "config": { "title": "Example", "blocks": [{ "type": "stat", "label": "Annotations on this item", "value": { "store": "annotations.item" } }] }
+    }
+  ]
+}

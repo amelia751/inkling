@@ -25,7 +25,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from harness import Studio, launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import Studio, launch, open_studio, parse_args, src_url, sync_playwright  # noqa: E402
 
 ARGS = parse_args()
 OUT = Path(ARGS.out) / "cine4d"
@@ -77,7 +77,7 @@ class Cine:
 
     def dense(self, a: dict) -> list[list[float]]:
         return self.page.evaluate(
-            "async (g) => (await import('/src/modules/cine/model.ts')).ring(g)", a["geometry"]
+            "async (g) => (await import('" + CINE_MODEL + "')).ring(g)", a["geometry"]
         )
 
     # ---- input ----
@@ -137,6 +137,7 @@ class Cine:
         return self.s.shot(name, OUT)
 
 
+CINE_MODEL = src_url("plugins/cine/ui/model.ts")
 results: list[tuple[str, str]] = []
 
 
@@ -507,9 +508,9 @@ def t_interpolate(c: Cine):
     exp = [f for f in range(1, 30) if f not in have and f != 12]
     assert sorted(a["geometry"]["frame"] for a in created) == exp, (len(created), len(exp))
     # The area of a wrapped contour lies between ES and ED.
-    areas = {a["geometry"]["frame"]: c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", a["geometry"]) for a in created}
-    ed = c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", c.cell(SLICE, 0, LV, "contour")[0]["geometry"])
-    es = c.page.evaluate("async g => (await import('/src/modules/cine/model.ts')).ringArea(g)", c.cell(SLICE, 12, LV, "contour")[0]["geometry"])
+    areas = {a["geometry"]["frame"]: c.page.evaluate("async g => (await import('" + CINE_MODEL + "')).ringArea(g)", a["geometry"]) for a in created}
+    ed = c.page.evaluate("async g => (await import('" + CINE_MODEL + "')).ringArea(g)", c.cell(SLICE, 0, LV, "contour")[0]["geometry"])
+    es = c.page.evaluate("async g => (await import('" + CINE_MODEL + "')).ringArea(g)", c.cell(SLICE, 12, LV, "contour")[0]["geometry"])
     assert es < areas[20] < ed and areas[13] < areas[29], (es, areas[13], areas[20], areas[29], ed)
     c.key("Meta+z")
     c.button("wrap").click()
@@ -589,10 +590,10 @@ def t_multiselect(c: Cine):
 def b64(c: Cine, exporter_id: str) -> bytes:
     data = c.page.evaluate(
         """async (id) => {
-          const { registry } = await import('/src/platform/registry.ts');
+          const { registry } = await import('/src/extension-host/registry.ts');
           const ex = await registry.loadImpl(id);
-          const { projectItems } = await import('/src/lib/items.ts');
-          const { useStudio } = await import('/src/stores/studio.ts');
+          const { projectItems } = await import('/src/studio/lib/items.ts');
+          const { useStudio } = await import('/src/studio/stores/studio.ts');
           const manifest = await (await fetch('/seed/manifest.json')).json();
           const project = manifest.projects.find((p) => p.id === '4d-cardiac');
           const blob = await ex.build({ project, items: projectItems(project), annotations: useStudio.getState().annotations });

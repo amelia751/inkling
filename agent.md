@@ -72,7 +72,7 @@ Object storage: immutable dataset versions, sandbox artifact exports
 
 ## 3. Monorepo layout
 
-`apps/agent` is a pnpm workspace package (`@inkling/agent`), not a Python package. The web app imports only its wire types (`@inkling/agent/protocol`).
+`apps/agent` is a pnpm workspace package (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
 
 ```text
 inkling/
@@ -86,7 +86,7 @@ inkling/
 │   │       ├── lib/agent/           # protocol re-export, HTTP/SSE client, card tools, snapshot
 │   │       ├── stores/agent.ts      # threads, sessions, active run (reattach after reload)
 │   │       └── modules/core/panels/ai.tsx   # the Inkling AI panel; runs client tools
-│   ├── agent/                       # Node service (@inkling/agent)
+│   ├── agent/                       # Node service (@studio/agent)
 │   │   ├── src/
 │   │   │   ├── main.ts / app.ts     # boot; Hono routes (§9)
 │   │   │   ├── config.ts secrets.ts log.ts protocol.ts
@@ -160,7 +160,7 @@ The other rows are options from the original Harness survey; none is wired up. D
 
 ### 6.1 Prerequisites
 
-- pnpm (the repo's package manager). `apps/agent` declares `engines.node >=22.19` and `devEngines.runtime` Node `^24` with `onFail: download`, so pnpm fetches a matching Node just for this package: check with `pnpm --filter @inkling/agent exec node -v`.
+- pnpm (the repo's package manager). `apps/agent` declares `engines.node >=22.19` and `devEngines.runtime` Node `^24` with `onFail: download`, so pnpm fetches a matching Node just for this package: check with `pnpm --filter @studio/agent exec node -v`.
 - A model key: `OPENAI_API_KEY` (dev default `openai:gpt-6.1-sol`) or `ANTHROPIC_API_KEY`, in the real environment or `secrets/models.env`.
 - `DAYTONA_API_KEY` (+ `DAYTONA_API_URL`, `DAYTONA_TARGET`) in `secrets/daytona.env` for the `coder` profile; without it the service runs with sandboxes off.
 - Synthetic or public de-identified data only (seed-data).
@@ -169,7 +169,7 @@ The other rows are options from the original Harness survey; none is wired up. D
 
 ```bash
 pnpm install                                   # apps/agent is a workspace package
-pnpm --filter @inkling/agent snapshot          # optional: build the content-hashed sandbox snapshot (minutes, once)
+pnpm --filter @studio/agent snapshot          # optional: build the content-hashed sandbox snapshot (minutes, once)
 ```
 
 Dependencies are pinned exactly (`@earendil-works/pi-coding-agent` and `pi-ai` 1.4.0, `@daytona/sdk` 0.227.0). The workspace's `minimumReleaseAgeExclude` lists the Daytona packages that were newer than pnpm's release-age policy when pinned.
@@ -181,7 +181,7 @@ Non-secret settings are documented in `apps/agent/.env.example` (`AGENT_*`); sec
 ### 6.4 Smoke test
 
 ```bash
-pnpm --filter @inkling/agent smoke     # real model + real Daytona: write hello.py, run it, report stdout; deletes the sandbox
+pnpm --filter @studio/agent smoke     # real model + real Daytona: write hello.py, run it, report stdout; deletes the sandbox
 pnpm agent:live                        # Daytona live tests (one labelled sandbox, always deleted)
 pnpm agent:test                        # unit tests, no network
 ```
@@ -384,7 +384,7 @@ Use `pytest` for business-logic/security tests, integration tests with synthetic
 
 **Security:** cross-tenant IDs, prompt injection in datasets/web/skills, symlinks and path traversal, secret extraction attempts, egress denied, malicious packages, failed cleanup, tool output redaction.
 
-**CI stages:** `pnpm install --frozen-lockfile`, `pnpm --filter @inkling/agent typecheck`, `pnpm agent:test` (unit, scripted model, no network), web `tsc -b` + vitest, `apps/web/e2e/agent_test.py` against the scripted service, then `pnpm agent:live` / `smoke` on protected runners only. Keep expensive provider tests off pull requests and free of production keys.
+**CI stages:** `pnpm install --frozen-lockfile`, `pnpm --filter @studio/agent typecheck`, `pnpm agent:test` (unit, scripted model, no network), web `tsc -b` + vitest, `apps/web/e2e/agent_test.py` against the scripted service, then `pnpm agent:live` / `smoke` on protected runners only. Keep expensive provider tests off pull requests and free of production keys.
 
 **Metrics:** run success rate, completion accuracy, duration, model input/output/cached tokens, dollars/run, tool failure rate, sandbox provision time/active seconds/storage, approval latency, pipeline retries, event lag, leak/denial counters, runaway-loop counts. Use OpenTelemetry spans with `run_id`, `session_id`, `project_id` or non-PII hashed identifiers; sanitize content, secrets, and sensitive sample values. Build alerts for stuck runs and uncollected sandboxes.
 
@@ -407,7 +407,7 @@ Use `pytest` for business-logic/security tests, integration tests with synthetic
 - [x] `apps/agent` package, settings, private health endpoints (Node + pi; no Dockerfile yet).
 - [x] pi + Daytona dependencies pinned in the pnpm lockfile.
 - [x] Session factory with Daytona-backed tools; no real data attached.
-- [x] Live smoke test (`pnpm --filter @inkling/agent smoke`); spend-capped; sandbox always deleted.
+- [x] Live smoke test (`pnpm --filter @studio/agent smoke`); spend-capped; sandbox always deleted.
 - [x] Unit tests and typecheck.
 
 ### Phase 1 — App wiring
@@ -460,7 +460,7 @@ A tenant member can open Inkling, start an agent session, request a **read-only 
 1. Read the pi changelog (`node_modules/@earendil-works/pi-coding-agent/CHANGELOG.md`) and the Daytona SDK release notes between the pinned and target versions.
 2. Bump the exact versions in `apps/agent/package.json` (`pi-coding-agent` and `pi-ai` together).
 3. Diff the `createAgentSession` options, `AgentSessionEvent`, `*Operations` and `ToolCallEvent` declarations; the projection (`runtime/events.ts`) and ops (`sandbox/ops.ts`) depend on them.
-4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @inkling/agent smoke` and `apps/web/e2e/agent_test.py`.
+4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @studio/agent smoke` and `apps/web/e2e/agent_test.py`.
 5. Check `@daytona/pi` for fixes worth porting into `apps/agent/src/sandbox/` (keep the NOTICE).
 6. Review cost deltas and the default model list (`AGENT_MODEL_ALLOWLIST`).
 

@@ -69,7 +69,7 @@ def start_agent(data_dir: str) -> subprocess.Popen:
         "INTERNAL_AGENT_SERVICE_TOKEN": TOKEN,
         "LOG_LEVEL": "warn",
     }
-    proc = subprocess.Popen(["pnpm", "--filter", "@inkling/agent", "start"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(["pnpm", "--filter", "@studio/agent", "start"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     if not wait(lambda: get_json(f"http://127.0.0.1:{AGENT_PORT}/health/live").get("ok"), timeout=60):
         proc.terminate()
         out = proc.stdout.read().decode() if proc.stdout else ""

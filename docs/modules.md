@@ -8,26 +8,98 @@ JSON, as long as the modules it needs are registered.
 
 The generated contribution reference (every id, description and edge) is
 [`modules-reference.md`](modules-reference.md); machine-readable versions are served at
-`/api/catalog` and `/api/catalog/schema` (`apps/web/public/catalog.json`,
-`apps/web/public/schema/environment.v1.json`). They're built by `pnpm emit:schemas`; never
+`/api/catalog` and `/api/catalog/schema` (`schemas/catalog.json`,
+`schemas/environment.v1.json`, copied to `apps/web/public/` for the dev server). They're built by `pnpm emit:schemas`; never
 edit them by hand.
 
 ## Layers
 
+A **module** here is what [`plugins.md`](plugins.md) calls a plugin's UI half: a manifest of
+contributions plus a lazy `load()`. Vocabulary: plugin = module (`ModuleManifest`), UI
+contribution = contribution, trusted renderer = `RendererContribution` / panel components,
+workspace configuration = environment spec, extension host = `extension-host/`.
+
 | Layer | Folder | May import |
 |---|---|---|
-| Platform | `apps/web/src/platform/` | nothing below it |
-| Kits | `apps/web/src/kits/` | platform |
-| Modules | `apps/web/src/modules/<id>/` | platform, kits, other modules' `manifest.ts` / `public.ts` |
-| Shell | `app/`, `components/studio/`, `lib/` | platform (never a module) |
-| Composition root | `src/bundle.ts` | everything: the one place that lists bundled modules |
+| Contracts | `packages/plugin-contracts` (`@studio/plugin-contracts`) | nothing internal |
+| Plugin UI SDK | `packages/plugin-ui-sdk` (`@studio/plugin-ui-sdk`) | contracts |
+| UI primitives | `packages/studio-ui` (`@studio/studio-ui`): shadcn, icons, `cn`, keys | nothing internal |
+| Trusted renderers / kits | `packages/studio-renderers` (`@studio/studio-renderers`) | sdk, contracts, studio-ui |
+| First-party plugins | `plugins/<name>/ui` (`@plugins/<name>/…`) | sdk, contracts, studio-ui, studio-renderers, other plugins' `manifest.ts` / `public.ts` |
+| Extension host | `apps/web/src/extension-host/` (registry, resolver, commands, catalog, agent tools, agent panels) | sdk, contracts, studio-ui |
+| Studio shell | `apps/web/src/studio/` (routes, components, store, lib) | extension-host, sdk, contracts, studio-ui; never `@plugins/*` |
+| Studio built-ins | `apps/web/src/studio/core/` (files, labels, select, pan…; not a plugin) | like the shell, plus studio-renderers |
+| Composition roots | `extension-host/bundled.ts`, `extension-host/host.tsx` | everything: the bundled plugin list and the host API binding |
 
-`pnpm check:boundaries` enforces this; `--strict` ignores the allowlist.
+`pnpm check:boundaries` enforces this (tests may reach into the host); `--strict` ignores
+the allowlist. It also rejects the product name in code (see below).
+
+### The host API
+
+Plugin UI never imports `apps/web`. It reads Studio state with `useHost(selector)` (same
+shape as a Zustand hook; `useHost.getState()` / `useHost.subscribe()` outside React) and
+calls `assetUrl`, `useCommands`, `execute`, `commandDef`, `describeGeometry`, `inspectRows`
+and `resolveSpec` from `@studio/plugin-ui-sdk`. The extension host binds the real
+implementation at boot (`extension-host/host.tsx`, backed by the shell's store) and wraps the
+Studio route in `<StudioHostProvider>`; tests render plugins inside a fake
+`<HostProvider host={…}>` (`extension-host/host.test.ts`).
+
+### Adding a first-party plugin
+
+1. Copy `plugins/_template` to `plugins/<name>` and rename the module id (`ns("<name>")`).
+2. Import only from the SDK, contracts, studio-ui and studio-renderers; third-party
+   dependencies go in the plugin's own `package.json` (`@studio/plugin-<name>`), and the
+   plugin's `plugin.yaml` describes it for the registry (`node scripts/build-registry.mjs`).
+3. Add one import and one `MODULES` entry in `apps/web/src/extension-host/bundled.ts`, and a
+   `@plugins/<name>/*` path in `apps/web/tsconfig.json`.
+4. Run `pnpm emit:schemas` and the checks.
+
+### Data-only manifests and declarative UI
+
+Every plugin also has `plugins/<name>/plugin.yaml` (schema: `packages/plugin-contracts/src/plugin-manifest.ts`,
+emitted as `schemas/plugin.v1.json`): id, version, capabilities, runtime, providers,
+permissions, licences, resources. The registry, installer and agent read it without running
+code; `extension-host/manifests.ts` validates every one at build time, and a test checks
+that id and version match the TS module.
+
+A plugin without trusted code ships `ui/contributions.json` instead
+(`schemas/ui-contributions.v1.json`): toolbar actions that name a command, and panels that
+name a **trusted renderer** (`studio.declarative-panel.v1`, `studio.sandbox-frame.v1`,
+`studio.mask-review.v1`; see `extension-host/trusted-renderers.tsx`). Unknown renderers fail
+closed. `extension-host/contributions-loader.tsx` turns it into an ambient module: a toolbar
+action becomes a command with `surface: "toolbar"` and a `when` built from `visibleWhen`
+(`item.mediaType =~ …`), and runs through the command gateway (`extension-host/gateway.ts`).
+Surfaces map to today's slots in `extension-host/surfaces.ts`.
+
+### Workspace activation
+
+The registry separates **available** plugins (everything bundled) from **active** ones (what
+this workspace installed). Lookups, the resolver and the agent's catalogue see active
+plugins only; built-ins are pinned. The Studio reads the workspace state from
+`GET /api/v1/workspaces/:id/state` (the kernel's Workspace API; in dev the seed server serves
+`seed-data/<project>/workspace.json`, or every bundled plugin) and calls `applyWorkspace`.
+`registry.activate` / `deactivate` change the set at runtime and the Studio re-resolves
+without a reload. `requires` is pulled from available plugins only, and a missing one is
+reported. Annotations of a disabled plugin's geometry types stay in the store and show as
+"unavailable type".
+
+**Trust rule (todo2 D2).** First-party plugins are trusted code compiled into the web build,
+so their `ui/` folder may contain React. Third-party and agent-authored plugins may only ship
+`plugin.yaml` plus `ui/contributions.json` that name trusted renderers; they never run their
+own code in the main origin.
 
 ## Contribution types
 
 Ids are `<moduleId>.<type>.<name>` (OHIF style), e.g. `inkling.wsi.renderers.osd`. Every
 contribution has a one-line `description`, may have a `configSchema` (zod) and an `example`.
+
+Module ids are `${namespace}.<module>`. The namespace comes from the naming config
+(`packages/plugin-contracts/src/naming.ts`, also emitted as `schemas/naming.json`), so never
+hardcode it: write `ns("wsi")` or `` `${NS}.core.commands.undo` ``. That file is the only
+place the product name may appear in code, and `check:boundaries` enforces this. Stored
+documents (presets, environments, annotation geometry types) keep full ids. After a rename,
+the old namespace goes into `legacyNamespaces` so those documents still resolve, and
+`node scripts/rename-namespace.mjs --from <old> --to <new>` rewrites them.
 
 | Type | What it is |
 |---|---|
@@ -125,7 +197,7 @@ The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
 ### From outside the app (MCP)
 
 `pnpm mcp` starts a stdio MCP server (`apps/web/scripts/mcp.mjs`) over a running dev server
-(`INKLING_URL`, default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
+(`<envPrefix>URL`, e.g. `INKLING_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
 `patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.

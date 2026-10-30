@@ -88,6 +88,6 @@ export async function resolveSnapshot(
   if (override) return override;
   const status = await getSnapshotStatus(daytona).catch(() => undefined);
   if (status?.state === "active") return status.name;
-  warn(`snapshot ${status?.name ?? "?"} is ${status?.state ?? "unreachable"}; using Daytona's default image (run \`pnpm --filter @inkling/agent snapshot\`)`);
+  warn(`snapshot ${status?.name ?? "?"} is ${status?.state ?? "unreachable"}; using Daytona's default image (run \`pnpm --filter @studio/agent snapshot\`)`);
   return undefined;
 }

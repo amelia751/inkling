@@ -1,0 +1,23 @@
+# Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
+# source of truth for trusted UI code; this file is what the registry, installer and agent read.
+schemaVersion: inkling.plugins/v1
+id: inkling.example
+name: Example module
+version: 0.1.0
+description: "A minimal module: one data kind, one renderer, one tool and one panel."
+publisher: first-party
+license: Proprietary
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+capabilities: []
+runtime:
+  kind: browser-bundled
+ui:
+  # First-party (trusted) plugins point at their TS manifest. Agent-authored ones drop `module`
+  # and keep only `contributions`, which name trusted renderers.
+  module: ui/manifest.ts
+  contributions: ui/contributions.json
+permissions:
+  required: []
+  optional: []

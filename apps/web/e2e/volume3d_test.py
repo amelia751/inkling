@@ -35,7 +35,7 @@ from cs_helpers import (  # noqa: E402
     validate_dicom,
     wait_for,
 )
-from harness import open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import RUNTIME, open_studio, parse_args, sync_playwright  # noqa: E402
 
 SUBJECT = "BraTS2021_00495"
 REF_COUNTS = {"necrotic core": 20808, "edema": 46447, "enhancing tumor": 32047}
@@ -534,8 +534,8 @@ def main() -> int:
             drag(st.page, at(st, "axial", (20, 64, k)), at(st, "axial", (60, 64, k)))
             lg = only_new(st, before, item="CT1")[0]["geometry"]
             close(lg["stats"]["length"], 60, 0.5, "40 px × 1.5 mm")
-            inspect = st.page.evaluate("""async () => { const inspect = await (await import('/src/platform/registry.ts')).registry.loadImpl('inkling.volume.inspectors.main');
-                const runtime = (await import('/src/platform/runtime.ts')).runtimeFor('CT1'); const s = (await import('/src/stores/studio.ts')).useStudio.getState();
+            inspect = st.page.evaluate("""async () => { const inspect = await (await import('/src/extension-host/registry.ts')).registry.loadImpl('inkling.volume.inspectors.main');
+                const runtime = (await import('""" + RUNTIME + """')).runtimeFor('CT1'); const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
                 const a = s.annotations.filter(a => a.itemId === 'CT1' && a.geometry.kind === 'probe')[0]; return inspect(a, { env: s.env, project: {}, item: { assets: [{ path: 'dicom-ct/CT1/IM0001.dcm' }] }, runtime }) }""")
             check(any("HU" in v for _, v in inspect), f"inspect shows HU: {inspect}")
             # Smart fill the lesion (3D), label "lesion".

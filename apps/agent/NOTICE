@@ -1,4 +1,4 @@
-Inkling agent runtime (@inkling/agent)
+Inkling agent runtime (@studio/agent)
 
 This package includes code adapted from @daytona/pi 0.191.2
 (https://github.com/daytonaio/daytona, libs/pi), the official pi integration for Daytona:

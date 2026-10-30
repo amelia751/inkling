@@ -19,7 +19,7 @@ export async function assertNoLeftovers(d: Daytona, cfg: Config): Promise<void> 
   const left = await listOwned(d, cfg.env, LIVE_LABELS);
   if (left.length > MAX_LEFTOVERS) {
     throw new Error(
-      `${left.length} leftover app=inkling,env=${cfg.env},test=live sandboxes exist; run \`pnpm --filter @inkling/agent sweep -- --env ${cfg.env} --label test=live --delete\``,
+      `${left.length} leftover app=inkling,env=${cfg.env},test=live sandboxes exist; run \`pnpm --filter @studio/agent sweep -- --env ${cfg.env} --label test=live --delete\``,
     );
   }
 }

@@ -1,4 +1,4 @@
-# @inkling/agent
+# @studio/agent
 
 The Inkling AI agent service: one [pi](https://github.com/earendil-works/pi) `AgentSession` per chat, typed Inkling tools, [Daytona](https://www.daytona.io/docs/) sandboxes for code, and a replayable event feed for the Studio. Private: it listens on `127.0.0.1:8100` and only the Vite proxy (dev) or `apps/api` (later) talks to it. Design: [`agent.md`](../../agent.md); plan: [`todo/todo1.md`](../../todo/todo1.md).
 
@@ -10,7 +10,7 @@ pnpm agent                     # from the repo root: tsx watch src/main.ts
 pnpm dev                       # the Studio; /api/agent/* is proxied here with the service token
 ```
 
-Node: the package pins `devEngines.runtime` Node `^24` (`onFail: download`), so pnpm fetches it. Check with `pnpm --filter @inkling/agent exec node -v` (needs ≥ 22.19).
+Node: the package pins `devEngines.runtime` Node `^24` (`onFail: download`), so pnpm fetches it. Check with `pnpm --filter @studio/agent exec node -v` (needs ≥ 22.19).
 
 Keys come from the real environment or, outside production, `secrets/*.env` (see [`secrets/README.md`](../../secrets/README.md)):
 
@@ -26,10 +26,10 @@ Other settings are in [`.env.example`](.env.example). With no model key, set `AG
 
 ```bash
 pnpm agent:test                                # unit + in-process HTTP tests on the scripted model, no network
-pnpm --filter @inkling/agent typecheck
+pnpm --filter @studio/agent typecheck
 pnpm agent:live                                # real Daytona: one labelled sandbox, always deleted
 INKLING_SNAPSHOT_LIVE=1 pnpm agent:live        # also builds/checks the snapshot (slow, manual)
-pnpm --filter @inkling/agent smoke             # real model + Daytona end to end; prints tokens and cost
+pnpm --filter @studio/agent smoke             # real model + Daytona end to end; prints tokens and cost
 ```
 
 Studio e2e against this service (scripted model; the test starts the service itself on port 8299):
@@ -44,11 +44,11 @@ python3 e2e/agent_test.py --port 5299
 ## Sandboxes
 
 ```bash
-pnpm --filter @inkling/agent snapshot                       # build inkling-agent-<hash> if missing (minutes)
-pnpm --filter @inkling/agent sweep                          # dry run: list app=inkling sandboxes and the plan
-pnpm --filter @inkling/agent sweep -- --stop                # stop idle ones
-pnpm --filter @inkling/agent sweep -- --delete              # also delete orphans / past retention (max 5)
-pnpm --filter @inkling/agent sweep -- --env test --label test=live --all --delete   # clear leftovers from live tests
+pnpm --filter @studio/agent snapshot                       # build inkling-agent-<hash> if missing (minutes)
+pnpm --filter @studio/agent sweep                          # dry run: list app=inkling sandboxes and the plan
+pnpm --filter @studio/agent sweep -- --stop                # stop idle ones
+pnpm --filter @studio/agent sweep -- --delete              # also delete orphans / past retention (max 5)
+pnpm --filter @studio/agent sweep -- --env test --label test=live --all --delete   # clear leftovers from live tests
 ```
 
 The running service sweeps every 10 minutes too. Only sandboxes labelled `app=inkling` in the current env are ever touched.
@@ -73,7 +73,7 @@ GET  /v1/sessions/:id/artifacts
 GET  /v1/artifacts/:artifactId            download (dev only)
 ```
 
-Types: [`src/protocol.ts`](src/protocol.ts) (the web app imports them as `@inkling/agent/protocol`).
+Types: [`packages/agent-protocol`](../../packages/agent-protocol/src/index.ts), which both this service and the web app import.
 
 ## Layout
 

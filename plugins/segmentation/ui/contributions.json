@@ -1,0 +1,24 @@
+{
+  "toolbarActions": [
+    {
+      "id": "segment",
+      "surface": "image.viewer.toolbar",
+      "title": "Segment",
+      "description": "Segment objects in this image (selected label, or the provider's)",
+      "command": "inkling.segmentation.segment_objects",
+      "icon": "AiIcon",
+      "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg", "image/webp"] }
+    }
+  ],
+  "panels": [
+    {
+      "id": "mask-review",
+      "surface": "annotation.inspector",
+      "title": "Masks",
+      "description": "Review AI-suggested masks: accept, reject or edit each instance",
+      "renderer": "studio.mask-review.v1",
+      "dataBinding": "annotations.currentItem",
+      "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg", "image/webp"] }
+    }
+  ]
+}

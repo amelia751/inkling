@@ -1,17 +1,81 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
-    "paths": { "@/*": ["./src/*"] }
+    "types": [
+      "vite/client",
+      "node"
+    ],
+    "paths": {
+      "@/*": [
+        "./src/*"
+      ],
+      "@studio/agent-protocol": [
+        "../../packages/agent-protocol/src/index.ts"
+      ],
+      "@studio/plugin-contracts": [
+        "../../packages/plugin-contracts/src/index.ts"
+      ],
+      "@studio/plugin-contracts/*": [
+        "../../packages/plugin-contracts/src/*"
+      ],
+      "@studio/plugin-ui-sdk": [
+        "../../packages/plugin-ui-sdk/src/index.ts"
+      ],
+      "@studio/plugin-ui-sdk/*": [
+        "../../packages/plugin-ui-sdk/src/*"
+      ],
+      "@studio/studio-ui": [
+        "../../packages/studio-ui/src/index.ts"
+      ],
+      "@studio/studio-ui/*": [
+        "../../packages/studio-ui/src/*"
+      ],
+      "@studio/studio-renderers": [
+        "../../packages/studio-renderers/src/index.ts"
+      ],
+      "@studio/studio-renderers/*": [
+        "../../packages/studio-renderers/src/*"
+      ],
+      "@plugins/_template/*": [
+        "../../plugins/_template/ui/*"
+      ],
+      "@plugins/image2d/*": [
+        "../../plugins/image2d/ui/*"
+      ],
+      "@plugins/volume/*": [
+        "../../plugins/volume/ui/*"
+      ],
+      "@plugins/timeseries/*": [
+        "../../plugins/timeseries/ui/*"
+      ],
+      "@plugins/video/*": [
+        "../../plugins/video/ui/*"
+      ],
+      "@plugins/cine/*": [
+        "../../plugins/cine/ui/*"
+      ],
+      "@plugins/cardiac-metrics/*": [
+        "../../plugins/cardiac-metrics/ui/*"
+      ],
+      "@plugins/wsi/*": [
+        "../../plugins/wsi/ui/*"
+      ],
+      "@plugins/text-spans/*": [
+        "../../plugins/text-spans/ui/*"
+      ],
+      "@plugins/export-dicom/*": [
+        "../../plugins/export-dicom/ui/*"
+      ]
+    }
   },
-  "include": ["src", "dev", "vite.config.ts", "vitest.config.ts"]
+  "include": [
+    "src",
+    "dev",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "aliases.ts",
+    "../../packages/*/src",
+    "../../plugins/*/ui",
+    "vitest.setup.ts"
+  ]
 }

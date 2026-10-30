@@ -1,0 +1,10 @@
+{
+  "name": "@studio/agent-protocol",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Wire types between the Studio (apps/web) and the agent service (apps/agent). Types only.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

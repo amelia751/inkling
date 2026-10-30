@@ -1,0 +1,33 @@
+{
+  "name": "@studio/studio-renderers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Trusted renderers and kits: Cornerstone, overlay2d, timeline, viewport chrome, IO",
+  "dependencies": {
+    "@cornerstonejs/core": "5.14.0",
+    "@cornerstonejs/dicom-image-loader": "5.14.0",
+    "@cornerstonejs/metadata": "5.14.0",
+    "@cornerstonejs/nifti-volume-loader": "5.14.0",
+    "@cornerstonejs/tools": "5.14.0",
+    "@cornerstonejs/utils": "5.14.0",
+    "@kitware/vtk.js": "36.4.1",
+    "dicom-parser": "1.8.21",
+    "flatbush": "4.6.2",
+    "gl-matrix": "3.4.3",
+    "mediabunny": "1.63.0",
+    "nifti-reader-js": "^0.6.8",
+    "polyclip-ts": "0.16.8",
+    "react": "19.2.8",
+    "simplify-js": "1.2.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "vitest": "^5.0.5"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  }
+}

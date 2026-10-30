@@ -9,8 +9,19 @@ line links back to the section that explains it. Take an item by moving it into 
 - Run `make check-generated` for `apps/versioning` in CI's `go` job. [todo4 Phase 4](done/todo4.md#whats-left)
 - `apps/versioning` lint needs `golangci-lint`; CI installs it, local machines may not. [todo3](done/todo3.md#whats-left)
 
-## API
-- First requests on a fresh database race to create the same workspace and asset rows (`UNIQUE constraint failed: workspaces.id`, `assets.workspace_id, assets.path`), so the Studio's first page load can get 500s. Make the get-or-create idempotent (insert … on conflict do nothing, then select). Seen in `tests/e2e/agent_test.py` / `builder_test.py` against a new SQLite db (todo5 verification).
+## Projects, sources and Explore (todo6)
+- Cross-project Datasets index (datasets are only listed inside their project). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Expand archives: a ZIP or TAR is kept as one file in P0; add an "Expand archive" action that imports its contents as a new source. [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Connectors: an S3 bucket and PACS/DICOMweb (via Orthanc) as sources (`sources.kind = connector` exists, nothing creates one). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Relationships graph view in Explore (P0 is the list). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Schema mapping for many-field tables (P0 maps one categorical column to label classes). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Assistant write tools beyond proposals: create a collection or task behind an approval card. [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Review status per item ("13 of 20 reviewed"); Overview shows only "annotated" today. [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Members and roles UI (`organization_members` has roles; Settings › Members is a placeholder; the workspace switcher has one personal org). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Version comparison in Activity (Activity links to versions; the diff stays on the Versions page). [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Mobile parity: phones get the shell drawer and a "larger screen" notice in the Studio, not a phone layout. [todo6 Phase 10](done/todo6.md#phase-10-leave-the-rest-on-the-backlog)
+- Presigned S3 `PUT` (multipart above 64 MB) for uploads; today every upload goes through the API in ≤ 64 MB chunks. [todo6 Phase 1](done/todo6.md#phase-1-domain-model-and-api-backend-first-no-ui-change)
+- Run migration `0004`'s Postgres branch (named constraints) against Postgres; only SQLite upgrade/downgrade was checked. [todo6 Phase 1](done/todo6.md#phase-1-domain-model-and-api-backend-first-no-ui-change)
 
 ## Kubernetes
 - Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (today a documented skip). [todo3](done/todo3.md#whats-left), [todo4 Phase 6/7](done/todo4.md#whats-left)

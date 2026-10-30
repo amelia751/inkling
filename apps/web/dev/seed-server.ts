@@ -33,7 +33,8 @@ const RES = NAMING.resourcePrefix;
  */
 type ServerApi = typeof import("@/server-entry");
 
-export function seedServer(seedRoot: string): Plugin {
+/** `kernel`: the Python kernel serves annotations and workspace state (vite.config.ts proxies /api). */
+export function seedServer(seedRoot: string, { kernel = false }: { kernel?: boolean } = {}): Plugin {
   const annotationsDir = path.join(seedRoot, ".annotations");
   const environmentsDir = path.join(seedRoot, ".environments");
   const types: Record<string, string> = {
@@ -81,7 +82,7 @@ export function seedServer(seedRoot: string): Plugin {
       server.middlewares.use("/api/catalog", (req, res) => handleCatalog(req, res, api));
       server.middlewares.use("/api/environments", (req, res) => handleEnvironments(req, res, api, environmentsDir, seedRoot));
       server.middlewares.use("/api/agent", (req, res) => handleAgent(req, res));
-      server.middlewares.use("/api/v1/workspaces", async (req, res, next) => {
+      if (!kernel) server.middlewares.use("/api/v1/workspaces", async (req, res, next) => {
         const m = /^\/([a-z0-9-]+)\/state$/.exec((req.url ?? "").split("?")[0]);
         if (!m || req.method !== "GET") return next();
         const file = path.join(seedRoot, m[1], "workspace.json");
@@ -91,7 +92,7 @@ export function seedServer(seedRoot: string): Plugin {
         return sendJson(res, 200, { workspaceId: m[1], plugins });
       });
 
-      server.middlewares.use("/api/annotations", (req, res) => {
+      if (!kernel) server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];
         if (!/^[a-z0-9-]+$/.test(id)) {
           res.statusCode = 400;

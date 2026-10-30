@@ -12,6 +12,13 @@ import NAMING from "../../schemas/naming.json";
 
 const envVar = (name: string) => `${NAMING.envPrefix}${name}`;
 
+// <envPrefix>KERNEL=1: proxy /api to the Python kernel (apps/api) instead of the dev seed
+// server. Catalogue, environments and the assistant stay here: they run the TS registry.
+const kernel = process.env[envVar("KERNEL")] === "1";
+const kernelUrl = process.env[envVar("KERNEL_URL")] ?? "http://127.0.0.1:8000";
+if (kernel) process.env[`VITE_${NAMING.envPrefix}KERNEL`] = "1";
+const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments)(\/|$|\?)/;
+
 // dcmjs is a dependency of @cornerstonejs/adapters only (pnpm keeps it private); the DICOM
 // SEG/SR exporters need its writer, so resolve the adapters' own copy (one instance).
 const adaptersDir = fs.realpathSync(path.resolve(REPO_ROOT, "plugins/node_modules/@cornerstonejs/adapters"));
@@ -23,7 +30,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data")),
+    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel }),
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
   ],
@@ -32,6 +39,7 @@ export default defineConfig({
     ...(process.env[envVar("E2E")] ? { hmr: false, watch: null } : {}),
     // Workspace packages and first-party plugins live outside apps/web.
     fs: { allow: [REPO_ROOT] },
+    ...(kernel ? { proxy: { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } } : {}),
   },
   resolve: {
     alias: [

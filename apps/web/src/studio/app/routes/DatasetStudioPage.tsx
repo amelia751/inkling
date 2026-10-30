@@ -18,6 +18,7 @@ import { labelClasses, regionLabelNames } from "@studio/plugin-contracts/environ
 import { digitOf, matches } from "@studio/studio-ui/keys";
 import { registry } from "@/extension-host/registry";
 import { applyWorkspace, fetchWorkspaceState } from "@/extension-host/workspace";
+import { prepareAssetUrls } from "@/extension-host/kernel";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish } from "@studio/plugin-ui-sdk/runtime";
@@ -40,7 +41,15 @@ type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | {
 function useEnvironment(project: Project | undefined): Boot {
   const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project, staleTime: Infinity });
   // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
-  const workspace = useQuery({ queryKey: ["workspace", project?.id], queryFn: () => fetchWorkspaceState(project!.id), enabled: !!project, staleTime: Infinity });
+  const workspace = useQuery({
+    queryKey: ["workspace", project?.id],
+    queryFn: async () => {
+      await prepareAssetUrls(project!.id);
+      return fetchWorkspaceState(project!.id);
+    },
+    enabled: !!project,
+    staleTime: Infinity,
+  });
   const [boot, setBoot] = useState<Boot>({ status: "loading" });
   const [applied, setApplied] = useState(false);
   useEffect(() => {

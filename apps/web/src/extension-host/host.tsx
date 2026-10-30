@@ -6,6 +6,7 @@ import { seedUrl } from "@/studio/lib/api";
 import { useStudio } from "@/studio/stores/studio";
 import { commandDef, commandId, execute, registerCommand, useCommands, useHotkeys } from "./commands";
 import { describeGeometry, inspectRows } from "./describe";
+import { connectKernel, kernelAssetUrl } from "./kernel";
 import { registry } from "./registry";
 import { resolveEnvironment } from "./resolve";
 
@@ -16,8 +17,8 @@ import { resolveEnvironment } from "./resolve";
  */
 export const studioHost: StudioHost = {
   store: useStudio,
-  // Seed files in dev; the kernel Asset API's short-lived signed URLs later (todo2 Phase 4).
-  assetUrl: seedUrl,
+  // Signed kernel Asset API URLs when the kernel is on, else the dev seed files.
+  assetUrl: (path) => kernelAssetUrl(path) ?? seedUrl(path),
   useCommands,
   useHotkeys,
   execute,
@@ -30,6 +31,8 @@ export const studioHost: StudioHost = {
 };
 
 bindHost(studioHost);
+// Plugin commands no local handler takes go to the kernel's command gateway.
+connectKernel(useStudio);
 // Shared UI primitives (tooltips, kbd chips) show the active binding of a command id.
 configureShortcuts((id) => commandDef(id) ?? commandDef(ns(`core.commands.${id}`)));
 

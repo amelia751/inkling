@@ -27,11 +27,13 @@ const commands: CommandContribution[] = [
   { id: "brushLarger", keys: ["]"], label: "Larger brush", group: "Drawing", repeat: true, when: "'size' in tool.options", description: "Grow the active tool's size" },
   { id: "showShortcuts", keys: ["?"], label: "Keyboard shortcuts", group: "Help", description: "Open the keyboard shortcuts sheet" },
   // Shell (todo6 Phase 2, 4): also bound outside the Studio, where no environment is active.
+  // `section` is the shell's page (`setShellContext`); environments always resolve with
+  // `section == studio`, so the Sources keys never claim Space or Enter in the Studio.
   { id: "toggleNavigation", keys: ["mod+b"], label: "Show or hide the project navigation", group: "Navigate", description: "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)" },
-  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Sources", description: "Preview the selected file large; arrows step through its folder" },
-  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Sources", description: "Open the selected folder, or show the selected file's details" },
-  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Sources", description: "Show the folder that contains the current one" },
-  { id: "focusSearch", keys: ["mod+f"], label: "Search in sources", group: "Sources", description: "Search file names across the project's sources" },
+  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Sources", when: "section == sources", description: "Preview the selected file large; arrows step through its folder" },
+  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Sources", when: "section == sources", description: "Open the selected folder, or show the selected file's details" },
+  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Sources", when: "section == sources", description: "Show the folder that contains the current one" },
+  { id: "focusSearch", keys: ["mod+f"], label: "Search in sources", group: "Sources", when: "section == sources", description: "Search file names across the project's sources" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 
   // Shared renderer gestures.

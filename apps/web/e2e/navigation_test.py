@@ -82,6 +82,14 @@ def main() -> int:
         page.locator("[data-testid=switch-project-ecg-waveform]").click()
         page.wait_for_url("**/projects/ecg-waveform/sources")
         check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/sources"))
+        # Create project from anywhere: the switcher's "New project" opens it as a dialog.
+        page.locator("[data-testid=project-switcher]").click()
+        page.locator("[data-testid=switcher-new-project]").click()
+        dialog = page.locator("[data-testid=new-project-dialog]")
+        dialog.wait_for(timeout=5000)
+        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/sources"))
+        dialog.get_by_role("button", name="Cancel").click()
+        dialog.wait_for(state="detached", timeout=5000)
 
         # The Studio: the project nav is a rail, the top bar has the breadcrumb, and the same
         # command hides the rail to give the canvas the space.

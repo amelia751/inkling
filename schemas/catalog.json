@@ -2321,6 +2321,130 @@
       }
     },
     {
+      "id": "inkling.core.commands.toggleNavigation",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)",
+      "label": "Show or hide the project navigation",
+      "keys": [
+        "mod+b"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.toggleNavigation",
+            "keys": [
+              "mod+b"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.quickLook",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Preview the selected file large; arrows step through its folder",
+      "label": "Quick Look",
+      "when": "section == sources",
+      "keys": [
+        "space"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.quickLook",
+            "keys": [
+              "space"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.openItem",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Open the selected folder, or show the selected file's details",
+      "label": "Open folder or details",
+      "when": "section == sources",
+      "keys": [
+        "Enter"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.openItem",
+            "keys": [
+              "Enter"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.parentFolder",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Show the folder that contains the current one",
+      "label": "Go to the enclosing folder",
+      "when": "section == sources",
+      "keys": [
+        "mod+ArrowUp"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.parentFolder",
+            "keys": [
+              "mod+ArrowUp"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.focusSearch",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Search file names across the project's sources",
+      "label": "Search in sources",
+      "when": "section == sources",
+      "keys": [
+        "mod+f"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.focusSearch",
+            "keys": [
+              "mod+f"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.toggleAssistant",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Open or close the assistant, in any project section",
+      "label": "Show or hide Inkling AI",
+      "keys": [
+        "mod+j"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.toggleAssistant",
+            "keys": [
+              "mod+j"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.commands.finishShape",
       "type": "commands",
       "module": "inkling.core",

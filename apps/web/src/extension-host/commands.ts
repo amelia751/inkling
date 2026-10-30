@@ -30,6 +30,16 @@ export function setActiveCommands(commands: ResolvedCommand[], context: () => Wh
   keymapListeners.forEach((l) => l());
 }
 
+/**
+ * What the shell knows outside any environment (todo6 Phase 2): the project section shown
+ * (`section == sources`). The Studio's own context wins for the keys it shares.
+ */
+let shellContext: WhenContext = {};
+
+export function setShellContext(context: WhenContext): void {
+  shellContext = context;
+}
+
 export function onKeymapChange(l: () => void): () => void {
   keymapListeners.add(l);
   return () => keymapListeners.delete(l);
@@ -142,7 +152,7 @@ export function useCommands(map: CommandHandlers, { priority = VIEWER_PRIORITY, 
         const id = commandId(name, scope);
         const def = active.get(id) ?? (global ? commandDef(id) : undefined);
         if (!def || !def.keys.some((k) => matches(e, k))) continue;
-        if (def.when && !when(def.when, (ctx ??= contextProvider()))) continue;
+        if (def.when && !when(def.when, (ctx ??= { ...shellContext, ...contextProvider() }))) continue;
         // Held one-shot keys are swallowed so they neither repeat nor leak to lower layers.
         if (e.repeat && !def.repeat) return true;
         if (ref.current[name](e) !== false) return true;

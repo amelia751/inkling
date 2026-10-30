@@ -134,6 +134,92 @@
           "text": "Segmentation is installed."
         }
       ]
+    },
+    {
+      "when": "what did i import",
+      "turns": [
+        {
+          "toolCalls": [
+            {
+              "name": "list_sources"
+            }
+          ]
+        },
+        {
+          "text": "You imported one source with 20 images, in two folders: normal and pneumonia.",
+          "toolCalls": [
+            {
+              "name": "open_location",
+              "arguments": {
+                "section": "sources",
+                "nodeId": "{{last.sources.0.rootNodeId}}",
+                "label": "Sources › 2d-xray"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Open it to browse the files."
+        }
+      ]
+    },
+    {
+      "when": "propose a link",
+      "turns": [
+        {
+          "toolCalls": [
+            {
+              "name": "list_sources"
+            }
+          ]
+        },
+        {
+          "text": "I'll propose it; nothing changes until you confirm.",
+          "toolCalls": [
+            {
+              "name": "propose_relationship",
+              "arguments": {
+                "from": {
+                  "nodeId": "{{last.sources.0.top.items.0.id}}"
+                },
+                "to": {
+                  "nodeId": "{{last.sources.0.top.items.1.id}}",
+                  "key": "folder name"
+                },
+                "rule": "Folder name is the label",
+                "reason": "Both folders hold 10 images",
+                "strength": "possible"
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "confirm_proposal",
+              "arguments": {
+                "proposalId": "{{last.proposal.id}}"
+              }
+            }
+          ]
+        },
+        {
+          "text": "The API refused to let me confirm it (403): only you can confirm a proposal.",
+          "toolCalls": [
+            {
+              "name": "open_location",
+              "arguments": {
+                "section": "explore",
+                "tab": "relationships",
+                "label": "Explore › Relationships"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Confirm it there when you're ready."
+        }
+      ]
     }
   ]
 }

@@ -49,6 +49,25 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     input_schema: obj({ action: { type: "string", enum: ["accept", "reject"] }, annotationIds: strList("Ids of ai-suggested annotations."), reason: str("Why, in one sentence.") }),
   },
   {
+    name: "open_location",
+    title: "Pointing to a place",
+    description:
+      "Show the user a button that opens a place in the project, e.g. 'Open Sources › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
+    input_schema: obj(
+      {
+        section: { type: "string", enum: ["overview", "sources", "explore", "datasets", "studio", "review", "activity"], description: "The project section." },
+        label: str("Button text naming the place, e.g. 'Sources › MRI/patient_002'."),
+        nodeId: str("Sources: a file or folder id."),
+        proposalId: str("Explore: a proposal id."),
+        tab: str("Explore: summary, relationships, mappings or quality."),
+        taskId: str("Studio: a task id."),
+        datasetId: str("Datasets: a dataset id."),
+        reason: str("Optional sentence shown above the button."),
+      },
+      ["section", "label"],
+    ),
+  },
+  {
     name: "select_annotations",
     title: "Finding annotations",
     description: "Offer to select and reveal specific annotations in the viewer (e.g. the ones a validation issue refers to).",
@@ -72,14 +91,41 @@ function findItem(ctx: AgentContext, ref: string) {
   return ctx.items.find((i) => i.id.toLowerCase() === r || i.name.toLowerCase() === r) ?? ctx.items.find((i) => i.name.toLowerCase().includes(r));
 }
 
-/** Validate a card tool call against the snapshot and build its card. Never throws. */
-export function runCardTool(name: string, input: Json, ctx: AgentContext): CardResult {
+const SECTIONS = new Set(["overview", "sources", "explore", "datasets", "studio", "review", "activity"]);
+const ID_RE = /^[A-Za-z0-9][A-Za-z0-9:._-]{0,127}$/;
+/** Studio cards act on the dataset snapshot; outside the Studio there is none. */
+const NEEDS_SNAPSHOT = new Set(["show_items", "suggest_tool", "propose_review", "select_annotations"]);
+
+/**
+ * Validate a card tool call and build its card. Never throws. `ctx` is the Studio's dataset
+ * snapshot; without it (Overview, Sources, Explore) only project cards work.
+ */
+export function runCardTool(name: string, input: Json, ctx?: AgentContext): CardResult {
   const fail = (error: string, summary: string): CardResult => ({ ok: false, output: { error }, summary });
   const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
+  if (!ctx && NEEDS_SNAPSHOT.has(name)) return fail("That acts on the Studio, which isn't open. Use open_location to offer the Studio instead.", "Needs the Studio");
   try {
     switch (name) {
+      case "open_location": {
+        const section = String(input.section ?? "");
+        if (!SECTIONS.has(section)) return fail(`Unknown section "${section}".`, "Unknown place");
+        const target: Record<string, string> & { section: string } = { section };
+        for (const k of ["nodeId", "proposalId", "tab", "taskId", "datasetId"] as const) {
+          const v = input[k];
+          if (v === undefined || v === null || v === "") continue;
+          if (typeof v !== "string" || !ID_RE.test(v)) return fail(`${k} must be an id from a project tool, not a path.`, "Bad id");
+          target[k] = v;
+        }
+        const label = String(input.label ?? "").trim().slice(0, 80) || section[0]!.toUpperCase() + section.slice(1);
+        return {
+          ok: true,
+          output: { shown: true },
+          summary: label,
+          card: { kind: "location", label, target: target as unknown as Extract<AgentCard, { kind: "location" }>["target"], reason: input.reason ? String(input.reason).slice(0, 300) : undefined },
+        };
+      }
       case "show_items": {
-        const ids = [...new Set(list(input.itemIds).map((r) => findItem(ctx, r)?.id).filter((x): x is string => !!x))];
+        const ids = [...new Set(list(input.itemIds).map((r) => findItem(ctx!, r)?.id).filter((x): x is string => !!x))];
         if (!ids.length) return fail("None of those item ids exist.", "No matching items");
         return { ok: true, output: { shown: ids.length }, summary: `Listed ${plural(ids.length, "item")}`, card: { kind: "items", title: String(input.title ?? "Items"), itemIds: ids } };
       }
@@ -94,13 +140,13 @@ export function runCardTool(name: string, input: Json, ctx: AgentContext): CardR
       }
       case "suggest_tool": {
         const tool = String(input.tool ?? "");
-        if (!ctx.tools.includes(tool)) return fail(`This viewer has no "${tool}" tool. Available: ${ctx.tools.join(", ")}.`, "Unknown tool");
+        if (!ctx!.tools.includes(tool)) return fail(`This viewer has no "${tool}" tool. Available: ${ctx!.tools.join(", ")}.`, "Unknown tool");
         const label = input.label ? String(input.label) : undefined;
-        if (label && !ctx.project.labels.includes(label)) return fail(`"${label}" isn't in the label set: ${ctx.project.labels.join(", ")}.`, "Unknown label");
+        if (label && !ctx!.project.labels.includes(label)) return fail(`"${label}" isn't in the label set: ${ctx!.project.labels.join(", ")}.`, "Unknown label");
         return { ok: true, output: { shown: true }, summary: tool, card: { kind: "tool-switch", tool, label, reason: String(input.reason ?? "") } };
       }
       case "propose_review": {
-        const pending = new Set(ctx.annotations.filter((a) => a.provenance === "ai-suggested").map((a) => a.id));
+        const pending = new Set(ctx!.annotations.filter((a) => a.provenance === "ai-suggested").map((a) => a.id));
         const chosen = list(input.annotationIds).filter((id) => pending.has(id));
         if (!chosen.length) return fail("None of those ids are pending AI suggestions.", "Nothing to review");
         const action = input.action === "reject" ? "reject" : "accept";
@@ -112,7 +158,7 @@ export function runCardTool(name: string, input: Json, ctx: AgentContext): CardR
         };
       }
       case "select_annotations": {
-        const known = new Set(ctx.annotations.map((a) => a.id));
+        const known = new Set(ctx!.annotations.map((a) => a.id));
         const ids = list(input.annotationIds).filter((id) => known.has(id));
         if (!ids.length) return fail("None of those annotation ids exist.", "No matches");
         return { ok: true, output: { shown: true }, summary: plural(ids.length, "annotation"), card: { kind: "select-annotations", annotationIds: ids, reason: String(input.reason ?? "") } };

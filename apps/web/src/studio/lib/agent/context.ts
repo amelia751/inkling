@@ -4,6 +4,7 @@ import { labelNames } from "@studio/contracts/environment";
 import { useStudio } from "@/studio/stores/studio";
 import type { Project, StudioItem } from "@studio/contracts";
 import type { DatasetSnapshot as AgentContext } from "@studio/agent-protocol";
+import type { AgentContextProvider } from "./providers";
 
 /** Cap so one huge dataset can't blow the request size; tools report totals separately. */
 const MAX_ANNOTATIONS = 3000;
@@ -48,4 +49,25 @@ export function turnContext(project: Project, item: StudioItem | undefined, with
   ];
   if (withEnvironment) lines.push(environmentContext(s.env));
   return lines.join("\n");
+}
+
+/**
+ * The Studio's assistant context (todo6 Phase 6): the dataset snapshot plus the per-turn lines
+ * above, as an `AgentContextProvider` like every other section's.
+ */
+export function studioContext(project: Project, items: StudioItem[], item: StudioItem | undefined, selected: number, withEnvironment: () => boolean): AgentContextProvider {
+  return {
+    key: `${project.id}:studio:${item?.id ?? ""}`,
+    section: "studio",
+    label: `${item?.name ?? project.title}${selected > 0 ? ` · ${selected} selected` : ""}`,
+    shares: `Shared as text: ${project.title}, its label set, item names and annotation summaries.`,
+    turnContext: () => turnContext(project, item, withEnvironment()),
+    snapshot: () => buildAgentContext(project, items),
+  };
+}
+
+/** What the Studio sends when the person removed the context chip: the dataset's name only. */
+export function bareSnapshot(project: Project): AgentContext {
+  const full = buildAgentContext(project, []);
+  return { ...full, items: [], annotations: [], currentItemId: undefined, selectedIds: [], tools: [] };
 }

@@ -69,6 +69,8 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | activate / configure / disable / rollback_plugin                         | ask |
  * | invoke_capability, create_job (gateway runs, may bill)                   | ask |
  * | dataset_open_review (dataset_branch/commit/diff: allow, work/agent-* only) | ask |
+ * | propose_schema / propose_relationship (a proposal; changes no data)     | ask (the card links to Explore) |
+ * | confirm_proposal                                                         | allow: the kernel refuses agents (403) |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
  * | anything after a budget is exhausted                                     | deny |
  */
@@ -97,6 +99,20 @@ export function decide(
         kind: "ask",
         summary: "Review and approve a plugin install in this workspace",
         detail: { kind: "plugin-install", requestId: str("requestId"), workspaceId: s.workspaceId ?? "" },
+      };
+    case "propose_schema": {
+      const n = Array.isArray(call.input.columns) ? call.input.columns.length : 0;
+      return {
+        kind: "ask",
+        summary: `Add a proposal for how to read a table (${n} column${n === 1 ? "" : "s"}). It changes no data; you confirm it in Explore.`,
+        detail: { kind: "proposal", proposalKind: "mapping", workspaceId: s.workspaceId ?? "" },
+      };
+    }
+    case "propose_relationship":
+      return {
+        kind: "ask",
+        summary: `Add a proposal to link two parts of the project: ${str("rule").slice(0, 160)}. It changes no data; you confirm it in Explore.`,
+        detail: { kind: "proposal", proposalKind: "relationship", workspaceId: s.workspaceId ?? "" },
       };
     case "activate_plugin":
       return { kind: "ask", summary: `Activate the staged plugin change ${str("requestId")}` };

@@ -33,6 +33,7 @@ import { api, fetchPreview, fetchProposals, NeedsApiError, projectKeys, useOverv
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
 import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
 import { cn } from "@studio/ui/utils";
@@ -45,6 +46,8 @@ import { cn } from "@studio/ui/utils";
 export function ProjectOverviewPage() {
   const { projectId = "" } = useParams();
   const overview = useOverview(projectId);
+  // What the assistant sees here (todo6 Phase 6): the project summary.
+  useAgentContext(useMemo(() => (overview.data ? overviewContext(overview.data) : null), [overview.data]));
   const addData = useAddData(projectId);
   const o = overview.data;
 

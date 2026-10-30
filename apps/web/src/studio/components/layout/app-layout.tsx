@@ -22,6 +22,8 @@ import { BrandMark } from "@/studio/components/layout/brand";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { UploadLayer } from "@/studio/components/uploads/uploads";
+import { AssistantToggle, PersistentAgentDrawer } from "@/studio/components/ai/agent-drawer";
+import { useStudio } from "@/studio/stores/studio";
 import { NewProjectDialog } from "@/studio/components/projects/new-project";
 import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
@@ -125,8 +127,8 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
   };
   useCommands({ toggleNavigation: toggleNav }, { scope: ns("core"), global: true });
   // The Studio binds the assistant to its own right slot; elsewhere it's the shell's drawer.
-  const toggleAssistant = useShell((s) => s.toggleAssistant);
-  useCommands({ toggleAssistant }, { scope: ns("core"), global: true, enabled: !studio });
+  const toggleDrawer = useShell((s) => s.toggleAssistant);
+  useCommands({ toggleAssistant: studio ? () => useStudio.getState().toggleAi() : toggleDrawer }, { scope: ns("core"), global: true });
 
   const sidebar = (rail: boolean) => <SideNav project={project} rail={rail} />;
 
@@ -161,6 +163,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
           </aside>
         )}
         <main className="thin-scrollbar min-w-0 flex-1 overflow-y-auto">{children}</main>
+        {project && <PersistentAgentDrawer project={project} section={section} />}
       </div>
       <UploadLayer />
       <NewProjectDialog />
@@ -193,9 +196,12 @@ function AppHeader({ project, sidebarOpen, onToggleSidebar }: { project?: Projec
       </Tooltip>
       <BrandMark compact={!!project} className={cn(project && "max-sm:hidden")} />
       <Breadcrumbs project={project} section={label} />
-      <div className="ml-auto flex shrink-0 items-center gap-3 max-sm:hidden">
-        <div className="h-5 w-px bg-generic-accent" aria-hidden />
-        <ThemeSwitch />
+      <div className="ml-auto flex shrink-0 items-center gap-3">
+        {project && <AssistantToggle />}
+        <div className="flex items-center gap-3 max-sm:hidden">
+          <div className="h-5 w-px bg-generic-accent" aria-hidden />
+          <ThemeSwitch />
+        </div>
       </div>
     </header>
   );

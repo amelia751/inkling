@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
@@ -9,8 +10,9 @@ import { approveInstall, getInstallRequest, rejectInstall, type InstallRequest }
 import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
-import type { Project, StudioItem } from "@studio/contracts";
-import { AgentCardView } from "./cards";
+import type { ApprovalDetail } from "@studio/agent-protocol";
+import { exploreUrl } from "@/studio/lib/routes";
+import { AgentCardView, type StudioCardContext } from "./cards";
 import { Markdown } from "./markdown";
 
 const PAST: Record<string, string> = {
@@ -40,8 +42,8 @@ interface AssistantProps {
   message: ChatMessage;
   streaming: boolean;
   projectId: string;
-  project: Project;
-  items: StudioItem[];
+  /** In the Studio: the dataset its cards act on (outside it, Studio-only cards say so). */
+  studio?: StudioCardContext;
   onRetry?: () => void;
   /** Undo an environment change the agent made (the Studio's env undo). */
   onUndo?: (partId: string) => void;
@@ -56,7 +58,7 @@ const SANDBOX_TEXT: Record<string, string> = {
   unavailable: "Sandbox unavailable; a new one starts on the next step",
 };
 
-export function AssistantMessage({ message, streaming, projectId, project, items, onRetry, onUndo }: AssistantProps) {
+export function AssistantMessage({ message, streaming, projectId, studio, onRetry, onUndo }: AssistantProps) {
   const setCardState = useAgent((s) => s.setCardState);
   const decide = useAgent((s) => s.decide);
   const groups = groupParts(message.parts);
@@ -73,7 +75,7 @@ export function AssistantMessage({ message, streaming, projectId, project, items
           return p.detail?.kind === "plugin-install" ? (
             <InstallApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />
           ) : (
-            <ApprovalCard key={i} part={p} onDecide={(d) => decide(projectId, message.id, p.id, d)} />
+            <ApprovalCard key={i} part={p} projectId={projectId} onDecide={(d) => decide(projectId, message.id, p.id, d)} />
           );
         if (p.type === "change") return <ChangeCard key={i} part={p} onUndo={onUndo && (() => onUndo(p.id))} />;
         if (p.type === "artifact")
@@ -91,8 +93,8 @@ export function AssistantMessage({ message, streaming, projectId, project, items
             card={p.card}
             state={p.state}
             setState={(state) => setCardState(projectId, message.id, p.id, state)}
-            project={project}
-            items={items}
+            projectId={projectId}
+            studio={studio}
           />
         );
       })}
@@ -180,8 +182,10 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
 }
 
 /** Consequential steps wait here; nothing runs until the expert approves. */
-function ApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; onDecide: (d: "approve" | "reject") => void }) {
+function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void }) {
   const pending = part.state === "pending";
+  // A proposal (propose_schema / propose_relationship) is confirmed by a person in Explore.
+  const proposal = part.detail?.kind === "proposal" ? part.detail : undefined;
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-background" data-testid="agent-approval">
       <header className="flex items-start gap-2 px-3 pt-2.5 pb-2">
@@ -199,10 +203,17 @@ function ApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "
             <Button size="sm" onClick={() => onDecide("approve")}>Approve</Button>
           </>
         ) : (
-          <span className={cn("flex h-6 items-center gap-1", part.state === "approved" ? "text-positive" : "text-muted-foreground")}>
-            {part.state === "approved" ? <DoneIcon className="size-3.5" /> : <InfoIcon className="size-3.5" />}
-            {part.state === "approved" ? "Approved" : part.state === "rejected" ? "Rejected" : "Expired"}
-          </span>
+          <>
+            {proposal && part.state === "approved" && (
+              <Link to={exploreUrl(projectId, proposal.proposalKind === "mapping" ? "mappings" : "relationships")} className="mr-auto text-sm underline underline-offset-2 hover:text-foreground" data-testid="agent-proposal-link">
+                Review in Explore
+              </Link>
+            )}
+            <span className={cn("flex h-6 items-center gap-1", part.state === "approved" ? "text-positive" : "text-muted-foreground")}>
+              {part.state === "approved" ? <DoneIcon className="size-3.5" /> : <InfoIcon className="size-3.5" />}
+              {part.state === "approved" ? "Approved" : part.state === "rejected" ? "Rejected" : "Expired"}
+            </span>
+          </>
         )}
       </footer>
     </section>
@@ -216,7 +227,7 @@ function ApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "
  */
 function InstallApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; onDecide: (d: "approve" | "reject") => void }) {
   const qc = useQueryClient();
-  const detail = part.detail!;
+  const detail = part.detail as Extract<ApprovalDetail, { kind: "plugin-install" }>;
   const [request, setRequest] = useState<InstallRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

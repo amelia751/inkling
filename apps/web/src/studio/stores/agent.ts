@@ -41,7 +41,7 @@ export interface ClientToolOutcome {
   change?: { summary: string; keys: string[] };
 }
 
-/** Supplied by the open panel: runs client tools against the live Studio. */
+/** Supplied by the open assistant (Studio panel or project drawer): runs client tools in the browser. */
 export interface AgentHost {
   projectId: string;
   runTool(name: string, input: Record<string, unknown>): Promise<ClientToolOutcome>;
@@ -52,7 +52,8 @@ export interface SendOptions {
   clientTools: ClientToolSpec[];
   catalogPrompt?: string;
   restricted: boolean;
-  snapshot: AgentContext;
+  /** The Studio's dataset snapshot; other sections have none (the project tools look things up). */
+  snapshot?: AgentContext;
   context: string;
 }
 
@@ -189,7 +190,7 @@ export const useAgent = create<AgentState>()(
         a.answered.push(e.callId);
         set({ active: { ...a } });
         let outcome: ClientToolOutcome;
-        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: "The Studio panel for this dataset is closed." } };
+        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: "The assistant for this project is closed." } };
         else {
           try {
             outcome = await host.runTool(e.name, (e.input ?? {}) as Record<string, unknown>);

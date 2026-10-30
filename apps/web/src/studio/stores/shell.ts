@@ -27,16 +27,22 @@ interface ShellState {
   assistantOpen: boolean;
   /** Set when something asked the composer to take focus ("Or tell Inkling…"). */
   assistantFocus: number;
+  /** The drawer's width in px (300–480, default 340), per person like its open state. */
+  assistantWidth: number;
   setAssistant: (open: boolean, focus?: boolean) => void;
   /** The `toggleAssistant` command outside the Studio; Phase 6's drawer reads `assistantOpen`. */
   toggleAssistant: () => void;
   /** Create project as a dialog, from anywhere (todo6 §3.2). */
   newProjectOpen: boolean;
   setNewProject: (open: boolean) => void;
+  setAssistantWidth: (px: number) => void;
   setNav: (nav: NavPreference) => void;
   toggleStudioRail: () => void;
   visited: (p: RecentProject) => void;
 }
+
+export const ASSISTANT_WIDTH = { min: 300, max: 480, default: 340 } as const;
+export const clampAssistantWidth = (px: number) => (Number.isFinite(px) ? Math.round(Math.min(ASSISTANT_WIDTH.max, Math.max(ASSISTANT_WIDTH.min, px))) : ASSISTANT_WIDTH.default);
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -61,6 +67,12 @@ export const useShell = create<ShellState>((set, get) => ({
   recent: read<RecentProject[]>(RECENT_KEY, []),
   assistantOpen: read<boolean>(`${RES}-assistant-open`, false),
   assistantFocus: 0,
+  assistantWidth: clampAssistantWidth(read<number>(`${RES}-assistant-width`, ASSISTANT_WIDTH.default)),
+  setAssistantWidth: (px) => {
+    const assistantWidth = clampAssistantWidth(px);
+    write(`${RES}-assistant-width`, assistantWidth);
+    set({ assistantWidth });
+  },
   setAssistant: (open, focus = false) => {
     write(`${RES}-assistant-open`, open);
     set((s) => ({ assistantOpen: open, assistantFocus: focus ? s.assistantFocus + 1 : s.assistantFocus }));

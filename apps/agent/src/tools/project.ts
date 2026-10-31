@@ -16,6 +16,12 @@ import { KernelError, type KernelClient } from "./kernel.ts";
  * Privacy: files held for privacy review are never described to the model (no name, facts or
  * path; only that a held file exists), and a `restricted` project shares structure only
  * (kinds, counts and statuses, no file or folder names).
+ *
+ * Files (todo7 Phase 8): `list_folder` and `find_files` read the project's drive by current
+ * names. They never return contents, facts or the name a file was uploaded with
+ * (`originalPath`, old names: they may hold the identifier someone renamed away). The
+ * assistant can't change files: it proposes a plan with the `propose_reorganization` card and
+ * the person applies it; the kernel answers 403 to `fs/ops` with this token.
  */
 
 export const PROJECT_TOOL_NAMES = [
@@ -27,6 +33,8 @@ export const PROJECT_TOOL_NAMES = [
   "propose_schema",
   "propose_relationship",
   "confirm_proposal",
+  "list_folder",
+  "find_files",
 ] as const;
 
 const out = (value: unknown, summary: string) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], details: { summary } });
@@ -66,7 +74,7 @@ export function shareNode(n: Node, restricted: boolean): Record<string, unknown>
     detectedKind: n.detectedKind,
     status: n.status,
     ...(n.kind === "file" ? { size: n.size } : { childCount: n.childCount, descendantCount: n.descendantCount }),
-    ...(Object.keys(n.facts ?? {}).length ? { facts: named ? n.facts : summarizeFacts(n.facts) } : {}),
+    ...(Object.keys(n.facts ?? {}).length ? { facts: named ? withoutSensitive(n.facts) : summarizeFacts(n.facts) } : {}),
     ...(Object.keys(flags).length ? { flags } : {}),
   };
 }
@@ -74,6 +82,28 @@ export function shareNode(n: Node, restricted: boolean): Record<string, unknown>
 /** Restricted projects: facts minus anything string-valued that could carry a name or identifier. */
 function summarizeFacts(facts: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(facts).filter(([, v]) => typeof v === "number" || typeof v === "boolean"));
+}
+
+/** Fact keys that can carry the name or path a file arrived with (todo7 Phase 7). */
+const SENSITIVE_FACT_KEY = /^(original_?path|rel_?path|uploaded_?as|original_?name|old_?names?|previous_?names?|source_?path)$/i;
+const withoutSensitive = (facts: Record<string, unknown>) => Object.fromEntries(Object.entries(facts).filter(([k]) => !SENSITIVE_FACT_KEY.test(k)));
+
+/**
+ * A drive entry for list_folder / find_files: current name, kind and counts only (no facts, no
+ * original path). Held files are a marker; restricted projects lose names.
+ */
+export function fileEntry(n: Node & { parentId?: string | null; locked?: boolean }, restricted: boolean, withParent = false): Record<string, unknown> {
+  if (held(n)) return { id: n.id, kind: n.kind, status: "privacy", note: HELD, ...(withParent ? { parentId: n.parentId ?? null } : {}) };
+  return {
+    id: n.id,
+    ...(restricted ? {} : { name: n.displayPath ?? n.name }),
+    kind: n.kind,
+    detectedKind: n.detectedKind,
+    status: n.status,
+    ...(n.kind === "file" ? { size: n.size } : { childCount: n.childCount, descendantCount: n.descendantCount }),
+    ...(n.locked ? { locked: true } : {}),
+    ...(withParent ? { parentId: n.parentId ?? null } : {}),
+  };
 }
 
 interface ProjectInfo {
@@ -318,5 +348,67 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
     },
   });
 
-  return [overview, listSources, describeNode, listProposals, importIssues, proposeSchema, proposeRelationship, confirm];
+  const LIST_MAX = 200;
+
+  const listFolder = defineTool({
+    name: "list_folder",
+    label: "Listing folder",
+    description:
+      "One folder of the project's Files (the drive): its subfolders and files by current name, with kind, status and counts. Leave nodeId out for the top of the drive. " +
+      "Never file contents or the names files were uploaded with. Numbered runs (scan001–scan120.dcm) are one row; list the run's id to see its files. Use the ids with propose_reorganization.",
+    promptSnippet: "One Files folder: names, kinds and counts",
+    parameters: Type.Object({ nodeId: Type.Optional(Type.String({ description: "A folder (or numbered run) id from an earlier listing or find_files. Default: the top of the drive." })) }),
+    async execute(_id, args, signal) {
+      const p = await project(signal);
+      const restricted = !!p.restricted;
+      let folder: Record<string, unknown>;
+      let writable: boolean | undefined;
+      if (args.nodeId && !args.nodeId.startsWith("seq:")) {
+        const n = await k.get<Node & { pathText?: string; locked?: boolean }>(`/source-nodes/${enc(args.nodeId)}`, signal);
+        if (held(n)) return out({ nodeId: args.nodeId, note: HELD }, "Held for privacy review");
+        if (n.kind === "file") throw new Error(`${args.nodeId} is a file, not a folder. Use describe_source_node for one file.`);
+        folder = { id: n.id, ...(restricted ? {} : { name: n.name, path: n.pathText }), kind: n.kind, ...(n.locked ? { locked: true } : {}) };
+      } else if (args.nodeId) {
+        folder = { id: args.nodeId, kind: "sequence" };
+      } else {
+        const drive = await k.get<{ rootNodeId: string; writable: boolean }>(`/projects/${pid()}/fs`, signal);
+        writable = drive.writable;
+        folder = { id: drive.rootNodeId, name: "Files", kind: "folder", root: true };
+      }
+      const q = new URLSearchParams({ limit: String(LIST_MAX), ...(args.nodeId ? { node: args.nodeId } : {}) });
+      const r = await k.get<{ items: (Node & { parentId?: string | null; locked?: boolean })[]; total: number }>(`/projects/${pid()}/fs/children?${q}`, signal);
+      const items = r.items.slice(0, LIST_MAX).map((n) => fileEntry(n, restricted));
+      return out(
+        { folder, ...(writable === false ? { writable, note: "Files can't be changed on this server (needs the full stack)." } : {}), total: r.total, shown: items.length, items, more: r.total > items.length, restricted },
+        plural(r.total, "item"),
+      );
+    },
+  });
+
+  const findFiles = defineTool({
+    name: "find_files",
+    label: "Finding files",
+    description:
+      "Search the project's Files by name (part of the current name, any case) and/or detected kind (image, dicom, dicom-series, volume, video, waveform, slide, table, document, mask, annotations, archive, unknown). " +
+      "Returns ids, current names, kinds and the parent folder id (to group by folder), at most 200. Never contents or the names files were uploaded with.",
+    promptSnippet: "Find files by name or kind",
+    parameters: Type.Object({
+      query: Type.Optional(Type.String({ description: "Part of the name, e.g. 'patient_002' or '.csv'." })),
+      kind: Type.Optional(Type.String({ description: "A detected kind, e.g. 'table' for spreadsheets." })),
+    }),
+    async execute(_id, args, signal) {
+      const query = (args.query ?? "").trim().slice(0, 200);
+      const kind = (args.kind ?? "").trim();
+      if (!query && !kind) throw new Error("Pass a query, a kind, or both.");
+      const p = await project(signal);
+      const restricted = !!p.restricted;
+      if (restricted && query) throw new Error("This project's licence is restricted: names aren't shared, so search by kind only.");
+      const r = await k.get<{ items: (Node & { parentId?: string | null })[] }>(`/projects/${pid()}/search?${new URLSearchParams({ q: query, ...(kind ? { kind } : {}) })}`, signal);
+      const live = r.items.filter((n) => !(n as { trashed?: boolean }).trashed);
+      const items = live.slice(0, LIST_MAX).map((n) => fileEntry(n, restricted, true));
+      return out({ query, kind: kind || undefined, total: live.length, shown: items.length, items, more: live.length > items.length }, `${live.length} match${live.length === 1 ? "" : "es"}`);
+    },
+  });
+
+  return [overview, listSources, describeNode, listProposals, importIssues, proposeSchema, proposeRelationship, confirm, listFolder, findFiles];
 }

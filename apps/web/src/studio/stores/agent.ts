@@ -6,7 +6,8 @@ import { AgentHttpError, answerClientTool, cancelRun, createSession, decideAppro
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, SandboxState } from "@studio/agent-protocol";
 
-export type CardState = "open" | "applied" | "dismissed";
+/** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
+export type CardState = "open" | "applied" | "dismissed" | "undone";
 export type ApprovalState = "pending" | "approved" | "rejected" | "expired";
 
 export type MessagePart =

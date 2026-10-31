@@ -25,7 +25,7 @@ function fakeKernel(restricted = false) {
     "nod-root": { id: "nod-root", name: "upload", kind: "folder", detectedKind: "folder", childCount: 3, descendantCount: 3, size: null, facts: {}, flags: {}, status: "ready" },
     "nod-csv": { id: "nod-csv", name: "diagnosis.csv", kind: "file", detectedKind: "table", childCount: 0, descendantCount: 0, size: 120, facts: { rows: 40, columns: ["patient_id", "label"] }, flags: {}, status: "ready", path: [{ id: "nod-root", name: "upload" }] },
     "nod-held": { id: "nod-held", name: "John_Doe_report.pdf", kind: "file", detectedKind: "document", childCount: 0, descendantCount: 0, size: 9, facts: { pages: 2 }, flags: { privacy: { reason: "name in file name" } }, status: "privacy" },
-    "nod-mri": { id: "nod-mri", name: "MRI", kind: "folder", detectedKind: "folder", childCount: 2, descendantCount: 240, size: null, facts: {}, flags: {}, status: "ready" },
+    "nod-mri": { id: "nod-mri", name: "MRI", kind: "folder", detectedKind: "folder", childCount: 2, descendantCount: 240, size: null, facts: {}, flags: {}, status: "ready", pathText: "MRI", originalPath: "Smith_J_MRI" },
   };
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -57,6 +57,18 @@ function fakeKernel(restricted = false) {
     if (p === "/projects/prj-1/imports") return send(200, { imports: [{ id: "imp-1", state: "needs_review", totals: { files: 3, byState: { uploaded: 2, rejected: 1 } } }] });
     if (p === "/projects/prj-1/review")
       return send(200, { items: [{ type: "privacy", title: "Held for privacy review", detail: "John_Doe_report.pdf", target: { section: "sources", nodeId: "nod-held" } }, { type: "import", title: "1 file we can't read yet", detail: "scan.xyz", target: { section: "sources" } }] });
+    if (p === "/projects/prj-1/fs") return send(200, { projectId: "prj-1", rootNodeId: "nod-drive", writable: true, trashCount: 0 });
+    if (p === "/projects/prj-1/fs/children") {
+      const node = url.searchParams.get("node");
+      if (!node) return send(200, { items: [{ ...nodes["nod-mri"], parentId: "nod-drive" }, { ...nodes["nod-root"], parentId: "nod-drive", locked: true }], total: 2, nextCursor: null });
+      if (node === "nod-mri") return send(200, { items: [{ ...nodes["nod-csv"], parentId: "nod-mri", originalPath: "Smith_J/diagnosis.csv" }, { ...nodes["nod-held"], parentId: "nod-mri" }], total: 2, nextCursor: null });
+    }
+    if (p === "/projects/prj-1/search") {
+      const q = url.searchParams.get("q") ?? "";
+      const kind = url.searchParams.get("kind");
+      const items = [nodes["nod-csv"], nodes["nod-held"]].filter((n) => n.name.toLowerCase().includes(q.toLowerCase()) && (!kind || n.detectedKind === kind));
+      return send(200, { items: items.map((n) => ({ ...n, parentId: "nod-mri", folderPath: "Smith_J_upload" })) });
+    }
     if (/^\/proposals\/.+\/confirm$/.test(p)) return send(403, { detail: "only a person can confirm or dismiss a proposal; the assistant can only propose" });
     return send(404, { detail: `no route ${p}` });
   }) as typeof fetch;
@@ -70,6 +82,40 @@ function fakeKernel(restricted = false) {
 }
 
 describe("project tools", () => {
+  it("list_folder lists the drive by current names: no facts, no original path, held files only marked", async () => {
+    const { run } = fakeKernel();
+    const top = await run("list_folder");
+    expect(top.value.folder).toMatchObject({ id: "nod-drive", root: true });
+    expect(top.value.items.map((i: any) => i.id)).toEqual(["nod-mri", "nod-root"]);
+    expect(top.value.items[1]).toMatchObject({ locked: true });
+    const mri = await run("list_folder", { nodeId: "nod-mri" });
+    const text = JSON.stringify(mri.value);
+    expect(mri.value.folder).toEqual({ id: "nod-mri", name: "MRI", path: "MRI", kind: "folder" });
+    expect(text).toContain("diagnosis.csv");
+    expect(text).not.toMatch(/Smith_J|John_Doe|patient_id|rows/);
+    expect(mri.value.items[1]).toMatchObject({ id: "nod-held", status: "privacy" });
+    await expect(run("list_folder", { nodeId: "nod-csv" })).rejects.toThrow(/is a file/);
+  });
+
+  it("find_files searches by name or kind and returns parent ids, never folder paths as uploaded", async () => {
+    const { run, seen } = fakeKernel();
+    const r = await run("find_files", { kind: "table" });
+    expect(r.summary).toBe("1 match");
+    expect(r.value.items).toEqual([{ id: "nod-csv", name: "diagnosis.csv", kind: "file", detectedKind: "table", status: "ready", size: 120, parentId: "nod-mri" }]);
+    expect(JSON.stringify(r.value)).not.toContain("Smith_J");
+    expect(seen.at(-1)?.path).toBe("/api/v1/projects/prj-1/search?q=&kind=table");
+    const held = await run("find_files", { query: "john" });
+    expect(JSON.stringify(held.value)).not.toContain("John_Doe");
+    await expect(run("find_files", {})).rejects.toThrow(/query, a kind/);
+  });
+
+  it("restricted projects: find_files by kind only, list_folder without names", async () => {
+    const { run } = fakeKernel(true);
+    await expect(run("find_files", { query: "diag" })).rejects.toThrow(/restricted/);
+    const text = JSON.stringify((await run("list_folder", { nodeId: "nod-mri" })).value);
+    expect(text).not.toMatch(/diagnosis|MRI"/);
+  });
+
   it("are the Phase 6 set", () => {
     expect(Object.keys(fakeKernel().tools).sort()).toEqual([...PROJECT_TOOL_NAMES].sort());
   });
@@ -135,6 +181,6 @@ describe("project tools policy", () => {
   it("asks before creating a proposal and links the card to Explore; reads and confirm attempts are allowed (the kernel decides)", () => {
     expect(decide({ toolName: "propose_relationship", input: { rule: "id ↔ folder" } }, s, b)).toMatchObject({ kind: "ask", detail: { kind: "proposal", proposalKind: "relationship", workspaceId: "prj-1" } });
     expect(decide({ toolName: "propose_schema", input: { columns: [{}, {}] } }, s, b)).toMatchObject({ kind: "ask", summary: expect.stringContaining("2 columns") });
-    for (const t of ["list_sources", "project_overview", "describe_source_node", "list_proposals", "list_import_issues", "confirm_proposal"]) expect(decide({ toolName: t, input: {} }, s, b).kind).toBe("allow");
+    for (const t of ["list_sources", "project_overview", "describe_source_node", "list_proposals", "list_import_issues", "confirm_proposal", "list_folder", "find_files", "propose_reorganization"]) expect(decide({ toolName: t, input: {} }, s, b).kind).toBe("allow");
   });
 });

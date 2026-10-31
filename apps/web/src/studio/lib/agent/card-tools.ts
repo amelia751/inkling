@@ -1,4 +1,5 @@
 import type { AgentCard, DatasetSnapshot as AgentContext, ClientToolSpec } from "@studio/agent-protocol";
+import { parseReorgPlan, planSummary } from "./reorg";
 
 /**
  * Card tools: the agent proposes, the expert decides. They run in the browser against the same
@@ -66,6 +67,32 @@ export const CARD_TOOLS: ClientToolSpec[] = [
       },
       ["section", "label"],
     ),
+  },
+  {
+    name: "propose_reorganization",
+    title: "Drafting a reorganization",
+    description:
+      "Propose reorganizing the project's Files: new folders (mkdir), moves and renames, each with a one-line reason. Shown as a card with a before/after diff; nothing changes until the user clicks Apply, which they can undo in one step. " +
+      "You can't change files yourself. Use ids from list_folder or find_files, never paths. Give each new folder a short ref (e.g. \"p1\") and use that ref as parentId to move things into it. Keep names free of dates of birth and personal names.",
+    input_schema: obj({
+      title: str("One line, e.g. 'Group by patient: 47 folders → patient_001…047'."),
+      ops: {
+        type: "array",
+        description: "In order. A mkdir must come before ops that use its ref.",
+        items: obj(
+          {
+            kind: { type: "string", enum: ["mkdir", "move", "rename"] },
+            ref: str("mkdir: a short handle for the new folder (letters, digits, . _ -), used as parentId by later ops."),
+            parentId: str("mkdir and move: the folder id (or a mkdir ref) it goes into."),
+            name: str("mkdir and rename: the new name (no '/')."),
+            nodeIds: strList("move: ids of the files or folders to move."),
+            nodeId: str("rename: the id of the file or folder."),
+            reason: str("One short sentence: why."),
+          },
+          ["kind", "reason"],
+        ),
+      },
+    }),
   },
   {
     name: "select_annotations",
@@ -156,6 +183,11 @@ export function runCardTool(name: string, input: Json, ctx?: AgentContext): Card
           summary: `${action === "accept" ? "Accept" : "Reject"} ${plural(chosen.length, "suggestion")}`,
           card: { kind: "review-suggestions", action, annotationIds: chosen, reason: String(input.reason ?? "") },
         };
+      }
+      case "propose_reorganization": {
+        const r = parseReorgPlan(input);
+        if ("error" in r) return fail(r.error, "Plan not valid");
+        return { ok: true, output: { shown: true, planId: r.plan.id, ops: r.plan.ops.length }, summary: planSummary(r.plan) || r.plan.title, card: { kind: "reorg-plan", plan: r.plan } };
       }
       case "select_annotations": {
         const known = new Set(ctx!.annotations.map((a) => a.id));

@@ -5,7 +5,7 @@
       "id": "inkling.core",
       "version": "1.0.0",
       "title": "Studio core",
-      "description": "Files, labels, review and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries."
+      "description": "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries."
     },
     {
       "id": "inkling.overlay2d",
@@ -2704,8 +2704,8 @@
       "id": "inkling.core.commands.toggleSidePanel",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again",
-      "label": "Show or hide files and labels",
+      "description": "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again",
+      "label": "Show or hide items and labels",
       "keys": [
         "shift+mod+b"
       ],
@@ -3866,7 +3866,7 @@
       "id": "inkling.core.panels.labels",
       "type": "panels",
       "module": "inkling.core",
-      "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection",
+      "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this item\") and the selection",
       "slot": "left",
       "example": {
         "panels": {

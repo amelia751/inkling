@@ -265,6 +265,11 @@
             "showFilePaths": {
               "description": "Show each item's folder path (status bar, hover card). Unset: shown",
               "type": "boolean"
+            },
+            "itemNoun": {
+              "description": "What one item is called in this task, singular (\"case\", \"clip\", \"document\"). Unset: \"item\"; the Studio never assumes a data type",
+              "type": "string",
+              "maxLength": 40
             }
           }
         }

@@ -267,7 +267,7 @@ function Studio({ projectId }: { projectId: string }) {
 
       {viewport === "phone" && (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-          <SheetContent side="left" title="Files, labels and review" showClose={false}>
+          <SheetContent side="left" title="Items and labels" showClose={false}>
             {left}
           </SheetContent>
         </Sheet>

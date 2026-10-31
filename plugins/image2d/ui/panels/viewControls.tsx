@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import {
+  ChevronDownIcon,
   CleanupIcon,
   FillIcon,
   FitIcon,
@@ -9,9 +10,11 @@ import {
   RotateLeftIcon,
   RotateRightIcon,
   SearchIcon,
+  ZoomInIcon,
   type IconComponent,
 } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import { formatCombo } from "@studio/ui/keys";
@@ -72,18 +75,33 @@ function Select({ title, value, options, onChange }: { title: string; value: str
   );
 }
 
+function MenuRow({ icon: Icon, label, command, shortcut, onSelect }: { icon: IconComponent; label: string; command?: string; shortcut?: string; onSelect: () => void }) {
+  const k = shortcut ?? (command ? keyOf(command) : undefined);
+  return (
+    <DropdownMenuItem onSelect={onSelect}>
+      <Icon />
+      {label}
+      {k && <DropdownMenuShortcut>{k}</DropdownMenuShortcut>}
+    </DropdownMenuItem>
+  );
+}
+
 /**
  * Viewport-bar controls of the Cornerstone stack renderer: window/level presets, invert,
- * overlay opacity,
- * flip, rotate, fit, color map, interpolation and magnifier, plus the wand mode and
- * "remove islands" while a mask tool is active. Each group shows only when the renderer's
- * config keeps it (`windowLevel: false` for natural photos…). Reads the state and actions
- * the renderer publishes in the item runtime; renders nothing for other renderers.
+ * overlay opacity, then a View ▾ menu (todo8 D4: the Zoom tool, fit, flip and rotate, the
+ * view actions people reach for rarely and mostly by key), then color map, interpolation and
+ * magnifier, plus the wand mode and "remove islands" while a mask tool is active. Each group
+ * shows only when the renderer's config keeps it (`windowLevel: false` for natural photos…).
+ * Reads the state and actions the renderer publishes in the item runtime; renders nothing for
+ * other renderers.
  */
-export function ViewControlsPanel({ item }: PanelProps) {
+export function ViewControlsPanel({ env, item }: PanelProps) {
   const view = useRuntime<ViewState>(item?.id, VIEW_STATE);
   const act = useRuntime<ViewControls>(item?.id, VIEW_CONTROLS);
   const tool = useHost((s) => s.tool);
+  const setTool = useHost((s) => s.setTool);
+  // The toolbar hides Zoom (scroll already zooms); it lives here, with its key.
+  const zoom = env.tools.find((t) => t.name === "zoom");
   if (!view || !act) return null;
   const f = view.features;
   const segTools = tool === "brush" || tool === "eraser" || tool === "wand";
@@ -93,20 +111,23 @@ export function ViewControlsPanel({ item }: PanelProps) {
       {f.windowLevel && <Select title="Window / level preset" value="" options={view.voiOptions} onChange={act.applyVoiPreset} />}
       {f.invert && <IconButton icon={InvertIcon} label="Invert" command={COMMANDS.invert} active={view.invert} onClick={act.toggleInvert} />}
       <OverlayOpacityControl />
-      {(f.flip || f.rotate) && <Sep />}
-      {f.flip && (
-        <>
-          <IconButton icon={FlipHorizontalIcon} label="Flip horizontal" command={COMMANDS.flipH} onClick={() => act.flip("h")} />
-          <IconButton icon={FlipVerticalIcon} label="Flip vertical" command={COMMANDS.flipV} onClick={() => act.flip("v")} />
-        </>
-      )}
-      {f.rotate && (
-        <>
-          <IconButton icon={RotateLeftIcon} label="Rotate 90° left" command={COMMANDS.rotateLeft} onClick={() => act.rotate(-90)} />
-          <IconButton icon={RotateRightIcon} label="Rotate 90° right" command={COMMANDS.rotateRight} onClick={() => act.rotate(90)} />
-        </>
-      )}
-      <IconButton icon={FitIcon} label="Reset view" command={COMMANDS.fit} onClick={act.reset} />
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost-secondary" size="sm" selected={tool === "zoom"} aria-label="View" data-testid="view-menu" className="shrink-0 gap-0.5 px-1.5 text-xs">
+            View
+            <ChevronDownIcon className="h-3 w-3 opacity-70" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-52">
+          {zoom && <MenuRow icon={ZoomInIcon} label="Zoom tool" shortcut={zoom.hotkey ? formatCombo(zoom.hotkey) : undefined} onSelect={() => setTool(zoom.name)} />}
+          <MenuRow icon={FitIcon} label="Reset view (fit)" command={COMMANDS.fit} onSelect={act.reset} />
+          {(f.flip || f.rotate) && <DropdownMenuSeparator />}
+          {f.flip && <MenuRow icon={FlipHorizontalIcon} label="Flip horizontal" command={COMMANDS.flipH} onSelect={() => act.flip("h")} />}
+          {f.flip && <MenuRow icon={FlipVerticalIcon} label="Flip vertical" command={COMMANDS.flipV} onSelect={() => act.flip("v")} />}
+          {f.rotate && <MenuRow icon={RotateLeftIcon} label="Rotate 90° left" command={COMMANDS.rotateLeft} onSelect={() => act.rotate(-90)} />}
+          {f.rotate && <MenuRow icon={RotateRightIcon} label="Rotate 90° right" command={COMMANDS.rotateRight} onSelect={() => act.rotate(90)} />}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {(f.colormap || f.interpolation || f.magnifier) && <Sep />}
       {f.colormap && <Select title="Color map" value={view.colormap} options={view.colormaps} onChange={act.setColormap} />}
       {f.interpolation && (

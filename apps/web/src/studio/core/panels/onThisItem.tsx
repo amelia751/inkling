@@ -13,11 +13,11 @@ import { ProvenanceBadge } from "./provenance";
 export function emptyOnThisItem(noun: string, labelCount: number): string {
   const n = Math.min(9, labelCount);
   const keys = n > 1 ? `1–${n}` : n === 1 ? "1" : "";
-  return `No annotations on this ${noun}. Pick a label and draw${keys ? `, or press ${keys}` : ""}.`;
+  return `Nothing labelled on this ${noun} yet. Pick a label${keys ? `, or press ${keys}` : ""}.`;
 }
 
 /**
- * "On this image" (todo8 D2): the current item's annotations as compact 24px rows, newest
+ * "On this item" (todo8 D2; the task's own noun when it names one): the current item's annotations as compact 24px rows, newest
  * first, like Figma's layers. A click selects (the renderer pans to the selection);
  * Shift/⌘/Ctrl-click adds to or removes from it. Remove shows on hover or keyboard focus.
  */

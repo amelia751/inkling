@@ -72,18 +72,18 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
       {/* Where am I */}
       <div className="flex min-w-0 shrink items-center gap-1.5">
         {onOpenSidebar && (
-          <Button variant="ghost-secondary" size="icon" onClick={onOpenSidebar} aria-label="Open files and labels">
+          <Button variant="ghost-secondary" size="icon" onClick={onOpenSidebar} aria-label="Open items and labels">
             <SidebarIcon />
           </Button>
         )}
         {showLeftToggle && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost-secondary" size="icon" selected={leftOpen} onClick={toggleLeft} aria-pressed={leftOpen} aria-label="Files and labels panel" data-testid="toggle-left-panel">
+              <Button variant="ghost-secondary" size="icon" selected={leftOpen} onClick={toggleLeft} aria-pressed={leftOpen} aria-label="Items and labels panel" data-testid="toggle-left-panel">
                 <SidebarIcon />
               </Button>
             </TooltipTrigger>
-            <ActionTooltipContent title={`${leftOpen ? "Hide" : "Show"} files and labels`} shortcut="toggleSidePanel" />
+            <ActionTooltipContent title={`${leftOpen ? "Hide" : "Show"} items and labels`} shortcut="toggleSidePanel" />
           </Tooltip>
         )}
         <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1 text-sm" data-testid="breadcrumb">

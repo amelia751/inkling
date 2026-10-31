@@ -107,7 +107,8 @@ def main() -> int:
             # 0. The Studio: no settings button any more; the paint tools are there.
             page.wait_for_selector("[role=toolbar][aria-label='Annotation tools'] [data-tool]", timeout=90000)  # a cold dev server compiles first
             check("Studio header has no Environment settings button", page.locator("[aria-label='Environment settings']").count() == 0)
-            check("paint tools in the toolbar before", PAINT <= toolbar_tools(), str(sorted(toolbar_tools())))
+            # The Paint group folds into one split button (todo8 D4 Rule 2): its face is in the toolbar, all three in env.tools.
+            check("paint tools in the toolbar before", PAINT <= set(tools()) and bool(PAINT & toolbar_tools()), str(sorted(toolbar_tools())))
 
             # 1. Task setup page.
             page.goto(setup_url)
@@ -160,6 +161,9 @@ def main() -> int:
                 check("decision bar offers Effusion", "effusion" in bar.inner_text().lower(), bar.inner_text())
             else:
                 print("SKIP decision bar not in this build", flush=True)
+            # Keys reach the Studio once the viewer is up (a key pressed while it mounts is lost).
+            page.wait_for_selector("[data-testid=image-canvas] canvas", timeout=30000)
+            page.wait_for_timeout(500)
             page.locator("main[aria-label=Viewer]").click(position={"x": 5, "y": 5})
             page.keyboard.press("3")
             picked = wait(lambda: st.store("s => s.activeLabel === 'effusion' || s.annotations.some(a => a.label === 'effusion')"), 5)
@@ -188,7 +192,7 @@ def main() -> int:
             check("setup page shows the restored state", bool(wait(lambda: page.locator("[data-testid=class-row][data-class=effusion]").count() == 0 and page.locator("[data-testid=tool-toggle][data-tool=brush]").get_attribute("data-state") == "checked", 10)))
             page.goto(studio_url)
             page.wait_for_selector("[role=toolbar][aria-label='Annotation tools'] [data-tool]", timeout=30000)
-            check("after Undo the Studio has the paint tools again", bool(wait(lambda: PAINT <= toolbar_tools(), 10)), str(sorted(toolbar_tools())))
+            check("after Undo the Studio has the paint tools again", bool(wait(lambda: PAINT <= set(tools()) and bool(PAINT & toolbar_tools()), 10)), str(sorted(toolbar_tools())))
             check("after Undo the Studio has no Effusion", "effusion" not in (st.store("s => s.env.labels.flatMap(g => g.classes.map(c => c.id))") or []))
             check("no console errors", not st.errors, str(st.errors[:3]))
         finally:

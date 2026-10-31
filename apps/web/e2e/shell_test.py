@@ -87,16 +87,16 @@ def labels_and_selection(browser, port: int, out: Path) -> None:
     page.wait_for_timeout(200)
     check("bulk relabel undoes in one step", s.store("s => s.annotations.filter(a => s.selectedIds.includes(a.id)).every(a => a.label === 'normal')"))
 
-    # Shift-click in "On this image" adds to the selection (the Studio's Review tab is gone).
+    # Shift-click in "On this item" adds to the selection (the Studio's Review tab is gone).
     check("no Review tab in the Studio", page.get_by_role("tab", name="Review").count() == 0)
-    check("the Items tab is named by the data kind", page.get_by_role("tab", name="Images").count() == 1)
+    check("the Items tab never names a data type", page.get_by_role("tab", name="Items").count() == 1 and page.get_by_role("tab", name="Images").count() == 0)
     page.keyboard.press("Escape")
     rows = page.locator("[data-testid='on-this-item'] [data-testid='annotation-row']")
-    check("On this image lists the item's annotations", rows.count() >= 2, f"{rows.count()} rows")
+    check("On this item lists the item's annotations", rows.count() >= 2, f"{rows.count()} rows")
     rows.nth(0).locator("button").first.click()
-    check("click in On this image selects", s.store("s => s.selectedIds.length") == 1)
+    check("click in On this item selects", s.store("s => s.selectedIds.length") == 1)
     rows.nth(1).locator("button").first.click(modifiers=["Shift"])
-    check("shift-click On this image multi-selects", s.store("s => s.selectedIds.length") == 2, str(s.store("s => s.selectedIds.length")))
+    check("shift-click On this item multi-selects", s.store("s => s.selectedIds.length") == 2, str(s.store("s => s.selectedIds.length")))
     check("the selection is pinned below the lists", page.locator("[data-testid='selection-section'] [aria-label='Selected annotations']").count() == 1)
     n = rows.count()
     rows.nth(0).hover()

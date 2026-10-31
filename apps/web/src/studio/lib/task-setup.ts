@@ -30,7 +30,7 @@ export const TOOL_GROUP_ORDER = ["navigate", "shape", "measure", "mask", "time"]
 /** Unset `showSourceLabels` means blind for classification (D8) and shown for everything else. */
 export function studioDefaults(env: Pick<ResolvedEnv, "spec" | "task">): Required<StudioView> {
   const s = env.spec.studio ?? {};
-  return { showSourceLabels: s.showSourceLabels ?? env.task !== "classification", showFilePaths: s.showFilePaths ?? true };
+  return { showSourceLabels: s.showSourceLabels ?? env.task !== "classification", showFilePaths: s.showFilePaths ?? true, itemNoun: s.itemNoun?.trim() ?? "" };
 }
 
 /** Tool ids the merged spec switches off (overrides apply in order, so the last word wins). */
@@ -111,7 +111,11 @@ export function buildNextSpec(env: ResolvedEnv, draft: SetupDraft): EnvironmentS
   }
 
   // Annotators see.
-  if (!same(base.studio, draft.studio)) next.studio = { ...next.studio, ...draft.studio };
+  if (!same(base.studio, draft.studio)) {
+    const noun = draft.studio.itemNoun.trim().toLowerCase();
+    const { itemNoun: _drop, ...rest } = { ...next.studio, ...draft.studio };
+    next.studio = noun ? { ...rest, itemNoun: noun } : rest;
+  }
   return next;
 }
 

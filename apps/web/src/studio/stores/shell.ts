@@ -39,7 +39,7 @@ interface ShellState {
   setNav: (nav: NavPreference) => void;
   toggleStudioRail: () => void;
   visited: (p: RecentProject) => void;
-  /** The Studio's left slot (Files, Labels, Review); hidden with the rail, the canvas takes the width (todo6 Phase 7). */
+  /** The Studio's left slot (Items, Labels); hidden with the rail, the canvas takes the width (todo6 Phase 7). */
   studioLeft: boolean;
   toggleStudioLeft: () => void;
 }

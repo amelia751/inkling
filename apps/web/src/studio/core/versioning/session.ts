@@ -12,7 +12,7 @@ import { api, fetchStatus, VersioningError, type VersionedDocument } from "./api
  * - "Save" is a commit with `expected_head`. If someone else saved first the kernel answers
  *   409 `stale_head`: the Studio says so, and "Refresh and re-apply" reloads the branch and
  *   replays this session's edits on top of it.
- * - "Submit for review" opens a review of the branch into `main`.
+ * - "Request review" opens a review of the branch into `main`.
  */
 
 export interface VersioningSession {

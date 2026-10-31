@@ -1,3 +1,4 @@
+import { itemNoun } from "@/studio/lib/environment";
 import { describe, expect, it } from "vitest";
 import "@/extension-host/bundled";
 import { registry } from "@/extension-host/registry";
@@ -64,6 +65,18 @@ describe("Task setup draft", () => {
     expect(next.panels).toEqual({ left: [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")] });
     expect(next.studio).toEqual({ showSourceLabels: true, showFilePaths: true });
     expect(resolve(next).spec.studio).toEqual({ showSourceLabels: true, showFilePaths: true });
+  });
+
+  it("stores the task's own noun for one item, and drops it when cleared", () => {
+    const env = resolve(XRAY);
+    expect(initialDraft(env).studio.itemNoun).toBe("");
+    const named = buildNextSpec(env, { ...initialDraft(env), studio: { ...initialDraft(env).studio, itemNoun: " Case " } });
+    expect(named.studio?.itemNoun).toBe("case");
+    const envNamed = resolve(named);
+    expect(itemNoun(envNamed)).toBe("case");
+    const cleared = buildNextSpec(envNamed, { ...initialDraft(envNamed), studio: { ...initialDraft(envNamed).studio, itemNoun: "" } });
+    expect(cleared.studio?.itemNoun).toBeUndefined();
+    expect(itemNoun(resolve(cleared))).toBe("item");
   });
 
   it("is blind by default for classification only", () => {

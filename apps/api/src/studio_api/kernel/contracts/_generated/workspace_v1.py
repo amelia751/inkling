@@ -86,6 +86,13 @@ class Studio(BaseModel):
             description="Show each item's folder path (status bar, hover card). Unset: shown"
         ),
     ] = None
+    itemNoun: Annotated[
+        str | None,
+        Field(
+            description='What one item is called in this task, singular ("case", "clip", "document"). Unset: "item"; the Studio never assumes a data type',
+            max_length=40,
+        ),
+    ] = None
 
 
 class Type(StrEnum):

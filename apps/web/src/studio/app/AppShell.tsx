@@ -82,6 +82,6 @@ const router = createBrowserRouter([
 export function AppShell() {
   // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).
   useNoSwipeBack();
-  // Toasts (e.g. "Task setup changed · Undo") go to the one app-wide Toaster in boot.tsx.
+  // Toasts ("Task setup changed · Undo" and the rest) come from boot.tsx's one app-wide Toaster.
   return <RouterProvider router={router} />;
 }

@@ -56,9 +56,10 @@ if (PLUGIN_PACKAGES.problems.length && import.meta.env?.DEV) console.warn("[plug
 
 export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
 
-for (const m of MODULES) registry.registerModule(m);
+const replace = import.meta.env.DEV;
+for (const m of MODULES) registry.registerModule(m, { replace });
 // Agent-generated panels (safety tiers 2–3) exist only when the agentPanels flag is on.
-if (featureEnabled("agentPanels")) registry.registerModule(experimental);
+if (featureEnabled("agentPanels")) registry.registerModule(experimental, { replace });
 // Built-ins are active in every workspace; plugins only where the workspace activated them
 // (extension-host/workspace.ts). Until a workspace is applied, everything bundled is active.
 registry.pin([...BUILTIN_MODULES.map((m) => m.id), ...(featureEnabled("agentPanels") ? [experimental.id] : [])]);

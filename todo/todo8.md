@@ -16,7 +16,37 @@ two touch.
 
 ## Status (2026-10-30)
 
-Not started. This file is the plan; nothing in the code has changed yet.
+Phases 1–5 are implemented and merged into `todo8-studio`; Phase 6 (verification and docs) is on
+`todo8-verify`. All ten decisions are in; what differs from the text below:
+
+- [x] Phase 1: header in three zones (`WorkStateChip`, `TaskSwitcher`, ⋯ menu), Request review, D10
+  header guard (`studio_layout_test.py`: 6 controls at 1440px).
+- [x] Phase 2: Items | Labels, "On this image", overlay opacity in the viewport bar, `review` panel
+  re-titled "All annotations" and dropped from every preset.
+- [x] Phase 3: Folders and Queue views following Data, `StudioItem.folder` from the kernel,
+  disambiguated names, hover card, Show in Data and Data's "In tasks", status-bar path, `N`, blind
+  by default through `env.spec.studio` (`studioDefaults` in `lib/task-setup.ts`).
+- [x] Phase 4: Rule 1 (`env.unusableTools` with reasons), folded tool groups (`stores/tool-prefs.ts`),
+  `DecisionBar`, the 2D seed's duplicate `Labels` group dropped in `tools/fetch-seeds.py`.
+- [x] Phase 5: shortcuts sheet (Essentials, keycaps by group, While drawing, search, footer, `?
+  Shortcuts` hint) and the Task setup page; `ModuleConfigDialog` is gone from the Studio.
+- [x] Phase 6: all `apps/web/e2e` green on the merged branch (see the report on `todo8-verify`),
+  screenshots before/after in `docs/screenshots/todo8/`, `docs/ux.md` §2/§8/§10 and
+  `docs/modules.md` (Rule 1, folding, `studio`), agent prompts say Task setup.
+
+Deviations and leftovers:
+
+- **D4 View menu.** The image2d viewport bar has a View ▾ menu with the Zoom tool (`Z`), reset,
+  flip and rotate. Window/level presets, invert and overlay opacity stay inline beside it: they're
+  used often, and `image2d_test.py` / `volume3d_test.py` / `shell_test.py` drive them by role and
+  test id. The volume renderer's `plugins/volume/ui/renderer/ViewBar.tsx` has no View menu yet (Zoom stays on `Z` there).
+- **§7 shared tree header.** Not extracted: Files has `components/files/tree-header.tsx`, the Items
+  panel its own header (view toggle, filter icon). Worth merging into one `packages/ui` component.
+- **D8** the ECG renderer still prints its own "Source Dx" line for event-marking tasks (a renderer
+  feature, not the status bar); D8 only hides source labels for classification.
+- §8's "Not now" items are in `todo/BACKLOG.md` (Studio, todo8).
+- `pnpm typecheck` fails only in `@studio/api` (pyright, 11 errors in todo7's `kernel/fs.py`,
+  `kernel/overview.py`, `routes/worker.py`); none is in todo8 code.
 
 ---
 
@@ -158,7 +188,7 @@ Settings, a ⋯ menu, or the user menu.
 
 ## 3. Decisions (decide before Phase 1)
 
-- [ ] **D1. Header: three zones, at most 7 controls at 1440px.**
+- [x] **D1. Header: three zones, at most 7 controls at 1440px.**
 
   ```text
   [▤] Chest X-ray · Pneumonia ▸ Pneumonia triage ▾   ·  Draft · Saved ✓ ▾        [Request review]  [✦]  [⋯]
@@ -189,7 +219,7 @@ Settings, a ⋯ menu, or the user menu.
   - Testids `branch-switcher`, `submit-review`, `stale-save` and `toggle-left-panel` stay on the
     new elements. `branch-switcher` moves to the popover's switch control.
 
-- [ ] **D2. Left panel: Items | Labels. The Studio Review tab goes.**
+- [x] **D2. Left panel: Items | Labels. The Studio Review tab goes.**
   - **Items** (`inkling.core.panels.files`, id unchanged). The tab title is the data kind's plural
     `itemNoun`: Images, Studies, Slides. A count follows only when it's under 1,000.
   - **Labels** (`inkling.core.panels.labels`) gets three sections, top to bottom:
@@ -212,7 +242,7 @@ Settings, a ⋯ menu, or the user menu.
     to CVAT, V7 and Figma, but it fights ux.md §8's three-column spec, and the assistant would then
     cover the inspector. Revisit if people keep the assistant closed most of the time.
 
-- [ ] **D3. Items follow the file system, with a Queue view.**
+- [x] **D3. Items follow the file system, with a Queue view.**
   - **Folders view (default when the task's items span more than one folder).**
     - The same tree component as Data (`packages/ui/src/ui/file-tree.tsx`), the same icons, the same
       compaction of single-child chains and numbered runs.
@@ -248,7 +278,7 @@ Settings, a ⋯ menu, or the user menu.
   - The filter field becomes an icon in the panel header that expands (or ⌘F inside the panel), as
     in todo7's tree header. It isn't always visible.
 
-- [ ] **D4. Tools: the task decides which tools exist; related tools fold into one button.**
+- [x] **D4. Tools: the task decides which tools exist; related tools fold into one button.**
   - **Rule 1: only usable tools.** A tool that `creates` a geometry no label group in the
     environment accepts is not shown. Navigation and measurement tools (`creates` unset, or the
     `measure` group) are exempt. The resolver computes it as `env.tools` filtered, with the dropped
@@ -270,7 +300,7 @@ Settings, a ⋯ menu, or the user menu.
     *Alternative*: keep the group and accept that the shape tools stay. Recommended: drop it; a box
     labelled "pneumonia" isn't what that task asks for.
 
-- [ ] **D5. Classification gets a decision bar, not a panel hunt.** When the environment has a
+- [x] **D5. Classification gets a decision bar, not a panel hunt.** When the environment has a
   `Choices` group, a bar under the canvas (above the status bar) shows the classes as keyed buttons:
   `[1 Normal] [2 Pneumonia]` and then `Skip`. Picking one records the class, and with **Advance after
   choosing** (on by default for single-choice groups, switchable in the bar's ⋯) it moves to the
@@ -278,7 +308,7 @@ Settings, a ⋯ menu, or the user menu.
   for people who keep the bar hidden. This is the main action of the task, so it sits where the eyes
   are.
 
-- [ ] **D6. Shortcuts: essentials first, searchable, mirrors the toolbar.**
+- [x] **D6. Shortcuts: essentials first, searchable, mirrors the toolbar.**
   - The top section, **Essentials**, has at most 8 rows from a fixed list in core:
     - Undo and redo;
     - Delete;
@@ -298,7 +328,7 @@ Settings, a ⋯ menu, or the user menu.
   - The sheet opens from `?` and from ⋯ → Keyboard shortcuts. The status bar's right end shows a
     quiet `? Shortcuts` hint until the sheet has been opened once.
 
-- [ ] **D7. Environment settings → Task setup, a page and not a dialog.**
+- [x] **D7. Environment settings → Task setup, a page and not a dialog.**
   - **Where:** `/projects/:p/tasks/:taskId/setup`, linked from the task switcher, ⋯ → Task setup, and
     the Overview task card. Owners land there after creating a task. Annotators can open it read-only.
   - **Sections, in plain words:**
@@ -320,7 +350,7 @@ Settings, a ⋯ menu, or the user menu.
   - `ModuleConfigDialog` is removed from the Studio. Its e2e coverage (none found) moves to a new
     `task_setup_test.py`.
 
-- [ ] **D8. Blind by default: annotators don't see the source label.**
+- [x] **D8. Blind by default: annotators don't see the source label.**
   - When the environment's `task` is `classification`, `StudioItem.sourceLabel` is hidden in the
     Studio. That means no grouping by it, no status-bar mention, and no hover-card field.
   - Task setup → **Annotators see → "Labels that came with the files"** turns it on (for correction
@@ -330,7 +360,7 @@ Settings, a ⋯ menu, or the user menu.
   - For other task kinds the source label is context, not the answer. It's shown in the hover card
     only, never as a group heading.
 
-- [ ] **D9. Words.** Each of these replacements is user-facing copy only; code names don't change.
+- [x] **D9. Words.** Each of these replacements is user-facing copy only; code names don't change.
 
   | Today | After | Why |
   |---|---|---|
@@ -343,7 +373,7 @@ Settings, a ⋯ menu, or the user menu.
   | `2D image` (preset title) in the header | in the task switcher's subtitle | It's a viewer type, not a status. |
   | Files (Studio tab) | the data kind's plural noun | "Files" is the file system, which the nav calls Data. |
 
-- [ ] **D10. A guard against re-cluttering.** An e2e check counts the visible interactive controls in
+- [x] **D10. A guard against re-cluttering.** An e2e check counts the visible interactive controls in
   the Studio header at 1440px (≤ 7) and the visible toolbar buttons for `image-2d` (≤ 10). A new
   button then has to replace one or go in ⋯. The thresholds sit in the test with a comment pointing
   here.
@@ -531,6 +561,8 @@ Phases 1 and 2 give most of the calm for the least risk; do them first, even whi
 ---
 
 ## 8. Not now (BACKLOG candidates)
+
+Moved to `todo/BACKLOG.md` (Studio, todo8); kept here for the record.
 
 - A focus mode (hide the header and both panels, keep the toolbar and decision bar), e.g. on `⌘.`.
 - ⌘K command palette over commands, items and tasks (there is none today; ⋯ and `?` cover the gap).

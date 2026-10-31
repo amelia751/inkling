@@ -31,6 +31,12 @@ line links back to the section that explains it. Take an item by moving it into 
 - Comments on a file. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
 - Connectors that keep a remote folder in sync with a folder in Files. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
 
+## Studio (todo8)
+- A focus mode: hide the header and both panels, keep the toolbar and decision bar (e.g. on `⌘.`). [todo8 §8](todo8.md#8-not-now-backlog-candidates)
+- ⌘K command palette over commands, items and tasks (there is none; ⋯ and `?` cover the gap). [todo8 §8](todo8.md#8-not-now-backlog-candidates)
+- A first-run tour, only if people don't find the decision bar or the Queue (tooltips with keys and the `? Shortcuts` hint should be enough). [todo8 §8](todo8.md#8-not-now-backlog-candidates)
+- Per-person toolbar customisation (pinning a folded tool); Task setup covers the owner's case. [todo8 §8](todo8.md#8-not-now-backlog-candidates)
+
 ## Kubernetes
 - Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (today a documented skip). [todo3](done/todo3.md#whats-left), [todo4 Phase 6/7](done/todo4.md#whats-left)
 

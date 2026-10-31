@@ -81,7 +81,11 @@ def t_drone(browser, port):
     st = open_studio(browser, port, "drone-demo", extra_projects=[project("drone-demo", "drone-video-tracks", [asset])], fixture_annotations=[])
     try:
         env = wait(lambda: env_summary(st))
-        check("drone: video renderer with box tracks, MOT and CVAT", bool(env) and env["renderer"] == "inkling.video.renderers.frame-canvas" and env["tools"] == ["select", "pan", "box", "event"] and env["exporters"] == ["inkling.video.exporters.mot", "inkling.video.exporters.cvat-video"], str(env))
+        # todo8 D4 Rule 1: the preset's event tool has no label group that accepts events, so it
+        # is in env.unusableTools, not the toolbar.
+        check("drone: video renderer with box tracks, MOT and CVAT", bool(env) and env["renderer"] == "inkling.video.renderers.frame-canvas" and env["tools"] == ["select", "pan", "box"] and env["exporters"] == ["inkling.video.exporters.mot", "inkling.video.exporters.cvat-video"], str(env))
+        unusable = st.store("s => s.env.unusableTools.map(u => u.tool.name)")
+        check("drone: the event tool is unusable without an event label group (Rule 1)", unusable == ["event"], str(unusable))
         st.page.wait_for_selector("[data-testid='video-stage'][data-clock='ready']", timeout=45000)
         classes = st.store("s => s.env.labels[0].classes.map(c => c.id)")
         check("drone: label classes come from the preset", classes == ["car", "truck", "person"], str(classes))

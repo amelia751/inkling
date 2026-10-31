@@ -18,7 +18,8 @@ import type { Picked } from "@/studio/lib/uploads/walk";
 import type { ProjectSummary } from "@studio/contracts/types";
 
 /** The chips fill the field; they don't run anything (todo6 §3.1). */
-export const EXAMPLE_GOALS = ["Classify chest X-rays", "Outline the left ventricle in cardiac MRI", "Mark events in ECG recordings"];
+/** Starting points across kinds of data, so the first screen doesn't read as one domain's tool. */
+export const EXAMPLE_GOALS = ["Sort photos into categories", "Outline structures in 3D scans", "Mark events in recordings", "Tag topics in documents"];
 
 /** What New project receives from Home: a goal sentence and/or files dropped on Home. */
 export interface NewProjectState {

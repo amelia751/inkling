@@ -473,7 +473,7 @@ def pan_to_selection_from_sidebar(p: P):
     w, h = p.js("return [c.view.width, c.view.height];")
     corners = [p.js("return c.view.toScreen(arg[0], arg[1]);", q) for q in [far, (far[0] + 1500, far[1] + 1000)]]
     assert all(0 <= x <= w and 0 <= y <= h for x, y in corners), corners
-    p.page.get_by_role("tab", name="Slides").click()
+    p.page.get_by_role("tab", name="Items").click()
     p.shot("pan-to-selection")
 
 

@@ -53,7 +53,7 @@ const commands: CommandContribution[] = [
   { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
   { id: "filterItems", keys: ["mod+f"], label: "Filter items", group: "Navigate", when: "section == studio", description: "Filter the Items panel by name (while the panel has focus)" },
   { id: "contextMenu", keys: ["shift+F10", "ContextMenu"], label: "Open the context menu", group: "Data", when: FILES, description: "Open the menu of the focused file or folder, as a right-click does" },
-  { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
+  { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide items and labels", group: "Navigate", description: "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 
   // Shared renderer gestures.
@@ -91,7 +91,7 @@ export default defineModule({
   id: CORE,
   version: "1.0.0",
   title: "Studio core",
-  description: "Files, labels, review and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
+  description: "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
   contributes: {
     geometries: [...coreGeometries, ...legacyGeometries],
     tools: [
@@ -102,7 +102,7 @@ export default defineModule({
     commands,
     panels: [
       { id: "files", title: "Items", slot: "left", description: "The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides)" },
-      { id: "labels", title: "Labels", slot: "left", description: "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection" },
+      { id: "labels", title: "Labels", slot: "left", description: "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this item\") and the selection" },
       { id: "review", title: "All annotations", slot: "left", description: "Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio" },
       { id: "ai", title: `${NAMING.displayName} AI`, slot: "right", description: "Assistant that can read and edit this environment (agent tools)" },
     ],

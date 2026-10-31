@@ -26,7 +26,7 @@ function Heading({ children, id }: { children: React.ReactNode; id?: string }) {
 
 /**
  * `inkling.core.panels.labels` (todo8 D2): item-level classes (every `Choices` group), then
- * Classes (pick; hide, lock and color behind each row's ⋯), then "On this image" (the
+ * Classes (pick; hide, lock and color behind each row's ⋯), then "On this item" (the
  * current item's annotations), with the selection pinned to the bottom.
  */
 export function LabelsPanel({ env, project, items }: PanelProps) {

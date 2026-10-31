@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DetectedKind, FsOp, SourceNode, SourceSummary, TrashItem } from "@studio/contracts/types";
 import { ns, RES } from "@studio/contracts/naming";
-import { ChevronDownIcon, CloseIcon, GridViewIcon, ListViewIcon, MoreIcon, NewFolderIcon, PasteIcon, PlusIcon, SearchIcon, SidePanelIcon, UploadIcon } from "@studio/ui/icons";
+import { ChevronDownIcon, CloseIcon, GridViewIcon, ListViewIcon, MoreIcon, NewFolderIcon, PasteIcon, PlusIcon, SearchIcon, UploadIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@studio/ui/ui/context-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
@@ -11,7 +11,6 @@ import { Input } from "@studio/ui/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@studio/ui/ui/resizable";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { Skeleton } from "@studio/ui/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import { useCommands } from "@/extension-host/commands";
 import { AppLayout } from "@/studio/components/layout/app-layout";
@@ -250,6 +249,10 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     (id: string): SourceNode | undefined => items.find((n) => n.id === id) ?? tree.current?.lookup(id) ?? findCachedNode(qc, projectId, id) ?? (a?.id === id ? a : undefined),
     [items, qc, projectId, a],
   );
+  // Details pop up when something is picked and go away with ✕ (no toolbar toggle; ⌘I still toggles).
+  useEffect(() => {
+    if (selection.length) useSourcesPrefs.getState().setInspector(true);
+  }, [selection]);
   const selectedNodes = useMemo(() => selection.map((id) => findNode(id)).filter((n): n is SourceNode => !!n), [selection, findNode]);
   const single = selectedNodes.length === 1 ? selectedNodes[0] : null;
   const listedNode: SourceNode | null = a && a.kind === "folder" && !isSeq(nodeId) ? a : (runRow ?? null);
@@ -524,6 +527,8 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     if (items.some((x) => x.id === n.id) && !searching) {
       setSelection([n.id]);
       setEditingId(n.id);
+    } else if (tree.current?.lookup(n.id)) {
+      tree.current.edit(n.id);
     } else {
       setSelection([n.id]);
       prefs.setInspector(true);
@@ -1007,16 +1012,6 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         ]}
         size="md"
       />
-      {desktop && (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button variant="ghost-secondary" size="icon" selected={prefs.inspector} onClick={() => prefs.setInspector(!prefs.inspector)} aria-label={prefs.inspector ? "Hide details" : "Show details"} aria-pressed={prefs.inspector} data-testid="inspector-toggle">
-              <SidePanelIcon />
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>{prefs.inspector ? "Hide details" : "Show details"}</TooltipContent>
-        </Tooltip>
-      )}
     </div>
   );
 
@@ -1409,7 +1404,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
               </div>
             </div>
           </ResizablePanel>
-          {desktop && prefs.inspector && (
+          {desktop && prefs.inspector && !trash && selection.length > 0 && (
             <>
               <ResizableHandle />
               <ResizablePanel id="inspector" defaultSize={320} minSize={260} maxSize={520}>

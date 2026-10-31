@@ -143,8 +143,8 @@ export function useReviewQueue(id: string, f: ReviewFilters = {}) {
   return useQuery({ queryKey: [...projectKeys.review(id), f.type ?? "", f.severity ?? "", f.dataset ?? ""], queryFn: () => fetchReviewQueue(id, f), staleTime: 5_000, placeholderData: (prev) => prev });
 }
 
-export function useDatasets(id: string) {
-  return useQuery({ queryKey: projectKeys.datasets(id), queryFn: () => fetchDatasets(id), staleTime: 5_000 });
+export function useDatasets(id: string, opts: { enabled?: boolean } = {}) {
+  return useQuery({ queryKey: projectKeys.datasets(id), queryFn: () => fetchDatasets(id), staleTime: 5_000, enabled: opts.enabled ?? true });
 }
 
 export function useDataset(projectId: string, datasetId: string) {

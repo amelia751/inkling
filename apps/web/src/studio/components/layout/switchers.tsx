@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
-import { useDatasets, useProjectList } from "@/studio/lib/projects-api";
+import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
@@ -112,7 +112,9 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
 export function TaskSwitcher({ projectId, taskId, title, subtitle, compact = false, className }: { projectId: string; taskId: string; title: string; subtitle?: string; compact?: boolean; className?: string }) {
   const navigate = useNavigate();
   // The project's tasks, from its datasets (the same lists Overview and Datasets read).
-  const { data: datasets } = useDatasets(projectId);
+  // Only for a listed project: a Studio opened on a bare environment (no project) has no datasets.
+  const listed = !!useProjectSummary(projectId).data;
+  const { data: datasets } = useDatasets(projectId, { enabled: listed });
   // Progress is items with at least one annotation (a dataset's file count isn't its item count:
   // a CT study is one item and hundreds of files).
   const tasks: { id: string; title: string; annotatedItems?: number }[] = datasets?.flatMap((d) => d.tasks) ?? [];

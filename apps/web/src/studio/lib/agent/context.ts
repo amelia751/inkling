@@ -2,6 +2,7 @@ import { environmentContext } from "@/extension-host/agent";
 import { describeGeometry } from "@/extension-host/describe";
 import { labelNames } from "@studio/contracts/environment";
 import { useStudio } from "@/studio/stores/studio";
+import { studioDefaults } from "@/studio/lib/task-setup";
 import type { Project, StudioItem } from "@studio/contracts";
 import type { DatasetSnapshot as AgentContext } from "@studio/agent-protocol";
 import type { AgentContextProvider } from "./providers";
@@ -12,6 +13,7 @@ const MAX_ANNOTATIONS = 3000;
 /** The text-only snapshot the dataset tools read (see AgentContext). Never pixels or file contents. */
 export function buildAgentContext(project: Project, items: StudioItem[]): AgentContext {
   const s = useStudio.getState();
+  const blind = s.env ? !studioDefaults(s.env).showSourceLabels : project.task === "classification";
   return {
     project: {
       id: project.id,
@@ -23,7 +25,8 @@ export function buildAgentContext(project: Project, items: StudioItem[]): AgentC
       source: project.source,
       restricted: !!project.restricted,
     },
-    items: items.map((i) => ({ id: i.id, name: i.name, group: i.group, sourceLabel: i.sourceLabel, assets: i.assets.map((a) => a.path) })),
+    // Blind tasks (todo8 D8): the assistant doesn't get the label that came with the file either.
+    items: items.map((i) => ({ id: i.id, name: i.name, group: i.group, ...(blind ? {} : { sourceLabel: i.sourceLabel }), assets: i.assets.map((a) => a.path) })),
     annotations: s.annotations.slice(0, MAX_ANNOTATIONS).map((a) => ({
       id: a.id,
       itemId: a.itemId,

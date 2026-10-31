@@ -99,7 +99,8 @@ def main() -> int:
         page.goto(f"{base}/projects/2d-xray/studio/2d-xray")
         page.wait_for_selector("main[aria-label='Viewer']", timeout=30000)
         check("Studio shows the rail", page.locator("[data-testid=project-rail]").count() == 1)
-        check("Studio top bar has the breadcrumb", page.locator("header [data-testid=project-switcher]").count() == 1)
+        # todo8 D1: the Studio header names the project as a link to its Overview (not a switcher).
+        check("Studio top bar links the project", page.locator("header [data-testid=studio-project-link]").get_attribute("href") == "/projects/2d-xray/overview")
         viewer_before = page.locator("main[aria-label='Viewer']").bounding_box()["width"]
         page.mouse.click(700, 500)
         page.keyboard.press("ControlOrMeta+b")

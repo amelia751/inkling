@@ -59,6 +59,7 @@ def main() -> int:
             check("before: no Segment button", p.locator(f"[data-toolbar-action='{seg}.commands.segment']").count() == 0)
             # Install through the UI, in the same tab: no deploy, no reload.
             p.evaluate("() => { window.__marker = 1; }")
+            p.get_by_test_id("studio-more").click()  # Plugins lives in the Studio's ⋯ menu (todo8 D1)
             p.get_by_role("link", name="Plugins").first.click()
             p.wait_for_selector(f"[data-registry-plugin='{seg}']", timeout=30000)
             p.get_by_test_id(f"install-{seg}").click()

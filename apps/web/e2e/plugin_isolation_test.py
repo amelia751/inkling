@@ -95,7 +95,8 @@ def t_rollback(browser, port, out: Path) -> None:
         cfg = kernel(p, "POST", f"/workspaces/{WS}/plugins/configure", {"pluginId": SEG, "config": {"provider": "local.sam"}})
         check("rollback: provider switch pinned as a new config revision", cfg["status"] == 200 and cfg["body"]["configRevision"] == pin0["configRevision"] + 1, str(cfg))
 
-        # Roll back from the Plugins page (the UI the user has).
+        # Roll back from the Plugins page (the UI the user has): the Studio's ⋯ menu links it.
+        p.get_by_test_id("studio-more").click()
         p.get_by_role("link", name="Plugins").first.click()
         row = p.locator(f"[data-plugin='{SEG}']")
         row.wait_for(timeout=30000)

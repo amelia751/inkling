@@ -47,6 +47,25 @@ def main() -> int:
             check("starts with the rail and the left panel", page.locator("[data-testid=project-rail]").count() == 1 and page.locator("[data-testid=files-panel]").count() == 1)
             check("the assistant starts closed", st.store("s => s.aiOpen") is False)
 
+            # Guard against re-cluttering (todo8 D10, todo/todo8.md §3): at 1440px the Studio header
+            # has at most 7 visible interactive controls. A new one replaces one or goes in ⋯.
+            MAX_HEADER_CONTROLS = 7
+            controls = page.evaluate("""() => [...document.querySelectorAll('[data-testid=studio-header] :is(button, a[href], input, select, [role=button], [tabindex]:not([tabindex="-1"]))')]
+                .filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; })
+                .map((el) => el.getAttribute('aria-label') || el.textContent.trim())""")
+            check(f"the Studio header has ≤ {MAX_HEADER_CONTROLS} controls at 1440px", 0 < len(controls) <= MAX_HEADER_CONTROLS, f"{len(controls)}: {controls}")
+            header = page.locator("[data-testid=studio-header]").inner_text()
+            check("the header has no retired words", not any(w in header for w in ("Review dataset", "Export dataset", "Submit for review", "Personal", "Draft")), header.replace("\n", " · "))
+            check("the project is a link to its Overview", page.locator("[data-testid=studio-project-link]").get_attribute("href") == "/projects/2d-xray/overview")
+            page.get_by_test_id("studio-more").click()
+            menu = page.get_by_role("menu")
+            menu.wait_for(timeout=5000)
+            check("⋯ holds Task setup, shortcuts, Plugins, Theme and project Review",
+                  all(menu.get_by_text(t).count() for t in ("Task setup…", "Keyboard shortcuts", "Theme", "Open project Review")) and page.get_by_role("link", name="Plugins").count() == 1,
+                  menu.inner_text().replace("\n", " · "))
+            page.keyboard.press("Escape")
+            menu.wait_for(state="detached", timeout=5000)
+
             # Hide the rail (the shared navigation command) and the left panel (its toggle).
             page.mouse.move(3, 3)
             page.keyboard.press(f"{MOD}+b")

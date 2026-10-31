@@ -57,10 +57,11 @@ describe("Task setup draft", () => {
   it("writes a changed panel slot and the Annotators see flags", () => {
     const env = resolve(XRAY);
     const d = initialDraft(env);
-    d.panels.left = [ns("core.panels.files"), ns("core.panels.labels")];
+    // Presets no longer carry "All annotations" (todo8 D2); an owner adds it back.
+    d.panels.left = [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")];
     d.studio = { ...d.studio, showSourceLabels: true };
     const next = buildNextSpec(env, d);
-    expect(next.panels).toEqual({ left: [ns("core.panels.files"), ns("core.panels.labels")] });
+    expect(next.panels).toEqual({ left: [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")] });
     expect(next.studio).toEqual({ showSourceLabels: true, showFilePaths: true });
     expect(resolve(next).spec.studio).toEqual({ showSourceLabels: true, showFilePaths: true });
   });

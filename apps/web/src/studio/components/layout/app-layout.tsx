@@ -53,7 +53,7 @@ interface Section {
  */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
-  { section: "sources", label: "Sources", icon: SourcesIcon },
+  { section: "sources", label: "Data", icon: SourcesIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
   { section: "activity", label: "Activity", icon: ActivityIcon },

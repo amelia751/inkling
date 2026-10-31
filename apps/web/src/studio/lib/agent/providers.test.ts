@@ -29,20 +29,20 @@ const node = (over: Partial<SourceNode> = {}): SourceNode => ({
 describe("agent context providers", () => {
   it("Sources: the selected node and its facts, labelled for the chip", () => {
     const p = sourceNodeContext(project, node());
-    expect(p.label).toBe("Sources › MRI / patient_002");
+    expect(p.label).toBe("Data › MRI / patient_002");
     expect(p.turnContext()).toContain("T1 knee");
     expect(p.turnContext()).toContain("240 files");
   });
 
   it("never shares anything about a privacy-held node", () => {
     const p = sourceNodeContext(project, node({ name: "John_Doe.pdf", displayPath: undefined, kind: "file", status: "privacy", flags: { privacy: { reason: "name" } } }));
-    expect(p.label).toBe("Sources › a held file");
+    expect(p.label).toBe("Data › a held file");
     expect(p.turnContext()).not.toMatch(/John_Doe|T1 knee/);
   });
 
   it("restricted projects share kinds and numbers, not names", () => {
     const p = sourceNodeContext({ ...project, restricted: true }, node());
-    expect(p.label).toBe("Sources › a folder");
+    expect(p.label).toBe("Data › a folder");
     expect(p.turnContext()).not.toMatch(/patient_002|T1 knee/);
     expect(p.turnContext()).toContain('"series":2');
   });
@@ -68,9 +68,9 @@ describe("agent context providers", () => {
   });
 
   it("falls back to the section when the page registered nothing (or another section's)", () => {
-    expect(currentProvider(null, "sources", project).label).toBe("Sources");
+    expect(currentProvider(null, "sources", project).label).toBe("Data");
     const overview = sectionContext(project, "overview");
-    expect(currentProvider(overview, "sources", project).label).toBe("Sources");
+    expect(currentProvider(overview, "sources", project).label).toBe("Data");
     expect(currentProvider(overview, "overview", project)).toBe(overview);
   });
 

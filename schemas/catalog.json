@@ -2408,7 +2408,7 @@
       "type": "commands",
       "module": "inkling.core",
       "description": "Search file names across the project's sources",
-      "label": "Search in sources",
+      "label": "Search in data",
       "when": "section == sources",
       "keys": [
         "mod+f"

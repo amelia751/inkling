@@ -298,7 +298,7 @@ function SourceSummaryCards({ projectId, cards, onAdd }: { projectId: string; ca
     <section aria-labelledby="data-heading">
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <h2 id="data-heading" className="text-body-2 font-semibold">Your data</h2>
-        <Link to={sourcesUrl(projectId)} className="text-sm text-brand hover:underline">View sources</Link>
+        <Link to={sourcesUrl(projectId)} className="text-sm text-brand hover:underline">View data</Link>
       </div>
       {inputs}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

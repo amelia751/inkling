@@ -52,12 +52,12 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     name: "open_location",
     title: "Pointing to a place",
     description:
-      "Show the user a button that opens a place in the project, e.g. 'Open Sources › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
+      "Show the user a button that opens a place in the project, e.g. 'Open Data › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
     input_schema: obj(
       {
         section: { type: "string", enum: ["overview", "sources", "explore", "datasets", "studio", "review", "activity"], description: "The project section." },
-        label: str("Button text naming the place, e.g. 'Sources › MRI/patient_002'."),
-        nodeId: str("Sources: a file or folder id."),
+        label: str("Button text naming the place, e.g. 'Data › MRI/patient_002'."),
+        nodeId: str("Data: a file or folder id."),
         proposalId: str("Explore: a proposal id."),
         tab: str("Explore: summary, relationships, mappings or quality."),
         taskId: str("Studio: a task id."),

@@ -37,7 +37,7 @@ export function DatasetsPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-6 md:py-6" data-testid="datasets-page">
         <PageHeading
           title="Datasets"
-          description="What you annotate: files picked from your sources, with one or more tasks each."
+          description="What you annotate: files picked from your data, with one or more tasks each."
           actions={
             <Button size="lg" onClick={() => setCreating(true)} data-testid="new-dataset">
               <DatasetsIcon /> New dataset
@@ -293,7 +293,7 @@ function NewDatasetDialog({ projectId, onClose }: { projectId: string; onClose: 
             <div className="rounded-md border border-border">
               <nav className="flex flex-wrap items-center gap-1 border-b border-border px-3 py-2 text-sm" aria-label="Folder path" data-testid="folder-breadcrumb">
                 <button type="button" className={cn("hover:underline", trail.length ? "text-muted-foreground" : "font-medium")} onClick={() => setTrail([])}>
-                  {source?.title ?? "Sources"}
+                  {source?.title ?? "Data"}
                 </button>
                 {trail.map((c, i) => (
                   <span key={c.id ?? i} className="flex items-center gap-1">

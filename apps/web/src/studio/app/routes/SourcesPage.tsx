@@ -326,8 +326,8 @@ export function SourcesPage() {
                     e.currentTarget.blur();
                   }
                 }}
-                placeholder="Search in sources"
-                aria-label="Search in sources"
+                placeholder="Search in data"
+                aria-label="Search in data"
                 className="h-7 w-[min(260px,40vw)] pl-7"
                 data-testid="sources-search"
               />
@@ -568,7 +568,7 @@ function PathBar({ projectId, segments, loading, onCopy, searching }: { projectI
   return (
     <nav aria-label="Folder path" className="flex min-w-0 flex-1 items-center gap-1 text-sm" data-testid="path-bar">
       <Link to={sourcesUrl(projectId)} className={cn("shrink-0 rounded-sm px-1 hover:bg-generic", segments.length ? "text-muted-foreground" : "font-semibold")}>
-        {searching ? "Search results" : "Sources"}
+        {searching ? "Search results" : "Data"}
       </Link>
       {loading && <Skeleton className="h-3 w-40" />}
       {!searching &&

@@ -165,7 +165,7 @@ export const SourceTree = forwardRef<SourceTreeHandle, Props>(function SourceTre
       data={data}
       selectedId={selectedId}
       initialOpen={initialOpen}
-      aria-label="Sources"
+      aria-label="Data"
       onToggle={(id, isOpen) => setOpen((o) => (isOpen ? (o.includes(id) ? o : [...o, id]) : o.filter((x) => x !== id)))}
       onSelect={(ids) => {
         const t = ids.length === 1 ? lookup(ids[0]) : undefined;

@@ -25,8 +25,9 @@ one task.
 In short:
 
 - Home (`/`) lists recent projects; `/projects` lists all of them.
-- A project has a sidebar with Overview, Sources, Explore, Datasets, Studio, Review and
-  Activity, and Settings at the bottom. The breadcrumb reads `Workspace ▾ / Project ▾ / Section`
+- A project has a sidebar with Overview, Data, Studio, Review and Activity, and Settings at the
+  bottom. "Data" is ux.md's Sources section (the route stays `/sources`). Explore and Datasets are
+  off the sidebar for now; their pages open from Overview, Review and the Studio's top bar. The breadcrumb reads `Workspace ▾ / Project ▾ / Section`
   ("Workspace" is the organization in UI copy).
 - The Studio opens one task at `/projects/:projectId/studio/:taskId`. There the project sidebar
   collapses to a 48px icon rail.

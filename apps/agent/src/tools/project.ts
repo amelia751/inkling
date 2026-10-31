@@ -167,7 +167,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
     name: "describe_source_node",
     label: "Reading file details",
     description:
-      "One file or folder in Sources: what was detected (kind, facts such as columns, dimensions or series), its flags (duplicate, unsupported, quality), where it sits and which datasets use it. Never the file's contents. Files held for privacy review are not described.",
+      "One file or folder in Data: what was detected (kind, facts such as columns, dimensions or series), its flags (duplicate, unsupported, quality), where it sits and which datasets use it. Never the file's contents. Files held for privacy review are not described.",
     promptSnippet: "Facts and flags for one source file or folder",
     parameters: Type.Object({ nodeId: Type.String({ description: "A node id from list_sources." }) }),
     async execute(_id, args, signal) {

@@ -222,7 +222,7 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
   if (s.files.total === 0)
     return (
       <p className="text-sm text-muted-foreground" data-testid="explore-empty">
-        No files yet. <Link className="underline" to={sourcesUrl(projectId)}>Add data in Sources</Link>, and what we find shows up here.
+        No files yet. <Link className="underline" to={sourcesUrl(projectId)}>Add data</Link>, and what we find shows up here.
       </p>
     );
   return (

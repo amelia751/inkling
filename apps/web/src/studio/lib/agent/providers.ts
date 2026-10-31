@@ -19,7 +19,7 @@ export interface AgentContextProvider {
   /** Changes when what's shared changes (another selection), which brings a removed chip back. */
   key: string;
   section: AgentSection;
-  /** Chip text, e.g. "Sources › MRI/patient_002". */
+  /** Chip text, e.g. "Data › MRI/patient_002". */
   label: string;
   /** Chip tooltip: what is shared, in plain words. */
   shares: string;
@@ -91,7 +91,7 @@ export interface ProjectRef {
 
 const SECTION_LABEL: Record<AgentSection, string> = {
   overview: "Overview",
-  sources: "Sources",
+  sources: "Data",
   explore: "Explore",
   datasets: "Datasets",
   studio: "Studio",
@@ -149,7 +149,7 @@ export function sourceNodeContext(project: ProjectRef, node: SourceNode | null |
   const held = isHeld(node);
   const named = !held && !project.restricted;
   const name = node.displayPath ?? node.name;
-  const label = held ? "Sources › a held file" : named ? `Sources › ${name}` : `Sources › a ${node.detectedKind ?? node.kind}`;
+  const label = held ? "Data › a held file" : named ? `Data › ${name}` : `Data › a ${node.detectedKind ?? node.kind}`;
   const facts = named ? node.facts : Object.fromEntries(Object.entries(node.facts ?? {}).filter(([, v]) => typeof v === "number" || typeof v === "boolean"));
   return {
     key: `${project.id}:sources:${node.id}`,

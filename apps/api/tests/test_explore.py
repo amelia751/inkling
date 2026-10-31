@@ -63,7 +63,7 @@ def test_patient_ids_match_folders_by_number_but_never_across_names(client):
     assert [c["name"] for c in ev["ambiguousRows"][0]["candidates"]] == ["patient_002", "patient_002"]
     assert rel["strength"] == "weak"  # 2 of 5, and letters were ignored
     # Fix the ambiguous row by picking the MRI folder: the server recomputes.
-    mri = next(c["nodeId"] for c in ev["ambiguousRows"][0]["candidates"] if c["path"].startswith("MRI/"))
+    mri = next(c["nodeId"] for c in ev["ambiguousRows"][0]["candidates"] if c["path"].startswith("study/MRI/"))
     r = client.post(f"/api/v1/proposals/{rel['id']}/recompute", json={"resolutions": {"1": mri}}).json()
     assert (r["evidence"]["matched"], r["evidence"]["ambiguous"], r["evidence"]["resolved"]) == (3, 0, 1)
     # Changing the comparison drops row fixes made for the old one.

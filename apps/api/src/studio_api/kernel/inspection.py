@@ -44,15 +44,17 @@ def _session(db: Session, import_id: str) -> ImportSession:
 
 
 def import_for_worker(db: Session, import_id: str) -> dict:
-    """The files an import committed, for the worker to inspect (ids, relative paths, sizes)."""
+    """The files an import committed, for the worker to inspect (ids, paths, sizes). The path
+    is the one the file arrived with (`original_path`): the privacy check reads what was
+    uploaded; renames re-run it in the kernel (todo7 Phase 7)."""
     s = _session(db, import_id)
-    files = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)).order_by(SourceNode.rel_path)))
+    files = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)).order_by(SourceNode.original_path)))
     return {
         "importId": s.id,
         "projectId": s.project_id,
         "sourceId": s.source_id,
         "state": s.state,
-        "files": [{"nodeId": n.id, "relPath": n.rel_path, "name": n.name, "size": n.size, "sha256": n.sha256} for n in files],
+        "files": [{"nodeId": n.id, "relPath": n.original_path or n.name, "name": n.name, "size": n.size, "sha256": n.sha256} for n in files],
     }
 
 
@@ -160,7 +162,8 @@ def report(db: Session, import_id: str, body: dict) -> dict:
         quality = [str(q)[:300] for q in g.get("quality") or []][:10]
         evidence = {"files": len(ids), "quality": quality, "missingInstances": (g.get("missingInstances") or [])[:200], "duplicateInstances": (g.get("duplicateInstances") or [])[:200], "orientationConsistent": bool(g.get("orientationConsistent", True)), "summary": payload["summary"]}
         created.append(projects.create_proposal(db, ctx, p, "group", payload, evidence, "possible" if quality else "strong", INSPECTOR, import_session_id=s.id))
-    created += explore.build_proposals(db, ctx, p, s)
+    if (s.totals or {}).get("mode") != "replace":  # a new version of one file proposes nothing new
+        created += explore.build_proposals(db, ctx, p, s)
     flagged = any((n.flags or {}).get(k) for n in nodes.values() for k in FLAG_KEYS)
     needs = flagged or any(pr.kind != "dataset" for pr in created)
     imports.finish_inspection(db, s, needs)

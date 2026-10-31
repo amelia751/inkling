@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections import Counter
 import re
 import uuid
 from datetime import UTC, datetime
@@ -28,6 +29,7 @@ from ..models import (
     Asset,
     DatasetRow,
     ImportSession,
+    NodeVersion,
     Organization,
     OrganizationMember,
     ProjectResume,
@@ -39,7 +41,7 @@ from ..models import (
     WorkspaceEnvironment,
     now,
 )
-from . import assets, audit, events, tree
+from . import assets, audit, events, fs, tree
 from .kinds import VIEWABLE, kind_from_extension
 
 log = logging.getLogger(__name__)
@@ -188,7 +190,15 @@ def ensure_seeds(db: Session) -> int:
         root = tree.node_id(pid, "")
         insert_ignore(db, ProjectRow, [{"id": pid, "org_id": SAMPLES_ORG, "title": title, "description": "", "visibility": "shared", "seed": True, "archived": False, "created_by": SEED_PRINCIPAL, "created_at": now(), "updated_at": now()}])
         insert_ignore(db, Source, [{"id": pid, "project_id": pid, "title": root_name, "kind": "seed", "root_node_id": root, "created_by": SEED_PRINCIPAL, "status": "ready", "created_at": now()}])
-        insert_ignore(db, SourceNode, [{"id": root, "source_id": pid, "project_id": pid, "parent_id": None, "name": root_name, "rel_path": "", "is_dir": True, "facts": {}, "flags": {}, "child_count": 0, "descendant_count": 0, "created_at": now()}])
+        project = db.get(ProjectRow, pid)
+        assert project is not None
+        drive = fs.ensure_drive(db, project)
+        changed = False
+        if db.get(SourceNode, root) is None:
+            # The sample's folder sits under the project's drive, locked (todo7 D1, D2).
+            name = tree.free_name(root_name, fs.taken_names(db, drive.id), is_dir=True)
+            insert_ignore(db, SourceNode, [tree._row(id=root, source_id=pid, project_id=pid, project_root=drive.id, parent_id=drive.id, name=name, original_path="", is_dir=True, locked=True, created_at=now())])
+            changed = True
         if not db.scalar(select(SourceNode.id).where(SourceNode.source_id == pid, SourceNode.is_dir.is_(False)).limit(1)):
             assets.ensure_seed_assets(db, RequestContext(pid, SEED_PRINCIPAL, ""))
             by_path = {a.path: a for a in db.scalars(select(Asset).where(Asset.workspace_id == pid))}
@@ -197,9 +207,14 @@ def ensure_seeds(db: Session) -> int:
                 asset = by_path.get(a["path"])
                 facts = {k: a[k] for k in SEED_FACT_KEYS if a.get(k) is not None}
                 specs.append(tree.FileSpec(rel, asset.id if asset else None, a.get("sha256"), a.get("bytes") if isinstance(a.get("bytes"), int) else (asset.size if asset else None), kind_from_extension(rel), {"source": "manifest", **facts}))
-            tree.add_files(db, pid, pid, root, specs)
+            tree.add_files(db, pid, pid, root, specs, stable=True, locked=True, created_by=SEED_PRINCIPAL)
+            changed = True
+        if changed:
+            tree.recount_under(db, drive.id)
         task_kind = str(raw.get("task") or (raw.get("environment") or {}).get("task") or "annotate")
-        insert_ignore(db, DatasetRow, [{"id": pid, "project_id": pid, "title": title, "description": "", "definition": {"nodeIds": [root], "seed": True}, "created_by": SEED_PRINCIPAL, "created_at": now()}])
+        if db.get(DatasetRow, pid) is None:
+            refs, followed = resolve_files(db, [root])
+            insert_ignore(db, DatasetRow, [{"id": pid, "project_id": pid, "title": title, "description": "", "definition": {"nodeIds": [root], "seed": True, "files": refs, "followedFolders": followed}, "created_by": SEED_PRINCIPAL, "created_at": now()}])
         insert_ignore(db, TaskRow, [{"id": pid, "dataset_id": pid, "project_id": pid, "title": title, "kind": task_kind, "revision": 0, "created_by": SEED_PRINCIPAL, "created_at": now()}])
         n += 1
     db.flush()
@@ -352,14 +367,57 @@ def source_dict(db: Session, s: Source) -> dict:
 
 
 def _uses_source(db: Session, d: DatasetRow, s: Source) -> bool:
-    ids = (d.definition or {}).get("nodeIds") or []
-    if not ids:
-        return False
-    return db.scalar(select(SourceNode.id).where(SourceNode.id.in_(ids), SourceNode.source_id == s.id).limit(1)) is not None
+    """A dataset uses an import when one of its files came from it (todo7 D7: the frozen
+    file list), or, for an older definition, when it names one of its nodes."""
+    definition = d.definition or {}
+    refs = definition.get("files")
+    ids = [str(r.get("nodeId")) for r in refs if isinstance(r, dict)] if isinstance(refs, list) else list(definition.get("nodeIds") or [])
+    for i in range(0, len(ids), 500):
+        if db.scalar(select(SourceNode.id).where(SourceNode.id.in_(ids[i : i + 500]), SourceNode.source_id == s.id).limit(1)) is not None:
+            return True
+    return False
+
+
+def container_ids(db: Session, p_id: str) -> set[str]:
+    """The drive root and the imports' top folders: containers, never records or items."""
+    return {tree.drive_root_id(p_id), *(x for x in db.scalars(select(Source.root_node_id).where(Source.project_id == p_id)) if x)}
+
+
+def visible_files(db: Session, p_id: str) -> list[SourceNode]:
+    """The project's files that are not in Trash (nor inside a trashed folder)."""
+    dirs = {r.id: r for r in db.execute(select(SourceNode.id, SourceNode.parent_id, SourceNode.trashed_at).where(SourceNode.project_id == p_id, SourceNode.is_dir.is_(True)))}
+    ok: dict[str, bool] = {}
+
+    def visible(fid: str | None) -> bool:
+        path = []
+        cur = fid
+        result = False
+        while cur is not None:
+            if cur in ok:
+                result = ok[cur]
+                break
+            d = dirs.get(cur)
+            if d is None or d.trashed_at is not None:
+                result = False
+                path.append(cur)
+                break
+            path.append(cur)
+            if d.parent_id is None:
+                result = True
+                break
+            cur = d.parent_id
+        for x in path:
+            ok[x] = result
+        return result
+
+    return [n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p_id, SourceNode.is_dir.is_(False), SourceNode.trashed_at.is_(None))) if visible(n.parent_id)]
 
 
 def list_sources(db: Session, p: ProjectRow) -> list[dict]:
-    return [source_dict(db, s) for s in db.scalars(select(Source).where(Source.project_id == p.id).order_by(Source.created_at))]
+    """Imports whose folder is still in Files (an import moved to Trash leaves the list)."""
+    rows = list(db.scalars(select(Source).where(Source.project_id == p.id).order_by(Source.created_at)))
+    ch = tree.chains(db, [s.root_node_id for s in rows if s.root_node_id])
+    return [source_dict(db, s) for s in rows if not (s.root_node_id and s.root_node_id in ch and ch[s.root_node_id].hidden)]
 
 
 def require_source(db: Session, ctx: RequestContext, source_id: str) -> tuple[Source, ProjectRow]:
@@ -380,18 +438,37 @@ def datasets_using(db: Session, n: SourceNode) -> list[dict]:
     chain = {n.id, *(a.id for a in tree.ancestors(db, n))}
     out = []
     for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == n.project_id)):
-        if chain & set((d.definition or {}).get("nodeIds") or []):
+        definition = d.definition or {}
+        refs = definition.get("files")
+        if isinstance(refs, list):
+            hit = (not n.is_dir and any(isinstance(r, dict) and r.get("nodeId") == n.id for r in refs)) or bool(chain & set(definition.get("followedFolders") or []))
+            if n.is_dir and not hit:
+                files = {str(r.get("nodeId")) for r in refs if isinstance(r, dict)}
+                hit = any(f.id in files for f in tree.files_under(db, [n.id])) if files and n.descendant_count <= 5000 else False
+        else:
+            hit = bool(chain & set(definition.get("nodeIds") or []))
+        if hit:
             tasks = [{"id": t.id, "title": t.title} for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id))]
             out.append({"id": d.id, "title": d.title, "tasks": tasks})
     return out
 
 
-def describe_node(db: Session, n: SourceNode) -> dict:
-    out = tree.node_dict(n)
+def is_member(ctx: RequestContext | None) -> bool:
+    """A person (not an agent token): may see original names (todo7 Phase 7)."""
+    return ctx is not None and not ctx.scopes and person(ctx).startswith("user:")
+
+
+def describe_node(db: Session, n: SourceNode, ctx: RequestContext | None = None) -> dict:
+    stars = fs.starred_ids(db, n.project_id, person(ctx)) if ctx is not None else None
+    out = tree.node_dict(n, starred=stars)
     out["path"] = [{"id": a.id, "name": a.name} for a in tree.ancestors(db, n)]
+    chain = tree.chain_of(db, n)
+    out["pathText"] = chain.path
+    if is_member(ctx):
+        out["originalPath"] = n.original_path or None
     out["usedIn"] = datasets_using(db, n)
     out["runId"] = tree.run_of(db, n)
-    src = db.get(Source, n.source_id)
+    src = db.get(Source, n.source_id) if n.source_id else None
     session = db.get(ImportSession, n.import_session_id) if n.import_session_id else None
     out["provenance"] = {
         "sourceId": n.source_id,
@@ -401,23 +478,33 @@ def describe_node(db: Session, n: SourceNode) -> dict:
         "addedAt": iso(n.created_at),
         "sha256": n.sha256,
     }
+    if n.trashed_at is not None:
+        parent_ok = len(chain.ids) >= 2 and not any(t is not None for t in chain.trashed[:-1])
+        out["trash"] = {"trashedAt": iso(n.trashed_at), "trashedBy": n.trashed_by or "", "originalParentId": n.parent_id, "originalLocation": (chain.folder or tree.ROOT_NAME) if parent_ok else None}
+    else:
+        out["trash"] = None
     return out
 
 
 def search_nodes(db: Session, p: ProjectRow, q: str, kind: str | None = None, status: str | None = None, limit: int = 200) -> list[dict]:
-    query = select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.parent_id.is_not(None))
+    query = select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.parent_id.is_not(None), SourceNode.trashed_at.is_(None))
     if q:
         query = query.where(func.lower(SourceNode.name).contains(q.lower()))
     if kind:
         query = query.where(SourceNode.detected_kind == kind)
+    rows = list(db.scalars(query.limit(limit * 4)))
+    ch = tree.chains(db, [n.id for n in rows])
     out = []
-    for n in db.scalars(query.limit(limit * 4)):
+    for n in rows:
+        c = ch.get(n.id)
+        if c is not None and c.hidden:
+            continue
         d = tree.node_dict(n)
         if status == "attention" and d["status"] not in ("attention", "privacy"):
             continue
         if status == "unsupported" and d["status"] != "unsupported":
             continue
-        d["folderPath"] = "/".join(n.rel_path.split("/")[:-1])
+        d["folderPath"] = c.folder if c is not None else ""
         out.append(d)
         if len(out) >= limit:
             break
@@ -498,10 +585,123 @@ def column_type(values: list[str]) -> str:
 # ---- Datasets and tasks ------------------------------------------------------------------------
 
 
+def resolve_files(db: Session, node_ids: list[str]) -> tuple[list[dict], list[str]]:
+    """todo7 D7: a dataset's folders and files become a frozen list of files at their current
+    versions; the folders are kept only as `followedFolders`, for the "new files" banner."""
+    files = [{"nodeId": n.id, "assetId": n.asset_id, "version": n.version or 1} for n in tree.files_under(db, node_ids)]
+    folders = set(db.scalars(select(SourceNode.id).where(SourceNode.id.in_(list(node_ids)), SourceNode.is_dir.is_(True)))) if node_ids else set()
+    return files, [i for i in node_ids if i in folders]
+
+
+def dataset_files(db: Session, d: DatasetRow, *, include_hidden: bool = True) -> list[tuple[SourceNode, dict]]:
+    """(node, pinned ref) for every file of a dataset that still exists. An older definition
+    without `files` resolves its `nodeIds` live."""
+    definition = d.definition or {}
+    refs = definition.get("files")
+    if not isinstance(refs, list):
+        return [(n, {"nodeId": n.id, "assetId": n.asset_id, "version": n.version or 1}) for n in tree.files_under(db, definition.get("nodeIds") or [])]
+    ids = [str(r.get("nodeId")) for r in refs if isinstance(r, dict)]
+    nodes: dict[str, SourceNode] = {}
+    for i in range(0, len(ids), 500):
+        for n in db.scalars(select(SourceNode).where(SourceNode.id.in_(ids[i : i + 500]))):
+            nodes[n.id] = n
+    out = [(nodes[str(r["nodeId"])], r) for r in refs if isinstance(r, dict) and str(r.get("nodeId")) in nodes]
+    if not include_hidden:
+        ch = tree.chains(db, [n.id for n, _ in out])
+        out = [(n, r) for n, r in out if not (ch.get(n.id) and ch[n.id].hidden)]
+    return out
+
+
+def pinned_view(db: Session, n: SourceNode, ref: dict) -> tuple[str | None, dict, dict, str | None, str | None, int | None]:
+    """(kind, facts, flags, asset id, sha256, size) of the version a dataset pinned (D6)."""
+    version = int(ref.get("version") or 1)
+    if version != (n.version or 1):
+        v = db.get(NodeVersion, (n.id, version))
+        if v is not None:
+            return v.detected_kind, v.facts or {}, v.flags or {}, v.asset_id, v.sha256, v.size
+    return n.detected_kind, n.facts or {}, n.flags or {}, ref.get("assetId") or n.asset_id, n.sha256, n.size
+
+
+def staleness(db: Session, d: DatasetRow, pairs: list[tuple[SourceNode, dict]] | None = None) -> dict:
+    definition = d.definition or {}
+    pairs = dataset_files(db, d) if pairs is None else pairs
+    newer = sum(1 for n, r in pairs if (n.version or 1) > int(r.get("version") or 1))
+    followed = [str(x) for x in definition.get("followedFolders") or []]
+    have = {n.id for n, _ in pairs} | {str(r.get("nodeId")) for r in definition.get("files") or [] if isinstance(r, dict)}
+    new = [n for n in tree.files_under(db, followed) if n.id not in have] if followed and isinstance(definition.get("files"), list) else []
+    names = [n.name for n in db.scalars(select(SourceNode).where(SourceNode.id.in_(followed)))] if followed else []
+    return {"newerVersions": newer, "newFilesInFollowed": len(new), "followedFolderNames": names}
+
+
 def dataset_dict(db: Session, d: DatasetRow) -> dict:
     tasks = [task_dict(db, t) for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at))]
-    nodes = (d.definition or {}).get("nodeIds") or []
-    return {"id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(tree.files_under(db, nodes)), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at)}
+    pairs = dataset_files(db, d)
+    return {"id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(pairs), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at), "staleness": staleness(db, d, pairs)}
+
+
+def _annotation_counts(db: Session, d: DatasetRow) -> Counter:
+    """Annotations per item (asset path) across the dataset's tasks."""
+    out: Counter = Counter()
+    for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id)):
+        doc = db.get(AnnotationDocumentRow, (t.project_id, t.id))
+        for a in (doc.annotations if doc else []) or []:
+            if isinstance(a, dict) and a.get("itemId"):
+                out[a["itemId"]] += 1
+    return out
+
+
+def update_versions_preview(db: Session, d: DatasetRow, node_ids: list[str] | None = None) -> dict:
+    counts = _annotation_counts(db, d)
+    files = []
+    for n, r in dataset_files(db, d):
+        if (n.version or 1) <= int(r.get("version") or 1) or (node_ids is not None and n.id not in node_ids):
+            continue
+        old = db.get(Asset, r.get("assetId")) if r.get("assetId") else None
+        files.append({"nodeId": n.id, "name": n.name, "from": int(r.get("version") or 1), "to": n.version or 1, "annotations": counts.get(old.path, 0) if old else 0})
+    return {"files": files}
+
+
+def update_versions(db: Session, ctx: RequestContext, d: DatasetRow, node_ids: list[str] | None = None) -> DatasetRow:
+    """Move pinned files to their current versions. Annotations stay on the version they
+    were drawn on (their items are asset paths)."""
+    definition = dict(d.definition or {})
+    if not isinstance(definition.get("files"), list):
+        refs, followed = resolve_files(db, definition.get("nodeIds") or [])
+        definition["files"] = refs
+        definition.setdefault("followedFolders", followed)
+    nodes = {n.id: n for n, _ in dataset_files(db, DatasetRow(definition=definition))}
+    changed = []
+    files = []
+    for r in definition["files"]:
+        n = nodes.get(str(r.get("nodeId"))) if isinstance(r, dict) else None
+        if n is not None and (n.version or 1) > int(r.get("version") or 1) and (node_ids is None or n.id in node_ids):
+            changed.append({"nodeId": n.id, "from": int(r.get("version") or 1), "to": n.version or 1})
+            r = {"nodeId": n.id, "assetId": n.asset_id, "version": n.version or 1}
+        files.append(r)
+    definition["files"] = files
+    d.definition = definition
+    if changed:
+        audit.record(db, ctx.for_scope(d.project_id, None), "dataset.versions_updated", target=d.id, after={"title": d.title, "files": len(changed), "changes": changed[:200]})
+    db.flush()
+    return d
+
+
+def add_followed(db: Session, ctx: RequestContext, d: DatasetRow) -> DatasetRow:
+    """Add the files that appeared in followed folders since the dataset was made."""
+    definition = dict(d.definition or {})
+    refs = list(definition.get("files") or [])
+    have = {str(r.get("nodeId")) for r in refs if isinstance(r, dict)}
+    new = [n for n in tree.files_under(db, [str(x) for x in definition.get("followedFolders") or []]) if n.id not in have]
+    if new:
+        refs.extend({"nodeId": n.id, "assetId": n.asset_id, "version": n.version or 1} for n in new)
+        definition["files"] = refs
+        held = [n.id for n in new if tree.status_of(n) == "privacy"]
+        if held:
+            definition["heldNodeIds"] = list(dict.fromkeys([*(definition.get("heldNodeIds") or []), *held]))
+        d.definition = definition
+        audit.record(db, ctx.for_scope(d.project_id, None), "dataset.files_added", target=d.id, after={"title": d.title, "files": len(new)})
+        db.flush()
+    return d
 
 
 def task_dict(db: Session, t: TaskRow) -> dict:
@@ -541,13 +741,16 @@ def create_dataset(db: Session, ctx: RequestContext, p: ProjectRow, title: str, 
     definition["nodeIds"] = _check_nodes(db, p, definition.get("nodeIds") or [])
     if not definition["nodeIds"]:
         raise HTTPException(422, "pick at least one folder or file")
-    held = [n.id for n in tree.files_under(db, definition["nodeIds"]) if tree.status_of(n) == "privacy"]
+    files = tree.files_under(db, definition["nodeIds"])
+    # todo7 D7: frozen when created; moving files in Files never changes the dataset.
+    definition["files"], definition["followedFolders"] = resolve_files(db, definition["nodeIds"])
+    held = [n.id for n in files if tree.status_of(n) == "privacy"]
     if held:
         definition["heldNodeIds"] = held
     d = DatasetRow(id=new_id("ds"), project_id=p.id, title=title, description=description[:4000], definition=definition, created_from_proposal_id=proposal_id, created_by=person(ctx))
     db.add(d)
     db.flush()
-    audit.record(db, ctx.for_scope(p.id, None), "dataset.created", target=d.id, after={"title": title, "files": len(tree.files_under(db, definition["nodeIds"])), "proposalId": proposal_id})
+    audit.record(db, ctx.for_scope(p.id, None), "dataset.created", target=d.id, after={"title": title, "files": len(definition["files"]), "proposalId": proposal_id})
     return d
 
 
@@ -587,19 +790,25 @@ def task_document(db: Session, t: TaskRow) -> dict:
     environment = env or definition.get("environment") or {}
     labels = definition.get("labels") or {}
     items = []
-    for n in tree.files_under(db, definition.get("nodeIds") or []):
-        if n.asset_id is None or tree.status_of(n) in ("privacy", "checking") or (n.detected_kind or "") not in VIEWABLE:
-            continue
-        a = db.get(Asset, n.asset_id)
-        if a is None:
-            continue
-        entry: dict[str, Any] = {"path": a.path, "sha256": n.sha256 or "", "bytes": n.size or 0, "name": n.name, "nodeId": n.id}
-        for k in ("width", "height", "fps", "frames", "duration"):
-            if (n.facts or {}).get(k) is not None:
-                entry[k] = n.facts[k]
-        if n.id in labels:
-            entry["label"] = labels[n.id]
-        items.append(entry)
+    if d is not None:
+        for n, ref in dataset_files(db, d, include_hidden=False):
+            kind, facts, flags, asset_id, sha, size = pinned_view(db, n, ref)
+            if asset_id is None or (kind or "") not in VIEWABLE or kind is None:
+                continue
+            if (flags.get("privacy") or {}) and not flags["privacy"].get("clearedBy"):
+                continue
+            a = db.get(Asset, asset_id)
+            if a is None:
+                continue
+            # The item id is the asset's storage path, which never changes (D3): annotations
+            # stay on their items whatever happens to the file's name or folder.
+            entry: dict[str, Any] = {"path": a.path, "sha256": sha or "", "bytes": size or 0, "name": n.name, "nodeId": n.id}
+            for k in ("width", "height", "fps", "frames", "duration"):
+                if facts.get(k) is not None:
+                    entry[k] = facts[k]
+            if n.id in labels:
+                entry["label"] = labels[n.id]
+            items.append(entry)
     return {
         "id": t.id,
         "title": t.title,

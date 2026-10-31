@@ -4,6 +4,7 @@ import type { Annotation, Geometry, StudioItem } from "@studio/contracts/types";
 import type { STORE_SELECTORS } from "./manifest";
 import { RES } from "@studio/contracts/naming";
 import type { StudioHostState } from "@studio/plugin-ui-sdk";
+import { MCP_APPS_PROTOCOL, VIEWER_TOOLS } from "@studio/plugin-ui-sdk/viewer";
 
 /** Pure logic of the agent panels, kept apart from React so it can be tested. */
 
@@ -48,13 +49,17 @@ const MAX_PROPOSALS = 500;
  * a geometry type this environment has, plain JSON only, bounded size. Rejections are
  * reported back to the sandbox, never thrown.
  */
-export function vetProposals(raw: unknown, env: ResolvedEnv): { ok: Proposal[]; rejected: string[] } {
+/** Geometry types this environment's tools could have drawn (plus item classes if it has Choices). */
+export function toolGeometries(env: ResolvedEnv): Set<string> {
+  const types = new Set(env.tools.map((t) => t.creates).filter((t): t is string => !!t));
+  if (env.labels.some((g) => g.control === "Choices")) types.add("class");
+  return types;
+}
+
+export function vetProposals(raw: unknown, env: ResolvedEnv, types: Set<string> = toolGeometries(env)): { ok: Proposal[]; rejected: string[] } {
   const ok: Proposal[] = [], rejected: string[] = [];
   if (!Array.isArray(raw)) return { ok, rejected: ["expected an array of { label, geometry }"] };
   const labels = new Set(labelNames(env.labels));
-  // Only what this environment's tools could have drawn (plus item classes if it has Choices).
-  const types = new Set(env.tools.map((t) => t.creates).filter((t): t is string => !!t));
-  if (env.labels.some((g) => g.control === "Choices")) types.add("class");
   raw.slice(0, MAX_PROPOSALS).forEach((p, i) => {
     const where = `#${i}`;
     if (!p || typeof p !== "object") return rejected.push(`${where}: not an object`);
@@ -71,24 +76,35 @@ export function vetProposals(raw: unknown, env: ResolvedEnv): { ok: Proposal[]; 
 }
 
 /**
- * Prepended to every sandbox document: a CSP that blocks all network access (so annotations
- * can't leave the machine; only inline script/style and data:/blob: images run), then the
- * `window.inkling` bridge over postMessage.
+ * Prepended to every tier-3 sandbox document: a CSP that blocks all network access (so
+ * annotations can't leave the machine; only inline script/style and data:/blob: images run),
+ * then `window.inkling`, kept as the agent-facing API but carried over the MCP Apps bridge
+ * (todo10 Phase 5): `ui/initialize`, then `tools/call` to the viewer tools
+ * (`viewer_list_annotations`, `viewer_propose_annotations`); the item arrives as a tool result
+ * and is re-dispatched as the `inkling:item` event.
  */
 export const SANDBOX_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:">`;
 export const BRIDGE_SCRIPT = SANDBOX_CSP + `<script>
 (() => {
-  let seq = 0; const waiting = new Map();
+  let seq = 0, item = null, ready;
+  const waiting = new Map();
+  const send = (m) => parent.postMessage(Object.assign({ jsonrpc: "2.0" }, m), "*");
+  const request = (method, params) => new Promise((resolve, reject) => { const id = ++seq; waiting.set(id, { resolve, reject }); send({ id, method, params }); });
   addEventListener("message", (e) => {
-    if (e.source !== parent || !e.data || typeof e.data !== "object") return;
-    const { reply, type, payload } = e.data;
-    if (reply !== undefined && waiting.has(reply)) { waiting.get(reply)(payload); waiting.delete(reply); return; }
-    if (type === "${RES}:item") dispatchEvent(new CustomEvent("${RES}:item", { detail: payload }));
+    const m = e.data;
+    if (e.source !== parent || !m || m.jsonrpc !== "2.0") return;
+    if (m.method === undefined && waiting.has(m.id)) { const w = waiting.get(m.id); waiting.delete(m.id); return m.error ? w.reject(new Error(m.error.message)) : w.resolve(m.result); }
+    if (m.method === "ui/notifications/tool-result") {
+      const next = (m.params && m.params.structuredContent && m.params.structuredContent.item) || null;
+      item = next && { id: next.id, name: next.name };
+      dispatchEvent(new CustomEvent("${RES}:item", { detail: item }));
+    }
   });
-  const ask = (type, payload) => new Promise((resolve) => { const id = ++seq; waiting.set(id, resolve); parent.postMessage({ id, type, payload }, "*"); });
+  ready = request("ui/initialize", { appInfo: { name: "sandboxed-tool", version: "1.0.0" }, appCapabilities: {}, protocolVersion: "${MCP_APPS_PROTOCOL}" }).then(() => send({ method: "ui/notifications/initialized", params: {} }));
+  const call = async (name, args) => { await ready; const r = await request("tools/call", { name, arguments: args }); return r.structuredContent || {}; };
   window.${RES} = {
-    getAnnotations: () => ask("${RES}:getAnnotations"),
-    propose: (annotations) => ask("${RES}:propose", annotations),
+    getAnnotations: async () => { const r = await call("${VIEWER_TOOLS.listAnnotations}", {}); return { item: r.item || item, annotations: r.annotations || [] }; },
+    propose: (annotations) => call("${VIEWER_TOOLS.proposeAnnotations}", { annotations }),
   };
 })();
 </script>`;

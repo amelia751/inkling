@@ -43,6 +43,11 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
     j = jobs.claim(db, str(body.get("workerId") or "worker"), body.get("plugins"))
     if j is None:
         return {"job": None}
+    from ..kernel import boundary
+
+    if j.plugin_id == boundary.PLUGIN:
+        # A data-boundary job (todo10 Phase 7): the worker runs it itself; no plugin, no session token.
+        return {"job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "boundary"}
     manifest = installer.manifest_of(db, j.plugin_id, j.version)
     grants = sorted(policy.granted(db, j.workspace_id, j.plugin_id, j.version))
     token = issue_session(db, f"plugin:{j.plugin_id}@{j.version}", j.workspace_id, grants + ["commands.none"], ttl_s=j.timeout_s + 60, profile="plugin")
@@ -75,6 +80,10 @@ def progress(job_id: str, body: dict = Body(...), db: Session = Depends(get_sess
 @router.post("/jobs/{job_id}/complete", dependencies=[Depends(_auth)])
 def complete(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
     j = jobs._owned(db, job_id, str(body.get("workerId")))
+    from ..kernel import boundary
+
+    if j.plugin_id == boundary.PLUGIN:
+        raise HTTPException(409, "boundary jobs report to /boundary/jobs/{id}/complete")
     gateway.finish(db, j, body.get("result"), body.get("costUsd"))
     return jobs.job_dict(j)
 
@@ -212,3 +221,58 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
     if not force:
         db.execute(update(ScheduledRun).where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period).values(result=result))
     return {"ran": True, "period": period, "result": result}
+
+
+# ---- Data-boundary jobs (todo10 Phase 7) ------------------------------------------------------
+# The worker reads a boundary job's sample (fingerprint, verify, probe only) or the agent's source
+# (verify, build), uploads fixtures or our rebuilt bundle, and reports a fixed-schema result that
+# the kernel validates (kernel/boundary.py). Failures carry an error class, never a message.
+
+
+@router.get("/boundary/jobs/{job_id}/sample", dependencies=[Depends(_auth)])
+def boundary_sample(job_id: str, workerId: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import assets, boundary
+    from ..streaming import blob_response
+
+    a = boundary.job_sample(db, boundary.worker_job(db, job_id, workerId))
+    return blob_response(assets.store_of(a.path), assets.asset_key(a), "application/octet-stream", request)
+
+
+@router.get("/boundary/jobs/{job_id}/source", dependencies=[Depends(_auth)])
+def boundary_source(job_id: str, workerId: str, db: Session = Depends(get_session)):
+    from fastapi import Response
+
+    from ..kernel import boundary
+
+    return Response(boundary.job_source(boundary.worker_job(db, job_id, workerId)), media_type="application/x-tar")
+
+
+@router.put("/boundary/jobs/{job_id}/fixtures/{name}", dependencies=[Depends(_auth)])
+async def boundary_fixture(job_id: str, name: str, workerId: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import boundary
+
+    return boundary.put_fixture(boundary.worker_job(db, job_id, workerId), name, await request.body(), request.headers.get("Content-Type", ""))
+
+
+@router.put("/boundary/jobs/{job_id}/bundle", dependencies=[Depends(_auth)])
+async def boundary_bundle(job_id: str, workerId: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import boundary
+
+    return boundary.put_bundle(boundary.worker_job(db, job_id, workerId), await request.body())
+
+
+@router.post("/boundary/jobs/{job_id}/complete", dependencies=[Depends(_auth)])
+def boundary_complete(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import boundary
+
+    j = boundary.complete(db, boundary.worker_job(db, job_id, str(body.get("workerId"))), body.get("result"))
+    return {"state": j.state}
+
+
+@router.post("/boundary/jobs/{job_id}/fail", dependencies=[Depends(_auth)])
+def boundary_fail(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import boundary
+
+    j = boundary.fail(db, boundary.worker_job(db, job_id, str(body.get("workerId"))), str(body.get("errorClass") or "Other"), bool(body.get("recoverable", False)))
+    return {"state": j.state}
+

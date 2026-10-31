@@ -36,6 +36,11 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
+| API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
+| API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
+| API_BUILD_SIGNER          | local                            | how worker-built plugin bundles are verified (`local` Ed25519 key file, `gcpkms`); same key as the worker's |
+| API_BUILD_SIGNING_KEY_FILE | <repo>/.data/dev-build-signing.key | the `local` key (dev only) |
+| API_BUILD_KMS_KEY         | (none)                           | the `gcpkms` key version |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). `NAMING_FILE` (unprefixed: the prefix is read from it) is
@@ -135,6 +140,12 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    # The data boundary (todo10 Phase 7): probe budget, free-text check, build signature check.
+    boundary_probe_budget: int = 64
+    text_check: Literal["dev"] = "dev"
+    build_signer: Literal["local", "gcpkms"] = "local"
+    build_signing_key_file: Path | None = None
+    build_kms_key: str | None = None
 
     @property
     def production(self) -> bool:
@@ -177,6 +188,11 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
+    "text_check": "API_TEXT_CHECK",
+    "build_signer": "API_BUILD_SIGNER",
+    "build_signing_key_file": "API_BUILD_SIGNING_KEY_FILE",
+    "build_kms_key": "API_BUILD_KMS_KEY",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

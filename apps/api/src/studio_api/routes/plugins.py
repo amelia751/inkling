@@ -53,6 +53,10 @@ def search(q: str | None = None, capability: str | None = None, mediaType: str |
 async def build_artifact(request: Request, base: str | None = None, dryRun: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """A tarball of a plugin package → checks, and unless `dryRun`, a signed `generated` registry entry (§9)."""
     _need(ctx, "plugins.author")
+    if not dryRun and ctx.principal.startswith("agent:"):
+        # todo10 Phase 7: a sandbox's package is only checked; the bundle that gets registered is
+        # the worker's rebuild of the source (POST /api/v1/boundary/builds).
+        raise HTTPException(403, "agents register plugins through /api/v1/boundary/builds (our rebuild); this route only dry-runs for them")
     data = await request.body()
     if len(data) > MAX_ARTIFACT_BYTES:
         raise HTTPException(413, "artifact too large")

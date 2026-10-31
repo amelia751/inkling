@@ -34,6 +34,11 @@ export const DeclarativeConfig = z.object({
 export const SandboxConfig = z.object({
   title: z.string().default("Sandboxed tool"),
   html: z.string().default("<p>No content.</p>").describe(`A complete HTML document; talk to the Studio with window.${NS}.getAnnotations() / .propose([...])`),
+  module: z
+    .string()
+    .max(512 * 1024)
+    .optional()
+    .describe("Rung 4: an ESM viewer module, `export default { render({ model, el, signal, host }) }` (packages/plugin-ui-sdk/src/viewer.ts). Replaces `html`."),
   height: z.number().int().min(120).max(2000).default(480),
 });
 

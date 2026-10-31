@@ -19,6 +19,13 @@ export interface RuntimeConfig {
   flags: string[];
   /** Display name override (white-label); ids and prefixes stay as built. */
   displayName: string;
+  /**
+   * Origin that serves `/sandbox-proxy.html`, the MCP Apps sandbox proxy for sandboxed viewers
+   * (todo10 Phase 5). Must differ from the Studio's origin; empty means the dev default
+   * (`sandbox.localhost` on the dev server's port) or, in a build, the Studio's own origin
+   * (the proxy still runs on an opaque origin there, because its iframe has no allow-same-origin).
+   */
+  sandboxOrigin: string;
 }
 
 const viteEnv = (): Record<string, unknown> => (import.meta as { env?: Record<string, unknown> }).env ?? {};
@@ -32,6 +39,7 @@ function defaults(): RuntimeConfig {
     kernel: env.DEV_API === true,
     flags: typeof flags === "string" ? splitList(flags) : [],
     displayName: NAMING.displayName,
+    sandboxOrigin: "",
   };
 }
 
@@ -56,6 +64,7 @@ export function applyRuntimeConfig(doc: unknown): RuntimeConfig {
     kernel: typeof d.kernel === "boolean" ? d.kernel : base.kernel,
     flags: [...new Set([...base.flags, ...(Array.isArray(d.flags) ? d.flags.filter((f): f is string => typeof f === "string") : typeof d.flags === "string" ? splitList(d.flags) : [])])],
     displayName: str(d.displayName) ?? base.displayName,
+    sandboxOrigin: trimSlash(str(d.sandboxOrigin) ?? base.sandboxOrigin),
   };
   if (current.displayName !== NAMING.displayName) {
     const old = NAMING.displayName;
@@ -81,3 +90,11 @@ export async function loadRuntimeConfig(url = "/config.json"): Promise<RuntimeCo
 
 /** `apiUrl("/v1/jobs/1")` → `<apiBase>/v1/jobs/1`. */
 export const apiUrl = (path: string) => `${runtimeConfig().apiBase}${path}`;
+
+/** URL of the sandbox proxy page: the configured origin, else a separate dev origin, else this origin. */
+export function sandboxProxyUrl(loc: Pick<Location, "protocol" | "hostname" | "port" | "origin"> = location): string {
+  const configured = runtimeConfig().sandboxOrigin;
+  if (configured) return `${configured}/sandbox-proxy.html`;
+  if (viteEnv().DEV && !loc.hostname.startsWith("sandbox.")) return `${loc.protocol}//sandbox.localhost${loc.port ? `:${loc.port}` : ""}/sandbox-proxy.html`;
+  return `${loc.origin}/sandbox-proxy.html`;
+}

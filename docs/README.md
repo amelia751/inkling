@@ -11,6 +11,7 @@
 | [`agent.md`](agent.md) | The agent runtime (`apps/agent`): pi, Daytona sandboxes, tools, approvals, events. |
 | [`versioning.md`](versioning.md) | Dataset versioning (`apps/versioning`): branches, commits, reviews, merges. |
 | [`running.md`](running.md) | Three ways to run the product: dev servers, the compose stack, a local Kubernetes cluster. |
+| [`deployment-gcp.md`](deployment-gcp.md) | Google Cloud: the three projects, the customer-data boundary, what the agent may see, setup order. |
 | [`adr/`](adr/) | Architecture decisions. [`0001`](adr/0001-monorepo-layout.md): the monorepo layout. |
 
 ## Glossary

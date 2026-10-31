@@ -1,0 +1,97 @@
+# Deploying on Google Cloud
+
+Where each part of the product runs on Google Cloud, and the one boundary that must hold: **customer
+data lives only in `spurby-phi`, and nothing reads it from `spurby-ai`.** The reasoning and the
+remaining work are in [todo10 §6](../todo/todo10.md#6-sandboxes-daytona-and-friends) and Phase 9.
+
+Status: the organization and the three projects exist. The BAA, organization policies, the perimeter
+and the infrastructure inside the projects are not set up yet.
+
+## Projects
+
+`spurby-phi` and `spurby-data` sit in the company's Google Cloud organization (folders: `shared`,
+`nonprod`, `prod`). `spurby-ai` stays **outside** the organization, under its existing billing account,
+on purpose. It never holds customer data, so the organization's policies don't need to cover it. The
+boundary is enforced from the `spurby-phi` side:
+
+- the VPC Service Controls perimeter refuses `spurby-ai` identities on Google APIs inside it (Cloud
+  Storage, Cloud SQL, KMS, Healthcare API);
+- the agent reaches `spurby-phi` only over HTTPS through our API, with a scoped service token, on the
+  routes listed under "What the agent sees". It holds no Google credentials for `spurby-phi`.
+
+Moving `spurby-ai` into the organization later is a single `gcloud beta projects move`. Credits are
+usually attached to the billing account, not the project, but check the credit's terms first.
+
+| Project | Holds | Rules |
+|---|---|---|
+| `spurby-ai` | `apps/agent`, model calls, egress to Daytona | Never holds customer data. Reaches `spurby-phi` only through the agent-facing API routes below. |
+| `spurby-phi` | Everything a customer uploads; `apps/api`, `apps/worker`, `apps/versioning` serving it; Cloud SQL, Cloud Storage, Cloud KMS, Healthcare API, Sensitive Data Protection | Inside a VPC Service Controls perimeter. Only products on Google's HIPAA covered-products list. |
+| `spurby-data` | Data we curate: public datasets, seed data, e2e and synthetic fixtures, demos, de-identified releases | Normal controls; may be public-facing. |
+
+Development and staging get their own projects (`*-dev`, `*-staging`) with synthetic data only. Never
+copy production customer data into them. Large customers may later get a dedicated
+`spurby-phi-<customer>` project with its own key.
+
+## Classification follows control, not content
+
+- **Every customer upload is treated as patient data**, whatever the uploader says. DICOM headers and
+  burned-in text hide identifiers, and people mislabel files.
+- Data moves from `spurby-phi` to `spurby-data` only as a **de-identified release**: our
+  de-identification pipeline (Healthcare API DICOM de-identify, Sensitive Data Protection for other
+  formats), a person's approval, then a one-way, audited copy through a perimeter egress rule. Nothing
+  else leaves.
+
+## What the agent sees
+
+The agent works on the Studio's shell, never the data. From `spurby-ai` it may call only these API
+routes in `spurby-phi`, enforced by the agent's token scope in `apps/api`:
+
+- `get_fingerprint`, `get_fixtures`: scrubbed structure and synthetic files;
+- `verify_on_sample`, `probe_sample`: fixed-schema reports and typed answers, free text dropped or
+  checked;
+- job start and job summary: counts, statuses, error classes;
+- environment and plugin control-plane routes (no item bytes);
+- a filtered annotation view: geometries and controlled-vocabulary labels; free text checked first.
+
+Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be
+singled out. The annotator's browser talks to the API in `spurby-phi` directly, never through the
+agent.
+
+## Access tiers for datasets
+
+| Tier | Like | Where |
+|---|---|---|
+| Public | Hugging Face, Kaggle | `spurby-data` |
+| Registered: sign-in plus accepted terms | Hugging Face gated datasets | `spurby-data` |
+| Credentialed: data use agreement plus an approver | PhysioNet | `spurby-data` (de-identified) |
+| Enclave: data never leaves, only checked results do | All of Us, UK Biobank | `spurby-phi` |
+
+## Service per piece
+
+| Piece | Google service |
+|---|---|
+| Postgres | Cloud SQL for PostgreSQL 17, private IP, CMEK |
+| `BlobStore`, plugin artifacts | Cloud Storage; retention lock on the artifacts bucket |
+| Bundle delivery | Cloud CDN in front of the artifacts bucket |
+| Platform signing key | Cloud KMS asymmetric key, HSM protection (cosign `gcpkms://…`) |
+| First-party CI signing | GitHub OIDC through Workload Identity Federation |
+| Container images, OCI artifacts | Artifact Registry; Binary Authorization |
+| Kubernetes | GKE Autopilot; a `gke` overlay next to `infra/k8s/overlays/{dev,staging,prod}` |
+| Worker running untrusted plugin code | GKE Sandbox (gVisor) node pool, NetworkPolicy denying egress, read-only input |
+| Secrets | Secret Manager + Workload Identity, surfaced as the usual `INKLING_*` env vars |
+| Audit | Cloud Audit Logs with Data Access logs on, sunk to a locked bucket; Access Transparency |
+
+## Setup order
+
+1. Accept Google Cloud's BAA for the organization (Privacy & Security in the console).
+2. Organization policies:
+   - no service-account key creation;
+   - resource locations restricted to the chosen region;
+   - CMEK required for Cloud SQL and Cloud Storage;
+   - uniform bucket-level access;
+   - no public IPs on Cloud SQL or GKE nodes.
+3. VPC Service Controls perimeter around `spurby-phi`, with no Google-API ingress for `spurby-ai`
+   (the agent uses our API over HTTPS), and the release egress rule to `spurby-data`.
+4. Infrastructure inside each project (todo10 Phase 9).
+
+Steps 1–3 come before any customer data arrives.

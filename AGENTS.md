@@ -16,6 +16,9 @@ Studio, module, kernel, environment and workspace have one meaning each: see the
 - Services are stateless: state in Postgres, blobs through the `BlobStore`, queue and events
   through `JobQueue` / `EventBus` / the agent's run-event bus. Never keep request state in
   process memory or on local disk (except `/tmp`), or replicas > 1 break.
+- Customer data lives only in the `spurby-phi` Google Cloud project; nothing reads it from
+ `spurby-ai`, where the agent runs. No real sample or item bytes ever reach a sandbox or the model's
+ context. See `docs/deployment-gcp.md`.
 - Config comes only from env vars (named with the naming config's `envPrefix` in Python);
   `secrets/*.env` is a dev overlay. Every HTTP service serves `/healthz`, `/readyz`, `/version`.
 

@@ -15,7 +15,8 @@ import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/
 
 const SECTIONS = new Set<AgentSection>(["overview", "sources", "explore", "datasets", "studio", "review", "activity", "settings"]);
 /** todo7 D11: the drive's route may say `files`; it is the same section as `sources` (nav label "Data"). */
-const ALIASES: Record<string, AgentSection> = { files: "sources" };
+/** `tasks` (Task setup, todo8 D7) belongs with Datasets: a task is work on a dataset. */
+const ALIASES: Record<string, AgentSection> = { files: "sources", tasks: "datasets" };
 export const agentSection = (s: string | undefined): AgentSection => (s && ALIASES[s]) || (s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
 
 /** Empty-state prompts on the Files drive (todo7 Phase 8): the assistant proposes a plan; you apply it. */

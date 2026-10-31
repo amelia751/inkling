@@ -46,7 +46,7 @@ import {
   useProjectDetail,
 } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
-import { exploreUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { exploreUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
 import type { ExploreRecord, ExploreSummary, ExploreTaskRow, Proposal, ProposalStrength, QualityItem, RelationshipEvidence, RelationshipTargetRef } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
 import { cn } from "@studio/ui/utils";
@@ -234,7 +234,7 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
             Ready to annotate. {String(byId.get(s.readyProposalId)?.payload.summary ?? "")}
           </p>
           <Button size="lg" onClick={() => onPreview(s.readyProposalId!)} data-testid="ready-create">
-            Create dataset & open Studio
+            Create dataset & set up the task
           </Button>
         </Card>
       )}
@@ -659,7 +659,8 @@ function ActionPreview({ projectId, proposal, onClose }: { projectId: string; pr
     },
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["projects", projectId] });
-      if (r.task) navigate(studioUrl(projectId, r.task.id));
+      // todo8 D7: the owner lands on Task setup, one click from the Studio.
+      if (r.task) navigate(taskSetupUrl(projectId, r.task.id));
       else onClose();
     },
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
@@ -669,7 +670,7 @@ function ActionPreview({ projectId, proposal, onClose }: { projectId: string; pr
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg" data-testid="action-preview">
         <DialogHeader>
-          <DialogTitle>Create the dataset and open the Studio</DialogTitle>
+          <DialogTitle>Create the dataset and set up its task</DialogTitle>
           <DialogDescription>Here is everything this will do. Your original files stay exactly as they are.</DialogDescription>
         </DialogHeader>
         {!pv ? (
@@ -728,7 +729,7 @@ function ActionPreview({ projectId, proposal, onClose }: { projectId: string; pr
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button loading={create.isPending} disabled={!pv || blocked} onClick={() => create.mutate()} data-testid="create-and-open">
-            Create & open Studio
+            Create & set up the task
           </Button>
         </DialogFooter>
       </DialogContent>

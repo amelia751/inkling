@@ -31,7 +31,7 @@ import { kernelAssetUrl, kernelEnabled } from "@/extension-host/kernel";
 import { seedUrl } from "@/studio/lib/api";
 import { api, fetchPreview, fetchProposals, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
-import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
 import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
@@ -67,7 +67,7 @@ export function ProjectOverviewPage() {
               ) : (
                 <div className="flex flex-col gap-8">
                   <ImportResult overview={o} />
-                  {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} />}
+                  {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} tasks={o.tasks} />}
                   <SourceSummaryCards projectId={projectId} cards={o.data ?? []} onAdd={(p) => void addData(p)} />
                   <AttentionQueue projectId={projectId} items={o.attention ?? []} total={o.attentionTotal ?? 0} />
                 </div>
@@ -222,20 +222,30 @@ function ResumeWorkCard({ projectId, resume }: { projectId: string; resume: Resu
           )}
         </div>
       </div>
-      <Button size="lg" asChild className="shrink-0 self-start sm:self-center">
-        <Link to={studioUrl(projectId, resume.taskId)} state={{ resume: true }} data-testid="open-studio">
-          Open Studio <ArrowRightIcon />
-        </Link>
-      </Button>
+      <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+        <Button variant="outline" size="lg" asChild>
+          <Link to={taskSetupUrl(projectId, resume.taskId)} data-testid="task-setup-link">Task setup</Link>
+        </Button>
+        <Button size="lg" asChild>
+          <Link to={studioUrl(projectId, resume.taskId)} state={{ resume: true }} data-testid="open-studio">
+            Open Studio <ArrowRightIcon />
+          </Link>
+        </Button>
+      </div>
     </Card>
   );
 }
 
 /** A task exists but nothing to resume: an encouraging start, never an empty progress bar. */
-function StartCard({ projectId }: { projectId: string }) {
+function StartCard({ projectId, tasks }: { projectId: string; tasks: { id: string }[] }) {
   return (
     <Card className="flex flex-wrap items-center gap-3 p-5" data-testid="start-card">
       <p className="min-w-0 flex-1 text-body-2">Pick up where the data is.</p>
+      {tasks.length === 1 && (
+        <Button variant="outline" size="lg" asChild>
+          <Link to={taskSetupUrl(projectId, tasks[0].id)} data-testid="task-setup-link">Task setup</Link>
+        </Button>
+      )}
       <Button size="lg" asChild>
         <Link to={studioUrl(projectId)} data-testid="open-studio">Open Studio <ArrowRightIcon /></Link>
       </Button>
@@ -259,7 +269,8 @@ function ImportResult({ overview: o }: { overview: ProjectOverview }) {
     mutationFn: (p: Proposal) => api<{ task?: { id: string } }>(`/proposals/${p.id}/confirm`, { method: "POST", json: {} }),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ["projects", projectId] });
-      if (r.task) navigate(studioUrl(projectId, r.task.id));
+      // todo8 D7: the owner lands on Task setup, one click from the Studio.
+      if (r.task) navigate(taskSetupUrl(projectId, r.task.id));
     },
   });
   if (!settled || !proposals.data?.length) return null;
@@ -274,7 +285,7 @@ function ImportResult({ overview: o }: { overview: ProjectOverview }) {
           <Link to={exploreUrl(projectId, "summary", dataset.id)}>Review first</Link>
         </Button>
         <Button size="lg" loading={confirm.isPending} onClick={() => confirm.mutate(dataset)} data-testid="create-and-open">
-          Create dataset & open Studio
+          Create dataset & set up the task
         </Button>
       </Card>
     );

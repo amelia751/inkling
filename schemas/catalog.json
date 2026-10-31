@@ -2074,7 +2074,7 @@
       "id": "inkling.core.commands.undo",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Undo the last annotation change",
+      "description": "Undo the last change (an annotation in the Studio; a file operation in Data)",
       "label": "Undo",
       "keys": [
         "mod+z"
@@ -2094,7 +2094,7 @@
       "id": "inkling.core.commands.redo",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Redo",
+      "description": "Redo the last undone change",
       "label": "Redo",
       "keys": [
         "shift+mod+z",
@@ -2346,7 +2346,7 @@
       "module": "inkling.core",
       "description": "Preview the selected file large; arrows step through its folder",
       "label": "Quick Look",
-      "when": "section == sources",
+      "when": "section == files",
       "keys": [
         "space"
       ],
@@ -2367,7 +2367,7 @@
       "module": "inkling.core",
       "description": "Open the selected folder, or show the selected file's details",
       "label": "Open folder or details",
-      "when": "section == sources",
+      "when": "section == files",
       "keys": [
         "Enter"
       ],
@@ -2388,7 +2388,7 @@
       "module": "inkling.core",
       "description": "Show the folder that contains the current one",
       "label": "Go to the enclosing folder",
-      "when": "section == sources",
+      "when": "section == files",
       "keys": [
         "mod+ArrowUp"
       ],
@@ -2407,9 +2407,9 @@
       "id": "inkling.core.commands.focusSearch",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Search file names across the project's sources",
+      "description": "Search file names across the project's files",
       "label": "Search in data",
-      "when": "section == sources",
+      "when": "section == files",
       "keys": [
         "mod+f"
       ],
@@ -2419,6 +2419,216 @@
             "command": "inkling.core.commands.focusSearch",
             "keys": [
               "mod+f"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.newFolder",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Make a folder in the folder shown, and name it",
+      "label": "New folder",
+      "when": "section == files",
+      "keys": [
+        "shift+mod+n"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.newFolder",
+            "keys": [
+              "shift+mod+n"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.rename",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Rename the selected file or folder",
+      "label": "Rename",
+      "when": "section == files",
+      "keys": [
+        "F2"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.rename",
+            "keys": [
+              "F2"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.cut",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Mark the selection to be moved by Paste",
+      "label": "Cut",
+      "when": "section == files",
+      "keys": [
+        "mod+x"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.cut",
+            "keys": [
+              "mod+x"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.copy",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Mark the selection to be copied by Paste (copies share the same bytes)",
+      "label": "Copy",
+      "when": "section == files",
+      "keys": [
+        "mod+c"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.copy",
+            "keys": [
+              "mod+c"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.paste",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Move or copy what was cut or copied into the focused or shown folder",
+      "label": "Paste",
+      "when": "section == files",
+      "keys": [
+        "mod+v"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.paste",
+            "keys": [
+              "mod+v"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.duplicate",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Make a copy next to the original, named “name (copy)”",
+      "label": "Duplicate",
+      "when": "section == files",
+      "keys": [
+        "mod+d"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.duplicate",
+            "keys": [
+              "mod+d"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.moveToTrash",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Move the selection to Trash (undo brings it back)",
+      "label": "Move to Trash",
+      "when": "section == files",
+      "keys": [
+        "mod+Backspace"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.moveToTrash",
+            "keys": [
+              "mod+Backspace"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.clearSelection",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Deselect every file and folder",
+      "label": "Clear selection",
+      "when": "section == files",
+      "keys": [
+        "Escape"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.clearSelection",
+            "keys": [
+              "Escape"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.expandAllBelow",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Open the focused folder and every folder in it (up to 2,000 rows)",
+      "label": "Expand all below",
+      "when": "section == files",
+      "keys": [
+        "alt+ArrowRight"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.expandAllBelow",
+            "keys": [
+              "alt+ArrowRight"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.toggleInspector",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Show or hide the inspector (Info)",
+      "label": "Show or hide details",
+      "when": "section == files",
+      "keys": [
+        "mod+i"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.toggleInspector",
+            "keys": [
+              "mod+i"
             ]
           }
         ]

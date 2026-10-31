@@ -4,8 +4,9 @@ Where each part of the product runs on Google Cloud, and the one boundary that m
 data lives only in `spurby-phi`, and nothing reads it from `spurby-ai`.** The reasoning and the
 remaining work are in [todo10 §6](../todo/todo10.md#6-sandboxes-daytona-and-friends) and Phase 9.
 
-Status: the organization and the three projects exist. The BAA, organization policies, the perimeter
-and the infrastructure inside the projects are not set up yet.
+Status (2026-10-31): folders, organization policies and the perimeter (dry-run) are applied from
+`infra/terraform/org`. Not done yet: the BAA, enforcing the perimeter, and the infrastructure
+inside the projects.
 
 ## Projects
 
@@ -83,15 +84,16 @@ agent.
 
 ## Setup order
 
-1. Accept Google Cloud's BAA for the organization (Privacy & Security in the console).
-2. Organization policies:
-   - no service-account key creation;
-   - resource locations restricted to the chosen region;
-   - CMEK required for Cloud SQL and Cloud Storage;
-   - uniform bucket-level access;
-   - no public IPs on Cloud SQL or GKE nodes.
-3. VPC Service Controls perimeter around `spurby-phi`, with no Google-API ingress for `spurby-ai`
-   (the agent uses our API over HTTPS), and the release egress rule to `spurby-data`.
-4. Infrastructure inside each project (todo10 Phase 9).
+1. [ ] Accept Google Cloud's BAA for the organization (Privacy & Security in the console).
+2. [x] Organization policies (`infra/terraform/org/policies.tf`):
+   - no service-account key creation (organization default);
+   - only organization identities in IAM (organization default);
+   - `prod` folder: US locations only, uniform bucket-level access, no public IP on Cloud SQL;
+   - `spurby-phi` only: CMEK required for Cloud Storage and Cloud SQL, public access prevention, no
+     external IPs on VMs (GKE nodes). `spurby-data` keeps these off so it can serve public data.
+3. [~] VPC Service Controls perimeter around `spurby-phi` (`perimeter.tf`), in **dry-run**. No
+   Google-API ingress for `spurby-ai` (the agent uses our API over HTTPS). Add the release egress
+   rule to `spurby-data` with its bucket, watch dry-run violations, then enforce before customer data.
+4. [ ] Infrastructure inside each project (todo10 Phase 9).
 
 Steps 1–3 come before any customer data arrives.

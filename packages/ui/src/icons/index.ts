@@ -67,6 +67,10 @@ export { default as ImportedIcon } from "@gravity-ui/icons/FileArrowUp";
 export { default as BranchIcon } from "@gravity-ui/icons/CodeFork";
 export { default as MergeIcon } from "@gravity-ui/icons/CodeMerge";
 export { default as HistoryIcon } from "@gravity-ui/icons/ClockArrowRotateLeft";
+// Studio, calmer (todo8): the Items panel's Queue and Folders views, and Task setup.
+export { default as QueueIcon } from "@gravity-ui/icons/ListUl";
+export { default as FoldersIcon } from "@gravity-ui/icons/FolderTree";
+export { default as TaskSetupIcon } from "@gravity-ui/icons/Sliders";
 
 // Disclosure and direction
 export { default as ChevronDownIcon } from "@gravity-ui/icons/ChevronDown";

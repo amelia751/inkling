@@ -26,6 +26,7 @@ import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
+import { rememberTool } from "@/studio/stores/tool-prefs";
 import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -522,7 +523,11 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
   useHotkeys((e) => {
     const t = env.tools.find((x) => x.hotkey && matches(e, x.hotkey));
     if (t) {
-      if (!e.repeat) s().setTool(t.name);
+      if (!e.repeat) {
+        s().setTool(t.name);
+        // Pressing J makes Cobb angle the face of the Measure button (todo8 D4).
+        rememberTool(env.id, t);
+      }
       return true;
     }
     const c = classes.find((x) => x.hotkey && matches(e, x.hotkey));

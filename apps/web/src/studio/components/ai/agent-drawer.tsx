@@ -40,11 +40,12 @@ export function AssistantToggle() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost-secondary" size="icon" selected={open} onClick={toggle} aria-pressed={open} aria-label={`${NAMING.displayName} AI panel`} data-testid="assistant-toggle">
+        <Button variant="ghost-secondary" selected={open} onClick={toggle} aria-pressed={open} aria-label={`${NAMING.displayName} AI panel`} data-testid="assistant-toggle">
           <AiIcon />
+          <span className="max-sm:hidden">Assistant</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{open ? "Hide" : "Show"} {NAMING.displayName} AI</TooltipContent>
+      <TooltipContent>{open ? "Close Assistant" : "Launch Assistant"}</TooltipContent>
     </Tooltip>
   );
 }

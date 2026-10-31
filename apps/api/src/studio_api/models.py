@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -367,7 +367,7 @@ class EventConsumption(Base):
 
 
 # ---- Projects, sources, datasets and tasks (todo6 Phase 1, docs/ux.md §2) ---------------------
-# Organization ⊃ Project ⊃ Dataset ⊃ Task, plus Sources (the immutable originals). A project's
+# Organization ⊃ Project ⊃ Dataset ⊃ Task, plus Files (todo7: bytes immutable, names yours). A project's
 # kernel `workspaces` row has the same id (todo6 D1), so plugin activation is per project.
 
 
@@ -404,7 +404,8 @@ class ProjectRow(Base):
 
 
 class Source(Base):
-    """Original imported material: one per upload (or seed). Never edited in place."""
+    """Import provenance (todo7 D1): one per upload (or seed). Its folder is a top-level
+    folder of the project's drive; who brought what, when, from where."""
 
     __tablename__ = "sources"
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
@@ -418,30 +419,153 @@ class Source(Base):
 
 
 class SourceNode(Base):
-    """The immutable tree of a source: folders and files exactly as uploaded."""
+    """A file or folder of the project's drive (todo7). Bytes are immutable; the namespace
+    (name, parent, Trash) is the user's, and every change to it is journaled in `fs_ops`.
+
+    Ids are opaque and permanent (D3): new nodes are `nod-<uuid hex>`; seeds keep the hashed
+    ids they were backfilled with. The current path is computed from the parent chain (D4);
+    `original_path` is the path a file arrived with (immutable, sensitive: Phase 7)."""
 
     __tablename__ = "source_nodes"
-    __table_args__ = (Index("ix_source_nodes_children", "source_id", "parent_id", "name"),)
+    __table_args__ = (Index("ix_source_nodes_children", "source_id", "parent_id", "name"), Index("ix_source_nodes_parent", "parent_id"))
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
-    source_id: Mapped[str] = mapped_column(ForeignKey("sources.id"), index=True)
+    # Import provenance (who brought the bytes, D1); None for folders made in Files and the drive root.
+    source_id: Mapped[str | None] = mapped_column(ForeignKey("sources.id"), index=True, nullable=True)
     project_id: Mapped[str] = mapped_column(String(128), index=True)
+    # The project's drive root (D1); the root itself has parent_id None.
+    project_root: Mapped[str | None] = mapped_column(String(64), nullable=True)
     parent_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     name: Mapped[str] = mapped_column(String(512))
-    rel_path: Mapped[str] = mapped_column(String(2048))
+    # Existing case-only duplicate siblings (D10) are numbered 1, 2…; new names are unique (0).
+    name_dup: Mapped[int] = mapped_column(Integer, default=0)
+    original_path: Mapped[str] = mapped_column(String(2048), default="")
     is_dir: Mapped[bool] = mapped_column(Boolean, default=False)
     asset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
-    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     # None until the worker inspected the file (the UI shows "Checking…").
     detected_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     facts: Mapped[dict] = mapped_column(JSON, default=dict)
     flags: Mapped[dict] = mapped_column(JSON, default=dict)  # privacy, unsupported, duplicate_of
     # A numbered run (`scan001…scan120.dcm`) shares one key, so it collapses into one row.
     sequence_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Not in Trash only: children, files below, and the bytes of the files below (folders).
     child_count: Mapped[int] = mapped_column(Integer, default=0)
     descendant_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, default=0)
+    # Folders: bumped whenever their children change (`fs/ops` `expect`).
+    revision: Mapped[int] = mapped_column(Integer, default=0)
+    # Sample data (D2): every write that would change it is refused.
+    locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Files: the current version (D6); `node_versions` keeps every one.
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    # Trash (D8): only the trashed node is marked; its descendants are hidden with it.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     import_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# Names are unique per folder, case-insensitively, among nodes not in Trash (D10).
+Index(
+    "uq_source_nodes_sibling_name",
+    SourceNode.parent_id,
+    func.lower(SourceNode.name),
+    SourceNode.name_dup,
+    unique=True,
+    sqlite_where=SourceNode.trashed_at.is_(None),
+    postgresql_where=SourceNode.trashed_at.is_(None),
+)
+# Trash listings and the purge job. Partial (only what's in Trash): a plain index on
+# `trashed_at` would tempt SQLite into scanning it for `trashed_at IS NULL` in tree walks.
+Index("ix_source_nodes_trash", SourceNode.project_id, SourceNode.trashed_at, sqlite_where=SourceNode.trashed_at.is_not(None), postgresql_where=SourceNode.trashed_at.is_not(None))
+
+
+class NodeVersion(Base):
+    """Every version of a file (D6): replacing adds one, the old asset stays referenced here."""
+
+    __tablename__ = "node_versions"
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    asset_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    size: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    # What inspection said about these bytes, so restoring a version brings its facts back.
+    detected_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    facts: Mapped[dict] = mapped_column(JSON, default=dict)
+    flags: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class FsBatch(Base):
+    """One `fs/ops` call (or an undo / redo of one): the unit of undo (D9)."""
+
+    __tablename__ = "fs_batches"
+    __table_args__ = (Index("ix_fs_batches_actor", "project_id", "actor", "at"),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    actor: Mapped[str] = mapped_column(String(256))
+    kind: Mapped[str] = mapped_column(String(16))  # ops | undo | redo
+    # "move of 3 items": for the Undo hint (no file names: they may identify a person).
+    label: Mapped[str] = mapped_column(String(256), default="")
+    summary: Mapped[str] = mapped_column(Text, default="")
+    undoable: Mapped[bool] = mapped_column(Boolean, default=True)
+    reverts_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    undone_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    redone_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class FsOp(Base):
+    """The journal (D9): one row per node an operation changed, with its state before and
+    after (`None` = the node didn't exist / doesn't any more). Undo applies `before`."""
+
+    __tablename__ = "fs_ops"
+    __table_args__ = (Index("ix_fs_ops_actor", "project_id", "actor", "at"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(String(128))
+    batch_id: Mapped[str] = mapped_column(String(64), index=True)
+    actor: Mapped[str] = mapped_column(String(256))
+    # mkdir | rename | move | copy | trash | restore | purge | replace | restore_version
+    kind: Mapped[str] = mapped_column(String(32))
+    node_id: Mapped[str] = mapped_column(String(64), index=True)
+    before: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    after: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    undone_by_batch: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class NodeStar(Base):
+    __tablename__ = "node_stars"
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class NodeRecent(Base):
+    """Files and folders a person opened in the inspector (with `fs_ops`: Recent)."""
+
+    __tablename__ = "node_recent"
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ScheduledRun(Base):
+    """Periodic kernel work (`files.empty_trash`): one row per (job, period), inserted with
+    ON CONFLICT DO NOTHING, so a period runs once whichever replica or worker asks first."""
+
+    __tablename__ = "scheduled_runs"
+    name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    period: Mapped[str] = mapped_column(String(32), primary_key=True)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class ImportSession(Base):
@@ -472,6 +596,8 @@ class UploadFile(Base):
     received: Mapped[int] = mapped_column(Integer, default=0)
     state: Mapped[str] = mapped_column(String(32))  # pending | uploaded | skipped_duplicate | rejected | failed
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The node this file became (D3): completing a session twice finds it instead of a path hash.
+    node_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class DatasetRow(Base):

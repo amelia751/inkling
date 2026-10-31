@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext
 from ..models import AnnotationDocumentRow, DatasetRow, ImportSession, PluginAudit, ProjectRow, Proposal, Source, SourceNode, TaskRow, UploadFile, WorkspaceEnvironmentRevision
-from . import projects, tree
+from . import projects
 
 SEVERITY = {"high": 0, "medium": 1, "low": 2}
 
@@ -51,14 +51,15 @@ def data_cards(db: Session, p: ProjectRow, limit: int = 4) -> list[dict]:
     for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id).order_by(DatasetRow.created_at)):
         if (d.definition or {}).get("seed"):
             continue
-        files = tree.files_under(db, (d.definition or {}).get("nodeIds") or [])
+        files = [n for n, _ in projects.dataset_files(db, d)]
         kinds = Counter(n.detected_kind for n in files)
         main = kinds.most_common(1)[0][0] if kinds else None
         cards.append({"type": "dataset", "id": d.id, "title": d.title, "count": len(files), "kind": main, "kindLabel": kind_label(main, len(files)), "datasetId": d.id})
     if cards:
         return cards[:limit]
+    visible = projects.visible_files(db, p.id)
     for s in db.scalars(select(Source).where(Source.project_id == p.id).order_by(Source.created_at)):
-        rows = db.execute(select(SourceNode.detected_kind, SourceNode.parent_id).where(SourceNode.source_id == s.id, SourceNode.is_dir.is_(False))).all()
+        rows = [(n.detected_kind, n.parent_id) for n in visible if n.source_id == s.id]
         by_kind: dict[str | None, list[str | None]] = {}
         for kind, parent in rows:
             by_kind.setdefault(kind, []).append(parent)
@@ -68,7 +69,7 @@ def data_cards(db: Session, p: ProjectRow, limit: int = 4) -> list[dict]:
             # Open the folder that holds this kind when it's one folder, else the source root.
             folder = parents[0] if len(set(parents)) == 1 else s.root_node_id
             node = db.get(SourceNode, folder) if folder else None
-            title = node.name if node is not None and node.parent_id is not None else s.title
+            title = node.name if node is not None and node.id != s.root_node_id else (db.get(SourceNode, s.root_node_id).name if s.root_node_id and db.get(SourceNode, s.root_node_id) else s.title)
             cards.append({"type": "source", "id": f"{s.id}:{kind}", "title": title, "count": len(parents), "kind": kind, "kindLabel": kind_label(kind, len(parents)), "sourceId": s.id, "nodeId": folder})
     cards.sort(key=lambda c: -c["count"])
     return cards[:limit]
@@ -147,12 +148,13 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
     datasets = list(db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id)))
     titles = {d.id: d.title for d in datasets}
     # Privacy holds: always first, one row per held file, tagged with the dataset it's in.
-    held = [n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))) if (pv := (n.flags or {}).get("privacy")) and not pv.get("clearedBy")]
+    files = projects.visible_files(db, p.id)
+    held = [n for n in files if (pv := (n.flags or {}).get("privacy")) and not pv.get("clearedBy")]
     held_in: dict[str, str] = {}
     if held:
         ids = {n.id for n in held}
         for d in datasets:
-            for f in tree.files_under(db, (d.definition or {}).get("nodeIds") or []):
+            for f, _ in projects.dataset_files(db, d):
                 if f.id in ids:
                     held_in.setdefault(f.id, d.id)
     for n in held:
@@ -170,7 +172,7 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
             title = f"{n} {'file' if n == 1 else 'files'} didn't upload" if n else "An import failed"
             items.append({"id": f"import:{s.id}", "type": "import", "severity": "high", "title": title, "detail": s.error or (failed[0].reason if failed else ""), "target": {"section": "sources", "importId": s.id}, "at": projects.iso(s.started_at)})
     # Files nobody can open yet, as one row.
-    unknown = [n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.detected_kind == "unknown"))]
+    unknown = [n for n in files if n.detected_kind == "unknown"]
     if unknown:
         items.append({"id": "quality:unsupported", "type": "quality", "severity": "low", "title": f"{len(unknown)} {'file' if len(unknown) == 1 else 'files'} we can't read yet", "detail": ", ".join(n.name for n in unknown[:3]), "target": {"section": "sources", "status": "unsupported", "nodeId": unknown[0].id}, "at": projects.iso(unknown[0].created_at)})
     for pr in db.scalars(select(Proposal).where(Proposal.project_id == p.id, Proposal.status == "proposed").order_by(Proposal.created_at)):
@@ -225,7 +227,7 @@ def overview(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     if queue:
         out["attention"] = queue[:5]
         out["attentionTotal"] = len(queue)
-    out["empty"] = not db.scalar(select(SourceNode.id).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False)).limit(1))
+    out["empty"] = not db.scalar(select(SourceNode.id).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False), SourceNode.trashed_at.is_(None)).limit(1))
     imports = [s for s in db.scalars(select(ImportSession).where(ImportSession.project_id == p.id, ImportSession.state.in_(("uploading", "inspecting", "needs_review", "ready"))).order_by(ImportSession.started_at.desc()).limit(1))]
     if imports:
         out["latestImport"] = {"id": imports[0].id, "state": imports[0].state}
@@ -246,6 +248,22 @@ ACTIVITY_LABELS = {
     "proposal.dismissed": "dismissed a proposal",
     "privacy.cleared": "cleared a privacy hold",
     "dataset.created": "created a dataset",
+    "dataset.versions_updated": "moved a dataset to newer file versions",
+    "dataset.files_added": "added new files to a dataset",
+    "files.created": "made a folder",
+    "files.renamed": "renamed a file",
+    "files.moved": "moved files",
+    "files.copied": "copied files",
+    "files.trashed": "moved files to the Trash",
+    "files.restored": "restored files from the Trash",
+    "files.purged": "deleted files forever",
+    "files.version_added": "added a new version of a file",
+    "files.version_restored": "restored an earlier version of a file",
+    "files.changed": "changed files",
+    "files.undone": "undid a change to files",
+    "files.redone": "redid a change to files",
+    "files.downloaded": "downloaded files",
+    "privacy.held": "held a file for privacy review again",
     "task.created": "created a task",
     "workspace.environment": "changed the Studio setup",
     "versioning.dataset.create": "turned on versioning",
@@ -326,6 +344,14 @@ def activity(db: Session, p: ProjectRow, cursor: int | None = None, limit: int =
 
 
 def _label(r: PluginAudit, after: dict) -> str:
+    if r.action.startswith("files.") and r.action != "files.downloaded" and after.get("items") is not None:
+        n = int(after.get("items") or 0)
+        noun = "item" if n == 1 else "items"
+        verb = {"files.created": "made {n} folder" if n == 1 else "made {n} folders", "files.renamed": "renamed {n} " + noun, "files.moved": "moved {n} " + noun, "files.copied": "copied {n} " + noun, "files.trashed": "moved {n} " + noun + " to the Trash", "files.restored": "restored {n} " + noun, "files.purged": "deleted {n} " + noun + " forever"}.get(r.action)
+        if verb:
+            return verb.format(n=n)
+        if r.action in ("files.undone", "files.redone") and after.get("label"):
+            return f"{'undid' if r.action == 'files.undone' else 'redid'} {after['label']}"
     if r.action == "import.completed":
         n = int(after.get("files") or 0)
         return f"added {n} {'file' if n == 1 else 'files'}" + (" (some still missing)" if after.get("incomplete") else "")
@@ -345,7 +371,7 @@ def _subject(r: PluginAudit, after: dict, titles: dict[str, str], tasks: dict[st
     if r.action.startswith("versioning."):
         d = t.removeprefix("dataset:")
         return titles.get(d, d) or None
-    if r.action in ("dataset.created",):
+    if r.action.startswith("dataset."):
         return after.get("title") or titles.get(t)
     if r.action == "task.created":
         return after.get("title") or tasks.get(t)
@@ -367,8 +393,13 @@ def _link(r: PluginAudit, after: dict | None = None) -> dict | None:
         return {"section": "datasets", "datasetId": t}
     if a == "task.created":
         return {"section": "studio", "taskId": t}
-    if a == "privacy.cleared":
+    if a in ("privacy.cleared", "privacy.held"):
         return {"section": "sources", "nodeId": t}
+    if a.startswith("files."):
+        ids = after.get("nodeIds") or []
+        return {"section": "sources", "nodeId": str(ids[0])} if ids else {"section": "sources"}
+    if a.startswith("dataset."):
+        return {"section": "datasets", "datasetId": t}
     if a.startswith("project."):
         return {"section": "settings"}
     if a.startswith("plugins."):

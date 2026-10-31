@@ -146,17 +146,29 @@ class Targets:
     """The project's viewable files and the folders above them, by id and by key."""
 
     def __init__(self, db: Session, p: ProjectRow):
-        self.files = [n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))) if (n.detected_kind or "") in VIEWABLE]
-        dirs = {n.id: n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(True)))}
+        self.files = [n for n in projects.visible_files(db, p.id) if (n.detected_kind or "") in VIEWABLE]
+        dirs = {n.id: n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(True), SourceNode.trashed_at.is_(None)))}
+        containers = projects.container_ids(db, p.id)  # the drive root and imports' folders are not records
+        self.dirs = dirs
         self.nodes: dict[str, SourceNode] = {n.id: n for n in self.files}
         self.files_in: dict[str, list[str]] = {}
         for f in self.files:
             cur = dirs.get(f.parent_id or "")
-            while cur is not None and cur.parent_id is not None:  # a source root is not a record
-                self.nodes[cur.id] = cur
-                self.files_in.setdefault(cur.id, []).append(f.id)
+            while cur is not None and cur.parent_id is not None:
+                if cur.id not in containers:
+                    self.nodes[cur.id] = cur
+                    self.files_in.setdefault(cur.id, []).append(f.id)
                 cur = dirs.get(cur.parent_id)
         self._index: dict[tuple[str, str], dict[str, list[tuple[str, str]]]] = {}
+
+    def path(self, n: SourceNode) -> str:
+        """The current path without the drive root (todo7 D4)."""
+        names = [n.name]
+        cur = self.dirs.get(n.parent_id or "")
+        while cur is not None and cur.parent_id is not None:
+            names.append(cur.name)
+            cur = self.dirs.get(cur.parent_id)
+        return "/".join(reversed(names))
 
     def of(self, target: str) -> list[SourceNode]:
         return self.files if target == "files" else [n for n in self.nodes.values() if n.is_dir]
@@ -185,7 +197,7 @@ class Targets:
 
     def describe(self, node_id: str) -> dict:
         n = self.nodes[node_id]
-        return {"nodeId": n.id, "name": n.name, "path": n.rel_path, "kind": "folder" if n.is_dir else "file"}
+        return {"nodeId": n.id, "name": n.name, "path": self.path(n), "kind": "folder" if n.is_dir else "file"}
 
 
 # ---- Relationships -----------------------------------------------------------------------------------
@@ -414,9 +426,10 @@ def _dataset_nodes(db: Session, files: list[SourceNode], kind_of) -> list[str]:
     for f in files:
         by_parent.setdefault(f.parent_id or "", []).append(f)
     out: list[str] = []
+    containers = projects.container_ids(db, files[0].project_id) if files else set()
     for parent, members in by_parent.items():
         folder = db.get(SourceNode, parent) if parent else None
-        under = tree.files_under(db, [parent]) if folder is not None and folder.parent_id is not None else []
+        under = tree.files_under(db, [parent]) if folder is not None and folder.id not in containers else []
         if under and len(under) == len(members) and all(kind_of(n) for n in under):
             out.append(parent)
         else:
@@ -700,7 +713,8 @@ def summary(db: Session, p: ProjectRow) -> dict:
     """Files → records → tasks (docs/ux.md §7), plus the quality list. Counts are rows, never guesses."""
     from .overview import kind_label
 
-    files = list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False))))
+    files = projects.visible_files(db, p.id)
+    containers = projects.container_ids(db, p.id)
     by_kind = Counter(n.detected_kind or "checking" for n in files)
     proposals = list(db.scalars(select(Proposal).where(Proposal.project_id == p.id).order_by(Proposal.created_at)))
     open_ = [x for x in proposals if x.status == "proposed"]
@@ -717,7 +731,7 @@ def summary(db: Session, p: ProjectRow) -> dict:
     parents = {n.id: n for n in db.scalars(select(SourceNode).where(SourceNode.id.in_([k[0] for k in loose if k[0]])))} if loose else {}
     for (parent, kind), count in loose.most_common(8):
         folder = parents.get(parent or "")
-        where = folder.name if folder is not None and folder.parent_id is not None else "the top folder"
+        where = folder.name if folder is not None and folder.id not in containers else "the top folder"
         records.append({"id": f"files:{parent}:{kind}", "type": "files", "title": f"{count} {kind_label(kind, count).lower()}", "detail": f"in {where}", "status": "detected", "nodeId": parent})
     tasks: list[dict] = []
     for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id).order_by(DatasetRow.created_at)):

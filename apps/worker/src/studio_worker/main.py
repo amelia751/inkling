@@ -42,6 +42,7 @@ from .config import env  # noqa: F401 — kept for callers that read namespaced 
 from .deid import DeidSubscriber
 from .egress import EgressProxy
 from .inspect import InspectSubscriber
+from .schedule import Scheduled
 
 log = logging.getLogger("studio_worker")
 NAMING = config.naming()
@@ -89,6 +90,8 @@ class Worker:
         self.deid = DeidSubscriber(self.http)
         # Built-in subscriber: inspection of uploaded files (`source.uploaded`, todo6 Phase 5).
         self.inspect = InspectSubscriber(self.http, data_dir / "inspect")
+        # Periodic kernel work: `files.empty_trash` (todo7 Phase 4), at most daily in the kernel.
+        self.scheduled = Scheduled(self.http)
 
     def request_stop(self) -> None:
         """SIGTERM: no new claims from now on; the current job gets the grace period."""
@@ -260,6 +263,10 @@ class Worker:
             self.inspect.tick()
         except httpx.HTTPError as e:
             log.warning("inspection: %s", type(e).__name__)
+        try:
+            self.scheduled.tick()
+        except httpx.HTTPError as e:
+            log.warning("scheduled jobs: %s", type(e).__name__)
         r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins})
         r.raise_for_status()
         claim = r.json()

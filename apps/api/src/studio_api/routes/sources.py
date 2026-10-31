@@ -1,5 +1,6 @@
-"""Sources and imports (todo6 Phase 1.2, 4.5). Originals are read-only: there is no rename,
-move or delete of a file here. A whole upload can be removed while no dataset uses it.
+"""Sources and imports (todo6 Phase 1.2, 4.5). Since todo7 the namespace is writable through
+`routes/files.py` (`/v1/projects/:id/fs/*`); these reads stay as aliases. Removing an upload
+moves its folder to the Trash (undoable) while no dataset uses it.
 
     GET   /api/v1/projects/{id}/sources                 the project's sources (tree roots)
     GET   /api/v1/projects/{id}/search?q=&kind=&status=  name search across the project
@@ -24,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import audit, events, imports, projects, tree
+from ..kernel import audit, events, fs, imports, projects, tree
 from ..models import DatasetRow, ImportSession, SourceNode, now
 
 router = APIRouter(prefix="/api/v1")
@@ -48,13 +49,14 @@ def children(source_id: str, node: str | None = None, cursor: str | None = None,
     parent = node or s.root_node_id or ""
     if not parent.startswith("seq:"):
         n = db.get(SourceNode, parent)
-        if n is None or n.source_id != s.id:
+        if n is None or n.project_id != s.project_id:
             raise HTTPException(404, "no such folder in this source")
     try:
         start = int(cursor or 0)
     except ValueError:
         raise HTTPException(422, "bad cursor") from None
-    return tree.children(db, s.id, parent, max(0, start), max(1, min(limit, tree.PAGE)))
+    stars = fs.starred_ids(db, s.project_id, fs.person(ctx))
+    return tree.children(db, s.project_id, parent, max(0, start), max(1, min(limit, tree.PAGE)), starred=stars)
 
 
 @router.delete("/sources/{source_id}")
@@ -68,11 +70,11 @@ def remove_source(source_id: str, ctx: RequestContext = Depends(get_context), db
     used = [d.title for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id)) if projects._uses_source(db, d, s)]
     if used:
         raise HTTPException(409, f"Used by {', '.join(used[:3])}: remove it from those datasets first")
-    for n in db.scalars(select(SourceNode).where(SourceNode.source_id == s.id)):
-        db.delete(n)
     for sess in db.scalars(select(ImportSession).where(ImportSession.source_id == s.id)):
         sess.state = "cancelled" if sess.state == "uploading" else sess.state
-    db.delete(s)
+    root = db.get(SourceNode, s.root_node_id) if s.root_node_id else None
+    if root is not None and root.trashed_at is None and root.parent_id is not None:
+        fs.apply(db, ctx, p, {"ops": [{"kind": "trash", "nodeIds": [root.id]}]})
     audit.record(db, ctx.for_scope(p.id, None), "source.removed", target=s.id, after={"title": s.title})
     return Response(status_code=204)
 
@@ -80,7 +82,8 @@ def remove_source(source_id: str, ctx: RequestContext = Depends(get_context), db
 @router.get("/source-nodes/{node_id}")
 def describe(node_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     n, _ = projects.require_node(db, ctx, node_id)
-    return projects.describe_node(db, n)
+    fs.opened(db, ctx, n)
+    return projects.describe_node(db, n, ctx)
 
 
 @router.get("/source-nodes/{node_id}/preview")
@@ -106,7 +109,7 @@ def clear_privacy(node_id: str, body: dict = Body(...), ctx: RequestContext = De
     n.flags = {**n.flags, "privacy": {**priv, "clearedBy": ctx.principal, "clearedAt": projects.iso(now()), "clearReason": reason[:1000]}}
     audit.record(db, ctx.for_scope(p.id, None), "privacy.cleared", target=n.id, before={"privacy": priv}, after={"reason": reason[:1000]})
     events.publish(db, ctx.for_scope(p.id, None), "source.node.inspected", {"projectId": p.id, "nodeIds": [n.id]}, source="kernel")
-    return projects.describe_node(db, n)
+    return projects.describe_node(db, n, ctx)
 
 
 # ---- Imports -----------------------------------------------------------------------------------

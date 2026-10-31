@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from sqlalchemy.orm import Session
+
 from ..naming import canonical_id
 from . import catalog, semver
 
@@ -28,7 +30,7 @@ class Resolution:
         return not self.errors and not self.conflicts
 
 
-def resolve(plugin_id: str, version_range: str | None, active: dict[str, str]) -> Resolution:
+def resolve(plugin_id: str, version_range: str | None, active: dict[str, str], db: Session | None = None) -> Resolution:
     """`active`: plugin id → version currently ACTIVATED in the workspace."""
     r = Resolution()
     chosen: dict[str, catalog.Entry] = {}
@@ -37,7 +39,7 @@ def resolve(plugin_id: str, version_range: str | None, active: dict[str, str]) -
         if pid in path:
             r.errors.append({"code": "cycle", "message": " → ".join([*path, pid])})
             return
-        e_all = catalog.versions(pid)
+        e_all = catalog.versions(pid, db)
         if not e_all:
             r.errors.append({"code": "not-found", "plugin": pid, "message": f"{pid} is not in the registry", "requiredBy": path[-1] if path else None})
             return

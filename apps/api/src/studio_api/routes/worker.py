@@ -55,10 +55,10 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
                 use_tokens[name] = secrets.issue_use_token(j.workspace_id, j.plugin_id, j.version, name, hosts, j.job_id, ttl_s=j.timeout_s + 60)
     runtime = manifest.get("runtime") or {}
     active = installer.active(db, j.workspace_id).get(j.plugin_id)
-    entry = installer.catalog.get(j.plugin_id, j.version)
+    entry = installer.catalog.get(j.plugin_id, j.version, db)
     return {
         "job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent},
-        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": active.artifact_digest if active else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(entry) or "") if entry else "", "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
+        "plugin": {"id": j.plugin_id, "version": j.version, "artifactDigest": active.artifact_digest if active else None, "entrypoint": runtime.get("entrypoint"), "path": str(installer.package_path(entry) or "") if entry else "", "manifestDigest": entry.manifest_digest if entry else None, "egress": policy.egress_hosts(grants), "memoryMb": runtime.get("memoryMb")},
         "provider": provider,
         "config": installer.current_config(db, j.workspace_id, j.plugin_id),
         "sessionToken": token,

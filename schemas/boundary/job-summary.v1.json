@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BoundaryJobSummary",
+  "$defs": {
+    "BoundaryJobSummary": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "boundary.job-summary/v1"
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "fingerprint",
+            "synthesize_fixtures",
+            "verify_plugin",
+            "probe",
+            "build_plugin",
+            "capability"
+          ]
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ]
+        },
+        "progress": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "const": "<20"
+                }
+              ]
+            },
+            "succeeded": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "const": "<20"
+                }
+              ]
+            },
+            "failed": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "string",
+                  "const": "<20"
+                }
+              ]
+            }
+          },
+          "required": [
+            "total",
+            "succeeded",
+            "failed"
+          ],
+          "additionalProperties": false
+        },
+        "errorClasses": {
+          "maxItems": 40,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "errorClass": {
+                "type": "string",
+                "enum": [
+                  "ImportError",
+                  "ModuleNotFoundError",
+                  "SyntaxError",
+                  "IndentationError",
+                  "NameError",
+                  "AttributeError",
+                  "TypeError",
+                  "ValueError",
+                  "KeyError",
+                  "IndexError",
+                  "LookupError",
+                  "AssertionError",
+                  "ZeroDivisionError",
+                  "OverflowError",
+                  "ArithmeticError",
+                  "MemoryError",
+                  "RecursionError",
+                  "NotImplementedError",
+                  "RuntimeError",
+                  "OSError",
+                  "FileNotFoundError",
+                  "PermissionError",
+                  "EOFError",
+                  "UnicodeError",
+                  "UnicodeDecodeError",
+                  "StructError",
+                  "BufferError",
+                  "StopIteration",
+                  "TimeoutError",
+                  "NetworkBlocked",
+                  "ProcessBlocked",
+                  "WriteBlocked",
+                  "EntrypointMissing",
+                  "OutputInvalid",
+                  "NoOutput",
+                  "Timeout",
+                  "MemoryLimit",
+                  "Crash",
+                  "Other"
+                ]
+              },
+              "count": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "string",
+                    "const": "<20"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "errorClass",
+              "count"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        },
+        "updatedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "jobId",
+        "kind",
+        "state",
+        "progress",
+        "counts",
+        "errorClasses",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/boundary/job-summary.v1"
+}

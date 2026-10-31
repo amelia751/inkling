@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BoundaryBuildResult",
+  "$defs": {
+    "BoundaryBuildResult": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "boundary.build/v1"
+        },
+        "pass": {
+          "type": "boolean"
+        },
+        "pluginId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "artifactDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sandboxDigest": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "matchesSandbox": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "signature": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "signer": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "alg": {
+                  "type": "string",
+                  "maxLength": 32
+                },
+                "keyId": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "sig": {
+                  "type": "string",
+                  "maxLength": 400
+                }
+              },
+              "required": [
+                "signer",
+                "alg",
+                "keyId",
+                "digest",
+                "sig"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dropped": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*\\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$"
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "binary",
+                  "build-output",
+                  "not-source",
+                  "too-large"
+                ]
+              }
+            },
+            "required": [
+              "path",
+              "reason"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "errors": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "registered": {
+          "type": "boolean"
+        },
+        "duplicate": {
+          "type": "boolean"
+        },
+        "toolchain": {
+          "type": "object",
+          "properties": {
+            "python": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "builder": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,32}$"
+            }
+          },
+          "required": [
+            "python",
+            "builder"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "pass",
+        "pluginId",
+        "version",
+        "artifactDigest",
+        "sourceDigest",
+        "sandboxDigest",
+        "matchesSandbox",
+        "signature",
+        "dropped",
+        "errors",
+        "registered",
+        "duplicate",
+        "toolchain"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/boundary/build.v1"
+}

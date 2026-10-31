@@ -10,6 +10,7 @@ import { NAMING } from "@studio/contracts/naming";
 import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
 import { WorkspaceState } from "@studio/contracts/workspace";
+import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
@@ -63,6 +64,8 @@ export function contractSchemas(): Record<string, unknown> {
     "capabilities/image.segment.result.json": js(imageSegment.SegmentResult, "capabilities/image.segment/result"),
     // Read by apps/versioning (Go); keeps its file-relative $id.
     "versioning/annotation-revision.schema.json": annotationRevisionJsonSchema(),
+    // The data boundary's fixed-schema reports (todo10 Phase 7); the kernel validates worker output against them.
+    ...Object.fromEntries(Object.entries(BOUNDARY_SCHEMAS).map(([name, s]) => [`boundary/${name}`, js(s, `boundary/${name.replace(/\.json$/, "")}`)])),
   };
 }
 

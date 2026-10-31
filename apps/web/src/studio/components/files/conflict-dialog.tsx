@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { FsConflict, FsResolution } from "@studio/contracts/types";
 import {
   AlertDialog,
@@ -84,14 +84,16 @@ export interface ConflictDialogProps {
 }
 
 export function ConflictDialog({ open, conflicts, onDone, onCancel }: ConflictDialogProps) {
-  const initial = useMemo(() => startConflictWalk(conflicts), [conflicts]);
-  const [walk, setWalk] = useState(initial);
-  const [all, setAll] = useState(false);
+  // The walk is keyed by the conflicts it was built from. A walk left over from an earlier list
+  // (or the empty one before the first 409) is never used: when `open` and a new `conflicts`
+  // arrive in the same render, an effect-based reset would run after the auto-settle effect
+  // below had already seen the stale, settled walk and called `onDone({})` without asking.
+  const [state, setState] = useState(() => ({ for: conflicts, walk: startConflictWalk(conflicts), all: false }));
+  const current = state.for === conflicts ? state : { for: conflicts, walk: startConflictWalk(conflicts), all: false };
+  if (current !== state) setState(current);
+  const { walk, all } = current;
+  const setAll = (v: boolean) => setState((s) => ({ ...s, all: v }));
   const checkId = useId();
-  useEffect(() => {
-    setWalk(initial);
-    setAll(false);
-  }, [initial, open]);
 
   // Nothing to ask (only identical files, or the last choice settled the rest).
   useEffect(() => {
@@ -102,10 +104,7 @@ export function ConflictDialog({ open, conflicts, onDone, onCancel }: ConflictDi
   const cur = walk.current !== null ? walk.pending[walk.current] : null;
   const others = othersLikeCurrent(walk);
   const mixed = new Set(walk.pending.map((c) => c.kind)).size > 1;
-  const pick = (r: FsResolution) => {
-    setWalk((w) => chooseResolution(w, r, all));
-    setAll(false);
-  };
+  const pick = (r: FsResolution) => setState((s) => ({ ...s, walk: chooseResolution(s.walk, r, s.all), all: false }));
 
   return (
     <AlertDialog open={open && !!cur} onOpenChange={(o) => !o && onCancel()}>

@@ -392,6 +392,8 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
       ref={box}
       className={cn("group/tree relative h-full min-h-0 w-full text-body", className)}
       onKeyDownCapture={(e) => {
+        // Keys from a portaled child (a row's context menu) bubble here through React; not ours.
+        if (!e.currentTarget.contains(e.target as Node)) return
         const t = tree.current
         if (t?.isEditing) return
         if (onKey?.(e)) {

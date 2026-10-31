@@ -204,6 +204,9 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // React bubbles events through portals: keys pressed in a row's context menu (portaled to
+    // <body>) arrive here too. Arrow keys there belong to the menu, not to the listing.
+    if (!e.currentTarget.contains(e.target as Node)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if ((e.target as Element).closest("input")) return;
     const step: Record<string, number> = { ArrowDown: cols, ArrowUp: -cols, ...(view === "grid" ? { ArrowRight: 1, ArrowLeft: -1 } : {}), PageDown: cols * 10, PageUp: -cols * 10 };

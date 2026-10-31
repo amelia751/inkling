@@ -64,6 +64,7 @@ export interface FileOps {
   dialogs: ReactNode;
 }
 
+const NO_CONFLICTS: FsConflict[] = [];
 const lower = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 
 export function errorText(e: unknown): string {
@@ -175,7 +176,7 @@ export function useFileOps(projectId: string, writable: boolean): FileOps {
     <>
       <ConflictDialog
         open={!!conflicts}
-        conflicts={conflicts ?? []}
+        conflicts={conflicts ?? NO_CONFLICTS}
         onDone={(r) => {
           resolveConflicts.current?.(r);
           resolveConflicts.current = null;

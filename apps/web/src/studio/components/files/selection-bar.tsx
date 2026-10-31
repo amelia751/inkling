@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowRightIcon, CloseIcon, CopyIcon, DeleteIcon, ExportIcon, type IconComponent } from "@studio/ui/icons";
+import { CloseIcon, CopyIcon, DownloadIcon, MoveIcon, StarFillIcon, StarIcon, TrashIcon, type IconComponent } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ReasonButton } from "./shared";
@@ -30,13 +30,12 @@ export interface SelectionBarProps {
   children?: ReactNode;
 }
 
-// TODO(todo7-integration): swap ArrowRightIcon to <MoveIcon>, ExportIcon to <DownloadIcon>, and add <StarIcon>/<StarFillIcon> to Star.
 const ACTIONS: { id: SelectionAction; label: string; icon?: IconComponent; destructive?: boolean }[] = [
-  { id: "move", label: "Move to…", icon: ArrowRightIcon },
+  { id: "move", label: "Move to…", icon: MoveIcon },
   { id: "copy", label: "Copy", icon: CopyIcon },
-  { id: "download", label: "Download", icon: ExportIcon },
-  { id: "star", label: "Star" },
-  { id: "trash", label: "Move to Trash", icon: DeleteIcon, destructive: true },
+  { id: "download", label: "Download", icon: DownloadIcon },
+  { id: "star", label: "Star", icon: StarIcon },
+  { id: "trash", label: "Move to Trash", icon: TrashIcon, destructive: true },
 ];
 
 export function SelectionBar({ count, onMove, onCopy, onDownload, onStar, onTrash, onClear, starred, disabled = {}, children }: SelectionBarProps) {
@@ -56,7 +55,7 @@ export function SelectionBar({ count, onMove, onCopy, onDownload, onStar, onTras
       </span>
       {ACTIONS.map((a) => {
         const label = a.id === "star" && starred ? "Unstar" : a.label;
-        const Icon = a.icon;
+        const Icon = a.id === "star" && starred ? StarFillIcon : a.icon;
         const reason = disabled[a.id] ?? null;
         return (
           <ReasonButton

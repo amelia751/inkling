@@ -60,7 +60,8 @@ function parse(data: unknown): FsChangedEvent | null {
 /** Is this event ours (this tab's batch, or a folder this tab is changing right now)? */
 export function isOwnEvent(e: FsChangedEvent, { self }: { self?: string } = {}): boolean {
   if (self && e.actor === self) return true;
-  if (useTabUndo.getState().done.some((b) => b.batchId === e.batchId) || useTabUndo.getState().undone.some((b) => b.batchId === e.batchId)) return true;
+  const tab = useTabUndo.getState();
+  if (tab.done.some((b) => b.batchId === e.batchId) || tab.undone.some((b) => b.batchId === e.batchId) || tab.own.includes(e.batchId)) return true;
   return e.parentIds.some((p) => hasPendingOp(e.projectId, p));
 }
 

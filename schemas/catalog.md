@@ -128,6 +128,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.expandAllBelow` — Open the focused folder and every folder in it (up to 2,000 rows) (when section == files)
 - `inkling.core.commands.toggleInspector` — Show or hide the inspector (Info) (when section == files)
 - `inkling.core.commands.filterItems` — Filter the Items panel by name (while the panel has focus) (when section == studio)
+- `inkling.core.commands.contextMenu` — Open the menu of the focused file or folder, as a right-click does (when section == files)
 - `inkling.core.commands.toggleSidePanel` — Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again
 - `inkling.core.commands.toggleAssistant` — Open or close the assistant, in any project section
 - `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)

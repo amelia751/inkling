@@ -96,6 +96,10 @@ export { default as DownloadIcon } from "@gravity-ui/icons/ArrowDownToLine";
 /** A file's versions: the same glyph as `HistoryIcon`. */
 export { default as VersionsIcon } from "@gravity-ui/icons/ClockArrowRotateLeft";
 export { default as CollapseAllIcon } from "@gravity-ui/icons/ChevronsCollapseVertical";
+/** New ▾ in the Files toolbar and a tree row's "new folder inside". */
+export { default as PlusIcon } from "@gravity-ui/icons/Plus";
+/** The tree's Sort menu. */
+export { default as SortIcon } from "@gravity-ui/icons/BarsDescendingAlignLeft";
 // Annotations written from a source file (a CSV column): todo6 D8.
 export { default as ImportedIcon } from "@gravity-ui/icons/FileArrowUp";
 // Dataset versioning

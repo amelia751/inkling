@@ -52,6 +52,8 @@ export interface FileTreeNode {
   drop?: { id: string; label: string }
   /** The name the rename field starts with (default: `name`; a compact chain's last segment). */
   editName?: string
+  /** A new row not saved yet ("Untitled folder"): Enter or blur commits even an unchanged name. */
+  draft?: boolean
 }
 
 export interface FileTreeHandle {
@@ -59,8 +61,8 @@ export interface FileTreeHandle {
   reveal: (id: string) => void
   focus: () => void
   api: () => TreeApi<FileTreeNode> | null | undefined
-  /** Open the rename field on a node (no-op when the tree or the node isn't editable). */
-  edit: (id: string) => void
+  /** Open the rename field on a node; false when the tree doesn't show it (yet) or it isn't editable. */
+  edit: (id: string) => boolean
   /** Collapse every folder (`onToggle` reports each). */
   closeAll: () => void
   /**
@@ -209,6 +211,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const dragging = React.useRef<string[] | null>(null)
   const pointerInside = React.useRef(true)
   const [inside, setInside] = React.useState(true)
+  const syncing = React.useRef(false)
   // Recursive expands still waiting for children to load: root id → row cap.
   const recursive = React.useRef(new Map<string, number>())
 
@@ -281,9 +284,10 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     edit: (id) => {
       const t = tree.current
       const n = t?.get(id)
-      if (!t || !n || !isEditable(n.data)) return
+      if (!t || !n || !isEditable(n.data)) return false
       t.openParents(id)
       void t.edit(id)
+      return true
     },
     closeAll: () => {
       recursive.current.clear()
@@ -305,7 +309,13 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     const now = t.selectedIds
     if (now.size === selectedIds.length && selectedIds.every((id) => now.has(id))) return
     const ids = selectedIds.filter((id) => t.get(id))
-    t.setSelection({ ids, anchor: ids[0] ?? null, mostRecent: ids[ids.length - 1] ?? null })
+    // arborist reports `setSelection` through onSelect; this is the caller's own value, not a change.
+    syncing.current = true
+    try {
+      t.setSelection({ ids, anchor: ids[0] ?? null, mostRecent: ids[ids.length - 1] ?? null })
+    } finally {
+      syncing.current = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey, size.height > 0])
 
@@ -353,11 +363,9 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const initialOpenState = React.useMemo(() => Object.fromEntries((initialOpen ?? []).map((id) => [id, true])), [initialOpen])
 
   const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn, rowProps }
-  const Node = React.useCallback(
-    (props: NodeRendererProps<FileTreeNode>) => <TreeRow {...props} {...extras} />,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal, dndOn, rowProps],
-  )
+  // Rows read these through context: a new renderer would remount every row, and remounting the
+  // dragged row cancels a native drag (e.g. when the drop target or a callback changes mid-drag).
+  const Node = React.useCallback((props: NodeRendererProps<FileTreeNode>) => <ContextRow {...props} />, [])
 
   const Preview = React.useCallback(
     ({ mouse, id, dragIds, isDragging }: DragPreviewProps) => {
@@ -412,6 +420,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
       }}
     >
       {size.height > 0 && (
+        <RowExtrasContext.Provider value={extras}>
         <Tree<FileTreeNode>
           ref={tree}
           data={data}
@@ -447,13 +456,13 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
           onRename={({ id, name }) => {
             const n = tree.current?.get(id)
             const trimmed = name.trim()
-            if (!n || !trimmed || trimmed === (n.data.editName ?? n.data.name)) return onRenameCancel?.(id)
+            if (!n || !trimmed || (trimmed === (n.data.editName ?? n.data.name) && !n.data.draft)) return onRenameCancel?.(id)
             return onRename?.(id, trimmed)
           }}
           renderDragPreview={Preview}
           searchTerm={searchTerm?.trim() || undefined}
           searchMatch={(node: NodeApi<FileTreeNode>, term: string) => (searchMatch ?? treeSearchMatch)(node.data, term)}
-          onSelect={(nodes: NodeApi<FileTreeNode>[]) => onSelect?.(nodes.filter((n) => !n.data.placeholder).map((n) => n.id))}
+          onSelect={(nodes: NodeApi<FileTreeNode>[]) => !syncing.current && onSelect?.(nodes.filter((n) => !n.data.placeholder).map((n) => n.id))}
           onActivate={(node: NodeApi<FileTreeNode>) => {
             if (node.data.placeholder === "more") return node.data.onMore?.()
             if (!node.data.placeholder) onActivate?.(node.id)
@@ -470,10 +479,18 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
         >
           {Node}
         </Tree>
+        </RowExtrasContext.Provider>
       )}
     </div>
   )
 })
+
+const RowExtrasContext = React.createContext<RowExtras | null>(null)
+
+function ContextRow(props: NodeRendererProps<FileTreeNode>) {
+  const extras = React.useContext(RowExtrasContext)!
+  return <TreeRow {...props} {...extras} />
+}
 
 /** The element arborist scrolls (react-window's outer div, the one with overflow). */
 function scrollerOf(box: HTMLElement | null): HTMLElement | null {
@@ -643,7 +660,7 @@ function RenameInput({ node, validate, onCancel }: { node: NodeApi<FileTreeNode>
   const save = () => {
     if (done.current) return
     const v = value.trim()
-    if (!v || v === initial || error) return cancel()
+    if (!v || (v === initial && !node.data.draft) || error) return cancel()
     done.current = true
     node.submit(v)
   }

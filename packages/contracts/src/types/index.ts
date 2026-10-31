@@ -289,7 +289,7 @@ export interface PrivacyFlag {
 
 export interface SourceNode {
   id: string;
-  sourceId: string;
+  sourceId: string | null;
   parentId: string | null;
   name: string;
   /** A compact chain of single-child folders, e.g. `MRI / patient_002` (the row is the last one). */

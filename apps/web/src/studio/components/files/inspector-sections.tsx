@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { FsActivityEntry, NodeVersion, SourceNode } from "@studio/contracts/types";
-import { CorrectedIcon, ExportIcon, HideIcon, ShowIcon, UndoIcon, UploadIcon } from "@studio/ui/icons";
+import { DownloadIcon, HideIcon, RenameIcon, RestoreIcon, ShowIcon, UploadIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Input } from "@studio/ui/ui/input";
@@ -123,8 +123,7 @@ export function RenameableTitle({ name, displayName, kind, disabledReason, valid
           {displayName ?? name}
         </h2>
         <ReasonButton variant="ghost-secondary" size="icon-sm" reason={disabledReason} tip="Rename" aria-label="Rename" onClick={() => setEditing(true)} data-testid="inspector-rename">
-          {/* TODO(todo7-integration): swap to <RenameIcon> (same PencilToLine glyph) */}
-          <CorrectedIcon />
+          <RenameIcon />
         </ReasonButton>
       </div>
     );
@@ -225,15 +224,13 @@ export function VersionsSection({ versions, loading, onRestore, onDownload, onRe
               ) : (
                 onRestore && (
                   <ReasonButton variant="ghost-secondary" size="icon-sm" reason={disabledReason} tip={`Restore v${v.version}`} aria-label={`Restore version ${v.version}`} onClick={() => onRestore(v.version)} data-testid="version-restore">
-                    {/* TODO(todo7-integration): swap to <RestoreIcon> (same glyph) */}
-                    <UndoIcon />
+                    <RestoreIcon />
                   </ReasonButton>
                 )
               )}
               {onDownload && (
                 <ReasonButton variant="ghost-secondary" size="icon-sm" tip={`Download v${v.version}`} aria-label={`Download version ${v.version}`} onClick={() => onDownload(v.version)} data-testid="version-download">
-                  {/* TODO(todo7-integration): swap to <DownloadIcon> (same glyph) */}
-                  <ExportIcon />
+                  <DownloadIcon />
                 </ReasonButton>
               )}
             </li>

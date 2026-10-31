@@ -10,39 +10,93 @@ import { kindLabel, nodeIcon, STATUS_LABEL } from "@/studio/lib/file-kinds";
 import { formatBytes } from "@/studio/lib/format";
 import { InTasks } from "@/studio/components/files/in-tasks";
 import { datasetUrl, projectUrl, sourcesUrl, studioUrl } from "@/studio/lib/routes";
+import { useActivity, useVersions } from "@/studio/lib/files/api";
+import { ActivitySection, MultiSummary, OriginalNameReveal, RenameableTitle, VersionsSection } from "@/studio/components/files";
 import { shortDate } from "./listing";
 import { useNode, usePreview } from "./queries";
+
+/** What the Files page lets the inspector do (todo7 Phases 2 and 6); all optional, so it stays read-only without them. */
+export interface InspectorActions {
+  /** Why this node can't be renamed or replaced (sample data, "Needs the full stack", the root), or null. */
+  editReason?: (n: SourceNode) => string | null;
+  validate?: (name: string, n: SourceNode) => string | null;
+  /** Saves a rename; reject with an Error to keep the field open with its message. */
+  onRename?: (n: SourceNode, name: string) => Promise<void>;
+  /** F2 from the page: the title's rename field is open. */
+  renaming?: boolean;
+  onRenamingChange?: (v: boolean) => void;
+  onReplace?: (n: SourceNode) => void;
+  onRestoreVersion?: (n: SourceNode, version: number) => void;
+  onDownloadVersion?: (n: SourceNode, version: number, current: boolean) => void;
+  /** The project's root folder ("Files"). */
+  rootId?: string | null;
+}
 
 /**
  * The inspector (todo6 Phase 4.3): Preview, Detected, Used in, Flags, Provenance, each left out
  * when it has nothing to show. Never a patient identifier: DICOM shows a fixed list of
  * acquisition facts, and other facts named like identifiers are not shown.
  */
-export function Inspector({ projectId, item, onClose }: { projectId: string; item: SourceNode | null; onClose: () => void }) {
-  const detail = useNode(item?.id);
-  const preview = usePreview(item?.id, !!item && item.kind === "file");
-  const full: SourceNodeDetail | undefined = detail.data && detail.data.id === item?.id ? detail.data : undefined;
-  const n: SourceNode | null = full ?? item;
+export function Inspector({ projectId, item, items, onClose, actions = {} }: { projectId: string; item: SourceNode | null; items?: SourceNode[]; onClose: () => void; actions?: InspectorActions }) {
+  const multi = items && items.length > 1 ? items : null;
+  const one = multi ? null : item;
+  const detail = useNode(one?.id);
+  const preview = usePreview(one?.id, !!one && one.kind === "file");
+  const full: SourceNodeDetail | undefined = detail.data && detail.data.id === one?.id ? detail.data : undefined;
+  const n: SourceNode | null = full ? { ...full, ...(one && one.name !== full.name ? { name: one.name } : {}) } : one;
+  const isRoot = !!n && !!actions.rootId && n.id === actions.rootId;
+  const file = !!n && n.kind === "file";
+  const versions = useVersions(file ? n!.id : null);
+  const activity = useActivity(n && !isRoot && !n.id.startsWith("seq:") ? n.id : null);
+  const reason = n ? (isRoot ? "The project's top folder keeps its name" : n.kind === "sequence" ? "Open the run to rename its files" : (actions.editReason?.(n) ?? null)) : null;
   return (
     <aside className="flex h-full min-h-0 flex-col" aria-label="Details" data-testid="inspector">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border pl-4 pr-2">
-        <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" title={n ? n.displayPath ?? n.name : undefined}>
-          {n ? n.displayPath ?? n.name : "Details"}
-        </h2>
+      <header className="flex min-h-10 shrink-0 items-center gap-2 border-b border-border pl-4 pr-2">
+        {multi ? (
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" data-testid="inspector-title">{multi.length.toLocaleString()} items</h2>
+        ) : n && actions.onRename ? (
+          <RenameableTitle
+            key={n.id}
+            name={isRoot ? "Files" : n.name}
+            displayName={isRoot ? "Files" : (n.displayPath ?? n.name)}
+            kind={n.kind}
+            disabledReason={reason}
+            validate={actions.validate ? (name) => actions.validate!(name, n) : undefined}
+            onRename={(name) => actions.onRename!(n, name)}
+            editing={actions.renaming}
+            onEditingChange={actions.onRenamingChange}
+          />
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold" title={n ? n.displayPath ?? n.name : undefined}>
+            {n ? n.displayPath ?? n.name : "Details"}
+          </h2>
+        )}
         <Button variant="ghost-secondary" size="icon" onClick={onClose} aria-label="Hide details" data-testid="inspector-close">
           <CloseIcon />
         </Button>
       </header>
       <div className="thin-scrollbar min-h-0 flex-1 space-y-5 overflow-y-auto p-4 text-sm">
-        {!n && <p className="text-muted-foreground">Select a file or folder to see what's in it.</p>}
-        {n && (
+        {multi && <MultiSummary items={multi} />}
+        {!multi && !n && <p className="text-muted-foreground">Select a file or folder to see what's in it.</p>}
+        {!multi && n && (
           <>
             {n.kind === "file" && <PreviewSection n={n} preview={preview.data} loading={preview.isLoading} />}
             <Detected n={n} />
             {full ? <UsedIn projectId={projectId} detail={full} /> : detail.isLoading && <SkeletonText className="w-2/3" />}
             {full && <InTasks projectId={projectId} detail={full} />}
             <Flags projectId={projectId} n={n} />
-            {full && <Provenance projectId={projectId} detail={full} />}
+            {file && (
+              <VersionsSection
+                versions={versions.data ?? []}
+                loading={versions.isLoading}
+                disabledReason={reason}
+                onRestore={actions.onRestoreVersion ? (v) => actions.onRestoreVersion!(n, v) : undefined}
+                onDownload={actions.onDownloadVersion ? (v) => actions.onDownloadVersion!(n, v, !!versions.data?.find((x) => x.version === v)?.current) : undefined}
+                onReplace={actions.onReplace ? () => actions.onReplace!(n) : undefined}
+              />
+            )}
+            <ActivitySection items={activity.data ?? []} loading={activity.isLoading} />
+            {full && !isRoot && <Provenance projectId={projectId} detail={full} />}
           </>
         )}
       </div>
@@ -196,8 +250,9 @@ function Detected({ n }: { n: SourceNode }) {
         {n.kind === "folder" && (
           <>
             <dt className="text-muted-foreground">Contains</dt>
-            <dd className="tnum">
+            <dd className="tnum" data-testid="inspector-contains">
               {n.descendantCount.toLocaleString()} {n.descendantCount === 1 ? "file" : "files"}
+              {typeof n.totalBytes === "number" && ` · ${formatBytes(n.totalBytes)}`}
             </dd>
           </>
         )}
@@ -336,6 +391,9 @@ function Provenance({ projectId, detail }: { projectId: string; detail: SourceNo
           </>
         )}
       </dl>
+      <div className="mt-2">
+        <OriginalNameReveal originalPath={detail.originalPath} />
+      </div>
     </Section>
   );
 }

@@ -23,7 +23,7 @@ export interface StudioLayoutProps {
   storageKey: string;
 }
 
-const TITLES: Record<SlotId, string> = { viewer: "Viewer", "slot:left": "Files, labels and review", "slot:right": "Panels", "slot:bottom": "Bottom" };
+const TITLES: Record<SlotId, string> = { viewer: "Viewer", "slot:left": "Items and labels", "slot:right": "Panels", "slot:bottom": "Bottom" };
 
 // Rendered content per slot, read by the dockview components (which dockview mounts itself).
 const content = new Map<SlotId, ReactNode>();

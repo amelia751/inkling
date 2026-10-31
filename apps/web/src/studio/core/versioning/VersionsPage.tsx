@@ -137,7 +137,7 @@ function Reviews({ datasetId, projectId }: { datasetId: string; projectId: strin
           <Badge theme={STATUS_THEME[r.status]}>{r.status.toLowerCase()}</Badge>
         </Link>
       ))}
-      {reviews.data?.items.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">No reviews yet. "Submit for review" in the Studio opens one.</p>}
+      {reviews.data?.items.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">No reviews yet. "Request review" in the Studio opens one.</p>}
     </Card>
   );
 }

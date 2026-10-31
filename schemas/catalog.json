@@ -5,7 +5,7 @@
       "id": "inkling.core",
       "version": "1.0.0",
       "title": "Studio core",
-      "description": "Files, labels, review and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries."
+      "description": "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries."
     },
     {
       "id": "inkling.overlay2d",
@@ -2681,8 +2681,8 @@
       "id": "inkling.core.commands.toggleSidePanel",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again",
-      "label": "Show or hide files and labels",
+      "description": "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again",
+      "label": "Show or hide items and labels",
       "keys": [
         "shift+mod+b"
       ],

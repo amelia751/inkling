@@ -110,6 +110,19 @@ def classification(browser, port: int) -> None:
         wait_for(lambda: st.store("s => s.itemIndex") == 2, "N to reach the first to-do item", 5)
         check("N goes to the next to-do item", st.store("s => s.itemIndex") == 2)
 
+        # Zoom isn't a toolbar button; it lives in the viewport bar's View menu, with its key.
+        check("no Zoom button in the toolbar", "zoom" not in visible_tools(page), str(visible_tools(page)))
+        page.locator("[data-testid=view-menu]").click()
+        zoom_row = page.get_by_role("menuitem", name="Zoom tool")
+        zoom_row.wait_for(timeout=5000)
+        check("View menu: Zoom tool with its key", "Z" in zoom_row.inner_text(), zoom_row.inner_text())
+        zoom_row.click()
+        wait_for(lambda: st.store("s => s.tool") == "zoom", "the Zoom tool from the View menu", 5)
+        check("View menu → Zoom tool selects it", st.store("s => s.tool") == "zoom")
+        page.mouse.click(5, 300)
+        page.keyboard.press("v")
+        wait_for(lambda: st.store("s => s.tool") == "select", "V after Zoom", 5)
+
         # The ? Shortcuts hint opens the sheet once, then goes.
         hint = page.locator("[data-testid=shortcuts-hint]")
         check("status bar shows ? Shortcuts until the sheet is opened", hint.count() == 1)

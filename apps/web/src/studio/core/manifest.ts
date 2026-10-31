@@ -52,7 +52,7 @@ const commands: CommandContribution[] = [
   { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Data", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
   { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
   { id: "filterItems", keys: ["mod+f"], label: "Filter items", group: "Navigate", when: "section == studio", description: "Filter the Items panel by name (while the panel has focus)" },
-  { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
+  { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide items and labels", group: "Navigate", description: "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 
   // Shared renderer gestures.
@@ -90,7 +90,7 @@ export default defineModule({
   id: CORE,
   version: "1.0.0",
   title: "Studio core",
-  description: "Files, labels, review and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
+  description: "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
   contributes: {
     geometries: [...coreGeometries, ...legacyGeometries],
     tools: [

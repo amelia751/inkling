@@ -407,7 +407,7 @@ def node_dict(n: SourceNode, display_path: str | None = None, *, starred: set[st
     return out
 
 
-def _sequence_row(parent_id: str, key: str, members: list[SourceNode]) -> dict:
+def _sequence_row(parent_id: str, key: str, members: list) -> dict:
     first, last = members[0], members[-1]
     kinds = {m.detected_kind for m in members}
     statuses = {status_of(m) for m in members}
@@ -435,7 +435,7 @@ def _sequence_row(parent_id: str, key: str, members: list[SourceNode]) -> dict:
     }
 
 
-def _ordered(rows: list[SourceNode]) -> list[SourceNode]:
+def _ordered(rows: list) -> list:
     return sorted(rows, key=lambda n: (not n.is_dir, natural_key(n.name)))
 
 
@@ -454,57 +454,89 @@ def _compact(db: Session, n: SourceNode) -> tuple[SourceNode, str | None]:
     return cur, (" / ".join(names) if len(names) > 1 else None)
 
 
-def _sort_items(items: list[dict], sort: str, direction: str) -> list[dict]:
-    """Folders first always (in both directions), then the chosen key; ties by name."""
-    rev = direction == "desc"
-
-    def key(d: dict):
-        if sort == "kind":
-            return (str(d.get("detectedKind") or ""), natural_key(d["name"]))
-        if sort == "size":
-            return (d.get("totalBytes") if d["kind"] == "folder" else d.get("size")) or 0, natural_key(d["name"])
-        if sort == "added":
-            return (d.get("createdAt") or "", natural_key(d["name"]))
-        return natural_key(d["name"])
-
-    folders = sorted([d for d in items if d["kind"] == "folder"], key=key, reverse=rev)
-    rest = sorted([d for d in items if d["kind"] != "folder"], key=key, reverse=rev)
-    return folders + rest
+_LIGHT = (SourceNode.id, SourceNode.name, SourceNode.is_dir, SourceNode.sequence_key, SourceNode.size, SourceNode.total_bytes, SourceNode.detected_kind, SourceNode.created_at)
+# What a run's row needs from each member (no facts: they can be large).
+_MEMBER = (SourceNode.id, SourceNode.name, SourceNode.is_dir, SourceNode.size, SourceNode.detected_kind, SourceNode.flags, SourceNode.locked, SourceNode.source_id, SourceNode.import_session_id, SourceNode.created_at)
 
 
 def children(db: Session, project_id: str, parent: str, cursor: int = 0, limit: int = PAGE, *, sort: str = "name", direction: str = "asc", starred: set[str] | None = None, compact: bool = True) -> dict:
     """One page of a folder's listing (not in Trash): folders first, numbered runs collapsed,
     sorted server-side so paging stays correct. `parent` is a folder id or a run id
-    (`seq:<folder>:<hash>`), which lists the run's files."""
+    (`seq:<folder>:<hash>`), which lists the run's files.
+
+    Ordering and run grouping read a few columns of every child; whole rows (facts, flags) are
+    loaded only for the page returned. A folder of 100k files answered a page in ~6 s when every
+    child became an ORM object and a dict (todo7 Phase 9)."""
     if parent.startswith("seq:"):
         _, folder, _h = parent.split(":", 2)
-        siblings = db.scalars(select(SourceNode).where(SourceNode.project_id == project_id, SourceNode.parent_id == folder, SourceNode.is_dir.is_(False), SourceNode.sequence_key.is_not(None), SourceNode.trashed_at.is_(None)))
-        rows = _ordered([n for n in siblings if run_id(folder, n.sequence_key or "") == parent])
-        items = [node_dict(n, starred=starred) for n in rows]
+        light = [r for r in db.execute(select(*_LIGHT).where(SourceNode.project_id == project_id, SourceNode.parent_id == folder, SourceNode.is_dir.is_(False), SourceNode.sequence_key.is_not(None), SourceNode.trashed_at.is_(None))) if run_id(folder, r.sequence_key or "") == parent]
+        entries: list[tuple] = [("node", r) for r in _ordered(light)]
     else:
-        rows = _ordered(list(db.scalars(select(SourceNode).where(SourceNode.project_id == project_id, SourceNode.parent_id == parent, SourceNode.trashed_at.is_(None)))))
-        runs: dict[str, list[SourceNode]] = {}
-        for n in rows:
-            if not n.is_dir and n.sequence_key:
-                runs.setdefault(n.sequence_key, []).append(n)
-        items, emitted = [], set()
-        for n in rows:
-            key = n.sequence_key if not n.is_dir else None
+        light = _ordered(list(db.execute(select(*_LIGHT).where(SourceNode.project_id == project_id, SourceNode.parent_id == parent, SourceNode.trashed_at.is_(None)))))
+        runs: dict[str, list] = {}
+        for r in light:
+            if not r.is_dir and r.sequence_key:
+                runs.setdefault(r.sequence_key, []).append(r)
+        entries, emitted = [], set()
+        for r in light:
+            key = r.sequence_key if not r.is_dir else None
             if key and len(runs[key]) >= MIN_SEQUENCE:
                 if key not in emitted:
                     emitted.add(key)
-                    items.append(_sequence_row(parent, key, runs[key]))
+                    entries.append(("run", key, runs[key]))
                 continue
-            if n.is_dir and compact:
-                deepest, display = _compact(db, n)
-                items.append(node_dict(deepest, display, starred=starred))
-            else:
-                items.append(node_dict(n, starred=starred))
+            entries.append(("node", r))
     if sort != "name" or direction != "asc":
-        items = _sort_items(items, sort if sort in SORTS else "name", direction)
-    page = items[cursor : cursor + limit]
-    nxt = cursor + limit if cursor + limit < len(items) else None
-    return {"items": page, "total": len(items), "nextCursor": str(nxt) if nxt is not None else None}
+        entries = _sort_entries(entries, sort if sort in SORTS else "name", direction)
+    page = entries[cursor : cursor + limit]
+    ids = [e[1].id for e in page if e[0] == "node"]
+    full: dict[str, SourceNode] = {}
+    for i in range(0, len(ids), 500):
+        for n in db.scalars(select(SourceNode).where(SourceNode.id.in_(ids[i : i + 500]))):
+            full[n.id] = n
+    items = []
+    for e in page:
+        if e[0] == "run":
+            members = _ordered(list(db.execute(select(*_MEMBER).where(SourceNode.project_id == project_id, SourceNode.parent_id == parent, SourceNode.sequence_key == e[1], SourceNode.is_dir.is_(False), SourceNode.trashed_at.is_(None)))))
+            items.append(_sequence_row(parent, e[1], members))
+            continue
+        n = full[e[1].id]
+        if n.is_dir and compact and not parent.startswith("seq:"):
+            deepest, display = _compact(db, n)
+            items.append(node_dict(deepest, display, starred=starred))
+        else:
+            items.append(node_dict(n, starred=starred))
+    nxt = cursor + limit if cursor + limit < len(entries) else None
+    return {"items": items, "total": len(entries), "nextCursor": str(nxt) if nxt is not None else None}
+
+
+def _sort_entries(entries: list[tuple], sort: str, direction: str) -> list[tuple]:
+    """Folders first always (in both directions), then the
+    chosen key; ties by name. A run sorts by its first file's name and date, its total size."""
+    rev = direction == "desc"
+
+    def name(e: tuple) -> str:
+        return f"{e[2][0].name}–{e[2][-1].name}" if e[0] == "run" else e[1].name
+
+    def key(e: tuple):
+        if sort == "kind":
+            if e[0] == "run":
+                kinds = {m.detected_kind for m in e[2]}
+                kind = kinds.pop() if len(kinds) == 1 else None
+            else:
+                kind = "folder" if e[1].is_dir else e[1].detected_kind
+            return (str(kind or ""), natural_key(name(e)))
+        if sort == "size":
+            size = sum(m.size or 0 for m in e[2]) if e[0] == "run" else (e[1].total_bytes if e[1].is_dir else e[1].size)
+            return (size or 0, natural_key(name(e)))
+        if sort == "added":
+            at = e[2][0].created_at if e[0] == "run" else e[1].created_at
+            return (at.isoformat() if at else "", natural_key(name(e)))
+        return natural_key(name(e))
+
+    folders = sorted([e for e in entries if e[0] == "node" and e[1].is_dir], key=key, reverse=rev)
+    rest = sorted([e for e in entries if not (e[0] == "node" and e[1].is_dir)], key=key, reverse=rev)
+    return folders + rest
 
 
 def run_of(db: Session, n: SourceNode) -> str | None:

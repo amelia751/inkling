@@ -6,14 +6,14 @@ import base64
 import hashlib
 import json
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 from studio_signing import oci
 
 from ..context import RequestContext, get_context
 from ..db import get_session
 from ..kernel import audit
-from ..plugins import artifacts, catalog, installer, policy, store
+from ..plugins import artifacts, catalog, distribution, installer, policy, store
 
 router = APIRouter(prefix="/api/v1")
 
@@ -85,6 +85,51 @@ async def build_artifact(
     if not dryRun:
         audit.record(db, ctx, "plugins.artifact", target=f"{out['pluginId']}@{out['version']}", after={k: out.get(k) for k in ("artifactDigest", "manifestDigest", "ok", "errors", "registered")})
     return out
+
+
+# ---- Distribution and promotion (todo10 Phase 8) -------------------------------------------
+
+
+@router.post("/plugins/import")
+async def import_artifacts(request: Request, tier: str = "generated", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """A tar of an OCI image layout (`oras copy --to-oci-layout`, or GET …/export) → verified,
+    stored and registered in this workspace at `tier`. A person's action: `plugins.approve`."""
+    _need(ctx, "plugins.approve")
+    data = await request.body()
+    return {"imported": distribution.import_tar(db, ctx, data, tier=tier)}
+
+
+@router.get("/plugins/promotions")
+def list_promotions(state: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    _need(ctx, "plugins.read")
+    return {"promotions": distribution.promotions(db, ctx, state)}
+
+
+@router.post("/plugins/promotions/{promotion_id}/review")
+def review_promotion(promotion_id: int, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """Approve or reject (`{"decision": "approve" | "reject", "reason"}`); a second person only."""
+    _need(ctx, "plugins.approve")
+    decision = str(body.get("decision") or "")
+    if decision not in ("approve", "reject"):
+        raise HTTPException(422, "decision must be approve or reject")
+    return distribution.promotion_dict(distribution.review_promotion(db, ctx, promotion_id, decision == "approve", str(body.get("reason") or "")))
+
+
+@router.get("/plugins/{plugin_id}/export")
+def export_artifact(plugin_id: str, version: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The stored artifact as a tar of an OCI image layout (manifest tagged `<version>`, plus
+    its signature and attestation referrers), ready for `oras copy -r --from-oci-layout`."""
+    _need(ctx, "plugins.approve")
+    data, info = distribution.export_tar(db, ctx, plugin_id, version)
+    return Response(data, media_type="application/x-tar", headers={"Content-Disposition": f'attachment; filename="{info["pluginId"]}-{info["version"]}.oci.tar"', "X-Manifest-Digest": info["manifestDigest"]})
+
+
+@router.post("/plugins/{plugin_id}/promotions")
+def request_promotion(plugin_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """Ask for the next tier (generated → organisation → curated). Anyone who manages plugins
+    may ask, the agent included; only a second person approves."""
+    _need(ctx, "plugins.manage")
+    return distribution.promotion_dict(distribution.request_promotion(db, ctx, plugin_id, str(body["version"]), str(body.get("reason") or "")))
 
 
 @router.get("/plugins/{plugin_id}/docs")

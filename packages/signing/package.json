@@ -1,0 +1,10 @@
+{
+  "name": "@studio/signing",
+  "private": true,
+  "description": "The Signer interface (sign/verify a sha256 digest, key_id) with a local Ed25519 dev key and a Cloud KMS implementation (uv workspace member)",
+  "scripts": {
+    "test": "uv run --package studio-signing pytest -q",
+    "lint": "uv run ruff check .",
+    "typecheck": "uv run pyright src"
+  }
+}

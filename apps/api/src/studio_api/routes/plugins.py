@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
+from studio_signing import oci
 
 from ..context import RequestContext, get_context
 from ..db import get_session
 from ..kernel import audit
-from ..plugins import artifacts, catalog, installer, policy
+from ..plugins import artifacts, catalog, installer, policy, store
 
 router = APIRouter(prefix="/api/v1")
 
@@ -36,58 +39,106 @@ def _ws(ctx: RequestContext, workspace_id: str, scope: str = "plugins.manage") -
     return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
 
 
-def _visible(ctx: RequestContext, plugin_id: str, version: str | None = None) -> catalog.Entry:
-    e = catalog.get(plugin_id, version)
-    if e is None or not e.visible_to(ctx.workspace_id):
+def _visible(ctx: RequestContext, db: Session, plugin_id: str, version: str | None = None) -> catalog.Entry:
+    e = catalog.get(plugin_id, version, db)
+    if e is None or not catalog.visible(db, e, ctx.workspace_id):
         raise HTTPException(404, f"{plugin_id} is not in the registry")
     return e
 
 
+def _files(ctx: RequestContext, e: catalog.Entry, where: str) -> dict[str, bytes]:
+    """The package, verified on this load; a refusal is audited and answered 409 with the reason."""
+    try:
+        return catalog.load_files(e)
+    except oci.ArtifactRefused as x:
+        store.audit_refusal(ctx, f"{e.id}@{e.version}", str(x), where=where, manifest_digest=e.manifest_digest)
+        raise HTTPException(409, {"message": f"{e.id}@{e.version} was refused: it failed verification", "reason": str(x)}) from x
+
+
 @router.get("/plugins")
-def search(q: str | None = None, capability: str | None = None, mediaType: str | None = None, ctx: RequestContext = Depends(get_context)):
+def search(q: str | None = None, capability: str | None = None, mediaType: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     _need(ctx, "plugins.read")
-    return {"plugins": catalog.search(q, capability, mediaType, workspace_id=ctx.workspace_id)}
+    return {"plugins": catalog.search(q, capability, mediaType, workspace_id=ctx.workspace_id, db=db)}
 
 
 @router.post("/plugins/artifacts")
-async def build_artifact(request: Request, base: str | None = None, dryRun: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    """A tarball of a plugin package → checks, and unless `dryRun`, a signed `generated` registry entry (§9)."""
+async def build_artifact(
+    request: Request,
+    base: str | None = None,
+    dryRun: bool = False,
+    runId: str | None = None,
+    promptHash: str | None = None,
+    model: str | None = None,
+    sampleDigests: str | None = None,
+    ctx: RequestContext = Depends(get_context),
+    db: Session = Depends(get_session),
+):
+    """A tarball of a plugin package → checks, and unless `dryRun`, a signed, content-addressed
+    `generated` registry entry with a provenance attestation (§9; todo10 Phase 3). `runId`,
+    `promptHash`, `model` and `sampleDigests` go into the attestation."""
     _need(ctx, "plugins.author")
     data = await request.body()
     if len(data) > MAX_ARTIFACT_BYTES:
         raise HTTPException(413, "artifact too large")
-    out = artifacts.build(data, ctx, base=base, dry_run=dryRun)
+    claims = artifacts.provenance(runId, promptHash, model, sampleDigests)
+    out = artifacts.build(data, ctx, db, base=base, dry_run=dryRun, claims=claims)
     if not dryRun:
-        audit.record(db, ctx, "plugins.artifact", target=f"{out['pluginId']}@{out['version']}", after={k: out.get(k) for k in ("artifactDigest", "ok", "errors", "registered")})
+        audit.record(db, ctx, "plugins.artifact", target=f"{out['pluginId']}@{out['version']}", after={k: out.get(k) for k in ("artifactDigest", "manifestDigest", "ok", "errors", "registered")})
     return out
 
 
 @router.get("/plugins/{plugin_id}/docs")
-def docs(plugin_id: str, version: str | None = None, ctx: RequestContext = Depends(get_context)):
+def docs(plugin_id: str, version: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """README and skills, fetched lazily by agents (§8.2). Plugin-authored text: callers treat it as untrusted."""
     _need(ctx, "plugins.read")
-    e = _visible(ctx, plugin_id, version)
-    d = catalog.package_dir(e)
+    e = _visible(ctx, db, plugin_id, version)
+    files = _files(ctx, e, "docs")
     out: dict = {"id": e.id, "version": e.version, "trustTier": e.trust_tier, "readme": None, "skills": []}
-    if d and d.is_dir():
-        if (d / "README.md").is_file():
-            out["readme"] = (d / "README.md").read_text(errors="replace")[:DOC_CHARS]
-        for f in sorted((d / "skills").glob("*/SKILL.md")) if (d / "skills").is_dir() else []:
-            out["skills"].append({"name": f.parent.name, "content": f.read_text(errors="replace")[:DOC_CHARS]})
+    if "README.md" in files:
+        out["readme"] = files["README.md"].decode(errors="replace")[:DOC_CHARS]
+    for rel in sorted(files):
+        parts = rel.split("/")
+        if len(parts) == 3 and parts[0] == "skills" and parts[2] == "SKILL.md":
+            out["skills"].append({"name": parts[1], "content": files[rel].decode(errors="replace")[:DOC_CHARS]})
     return out
 
 
-@router.get("/plugins/{plugin_id}")
-def inspect(plugin_id: str, version: str | None = None, ctx: RequestContext = Depends(get_context)):
+@router.get("/plugins/{plugin_id}/files")
+def package_files(plugin_id: str, version: str | None = None, include: str = "plugin.yaml", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """Fetch-and-hash for the browser (todo10 Phase 3): the sha256 of every file in the package
+    and the bytes of the `include`d ones (comma-separated paths; the manifest's
+    `ui.contributions` is always included). The browser hashes the bytes,
+    checks them against `hashes`, and recomputes the tree digest from `hashes`; it must equal
+    the digest the workspace pinned. Verified here too, on this load."""
     _need(ctx, "plugins.read")
-    e = _visible(ctx, plugin_id, version)
-    out = {**e.summary(), "versions": [v.version for v in catalog.versions(plugin_id)], "manifest": e.manifest}
+    e = _visible(ctx, db, plugin_id, version)
+    files = _files(ctx, e, "files")
+    wanted = [p for p in include.split(",") if p][:16]
+    if rel := (e.manifest.get("ui") or {}).get("contributions"):
+        wanted.append(str(rel))
+    return {
+        "id": e.id,
+        "version": e.version,
+        "artifactDigest": e.artifact_digest,
+        "manifestDigest": e.manifest_digest,
+        "signer": e.signer_id,
+        "hashes": {rel: hashlib.sha256(b).hexdigest() for rel, b in files.items()},
+        "files": {p: base64.b64encode(files[p]).decode() for p in wanted if p in files},
+    }
+
+
+@router.get("/plugins/{plugin_id}")
+def inspect(plugin_id: str, version: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    _need(ctx, "plugins.read")
+    e = _visible(ctx, db, plugin_id, version)
+    out = {**e.summary(), "versions": [v.version for v in catalog.versions(plugin_id, db)], "manifest": e.manifest}
     # Declarative UI (ui/contributions.json) travels as data: the web registers it at runtime,
-    # so activating a plugin needs no web deploy.
+    # so activating a plugin needs no web deploy. The bytes are verified on every load.
     rel = (e.manifest.get("ui") or {}).get("contributions")
-    d = catalog.package_dir(e)
-    if rel and d and (d / rel).is_file():
-        out["contributions"] = json.loads((d / rel).read_text())
+    if rel:
+        files = _files(ctx, e, "inspect")
+        if rel in files:
+            out["contributions"] = json.loads(files[rel])
     return out
 
 
@@ -98,8 +149,18 @@ def installed(workspace_id: str, ctx: RequestContext = Depends(get_context), db:
     out = []
     for p in state["plugins"]:
         m = installer.manifest_of(db, p["pluginId"], p["version"])
-        out.append({**p, "name": m.get("name"), "permissions": policy.report(db, c.workspace_id, p["pluginId"], p["version"], m), "config": installer.current_config(db, c.workspace_id, p["pluginId"]), "versions": [v.version for v in catalog.versions(p["pluginId"])]})
+        out.append({**p, "name": m.get("name"), "permissions": policy.report(db, c.workspace_id, p["pluginId"], p["version"], m), "config": installer.current_config(db, c.workspace_id, p["pluginId"]), "versions": [v.version for v in catalog.versions(p["pluginId"], db)]})
     return {"plugins": out, "history": installer.history(db, c)}
+
+
+@router.post("/workspaces/{workspace_id}/plugins/load-refused")
+def load_refused(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The browser refused a plugin's bytes (fetch-and-hash mismatch): record it in the audit log."""
+    c = _ws(ctx, workspace_id, "plugins.read")
+    pid, version = str(body.get("pluginId") or "")[:256], str(body.get("version") or "")[:64]
+    reason = str(body.get("reason") or "")[:300]
+    audit.record(db, c, "plugins.artifact.refused", target=f"{pid}@{version}", after={"reason": reason, "where": "browser", "expected": str(body.get("expected") or "")[:80], "got": str(body.get("got") or "")[:80]})
+    return {"recorded": True}
 
 
 @router.get("/workspaces/{workspace_id}/capabilities")

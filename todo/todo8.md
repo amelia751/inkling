@@ -45,6 +45,8 @@ Deviations and leftovers:
 - **D8** the ECG renderer still prints its own "Source Dx" line for event-marking tasks (a renderer
   feature, not the status bar); D8 only hides source labels for classification.
 - §8's "Not now" items are in `todo/BACKLOG.md` (Studio, todo8).
+- `pnpm typecheck` fails only in `@studio/api` (pyright, 11 errors in todo7's `kernel/fs.py`,
+  `kernel/overview.py`, `routes/worker.py`); none is in todo8 code.
 
 ---
 

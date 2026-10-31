@@ -218,7 +218,7 @@ def t_project_assistant(browser, port):
         steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
         check("sources: answered from list_sources", any(s.startswith("Listed sources") and "20 files" in s for s in steps), str(steps))
         loc = page.get_by_test_id("agent-location").get_by_role("button")
-        check("open_location: a button, the agent didn't navigate", "Open Data › 2d-xray" in loc.inner_text() and "/sources" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
+        check("open_location: a button, the agent didn't navigate", "Open Data › 2d-xray" in loc.inner_text() and "/files" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
         page.get_by_role("navigation", name="Project").get_by_role("link", name="Overview").click()
         page.wait_for_url("**/overview", timeout=10000)
         page.get_by_text("You imported one source with 20 images").wait_for(timeout=10000)

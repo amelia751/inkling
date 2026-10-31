@@ -16,6 +16,14 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *   GET  /api/v1/sources/:id/children?node=&cursor=
  *   GET  /api/v1/source-nodes/:id[/preview]
  *   GET  /api/v1/tasks/:id[/document]
+ *   todo7 (docs/files-api.md "Seed stand-in", D12): the drive, read-only —
+ *   GET  /api/v1/projects/:id/fs                      → { rootNodeId, writable: false, trashCount: 0 }
+ *   GET  /api/v1/projects/:id/fs/children?node=&cursor=&limit=&sort=&dir= → a synthetic "Files" root whose
+ *                                                       child is the sample's folder; below it, like /sources children
+ *   GET  /api/v1/projects/:id/fs/history              → { undo: null, redo: null }
+ *   GET  /api/v1/projects/:id/{trash,starred,recent}  → empty
+ *   GET  /api/v1/source-nodes/:id/{versions,activity,download}
+ *   Every write (fs/ops, undo, star, zip, versions…) answers 501, like the rest.
  */
 interface SeedAsset {
   path: string;
@@ -213,6 +221,9 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       status: "ready",
       importSessionId: null,
       createdAt: createdAt(),
+      // todo7: sample data is locked (D2); files are as uploaded (version 1).
+      locked: true,
+      ...(n.isDir ? {} : { version: 1 }),
     };
   }
 
@@ -240,7 +251,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     return count >= MIN_SEQUENCE ? runId(n.parentId, n.sequenceKey) : null;
   };
 
-  function children(parent: string, cursor: number) {
+  function children(parent: string, cursor: number, size = PAGE) {
     const { nodes } = load();
     let items: unknown[];
     if (parent.startsWith("seq:")) {
@@ -266,8 +277,47 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         } else items.push(nodeDict(n));
       }
     }
-    const page = items.slice(cursor, cursor + PAGE);
-    return { items: page, total: items.length, nextCursor: cursor + PAGE < items.length ? String(cursor + PAGE) : null };
+    const page = items.slice(cursor, cursor + size);
+    return { items: page, total: items.length, nextCursor: cursor + size < items.length ? String(cursor + size) : null };
+  }
+
+  // ---- The drive (todo7 D1 / D12): one synthetic "Files" root per project over its sample folder.
+  const driveRoot = (projectId: string) => "nod-" + crypto.createHash("sha256").update(`${projectId}\x1fdrive`).digest("hex").slice(0, 20);
+  const isDriveRoot = (id: string) => load().projects.some((p) => driveRoot(p.id) === id);
+
+  type Row = ReturnType<typeof nodeDict> & { kind: string; childCount: number; size: number | null };
+  function sortRows(items: Row[], by: string, dir: string): Row[] {
+    const sign = dir === "desc" ? -1 : 1;
+    const key = (r: Row): number | string => (by === "size" ? (r.size ?? -1) : by === "kind" ? String(r.detectedKind ?? "") : by === "added" ? String(r.createdAt ?? "") : "");
+    // Folders first always; then the key; then the name (natural).
+    return items
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => {
+        const fa = a.r.kind === "folder" ? 0 : 1;
+        const fb = b.r.kind === "folder" ? 0 : 1;
+        if (fa !== fb) return fa - fb;
+        const ka = key(a.r);
+        const kb = key(b.r);
+        if (ka !== kb) return sign * (typeof ka === "number" && typeof kb === "number" ? ka - kb : String(ka) < String(kb) ? -1 : 1);
+        return sign * (collator.compare(a.r.name, b.r.name) || a.i - b.i);
+      })
+      .map((x) => x.r);
+  }
+
+  function fsChildren(p: SeedProject, node: string, cursor: number, limit: number, by: string, dir: string) {
+    const { nodes, roots } = load();
+    const root = driveRoot(p.id);
+    let items: Row[];
+    if (node === root) {
+      const [deepest, display] = compact(nodes.get(roots.get(p.id)!)!);
+      items = [{ ...nodeDict(deepest, display), parentId: deepest.parentId ?? root } as Row];
+    } else {
+      items = children(node, 0, Number.MAX_SAFE_INTEGER).items as Row[];
+      items = items.map((r) => (r.parentId === null ? { ...r, parentId: root } : r));
+    }
+    if (by !== "name" || dir !== "asc") items = sortRows(items, by, dir);
+    const page = items.slice(cursor, cursor + limit);
+    return { items: page, total: items.length, nextCursor: cursor + limit < items.length ? String(cursor + limit) : null };
   }
 
   function ancestors(n: Node) {
@@ -358,6 +408,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         const root = load().roots.get(p.id)!;
         return send(200, { sources: [{ id: p.id, projectId: p.id, title: nodes.get(root)!.name, kind: "seed", status: "ready", rootNodeId: root, fileCount: nodes.get(root)!.descendants, createdBy: SEED_PRINCIPAL, createdAt: createdAt(), usedInDatasets: [p.id] }] });
       }
+      if (sub === "datasets" && subId === p.id && subSub === "update-versions" && parts[5] === "preview") return send(200, { files: [] });
       if (sub === "datasets") {
         if (!subId) return send(200, { datasets: [dataset(p)] });
         if (subId !== p.id) return notFound();
@@ -386,6 +437,26 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         const entries = url.searchParams.get("cursor") ? [] : [{ id: `seed:${p.id}`, action: "project.created", label: "added the sample", actor: SEED_PRINCIPAL, onBehalfOf: null, who: { kind: "system", name: "Sample data", onBehalfOf: null }, target: p.id, subject: p.title, details: {}, at, link: { section: "sources" } }];
         return send(200, { entries, nextCursor: null });
       }
+      if (sub === "fs") {
+        // todo7 D12: the drive, read-only (writes fall through to the 501 above).
+        if (!subId) return send(200, { projectId: p.id, rootNodeId: driveRoot(p.id), writable: false, trashCount: 0 });
+        if (subId === "children") {
+          const node = url.searchParams.get("node") || driveRoot(p.id);
+          if (node !== driveRoot(p.id) && !node.startsWith("seq:") && nodes.get(node)?.sourceId !== p.id) return send(404, { detail: "no such folder in this project" });
+          const limit = Math.max(1, Math.min(PAGE, Number(url.searchParams.get("limit") ?? PAGE) || PAGE));
+          const by = url.searchParams.get("sort") ?? "name";
+          const dir = url.searchParams.get("dir") ?? "asc";
+          return send(200, fsChildren(p, node, Number(url.searchParams.get("cursor") ?? 0) || 0, limit, by, dir));
+        }
+        if (subId === "history") return send(200, { undo: null, redo: null });
+        return notFound();
+      }
+      if (sub === "trash") {
+        if (subId === "empty" && subSub === "preview") return send(200, { purged: 0, keptBytes: [] });
+        return subId ? notFound() : send(200, { items: [], nextCursor: null, total: 0 });
+      }
+      // Stars fall back to localStorage in the UI (docs/files-api.md); recent needs the journal.
+      if (sub === "starred" || sub === "recent") return send(200, { items: [] });
       if (sub === "resume") return send(200, { resume: readResume(p.id) });
       if (sub === "events") {
         // No live updates without the kernel: an idle stream the browser can keep open.
@@ -405,6 +476,14 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       if (!node.startsWith("seq:") && nodes.get(node)?.sourceId !== p.id) return send(404, { detail: "no such folder in this source" });
       return send(200, children(node, Number(url.searchParams.get("cursor") ?? 0) || 0));
     }
+    if (head === "source-nodes" && id && isDriveRoot(id)) {
+      const p = load().projects.find((x) => driveRoot(x.id) === id)!;
+      if (sub === "versions") return send(200, { versions: [] });
+      if (sub === "activity") return send(200, { items: [] });
+      if (sub) return notFound();
+      const files = nodes.get(load().roots.get(p.id)!)!.descendants;
+      return send(200, { id, sourceId: p.id, parentId: null, name: "Files", kind: "folder", detectedKind: "folder", size: null, sha256: null, childCount: 1, descendantCount: files, facts: {}, flags: {}, status: "ready", importSessionId: null, createdAt: createdAt(), locked: true, path: [], usedIn: [], runId: null, pathText: "", provenance: { sourceId: p.id, sourceTitle: null, importSessionId: null, addedBy: SEED_PRINCIPAL, addedAt: createdAt(), sha256: null } });
+    }
     if (head === "source-nodes" && id) {
       const n = nodes.get(id);
       if (!n) return send(404, { detail: "no such file or folder" });
@@ -413,6 +492,14 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         const out: Record<string, unknown> = { nodeId: n.id, kind: n.isDir ? "folder" : n.detectedKind, facts: n.facts };
         if (n.assetPath && (n.detectedKind === "image" || n.detectedKind === "mask")) out.url = `/seed/${n.assetPath}`;
         return send(200, out);
+      }
+      if (sub === "versions") return send(200, { versions: n.isDir ? [] : [{ version: 1, assetId: n.assetPath ?? n.id, sha256: n.sha256, size: n.size, createdBy: SEED_PRINCIPAL, createdAt: createdAt(), current: true }] });
+      if (sub === "activity") return send(200, { items: [] });
+      if (sub === "download") {
+        if (n.isDir || !n.assetPath) return send(501, { error: "needs the API", detail: "Downloading folders needs the full stack: see docs/running.md" });
+        res.statusCode = 302;
+        res.setHeader("Location", `/seed/${n.assetPath.split("/").map(encodeURIComponent).join("/")}`);
+        return res.end();
       }
       const tasks = [{ id: p.id, title: p.title }];
       return send(200, { ...nodeDict(n), path: ancestors(n).map((a) => ({ id: a.id, name: a.name })), usedIn: [{ id: p.id, title: p.title, tasks }], runId: runOf(n), provenance: { sourceId: p.id, sourceTitle: nodes.get(load().roots.get(p.id)!)!.name, importSessionId: null, addedBy: SEED_PRINCIPAL, addedAt: createdAt(), sha256: n.sha256 } });

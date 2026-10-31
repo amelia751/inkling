@@ -55,8 +55,8 @@ def main() -> int:
         for label in SECTIONS:
             check(f"sidebar has {label}", nav.get_by_role("link", name=label, exact=True).count() == 1)
         nav.get_by_role("link", name="Data", exact=True).click()
-        page.wait_for_url("**/projects/2d-xray/sources")
-        check("sidebar navigates", page.url.endswith("/sources"))
+        page.wait_for_url("**/projects/2d-xray/files")
+        check("sidebar navigates", page.url.endswith("/files"))
         # The URL changes before the router's transition renders the new page: wait for it.
         crumb = page.locator("[data-testid=breadcrumb] [aria-current=page]", has_text="Data")
         crumb.wait_for(timeout=5000)
@@ -83,14 +83,14 @@ def main() -> int:
         page.keyboard.press("Escape")
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switch-project-ecg-waveform]").click()
-        page.wait_for_url("**/projects/ecg-waveform/sources")
-        check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/sources"))
+        page.wait_for_url("**/projects/ecg-waveform/files")
+        check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/files"))
         # Create project from anywhere: the switcher's "New project" opens it as a dialog.
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switcher-new-project]").click()
         dialog = page.locator("[data-testid=new-project-dialog]")
         dialog.wait_for(timeout=5000)
-        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/sources"))
+        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/files"))
         dialog.get_by_role("button", name="Cancel").click()
         dialog.wait_for(state="detached", timeout=5000)
 

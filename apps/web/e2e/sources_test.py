@@ -45,7 +45,9 @@ def main() -> int:
         tree.wait_for(timeout=15000)
         page.wait_for_selector("[data-testid=listing-row]", timeout=15000)
         rows = page.locator("[data-testid=listing-row]")
-        check("one source opens its root folder (URL unchanged)", page.url.endswith("/sources") and page.locator("[data-testid=path-current]").inner_text() == "ecg-waveform", page.url)
+        # todo7 D11: /sources redirects to /files (same node and query).
+        page.wait_for_url(re.compile(r"/projects/ecg-waveform/files$"), timeout=10000)
+        check("one source opens its root folder (URL redirected to /files only)", page.url.endswith("/files") and page.locator("[data-testid=path-current]").inner_text() == "ecg-waveform", page.url)
         check("run collapses into one listing row", rows.count() == 1 and SEQ in rows.first.inner_text(), rows.first.inner_text())
         check("run row says how many files", "· 10" in rows.first.inner_text())
         page.wait_for_selector(f"[role=treeitem]:has-text('{SEQ}')", timeout=10000)
@@ -54,7 +56,7 @@ def main() -> int:
 
         # Keyboard in the tree: arrows, then Enter (openItem) opens the run in the listing.
         page.locator("[role=treeitem]").filter(has_text=SEQ).click()
-        page.wait_for_url(re.compile(r"/sources/seq%3A|/sources/seq:"), timeout=10000)
+        page.wait_for_url(re.compile(r"/files/seq%3A|/files/seq:"), timeout=10000)
         page.wait_for_function("document.querySelectorAll('[data-testid=listing-row]').length === 10", timeout=10000)
         check("opening the run lists its 10 files", rows.count() == 10)
         check("natural order in the run", rows.nth(0).locator("[data-testid=row-name]").inner_text() == "HR00001.json" and rows.nth(9).locator("[data-testid=row-name]").inner_text() == "HR00010.json")
@@ -151,6 +153,7 @@ def main() -> int:
         page.goto(f"{base}/projects/2d-xray/sources/{node}")
         page.wait_for_selector("[role=treeitem][aria-selected=true]:has-text('IM-0010-0001.jpeg')", timeout=15000)
         check("a deep link reveals the file in the tree", True)
+        check("an old /sources deep link lands on /files with the same node", page.url.endswith(f"/projects/2d-xray/files/{node}"), page.url)
         check("the file is selected in the listing", page.locator("[data-testid=inspector] h2").inner_text() == "IM-0010-0001.jpeg")
 
         # A file inside a numbered run: the run is listed and the file selected.

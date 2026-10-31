@@ -38,6 +38,7 @@ __all__ = [
     "DIGEST_RE",
     "GcpKmsSigner",
     "LocalSigner",
+    "PublicKeyVerifier",
     "Signer",
     "SignerError",
     "check_envelope",
@@ -231,6 +232,49 @@ class GcpKmsSigner:
     def public_key_pem(self) -> str:
         self._public_key()
         assert self._pem is not None
+        return self._pem
+
+
+# ---- verifying with a public key only ------------------------------------------------------
+
+
+class PublicKeyVerifier:
+    """Verifies another installation's signatures (imports, Phase 8). It can't sign."""
+
+    kind = "public-key"
+
+    def __init__(self, key_id: str, pem: str):
+        key = serialization.load_pem_public_key(pem.encode())
+        if isinstance(key, Ed25519PublicKey):
+            self.alg = "ed25519"
+        elif isinstance(key, ec.EllipticCurvePublicKey) and key.curve.name == "secp256r1":
+            self.alg = "ecdsa-p256-sha256"
+        else:
+            raise SignerError(f"{key_id}: only Ed25519 and P-256 public keys are supported")
+        self._pub, self._pem, self._key_id = key, pem, key_id
+
+    @property
+    def key_id(self) -> str:
+        return self._key_id
+
+    def sign(self, digest: str) -> str:
+        raise SignerError("a public-key verifier can't sign")
+
+    def verify(self, digest: str, signature: str) -> bool:
+        sig = _b64decode(signature)
+        if sig is None:
+            return False
+        try:
+            if isinstance(self._pub, Ed25519PublicKey):
+                self._pub.verify(sig, digest_bytes(digest))
+            else:
+                assert isinstance(self._pub, ec.EllipticCurvePublicKey)
+                self._pub.verify(sig, digest_bytes(digest), ec.ECDSA(utils.Prehashed(hashes.SHA256())))
+        except (InvalidSignature, SignerError, ValueError):
+            return False
+        return True
+
+    def public_key_pem(self) -> str:
         return self._pem
 
 

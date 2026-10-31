@@ -44,3 +44,21 @@ variable "restricted_services" {
     "aiplatform.googleapis.com",
   ]
 }
+
+variable "admin_identities" {
+  description = "Identities admitted through the perimeter from anywhere (operators, Terraform). Add people as -var, never in a committed file."
+  type        = list(string)
+  default     = ["serviceAccount:terraform@spurby-phi.iam.gserviceaccount.com"]
+}
+
+variable "release_egress" {
+  description = "Allow the release identity to create objects in spurby-data. Turn on after infra/terraform/phi has created it."
+  type        = bool
+  default     = false
+}
+
+variable "release_service_account" {
+  description = "account_id of the release service account in the PHI project (infra/terraform/phi/iam.tf)."
+  type        = string
+  default     = "studio-release"
+}

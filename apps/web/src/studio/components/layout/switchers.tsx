@@ -69,7 +69,9 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
   const section = (/^\/projects\/[^/]+\/([^/]+)/.exec(pathname)?.[1] ?? "overview") as ProjectSection;
 
   return (
-    <DropdownMenu>
+    // Keyed by project: switching mounts a fresh menu, so the old one's closing animation (whose
+    // dismiss layer is still live) can't swallow the next click on the trigger and close it again.
+    <DropdownMenu key={projectId}>
       <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[min(280px,40vw)]", className)} aria-label={`Project: ${title}. Switch project`} data-testid="project-switcher">
         <span className="truncate">{title}</span>
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />

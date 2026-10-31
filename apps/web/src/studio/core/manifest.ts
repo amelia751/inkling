@@ -50,6 +50,7 @@ const commands: CommandContribution[] = [
   { id: "clearSelection", keys: ["Escape"], label: "Clear selection", group: "Data", when: FILES, description: "Deselect every file and folder" },
   { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Data", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
   { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
+  { id: "contextMenu", keys: ["shift+F10", "ContextMenu"], label: "Open the context menu", group: "Data", when: FILES, description: "Open the menu of the focused file or folder, as a right-click does" },
   { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 

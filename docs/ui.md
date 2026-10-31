@@ -184,7 +184,7 @@ What's where today:
 apps/web/src/studio/
 ├── app/
 │   ├── AppShell.tsx              # routes (ux.md §11), legacy /datasets/… redirects
-│   └── routes/                   # HomePage, ProjectsPage, ProjectOverviewPage, SourcesPage,
+│   └── routes/                   # HomePage, ProjectsPage, ProjectOverviewPage, FilesPage,
 │                                 # ExplorePage, DatasetsPage, DatasetStudioPage, ProjectReviewPage,
 │                                 # ReviewPage, ActivityPage, ProjectSettingsPage, ExportPage, PluginsPage
 ├── components/

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { SourceNode } from "@studio/contracts/types";
-import { ArrowUpIcon, ChevronRightIcon, FolderIcon, HistoryIcon, LockIcon } from "@studio/ui/icons";
+import { ArrowUpIcon, ChevronRightIcon, FolderIcon, HistoryIcon, LockIcon, NewFolderIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
 import { Input } from "@studio/ui/ui/input";
@@ -281,8 +281,7 @@ export function MoveDialog(props: MoveDialogProps) {
           )}
           {onNewFolder && (
             <ReasonButton variant="ghost-secondary" reason={newFolderDisabledReason ?? (here.locked ? LOCKED_TARGET : null)} onClick={() => setCreating(true)} data-testid="move-dialog-new-folder">
-              {/* TODO(todo7-integration): swap to <NewFolderIcon> */}
-              <FolderIcon /> New folder
+              <NewFolderIcon /> New folder
             </ReasonButton>
           )}
           <div className="ml-auto flex gap-2">

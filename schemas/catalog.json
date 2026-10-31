@@ -2635,6 +2635,29 @@
       }
     },
     {
+      "id": "inkling.core.commands.contextMenu",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Open the menu of the focused file or folder, as a right-click does",
+      "label": "Open the context menu",
+      "when": "section == files",
+      "keys": [
+        "shift+F10",
+        "ContextMenu"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.contextMenu",
+            "keys": [
+              "shift+F10",
+              "ContextMenu"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.commands.toggleSidePanel",
       "type": "commands",
       "module": "inkling.core",

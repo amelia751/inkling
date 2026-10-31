@@ -52,6 +52,8 @@ export interface FileTreeNode {
   drop?: { id: string; label: string }
   /** The name the rename field starts with (default: `name`; a compact chain's last segment). */
   editName?: string
+  /** A new row not saved yet ("Untitled folder"): Enter or blur commits even an unchanged name. */
+  draft?: boolean
 }
 
 export interface FileTreeHandle {
@@ -201,6 +203,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const dragging = React.useRef<string[] | null>(null)
   const pointerInside = React.useRef(true)
   const [inside, setInside] = React.useState(true)
+  const syncing = React.useRef(false)
   // Recursive expands still waiting for children to load: root id → row cap.
   const recursive = React.useRef(new Map<string, number>())
 
@@ -297,7 +300,13 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     const now = t.selectedIds
     if (now.size === selectedIds.length && selectedIds.every((id) => now.has(id))) return
     const ids = selectedIds.filter((id) => t.get(id))
-    t.setSelection({ ids, anchor: ids[0] ?? null, mostRecent: ids[ids.length - 1] ?? null })
+    // arborist reports `setSelection` through onSelect; this is the caller's own value, not a change.
+    syncing.current = true
+    try {
+      t.setSelection({ ids, anchor: ids[0] ?? null, mostRecent: ids[ids.length - 1] ?? null })
+    } finally {
+      syncing.current = false
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedKey, size.height > 0])
 
@@ -439,13 +448,13 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
           onRename={({ id, name }) => {
             const n = tree.current?.get(id)
             const trimmed = name.trim()
-            if (!n || !trimmed || trimmed === (n.data.editName ?? n.data.name)) return onRenameCancel?.(id)
+            if (!n || !trimmed || (trimmed === (n.data.editName ?? n.data.name) && !n.data.draft)) return onRenameCancel?.(id)
             return onRename?.(id, trimmed)
           }}
           renderDragPreview={Preview}
           searchTerm={searchTerm?.trim() || undefined}
           searchMatch={(node: NodeApi<FileTreeNode>, term: string) => (searchMatch ?? treeSearchMatch)(node.data, term)}
-          onSelect={(nodes: NodeApi<FileTreeNode>[]) => onSelect?.(nodes.filter((n) => !n.data.placeholder).map((n) => n.id))}
+          onSelect={(nodes: NodeApi<FileTreeNode>[]) => !syncing.current && onSelect?.(nodes.filter((n) => !n.data.placeholder).map((n) => n.id))}
           onActivate={(node: NodeApi<FileTreeNode>) => {
             if (node.data.placeholder === "more") return node.data.onMore?.()
             if (!node.data.placeholder) onActivate?.(node.id)
@@ -633,7 +642,7 @@ function RenameInput({ node, validate, onCancel }: { node: NodeApi<FileTreeNode>
   const save = () => {
     if (done.current) return
     const v = value.trim()
-    if (!v || v === initial || error) return cancel()
+    if (!v || (v === initial && !node.data.draft) || error) return cancel()
     done.current = true
     node.submit(v)
   }

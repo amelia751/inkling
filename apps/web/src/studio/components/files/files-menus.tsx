@@ -1,19 +1,27 @@
 import type { ComponentType, ReactNode } from "react";
 import {
+  AnnotateIcon,
   CopyIcon,
-  DeleteIcon,
+  CutIcon,
+  DownloadIcon,
   ExploreIcon,
-  ExportIcon,
   FolderIcon,
-  HistoryIcon,
+  MoveIcon,
+  NewFolderIcon,
+  PasteIcon,
   QuickLookIcon,
-  CorrectedIcon,
-  ArrowRightIcon,
+  RedoIcon,
+  RenameIcon,
+  RestoreIcon,
+  StarFillIcon,
+  StarIcon,
+  TrashIcon,
   UndoIcon,
   UploadIcon,
-  AnnotateIcon,
+  VersionsIcon,
   type IconComponent,
 } from "@studio/ui/icons";
+import { ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut } from "@studio/ui/ui/context-menu";
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut } from "@studio/ui/ui/dropdown-menu";
 import { shortcutLabel } from "@studio/ui/shortcuts";
 import { cn } from "@studio/ui/utils";
@@ -54,7 +62,9 @@ export type FilesMenuAction =
   | "selectAll"
   | "trash"
   | "restore"
-  | "deleteForever";
+  | "deleteForever"
+  | "undo"
+  | "redo";
 
 export interface MenuEntry {
   id: FilesMenuAction;
@@ -111,26 +121,26 @@ export const FILES_COMMANDS = {
   trash: "moveToTrash",
 } as const;
 
-// TODO(todo7-integration): swap the stand-in icons below to the new exports
-// (NewFolderIcon, RenameIcon, MoveIcon, CutIcon, PasteIcon, StarIcon/StarFillIcon, DownloadIcon,
-// VersionsIcon, RestoreIcon) once packages/ui lands them.
 const ICONS = {
   open: FolderIcon,
   quickLook: QuickLookIcon,
   openInStudio: AnnotateIcon,
-  newFolder: FolderIcon, // TODO(todo7-integration): swap to <NewFolderIcon>
+  newFolder: NewFolderIcon,
   upload: UploadIcon,
-  rename: CorrectedIcon, // same glyph (PencilToLine) as RenameIcon; TODO(todo7-integration): swap to <RenameIcon>
-  moveTo: ArrowRightIcon, // TODO(todo7-integration): swap to <MoveIcon>
+  rename: RenameIcon,
+  moveTo: MoveIcon,
   copy: CopyIcon,
-  cut: undefined as IconComponent | undefined, // TODO(todo7-integration): swap to <CutIcon>
-  paste: undefined as IconComponent | undefined, // TODO(todo7-integration): swap to <PasteIcon>
-  star: undefined as IconComponent | undefined, // TODO(todo7-integration): swap to <StarIcon> / <StarFillIcon>
-  download: ExportIcon, // same glyph (ArrowDownToLine) as DownloadIcon; TODO(todo7-integration): swap to <DownloadIcon>
-  versions: HistoryIcon, // same glyph as VersionsIcon; TODO(todo7-integration): swap to <VersionsIcon>
+  cut: CutIcon,
+  paste: PasteIcon,
+  star: StarIcon,
+  unstar: StarFillIcon,
+  download: DownloadIcon,
+  versions: VersionsIcon,
   explore: ExploreIcon,
-  trash: DeleteIcon,
-  restore: UndoIcon, // same glyph (ArrowUturnCcwLeft) as RestoreIcon; TODO(todo7-integration): swap to <RestoreIcon>
+  trash: TrashIcon,
+  restore: RestoreIcon,
+  undo: UndoIcon,
+  redo: RedoIcon,
 } satisfies Record<string, IconComponent | undefined>;
 
 const items = (s: number) => (s === 1 ? "1 item" : `${s.toLocaleString()} items`);
@@ -152,7 +162,7 @@ export function menuItems(rowType: FilesRowType, ctx: MenuContext = {}): MenuEnt
     group,
   });
   const star = (group: number): MenuEntry =>
-    ctx.starred ? { id: "unstar", label: "Remove from Starred", icon: ICONS.star, group } : { id: "star", label: "Star", icon: ICONS.star, group };
+    ctx.starred ? { id: "unstar", label: "Remove from Starred", icon: ICONS.unstar, group } : { id: "star", label: "Star", icon: ICONS.star, group };
   const trash = (group: number, extra?: string | null): MenuEntry => ({
     id: "trash",
     label: "Move to Trash",
@@ -260,12 +270,27 @@ export interface MenuPrimitives {
   Shortcut: ComponentType<{ className?: string; children?: ReactNode }>;
 }
 
-/** DropdownMenu pieces (the `⋯` buttons). TODO(todo7-integration): add `contextMenuPrimitives` from `@studio/ui/ui/context-menu`. */
+/** DropdownMenu pieces (the `⋯` buttons). */
 export const dropdownMenuPrimitives: MenuPrimitives = {
   Item: DropdownMenuItem,
   Separator: DropdownMenuSeparator,
   Shortcut: DropdownMenuShortcut,
 };
+
+/** Radix ContextMenu pieces (right-click, Shift+F10 / the Menu key). */
+export const contextMenuPrimitives: MenuPrimitives = {
+  Item: ContextMenuItem,
+  Separator: ContextMenuSeparator,
+  Shortcut: ContextMenuShortcut,
+};
+
+/** "Undo: moved 3 items to MRI" / "Redo: …" entries for the end of a menu (the Edit hint, Phase 4). */
+export function editHistoryEntries({ undo, redo }: { undo?: string | null; redo?: string | null }): MenuEntry[] {
+  const out: MenuEntry[] = [];
+  if (undo) out.push({ id: "undo", label: undo, icon: ICONS.undo, command: "undo", group: 9 });
+  if (redo) out.push({ id: "redo", label: redo, icon: ICONS.redo, command: "redo", group: 9 });
+  return out;
+}
 
 export interface FilesMenuItemsProps {
   entries: MenuEntry[];

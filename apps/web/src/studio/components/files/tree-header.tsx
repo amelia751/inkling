@@ -1,5 +1,5 @@
 import type { Ref } from "react";
-import { ChevronUpIcon, CloseIcon, FolderIcon, SearchIcon, SettingsIcon, UploadIcon } from "@studio/ui/icons";
+import { CloseIcon, CollapseAllIcon, NewFolderIcon, SearchIcon, SortIcon, UploadIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
@@ -41,8 +41,7 @@ export function TreeHeader({ label = "Files", sort, onSort, filter, onFilter, on
         <h2 className="min-w-0 flex-1 truncate px-2 text-xs font-semibold uppercase tracking-wide text-hint">{label}</h2>
         {onNewFolder && (
           <ReasonButton variant="ghost-secondary" size="icon-sm" reason={disabled.newFolder} tip="New folder" aria-label="New folder" onClick={onNewFolder} data-testid="tree-new-folder">
-            {/* TODO(todo7-integration): swap to <NewFolderIcon> */}
-            <FolderIcon />
+            <NewFolderIcon />
           </ReasonButton>
         )}
         {onUpload && (
@@ -54,8 +53,7 @@ export function TreeHeader({ label = "Files", sort, onSort, filter, onFilter, on
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost-secondary" size="icon-sm" aria-label="Collapse all folders" onClick={onCollapseAll} data-testid="tree-collapse-all">
-                {/* TODO(todo7-integration): swap to <CollapseAllIcon> */}
-                <ChevronUpIcon />
+                <CollapseAllIcon />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Collapse all folders</TooltipContent>
@@ -66,8 +64,7 @@ export function TreeHeader({ label = "Files", sort, onSort, filter, onFilter, on
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost-secondary" size="icon-sm" aria-label={`Sort by ${TREE_SORT_LABEL[sort]}`} data-testid="tree-sort" data-sort={sort}>
-                  {/* TODO(todo7-integration): swap to a sort icon once packages/ui exports one */}
-                  <SettingsIcon />
+                  <SortIcon />
                 </Button>
               </DropdownMenuTrigger>
             </TooltipTrigger>

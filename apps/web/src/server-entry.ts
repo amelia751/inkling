@@ -13,6 +13,7 @@ import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
 import { WorkspaceState } from "@studio/contracts/workspace";
 import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
+import { PluginsLock } from "@studio/contracts/lockfile";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
@@ -51,6 +52,7 @@ export function patch(spec: EnvironmentSpec, ops: JsonPatchOperation[]): Validat
 }
 
 export { NAMING, envVar } from "@studio/contracts/naming";
+export { contentHash, NULL_CONTENT_HASH } from "@studio/contracts/canonical";
 
 /**
  * JSON Schemas of the shared contracts (todo2 §2.1), the source the Python kernel generates
@@ -65,6 +67,7 @@ export function contractSchemas(): Record<string, unknown> {
     "converter.v1.json": js(ConverterManifest, "converter/v1"),
     "converter-output.v1.json": js(ConverterOutput, "converter-output/v1"),
     "conversion-summary.v1.json": js(ConversionSummary, "conversion-summary/v1"),
+    "plugins-lock.v1.json": js(PluginsLock, "plugins-lock/v1"),
     "capabilities/image.segment.request.json": js(imageSegment.SegmentRequest, "capabilities/image.segment/request"),
     "capabilities/image.segment.result.json": js(imageSegment.SegmentResult, "capabilities/image.segment/result"),
     // The rung-4 viewer document (packages/plugin-ui-sdk/src/viewer.ts), read by apps/mcp to serve viewers as MCP Apps resources.

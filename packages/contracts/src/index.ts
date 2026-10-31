@@ -15,3 +15,5 @@ export * from "./media-types";
 export * from "./converter";
 export { CAPABILITIES } from "./capabilities";
 export * from "./boundary";
+export * from "./canonical";
+export * from "./lockfile";

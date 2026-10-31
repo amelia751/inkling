@@ -1,5 +1,5 @@
 import { NAMING } from "@studio/contracts/naming";
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
+import { createBrowserRouter, Navigate, Outlet, RouterProvider } from "react-router";
 import { useNoSwipeBack } from "@/studio/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { StudioHostProvider } from "@/extension-host/host";
@@ -9,7 +9,7 @@ import { ProjectReviewPage } from "./routes/ProjectReviewPage";
 import { ActivityPage } from "./routes/ActivityPage";
 import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
 import { TaskSetupPage } from "./routes/TaskSetupPage";
-import { FullPageMessage } from "./routes/shared";
+import { NotFoundPage, RouteError } from "./routes/errors";
 import { HomePage } from "./routes/HomePage";
 import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
@@ -32,7 +32,7 @@ const studio = (
   </StudioHostProvider>
 );
 
-const router = createBrowserRouter([
+const routes = [
   { path: "/", element: <HomePage /> },
   { path: "/projects", element: <ProjectsPage /> },
   { path: "/projects/new", element: <NewProjectPage /> },
@@ -76,8 +76,11 @@ const router = createBrowserRouter([
   { path: "/datasets/:datasetId/export", element: <LegacyRedirect to={LEGACY.export} /> },
   { path: "/datasets/:datasetId/versions", element: <LegacyRedirect to={LEGACY.versions} /> },
   { path: "/datasets/:datasetId/versions/reviews/:reviewId", element: <LegacyRedirect to={LEGACY.versionReview} /> },
-  { path: "*", element: <FullPageMessage title="Page not found" /> },
-]);
+  { path: "*", element: <NotFoundPage /> },
+];
+
+// One error element for every page: a render or loader error shows RouteError, not a blank tab.
+const router = createBrowserRouter([{ element: <Outlet />, errorElement: <RouteError />, children: routes }]);
 
 export function AppShell() {
   // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).

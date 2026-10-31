@@ -255,6 +255,29 @@ a row's context menu.
 - Human-review and AI-suggestion states must be visibly distinct.
 - Avoid overwhelming experts with machine-learning terminology. Use plain-language task instructions with advanced settings expandable on demand.
 
+### Errors and empty states
+
+Five tiers, as in the Nebius console. Pick the smallest one that still shows where the problem is.
+Every error says what happened and the next step, in plain words; never a bare status code.
+
+| Tier | Use for | Component |
+| --- | --- | --- |
+| Page | Unknown URL, deleted item, no access, server unreachable, crash, stale deploy | `ErrorState variant="page"` (`NotFoundPage`, `RouteError`, `ErrorView`, `FullPageMessage`) |
+| Section | Empty list, search or filter with no results | `ErrorState variant="section"`; tables use `NoResults` |
+| Inline alert | An action in a page or dialog failed; a note about the whole page | `Alert theme="danger" \| "warning" \| "info"` |
+| Field | One input is invalid | `Field error=…` + `invalidProps(id, error)`: red border, 13px danger text under the input |
+| Toast | A background action finished or failed, nothing to fix on the page | `notify(msg, { tone })` |
+
+- `describeError` (`studio/lib/errors.ts`) turns any thrown value into one of: not found, no
+  access, can't reach the server, new version available, needs the full stack, something went
+  wrong. Each has its illustration and next step: Go to homepage for 403/404, Retry or Reload
+  where it can help, and Copy error details (with the API request ID) for unknown errors.
+- Every route sits under one `errorElement` (`RouteError`), so a page that throws never leaves a
+  blank tab.
+- Validate a field on blur or on submit, not while the person is still typing.
+- Illustrations are Gravity's (`@studio/ui/illustrations`, MIT), coloured by the `--gil-color-*`
+  tokens. Danger red is for errors only, never for decoration.
+
 ## 10. MVP implementation order and acceptance criteria
 
 ### Phase 1 — Studio shell

@@ -19,7 +19,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
       <input
         type={type}
         className={cn(
-          "flex w-full border border-input bg-transparent text-sm text-foreground transition-colors [outline-offset:-1px] placeholder:text-hint hover:border-border-hover disabled:cursor-not-allowed disabled:border-transparent disabled:bg-generic disabled:text-hint",
+          "flex w-full border border-input bg-transparent text-sm text-foreground transition-colors [outline-offset:-1px] placeholder:text-hint hover:border-border-hover aria-[invalid=true]:border-danger aria-[invalid=true]:outline-danger disabled:cursor-not-allowed disabled:border-transparent disabled:bg-generic disabled:text-hint",
           SIZES[inputSize],
           className
         )}

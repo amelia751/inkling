@@ -3,6 +3,8 @@ import { CheckIcon, CopyIcon, MoreIcon, SearchIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { DialogContent, DialogDescription, DialogTitle } from "@studio/ui/ui/dialog";
+import { ErrorState } from "@studio/ui/ui/error-state";
+import { FieldError } from "@studio/ui/ui/field-error";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { cn } from "@studio/ui/utils";
 import { AppLayout } from "@/studio/components/layout/app-layout";
@@ -107,7 +109,7 @@ export function DataTable<T>({ columns, rows, rowKey, empty, testId }: { columns
         >
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={columns.length} className="px-5 py-10 text-center text-muted-foreground">
+              <td colSpan={columns.length} className={typeof empty === "string" || !empty ? "px-5 py-10 text-center text-muted-foreground" : "p-0"}>
                 {empty ?? "Nothing here yet."}
               </td>
             </tr>
@@ -229,16 +231,35 @@ export function SettingsDialog({ title, description, children, footer, wide }: {
 }
 
 /** Label above a control, with an optional description under it (Nebius n-form-group). */
-export function Field({ label, htmlFor, required, description, children }: { label: string; htmlFor?: string; required?: boolean; description?: ReactNode; children: ReactNode }) {
+export function Field({ label, htmlFor, required, description, error, children }: { label: string; htmlFor?: string; required?: boolean; description?: ReactNode; error?: string | null; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor={htmlFor} className="text-sm leading-5">
         {label}
         {required && <span className="text-danger">*</span>}
       </label>
-      {children}
-      {description && <p className="text-sm leading-5 text-muted-foreground">{description}</p>}
+      <div className="flex flex-col">
+        {children}
+        <FieldError id={htmlFor && `${htmlFor}-error`}>{error}</FieldError>
+      </div>
+      {description && !error && <p className="text-sm leading-5 text-muted-foreground">{description}</p>}
     </div>
+  );
+}
+
+/** Props for the control inside a `Field` with an error: red border, message read out. */
+export const invalidProps = (id: string, error: string | null | undefined) => (error ? { "aria-invalid": true, "aria-describedby": `${id}-error` } : {});
+
+/** The table's empty state when a search or filter hides every row (Nebius "No users found"). */
+export function NoResults({ what, onClear }: { what: string; onClear?: () => void }) {
+  return (
+    <ErrorState
+      kind="no-results"
+      title={`No ${what} found`}
+      description="Try a different search or clear the filters."
+      actions={onClear && <Button variant="outline" size="lg" onClick={onClear}>Clear filters</Button>}
+      data-testid="no-results"
+    />
   );
 }
 

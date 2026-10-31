@@ -36,6 +36,8 @@ export class ApiError extends Error {
     message: string,
     /** The parsed JSON error body (`{ detail }`), for callers that need more than the sentence (todo7 409 conflicts). */
     readonly body?: unknown,
+    /** The API's `X-Request-Id`, shown in "Copy error details" so a report can be traced. */
+    readonly requestId?: string,
   ) {
     super(message);
   }
@@ -53,7 +55,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
     const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
     const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
-    throw new ApiError(res.status, msg, body);
+    throw new ApiError(res.status, msg, body, res.headers.get("X-Request-Id") ?? undefined);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

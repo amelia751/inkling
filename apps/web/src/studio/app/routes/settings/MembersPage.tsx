@@ -6,7 +6,7 @@ import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuS
 import { Input } from "@studio/ui/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
-import { DataTable, Field, OutlineLabel, PersonCell, RowMenu, SearchField, SettingsDialog, SettingsPage, StatusLabel, CopyId, fmtDate, type Column } from "@/studio/components/settings/kit";
+import { DataTable, Field, invalidProps, NoResults, OutlineLabel, PersonCell, RowMenu, SearchField, SettingsDialog, SettingsPage, StatusLabel, CopyId, fmtDate, type Column } from "@/studio/components/settings/kit";
 import { ACCOUNT, ORG_ROLES, PROJECT_ROLES, roleName, useAccount, type Member, type OrgRole, type ProjectRole } from "@/studio/lib/account-mock";
 import { useProjectList } from "@/studio/lib/projects-api";
 
@@ -49,7 +49,7 @@ export function MembersPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(m) => m.id} empty={q ? "No one matches that search." : "No members yet."} testId="members-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(m) => m.id} empty={q || status !== "all" ? <NoResults what="users" onClear={() => (setQ(""), setStatus("all"))} /> : "No members yet."} testId="members-table" />
       <InviteDialog open={inviting} onOpenChange={setInviting} />
     </SettingsPage>
   );
@@ -109,13 +109,19 @@ export function InviteDialog({ open, onOpenChange, projectId }: { open: boolean;
   const [role, setRole] = useState<OrgRole>("member");
   const [access, setAccess] = useState<{ projectId: string; role: ProjectRole }[]>(projectId ? [{ projectId, role: "annotator" }] : []);
   const list = emails.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean);
-  const valid = list.length > 0 && list.every((e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+  const bad = list.filter((e) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e));
+  const valid = list.length > 0 && bad.length === 0;
+  const [touched, setTouched] = useState(false);
+  const emailError = !touched ? null : list.length === 0 ? "Enter an email address" : bad.length ? (list.length > 1 ? `Invalid email address: ${bad[0]}` : "Invalid email address") : null;
   const reset = () => {
+    setTouched(false);
     setEmails("");
     setRole("member");
     setAccess(projectId ? [{ projectId, role: "annotator" }] : []);
   };
   const submit = () => {
+    setTouched(true);
+    if (!valid) return;
     list.forEach((e) => invite(e, role, access.filter((a) => a.projectId)));
     reset();
     onOpenChange(false);
@@ -129,14 +135,14 @@ export function InviteDialog({ open, onOpenChange, projectId }: { open: boolean;
             <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="lg" className="min-w-32" disabled={!valid} onClick={submit} data-testid="invite-submit">
+            <Button size="lg" className="min-w-32" disabled={touched && !valid} onClick={submit} data-testid="invite-submit">
               {list.length > 1 ? `Invite ${list.length} people` : "Invite user"}
             </Button>
           </>
         }
       >
-        <Field label="Email" htmlFor="invite-email" required description="Separate several addresses with commas. They get an email with a link that expires in 7 days.">
-          <Input id="invite-email" inputSize="lg" placeholder="Enter email" value={emails} onChange={(e) => setEmails(e.target.value)} autoFocus data-testid="invite-email" />
+        <Field label="Email" htmlFor="invite-email" required error={emailError} description="Separate several addresses with commas. They get an email with a link that expires in 7 days.">
+          <Input id="invite-email" inputSize="lg" placeholder="Enter email" value={emails} onChange={(e) => setEmails(e.target.value)} onBlur={() => emails.trim() && setTouched(true)} autoFocus data-testid="invite-email" {...invalidProps("invite-email", emailError)} />
         </Field>
         <Field label="Organization role" description={ORG_ROLES.find((r) => r.slug === role)?.description}>
           <Select value={role} onValueChange={(v) => setRole(v as OrgRole)}>

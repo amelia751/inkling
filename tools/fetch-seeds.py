@@ -384,11 +384,17 @@ PRESET_FOR_VIEWER = {
 
 
 def with_environment(project: dict) -> dict:
-    """Add `environment`: the viewer's preset plus label groups with palette colors."""
+    """Add `environment`: the viewer's preset plus label groups with palette colors.
+
+    A classification task gets one `Choices` group and no region copy of the same classes
+    (todo8 D4): a box labelled "pneumonia" isn't what that task asks for, and without a region
+    group the Studio shows no drawing tools.
+    """
     classes = [{"id": label, "color": f"chart-{i % 5 + 1}"} for i, label in enumerate(project.get("labels", []))]
-    groups = [{"name": "labels", "control": "Labels", "classes": classes}]
     if project.get("task") == "classification":
-        groups.insert(0, {"name": "class", "control": "Choices", "classes": classes})
+        groups = [{"name": "class", "control": "Choices", "classes": classes}]
+    else:
+        groups = [{"name": "labels", "control": "Labels", "classes": classes}]
     env = {"extends": PRESET_FOR_VIEWER[project["viewer"]], "task": project.get("task"), "labels": groups}
     return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
 

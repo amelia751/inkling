@@ -70,8 +70,8 @@ export interface ResolvedEnv {
   viewports: ResolvedViewport[];
   /** Tools the task can use (todo8 D4 Rule 1): `spec.tools` minus tools whose geometry no label group accepts. */
   tools: Registered<"tools">[];
-  /** Tools dropped by Rule 1, with a plain reason ("No label accepts boxes"), for Task setup. Optional until the resolver fills it. */
-  unusableTools?: { tool: Registered<"tools">; reason: string }[];
+  /** Tools dropped by Rule 1, with a plain reason ("No label accepts boxes"), for Task setup. */
+  unusableTools: { tool: Registered<"tools">; reason: string }[];
   commands: ResolvedCommand[];
   panels: Record<PanelSlot, Registered<"panels">[]>;
   exporters: Registered<"exporters">[];

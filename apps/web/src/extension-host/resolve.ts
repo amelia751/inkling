@@ -233,6 +233,16 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     return c;
   });
 
+  // 6b. Rule 1 (todo8 D4): only tools whose geometry some label group accepts. Navigation and
+  // measurement tools are exempt, and so is every tool while the environment declares no label
+  // groups (a bare preset, a catalogue preview). The catalogue still lists every tool.
+  const unusableTools: { tool: Registered<"tools">; reason: string }[] = [];
+  const usableTools = labels.length ? tools.filter((t) => {
+    const reason = unusableReason(t, controls);
+    if (reason) unusableTools.push({ tool: t, reason });
+    return !reason;
+  }) : tools;
+
   // 7. Exporters and review rules.
   const exporters = enabled((spec.exporters ?? []).map((id, i) => ref("exporters", id, `/exporters/${i}`)));
   const reviewRules = enabled((spec.reviewRules ?? []).map((id, i) => ref("reviewRules", id, `/reviewRules/${i}`)));
@@ -283,7 +293,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const candidates = registry
     .list("commands", inModules)
     .filter((c) => checkedWhen(c.when, `/commands/${c.id}`) !== undefined || !c.when)
-    .filter((c) => mayBeTrue(c.when, { ...context, "env.tools": tools.map((t) => t.name) }));
+    .filter((c) => mayBeTrue(c.when, { ...context, "env.tools": usableTools.map((t) => t.name) }));
   const replaced = new Set(candidates.flatMap((c) => c.replaces ?? []));
   const commands: ResolvedCommand[] = candidates.filter((c) => !replaced.has(c.id)).map((c) => ({ ...c, keys: rebinds.get(c.id) ?? c.keys ?? [] }));
   // `shadows` takes the shadowing command's keys away from the shadowed ones, which keep the rest.
@@ -300,7 +310,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     owners.set(k, [...(owners.get(k) ?? []), owner]);
   };
   for (const c of commands) if (!c.contextual && alwaysTrue(c.when, context)) c.keys.forEach((k) => claim(k, c.id));
-  for (const t of tools) if (t.hotkey) claim(t.hotkey, `tool ${t.id}`);
+  for (const t of usableTools) if (t.hotkey) claim(t.hotkey, `tool ${t.id}`);
   labelClasses(labels).forEach((c, i) => c.hotkey && c.hotkey !== String(i + 1) && claim(c.hotkey, `label ${c.id}`));
   const shadowed = new Set(commands.flatMap((c) => (c.shadows ?? []).map((s) => `${c.id}>${s}`)));
   for (const [combo, all] of owners) {
@@ -339,7 +349,8 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
       modules: [...moduleIds].map((id) => ({ id, version: registry.module(id)!.version })),
       dataKind,
       viewports,
-      tools,
+      tools: usableTools,
+      unusableTools,
       commands,
       panels,
       exporters,
@@ -351,6 +362,28 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
       context,
     },
   };
+}
+
+/** Tool names whose drawn shape differs from their name (Cornerstone ROIs create `measurement`). */
+const SHAPE_ALIAS: Record<string, string> = { freehand: "polygon" };
+/** Plural nouns for the reason line ("No label accepts boxes"). */
+const PLURAL: Record<string, string> = {
+  box: "boxes", ellipse: "ellipses", polygon: "polygons", multipolygon: "painted regions", polyline: "lines", spline: "spline contours",
+  keypoint: "points", point3d: "3D points", measurement: "measurements", mask: "masks", span: "time spans", instant: "time points", track: "tracks",
+};
+
+/**
+ * Why a tool can't be used with these label controls (todo8 D4 Rule 1), or undefined when it
+ * can. A Cornerstone ROI (`creates: measurement`) counts as the shape it draws, so a
+ * `RectangleLabels` group keeps its Box tool.
+ */
+export function unusableReason(t: Registered<"tools">, controls: ({ geometries: string[] } | undefined)[]): string | undefined {
+  if (!t.creates || t.group === "navigate" || t.group === "measure") return undefined;
+  const accepted = new Set(controls.flatMap((c) => c?.geometries ?? []));
+  if (accepted.has(t.creates)) return undefined;
+  const shape = t.creates === "measurement" ? (SHAPE_ALIAS[t.name] ?? t.name) : t.creates;
+  if (t.creates === "measurement" && accepted.has(shape)) return undefined;
+  return `No label accepts ${PLURAL[shape] ?? `${shape} shapes`}`;
 }
 
 const escape = (s: string) => s.replace(/~/g, "~0").replace(/\//g, "~1");

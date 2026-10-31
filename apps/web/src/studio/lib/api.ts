@@ -27,12 +27,12 @@ type RawProject = Omit<Project, "environment" | "labels"> & {
   labels?: (string | LabelGroup)[];
 };
 
-/** String labels (manifest v1) become one label group; classification tasks also get an item-level Choices group. */
+/** String labels (manifest v1) become one label group: region `Labels`, or an item-level `Choices` group for classification tasks. */
 export function labelGroupsFrom(labels: string[], task?: string): LabelGroup[] {
   const classes = labels.map((id) => ({ id }));
-  const groups: LabelGroup[] = [{ name: "labels", control: "Labels", classes }];
-  if (task === "classification") groups.unshift({ name: "class", control: "Choices", classes });
-  return groups;
+  // A classification task gets only its Choices group (todo8 D4; tools/fetch-seeds.py does the same).
+  if (task === "classification") return [{ name: "class", control: "Choices", classes }];
+  return [{ name: "labels", control: "Labels", classes }];
 }
 
 /**

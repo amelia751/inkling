@@ -18,6 +18,13 @@ boundary is enforced from the `spurby-phi` side:
   Storage, Cloud SQL, KMS, Healthcare API);
 - the agent reaches `spurby-phi` only over HTTPS through our API, with a scoped service token, on the
   routes listed under "What the agent sees". It holds no Google credentials for `spurby-phi`.
+- the organization's domain-restricted sharing policy only admits organization identities, so
+  `spurby-ai` service accounts can't be granted roles in `spurby-data` either. The agent reads
+  synthetic and public data through our API too.
+
+No service-account keys anywhere (key creation is blocked by organization policy). People use their
+own accounts; Terraform impersonates a keyless deploy service account; pods use Workload Identity;
+CI uses Workload Identity Federation; app secrets live in Secret Manager.
 
 Moving `spurby-ai` into the organization later is a single `gcloud beta projects move`. Credits are
 usually attached to the billing account, not the project, but check the credit's terms first.

@@ -25,7 +25,9 @@ def wait_ready(studio) -> None:
 
 
 def labels_and_selection(browser, port: int, out: Path) -> None:
-    s = open_studio(browser, port, "2d-xray")
+    # The 2D sample is classification-only (todo8 D4); a region group brings back region labels and Box.
+    region = [{"name": "labels", "control": "Labels", "classes": [{"id": "normal"}, {"id": "pneumonia"}]}]
+    s = open_studio(browser, port, "2d-xray", extra_labels=region)
     wait_ready(s)
     page = s.page
     page.get_by_role("tab", name="Labels").click()

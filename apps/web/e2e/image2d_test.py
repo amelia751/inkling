@@ -45,7 +45,14 @@ BOX2 = {"x": 896.47, "y": 269.62, "w": 262.85, "h": 530.56}
 MOD = "Meta" if sys.platform == "darwin" else "Control"
 
 
+# The 2D sample is a classification task (one Choices group, todo8 D4), so it offers no drawing
+# tools. These tests exercise the drawing tools, so they serve it with a region group as well.
+REGION_LABELS = [{"name": "labels", "control": "Labels", "classes": [{"id": "normal", "color": "chart-1"}, {"id": "pneumonia", "color": "chart-2"}]}]
+
+
 def open_2d(browser, port, dataset="2d-xray", **kw):
+    if dataset == "2d-xray":
+        kw.setdefault("extra_labels", REGION_LABELS)
     st = open_with_fixtures(open_studio, browser, port, dataset, kw["fixtures"], kw["extra_projects"]) if kw.get("fixtures") else open_studio(browser, port, dataset, **kw)
     wait_for(lambda: st.page.evaluate(f"() => !!window.{HOOK_2D}"), "2D viewer ready", 90)
     wait_for(lambda: st.store("s => s.projectId") == dataset, "annotations loaded")

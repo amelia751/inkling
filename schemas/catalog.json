@@ -2225,6 +2225,26 @@
       }
     },
     {
+      "id": "inkling.core.commands.nextTodo",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Go to the next item nobody has annotated yet, in queue order (the task's item order)",
+      "label": "Next to do",
+      "keys": [
+        "n"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.nextTodo",
+            "keys": [
+              "n"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.commands.pickLabel",
       "type": "commands",
       "module": "inkling.core",
@@ -3735,7 +3755,7 @@
       "id": "inkling.wsi.commands.toggleClassNames",
       "type": "commands",
       "module": "inkling.wsi",
-      "description": "Toggle class names on regions",
+      "description": "Toggle class names on regions (takes N from Next to do)",
       "label": "Show or hide class names",
       "when": "renderer == inkling.wsi.renderers.osd",
       "keys": [

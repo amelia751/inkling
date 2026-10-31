@@ -25,6 +25,7 @@ const commands: CommandContribution[] = [
   { id: "selectAll", keys: ["mod+a"], label: "Select every annotation on this item", group: "Edit", description: "Select every visible annotation on the current item" },
   { id: "nextItem", keys: ["ArrowRight", "ArrowDown", "PageDown"], label: "Next item", group: "Navigate", repeat: true, description: "Go to the next item" },
   { id: "prevItem", keys: ["ArrowLeft", "ArrowUp", "PageUp"], label: "Previous item", group: "Navigate", repeat: true, description: "Go to the previous item" },
+  { id: "nextTodo", keys: ["n"], label: "Next to do", group: "Navigate", description: "Go to the next item nobody has annotated yet, in queue order (the task's item order)" },
   { id: "pickLabel", keys: DIGITS, label: "Pick label by position", group: "Labels", display: "1 – 9", description: "Make the n-th label class active" },
   { id: "brushSmaller", keys: ["["], label: "Smaller brush", group: "Drawing", repeat: true, when: "'size' in tool.options", description: "Shrink the active tool's size" },
   { id: "brushLarger", keys: ["]"], label: "Larger brush", group: "Drawing", repeat: true, when: "'size' in tool.options", description: "Grow the active tool's size" },
@@ -68,6 +69,20 @@ const commands: CommandContribution[] = [
   { id: "prevSuggestion", keys: ["shift+Tab"], label: "Previous AI suggestion", group: "Edit", contextual: true, when: "'suggestions' in renderer.capabilities", description: "Select the previous unreviewed AI suggestion" },
   { id: "acceptSuggestion", keys: ["Enter"], label: "Accept selected AI suggestions", group: "Edit", contextual: true, when: "'suggestions' in renderer.capabilities", description: "Mark the selected AI suggestions as reviewed" },
   { id: "rejectSuggestion", keys: ["Delete", "Backspace"], label: "Reject the AI suggestion and go to the next", group: "Edit", contextual: true, when: "'suggestions' in renderer.capabilities", description: "Delete the selected AI suggestion and select the next" },
+];
+
+/**
+ * The shortcuts sheet's Essentials (todo8 D6): at most 8 rows, each naming core commands by
+ * local name. A row shows when the environment binds at least one of its commands.
+ */
+export const ESSENTIALS: { label: string; commands: string[] }[] = [
+  { label: "Undo / redo", commands: ["undo", "redo"] },
+  { label: "Delete selected", commands: ["deleteSelection"] },
+  { label: "Previous / next item", commands: ["prevItem", "nextItem"] },
+  { label: "Next to do", commands: ["nextTodo"] },
+  { label: "Pick label", commands: ["pickLabel"] },
+  { label: "Hold Space to pan", commands: ["holdToPan"] },
+  { label: "Keyboard shortcuts", commands: ["showShortcuts"] },
 ];
 
 export default defineModule({

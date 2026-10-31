@@ -14,7 +14,8 @@ import type { ClientToolOutcome } from "@/studio/stores/agent";
 import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/shell";
 
 const SECTIONS = new Set<AgentSection>(["overview", "sources", "explore", "datasets", "studio", "review", "activity", "settings"]);
-export const agentSection = (s: string | undefined): AgentSection => (s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
+/** `tasks` (Task setup, todo8 D7) belongs with Datasets: a task is work on a dataset. */
+export const agentSection = (s: string | undefined): AgentSection => (s === "tasks" ? "datasets" : s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
 
 /** Outside the Studio only project cards run; environment tools need the open Studio. */
 async function runProjectTool(name: string, input: Record<string, unknown>): Promise<ClientToolOutcome> {

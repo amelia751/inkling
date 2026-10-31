@@ -1,6 +1,6 @@
 import { Link, useParams } from "react-router";
 import { Spinner } from "@studio/ui/ui/spinner";
-import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/ui/icons";
+import { ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/ui/icons";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { useCurrentProject } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -43,10 +43,9 @@ interface StudioTopBarProps {
   showAi?: boolean;
   /** Offer the left panel's show / hide toggle (tablet and desktop). */
   showLeftToggle?: boolean;
-  onShowSettings?: () => void;
 }
 
-export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true, showLeftToggle = false, onShowSettings }: StudioTopBarProps) {
+export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true, showLeftToggle = false }: StudioTopBarProps) {
   const leftOpen = useShell((s) => s.studioLeft);
   const toggleLeft = useShell((s) => s.toggleStudioLeft);
   const aiOpen = useStudio((s) => s.aiOpen);
@@ -106,16 +105,6 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
               </Button>
             </TooltipTrigger>
             <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} ${NAMING.displayName} AI`} />
-          </Tooltip>
-        )}
-        {onShowSettings && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost-secondary" size="icon" onClick={onShowSettings} className="hidden @[480px]:inline-flex" aria-label="Environment settings">
-                <SettingsIcon />
-              </Button>
-            </TooltipTrigger>
-            <ActionTooltipContent title="Environment settings" description="Viewer and module options for this dataset" />
           </Tooltip>
         )}
         <Tooltip>

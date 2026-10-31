@@ -210,9 +210,12 @@ def main() -> int:
             check("action preview: files, classes, imported labels, also confirms", "8 files" in ptext and "Imports 8 labels" in ptext and "imported" in ptext and page.locator("[data-testid='preview-also'] li").count() == 2, ptext[:300])
             check("the selected proposal is in the URL", f"proposal={props['dataset']['id']}" in page.url)
             page.get_by_test_id("create-and-open").click()
+            # todo8 D7: creating a task lands its owner on Task setup, one click from the Studio.
+            page.wait_for_url("**/tasks/tsk-*/setup", timeout=30000)
+            page.get_by_test_id("setup-open-studio").click()
             page.wait_for_url("**/studio/tsk-*", timeout=30000)
             task = page.url.rsplit("/", 1)[-1].split("?")[0]
-            check("Create & open Studio lands on the new task", task.startswith("tsk-"), page.url)
+            check("Create & set up lands on the new task's setup, then its Studio", task.startswith("tsk-"), page.url)
 
             def store(expr: str):
                 return page.evaluate(f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}")

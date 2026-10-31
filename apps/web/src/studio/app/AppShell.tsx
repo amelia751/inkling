@@ -1,5 +1,7 @@
 import { NAMING } from "@studio/contracts/naming";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
+import { Toaster } from "sonner";
+import { useTheme } from "@/studio/lib/theme";
 import { useNoSwipeBack } from "@/studio/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { StudioHostProvider } from "@/extension-host/host";
@@ -8,6 +10,7 @@ import { DatasetDetailPage, DatasetsPage } from "./routes/DatasetsPage";
 import { ProjectReviewPage } from "./routes/ProjectReviewPage";
 import { ActivityPage } from "./routes/ActivityPage";
 import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
+import { TaskSetupPage } from "./routes/TaskSetupPage";
 import { FullPageMessage } from "./routes/shared";
 import { HomePage } from "./routes/HomePage";
 import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
@@ -42,6 +45,7 @@ const router = createBrowserRouter([
   { path: "/projects/:projectId/datasets/:datasetId/publish", element: <DatasetDetailPage tab="publish" /> },
   { path: "/projects/:projectId/studio", element: <StudioEntry /> },
   { path: "/projects/:projectId/studio/:taskId", element: studio },
+  { path: "/projects/:projectId/tasks/:taskId/setup", element: <TaskSetupPage /> },
   { path: "/projects/:projectId/review", element: <ProjectReviewPage /> },
   { path: "/projects/:projectId/review/:taskId", element: <ReviewPage /> },
   { path: "/projects/:projectId/activity", element: <ActivityPage /> },
@@ -60,5 +64,12 @@ const router = createBrowserRouter([
 export function AppShell() {
   // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).
   useNoSwipeBack();
-  return <RouterProvider router={router} />;
+  const { theme } = useTheme();
+  return (
+    <>
+      <RouterProvider router={router} />
+      {/* Toasts with an action ("Task setup changed · Undo"), bottom-left, clear of the assistant. */}
+      <Toaster position="bottom-left" theme={theme} />
+    </>
+  );
 }

@@ -68,7 +68,7 @@ export default defineModule({
       tool("length", { creates: "measurement", when: ON_OSD, description: "Distance in µm" }),
     ],
     commands: [
-      { id: "toggleClassNames", keys: ["n"], label: "Show or hide class names", group: "View", when: ON_OSD, description: "Toggle class names on regions" },
+      { id: "toggleClassNames", keys: ["n"], label: "Show or hide class names", group: "View", when: ON_OSD, shadows: [ns("core.commands.nextTodo")], description: "Toggle class names on regions (takes N from Next to do)" },
       { id: "importGeoJSON", label: "Import QuPath GeoJSON", group: "Edit", when: ON_OSD, description: "Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step" },
     ],
     panels: [

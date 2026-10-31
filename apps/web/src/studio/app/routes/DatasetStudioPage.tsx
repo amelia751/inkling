@@ -3,6 +3,7 @@ import { useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
+import { DecisionBar } from "@/studio/components/studio/DecisionBar";
 import { LeftSidebar, SlotTabs } from "@/studio/components/studio/LeftSidebar";
 import { StudioLayout } from "@/studio/components/studio/StudioLayout";
 import { StudioTopBar } from "@/studio/components/studio/StudioTopBar";
@@ -27,6 +28,7 @@ import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/re
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
 import { rememberTool } from "@/studio/stores/tool-prefs";
+import { nextTodoIndex } from "@/studio/lib/items";
 import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -230,7 +232,8 @@ function Studio({ projectId }: { projectId: string }) {
         )}
       </main>
       {bottom}
-      <CanvasStatusBar items={items} />
+      <DecisionBar env={env} items={items} />
+      <CanvasStatusBar items={items} onShowShortcuts={() => setShortcutsOpen(true)} />
     </>
   );
   const left = <LeftSidebar env={env} project={project} items={items} item={item} />;
@@ -506,6 +509,11 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
       prevItem: (e) => {
         if (ownsArrows(e)) return false;
         s().setItemIndex(Math.max(0, s().itemIndex - 1));
+      },
+      nextTodo: () => {
+        const next = nextTodoIndex(items, s().annotations, s().itemIndex);
+        if (next === undefined) return false;
+        s().setItemIndex(next);
       },
       pickLabel: (e) => {
         const label = labels[(digitOf(e) ?? 0) - 1];

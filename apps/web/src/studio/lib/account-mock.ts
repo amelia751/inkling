@@ -33,10 +33,10 @@ export const roleName = (slug: string) => [...ORG_ROLES, ...PROJECT_ROLES].find(
 
 export const ACCOUNT = {
   id: "user_01JD7K2M9X4Q8P1VZTQ9VXTT",
-  firstName: "Anh",
-  lastName: "Lam",
-  name: "Anh Lam",
-  email: "amelia.anh.lam@gmail.com",
+  firstName: "Alex",
+  lastName: "Rivera",
+  name: "Alex Rivera",
+  email: "alex.rivera@example.org",
   marketing: false,
 };
 

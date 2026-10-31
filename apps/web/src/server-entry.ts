@@ -6,6 +6,7 @@
 import * as z from "zod";
 import { imageSegment } from "@studio/contracts/capabilities";
 import { annotationRevisionJsonSchema } from "@studio/contracts/annotation-revision";
+import { ConversionSummary, ConverterManifest, ConverterOutput } from "@studio/contracts/converter";
 import { NAMING } from "@studio/contracts/naming";
 import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
@@ -60,6 +61,9 @@ export function contractSchemas(): Record<string, unknown> {
     "plugin.v1.json": js(PluginManifest, "plugin/v1"),
     "ui-contributions.v1.json": js(UiContributions, "ui-contributions/v1"),
     "workspace.v1.json": js(WorkspaceState, "workspace/v1"),
+    "converter.v1.json": js(ConverterManifest, "converter/v1"),
+    "converter-output.v1.json": js(ConverterOutput, "converter-output/v1"),
+    "conversion-summary.v1.json": js(ConversionSummary, "conversion-summary/v1"),
     "capabilities/image.segment.request.json": js(imageSegment.SegmentRequest, "capabilities/image.segment/request"),
     "capabilities/image.segment.result.json": js(imageSegment.SegmentResult, "capabilities/image.segment/result"),
     // Read by apps/versioning (Go); keeps its file-relative $id.

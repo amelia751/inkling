@@ -12,5 +12,6 @@ export * from "./annotation-diff";
 export * from "./ui-contributions";
 export * from "./workspace";
 export * from "./media-types";
+export * from "./converter";
 export { CAPABILITIES } from "./capabilities";
 export * from "./boundary";

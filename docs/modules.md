@@ -119,6 +119,30 @@ the old namespace goes into `legacyNamespaces` so those documents still resolve,
 A tool's local name (`box`, `brush`) is what the store holds (`useStudio().tool`) and what
 renderers switch on; the resolver guarantees names are unique within an environment.
 
+### Which tools the toolbar shows (todo8 D4)
+
+**Rule 1: only usable tools.** The resolver keeps a tool in `env.tools` only when some label
+group in the environment accepts the geometry it `creates` (the label control's
+`geometries`). Tools without `creates`, and the `navigate` and `measure` groups, are exempt, and
+so is every tool while the environment declares no label groups (a bare preset, a catalogue
+preview). The dropped ones go to `env.unusableTools` as `{ tool, reason }` with a plain reason
+("No label accepts boxes"), which Task setup shows greyed. The catalogue still lists every
+tool. So for a plugin author: set `creates` to the geometry your tool draws and make sure a
+label control lists it in `geometries`, or your tool won't appear; a classification task (only
+a `Choices` group) shows no drawing tools at all.
+
+**Rule 2: groups fold.** Tools are laid out by `group` (`navigate`, `shape`, `measure`, `mask`,
+`time`) in first-appearance order, with separators only between groups. A group with three or
+more tools folds into one split button whose face is the active tool, else the last one used
+in that group (per environment, in `stores/tool-prefs.ts`, not `useStudio`), else the first;
+its chevron, or a long press, lists the group with names and keys. Groups with one or two tools
+stay expanded. `navigate` never folds, but Zoom is left to the renderer's view controls (scroll
+already zooms; the toolbar shows it only while it's active). Keys never change: a tool's
+`hotkey` works whether or not it's the face, and pressing it makes it the face. Pick the
+`group` that matches what the tool does, since it decides where the tool lands and which
+heading it gets in the shortcuts sheet. Declarative plugins' toolbar actions
+(`data-toolbar-action`) are never folded.
+
 ## Environment spec
 
 ```jsonc
@@ -137,6 +161,11 @@ renderers switch on; the resolver guarantees names are unique within an environm
   "layout": null
 }
 ```
+
+`studio` holds what annotators see (todo8 D8, set in Task setup → Annotators see):
+`showSourceLabels` (labels that came with the files, e.g. a source folder named `pneumonia`;
+off by default for classification tasks, so the labels people make are an independent read)
+and `showFilePaths`. Defaults come from `studioDefaults` in `apps/web/src/studio/lib/task-setup.ts`.
 
 Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate, and
 `labels` groups merge by `name` (a same-named group replaces the preset's; new groups append).
@@ -170,6 +199,10 @@ Common capabilities: `drafting` (Enter / Esc finish or cancel a shape), `vertexU
 `cornerstone`, `suggestions` (Tab / Enter review of AI suggestions), `overlayOpacity` (the
 renderer's view menu has the overlay opacity control, `OverlayOpacityControl` from
 `@studio/renderers/viewport-chrome/opacity`; without it the Labels panel keeps the slider).
+View settings (window/level, invert, overlay opacity, zoom, flip, rotate) belong in the
+renderer's `viewport-bar` panel, not in a left-panel tab: they're per-person and act on the
+canvas. The Cornerstone stack's panel (`plugins/image2d/ui/panels/viewControls.tsx`) is the
+reference, with a View ▾ menu for the rarely used ones.
 
 ## Runtime context
 

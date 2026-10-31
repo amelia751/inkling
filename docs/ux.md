@@ -42,6 +42,7 @@ Workspace (personal or organization)
         ├── Explore        ← discovered shapes, schemas, relationships
         ├── Datasets       ← logical collections, tasks, versions
         ├── Studio         ← modality-aware editor for a selected task
+        │   └── Task setup ← the task's labels, tools, viewer, panels, exports
         ├── Review         ← annotation issues, import conflicts, mappings
         └── Activity       ← audit-friendly change history
 
@@ -66,7 +67,8 @@ Persistent contextual Inkling AI panel can accompany any Project section.
 
 - **Global rail/sidebar:** Home, Projects, Datasets, Recent; switch organization/workspace.
 - **Project sidebar:** Overview, Data (the Files drive), Explore, Datasets, Studio, Review, Activity. This is separate from global navigation.
-- **Studio contextual left panel:** Files / Labels / Review. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
+- **Studio contextual left panel:** Items / Labels. The Items tab is named by the data kind's noun (Images, Studies, Slides, Recordings, Videos); "Files" is the drive, which the nav calls Data, and "Review" is the project section, so neither word names a Studio tab. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
+- **Task setup** (`/projects/:p/tasks/:taskId/setup`) is where an owner configures a task: labels, tools, viewer, panels, export formats and what annotators see. It's reached from the Studio's task switcher, its ⋯ menu and the Overview task card; annotators can open it read-only.
 - **Right panel:** persistent, collapsible AI chat that carries project context across sections.
 
 ## 3. Workspace home / Projects
@@ -305,13 +307,28 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 ### Three-column editing shell
 
 ```text
+[Header]  project ▸ task ▾   ·   Your draft · Saved ✓ ▾        [Request review] [✦] [⋯]
 [Context sidebar]       [Main viewer / canvas]        [Inkling AI]
- Files | Labels | Review  Zoom/measure/annotate          Conversation
- Selected sample         Modality-specific tools        Proposals
- Quick navigation        Slice/time navigation          Approvals
+ Items | Labels          Toolbar (usable tools only)    Conversation
+ Folders or Queue        Modality-specific canvas       Proposals
+ On this image           Decision bar (classification)  Approvals
+                         Status bar (path, item, ?)
 ```
 
-**Context sidebar (left):** Files, Labels, Review tabs are *task-scoped*, not project-wide. For a 3D study, Files lists studies or series rather than hundreds of isolated DICOM slices. Labels shows the relevant ontology. Review shows annotations for the task/current sample.
+**Header:** three zones, at most seven controls at 1440px. Left, where am I: the panel toggle, the project (a link to its Overview) and a task switcher that lists the project's tasks with their progress plus "Task setup…". Middle, the state of my work: one chip that merges saving with versioning (`Saved ✓`, `Saving…`, `Not saved · Retry`; with versioning `Your draft · Saved ✓` or `Published (read-only)`), whose popover holds Compare versions and the switch between your draft and the published copy. Right, the one next step: **Request review** when the draft has changes, otherwise Export; then the assistant and a ⋯ menu (Export, Task setup, Keyboard shortcuts, Plugins, Theme, project Review). Workspace switching, the brand mark and the theme stay out of the Studio header.
+
+**Context sidebar (left):** Items and Labels are *task-scoped*, not project-wide.
+- **Items** (titled Images, Studies, Slides…) answers "what do I work on next?". The **Folders** view mirrors the Data tree (same names, icons and compaction, rooted at the task's common folder); leaves are items, never raw slices, so a 3D study is one row with its slice count. The **Queue** view is a flat list in work order with `All · To do · Needs review · Done` chips. `N` jumps to the next to-do item from either view. Duplicate names get a dimmed distinguishing parent path; a hover card shows the full Data path; the row's menu has **Show in Data**, and Data's inspector links back ("In tasks").
+- **Labels** has Classes (key and count visible; hide, lock and color behind the row's ⋯), **On this image** (the current item's annotations as compact rows: click selects and pans to it, Shift/⌘-click multi-selects) and the selection inspector pinned at the bottom. The project-wide feed of annotations belongs on the Review page; owners can add an "All annotations" panel back in Task setup.
+- **Blind by default:** for a classification task, labels that came with the files (e.g. a source folder named `pneumonia`) aren't shown to annotators, so the labels they produce are an independent read. Task setup → Annotators see turns them on for correction work. Imported annotations are proposals to confirm and always show, marked as imported.
+
+**Toolbar:** the task decides the tools. A drawing tool appears only when some label group accepts what it draws (a classification task has no shape tools). Groups of three or more tools (Shapes, Measure, Paint) fold into one split button that shows the last used tool; its chevron lists the group with names and keys. Keys never change. View settings (window/level, invert, overlay opacity, and a View ▾ menu with the Zoom tool, reset, flip and rotate) sit at the bar's right end with the renderer's other view controls.
+
+**Decision bar:** when the task has a single- or multi-choice group, keyed buttons under the canvas (`[1 Normal] [2 Pneumonia]`, Skip) record the class; with **Advance after choosing** (on by default for single choice) the Studio moves to the next to-do item. It's the task's main action, so it sits where the eyes are.
+
+**Keyboard shortcuts:** `?` (or ⋯ → Keyboard shortcuts) opens a searchable sheet that leads with at most eight Essentials, then this task's tools as keycaps under the toolbar's group headings, then the commands; contextual keys sit under "While drawing". Tooltips and menus show keys where the action is.
+
+**Task setup:** owner work, done before annotating, in plain words and on one page: Labels (a real editor for classes, colors, keys, single or multiple choice), Tools (checkboxes; tools hidden because no label accepts them are listed greyed with the reason), Viewer, Panels, Export formats and Annotators see. One Save, with an Undo toast; module ids and the raw spec stay behind Technical details. "Describe a change" hands the same edit to the assistant.
 
 **Canvas (center):** The visual environment adapts to modality: 2D X-ray/photo, 3D CT/MRI, cine/video, 4D cardiac, pathology WSI, waveform, or tabular editor. Preserve native metadata, orientation and spatial/temporal references.
 
@@ -319,7 +336,7 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 
 **Space management:** Global/project navigation collapses into breadcrumb/icon rail in Studio. Left and right panels independently collapse, resize, and restore state. Annotation tools remain usable with chat closed.
 
-**Status bar:** Save status, selected sample, zoom, slice/frame/time, current task; show spatial units only when calibrated metadata exists. “No pixel spacing” must never masquerade as measurements in millimeters.
+**Status bar:** previous / next, the item's position and its Data path as a breadcrumb (each segment filters Items to that folder), zoom, slice/frame/time, current task, and a quiet `? Shortcuts` hint until the sheet has been opened once; show spatial units only when calibrated metadata exists. “No pixel spacing” must never masquerade as measurements in millimeters.
 
 ## 9. Persistent AI chat — Cursor-like, not a generic bot
 
@@ -358,6 +375,11 @@ Keep user-facing language accessible:
 | Pull request | Request review |
 | Diff | Compare versions |
 | Merge conflict | Changes need review |
+| Working branch (`anh/work`) | Your draft |
+| `main` / protected branch | Published (read-only) |
+| Stale head after someone else saved | Someone else saved |
+
+In the Studio this is one work-state chip: `Your draft · Saved ✓`, or `Published (read-only)` when you're looking at the published copy. Its popover offers Compare versions and the switch between your draft and the published copy; the branch name appears only there, in small print. The header's primary button reads **Request review** (never "Submit for review" or "Pull request"). "Review" otherwise means exactly one thing: the project section.
 
 Review issues can concern *data ingestion, mapping, privacy, annotations, and publication*. An issue should link to an exact file, sample, field, region, or time range wherever possible. Show status, owner, comments, fix, and affected versions.
 
@@ -375,6 +397,7 @@ Dataset versions must record inputs, transforms, tasks, annotation versions and 
 /projects/:projectId/datasets
 /projects/:projectId/datasets/:datasetId
 /projects/:projectId/studio/:taskId
+/projects/:projectId/tasks/:taskId/setup
 /projects/:projectId/review
 /projects/:projectId/activity
 ```
@@ -398,7 +421,7 @@ AppShell
 │   │   └── MappingReview
 │   ├── DatasetsPage
 │   ├── StudioPage
-│   │   ├── ContextTabs (Files / Labels / Review)
+│   │   ├── ContextTabs (Items / Labels)
 │   │   ├── ViewerAdapter
 │   │   └── AnnotationToolbar
 │   ├── ReviewPage

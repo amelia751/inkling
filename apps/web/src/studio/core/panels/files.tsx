@@ -76,7 +76,8 @@ export function FilesPanel({ items, env }: PanelProps) {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setItemIndex(index)}
+                    // Re-clicking the open item keeps the selection (setItemIndex clears it).
+                    onClick={() => index !== itemIndex && setItemIndex(index)}
                     className={cn(
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                       index === itemIndex ? "bg-accent text-foreground" : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-foreground",

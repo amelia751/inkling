@@ -95,7 +95,12 @@ def stack(tmp_path_factory):
     seed = root / "seed"
     (seed / "img").mkdir(parents=True)
     (seed / "img" / "a.png").write_bytes(png(32, 24))
-    (seed / "manifest.json").write_text(json.dumps({"projects": [{"id": w, "title": w, "assets": [{"path": "img/a.png"}]} for w in ("ws", "iso", "egress")]}))
+    from .canary import write_canary_samples
+
+    canary_assets = write_canary_samples(seed / "bnd")
+    projects = [{"id": w, "title": w, "assets": [{"path": "img/a.png"}]} for w in ("ws", "iso", "egress")]
+    projects.append({"id": "bnd", "title": "bnd", "assets": [{"path": f"bnd/{n}"} for n in canary_assets]})
+    (seed / "manifest.json").write_text(json.dumps({"projects": projects}))
     bad = make_bad_plugin(root)
     bad_manifest = {
         "schemaVersion": plugin_schema_version(), "id": "test.bad", "name": "bad", "version": "1.0.0", "publisher": "acme", "license": "MIT",
@@ -113,7 +118,8 @@ def stack(tmp_path_factory):
         {"id": seg_manifest["id"], "version": seg_manifest["version"], "publisher": "first-party", "trustTier": "first-party", "artifactDigest": tree_digest(seg_dir), "path": str(seg_dir), "manifest": seg_manifest},
         {"id": "test.bad", "version": "1.0.0", "publisher": "acme", "trustTier": "vetted", "artifactDigest": tree_digest(bad), "path": str(bad), "manifest": bad_manifest},
     ]}))
-    s = config.load_settings(database_url=f"sqlite:///{root / 'api.db'}", seed_root=seed, data_dir=root / "data", secret_key="worker-test-key", registry_dir=reg)
+    build_key = root / "build-signing.key"
+    s = config.load_settings(database_url=f"sqlite:///{root / 'api.db'}", seed_root=seed, data_dir=root / "data", secret_key="worker-test-key", registry_dir=reg, build_signing_key_file=build_key)
     config.set_settings(s)
     db.reset_engine()
     from studio_api.app import create_app
@@ -131,7 +137,7 @@ def stack(tmp_path_factory):
             time.sleep(0.05)
     from studio_api.routes.worker import worker_token
 
-    yield {"url": url, "token": worker_token(), "root": root, "seg_id": seg_manifest["id"]}
+    yield {"url": url, "token": worker_token(), "root": root, "seg_id": seg_manifest["id"], "build_key": build_key}
     server.should_exit = True
     t.join(timeout=5)
 

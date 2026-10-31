@@ -478,20 +478,22 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     return true;
   };
 
+  // Duplicate in place never conflicts: the kernel names it "name (copy).ext" (docs/files-api.md).
   const duplicate = async (nodes: SourceNode[]) => {
     const list = nodes.filter((n) => !isRootId(n.id) && n.parentId);
     if (!list.length) return;
-    const parentId = list[0].parentId!;
-    const ids = list.map((n) => n.id);
-    const res = await ops.run([{ kind: "copy", nodeIds: ids, parentId }], { resolutions: Object.fromEntries(ids.map((id) => [id, "keep_both" as const])), quiet: list.length === 1, fallback: `Duplicated ${plural(list.length, "item")}` });
+    const byParent = new Map<string, string[]>();
+    for (const n of list) byParent.set(n.parentId!, [...(byParent.get(n.parentId!) ?? []), n.id]);
+    const res = await ops.run(
+      [...byParent].map(([parentId, nodeIds]): FsOp => ({ kind: "copy", nodeIds, parentId })),
+      { fallback: list.length === 1 ? `Duplicated “${list[0].name}”` : `Duplicated ${plural(list.length, "item")}` },
+    );
     if (!res || list.length !== 1) return;
-    const made = res.nodes.find((n) => n.id !== list[0].id && n.parentId === parentId) ?? res.nodes.find((n) => n.id !== list[0].id);
+    const want = copyName(list[0].name);
+    const made = res.nodes.find((n) => n.id !== list[0].id && n.name === want) ?? res.nodes.find((n) => n.id !== list[0].id && n.parentId === list[0].parentId);
     if (!made) return;
-    const want = copyName(list[0].name, siblingsOf(parentId, made.id));
-    if (made.name !== want) await ops.run([{ kind: "rename", nodeId: made.id, name: want }], { quiet: true });
-    notify(`Duplicated “${list[0].name}”`, { undo: () => void ops.undo(res.batchId) });
     setSelection([made.id]);
-    setPendingEdit({ id: made.id, where: parentId === listedFolderId && !searching ? "list" : "tree" });
+    setPendingEdit({ id: made.id, where: made.parentId === listedFolderId && !searching ? "list" : "tree" });
   };
 
   const download = async (nodes: SourceNode[]) => {

@@ -124,6 +124,21 @@ versions aren't turned on; saving still works.
 The worker's inspection reads DICOM, NIfTI, images and spreadsheets with its own Python
 dependencies; it probes video only when `ffprobe` is on the `PATH`.
 
+**Emptying the Trash (todo7).** Files moved to Trash stay 30 days; the worker's
+`files.empty_trash` job purges older items, deleting bytes only when no other file, version,
+dataset or annotation uses them (the kept ones are listed in the job's result). In the stacks it
+runs daily on its own; with the hand-run setup above nothing schedules it, so run it once to see
+it work. The exact command is still to be confirmed (the job is being added alongside the
+backend), but it is expected to be a one-shot of the worker on the same kernel:
+
+```sh
+# TODO(todo7-integration): confirm the command and flag names once files.empty_trash lands.
+uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8205 --once files.empty_trash
+```
+
+**Empty Trash** in the Data section (Trash view) does the same for one project straight away,
+after a confirmation naming any bytes that are kept.
+
 Upload limits, read by the API (`apps/api/src/studio_api/config.py`):
 
 | Env var | Default | Meaning |

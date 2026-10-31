@@ -102,8 +102,8 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.text-spans.tools.entity` — Label a selected text span (creates inkling.text-spans.span; when renderer.space == text)
 
 ## commands
-- `inkling.core.commands.undo` — Undo the last annotation change
-- `inkling.core.commands.redo` — Redo
+- `inkling.core.commands.undo` — Undo the last change (an annotation in the Studio; a file operation in Data)
+- `inkling.core.commands.redo` — Redo the last undone change
 - `inkling.core.commands.deleteSelection` — Delete the selected, unlocked annotations
 - `inkling.core.commands.deselect` — Clear the selection
 - `inkling.core.commands.selectAll` — Select every visible annotation on the current item
@@ -114,10 +114,20 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.brushLarger` — Grow the active tool's size (when 'size' in tool.options)
 - `inkling.core.commands.showShortcuts` — Open the keyboard shortcuts sheet
 - `inkling.core.commands.toggleNavigation` — Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)
-- `inkling.core.commands.quickLook` — Preview the selected file large; arrows step through its folder (when section == sources)
-- `inkling.core.commands.openItem` — Open the selected folder, or show the selected file's details (when section == sources)
-- `inkling.core.commands.parentFolder` — Show the folder that contains the current one (when section == sources)
-- `inkling.core.commands.focusSearch` — Search file names across the project's sources (when section == sources)
+- `inkling.core.commands.quickLook` — Preview the selected file large; arrows step through its folder (when section == files)
+- `inkling.core.commands.openItem` — Open the selected folder, or show the selected file's details (when section == files)
+- `inkling.core.commands.parentFolder` — Show the folder that contains the current one (when section == files)
+- `inkling.core.commands.focusSearch` — Search file names across the project's files (when section == files)
+- `inkling.core.commands.newFolder` — Make a folder in the folder shown, and name it (when section == files)
+- `inkling.core.commands.rename` — Rename the selected file or folder (when section == files)
+- `inkling.core.commands.cut` — Mark the selection to be moved by Paste (when section == files)
+- `inkling.core.commands.copy` — Mark the selection to be copied by Paste (copies share the same bytes) (when section == files)
+- `inkling.core.commands.paste` — Move or copy what was cut or copied into the focused or shown folder (when section == files)
+- `inkling.core.commands.duplicate` — Make a copy next to the original, named “name (copy)” (when section == files)
+- `inkling.core.commands.moveToTrash` — Move the selection to Trash (undo brings it back) (when section == files)
+- `inkling.core.commands.clearSelection` — Deselect every file and folder (when section == files)
+- `inkling.core.commands.expandAllBelow` — Open the focused folder and every folder in it (up to 2,000 rows) (when section == files)
+- `inkling.core.commands.toggleInspector` — Show or hide the inspector (Info) (when section == files)
 - `inkling.core.commands.toggleSidePanel` — Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again
 - `inkling.core.commands.toggleAssistant` — Open or close the assistant, in any project section
 - `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)

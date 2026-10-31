@@ -10,7 +10,7 @@ const prompt = (name: string) =>
     .trim()
     .replaceAll("{{displayName}}", NAMING.displayName);
 
-export const CARD_TOOLS = ["show_items", "propose_label_schema", "draft_document", "suggest_tool", "propose_review", "select_annotations", "open_location"] as const;
+export const CARD_TOOLS = ["show_items", "propose_label_schema", "draft_document", "suggest_tool", "propose_review", "select_annotations", "open_location", "propose_reorganization"] as const;
 export const ENVIRONMENT_TOOLS = [
   "list_modules",
   "describe_contribution",

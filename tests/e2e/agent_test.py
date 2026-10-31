@@ -21,16 +21,25 @@ agent at it (the test passes <envPrefix>API_URL on to the agent it starts):
       python3 ../../tests/e2e/agent_test.py --port 5206   # from apps/web
 
 Without a reachable kernel the project-assistant run is skipped (reported, not failed).
+
+todo7 Phase 8 (the assistant organizes Files, with approval) runs on the same setup, in a scratch
+project with six uploaded scans: the agent finds them (find_files) and proposes grouping them into
+two folders; the card shows the plan; Apply sends exactly one fs/ops batch as the person; the
+card's Undo restores the folder; and an agent-scoped kernel token gets 403 from fs/ops. It needs
+the todo7 kernel routes (fs/ops, fs/undo, fs/children): against an older API it is skipped.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import struct
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
+import zlib
 from pathlib import Path
 
 # The browser harness lives with the web-only tests (apps/web/e2e).
@@ -218,7 +227,7 @@ def t_project_assistant(browser, port):
         steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
         check("sources: answered from list_sources", any(s.startswith("Listed sources") and "20 files" in s for s in steps), str(steps))
         loc = page.get_by_test_id("agent-location").get_by_role("button")
-        check("open_location: a button, the agent didn't navigate", "Open Data › 2d-xray" in loc.inner_text() and "/sources" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
+        check("open_location: a button, the agent didn't navigate", "Open Data › 2d-xray" in loc.inner_text() and "/files" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
         page.get_by_role("navigation", name="Project").get_by_role("link", name="Overview").click()
         page.wait_for_url("**/overview", timeout=10000)
         page.get_by_text("You imported one source with 20 images").wait_for(timeout=10000)
@@ -249,6 +258,123 @@ def t_project_assistant(browser, port):
         ctx.close()
 
 
+class ProxyApi:
+    """JSON calls through the dev server's /api proxy: the same person the browser is."""
+
+    def __init__(self, request, port: int):
+        self.r, self.base = request, f"http://localhost:{port}/api"
+
+    def __call__(self, method: str, path: str, body=None, headers=None, raw: bytes | None = None):
+        h = {"Content-Type": "application/json", **(headers or {})} if raw is None else (headers or {})
+        res = self.r.fetch(self.base + path, method=method, headers=h, data=raw if raw is not None else (json.dumps(body) if body is not None else None))
+        text = res.text()
+        try:
+            return res.status, json.loads(text) if text else None
+        except ValueError:
+            return res.status, text
+
+
+def tiny_png(seed: int) -> bytes:
+    """A valid grey PNG, different per seed (the import skips identical content)."""
+    w, h = 8 + seed, 8
+    raw = b"".join(b"\x00" + bytes([(x * 7 + y * 3 + seed) % 256 for x in range(w)]) for y in range(h))
+
+    def chunk(t: bytes, d: bytes) -> bytes:
+        return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 0, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+SCANS = [f"p00{p}_{c}.png" for p in (1, 2) for c in "abc"]
+
+
+def t_files_reorganize(browser, port):
+    """todo7 Phase 8 exit: grouping six files into two folders, approved, applied once, undone."""
+    if not KERNEL:
+        print(f"SKIP files reorganize: set {P}E2E_API_URL to a running kernel", flush=True)
+        return
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = ctx.new_page()
+    api = ProxyApi(ctx.request, port)
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.on("console", lambda m: m.type == "error" and errors.append(m.text))
+    try:
+        _, proj = api("POST", "/v1/projects", {"title": f"Files assistant {int(time.time())}"})
+        pid = proj["id"]
+        if api("GET", f"/v1/projects/{pid}/fs")[0] != 200:
+            print("SKIP files reorganize: the kernel has no Files routes (todo7 Phase 1)", flush=True)
+            return
+        files = {f"scans/{n}": tiny_png(i + 1) for i, n in enumerate(SCANS)}
+        body = {"attested": True, "files": [{"clientFileId": f"f{i}", "relPath": rel, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for i, (rel, d) in enumerate(files.items())]}
+        _, sess = api("POST", f"/v1/projects/{pid}/imports", body)
+        for f in sess["files"]:
+            if f.get("uploadUrl"):
+                rel = next(r for r in files if r.endswith(f["relPath"]))
+                api("PUT", f["uploadUrl"].removeprefix("/api"), raw=files[rel], headers={"Content-Type": "application/octet-stream"})
+        api("POST", f"/v1/imports/{sess['id']}/complete")
+
+        def scans_folder():
+            _, found = api("GET", f"/v1/projects/{pid}/search?q=p00")
+            return found["items"][0]["parentId"] if found and len(found.get("items", [])) == 6 else None
+
+        folder = wait(scans_folder, timeout=30)
+        check("files: six scans imported into one folder", bool(folder), str(folder))
+
+        def listing():
+            _, page_ = api("GET", f"/v1/projects/{pid}/fs/children?node={folder}")
+            return {i["name"]: i for i in page_["items"]}
+
+        before = listing()
+        check("files: the folder holds the six scans", sorted(before) == SCANS, str(sorted(before)))
+
+        # The agent's own token can't write the namespace: the kernel refuses agent tokens.
+        _, tok = api("POST", "/v1/sessions", {"agent": "assistant", "profile": "assistant", "scopes": ["proposals.write"], "ttlSeconds": 600}, headers={"X-Workspace-Id": pid})
+        direct, detail = api("POST", f"/v1/projects/{pid}/fs/ops", {"ops": [{"kind": "mkdir", "parentId": folder, "name": "by_agent"}]}, headers={"Authorization": f"Bearer {tok['token']}", "X-Workspace-Id": pid})
+        check("files: the agent's direct fs/ops call gets 403", direct == 403, f"{direct} {detail}")
+
+        page.goto(f"http://localhost:{port}/projects/{pid}/sources")
+        page.get_by_test_id("sources-page").wait_for(timeout=30000)
+        page.get_by_label(f"{NAMING['displayName']} AI panel").click()
+        consent = page.get_by_role("button", name="Turn on for this browser")
+        consent.or_(page.get_by_label("Message Inkling AI")).first.wait_for(timeout=20000)
+        if consent.count():
+            consent.click()
+        chips = [t for t in ("Group these scans by patient", "Rename files to remove dates", "Put all spreadsheets in one folder") if page.get_by_role("button", name=t).count() == 1]
+        check("files: the empty assistant offers the Files prompts", len(chips) == 3, str(chips))
+
+        ops_calls: list[str] = []
+        page.on("request", lambda r: r.method == "POST" and "/fs/ops" in r.url and ops_calls.append(r.post_data or ""))
+        page.get_by_role("button", name="Group these scans by patient").click()
+        card = page.get_by_test_id("agent-reorg")
+        card.wait_for(timeout=20000)
+        page.get_by_text("Nothing changes until you apply it").wait_for(timeout=20000)
+        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        check("files: the agent searched with find_files", any("Found files" in s and "6 matches" in s for s in steps), str(steps))
+        kinds = card.get_by_test_id("agent-reorg-op").evaluate_all("els => els.map(e => e.dataset.kind)")
+        check("files: the card lists the plan (2 new folders, 2 moves)", kinds == ["mkdir", "mkdir", "move", "move"], str(kinds))
+        wait(lambda: "p001_a.png" in card.inner_text(), timeout=10)
+        text = card.inner_text()
+        check("files: the diff names the new folders and the moved files", all(t in text for t in ("patient_001", "patient_002", "p001_a.png", "p002_c.png")), text[:300])
+        check("files: nothing changed before Apply", sorted(listing()) == SCANS and not ops_calls)
+
+        card.get_by_test_id("agent-reorg-apply").click()
+        wait(lambda: card.get_attribute("data-state") == "applied", timeout=15)
+        after = listing()
+        check("files: Apply made exactly one fs/ops batch, from the browser", len(ops_calls) == 1 and len(json.loads(ops_calls[0])["ops"]) == 4, str(ops_calls)[:300])
+        check("files: the scans are in two patient folders", sorted(after) == ["patient_001", "patient_002"] and all(after[n]["descendantCount"] == 3 for n in after), str({k: v.get("descendantCount") for k, v in after.items()}))
+        _, hist = api("GET", f"/v1/projects/{pid}/fs/history")
+        check("files: one undo step covers the whole plan", bool(hist and hist.get("undo")), str(hist))
+
+        card.get_by_test_id("agent-reorg-undo").click()
+        wait(lambda: card.get_attribute("data-state") == "undone", timeout=15)
+        restored = wait(lambda: sorted(listing()) == SCANS, timeout=10)
+        check("files: Undo restores the folder as it was", bool(restored), str(sorted(listing())))
+        check("files reorganize: no console errors", not errors, str(errors[:3]))
+    finally:
+        ctx.close()
+
+
 def main() -> int:
     args = parse_args()
     data_dir = tempfile.mkdtemp(prefix="inkling-agent-e2e-")
@@ -262,7 +388,7 @@ def main() -> int:
             return 1
         with sync_playwright() as pw:
             browser = launch(pw, args.browser, args.headed)
-            for fn in (t_environment_edit, t_approval_and_reattach, t_card, t_project_assistant):
+            for fn in (t_environment_edit, t_approval_and_reattach, t_card, t_project_assistant, t_files_reorganize):
                 try:
                     fn(browser, args.port)
                 except Exception as e:  # noqa: BLE001 — report and keep going

@@ -88,6 +88,9 @@ work today, not from how ML tools are usually built.
 2. **Originals are read-only in the UI.** No rename, move or delete inside a source. You can add and
    remove whole uploads (removal only while no dataset uses them), and add notes and tags. Organizing
    happens in Datasets.
+   *Superseded by [todo7](todo7.md): bytes stay immutable, but names and folders are now the user's
+   (rename, move, Trash, undo, all journaled), and the name a file arrived with is kept as
+   provenance. See todo7 §1 (D1–D12) and `docs/ux.md` principle 3.*
 3. **Safety is visible and specific:** a short rights attestation on the first upload, privacy flags on
    exact files, "held for privacy review" as a real state, and no patient identifiers in trees, URLs or
    chat by default.

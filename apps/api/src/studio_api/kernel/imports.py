@@ -10,9 +10,14 @@ Bytes go one file per request to `PUT /v1/uploads/:session/files/:fileId` (`?off
 chunks). Each chunk is stored as a part under `quarantine/<session>/` in the data BlobStore,
 so any replica can take the next one. When a file is complete it is assembled in /tmp,
 its size and SHA-256 are verified, and it moves to the content-addressed
-`sources/<project>/<sha256><ext>`. `complete` turns uploaded files into assets and source
-nodes and emits `source.uploaded`; nodes stay "Checking…" (not viewable) until the worker's
+`sources/<project>/<sha256><ext>`. `complete` turns uploaded files into assets and nodes
+and emits `source.uploaded`; nodes stay "Checking…" (not viewable) until the worker's
 inspection reports on them.
+
+todo7: an import lands in a folder of the project's drive (D1): the folder dropped on, or a
+new top-level folder named after the dropped folder. New nodes get opaque ids, recorded in
+`upload_files.node_id`, so completing twice finds them (D3). A session in `replace` mode
+(`POST /v1/source-nodes/:id/versions`) adds a version to one file instead (D6).
 """
 
 from __future__ import annotations
@@ -32,7 +37,7 @@ from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Source, SourceNode, UploadFile, now
-from . import assets, audit, events, projects, tree
+from . import assets, audit, events, fs, projects, tree
 from .kinds import is_junk
 
 CHUNK_BYTES = 64 * 1024 * 1024
@@ -132,55 +137,82 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
     if resumed is not None:
         return session_dict(db, resumed, files=True)
 
+    drive = fs.ensure_drive(db, p)
     target = body.get("targetNodeId")
-    base = ""
     node = None
     if target:
         node = db.get(SourceNode, str(target))
         if node is None or node.project_id != p.id or not node.is_dir:
             raise HTTPException(422, "targetNodeId must be a folder of this project")
-        base = node.rel_path
+        if tree.is_hidden(db, node):
+            raise HTTPException(422, "That folder is in the Trash: restore it first")
+        if node.locked:
+            raise HTTPException(423, fs.LOCKED)
+        if node.id == drive.id:
+            node = None  # dropped on Files itself: a new top-level folder, as with no target
     title = _title_of([w[1] for w in wanted], body.get("title"))
     tops = {w[1].split("/", 1)[0] for w in wanted}
     one_folder = len(tops) == 1 and all("/" in w[1] for w in wanted)
-    if one_folder and (node is None or next(iter(tops)) == node.name):
-        # A dropped folder is the source's root: its files are relative to it. Dropped onto
-        # a folder of the same name (the same folder again, e.g. a re-drop on its source),
-        # it merges into that folder instead of nesting a copy inside it.
+    if one_folder and (node is None or next(iter(tops)).lower() == node.name.lower()):
+        # A dropped folder is the import's folder: its files are relative to it. Dropped onto
+        # a folder of the same name (the same folder again, e.g. a re-drop on it), it merges
+        # into that folder instead of nesting a copy inside it.
         wanted = [(fid, rel.split("/", 1)[1], size, sha) for fid, rel, size, sha in wanted]
 
-    # (source, path inside it, sha) of every file already in the project.
-    existing: dict[tuple[str, str], str] = {}
-    for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False), SourceNode.sha256.in_(list({w[3] for w in wanted})))):
-        existing.setdefault((n.rel_path, n.sha256 or ""), n.source_id)
     known = _known_hashes(db, p, [w[3] for w in wanted])
+    if node is not None:
+        # What is already in the folder dropped on, by path below it (any case).
+        here = _paths_below(db, node.id)
+        is_dup = lambda rel, sha: here.get(rel.lower()) == sha  # noqa: E731
+        existing_source: str | None = None
+    else:
+        # A new top-level folder: a re-drop of something already here (same path inside its
+        # import, same bytes, not in Trash) adds nothing.
+        existing: dict[tuple[str, str], str] = {}
+        for n in _visible(db, list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False), SourceNode.sha256.in_(list({w[3] for w in wanted})))))):
+            if n.source_id:
+                existing.setdefault((n.original_path, n.sha256 or ""), n.source_id)
+        is_dup = lambda rel, sha: (rel, sha) in existing  # noqa: E731
+        existing_source = None
     plan = []
     for fid, rel, size, sha in wanted:
-        full = posixpath.join(base, rel) if base else rel
         state, reason = "pending", None
         if size > limits.upload_max_file_bytes:
             state, reason = "rejected", f"Too large: the limit is {_human(limits.upload_max_file_bytes)} per file"
-        elif (full, sha) in existing:
+        elif is_dup(rel, sha):
             state, reason = "skipped_duplicate", "Already in this project"
+            if node is None:
+                existing_source = existing[(rel, sha)]
         elif sha in known:
             # The same bytes are already here under another name: no upload, linked on completion.
             state, reason = "uploaded", f"Same file as {known[sha]}"
         plan.append((fid, rel, size, sha, state, reason))
 
+    landing: str | None
     if node is not None:
-        source = db.get(Source, node.source_id)
-        assert source is not None
-    elif plan and all(x[4] == "skipped_duplicate" for x in plan):
+        source = db.get(Source, node.source_id) if node.source_id else None
+        if source is None:
+            # A folder made in Files: the import is its own provenance, landing there.
+            source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind="upload", created_by=projects.person(ctx), status="uploading", root_node_id=node.id)
+            db.add(source)
+            db.flush()
+        landing = node.id
+    elif plan and all(x[4] == "skipped_duplicate" for x in plan) and existing_source:
         # A re-drop of something already here adds nothing: no new source.
-        source = db.get(Source, existing[(plan[0][1], plan[0][3])])  # type: ignore[assignment]
+        source = db.get(Source, existing_source)  # type: ignore[assignment]
         assert source is not None
+        landing = source.root_node_id
     else:
         source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind="upload", created_by=projects.person(ctx), status="uploading")
-        source.root_node_id = tree.node_id(source.id, "")
+        source.root_node_id = tree.new_node_id()
         db.add(source)
         db.flush()
-        db.add(SourceNode(id=source.root_node_id, source_id=source.id, project_id=p.id, parent_id=None, name=title, rel_path="", is_dir=True, facts={}, flags={}))
-    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "base": base}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
+        name = tree.free_name(fs.clean_name(title), fs.taken_names(db, drive.id), is_dir=True)
+        db.add(SourceNode(**tree._row(id=source.root_node_id, source_id=source.id, project_id=p.id, project_root=drive.id, parent_id=drive.id, name=name, original_path="", is_dir=True, created_at=now())))
+        db.flush()
+        tree.bump(db, drive.id, 0, 0, children=1)
+        landing = source.root_node_id
+    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
     db.add(s)
     db.flush()
     for fid, rel, size, sha, state, reason in plan:
@@ -208,6 +240,32 @@ def _title_of(paths: list[str], asked) -> str:
     return f"Upload {now():%b %-d}"
 
 
+def _visible(db: Session, nodes: list[SourceNode]) -> list[SourceNode]:
+    ch = tree.chains(db, [n.id for n in nodes])
+    return [n for n in nodes if not (ch.get(n.id) and ch[n.id].hidden)]
+
+
+def _paths_below(db: Session, folder_id: str) -> dict[str, str | None]:
+    """lowercase path below a folder → sha256, for the files not in Trash."""
+    rows = tree.subtree(db, folder_id)
+    by_id = {r.id: r for r in rows}
+    file_ids = [r.id for r in rows if not r.is_dir]
+    sha: dict[str, str | None] = {}
+    for i in range(0, len(file_ids), 500):
+        sha.update({nid: h for nid, h in db.execute(select(SourceNode.id, SourceNode.sha256).where(SourceNode.id.in_(file_ids[i : i + 500])))})
+    out: dict[str, str | None] = {}
+    for r in rows:
+        if r.is_dir:
+            continue
+        names = []
+        cur = r
+        while cur is not None and cur.id != folder_id:
+            names.append(cur.name)
+            cur = by_id.get(cur.parent_id)
+        out["/".join(reversed(names)).lower()] = sha.get(r.id)
+    return out
+
+
 def _known_hashes(db: Session, p: ProjectRow, shas: list[str]) -> dict[str, str]:
     """sha256 → the name of a file in this project with those bytes."""
     out: dict[str, str] = {}
@@ -221,6 +279,8 @@ def _known_hashes(db: Session, p: ProjectRow, shas: list[str]) -> dict[str, str]
 def _resumable(db: Session, ctx: RequestContext, p: ProjectRow, wanted: list[tuple[str, str, int, str]]) -> ImportSession | None:
     want = {(rel, sha) for _, rel, _, sha in wanted}
     for s in db.scalars(select(ImportSession).where(ImportSession.project_id == p.id, ImportSession.state.in_(OPEN_STATES), ImportSession.created_by == projects.person(ctx)).order_by(ImportSession.started_at.desc()).limit(5)):
+        if (s.totals or {}).get("mode") == "replace":
+            continue
         rows = list(db.scalars(select(UploadFile).where(UploadFile.session_id == s.id)))
         have = {(f.rel_path, f.sha256) for f in rows}
         # The client may have stripped the dropped folder's name (the source root) or not.
@@ -336,37 +396,35 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     Files still pending or failed stay in the session: partial success is normal."""
     if s.state not in OPEN_STATES:
         return session_dict(db, s, files=True)
+    if (s.totals or {}).get("mode") == "replace":
+        return _complete_replace(db, ctx, s, p)
     source = db.get(Source, s.source_id)
     assert source is not None
     files = list(db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state == "uploaded")))
     known = {n.sha256: n for n in db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.sha256.in_([f.sha256 for f in files]), SourceNode.asset_id.is_not(None)))} if files else {}
     specs = []
-    base = (s.totals or {}).get("base") or ""
     # The first file of this session with given bytes, for duplicates within the session.
     first: dict[str, tuple[str, str, str]] = {}
     for f in sorted(files, key=lambda f: tree.natural_key(f.rel_path)):
         flags = {}
         prior = known.get(f.sha256)
+        nid = f.node_id or tree.new_node_id()
+        f.node_id = nid
         if prior is not None and prior.asset_id:
             # The same bytes are already in the project: link to that asset (stored once).
             asset_id = prior.asset_id
             flags["duplicate_of"] = {"nodeId": prior.id, "name": prior.name}
         elif f.sha256 in first:
-            asset_id, node_id, name = first[f.sha256]
-            flags["duplicate_of"] = {"nodeId": node_id, "name": name}
+            asset_id, first_id, name = first[f.sha256]
+            flags["duplicate_of"] = {"nodeId": first_id, "name": name}
         else:
-            key = upload_key(p.id, f.sha256, f.rel_path)
-            asset = db.scalar(select(Asset).where(Asset.workspace_id == p.id, Asset.path == key))
-            if asset is None:
-                asset = Asset(workspace_id=p.id, path=key, media_type=assets.media_type_of(f.rel_path), size=f.size)
-                db.add(asset)
-                db.flush()
-            asset_id = asset.id
-            full = posixpath.join(base, f.rel_path) if base else f.rel_path
-            first[f.sha256] = (asset.id, tree.node_id(source.id, full), posixpath.basename(f.rel_path))
-        specs.append(tree.FileSpec(f.rel_path, asset_id, f.sha256, f.size, None, {}, flags))
-    root = source.root_node_id or tree.node_id(source.id, "")
-    ids = tree.add_files(db, source.id, p.id, root, specs, base=base, import_session_id=s.id)
+            asset_id = _asset_for(db, p, f).id
+            first[f.sha256] = (asset_id, nid, posixpath.basename(f.rel_path))
+        specs.append(tree.FileSpec(f.rel_path, asset_id, f.sha256, f.size, None, {}, flags, id=nid))
+    landing = (s.totals or {}).get("landingNodeId") or source.root_node_id
+    if landing is None or db.get(SourceNode, landing) is None or tree.is_hidden(db, db.get(SourceNode, landing)):  # type: ignore[arg-type]
+        landing = fs.ensure_drive(db, p).id
+    ids = tree.add_files(db, p.id, source.id, landing, specs, import_session_id=s.id, created_by=projects.person(ctx))
     pending = db.scalar(select(UploadFile.client_file_id).where(UploadFile.session_id == s.id, UploadFile.state.in_(("pending", "failed"))).limit(1))
     s.state = "inspecting" if ids else ("failed" if pending else "ready")
     s.totals = {**(s.totals or {}), "committed": len(ids), "incomplete": bool(pending)}
@@ -385,12 +443,98 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     return session_dict(db, s, files=True)
 
 
+def _asset_for(db: Session, p: ProjectRow, f: UploadFile) -> Asset:
+    key = upload_key(p.id, f.sha256, f.rel_path)
+    asset = db.scalar(select(Asset).where(Asset.workspace_id == p.id, Asset.path == key))
+    if asset is None:
+        asset = Asset(workspace_id=p.id, path=key, media_type=assets.media_type_of(f.rel_path), size=f.size)
+        db.add(asset)
+        db.flush()
+    return asset
+
+
+def create_replace_session(db: Session, ctx: RequestContext, p: ProjectRow, n: SourceNode, body: dict) -> dict:
+    """`POST /v1/source-nodes/:id/versions`: an import session for one file in `replace`
+    mode. Upload as usual, then `complete` adds a version to the node (D6)."""
+    if ctx.scopes:
+        raise HTTPException(403, "only people add data to a project")
+    if n.is_dir:
+        raise HTTPException(422, "Only a file can have versions")
+    if n.locked:
+        raise HTTPException(423, fs.LOCKED)
+    if tree.is_hidden(db, n):
+        raise HTTPException(422, f"{n.name} is in the Trash: restore it first")
+    if body.get("mode", "replace") != "replace":
+        raise HTTPException(422, "mode must be replace")
+    files = body.get("files")
+    if not isinstance(files, list) or len(files) != 1 or not isinstance(files[0], dict):
+        raise HTTPException(422, "files must list exactly one file")
+    if body.get("attested") is not True:
+        raise HTTPException(422, "confirm that you may use these files for research and that they're de-identified or synthetic")
+    f = files[0]
+    fid = str(f.get("clientFileId") or "")[:128]
+    sha = str(f.get("sha256") or "").lower()
+    size = f.get("size")
+    try:
+        rel = posixpath.basename(_clean_rel(f.get("relPath") or n.name))
+    except ValueError:
+        raise HTTPException(422, "files[0].relPath is not a relative path") from None
+    if not fid or len(sha) != 64 or not set(sha) <= SHA or not isinstance(size, int) or size < 0:
+        raise HTTPException(422, "files[0] needs a clientFileId, a SHA-256 and a size")
+    if sha == n.sha256:
+        raise HTTPException(409, "That's the same file as the current version")
+    for s in db.scalars(select(ImportSession).where(ImportSession.project_id == p.id, ImportSession.state.in_(OPEN_STATES), ImportSession.target_node_id == n.id, ImportSession.created_by == projects.person(ctx))):
+        row = db.scalar(select(UploadFile).where(UploadFile.session_id == s.id))
+        if (s.totals or {}).get("mode") == "replace" and row is not None and row.sha256 == sha:
+            if row.client_file_id != fid:
+                db.execute(update(UploadFile).where(UploadFile.session_id == s.id, UploadFile.client_file_id == row.client_file_id).values(client_file_id=fid))
+                db.expire_all()
+            return session_dict(db, s, files=True)
+    limits = settings()
+    state, reason = "pending", None
+    known = _known_hashes(db, p, [sha])
+    if size > limits.upload_max_file_bytes:
+        state, reason = "rejected", f"Too large: the limit is {_human(limits.upload_max_file_bytes)} per file"
+    elif sha in known:
+        state, reason = "uploaded", f"Same file as {known[sha]}"
+    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=n.source_id or "", target_node_id=n.id, state="uploading", totals={"mode": "replace", "replaceNodeId": n.id}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
+    db.add(s)
+    db.flush()
+    db.add(UploadFile(session_id=s.id, client_file_id=fid, rel_path=rel, size=size, sha256=sha, received=size if state == "uploaded" else 0, state=state, reason=reason, node_id=n.id))
+    db.flush()
+    audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": 1, "mode": "replace", "attested": True})
+    _publish(db, ctx, s)
+    return session_dict(db, s, files=True)
+
+
+def _complete_replace(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) -> dict:
+    f = db.scalar(select(UploadFile).where(UploadFile.session_id == s.id))
+    n = db.get(SourceNode, (s.totals or {}).get("replaceNodeId") or "")
+    scoped = ctx.for_scope(p.id, None)
+    if f is None or f.state != "uploaded" or n is None:
+        s.state, s.finished_at = "failed", now()
+        s.error = "The new version didn't finish uploading" if n is not None else "The file is gone"
+        db.flush()
+        _publish(db, ctx, s)
+        return session_dict(db, s, files=True)
+    known = db.scalar(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.sha256 == f.sha256, SourceNode.asset_id.is_not(None)).limit(1))
+    asset_id = known.asset_id if known is not None and known.asset_id else _asset_for(db, p, f).id
+    b = fs.replace_with_upload(db, ctx, p, n, asset_id, f.sha256, f.size, s.id)
+    s.state = "inspecting"
+    s.totals = {**(s.totals or {}), "committed": 1, "incomplete": False, "batchId": b.id, "version": n.version}
+    db.flush()
+    audit.record(db, scoped, "import.completed", target=s.id, after={"files": 1, "incomplete": False, "mode": "replace"})
+    events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": n.source_id or "", "nodeIds": [n.id]}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
+    _publish(db, ctx, s)
+    return session_dict(db, s, files=True)
+
+
 def cancel(db: Session, ctx: RequestContext, s: ImportSession) -> dict:
     if s.state in OPEN_STATES:
         s.state, s.finished_at = "cancelled", now()
         for f in db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state == "pending")):
             f.state, f.reason = "failed", "Cancelled"
-        source = db.get(Source, s.source_id)
+        source = db.get(Source, s.source_id) if s.source_id else None
         if source is not None and source.status == "uploading" and not db.scalar(select(SourceNode.id).where(SourceNode.source_id == source.id, SourceNode.is_dir.is_(False)).limit(1)):
             source.status = "ready"
         db.flush()
@@ -402,6 +546,6 @@ def cancel(db: Session, ctx: RequestContext, s: ImportSession) -> dict:
 def finish_inspection(db: Session, s: ImportSession, needs_review: bool, at: datetime | None = None) -> None:
     s.state = "needs_review" if needs_review else "ready"
     s.finished_at = at or now()
-    source = db.get(Source, s.source_id)
+    source = db.get(Source, s.source_id) if s.source_id else None
     if source is not None and not db.scalar(select(ImportSession.id).where(ImportSession.source_id == source.id, ImportSession.state.in_(("uploading", "inspecting"))).limit(1)):
         source.status = "ready"

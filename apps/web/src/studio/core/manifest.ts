@@ -8,6 +8,9 @@ import { NAMING, ns } from "@studio/contracts/naming";
 export const CORE = ns("core");
 export const coreCommand = (name: string) => `${CORE}.commands.${name}`;
 
+/** The Data page's commands (`section` is the route segment the shell sets). */
+const FILES = "section == files";
+
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 /**
@@ -15,8 +18,8 @@ const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
  * renderer that declares e.g. `drafting` or `playback` gets the same keys and sheet entries.
  */
 const commands: CommandContribution[] = [
-  { id: "undo", keys: ["mod+z"], label: "Undo", group: "Edit", description: "Undo the last annotation change" },
-  { id: "redo", keys: ["shift+mod+z", "mod+y"], label: "Redo", group: "Edit", description: "Redo" },
+  { id: "undo", keys: ["mod+z"], label: "Undo", group: "Edit", description: "Undo the last change (an annotation in the Studio; a file operation in Data)" },
+  { id: "redo", keys: ["shift+mod+z", "mod+y"], label: "Redo", group: "Edit", description: "Redo the last undone change" },
   { id: "deleteSelection", keys: ["Backspace", "Delete"], label: "Delete selected annotations", group: "Edit", description: "Delete the selected, unlocked annotations" },
   { id: "deselect", keys: ["Escape"], label: "Clear selection", group: "Edit", description: "Clear the selection" },
   { id: "selectAll", keys: ["mod+a"], label: "Select every annotation on this item", group: "Edit", description: "Select every visible annotation on the current item" },
@@ -28,12 +31,25 @@ const commands: CommandContribution[] = [
   { id: "showShortcuts", keys: ["?"], label: "Keyboard shortcuts", group: "Help", description: "Open the keyboard shortcuts sheet" },
   // Shell (todo6 Phase 2, 4): also bound outside the Studio, where no environment is active.
   // `section` is the shell's page (`setShellContext`); environments always resolve with
-  // `section == studio`, so the Sources keys never claim Space or Enter in the Studio.
+  // `section == studio`, so the Data keys never claim Space or Enter in the Studio.
   { id: "toggleNavigation", keys: ["mod+b"], label: "Show or hide the project navigation", group: "Navigate", description: "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)" },
-  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Data", when: "section == sources", description: "Preview the selected file large; arrows step through its folder" },
-  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Data", when: "section == sources", description: "Open the selected folder, or show the selected file's details" },
-  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Data", when: "section == sources", description: "Show the folder that contains the current one" },
-  { id: "focusSearch", keys: ["mod+f"], label: "Search in data", group: "Data", when: "section == sources", description: "Search file names across the project's sources" },
+  // The project's drive (todo7 D11: the route, so the section, is `files`; the nav says "Data").
+  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Data", when: FILES, description: "Preview the selected file large; arrows step through its folder" },
+  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Data", when: FILES, description: "Open the selected folder, or show the selected file's details" },
+  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Data", when: FILES, description: "Show the folder that contains the current one" },
+  { id: "focusSearch", keys: ["mod+f"], label: "Search in data", group: "Data", when: FILES, description: "Search file names across the project's files" },
+  // File operations (todo7 §2 Keyboard). Undo, redo and select all reuse the shared Edit
+  // commands above (same keys); the Files page binds its own handlers to them.
+  { id: "newFolder", keys: ["shift+mod+n"], label: "New folder", group: "Data", when: FILES, description: "Make a folder in the folder shown, and name it" },
+  { id: "rename", keys: ["F2"], label: "Rename", group: "Data", when: FILES, description: "Rename the selected file or folder" },
+  { id: "cut", keys: ["mod+x"], label: "Cut", group: "Data", when: FILES, description: "Mark the selection to be moved by Paste" },
+  { id: "copy", keys: ["mod+c"], label: "Copy", group: "Data", when: FILES, description: "Mark the selection to be copied by Paste (copies share the same bytes)" },
+  { id: "paste", keys: ["mod+v"], label: "Paste", group: "Data", when: FILES, description: "Move or copy what was cut or copied into the focused or shown folder" },
+  { id: "duplicate", keys: ["mod+d"], label: "Duplicate", group: "Data", when: FILES, description: "Make a copy next to the original, named “name (copy)”" },
+  { id: "moveToTrash", keys: IS_MAC ? ["mod+Backspace"] : ["Delete"], label: "Move to Trash", group: "Data", when: FILES, description: "Move the selection to Trash (undo brings it back)" },
+  { id: "clearSelection", keys: ["Escape"], label: "Clear selection", group: "Data", when: FILES, description: "Deselect every file and folder" },
+  { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Data", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
+  { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
   { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 

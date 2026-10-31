@@ -71,6 +71,7 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | dataset_open_review (dataset_branch/commit/diff: allow, work/agent-* only) | ask |
  * | propose_schema / propose_relationship (a proposal; changes no data)     | ask (the card links to Explore) |
  * | confirm_proposal                                                         | allow: the kernel refuses agents (403) |
+ * | list_folder, find_files, propose_reorganization (a card the person applies) | allow: the agent can't write files (fs/ops 403) |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
  * | anything after a budget is exhausted                                     | deny |
  */

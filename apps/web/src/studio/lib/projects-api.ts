@@ -34,6 +34,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** The parsed JSON error body (`{ detail }`), for callers that need more than the sentence (todo7 409 conflicts). */
+    readonly body?: unknown,
   ) {
     super(message);
   }
@@ -49,8 +51,9 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
   if (res.status === 501) throw new NeedsApiError();
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
-    const msg = typeof body.detail === "string" ? body.detail : typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`;
-    throw new ApiError(res.status, msg);
+    const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
+    const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
+    throw new ApiError(res.status, msg, body);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

@@ -3,13 +3,19 @@
  * tab, a view mode) go in the query; file names and other patient-ish strings never do
  * (node ids instead: docs/ux.md §11).
  */
-export type ProjectSection = "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity" | "settings";
+export type ProjectSection = "overview" | "files" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity" | "settings";
 
 export const homeUrl = () => "/";
 export const projectsUrl = () => "/projects";
 export const newProjectUrl = () => "/projects/new";
-export const projectUrl = (projectId: string, section: ProjectSection = "overview") => `/projects/${encodeURIComponent(projectId)}/${section}`;
-export const sourcesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "sources")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
+/** `"sources"` is the old name of `"files"` (todo7 D11) and gives the same URL. */
+export const projectUrl = (projectId: string, section: ProjectSection = "overview") => `/projects/${encodeURIComponent(projectId)}/${section === "sources" ? "files" : section}`;
+/** The project's drive (todo7 D11): `/projects/:p/files/:nodeId?`. The nav label stays "Data"; the root folder is "Files". */
+export const filesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "files")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
+/** The Trash view (todo7 Phase 4). */
+export const trashUrl = (projectId: string) => `${projectUrl(projectId, "files")}/trash`;
+/** Kept for existing callers: an alias of `filesUrl` (`/sources/*` redirects there too). */
+export const sourcesUrl = filesUrl;
 export const exploreUrl = (projectId: string, tab?: string, proposalId?: string) => withQuery(`${projectUrl(projectId, "explore")}${tab ? `/${tab}` : ""}`, { proposal: proposalId });
 export const datasetUrl = (projectId: string, datasetId: string, tab?: "tasks" | "versions" | "publish") => `${projectUrl(projectId, "datasets")}/${encodeURIComponent(datasetId)}${tab && tab !== "tasks" ? `/${tab}` : ""}`;
 export const versionReviewUrl = (projectId: string, datasetId: string, reviewId: string) => `${datasetUrl(projectId, datasetId, "versions")}/reviews/${encodeURIComponent(reviewId)}`;
@@ -27,7 +33,9 @@ function withQuery(path: string, query?: Record<string, string | undefined>): st
 export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string }): string {
   switch (t.section) {
     case "sources":
-      return sourcesUrl(projectId, t.nodeId, { import: t.importId, status: t.status });
+    case "files":
+      if (t.tab === "trash") return trashUrl(projectId);
+      return filesUrl(projectId, t.nodeId, { import: t.importId, status: t.status });
     case "explore":
       return exploreUrl(projectId, t.tab, t.proposalId);
     case "datasets":
@@ -44,4 +52,9 @@ export function targetUrl(projectId: string, t: { section: string; nodeId?: stri
     default:
       return projectUrl(projectId);
   }
+}
+
+/** Where an old `/projects/:p/sources/*` URL goes now (todo7 D11): the same node and query under `files`. */
+export function filesRedirect(pathname: string, search = ""): string {
+  return pathname.replace(/^(\/projects\/[^/]+)\/sources(?=\/|$)/, "$1/files") + search;
 }

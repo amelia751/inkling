@@ -141,8 +141,21 @@ export function overviewContext(o: ProjectOverview): AgentContextProvider {
 const isHeld = (n: Pick<SourceNode, "status" | "flags">) => n.status === "privacy" || !!(n.flags?.privacy && !n.flags.privacy.clearedBy);
 
 /**
- * Sources: the selected node and its facts, never file contents. A held file is only "a file
- * held for privacy review"; a restricted project shares its kind and status, not its name.
+ * Fact keys that can carry a name or path the file arrived with (todo7 Phase 7: `originalPath`
+ * and old names may still hold the identifier someone renamed away). Never sent to the assistant.
+ */
+const SENSITIVE_FACT_KEY = /^(original_?path|rel_?path|uploaded_?as|original_?name|old_?names?|previous_?names?|source_?path)$/i;
+
+/** Facts the assistant may see: no sensitive keys; restricted projects keep numbers and booleans only. */
+export function shareableFacts(facts: Record<string, unknown> | undefined, named: boolean): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(facts ?? {}).filter(([k, v]) => !SENSITIVE_FACT_KEY.test(k) && (named || typeof v === "number" || typeof v === "boolean")));
+}
+
+/**
+ * Data (the Files drive): the selected node and its facts, never file contents. A held file is
+ * only "a file held for privacy review"; a restricted project shares its kind and status, not
+ * its name. Only the current name is used: `originalPath` (on a `SourceNodeDetail`) and any old
+ * name never reach the assistant, whatever object the page passes in.
  */
 export function sourceNodeContext(project: ProjectRef, node: SourceNode | null | undefined): AgentContextProvider {
   if (!node) return sectionContext(project, "sources");
@@ -150,7 +163,7 @@ export function sourceNodeContext(project: ProjectRef, node: SourceNode | null |
   const named = !held && !project.restricted;
   const name = node.displayPath ?? node.name;
   const label = held ? "Data › a held file" : named ? `Data › ${name}` : `Data › a ${node.detectedKind ?? node.kind}`;
-  const facts = named ? node.facts : Object.fromEntries(Object.entries(node.facts ?? {}).filter(([, v]) => typeof v === "number" || typeof v === "boolean"));
+  const facts = shareableFacts(node.facts, named);
   return {
     key: `${project.id}:sources:${node.id}`,
     section: "sources",

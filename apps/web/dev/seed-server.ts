@@ -25,6 +25,7 @@ const RES = NAMING.resourcePrefix;
  *   GET   /api/v1/workspaces/:id/state → active plugins: seed-data/<id>/workspace.json, else every
  *                                         bundled plugin (the kernel serves this when it runs)
  *   GET   /api/v1/projects…, /sources/:id/children, /source-nodes/:id, /tasks/:id/document
+ *   GET   /api/v1/projects/:id/fs[/children|/history], …/trash, …/starred, …/recent (todo7 D12)
  *                                       → the read-only project API synthesized from manifest.json
  *                                         (dev/project-stand-in.ts); writes answer 501 "needs the API"
  *   /api/agent/*                        → not here: Vite proxies it to the agent service (apps/agent)

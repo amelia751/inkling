@@ -275,8 +275,9 @@ Every error says what happened and the next step, in plain words; never a bare s
 - Every route sits under one `errorElement` (`RouteError`), so a page that throws never leaves a
   blank tab.
 - Validate a field on blur or on submit, not while the person is still typing.
-- Illustrations are Gravity's (`@studio/ui/illustrations`, MIT), coloured by the `--gil-color-*`
-  tokens. Danger red is for errors only, never for decoration.
+- Illustrations (`@studio/ui/illustrations`) follow the Nebius console: a 2px window outline in the
+  brand line colour over a faint tilted panel, plus one glyph (warning, danger, magnifier, lock,
+  check), coloured by the `--ill-*` tokens. Danger red is for errors only, never for decoration.
 
 ## 10. MVP implementation order and acceptance criteria
 

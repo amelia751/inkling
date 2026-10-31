@@ -62,15 +62,12 @@
   --g-danger: rgb(207 0 43);
   --g-danger-heavy: rgb(221 0 56);
   --g-danger-tint: rgb(255 45 80 / 0.1);
-  /* Error and empty-state illustrations (packages/ui/src/illustrations, Gravity's palette). */
-  --gil-color-object-base: rgb(255 190 92);
-  --gil-color-object-accent-heavy: rgb(211 101 7);
-  --gil-color-object-hightlight: rgb(255 216 157);
-  --gil-color-shadow-over-object: rgb(211 158 80);
-  --gil-color-background-lines: rgb(140 140 140);
-  --gil-color-background-shapes: rgb(242 242 242);
-  --gil-color-object-accent-light: rgb(255 255 255);
-  --gil-color-object-danger: rgb(255 0 61);
+  /* Error and empty-state illustrations (packages/ui/src/illustrations), Nebius's colours. */
+  --ill-line: var(--g-text-brand);
+  --ill-panel: rgb(85 71 234 / 0.06);
+  --ill-warning: rgb(255 161 5 / 0.5);
+  --ill-danger: rgb(255 45 80 / 0.45);
+  --ill-positive: rgb(0 132 0 / 0.35);
   --g-utility: rgb(85 71 234);
   --g-utility-tint: rgb(93 82 246 / 0.1);
 
@@ -150,14 +147,11 @@
   --g-danger: rgb(253 90 104);
   --g-danger-heavy: rgb(245 66 87);
   --g-danger-tint: rgb(255 45 80 / 0.15);
-  --gil-color-object-base: rgb(255 190 92);
-  --gil-color-object-accent-heavy: rgb(211 130 61);
-  --gil-color-object-hightlight: rgb(255 210 141);
-  --gil-color-shadow-over-object: rgb(233 174 86);
-  --gil-color-background-lines: rgb(156 153 156);
-  --gil-color-background-shapes: rgb(78 74 78);
-  --gil-color-object-accent-light: rgb(255 255 255);
-  --gil-color-object-danger: rgb(229 50 93);
+  --ill-line: var(--g-text-brand);
+  --ill-panel: rgb(216 236 252 / 0.08);
+  --ill-warning: rgb(255 161 5 / 0.5);
+  --ill-danger: rgb(255 45 80 / 0.5);
+  --ill-positive: rgb(85 182 25 / 0.5);
   --g-utility: rgb(131 136 255);
   --g-utility-tint: rgb(93 82 246 / 0.2);
 

@@ -10,7 +10,7 @@ export * from "./move-dialog";
 export * from "./path-bar";
 export * from "./reorg-diff";
 export * from "./selection-bar";
-export * from "./shared";
+export { DROP_HIGHLIGHT, ReasonButton, keepBothName, relativeTime, stemEnd } from "./shared";
 export * from "./trash-view";
 export * from "./tree-footer";
 export * from "./tree-header";

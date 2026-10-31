@@ -214,6 +214,29 @@ renderers in `packages/renderers` and plugins (`docs/modules.md`).
 - Clear focus states, semantic labels for controls, accessible contrast, and non-color-only annotation statuses.
 - Support large text without clipping essential controls; maintain canvas resize behavior.
 
+<a id="files-keyboard"></a>
+### Files keyboard (Data section)
+
+Declared as core commands with `when: section == files` (the Data section's drive), never
+hard-coded in a component (`AGENTS.md`; the `shell-commands.test.ts` pattern). From todo7 §2.
+
+| Action | macOS | Windows / Linux | Note |
+|---|---|---|---|
+| New folder | ⇧⌘N | Ctrl+Shift+N | Finder, Explorer |
+| Rename | F2 / Enter-on-focused-name in the inspector | F2 | Enter stays "open" in tree and list (todo6) |
+| Cut / Copy / Paste | ⌘X / ⌘C / ⌘V | Ctrl+X / C / V | paste goes into the focused folder or the listed one |
+| Duplicate | ⌘D | Ctrl+D | |
+| Move to Trash | ⌘⌫ | Delete | |
+| Undo / Redo | ⌘Z / ⇧⌘Z | Ctrl+Z / Ctrl+Y | server journal: undoes your last batch, including an applied assistant plan |
+| Select all / Clear | ⌘A / Esc | Ctrl+A / Esc | |
+| Extend selection | ⇧↑ ⇧↓, ⇧-click, ⌘-click | same with Ctrl | |
+| Expand all below | ⌥-click, or ⌥→ | Alt-click, Alt+→ | capped at 2,000 rows |
+| Info (toggle inspector) | ⌘I | Ctrl+I | |
+| Already there | Space Quick Look · ⌘↑ parent · ⌘F search · ← → in Quick Look | | todo6 |
+
+Every drag has a keyboard twin (Cut and Paste, or Move to…), and Shift+F10 or the Menu key opens
+a row's context menu.
+
 ## 8. Privacy and safety UX
 
 - Import screen warns that users must have the right to upload and process the files.

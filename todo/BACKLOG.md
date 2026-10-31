@@ -23,6 +23,14 @@ line links back to the section that explains it. Take an item by moving it into 
 - Presigned S3 `PUT` (multipart above 64 MB) for uploads; today every upload goes through the API in ≤ 64 MB chunks. [todo6 Phase 1](done/todo6.md#phase-1-domain-model-and-api-backend-first-no-ui-change)
 - Run migration `0004`'s Postgres branch (named constraints) against Postgres; only SQLite upgrade/downgrade was checked. [todo6 Phase 1](done/todo6.md#phase-1-domain-model-and-api-backend-first-no-ui-change)
 
+## Files (todo7)
+- Shared links to a file or folder (today a link opens only for project members). [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+- A column view in Files (Finder), next to list and grid. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+- Drag files out of Files to the desktop (Chrome `DownloadURL` on `dragstart`). [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+- Folder colors. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+- Comments on a file. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+- Connectors that keep a remote folder in sync with a folder in Files. [todo7 Phase 9](todo7.md#phase-9-verification-and-docs)
+
 ## Kubernetes
 - Done-when 4: a kind or k3d run following `docs/running.md`, then `tests/e2e/versioning/chaos_test.py` against it (today a documented skip). [todo3](done/todo3.md#whats-left), [todo4 Phase 6/7](done/todo4.md#whats-left)
 

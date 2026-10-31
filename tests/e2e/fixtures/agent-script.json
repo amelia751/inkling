@@ -220,6 +220,71 @@
           "text": "Confirm it there when you're ready."
         }
       ]
+    },
+    {
+      "when": "group these scans by patient",
+      "turns": [
+        {
+          "toolCalls": [
+            {
+              "name": "find_files",
+              "arguments": {
+                "query": "p00"
+              }
+            }
+          ]
+        },
+        {
+          "text": "The names start with a patient number, so here is a plan with one folder per patient.",
+          "toolCalls": [
+            {
+              "name": "propose_reorganization",
+              "arguments": {
+                "title": "Group by patient: 6 scans → patient_001, patient_002",
+                "ops": [
+                  {
+                    "kind": "mkdir",
+                    "ref": "p1",
+                    "parentId": "{{last.items.0.parentId}}",
+                    "name": "patient_001",
+                    "reason": "A folder for patient 001"
+                  },
+                  {
+                    "kind": "mkdir",
+                    "ref": "p2",
+                    "parentId": "{{last.items.0.parentId}}",
+                    "name": "patient_002",
+                    "reason": "A folder for patient 002"
+                  },
+                  {
+                    "kind": "move",
+                    "nodeIds": [
+                      "{{last.items.0.id}}",
+                      "{{last.items.1.id}}",
+                      "{{last.items.2.id}}"
+                    ],
+                    "parentId": "p1",
+                    "reason": "Their names start with p001"
+                  },
+                  {
+                    "kind": "move",
+                    "nodeIds": [
+                      "{{last.items.3.id}}",
+                      "{{last.items.4.id}}",
+                      "{{last.items.5.id}}"
+                    ],
+                    "parentId": "p2",
+                    "reason": "Their names start with p002"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "text": "Nothing changes until you apply it, and one undo puts everything back."
+        }
+      ]
     }
   ]
 }

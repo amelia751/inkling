@@ -40,6 +40,16 @@ describe("agent context providers", () => {
     expect(p.turnContext()).not.toMatch(/John_Doe|T1 knee/);
   });
 
+  it("never shares the name or path a file was uploaded with (todo7 Phase 7)", () => {
+    // The page passes a SourceNodeDetail: originalPath and old names ride along and must stay out.
+    const detail = { ...node({ name: "case_014.dcm", displayPath: undefined, kind: "file", detectedKind: "dicom", facts: { rows: 2, original_path: "Smith_John/MRI.dcm", uploadedAs: "Smith_John_MRI.dcm", oldNames: ["Smith_John_MRI.dcm"] } }), originalPath: "Smith_John/Smith_John_MRI.dcm", pathText: "MRI/case_014.dcm" } as SourceNode;
+    const p = sourceNodeContext(project, detail);
+    const text = p.turnContext() + p.label + p.shares;
+    expect(text).toContain("case_014.dcm");
+    expect(text).toContain('"rows":2');
+    expect(text).not.toMatch(/Smith|original_path|uploadedAs|oldNames/);
+  });
+
   it("restricted projects share kinds and numbers, not names", () => {
     const p = sourceNodeContext({ ...project, restricted: true }, node());
     expect(p.label).toBe("Data › a folder");

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AiIcon, SearchIcon, SourcesIcon, WarningIcon, RelationshipIcon } from "@studio/ui/icons";
+import { AiIcon, FileIcon, FolderIcon, SearchIcon, SourcesIcon, TableFileIcon, WarningIcon, RelationshipIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
@@ -14,11 +14,16 @@ import type { ClientToolOutcome } from "@/studio/stores/agent";
 import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/shell";
 
 const SECTIONS = new Set<AgentSection>(["overview", "sources", "explore", "datasets", "studio", "review", "activity", "settings"]);
-/** The route segment → the assistant's section (`files` is the todo7 name of `sources`). */
-export const agentSection = (s: string | undefined): AgentSection => {
-  const name = s === "files" ? "sources" : s;
-  return name && SECTIONS.has(name as AgentSection) ? (name as AgentSection) : "overview";
-};
+/** todo7 D11: the drive's route may say `files`; it is the same section as `sources` (nav label "Data"). */
+const ALIASES: Record<string, AgentSection> = { files: "sources" };
+export const agentSection = (s: string | undefined): AgentSection => (s && ALIASES[s]) || (s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
+
+/** Empty-state prompts on the Files drive (todo7 Phase 8): the assistant proposes a plan; you apply it. */
+const FILES_PROMPTS = [
+  { icon: FolderIcon, text: "Group these scans by patient" },
+  { icon: FileIcon, text: "Rename files to remove dates" },
+  { icon: TableFileIcon, text: "Put all spreadsheets in one folder" },
+];
 
 /** Outside the Studio only project cards run; environment tools need the open Studio. */
 async function runProjectTool(name: string, input: Record<string, unknown>): Promise<ClientToolOutcome> {
@@ -116,16 +121,24 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
       runTool={runProjectTool}
       onClose={onClose}
       placeholder={() => `Ask about ${ref.title}…`}
-      empty={() => ({
-        title: "How can I help with this project?",
-        body: `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
-        prompts: [
-          { icon: SourcesIcon, text: "What did I import?" },
-          { icon: WarningIcon, text: "What needs my attention?" },
-          { icon: SearchIcon, text: "Did my last upload work?" },
-          { icon: RelationshipIcon, text: "How do these files fit together?" },
-        ],
-      })}
+      empty={() =>
+        section === "sources"
+          ? {
+              title: "How can I help with these files?",
+              body: "I can find files and propose a tidier layout: new folders, moves and renames. Nothing changes until you apply the plan, and one undo reverts it.",
+              prompts: FILES_PROMPTS,
+            }
+          : {
+              title: "How can I help with this project?",
+              body: `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
+              prompts: [
+                { icon: SourcesIcon, text: "What did I import?" },
+                { icon: WarningIcon, text: "What needs my attention?" },
+                { icon: SearchIcon, text: "Did my last upload work?" },
+                { icon: RelationshipIcon, text: "How do these files fit together?" },
+              ],
+            }
+      }
     />
   );
 }

@@ -82,7 +82,29 @@ export type AgentCard =
   | { kind: "review-suggestions"; action: "accept" | "reject"; annotationIds: string[]; reason: string }
   | { kind: "select-annotations"; annotationIds: string[]; reason: string }
   /** open_location: a button that opens a project place; the agent never navigates by itself. */
-  | { kind: "location"; label: string; target: LocationTarget; reason?: string };
+  | { kind: "location"; label: string; target: LocationTarget; reason?: string }
+  /** propose_reorganization (todo7 Phase 8): a plan for the project's Files; Apply sends it as the user. */
+  | { kind: "reorg-plan"; plan: ReorgPlan };
+
+/**
+ * A reorganization plan the assistant proposes for the project's Files (todo7 Phase 8). Ids only
+ * for existing nodes, never paths or original names. A new folder gets a `ref` (`new:<handle>`)
+ * that later ops use as `parentId`; the web turns the plan into one `fs/ops` batch with fresh
+ * `nod-<uuid>` ids, sent as the user after they approve it (the agent's token can't write the
+ * namespace), so one undo reverts the whole plan.
+ */
+export interface ReorgPlan {
+  /** Client-made id (`plan-…`): the card, the Files page's `?plan=` and the plan store share it. */
+  id: string;
+  /** One line, e.g. "Group by patient: 47 folders → patient_001…047". */
+  title: string;
+  ops: ReorgOp[];
+}
+
+export type ReorgOp =
+  | { kind: "mkdir"; ref: string; parentId: string; name: string; reason: string }
+  | { kind: "move"; nodeIds: string[]; parentId: string; reason: string }
+  | { kind: "rename"; nodeId: string; name: string; reason: string };
 
 /** Where open_location points (the same shape as contracts' `ProjectTarget`; ids, never paths). */
 export interface LocationTarget {

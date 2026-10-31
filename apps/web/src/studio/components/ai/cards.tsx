@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRightIcon, CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, InfoIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon } from "@studio/ui/icons";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { ArrowRightIcon, CheckIcon, CopyIcon, DocumentIcon, DoneIcon, ExportIcon, FileIcon, FolderIcon, InfoIcon, ReviewIcon, SearchIcon, TagIcon, TodoIcon, AiIcon, UndoIcon } from "@studio/ui/icons";
 import type { IconComponent } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
@@ -14,6 +15,9 @@ import { isEditable, useStudio } from "@/studio/stores/studio";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { targetUrl } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { fetchNode, projectKeys } from "@/studio/lib/projects-api";
+import { applyReorgPlan, planNodeIds, planSummary, undoReorgBatch } from "@/studio/lib/agent/reorg";
+import { useReorgPlans } from "@/studio/stores/reorg-plans";
 import { Markdown } from "./markdown";
 
 /** What Studio-only cards act on: the open dataset and its items. */
@@ -40,6 +44,7 @@ export function AgentCardView({ studio, ...rest }: CardProps) {
   const { card } = rest;
   if (card.kind === "location") return <LocationCard {...rest} card={card} />;
   if (card.kind === "document") return <DocumentCard {...rest} card={card} />;
+  if (card.kind === "reorg-plan") return <ReorgPlanCard {...rest} card={card} />;
   if (STUDIO_ONLY.has(card.kind) && !studio)
     return (
       <Shell icon={InfoIcon} title="Open the Studio to use this">
@@ -328,6 +333,124 @@ function LocationCard({ card, setState, projectId }: CardProps & { card: Extract
         {label}
         <ArrowRightIcon />
       </Button>
+    </div>
+  );
+}
+
+const MAX_LOOKUPS = 60;
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/**
+ * propose_reorganization (todo7 Phase 8): the assistant proposes, the person applies. Apply sends
+ * one `fs/ops` batch as the person (the agent's token can't write the namespace), so Undo here
+ * or ⌘Z in Files reverts the whole plan. Edit opens it in Files (`?plan=<id>`; the plan waits in
+ * the per-tab plan store, never in the URL) with a checkbox per op.
+ */
+function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card: Extract<AgentCard, { kind: "reorg-plan" }> }) {
+  const { plan } = card;
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const batchId = useReorgPlans((s) => s.batches[plan.id]);
+  const [busy, setBusy] = useState<"apply" | "undo" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const ids = useMemo(() => planNodeIds(plan).slice(0, MAX_LOOKUPS), [plan]);
+  // Current names, for the person only (the assistant never got these from the card).
+  const lookups = useQueries({ queries: ids.map((id) => ({ queryKey: projectKeys.node(id), queryFn: () => fetchNode(id), staleTime: 30_000, retry: false })) });
+  const names = useMemo(() => new Map(ids.map((id, i) => [id, lookups[i]?.data?.name] as const)), [ids, lookups]);
+  const refresh = () =>
+    qc.invalidateQueries({ predicate: (q) => ["sources", "source-nodes", "files", "fs"].includes(String(q.queryKey[0])) || (q.queryKey[0] === "projects" && q.queryKey[1] === projectId) });
+  const apply = async () => {
+    setBusy("apply");
+    setError(null);
+    try {
+      const r = await applyReorgPlan(projectId, plan);
+      useReorgPlans.getState().setBatch(plan.id, r.batchId);
+      setState("applied");
+      void refresh();
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const undo = async () => {
+    if (!batchId) return;
+    setBusy("undo");
+    setError(null);
+    try {
+      await undoReorgBatch(projectId, batchId);
+      useReorgPlans.getState().setBatch(plan.id, null);
+      setState("undone");
+      void refresh();
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const edit = () => {
+    useReorgPlans.getState().put(projectId, plan);
+    if (window.innerWidth < 1024) useShell.getState().setAssistant(false);
+    // TODO(todo7-integration): use the files route helper (`/projects/:p/files?plan=`) once routes land; `/sources` redirects there.
+    navigate(`${targetUrl(projectId, { section: "sources" })}?plan=${encodeURIComponent(plan.id)}`);
+  };
+  const newName = new Map(plan.ops.flatMap((o) => (o.kind === "mkdir" ? [[o.ref, o.name] as const] : [])));
+  const where = (parentId: string) => newName.get(parentId) ?? names.get(parentId) ?? "a folder";
+  const footer =
+    state === "applied" ? (
+      <>
+        <span className="mr-auto flex h-6 items-center gap-1 text-muted-foreground"><CheckIcon className="size-3.5" />Applied{batchId ? "" : " · undo with ⌘Z in Data"}</span>
+        {batchId && (
+          <Button variant="outline" size="sm" onClick={undo} disabled={busy !== null} data-testid="agent-reorg-undo">
+            <UndoIcon />
+            Undo
+          </Button>
+        )}
+      </>
+    ) : state === "undone" ? (
+      <span className="h-6 leading-6 text-hint">Undone</span>
+    ) : state === "dismissed" ? (
+      <span className="h-6 leading-6 text-hint">Dismissed</span>
+    ) : (
+      <>
+        <Button variant="ghost-secondary" size="sm" className="mr-auto" onClick={() => setState("dismissed")}>Dismiss</Button>
+        <Button variant="outline" size="sm" onClick={edit} data-testid="agent-reorg-edit">Edit</Button>
+        <Button size="sm" onClick={apply} disabled={busy !== null} data-testid="agent-reorg-apply">{busy === "apply" ? "Applying…" : "Apply"}</Button>
+      </>
+    );
+  return (
+    <div data-testid="agent-reorg" data-plan-id={plan.id} data-state={state}>
+      <Shell icon={FolderIcon} tone="ai" title={plan.title} meta={planSummary(plan)} footer={footer}>
+        {/* TODO(todo7-integration): use <ReorgDiff plan={plan} names={names} projectId={projectId} /> (components/files/reorg-diff.tsx, applyPlanToTree) for the before/after tree; this list is the stand-in. */}
+        <ul className="max-h-72 space-y-1.5 overflow-y-auto px-3 pb-3" data-testid="agent-reorg-diff">
+          {plan.ops.map((o, i) => (
+            <li key={i} className="flex gap-2" data-testid="agent-reorg-op" data-kind={o.kind}>
+              {o.kind === "rename" ? <FileIcon className="mt-0.5 size-3.5 shrink-0 text-hint" /> : <FolderIcon className={cn("mt-0.5 size-3.5 shrink-0", o.kind === "mkdir" ? "text-ai-text" : "text-hint")} />}
+              <div className="min-w-0">
+                <div className="min-w-0 break-words">
+                  {o.kind === "mkdir" && (
+                    <>
+                      <Badge theme="ai">New</Badge> <span className="font-semibold">{o.name}</span> <span className="text-hint">in {where(o.parentId)}</span>
+                    </>
+                  )}
+                  {o.kind === "move" && (
+                    <span className="rounded-sm border border-dashed border-border px-1">
+                      {o.nodeIds.length <= 3 ? o.nodeIds.map((id) => names.get(id) ?? "…").join(", ") : `${o.nodeIds.length} items`} → <span className="font-semibold">{where(o.parentId)}</span>
+                    </span>
+                  )}
+                  {o.kind === "rename" && (
+                    <>
+                      {names.get(o.nodeId) ?? "…"} → <span className="font-semibold">{o.name}</span>
+                    </>
+                  )}
+                </div>
+                {o.reason && <p className="text-muted-foreground">{o.reason}</p>}
+              </div>
+            </li>
+          ))}
+        </ul>
+        {error && <p className="px-3 pb-3 text-danger" role="alert" data-testid="agent-reorg-error">{error}</p>}
+      </Shell>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 # Inkling UX Specification
 
 **Status:** Proposed product UX, v0.2  
-**Scope:** Workspace, Projects, Project Overview, Sources, Explore, Datasets, Studio, Review, Activity, and persistent AI assistant  
+**Scope:** Workspace, Projects, Project Overview, Data (Files), Explore, Datasets, Studio, Review, Activity, and persistent AI assistant  
 **Primary audience:** Domain experts who are not programmers, initially medical-imaging researchers  
 **Reference:** Existing Inkling 2D X-ray annotation canvas and current dataset dashboard. This document replaces the earlier *statistics-heavy Project Overview* concept; it does **not** replace the working annotation editor.
 
@@ -21,7 +21,7 @@ Design influences:
 
 1. **Action first, metrics second.** Make the next useful action obvious.
 2. **One product, multiple data shapes.** Adapt views to the data; don't coerce data into a universal image canvas.
-3. **Preserve originals.** Imported files and their structures remain inspectable and immutable by default.
+3. **Bytes are immutable; names and folders are yours, and every change can be undone.** An upload's bytes never change, and the name and path a file arrived with are kept as provenance. Renaming, moving and deleting (to Trash) are journaled and undoable, and nothing a dataset or a version depends on changes silently.
 4. **Explain inferred structure.** Distinguish detected facts, proposed mappings, and confirmed relationships.
 5. **Human control.** AI makes proposals; consequential or irreversible actions require approval.
 6. **Progressive disclosure.** Clean, straightforward uploads go directly to an editor; messy ones get an Explore flow.
@@ -38,7 +38,7 @@ Workspace (personal or organization)
 └── Recent
     └── Project (the durable container for a goal)
         ├── Overview       ← redesigned project home
-        ├── Sources        ← original uploads, folders, connectors, import history
+        ├── Data           ← Files (the project's drive), import history
         ├── Explore        ← discovered shapes, schemas, relationships
         ├── Datasets       ← logical collections, tasks, versions
         ├── Studio         ← modality-aware editor for a selected task
@@ -52,18 +52,20 @@ Persistent contextual Inkling AI panel can accompany any Project section.
 
 - **Workspace** is an account or organization and its members.
 - **Project** is a durable research goal, e.g. *Cardiac Research*.
-- **Source** is original imported material and provenance, e.g. `mri_scans/` or `diagnosis.csv`.
+- **Files** is the project's drive: one tree of folders and files, shown in the **Data** section. Names and folders change freely; bytes don't.
+- **Source** is an import's provenance: who brought which files in, when and from where (an upload or a seed). It's shown in the inspector and the Imports list, not as a tree root.
+- **Trash** holds deleted files and folders for 30 days; Restore puts them back where they were.
 - **Dataset** is a logical, structured set of samples built from one or more sources.
 - **Collection** is a coherent group within a dataset (e.g. MRI studies or echo recordings).
 - **Task** describes work on a dataset: classification, segmentation, event marking, review, etc.
 - **Version** is a published immutable snapshot with derivation history.
 
-**Non-equivalence:** Project ≠ Dataset; Source ≠ Dataset; Dataset ≠ Task. A project may contain several datasets, one dataset may derive from many sources, and the same sample may serve several tasks.
+**Non-equivalence:** Project ≠ Dataset; Files ≠ Source ≠ Dataset; Dataset ≠ Task. A project may contain several datasets, one dataset may derive from many sources, and the same sample may serve several tasks. A dataset pins the files (and their versions) it was made from, so reorganizing Files never changes it.
 
 ### Navigation placement
 
 - **Global rail/sidebar:** Home, Projects, Datasets, Recent; switch organization/workspace.
-- **Project sidebar:** Overview, Sources, Explore, Datasets, Studio, Review, Activity. This is separate from global navigation.
+- **Project sidebar:** Overview, Data (the Files drive), Explore, Datasets, Studio, Review, Activity. This is separate from global navigation.
 - **Studio contextual left panel:** Files / Labels / Review. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
 - **Right panel:** persistent, collapsible AI chat that carries project context across sections.
 
@@ -191,7 +193,7 @@ Match current Inkling dark theme: restrained near-black surfaces, subtle borders
 
 | Section | Purpose | Primary surface |
 |---|---|---|
-| **Sources** | Preserve and inspect the messy original files and import history | Folder tree, upload sessions, metadata and source warnings |
+| **Data** (Files) | Keep, organize and inspect the project's files and import history | Folder tree with editing, listing, inspector, upload tray, Imports, Trash |
 | **Explore** | Understand physical and logical data shapes before choosing annotation | Shape summary, table preview, relations and mappings |
 | **Datasets** | Manage logical datasets, collections, annotation tasks, versions | Dataset cards or table with clear task entry points |
 | **Studio** | Annotate and edit one selected task using its appropriate viewer | Context panel + large canvas + AI assistant |
@@ -200,9 +202,50 @@ Match current Inkling dark theme: restrained near-black surfaces, subtle borders
 
 The Overview is deliberately not a replacement for these detailed screens. It only routes users to them.
 
-## 6. Sources and messy-data ingestion
+## 6. Data: Files and messy-data ingestion
 
-Preserve original filenames, relative folders, checksums, size, source metadata, authorization status, and immutable raw assets. The user can browse these in a Drive-like tree.
+The **Data** section (nav label) holds the project's **Files**: one drive per project, a real file
+system built on the kiwifs tree (todo7). Two things stay true: the **bytes** of every upload are
+immutable, and nothing a dataset or version depends on changes silently. Names and folders are
+the user's: every change is journaled, undoable and restorable, and the original filename,
+relative folder, checksum, size, source metadata and authorization status are kept as provenance
+("Uploaded as …" behind **Show original name**, members only, never sent to the assistant).
+Wire contract: [`files-api.md`](files-api.md).
+
+**Model.**
+- One root per project ("Files"); each import lands in a folder the user picks, and each older
+  source is a top-level folder named after it. Sample data is locked ("Copy it to make your own");
+  copying is free (same bytes).
+- Node ids are permanent and paths are computed, so a rename or move never breaks annotations
+  (items key on the asset's storage path) or datasets (they pin files and versions, with a "new
+  files since" banner for followed folders).
+- Delete moves to **Trash** for 30 days. Undo (⌘Z) lives on the server and undoes the last batch
+  *you* did, unless someone touched those files since ("Can't undo: *patient_002* changed after
+  that").
+- Uploading a file with a name already in the folder asks **Keep both / Replace / Skip**; Replace
+  adds a version you can restore.
+
+**Interaction spec (summary; the full one is todo7 §2).**
+- *Where actions live:* a tree header (New folder, Upload, Collapse all, Sort, a filter of the
+  loaded tree), hover `+` and `⋯` on folder rows, the toolbar's **New ▾**, a **selection bar**
+  when anything is selected ("3 selected" · Move to… · Copy · Download · Star · Move to Trash),
+  right-click menus on every row and breadcrumb segment, Rename / Versions / Activity in the
+  inspector, and Starred · Recent · Imports · Trash under the tree.
+- *Keyboard:* declared commands, never hard-coded; see [`ui.md`](ui.md#files-keyboard).
+- *Drag and drop:* rows from the tree, list or grid onto folders, breadcrumb segments or starred
+  folders; one visual for "this goes here"; 700 ms spring-loading; ⌥ copies; no reordering inside
+  a folder; invalid targets say why; Esc cancels; every drag has a keyboard twin (Cut/Paste,
+  Move to…).
+- *Rename:* inline in the tree, the list and the inspector, the stem selected (Finder); names are
+  unique per folder ignoring case, without `/`; changing an extension asks first. Renaming a file
+  flagged for a name in its path re-runs the privacy check: the everyday way to remove a
+  patient's name.
+- *Conflicts:* one dialog for move, copy, paste and upload: Keep both (`name (2).ext`), Replace
+  (a version) or Skip for files, Merge or Keep both for folders, "Do this for the other *n*".
+- *Feedback:* optimistic with rollback; toasts bottom-left with **Undo** ("Moved 3 items to *MRI*"),
+  mirrored to an `aria-live` region; other people's changes appear live ("Lam moved 2 items here").
+- *The assistant:* reads folders and names, never contents or original names, and proposes a
+  reorganization plan the user applies (one batch, one undo) or edits in Files (§9).
 
 Example import:
 
@@ -234,7 +277,7 @@ For medical files, file type classification does not authorize sharing, de-ident
 
 ## 7. Explore — the home for data shape
 
-**Data shape lives primarily in Explore**, with contextual links in Sources, Datasets, and Studio. It should not be buried in the AI chat.
+**Data shape lives primarily in Explore**, with contextual links in Data, Datasets, and Studio. It should not be buried in the AI chat.
 
 Three levels:
 
@@ -280,11 +323,12 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 
 ## 9. Persistent AI chat — Cursor-like, not a generic bot
 
-The assistant follows project context across Overview, Sources, Explore, Datasets, Studio, Review, and Activity. It can read permitted project metadata and propose typed tool actions.
+The assistant follows project context across Overview, Data, Explore, Datasets, Studio, Review, and Activity. It can read permitted project metadata and propose typed tool actions.
 
 Examples:
 - “What did I import?” → inspect source inventory.
 - “These folders have different schemas—organize them.” → propose groups and mappings.
+- “Group these scans by patient.” → propose a reorganization of Files (new folders, moves, renames) as a before/after card; **Apply** runs it as the user in one undoable step, **Edit** opens it in Files with a checkbox per step. The assistant can't change files itself.
 - “Match diagnosis.csv to MRI studies.” → display candidate joins and ambiguous rows for review.
 - “Create a ventricular segmentation task.” → propose ontology, tooling, scope.
 - “Open the scan with missing labels.” → navigate to task/sample.
@@ -429,4 +473,4 @@ Persist project/task selection in URLs. Do not encode sensitive medical content 
 
 ---
 
-**One-sentence design rule:** *Overview helps you resume and decide what to do; Sources preserves what you brought; Explore explains what it means; Datasets organizes what you're building; Studio lets you work; Review protects quality; Activity shows what changed; and Inkling AI connects them without taking control away from the expert.*
+**One-sentence design rule:** *Overview helps you resume and decide what to do; Data keeps your files, tidy and undoable, with what you brought preserved; Explore explains what it means; Datasets organizes what you're building; Studio lets you work; Review protects quality; Activity shows what changed; and Inkling AI connects them without taking control away from the expert.*

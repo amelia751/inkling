@@ -215,6 +215,10 @@ export interface StudioItem {
   group: string;
   assets: SeedAsset[];
   sourceLabel?: string;
+  /** todo8 D3: the item's Data folder segments below the task's common folder (display only). */
+  folder?: string[];
+  /** todo8 D3: the source node of the item's first asset, for "Show in Data". */
+  nodeId?: string;
 }
 
 // ---- Projects, sources, datasets and tasks (todo6 Phase 1, docs/ux.md §2) -----------------

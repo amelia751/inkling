@@ -14,6 +14,8 @@ export const exploreUrl = (projectId: string, tab?: string, proposalId?: string)
 export const datasetUrl = (projectId: string, datasetId: string, tab?: "tasks" | "versions" | "publish") => `${projectUrl(projectId, "datasets")}/${encodeURIComponent(datasetId)}${tab && tab !== "tasks" ? `/${tab}` : ""}`;
 export const versionReviewUrl = (projectId: string, datasetId: string, reviewId: string) => `${datasetUrl(projectId, datasetId, "versions")}/reviews/${encodeURIComponent(reviewId)}`;
 export const studioUrl = (projectId: string, taskId?: string) => `${projectUrl(projectId, "studio")}${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
+/** todo8 D7: the Task setup page (owners edit, annotators read). */
+export const taskSetupUrl = (projectId: string, taskId: string) => `/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/setup`;
 export const settingsUrl = (projectId: string, tab: "general" | "plugins" | "members" = "general") => `${projectUrl(projectId, "settings")}/${tab}`;
 
 function withQuery(path: string, query?: Record<string, string | undefined>): string {

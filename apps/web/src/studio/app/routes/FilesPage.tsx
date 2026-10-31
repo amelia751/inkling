@@ -82,7 +82,7 @@ import { FsDragGhost } from "@/studio/lib/files/drag-ghost";
 import { noticesFor, useFilesLive } from "@/studio/lib/files/live";
 import { notify } from "@/studio/lib/files/announce";
 import { redoHint, undoHint, useTabUndoLabels } from "@/studio/lib/files/undo";
-import { errorText, useFileOps } from "./files/ops";
+import { errorText, expandRuns, useFileOps } from "./files/ops";
 import { PlanPanel } from "./files/plan-panel";
 
 /**
@@ -501,7 +501,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     const name = nodes.length === 1 ? `${nodes[0].name}.zip` : "files.zip";
     const toastId = notify(`Preparing ${name}…`, { group: "zip" });
     try {
-      const p = await downloadZip(projectId, nodes.map((n) => n.id), { filename: name });
+      const p = await downloadZip(projectId, await expandRuns(projectId, nodes.map((n) => n.id)), { filename: name });
       notify(`Downloaded ${name}`, { group: "zip", description: p.received ? `${(p.received / 1e6).toFixed(1)} MB` : undefined, tone: "success" });
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") return;
@@ -884,6 +884,8 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
 
   // ---- Drag and drop: our rows (the drag controller) and OS files (uploads) -------------------
   const dragTarget = useFsDrag((s) => s.target?.id ?? null);
+  // While rows are dragged the toolbar (with its breadcrumb drop targets) comes back.
+  const dragging = useFsDrag((s) => !!s.drag);
   const ancestorsOf = (id: string): string[] => {
     const out: string[] = [];
     const seen = new Set<string>();
@@ -1098,7 +1100,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         />
 
         {/* Toolbar: path, search, view, details, New ▾; the selection bar replaces it while anything is selected. */}
-        {!trash && selection.length > 0 ? (
+        {!trash && selection.length > 0 && !dragging ? (
           <SelectionBar
             count={selection.length}
             starred={selectedNodes.length > 0 && selectedNodes.every((n) => n.starred)}

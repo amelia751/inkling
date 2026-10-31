@@ -11,7 +11,29 @@ import {
   AlertDialogTitle,
 } from "@studio/ui/ui/alert-dialog";
 import { ConflictDialog, NEEDS_FULL_STACK } from "@/studio/components/files";
-import { ApiError, FsConflictApiError, LockedError, NeedsApiError, useFsOps, useRedo, useUndo } from "@/studio/lib/files/api";
+import { ApiError, fetchFsChildren, FsConflictApiError, LockedError, NeedsApiError, useFsOps, useRedo, useUndo } from "@/studio/lib/files/api";
+
+/**
+ * A numbered run (`seq:…`) is a row, not a node: an op on it means its files. Replace run ids
+ * with the ids of the files they stand for (every page).
+ */
+export async function expandRuns(projectId: string, ids: string[]): Promise<string[]> {
+  if (!ids.some((id) => id.startsWith("seq:"))) return ids;
+  const out: string[] = [];
+  for (const id of ids) {
+    if (!id.startsWith("seq:")) {
+      out.push(id);
+      continue;
+    }
+    let cursor: string | null | undefined = null;
+    do {
+      const page = await fetchFsChildren(projectId, id, undefined, cursor);
+      out.push(...page.items.map((n) => n.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+  }
+  return [...new Set(out)];
+}
 import { notify } from "@/studio/lib/files/announce";
 import { useFilesClipboard } from "@/studio/lib/files/clipboard";
 
@@ -70,7 +92,7 @@ export function useFileOps(projectId: string, writable: boolean): FileOps {
       if (!writable) return void notify(NEEDS_FULL_STACK, { tone: "error" });
       try {
         const r = await undoM.mutateAsync(batchId ? { batchId } : undefined);
-        notify(r.summary ? `Undone: ${lower(r.summary)}` : "Undone", { group: "undo" });
+        notify(r.summary ? (/^undid\b/i.test(r.summary) ? r.summary : `Undone: ${lower(r.summary)}`) : "Undone", { group: "undo" });
       } catch (e) {
         notify(errorText(e), { tone: "error", group: "undo" });
       }
@@ -82,17 +104,24 @@ export function useFileOps(projectId: string, writable: boolean): FileOps {
     if (!writable) return void notify(NEEDS_FULL_STACK, { tone: "error" });
     try {
       const r = await redoM.mutateAsync();
-      notify(r.summary ? `Redone: ${lower(r.summary)}` : "Redone", { group: "undo" });
+      notify(r.summary ? (/^redid\b/i.test(r.summary) ? r.summary : `Redone: ${lower(r.summary)}`) : "Redone", { group: "undo" });
     } catch (e) {
       notify(errorText(e), { tone: "error", group: "undo" });
     }
   }, [redoM, writable]);
 
   const run = useCallback(
-    async (ops: FsOp[], opts: RunOptions = {}): Promise<FsOpsResult | undefined> => {
-      if (!ops.length) return undefined;
+    async (input: FsOp[], opts: RunOptions = {}): Promise<FsOpsResult | undefined> => {
+      if (!input.length) return undefined;
       if (!writable) {
         notify(NEEDS_FULL_STACK, { tone: "error", description: "Changing files needs the API and the database (docs/running.md)." });
+        return undefined;
+      }
+      let ops: FsOp[];
+      try {
+        ops = await Promise.all(input.map(async (o): Promise<FsOp> => ("nodeIds" in o ? { ...o, nodeIds: await expandRuns(projectId, o.nodeIds) } : o)));
+      } catch (e) {
+        notify(errorText(e), { tone: "error" });
         return undefined;
       }
       const fail = (e: unknown) => {
@@ -124,7 +153,7 @@ export function useFileOps(projectId: string, writable: boolean): FileOps {
       }
       return res;
     },
-    [fsOps, undo, writable],
+    [fsOps, undo, writable, projectId],
   );
 
   const confirmExtension = useCallback(

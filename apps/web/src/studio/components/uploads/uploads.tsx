@@ -30,6 +30,7 @@ export function useRefreshProject() {
     void qc.invalidateQueries({ queryKey: ["projects", projectId] });
     void qc.invalidateQueries({ queryKey: ["sources"] });
     void qc.invalidateQueries({ queryKey: ["source-nodes"] });
+    void qc.invalidateQueries({ queryKey: ["files", projectId] });
   };
 }
 

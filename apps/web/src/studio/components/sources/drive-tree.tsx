@@ -100,8 +100,12 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
     for (const n of s.items ?? []) known.current.set(n.id, n);
     setFolders((f) => (f[id]?.items === s.items && f[id]?.hasMore === s.hasMore && f[id]?.loading === s.loading ? f : { ...f, [id]: s }));
   }, []);
-  // A new project or root: forget what was open.
+  // A new project or root: forget what was open (not on mount: loaders have reported already).
+  const driveKey = useRef(`${projectId}\u0000${rootId}`);
   useEffect(() => {
+    const k = `${projectId}\u0000${rootId}`;
+    if (driveKey.current === k) return;
+    driveKey.current = k;
     setOpen(initialOpen ?? []);
     setFolders({});
     known.current.clear();
@@ -190,7 +194,8 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
     if (run && !run.isOpen) run.open();
   });
 
-  useEffect(() => props.onLoaded?.(), [folders, props]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- per load
+  useEffect(() => props.onLoaded?.(), [folders]);
 
   const toggled = (id: string, isOpen: boolean) => setOpen((o) => (isOpen ? (o.includes(id) ? o : [...o, id]) : o.filter((x) => x !== id)));
   const node = (d: FileTreeNode) => known.current.get(d.id);

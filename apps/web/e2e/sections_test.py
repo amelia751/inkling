@@ -137,7 +137,10 @@ def main() -> int:
             check("Settings › General: a sample is read-only", page.get_by_test_id("sample-readonly").count() == 1 and page.locator("#project-title").is_disabled())
             page.get_by_role("link", name="Plugins", exact=True).last.click()
             page.wait_for_url("**/settings/plugins", timeout=10000)
-            page.wait_for_selector("text=/Plugins need the kernel|Installed in this workspace/", timeout=10000)
+            page.wait_for_selector("[data-testid=builtin-plugins], [data-testid=installed-plugins]", timeout=10000)
+            if page.get_by_test_id("builtin-plugins").count():
+                # Without the API the bundled plugins are listed (they need no install).
+                check("Settings › Plugins lists the built-in plugins", page.locator("[data-testid=builtin-plugins] [data-plugin]").count() >= 5, str(page.locator("[data-testid=builtin-plugins] [data-plugin]").count()))
             check("Settings › Plugins hosts the plugins page", page.locator("[data-testid=settings-page][data-tab=plugins]").count() == 1)
             check("no page errors", not errors, str(errors[:3]))
         finally:

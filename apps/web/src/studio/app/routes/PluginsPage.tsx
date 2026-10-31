@@ -9,6 +9,9 @@ import { Input } from "@studio/ui/ui/input";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { kernelEnabled } from "@/extension-host/kernel";
+import { BUILTIN_MODULES } from "@/extension-host/bundled";
+import { registry } from "@/extension-host/registry";
+import { PLUGIN_PACKAGES } from "@/extension-host/manifests";
 import { approveInstall, disablePlugin, installedPlugins, planInstall, rejectInstall, rollbackPlugin, searchPlugins, stageInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { studioUrl } from "@/studio/lib/routes";
 import { useProjectSummary } from "@/studio/lib/projects-api";
@@ -61,10 +64,19 @@ export function PluginsPage() {
   if (!project) return <FullPageMessage title="Dataset not found" />;
   if (!enabled)
     return (
-      <FullPageMessage
-        title="Plugins need the kernel"
-        body="Start apps/api and run the web app with the kernel proxy on (see apps/api/README.md) to install, disable and roll back plugins per workspace."
-      />
+      <AppLayout dataset={{ id: project.id, title: project.title }}>
+        <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6">
+          <PageHeading
+            title="Plugins"
+            description="The plugins built into this app. They work in every project without installing anything."
+            actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, summary.data?.sample === false ? undefined : project.id)}><AnnotateIcon />Back to annotating</Link></Button>}
+          />
+          <BuiltInPlugins />
+          <p className="mt-4 text-sm text-muted-foreground" data-testid="plugins-needs-api">
+            Installing more plugins, or turning one off for this project, needs the API: see docs/running.md.
+          </p>
+        </div>
+      </AppLayout>
     );
 
   const active = new Map((installed.data?.plugins ?? []).map((p) => [p.pluginId, p]));
@@ -142,5 +154,44 @@ export function PluginsPage() {
         onApprove={(grant) => review && act.mutate(() => approveInstall(datasetId, review.requestId, grant).finally(() => setReview(null)))}
       />
     </AppLayout>
+  );
+}
+
+const SHELL_PARTS = new Set(BUILTIN_MODULES.map((m) => m.id));
+// Plugins with a Python worker run their jobs in apps/worker: without the API they show, but can't run.
+const NEEDS_WORKER = new Set(PLUGIN_PACKAGES.packages.filter((p) => p.manifest.runtime.kind === "python-worker").map((p) => p.manifest.id));
+
+/** The plugins bundled into this build (from the registry), always available without the API. */
+function BuiltInPlugins() {
+  const plugins = registry
+    .listAvailable()
+    .filter((m) => !SHELL_PARTS.has(m.id))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  return (
+    <>
+      <h2 className="mb-2 text-body-2 font-semibold">Built in</h2>
+      <Card className="divide-y divide-border" data-testid="builtin-plugins">
+        {plugins.map((m) => {
+          const kinds = m.contributes.dataKinds?.length ?? 0;
+          const tools = m.contributes.tools?.length ?? 0;
+          return (
+            <div key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" data-plugin={m.id}>
+              <div className="min-w-0 flex-1">
+                <div className="font-medium">
+                  {m.title} <span className="font-normal text-muted-foreground">{m.version}</span>
+                </div>
+                <div className="text-muted-foreground">{m.description}</div>
+                {(kinds > 0 || tools > 0) && (
+                  <div className="tnum mt-1 text-hint">
+                    {[kinds > 0 && `${kinds} data ${kinds === 1 ? "kind" : "kinds"}`, tools > 0 && `${tools} ${tools === 1 ? "tool" : "tools"}`].filter(Boolean).join(" · ")}
+                  </div>
+                )}
+              </div>
+              {NEEDS_WORKER.has(m.id) ? <Badge theme="unknown">needs the API</Badge> : <Badge theme="success">built in</Badge>}
+            </div>
+          );
+        })}
+      </Card>
+    </>
   );
 }

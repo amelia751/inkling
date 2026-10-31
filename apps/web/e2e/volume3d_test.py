@@ -35,7 +35,7 @@ from cs_helpers import (  # noqa: E402
     validate_dicom,
     wait_for,
 )
-from harness import NAMING, RUNTIME, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, RUNTIME, menu_options, open_studio, parse_args, pick, sync_playwright  # noqa: E402
 
 # Dev-only window hooks the viewers expose (named from the naming config).
 HOOK_3D = f"__{NAMING['resourcePrefix']}3d"
@@ -149,8 +149,8 @@ def main() -> int:
 
         def t_layouts(st):
             notes = []
-            for value, n in [("main", 3), ("single", 1), ("mpr3d", 4), ("mpr", 3)]:
-                st.page.get_by_role("combobox", name="Layout").select_option(value)
+            for value, label, n in [("main", "1 + 2", 3), ("single", "Single plane", 1), ("mpr3d", "MPR + 3D", 4), ("mpr", "1×3 MPR", 3)]:
+                pick(st.page, "Layout", label)
                 wait_for(lambda: len(hook(st, "cells()")) == n, f"{value} has {n} viewports", 30)
                 wait_for(lambda: st.page.locator("canvas.cornerstone-canvas").count() >= n, "canvases")
                 time.sleep(1.5)
@@ -183,7 +183,7 @@ def main() -> int:
             sag, cor = props(st, "sagittal")["slice"], props(st, "coronal")["slice"]
             close(sag, 150, 1, "sagittal slice follows"); close(cor, 90, 1, "coronal slice follows")
             st.shot("crosshairs", out)
-            st.page.get_by_role("combobox", name="Layout").select_option("main")
+            pick(st.page, "Layout", "1 + 2")
             wait_for(lambda: len(hook(st, "cells()")) == 3, "main layout")
             time.sleep(1)
             close(props(st, "sagittal")["slice"], 150, 1, "slice kept across layout")
@@ -428,7 +428,7 @@ def main() -> int:
             kb.press("="); time.sleep(0.3)
             p = props(st)
             check(not p["flipH"] and p["rotation"] == 0, f"reset {p}")
-            st.page.get_by_role("combobox", name="Color map").select_option("Inferno (matplotlib)")
+            pick(st.page, "Color map", "Inferno")
             check(props(st, "coronal")["colormap"] == "Inferno (matplotlib)", "colormap on all planes")
             st.page.get_by_role("button", name="Maximum-intensity projection over a 10 mm slab").click()
             time.sleep(0.3)
@@ -514,12 +514,12 @@ def main() -> int:
             g = hook(st, "geom()")
             check(g["modality"] == "CT" and g["dims"] == ct["dims"], g)
             close(g["spacing"][0], 1.5, 1e-3, "pixel spacing"); close(g["spacing"][2], 2.5, 1e-3, "slice spacing")
-            opts = st.page.get_by_role("combobox", name="Window / level").inner_text()
+            opts = menu_options(st.page, "Window / level")
             check("Soft tissue 400/40" in opts and "Bone 2500/480" in opts, f"CT presets: {opts}")
-            st.page.get_by_role("combobox", name="Window / level").select_option("bone")
+            pick(st.page, "Window / level", "Bone 2500/480")
             v = props(st)["voi"]
             close(v["upper"] - v["lower"], 2500, 1, "bone window"); close((v["upper"] + v["lower"]) / 2, 480, 1, "bone level")
-            st.page.get_by_role("combobox", name="Window / level").select_option("soft")
+            pick(st.page, "Window / level", "Soft tissue 400/40")
             before = item_annotations(st, "CT1")
             ijk_l, p_l = ct_at(st, [-30, 10, 1.25])
             tool(st, "i")

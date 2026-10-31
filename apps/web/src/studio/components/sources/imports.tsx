@@ -15,7 +15,7 @@ import { useImport } from "./queries";
  */
 const STATE_LABEL: Record<ImportState, string> = {
   uploading: "Uploading",
-  inspecting: "Checking files…",
+  inspecting: "Checking files",
   needs_review: "Ready · needs your review",
   ready: "Ready",
   imported: "Imported",

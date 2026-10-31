@@ -34,7 +34,7 @@ from cs_helpers import (  # noqa: E402
     validate_dicom,
     wait_for,
 )
-from harness import NAMING, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, open_studio, parse_args, pick, sync_playwright  # noqa: E402
 
 # Dev-only window hooks the viewers expose (named from the naming config).
 HOOK_2D = f"__{NAMING['resourcePrefix']}2d"
@@ -396,7 +396,7 @@ def main() -> int:
             st.shot("view-transformed", out)
             kb.press("Shift+L"); kb.press("Shift+L"); time.sleep(0.2)
             r2 = props(st)["rotation"]
-            st.page.get_by_role("combobox", name="Color map").select_option("Black-Body Radiation")
+            pick(st.page, "Color map", "Hot iron")
             time.sleep(0.2)
             check(props(st)["colormap"] == "Black-Body Radiation", props(st)["colormap"])
             st.page.get_by_role("button", name="Interpolation: smooth (linear) or nearest-neighbour pixels").click()
@@ -404,7 +404,7 @@ def main() -> int:
             kb.press("="); time.sleep(0.3)
             p = props(st)
             check(not p["flipH"] and not p["flipV"] and p["rotation"] == 0, f"reset {p}")
-            st.page.get_by_role("combobox", name="Window / level preset").select_option("full")
+            pick(st.page, "Window / level preset", "Full range")
             time.sleep(0.2)
             v = props(st)["voi"]
             check(v["lower"] <= 5 and v["upper"] >= 250, f"full range {v}")

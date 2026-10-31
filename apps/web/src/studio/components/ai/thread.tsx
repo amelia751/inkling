@@ -50,7 +50,7 @@ interface AssistantProps {
 }
 
 const SANDBOX_TEXT: Record<string, string> = {
-  creating: "Starting a sandbox…",
+  creating: "Starting a sandbox",
   ready: "Sandbox ready",
   resumed: "Sandbox resumed",
   stopped: "Sandbox stopped",

@@ -64,7 +64,7 @@ export function FormatExports({ project, enabled }: { project: Project; enabled:
               <div className="text-sm text-muted-foreground">{ex.description}</div>
             </div>
             <Button variant="outline" onClick={() => run(ex.id)} disabled={!enabled || busy !== null}>
-              <ExportIcon /> {busy === ex.id ? "Preparing…" : "Download"}
+              <ExportIcon /> {busy === ex.id ? "Preparing" : "Download"}
             </Button>
           </div>
         ))}

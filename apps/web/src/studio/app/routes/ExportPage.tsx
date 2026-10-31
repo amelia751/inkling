@@ -60,7 +60,7 @@ export function ExportPage({ taskId }: { taskId?: string } = {}) {
     };
   }, [project, saved.data, env]);
 
-  if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export…" loading />;
+  if (isLoading || saved.isLoading) return <FullPageMessage title="Preparing export" loading />;
   if (!project || !bundle) return <FullPageMessage title="Dataset not found" />;
 
   const fileName = `${project.id}-r${bundle.dataset.revision}.${NS}.json`;

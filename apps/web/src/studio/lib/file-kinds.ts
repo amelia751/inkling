@@ -96,7 +96,7 @@ export function kindLabel(n: Pick<SourceNode, "kind" | "detectedKind" | "name" |
 
 /** Row status in plain words (todo6 §3 copy rules); the icon is chosen by the caller. */
 export const STATUS_LABEL: Record<SourceNode["status"], string> = {
-  checking: "Checking…",
+  checking: "Checking",
   ready: "Ready",
   attention: "Needs attention",
   privacy: "Held for privacy review",

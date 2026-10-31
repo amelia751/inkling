@@ -238,7 +238,7 @@ function Detected({ n }: { n: SourceNode }) {
     <Section title="Detected" testid="inspector-detected">
       <p className="mb-2 flex items-center gap-2">
         <Icon className="size-4 text-hint" aria-hidden />
-        <span data-testid="inspector-kind">{checking && n.kind === "file" ? `${kindLabel(n)} · Checking…` : kindLabel(n)}</span>
+        <span data-testid="inspector-kind">{checking && n.kind === "file" ? `${kindLabel(n)} · Checking` : kindLabel(n)}</span>
       </p>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
         {n.kind !== "folder" && n.size !== null && (

@@ -230,14 +230,14 @@ export function trayLine(s: TraySession): string {
     case "attesting":
       return `Waiting for your confirmation · ${files}`;
     case "preparing":
-      return `Preparing ${files}… ${s.prepared ? `${Math.round((s.prepared / s.total) * 100)}%` : ""}`.trim();
+      return `Preparing ${files} ${s.prepared ? `${Math.round((s.prepared / s.total) * 100)}%` : ""}`.trim();
     case "uploading": {
       const bytes = s.files.reduce((a, f) => a + (f.state === "pending" || f.state === "uploaded" ? f.size : 0), 0);
       const sent = s.files.reduce((a, f) => a + (f.state === "uploaded" ? f.size : f.state === "pending" ? f.received : 0), 0);
       return `Uploading ${files} · ${bytes ? Math.round((sent / bytes) * 100) : 100}%`;
     }
     case "checking":
-      return "Checking files…";
+      return "Checking files";
     case "done": {
       const bad = s.files.filter((f) => f.state === "failed" || f.state === "rejected").length;
       if (bad) return `${bad} ${bad === 1 ? "file" : "files"} didn't upload`;

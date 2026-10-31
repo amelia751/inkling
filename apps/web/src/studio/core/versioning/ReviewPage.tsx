@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Loader } from "@studio/ui/ui/loader";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, CheckIcon, DoneIcon, ErrorIcon, MergeIcon, TodoIcon, WarningIcon } from "@studio/ui/icons";
@@ -53,7 +54,7 @@ function ReviewBody({ datasetId, projectId, reviewId }: { datasetId: string; pro
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
   });
 
-  if (!r) return <AppLayout><p className="p-8 text-sm text-muted-foreground">{review.error ? String(review.error) : "Loading review…"}</p></AppLayout>;
+  if (!r) return <AppLayout><p className="flex items-center gap-2 p-8 text-sm text-muted-foreground">{review.error ? String(review.error) : <><Loader size="s" /> Loading review</>}</p></AppLayout>;
   const approvedHere = r.approvals.filter((a) => a.approved_source_oid === r.source_oid);
   const open = !["MERGED", "CLOSED"].includes(r.status);
   return (

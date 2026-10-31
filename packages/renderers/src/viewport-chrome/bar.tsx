@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { type IconComponent as LucideIcon } from "@studio/ui/icons";
 import { cn } from "@studio/ui/utils";
+import { MenuSelect } from "@studio/ui/ui/menu-select";
 
 /** Dark sub-toolbar living inside the canvas area (matches the canvas, not the app chrome). */
 export function ViewportBar({ children }: { children: ReactNode }) {
@@ -67,25 +68,7 @@ export function BarSelect<T extends string>({
   onChange: (v: T) => void;
   title: string;
 }) {
-  return (
-    <select
-      title={title}
-      aria-label={title}
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value as T);
-        // Give keys back to the studio shortcuts (a focused <select> swallows arrows).
-        e.target.blur();
-      }}
-      className="h-7 rounded-md border border-white/10 bg-canvas px-1.5 text-xs text-canvas-foreground/85 outline-none hover:bg-white/5 focus:border-white/30"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value} className="bg-neutral-900">
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
+  return <MenuSelect title={title} value={value} options={options} onChange={onChange} tone="canvas" />;
 }
 
 /** Four-corner text overlay (DICOM-viewer style), pointer-transparent. */

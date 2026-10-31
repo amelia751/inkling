@@ -36,7 +36,7 @@ export function ReviewPage() {
   const items = useMemo(() => (project ? projectItems(project) : []), [project]);
   const itemName = useMemo(() => new Map(items.map((i) => [i.id, i.name])), [items]);
 
-  if (isLoading || saved.isLoading) return <FullPageMessage title="Loading review…" loading />;
+  if (isLoading || saved.isLoading) return <FullPageMessage title="Loading review" loading />;
   if (!project) return <FullPageMessage title="Dataset not found" />;
   if (saved.error || !saved.data) return <FullPageMessage title="Couldn't load annotations" body={String(saved.error)} />;
 

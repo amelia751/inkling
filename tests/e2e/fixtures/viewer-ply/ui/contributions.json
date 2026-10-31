@@ -1,0 +1,13 @@
+{
+  "$comment": "Rung 4: one viewport renderer on studio.sandbox-frame.v1. `config.module` is replaced by viewer.mjs when the plugin is packed.",
+  "renderers": [
+    {
+      "id": "ply",
+      "title": "PLY point cloud",
+      "description": "Sandboxed point cloud viewer for .ply files: drag to rotate; suggests item classes",
+      "renderer": "studio.sandbox-frame.v1",
+      "space": "image2d",
+      "config": { "title": "PLY point cloud", "module": "" }
+    }
+  ]
+}

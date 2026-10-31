@@ -155,6 +155,64 @@
             ],
             "additionalProperties": false
           }
+        },
+        "renderers": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][\\w.-]*$"
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "renderer": {
+                "type": "string",
+                "pattern": "^[a-z][\\w-]*(?:\\.[\\w-]+)*\\.v\\d+$"
+              },
+              "consumes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "space": {
+                "default": "image2d",
+                "type": "string",
+                "enum": [
+                  "image2d",
+                  "volume",
+                  "time",
+                  "text"
+                ]
+              },
+              "capabilities": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "renderer"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

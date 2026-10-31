@@ -42,6 +42,9 @@ MAX_DIFF_CHARS = 200_000
 # Mirrors apps/web/src/extension-host/trusted-renderers.tsx. The web fails closed on unknown
 # names anyway; rejecting here gives the author the error before review.
 TRUSTED_RENDERERS = ("studio.declarative-panel.v1", "studio.sandbox-frame.v1", "studio.mask-review.v1")
+# Trusted renderers that can fill a viewport (`renderers` in contributions.json, todo10 rung 4):
+# the viewer's ESM module goes in `config.module` and runs only in the MCP Apps sandbox.
+VIEWPORT_RENDERERS = ("studio.sandbox-frame.v1",)
 # The one non-index dependency source a plugin may use: the SDK the worker provides.
 ALLOWED_PATH_SOURCES = {"studio-plugin-sdk"}
 COPYLEFT = re.compile(r"\b(A?GPL|SSPL|EUPL|OSL)\b", re.I)
@@ -129,6 +132,9 @@ def _check_ui(m: dict, files: dict[str, bytes], r: Report) -> None:
     for p in doc.get("panels") or []:
         if p.get("renderer") not in TRUSTED_RENDERERS:
             r.errors.append(f"{rel}: panel {p.get('id')} names renderer {p.get('renderer')!r}, which isn't a trusted renderer ({', '.join(TRUSTED_RENDERERS)})")
+    for v in doc.get("renderers") or []:
+        if v.get("renderer") not in VIEWPORT_RENDERERS:
+            r.errors.append(f"{rel}: renderer {v.get('id')} names {v.get('renderer')!r}, which can't fill a viewport ({', '.join(VIEWPORT_RENDERERS)})")
     prefix = f"{m.get('id')}."
     for a in doc.get("toolbarActions") or []:
         cmd = canonical_id(str(a.get("command") or ""))

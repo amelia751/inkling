@@ -20,6 +20,7 @@ import volume from "@plugins/volume/manifest";
 import wsi from "@plugins/wsi/manifest";
 import textSpans from "@plugins/text-spans/manifest";
 import experimental from "./agent-panels/manifest";
+import generic from "./sandbox/manifest";
 import { featureEnabled } from "./flags";
 import { declarativeModule } from "./contributions-loader";
 import { registerTrustedRenderer } from "./trusted-renderers";
@@ -40,7 +41,7 @@ export const presets = defineModule({
 });
 
 /** Studio built-ins: always present, not plugins (no plugin.yaml, never installed per workspace). */
-export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, presets];
+export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, generic, presets];
 
 // Trusted renderers shipped with the build that declarative plugins may name (fail closed otherwise).
 registerTrustedRenderer("studio.mask-review.v1", { component: MaskReview, configSchema: MaskReviewConfig, description: "Review AI-suggested masks: accept, reject or edit each instance" });
@@ -54,7 +55,7 @@ export const DECLARATIVE_MODULES: ModuleManifest[] = PLUGIN_PACKAGES.packages
   .map((p) => declarativeModule(p.manifest, p.contributions!));
 if (PLUGIN_PACKAGES.problems.length && import.meta.env?.DEV) console.warn("[plugins] invalid plugin manifests (not registered):", PLUGIN_PACKAGES.problems);
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, generic, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
 
 const replace = import.meta.env.DEV;
 for (const m of MODULES) registry.registerModule(m, { replace });

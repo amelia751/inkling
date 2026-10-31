@@ -9,12 +9,15 @@ const RASTER = `${IMAGE2D}.dataKinds.raster`;
 const STACK = `${IMAGE2D}.renderers.cornerstone-stack`;
 const CANVAS = `${IMAGE2D}.renderers.canvas-raster`;
 
-/** One item per image file, grouped by the source label folder when there is one. */
+/**
+ * One item per image file. `group` is "Images", never the source label (todo8 D3, D8): the
+ * Items panel follows the item's Data folder, and the label stays in `sourceLabel`.
+ */
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
     name: a.name ?? a.path.split("/").pop() ?? a.path,
-    group: a.label ? a.label[0].toUpperCase() + a.label.slice(1) : "Images",
+    group: "Images",
     assets: [a],
     sourceLabel: a.label,
     dataKind: RASTER,

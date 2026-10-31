@@ -25,6 +25,7 @@ const commands: CommandContribution[] = [
   { id: "selectAll", keys: ["mod+a"], label: "Select every annotation on this item", group: "Edit", description: "Select every visible annotation on the current item" },
   { id: "nextItem", keys: ["ArrowRight", "ArrowDown", "PageDown"], label: "Next item", group: "Navigate", repeat: true, description: "Go to the next item" },
   { id: "prevItem", keys: ["ArrowLeft", "ArrowUp", "PageUp"], label: "Previous item", group: "Navigate", repeat: true, description: "Go to the previous item" },
+  { id: "nextTodo", keys: ["n"], label: "Next to do", group: "Navigate", description: "Go to the next item nobody has annotated yet, in queue order (the task's item order)" },
   { id: "pickLabel", keys: DIGITS, label: "Pick label by position", group: "Labels", display: "1 – 9", description: "Make the n-th label class active" },
   { id: "brushSmaller", keys: ["["], label: "Smaller brush", group: "Drawing", repeat: true, when: "'size' in tool.options", description: "Shrink the active tool's size" },
   { id: "brushLarger", keys: ["]"], label: "Larger brush", group: "Drawing", repeat: true, when: "'size' in tool.options", description: "Grow the active tool's size" },
@@ -50,6 +51,7 @@ const commands: CommandContribution[] = [
   { id: "clearSelection", keys: ["Escape"], label: "Clear selection", group: "Data", when: FILES, description: "Deselect every file and folder" },
   { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Data", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
   { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
+  { id: "filterItems", keys: ["mod+f"], label: "Filter items", group: "Navigate", when: "section == studio", description: "Filter the Items panel by name (while the panel has focus)" },
   { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 

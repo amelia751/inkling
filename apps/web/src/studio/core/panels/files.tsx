@@ -1,19 +1,31 @@
-import { useMemo, useState } from "react";
-import { AiIcon, DoneIcon, ImportedIcon, SearchIcon, TodoIcon } from "@studio/ui/icons";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { AiIcon, CloseIcon, DoneIcon, FolderIcon, FolderOpenIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
 import { Input } from "@studio/ui/ui/input";
 import { ScrollArea } from "@studio/ui/ui/scroll-area";
+import { FileTree, type FileTreeHandle, type FileTreeNode } from "@studio/ui/ui/file-tree";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { cn } from "@studio/ui/utils";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
+import { useCommands } from "@/extension-host/commands";
 import { useStudio } from "@/studio/stores/studio";
+import { readView, useItemsView, type ItemsView } from "@/studio/stores/items-view";
 import { itemKind, KINDS } from "@/studio/lib/file-kinds";
+import { itemNoun, plural, pluralWord } from "@/studio/lib/format";
+import { filesUrl } from "@/studio/lib/routes";
+import { onProjectEvent } from "@/studio/lib/use-project-events";
+import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState } from "@/studio/lib/item-folders";
+import { bundleCount, HOVER_DELAY_MS, ItemHoverCard } from "./item-hover-card";
 import type { Annotation, StudioItem } from "@studio/contracts/types";
+import { CORE } from "../manifest";
+
+export type { ItemState } from "@/studio/lib/item-folders";
 
 /**
  * Per item: a person annotated it; it only has labels imported from the user's own files
  * (todo6 D8) or AI suggestions, neither confirmed yet; or nothing. AI never reads as human work.
  */
-export type ItemState = "annotated" | "imported" | "suggested" | "todo";
-
 const RANK: Record<ItemState, number> = { todo: 0, suggested: 1, imported: 2, annotated: 3 };
 
 export function itemStates(annotations: Annotation[]): Map<string, ItemState> {
@@ -32,70 +44,445 @@ const STATE = {
   todo: { icon: TodoIcon, label: "Not annotated", className: "text-muted-foreground/50" },
 } as const;
 
+/** The tree draws a row's icon in its own color; a state icon keeps the state's (`!` wins). */
+const STATE_TREE_ICON = Object.fromEntries(
+  (Object.keys(STATE) as ItemState[]).map((k) => {
+    const { icon: Icon, className, label } = STATE[k];
+    const Tinted: IconComponent = ((p: { className?: string }) => <Icon {...p} aria-label={label} className={cn(p.className, className.replace(/(^| )/g, "$1!"))} />) as unknown as IconComponent;
+    return [k, Tinted];
+  }),
+) as Record<ItemState, IconComponent>;
+
+const ITEM = "item:";
+
 /**
- * `inkling.core.panels.files`: the task's items (never the project's source tree, docs/ux.md
- * §8) by group, so volume and series kinds list studies or series rather than slices. Each
- * row shows its data kind and whether it's annotated or only has imported labels.
+ * `inkling.core.panels.files`, the Items panel (todo8 D3): the task's items (never raw slices
+ * nor the project's whole drive, docs/ux.md §8) in two views. **Folders** follows Data (same
+ * tree, compaction and numbered runs, folder progress) and is the default when the items span
+ * more than one folder; **Queue** is the flat work order with status chips. The view is
+ * remembered per task in this browser. Duplicate names get their shortest distinguishing
+ * folder, dimmed; a hover card tells the rest; the row menu has Show in Data. A blind task
+ * (D8) never shows the labels that came with the files.
  */
-export function FilesPanel({ items, env }: PanelProps) {
-  const [query, setQuery] = useState("");
+export function FilesPanel({ items, env, project }: PanelProps) {
+  const taskId = project.id;
+  const routeProject = useParams().projectId;
+  const projectId = routeProject ?? (project as { projectId?: string }).projectId ?? project.id;
+  const navigate = useNavigate();
   const itemIndex = useStudio((s) => s.itemIndex);
   const setItemIndex = useStudio((s) => s.setItemIndex);
   const annotations = useStudio((s) => s.annotations);
   const states = useMemo(() => itemStates(annotations), [annotations]);
-  const KindFallback = env.dataKind.icon;
+  const stateOf = useCallback((i: StudioItem): ItemState => states.get(i.id) ?? "todo", [states]);
+  const showLabel = showSourceLabels(env);
+  const showPath = showFilePaths(env);
+  const blind = !showLabel;
 
-  const groups = useMemo(() => {
-    const out = new Map<string, { item: StudioItem; index: number }[]>();
-    items.forEach((item, index) => {
-      if (query && !item.name.toLowerCase().includes(query.toLowerCase())) return;
-      out.set(item.group, [...(out.get(item.group) ?? []), { item, index }]);
+  // Items without a Data folder (the seed stand-in without the API) fall back to `group` as
+  // their heading, but never to the source label (D8).
+  const viewItems = useMemo(
+    () => items.map((i) => (i.folder ? i : { ...i, folder: i.group && i.group.toLowerCase() !== i.sourceLabel?.toLowerCase() ? [i.group] : [] })),
+    [items],
+  );
+  const suffixes = useMemo(() => disambiguate(viewItems), [viewItems]);
+  const mixed = useMemo(() => mixesKinds(items.map((i) => itemKind(i) ?? i.dataKind)), [items]);
+
+  const chosen = useItemsView((s) => s.views[taskId]);
+  const setView = useItemsView((s) => s.setView);
+  const [stored] = useState(() => readView(taskId));
+  const view: ItemsView = chosen ?? stored ?? (folderCount(viewItems) > 1 ? "folders" : "queue");
+  const queueFilter = useItemsView((s) => s.queueFilter);
+  const setQueueFilter = useItemsView((s) => s.setQueueFilter);
+  const folderFilter = useItemsView((s) => s.folderFilter);
+  const setFolderFilter = useItemsView((s) => s.setFolderFilter);
+
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filterInput = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
+  const openFilter = () => {
+    setFilterOpen(true);
+    requestAnimationFrame(() => filterInput.current?.focus());
+  };
+  // ⌘F inside the panel (the key comes from the core command, never from here).
+  const panelKeys = useCommands({ filterItems: () => openFilter() }, { scope: CORE, enabled: focused });
+
+  // A rename or move in Data changes folders and names: refetch the task document (todo7 fs.changed).
+  const qc = useQueryClient();
+  useEffect(
+    () =>
+      onProjectEvent("fs.changed", (data) => {
+        const touched = new Set(((data as { nodeIds?: string[] } | null)?.nodeIds ?? []) as string[]);
+        if (!touched.size || items.some((i) => i.assets.some((a) => a.nodeId && touched.has(a.nodeId)))) void qc.invalidateQueries({ queryKey: ["tasks", taskId, "document"] });
+      }),
+    [items, qc, taskId],
+  );
+
+  const matching = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return viewItems.flatMap((it, index) => {
+      if (q && !it.name.toLowerCase().includes(q) && !(it.folder ?? []).some((s) => s.toLowerCase().includes(q))) return [];
+      if (folderFilter && !inFolder(it.folder, folderFilter)) return [];
+      return [index];
     });
-    return [...out.entries()];
-  }, [items, query]);
+  }, [viewItems, query, folderFilter]);
 
-  return (
-    <div className="flex h-full flex-col" data-testid="files-panel">
-      <div className="relative px-2 pt-2">
-        <SearchIcon className="absolute left-4 top-1/2 mt-1 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter files" className="h-8 pl-7 text-sm" />
+  // ---- Hover card (400ms) and row menu -------------------------------------------------------
+  const [hover, setHover] = useState<{ index: number; left: number; top: number } | null>(null);
+  const hoverTimer = useRef<number | undefined>(undefined);
+  const enter = (index: number, el: HTMLElement) => {
+    window.clearTimeout(hoverTimer.current);
+    const r = el.getBoundingClientRect();
+    hoverTimer.current = window.setTimeout(() => setHover({ index, left: Math.min(r.right + 8, window.innerWidth - 296), top: Math.max(8, Math.min(r.top, window.innerHeight - 280)) }), HOVER_DELAY_MS);
+  };
+  const leave = () => {
+    window.clearTimeout(hoverTimer.current);
+    setHover(null);
+  };
+  useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
+  const [menu, setMenu] = useState<{ x: number; y: number; index: number } | null>(null);
+  const openMenu = (index: number, e: { clientX: number; clientY: number; preventDefault: () => void }) => {
+    e.preventDefault();
+    leave();
+    setMenu({ x: e.clientX, y: e.clientY, index });
+  };
+
+  const choose = (index: number) => {
+    leave();
+    setItemIndex(index);
+  };
+
+  const noun = itemNoun(env);
+  const header = (
+    <div className="flex h-9 shrink-0 items-center gap-1 pl-3 pr-1.5" data-testid="items-header">
+      <span className="min-w-0 flex-1 truncate text-sm font-medium" data-testid="items-title">
+        {plural(items.length, noun)}
+      </span>
+      <IconToggle label="Filter" pressed={filterOpen} onClick={() => (filterOpen ? (setFilterOpen(false), setQuery("")) : openFilter())} testid="items-filter-toggle" icon={SearchIcon} />
+      <div className="ml-1 flex items-center rounded-md bg-generic p-0.5" role="group" aria-label="View">
+        <IconToggle label="Folders" pressed={view === "folders"} onClick={() => setView(taskId, "folders")} testid="items-view-folders" icon={FoldersIcon} />
+        <IconToggle label="Queue" pressed={view === "queue"} onClick={() => setView(taskId, "queue")} testid="items-view-queue" icon={QueueIcon} />
       </div>
-      <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
-        <div className="space-y-3 p-2">
-          {groups.map(([group, entries]) => (
-            <div key={group}>
-              <div className="flex items-center justify-between px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                <span>{group}</span>
-                <span className="tnum" title="Annotated">{entries.filter((e) => states.get(e.item.id) === "annotated").length}/{entries.length}</span>
-              </div>
-              {entries.map(({ item, index }) => {
-                const state = STATE[states.get(item.id) ?? "todo"];
-                const kind = itemKind(item);
-                const KindIcon = kind ? KINDS[kind].icon : KindFallback;
-                const kindLabel = kind ? KINDS[kind].label : env.dataKind.label;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setItemIndex(index)}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                      index === itemIndex ? "bg-accent text-foreground" : "text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-foreground",
-                    )}
-                    aria-current={index === itemIndex}
-                    data-testid="file-row"
-                    data-state={states.get(item.id) ?? "todo"}
-                  >
-                    <state.icon className={cn("h-3.5 w-3.5 shrink-0", state.className)} aria-label={state.label} />
-                    <KindIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={kindLabel} data-testid="file-kind" />
-                    <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-          {!groups.length && <p className="px-2 py-6 text-center text-sm text-muted-foreground">No files match “{query}”.</p>}
+    </div>
+  );
+
+  const counts = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const f of QUEUE_FILTERS) out[f.id] = matching.filter((i) => inQueue(stateOf(items[i]), f.id)).length;
+    return out;
+  }, [matching, items, stateOf]);
+  const queued = matching.filter((i) => inQueue(stateOf(items[i]), queueFilter));
+
+  const hovered = hover ? items[hover.index] : undefined;
+  return (
+    <div
+      className="flex h-full flex-col"
+      data-testid="files-panel"
+      data-view={view}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setFocused(false)}
+    >
+      {header}
+      {filterOpen && (
+        <div className="relative px-2 pb-1.5">
+          <SearchIcon className="absolute left-4 top-1/2 -mt-0.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            ref={filterInput}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setQuery("");
+                setFilterOpen(false);
+              }
+            }}
+            placeholder={`Filter ${pluralWord(2, noun)}`}
+            className="h-7 pl-7 text-sm"
+            data-testid="items-filter"
+          />
         </div>
-      </ScrollArea>
+      )}
+      {folderFilter && (
+        <div className="mx-2 mb-1.5 flex items-center gap-1 rounded-md bg-generic px-2 py-1 text-xs" data-testid="items-folder-filter">
+          <FolderIcon className="size-3.5 shrink-0 text-hint" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">{folderFilter.join(" / ") || "All folders"}</span>
+          <button className="rounded p-0.5 hover:bg-[var(--bg-tertiary)]" onClick={() => setFolderFilter(null)} aria-label="Show every folder">
+            <CloseIcon className="size-3" />
+          </button>
+        </div>
+      )}
+      {view === "queue" ? (
+        <>
+          <div className="flex flex-wrap gap-1 px-2 pb-1.5" role="group" aria-label="Status">
+            {QUEUE_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setQueueFilter(f.id)}
+                aria-pressed={queueFilter === f.id}
+                className={cn(
+                  "flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors",
+                  queueFilter === f.id ? "bg-selection text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground",
+                )}
+                data-testid="queue-chip"
+                data-filter={f.id}
+              >
+                {f.label}
+                <span className="tnum text-hint">{counts[f.id]}</span>
+              </button>
+            ))}
+          </div>
+          <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
+            <div className="px-1.5 pb-2" role="list">
+              {queued.map((index) => (
+                <QueueRow
+                  key={items[index].id}
+                  item={items[index]}
+                  index={index}
+                  current={index === itemIndex}
+                  state={stateOf(items[index])}
+                  suffix={suffixes[index]}
+                  kindIcon={mixed ? kindIconOf(items[index], env.dataKind.icon) : undefined}
+                  onChoose={choose}
+                  onEnter={enter}
+                  onLeave={leave}
+                  onMenu={openMenu}
+                />
+              ))}
+              {!queued.length && <Empty query={query} filter={queueFilter} total={items.length} noun={noun} />}
+            </div>
+          </ScrollArea>
+        </>
+      ) : (
+        <FoldersView
+          items={viewItems}
+          indices={matching}
+          states={states}
+          itemIndex={itemIndex}
+          suffixes={suffixes}
+          mixed={mixed}
+          fallbackIcon={env.dataKind.icon}
+          filtering={!!query.trim() || !!folderFilter}
+          onChoose={choose}
+          onEnter={enter}
+          onLeave={leave}
+          onMenu={openMenu}
+          onKey={(e) => panelKeys(e.nativeEvent)}
+          empty={<Empty query={query} filter="all" total={items.length} noun={noun} />}
+        />
+      )}
+      {hovered && hover && (
+        <ItemHoverCard item={hovered} state={stateOf(hovered)} annotations={annotations} env={env} at={hover} showLabel={showLabel} showPath={showPath} blind={blind} />
+      )}
+      {menu && (
+        <DropdownMenu open onOpenChange={(o) => !o && setMenu(null)}>
+          <DropdownMenuTrigger asChild>
+            <span aria-hidden className="fixed size-0" style={{ left: menu.x, top: menu.y }} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-48" data-testid="item-context-menu">
+            <DropdownMenuItem
+              disabled={!items[menu.index]?.nodeId}
+              onSelect={() => {
+                const nodeId = items[menu.index]?.nodeId;
+                if (nodeId) navigate(filesUrl(projectId, nodeId));
+              }}
+              data-testid="show-in-data"
+            >
+              <FolderOpenIcon aria-hidden /> Show in Data
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
+  );
+}
+
+function IconToggle({ label, pressed, onClick, icon: Icon, testid }: { label: string; pressed: boolean; onClick: () => void; icon: IconComponent; testid: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      aria-pressed={pressed}
+      className={cn("flex size-6 items-center justify-center rounded transition-colors", pressed ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}
+      data-testid={testid}
+    >
+      <Icon className="size-3.5" />
+    </button>
+  );
+}
+
+function kindIconOf(item: StudioItem, fallback: ComponentType<{ className?: string }>): { icon: ComponentType<{ className?: string }>; label: string } {
+  const kind = itemKind(item);
+  return kind ? { icon: KINDS[kind].icon, label: KINDS[kind].label } : { icon: fallback, label: "" };
+}
+
+function Empty({ query, filter, total, noun }: { query: string; filter: string; total: number; noun: string }) {
+  const text = query.trim()
+    ? `No ${pluralWord(2, noun)} match “${query.trim()}”.`
+    : filter === "todo"
+      ? `All ${plural(total, noun)} done.`
+      : filter === "review"
+        ? "Nothing needs review."
+        : filter === "done"
+          ? `No ${pluralWord(2, noun)} done yet.`
+          : `No ${pluralWord(2, noun)} here.`;
+  return <p className="px-2 py-6 text-center text-sm text-muted-foreground">{text}</p>;
+}
+
+interface RowEvents {
+  onChoose: (index: number) => void;
+  onEnter: (index: number, el: HTMLElement) => void;
+  onLeave: () => void;
+  onMenu: (index: number, e: { clientX: number; clientY: number; preventDefault: () => void }) => void;
+}
+
+function QueueRow({ item, index, current, state, suffix, kindIcon, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string } } & RowEvents) {
+  const s = STATE[state];
+  const count = bundleCount(item);
+  return (
+    <button
+      onClick={() => onChoose(index)}
+      onMouseEnter={(e) => onEnter(index, e.currentTarget)}
+      onMouseLeave={onLeave}
+      onContextMenu={(e) => onMenu(index, e)}
+      className={cn(
+        "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
+        current ? "bg-selection text-foreground" : "text-[var(--text-secondary)] hover:bg-generic hover:text-foreground",
+      )}
+      aria-current={current}
+      role="listitem"
+      data-testid="file-row"
+      data-state={state}
+    >
+      <s.icon className={cn("h-3.5 w-3.5 shrink-0", s.className)} aria-label={s.label} />
+      {kindIcon && <kindIcon.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={kindIcon.label} data-testid="file-kind" />}
+      <span className="min-w-0 truncate" data-testid="file-name">{item.name}</span>
+      {suffix && <span className="min-w-0 flex-1 truncate text-xs text-hint" data-testid="file-suffix">{suffix}</span>}
+      {!suffix && <span className="flex-1" />}
+      {count && <span className="tnum shrink-0 text-xs text-hint">{count}</span>}
+    </button>
+  );
+}
+
+function FoldersView({
+  items,
+  indices,
+  states,
+  itemIndex,
+  suffixes,
+  mixed,
+  fallbackIcon,
+  filtering,
+  onChoose,
+  onEnter,
+  onLeave,
+  onMenu,
+  onKey,
+  empty,
+}: {
+  items: StudioItem[];
+  indices: number[];
+  states: Map<string, ItemState>;
+  itemIndex: number;
+  suffixes: string[];
+  mixed: boolean;
+  fallbackIcon: ComponentType<{ className?: string }>;
+  filtering: boolean;
+  onKey: (e: React.KeyboardEvent) => boolean;
+  empty: ReactNode;
+} & RowEvents) {
+  const tree = useMemo(() => itemTree(items, states, indices), [items, states, indices]);
+  const handle = useRef<FileTreeHandle>(null);
+
+  const data = useMemo(() => {
+    const leaf = (index: number): FileTreeNode => {
+      const item = items[index];
+      const state = states.get(item.id) ?? "todo";
+      const kind = mixed ? kindIconOf(item, fallbackIcon) : null;
+      const count = bundleCount(item);
+      return {
+        id: `${ITEM}${index}`,
+        name: item.name,
+        title: "",
+        icon: STATE_TREE_ICON[state],
+        badges: suffixes[index] ? <span className="max-w-32 truncate text-xs" data-testid="file-suffix">{suffixes[index]}</span> : undefined,
+        count: count ?? undefined,
+        status: kind ? <kind.icon className="size-3.5 text-hint" aria-label={kind.label} data-testid="file-kind" /> : undefined,
+      };
+    };
+    const dir = (d: ItemDir): FileTreeNode => ({
+      id: d.id,
+      name: d.name,
+      icon: FolderIcon,
+      openIcon: FolderOpenIcon,
+      count: `${d.done}/${d.total}`,
+      children: [
+        ...d.dirs.map(dir),
+        ...d.leaves.map((l) => {
+          if (l.kind === "item") return leaf(l.index);
+          const done = l.indices.filter((i) => states.get(items[i].id) === "annotated").length;
+          return { id: l.id, name: l.name, icon: FolderIcon, openIcon: FolderOpenIcon, count: `${done}/${l.indices.length}`, children: l.indices.map(leaf) } satisfies FileTreeNode;
+        }),
+      ],
+    });
+    return dir(tree).children ?? [];
+  }, [tree, items, states, suffixes, mixed, fallbackIcon]);
+
+  // Folders open at mount: all of them when there are few (or while filtering), else the way to the current item.
+  const allDirs = useMemo(() => {
+    const out: string[] = [];
+    const walk = (d: ItemDir) => {
+      for (const c of d.dirs) {
+        out.push(c.id);
+        walk(c);
+      }
+      for (const l of d.leaves) if (l.kind === "run") out.push(l.id);
+    };
+    walk(tree);
+    return out;
+  }, [tree]);
+  const initialOpen = useMemo(() => (filtering || allDirs.length <= 24 ? allDirs : dirsAbove(tree, itemIndex)), [filtering, allDirs, tree, itemIndex]);
+  const key = filtering ? `f:${indices.join(",")}` : "all";
+
+  // Follow the current item (N, arrows, the decision bar): open its folders and scroll to it.
+  const current = `${ITEM}${itemIndex}`;
+  useEffect(() => {
+    const api = handle.current?.api();
+    if (!api?.get(current)) return;
+    api.openParents(current);
+    api.scrollTo(current);
+  }, [current]);
+
+  if (!indices.length) return <>{empty}</>;
+  return (
+    <div className="min-h-0 flex-1 px-1.5 pb-2" data-testid="items-tree">
+      <FileTree
+        key={key}
+        ref={handle}
+        data={data}
+        selectedId={current}
+        initialOpen={initialOpen}
+        aria-label="Items"
+        onKey={onKey}
+        onSelect={(ids) => {
+          const id = ids[0];
+          if (id?.startsWith(ITEM)) onChoose(Number(id.slice(ITEM.length)));
+          else if (id) handle.current?.api()?.get(id)?.toggle();
+        }}
+        onContextMenu={(id, e) => id.startsWith(ITEM) && onMenu(Number(id.slice(ITEM.length)), e)}
+        rowProps={(n) => {
+          if (!n.id.startsWith(ITEM)) return { "data-testid": "folder-row" };
+          const index = Number(n.id.slice(ITEM.length));
+          return {
+            "data-testid": "file-row",
+            "data-state": states.get(items[index].id) ?? "todo",
+            "aria-current": index === itemIndex ? "true" : "false",
+            onMouseEnter: (e) => onEnter(index, e.currentTarget),
+            onMouseLeave: onLeave,
+          };
+        }}
+      />
     </div>
   );
 }

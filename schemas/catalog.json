@@ -2223,6 +2223,26 @@
       }
     },
     {
+      "id": "inkling.core.commands.nextTodo",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Go to the next item nobody has annotated yet, in queue order (the task's item order)",
+      "label": "Next to do",
+      "keys": [
+        "n"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.nextTodo",
+            "keys": [
+              "n"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.commands.pickLabel",
       "type": "commands",
       "module": "inkling.core",
@@ -2629,6 +2649,27 @@
             "command": "inkling.core.commands.toggleInspector",
             "keys": [
               "mod+i"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "inkling.core.commands.filterItems",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Filter the Items panel by name (while the panel has focus)",
+      "label": "Filter items",
+      "when": "section == studio",
+      "keys": [
+        "mod+f"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.filterItems",
+            "keys": [
+              "mod+f"
             ]
           }
         ]
@@ -3733,7 +3774,7 @@
       "id": "inkling.wsi.commands.toggleClassNames",
       "type": "commands",
       "module": "inkling.wsi",
-      "description": "Toggle class names on regions",
+      "description": "Toggle class names on regions (takes N from Next to do)",
       "label": "Show or hide class names",
       "when": "renderer == inkling.wsi.renderers.osd",
       "keys": [

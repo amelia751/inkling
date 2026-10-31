@@ -1,12 +1,19 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "@studio/ui/icons";
 import { useStudio } from "@/studio/stores/studio";
+import { useItemsView } from "@/studio/stores/items-view";
+import { showFilePaths } from "@/studio/lib/item-folders";
 import type { StudioItem } from "@studio/contracts/types";
 
 export function CanvasStatusBar({ items }: { items: StudioItem[] }) {
   const itemIndex = useStudio((s) => s.itemIndex);
   const setItemIndex = useStudio((s) => s.setItemIndex);
   const viewerStatus = useStudio((s) => s.viewerStatus);
+  const env = useStudio((s) => s.env);
+  const setFolderFilter = useItemsView((s) => s.setFolderFilter);
   const item = items[itemIndex];
+  // todo8 D3: the item's Data path (`mri ▸ patient_07 ▸ series_2 ▸ IM-0001`), never the source
+  // label (D8); each folder narrows the Items panel to it.
+  const folder = env && !showFilePaths(env) ? [] : (item?.folder ?? []);
 
   return (
     <div className="@container flex h-8 shrink-0 items-center gap-3 border-t border-border bg-background px-2 text-xs text-muted-foreground">
@@ -29,8 +36,22 @@ export function CanvasStatusBar({ items }: { items: StudioItem[] }) {
           <ChevronRightIcon className="h-3.5 w-3.5" />
         </button>
       </div>
-      <span className="min-w-0 truncate font-medium text-foreground">{item?.name}</span>
-      {item?.sourceLabel && <span className="hidden shrink-0 @[560px]:inline">Source label: <span className="capitalize">{item.sourceLabel}</span></span>}
+      <nav className="flex min-w-0 items-center gap-1" aria-label="Path" data-testid="item-path">
+        {folder.map((seg, i) => (
+          <span key={i} className="hidden min-w-0 shrink items-center gap-1 @[560px]:flex">
+            <button
+              onClick={() => setFolderFilter(folder.slice(0, i + 1))}
+              className="min-w-0 truncate rounded px-0.5 hover:bg-[var(--bg-tertiary)] hover:text-foreground"
+              title={`Show only ${folder.slice(0, i + 1).join(" / ")} in the list`}
+              data-testid="item-path-segment"
+            >
+              {seg}
+            </button>
+            <span aria-hidden className="text-hint">▸</span>
+          </span>
+        ))}
+        <span className="min-w-0 truncate font-medium text-foreground">{item?.name}</span>
+      </nav>
       <span className="tnum ml-auto hidden truncate @[420px]:inline" data-testid="viewer-status">{viewerStatus}</span>
     </div>
   );

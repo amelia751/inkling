@@ -341,6 +341,32 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       .slice(0, 4);
   }
 
+  /**
+   * The task document's assets with their node and current folder below the task's common
+   * folder (todo8 D3), like the kernel's `add_folders`: the sample folder is the common one.
+   */
+  function documentAssets(p: SeedProject) {
+    const { nodes } = load();
+    const byAsset = new Map<string, Node>();
+    for (const n of nodes.values()) if (n.sourceId === p.id && n.assetPath) byAsset.set(n.assetPath, n);
+    const folderOf = (n: Node) => ancestors(n).map((a) => a.name);
+    const folders = (p.assets ?? []).map((a) => {
+      const n = typeof a.path === "string" ? byAsset.get(a.path) : undefined;
+      return n ? folderOf(n) : null;
+    });
+    const known = folders.filter((f): f is string[] => !!f);
+    let common = known[0] ?? [];
+    for (const f of known) {
+      let k = 0;
+      while (k < common.length && k < f.length && common[k] === f[k]) k++;
+      common = common.slice(0, k);
+    }
+    return (p.assets ?? []).map((a, i) => {
+      const n = typeof a.path === "string" ? byAsset.get(a.path) : undefined;
+      return n ? { ...a, nodeId: n.id, folder: folders[i]!.slice(common.length) } : a;
+    });
+  }
+
   function task(p: SeedProject) {
     const doc = annotationsOf(p.id);
     return { id: p.id, datasetId: p.id, projectId: p.id, title: p.title, kind: String(p.task ?? p.environment?.task ?? "annotate"), revision: 0, annotationCount: doc.annotations.length, annotatedItems: new Set(doc.annotations.map((a) => a.itemId)).size, createdAt: createdAt() };
@@ -509,7 +535,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       if (!p) return send(404, { detail: "no such task" });
       if (!sub) return send(200, task(p));
       // The Studio normalizes manifest projects itself (lib/api.ts normalizeProject).
-      if (sub === "document") return send(200, { ...p, status: "available" });
+      if (sub === "document") return send(200, { ...p, status: "available", assets: documentAssets(p) });
       return notFound();
     }
     return next();

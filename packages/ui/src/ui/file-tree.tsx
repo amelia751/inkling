@@ -132,7 +132,13 @@ export interface FileTreeProps {
 
   /** Rows cut to the clipboard: drawn at 50% opacity until pasted. */
   cutIds?: ReadonlySet<string> | readonly string[]
+
+  /** Extra attributes on a row (test ids, `aria-current`, hover handlers): todo8's Items panel. */
+  rowProps?: (node: FileTreeNode) => FileTreeRowProps | undefined
 }
+
+/** What `rowProps` may add to a row; the tree's own handlers and classes win. */
+export type FileTreeRowProps = Omit<React.HTMLAttributes<HTMLDivElement>, "className" | "style" | "onContextMenu" | "onDoubleClick"> & { [data: `data-${string}`]: string | undefined }
 
 const ROW = 28
 const INDENT = 12
@@ -156,6 +162,7 @@ interface RowExtras {
   dropRefusal: { id: string; reason: string } | null
   /** Drag and drop is on (`onMove`): rows get arborist's drag handle. */
   dndOn: boolean
+  rowProps?: (node: FileTreeNode) => FileTreeRowProps | undefined
 }
 
 export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
@@ -185,6 +192,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     searchMatch,
     onOpenCap,
     cutIds,
+    rowProps,
     ...aria
   },
   ref,
@@ -344,11 +352,11 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const cut = React.useMemo(() => new Set(cutIds ?? []), [cutIds])
   const initialOpenState = React.useMemo(() => Object.fromEntries((initialOpen ?? []).map((id) => [id, true])), [initialOpen])
 
-  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn }
+  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn, rowProps }
   const Node = React.useCallback(
     (props: NodeRendererProps<FileTreeNode>) => <TreeRow {...props} {...extras} />,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal, dndOn],
+    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal, dndOn, rowProps],
   )
 
   const Preview = React.useCallback(
@@ -510,6 +518,7 @@ function TreeRow({
   onRenameCancel,
   dropRefusal,
   dndOn,
+  rowProps,
 }: NodeRendererProps<FileTreeNode> & RowExtras) {
   const d = node.data
   const externalTarget = !!dropTargetId && dropTargetId === node.id
@@ -543,6 +552,7 @@ function TreeRow({
   const refused = dropRefusal?.id === node.id
   return (
     <div
+      {...rowProps?.(d)}
       ref={dndOn ? dragHandle : undefined}
       style={style}
       title={node.isEditing ? undefined : (refused ? dropRefusal!.reason : (d.title ?? d.name))}

@@ -8,6 +8,7 @@ import { cn } from "@studio/ui/utils";
 import type { NodePreview } from "@/studio/lib/projects-api";
 import { kindLabel, nodeIcon, STATUS_LABEL } from "@/studio/lib/file-kinds";
 import { formatBytes } from "@/studio/lib/format";
+import { InTasks } from "@/studio/components/files/in-tasks";
 import { datasetUrl, projectUrl, sourcesUrl, studioUrl } from "@/studio/lib/routes";
 import { shortDate } from "./listing";
 import { useNode, usePreview } from "./queries";
@@ -39,6 +40,7 @@ export function Inspector({ projectId, item, onClose }: { projectId: string; ite
             {n.kind === "file" && <PreviewSection n={n} preview={preview.data} loading={preview.isLoading} />}
             <Detected n={n} />
             {full ? <UsedIn projectId={projectId} detail={full} /> : detail.isLoading && <SkeletonText className="w-2/3" />}
+            {full && <InTasks projectId={projectId} detail={full} />}
             <Flags projectId={projectId} n={n} />
             {full && <Provenance projectId={projectId} detail={full} />}
           </>

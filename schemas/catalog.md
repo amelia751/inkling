@@ -107,6 +107,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.selectAll` — Select every visible annotation on the current item
 - `inkling.core.commands.nextItem` — Go to the next item
 - `inkling.core.commands.prevItem` — Go to the previous item
+- `inkling.core.commands.nextTodo` — Go to the next item nobody has annotated yet, in queue order (the task's item order)
 - `inkling.core.commands.pickLabel` — Make the n-th label class active
 - `inkling.core.commands.brushSmaller` — Shrink the active tool's size (when 'size' in tool.options)
 - `inkling.core.commands.brushLarger` — Grow the active tool's size (when 'size' in tool.options)
@@ -126,6 +127,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.core.commands.clearSelection` — Deselect every file and folder (when section == files)
 - `inkling.core.commands.expandAllBelow` — Open the focused folder and every folder in it (up to 2,000 rows) (when section == files)
 - `inkling.core.commands.toggleInspector` — Show or hide the inspector (Info) (when section == files)
+- `inkling.core.commands.filterItems` — Filter the Items panel by name (while the panel has focus) (when section == studio)
 - `inkling.core.commands.toggleSidePanel` — Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again
 - `inkling.core.commands.toggleAssistant` — Open or close the assistant, in any project section
 - `inkling.core.commands.finishShape` — Close the shape being drawn (when 'drafting' in renderer.capabilities)
@@ -179,7 +181,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.cine.commands.copyContourReplace` — Copy the selected contours, replacing the target's
 - `inkling.cine.commands.copyContour` — Copy the selected contours to the neighbouring cell
 - `inkling.cine.commands.goTo` — Show a slice and frame; args { slice?, frame? } (0-based)
-- `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions (when renderer == inkling.wsi.renderers.osd)
+- `inkling.wsi.commands.toggleClassNames` — Toggle class names on regions (takes N from Next to do) (when renderer == inkling.wsi.renderers.osd)
 - `inkling.wsi.commands.importGeoJSON` — Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step (when renderer == inkling.wsi.renderers.osd)
 - `inkling.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 

@@ -26,6 +26,8 @@ import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
+import { nextTodoIndex } from "@/studio/lib/items";
+import { studioItems } from "@/studio/lib/item-folders";
 import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -161,7 +163,7 @@ function EnvErrors({ errors }: { errors: EnvError[] }) {
 function Studio({ projectId }: { projectId: string }) {
   const { data: project } = useTaskDocument(projectId);
   const env = useStudio((s) => s.env)!;
-  const items = useMemo(() => (project ? env.dataKind.groupItems(project) : []), [project, env.dataKind]);
+  const items = useMemo(() => (project ? studioItems(project, env) : []), [project, env]);
   const itemIndex = useStudio((s) => s.itemIndex);
   const aiOpen = useStudio((s) => s.aiOpen);
   const toggleAi = useStudio((s) => s.toggleAi);
@@ -302,7 +304,9 @@ function useResume(taskId: string, items: StudioItem[], env: ResolvedEnv) {
   const projectId = summary.data?.id;
   const location = useLocation();
   const [byReload] = useState(() => openedByReload(location.pathname));
-  const wantRestore = byReload || !!(location.state as { resume?: boolean } | null)?.resume || new URLSearchParams(location.search).has("resume");
+  // Data's "Open in Studio" (todo8 D3) names the item: `{ itemId, nodeId? }`; it wins over the saved place.
+  const opened = location.state as { resume?: boolean; itemId?: string; nodeId?: string } | null;
+  const wantRestore = byReload || !!opened?.resume || !!opened?.itemId || new URLSearchParams(location.search).has("resume");
   const resume = useQuery({ queryKey: ["projects", projectId, "resume"], queryFn: () => api<{ resume: ResumeState | null }>(`/projects/${encodeURIComponent(projectId!)}/resume`), enabled: !!projectId && wantRestore, staleTime: 0, gcTime: 0 });
   // Settled: restored, or nothing to restore. Writes wait for it, so item 0 never overwrites
   // what is about to be restored.
@@ -311,15 +315,20 @@ function useResume(taskId: string, items: StudioItem[], env: ResolvedEnv) {
     if (settled || summary.isLoading || (projectId && resume.isLoading) || !items.length) return;
     setSettled(true);
     markReloadRestored();
+    const s = useStudio.getState();
+    // A reload keeps the router state, but then the saved place (where they went since) wins.
+    if (opened?.itemId && !byReload) {
+      const at = items.findIndex((i) => i.id === opened.itemId || (!!opened.nodeId && (i.nodeId === opened.nodeId || i.assets.some((a) => a.nodeId === opened.nodeId))));
+      if (at >= 0) return s.setItemIndex(at);
+    }
     const r = resume.data?.resume;
     if (!r || r.taskId !== taskId) return;
-    const s = useStudio.getState();
     const at = items.findIndex((i) => i.id === r.itemId);
     if (at >= 0) s.setItemIndex(at);
     if (r.tool && env.tools.some((t) => t.name === r.tool)) s.setTool(r.tool);
     // Frame or slice: the renderer applies it once it can (useRequestedPlacement).
     if (at >= 0 && r.placement && Object.keys(r.placement).length) publish(items[at].id, REQUESTED_PLACEMENT, r.placement);
-  }, [settled, summary.isLoading, projectId, resume.isLoading, resume.data, taskId, items, env]);
+  }, [settled, summary.isLoading, projectId, resume.isLoading, resume.data, taskId, items, env, opened?.itemId, opened?.nodeId, byReload]);
 
   const itemIndex = useStudio((s) => s.itemIndex);
   const tool = useStudio((s) => s.tool);
@@ -504,6 +513,11 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
       prevItem: (e) => {
         if (ownsArrows(e)) return false;
         s().setItemIndex(Math.max(0, s().itemIndex - 1));
+      },
+      nextTodo: () => {
+        const next = nextTodoIndex(items, s().annotations, s().itemIndex);
+        if (next === undefined) return false;
+        s().setItemIndex(next);
       },
       pickLabel: (e) => {
         const label = labels[(digitOf(e) ?? 0) - 1];

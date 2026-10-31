@@ -12,6 +12,8 @@ Playwright's emulated native drag is flaky across rows that re-render.
 from __future__ import annotations
 
 import base64
+import os
+import sqlite3
 import struct
 import sys
 import tempfile
@@ -200,3 +202,23 @@ def fetch_bytes(page, path: str, method: str = "GET", body: dict | None = None) 
         [path, method, body],
     )
     return r[0], base64.b64decode(r[1])
+
+
+def add_member(pid: str, principal: str, role: str = "editor") -> bool:
+    """Make `principal` a member of the project's organization, for tests with a second person.
+    The kernel has no members API yet, so this writes the API's SQLite database directly: it
+    needs the same `INKLING_API_DATA_DIR` the API was started with (default database only)."""
+    data = os.environ.get("INKLING_API_DATA_DIR")
+    db = Path(data) / "api.db" if data else None
+    if not db or not db.exists():
+        return False
+    con = sqlite3.connect(db, timeout=30)
+    try:
+        org = con.execute("select org_id from projects where id = ?", (pid,)).fetchone()
+        if not org:
+            return False
+        con.execute("insert or ignore into organization_members (org_id, principal, role) values (?, ?, ?)", (org[0], principal, role))
+        con.commit()
+        return True
+    finally:
+        con.close()

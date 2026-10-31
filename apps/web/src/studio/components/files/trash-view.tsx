@@ -183,7 +183,7 @@ export function TrashView(props: TrashViewProps) {
                 <ul className="thin-scrollbar max-h-40 space-y-0.5 overflow-y-auto rounded-md border border-border px-3 py-2">
                   {keptBytes.map((k, i) => (
                     <li key={i} className="break-words">
-                      <span className="font-semibold">{k.name}</span> <span className="text-muted-foreground">· Kept: {k.reason}</span>
+                      <span className="font-semibold">{k.name}</span> <span className="text-muted-foreground">· Kept: {k.reason.replace(/^kept:\s*/i, "")}</span>
                     </li>
                   ))}
                 </ul>

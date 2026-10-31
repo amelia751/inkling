@@ -11,7 +11,7 @@ requires-python = ">=3.12,<3.13"
 package = false
 
 [tool.uv.workspace]
-members = ["apps/api", "apps/worker", "packages/plugin-sdk", "packages/observability-py", "apps/web/e2e"]
+members = ["apps/api", "apps/worker", "packages/plugin-sdk", "packages/observability-py", "packages/signing", "apps/web/e2e"]
 exclude = ["plugins/*"]
 
 [tool.uv.sources]
@@ -19,6 +19,7 @@ studio-api = { workspace = true }
 studio-worker = { workspace = true }
 studio-plugin-sdk = { workspace = true }
 studio-observability = { workspace = true }
+studio-signing = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -51,7 +52,7 @@ exclude = ["**/node_modules", "**/.venv", "**/_generated", "**/__pycache__", "ap
 
 # Python boundaries (todo/done/todo3.md C.4). `pnpm check:python-imports` / CI run `lint-imports`.
 [tool.importlinter]
-root_packages = ["studio_api", "studio_worker", "studio_plugin_sdk", "studio_observability"]
+root_packages = ["studio_api", "studio_worker", "studio_plugin_sdk", "studio_observability", "studio_signing"]
 include_external_packages = false
 
 [[tool.importlinter.contracts]]
@@ -77,3 +78,9 @@ name = "observability is a library: it imports no app and no other library"
 type = "forbidden"
 source_modules = ["studio_observability"]
 forbidden_modules = ["studio_api", "studio_worker", "studio_plugin_sdk"]
+
+[[tool.importlinter.contracts]]
+name = "signing is a library: it imports no app and no other library"
+type = "forbidden"
+source_modules = ["studio_signing"]
+forbidden_modules = ["studio_api", "studio_worker", "studio_plugin_sdk", "studio_observability"]

@@ -7,7 +7,7 @@ import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Input } from "@studio/ui/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@studio/ui/ui/tabs";
-import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { AppLayout, PageHeading, PageContainer } from "@/studio/components/layout/app-layout";
 import { studioUrl, versionReviewUrl } from "@/studio/lib/routes";
 import { useStudio } from "@/studio/stores/studio";
 import { api, type Review, type ReviewStatus } from "./api";
@@ -30,8 +30,8 @@ export function VersioningOff({ children }: { children: React.ReactNode }) {
     return (
       <AppLayout>
         <div className="mx-auto max-w-xl p-8 text-center text-sm text-muted-foreground">
-          <h1 className="mb-2 text-body-2 font-semibold text-foreground">Versioning is off</h1>
-          Start apps/versioning and set the kernel's <code className="font-mono">API_VERSIONING_URL</code> (with the env prefix from the naming config) to get branches, reviews and releases. See tests/e2e/versioning/README.md.
+          <h2 className="mb-2 text-body-2 font-semibold text-foreground" data-testid="versioning-off">Versions aren't turned on</h2>
+          Your work is still saved as you go. Branches, reviews and releases need the versioning service, which isn't running here: docs/running.md says how to start it.
         </div>
       </AppLayout>
     );
@@ -45,7 +45,7 @@ export function VersionsPage() {
   return (
     <VersioningOff>
       <AppLayout dataset={{ id: datasetId, title: datasetId }}>
-        <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6">
+        <PageContainer>
           <PageHeading
             title="Versions"
             description="Every save is a commit on your work branch. Changes reach main through a review; releases pin a commit for training and audit."
@@ -61,7 +61,7 @@ export function VersionsPage() {
             <TabsContent value="reviews"><Reviews datasetId={datasetId} projectId={projectId} /></TabsContent>
             <TabsContent value="releases"><Releases datasetId={datasetId} /></TabsContent>
           </Tabs>
-        </div>
+        </PageContainer>
       </AppLayout>
     </VersioningOff>
   );

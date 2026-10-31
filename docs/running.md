@@ -115,6 +115,12 @@ Add `INKLING_E2E=1` to the Vite line for a frozen dev server, and `INKLING_AGENT
 `mixed_import_test.py`, `review_activity_test.py` and the project part of `agent_test.py` run
 against this setup; their docstrings give the exact commands.
 
+Versions (branches, reviews and releases on Datasets › Versions) also need the API, plus the
+versioning service: `pnpm infra:up` runs `apps/versioning`, and without Docker or Go,
+`INKLING_API_VERSIONING_URL=memory:` on the API line gives it an in-process stand-in whose state
+is lost on restart (`tests/e2e/versioning/README.md`). Without either, the Versions tab says
+versions aren't turned on; saving still works.
+
 The worker's inspection reads DICOM, NIfTI, images and spreadsheets with its own Python
 dependencies; it probes video only when `ffprobe` is on the `PATH`.
 

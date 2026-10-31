@@ -61,7 +61,7 @@ def main() -> int:
             check("dataset detail: Tasks tab", page.locator("[data-testid=dataset-detail]").get_attribute("data-tab") == "tasks")
             page.get_by_role("link", name="Versions", exact=True).click()
             page.wait_for_url(f"**/datasets/{P}/versions", timeout=10000)
-            page.wait_for_selector("text=/Versioning is off|Every save is a commit/", timeout=10000)
+            page.wait_for_selector("[data-testid=versioning-off], text=/Every save is a commit/", timeout=10000)
             check("dataset detail: Versions tab hosts the versions page", page.locator("[data-testid=dataset-detail][data-tab=versions]").count() == 1)
             page.get_by_role("link", name="Publish & export").click()
             page.wait_for_selector("text=Standard formats", timeout=20000)

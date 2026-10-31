@@ -6,7 +6,7 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Input } from "@studio/ui/ui/input";
-import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { AppLayout, PageHeading, PageContainer } from "@/studio/components/layout/app-layout";
 import { InstallReview } from "@/studio/components/plugins/InstallReview";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
@@ -65,7 +65,7 @@ export function PluginsPage() {
   if (!enabled)
     return (
       <AppLayout dataset={{ id: project.id, title: project.title }}>
-        <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6">
+        <PageContainer>
           <PageHeading
             title="Plugins"
             description="The plugins built into this app. They work in every project without installing anything."
@@ -75,14 +75,14 @@ export function PluginsPage() {
           <p className="mt-4 text-sm text-muted-foreground" data-testid="plugins-needs-api">
             Installing more plugins, or turning one off for this project, needs the API: see docs/running.md.
           </p>
-        </div>
+        </PageContainer>
       </AppLayout>
     );
 
   const active = new Map((installed.data?.plugins ?? []).map((p) => [p.pluginId, p]));
   return (
     <AppLayout dataset={{ id: project.id, title: project.title }}>
-      <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6">
+      <PageContainer>
         <PageHeading
           title="Plugins"
           description="Installed in this workspace only. Installing new code or permissions always asks for approval."
@@ -144,7 +144,7 @@ export function PluginsPage() {
             );
           })}
         </Card>
-      </div>
+      </PageContainer>
       <InstallReview
         request={review}
         open={!!review}

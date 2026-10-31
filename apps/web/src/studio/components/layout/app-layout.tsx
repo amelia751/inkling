@@ -95,6 +95,12 @@ export function NestedPage({ children }: { children: ReactNode }) {
   return <NestedPageContext.Provider value>{children}</NestedPageContext.Provider>;
 }
 
+/** The page's content column: centered and padded on its own page, flush inside a tab (`NestedPage`). */
+export function PageContainer({ className, children }: { className?: string; children: ReactNode }) {
+  const nested = useContext(NestedPageContext);
+  return <div className={nested ? "w-full" : cn("mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6", className)}>{children}</div>;
+}
+
 export function AppLayout(props: { dataset?: ProjectRef; studio?: boolean; children: ReactNode }) {
   return useContext(NestedPageContext) ? <>{props.children}</> : <AppLayoutFrame {...props} />;
 }
@@ -209,10 +215,13 @@ function AppHeader({ project, sidebarOpen, onToggleSidebar }: { project?: Projec
 
 /** Page title block: Gravity header-2 with optional description and actions. */
 export function PageHeading({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
+  // Inside a tab the tab names the page: keep the description and actions, drop the title.
+  const nested = useContext(NestedPageContext);
+  if (nested && !description && !actions) return null;
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+    <div className={cn("flex flex-wrap items-start justify-between gap-x-6 gap-y-3", nested ? "mb-4" : "mb-6")}>
       <div className="min-w-0 max-w-2xl">
-        <h1 className="text-header-2 font-semibold">{title}</h1>
+        {!nested && <h1 className="text-header-2 font-semibold">{title}</h1>}
         {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

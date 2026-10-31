@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ExportIcon, FileIcon } from "@studio/ui/icons";
-import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
+import { AppLayout, PageHeading, PageContainer } from "@/studio/components/layout/app-layout";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card, CardHeader, CardTitle } from "@studio/ui/ui/card";
@@ -88,7 +88,7 @@ export function ExportPage({ taskId }: { taskId?: string } = {}) {
     <AppLayout
       dataset={{ id: project.id, title: project.title }}
     >
-      <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
+      <PageContainer className="max-w-3xl">
         <PageHeading
           title="Export dataset"
           description={<>Downloads the saved annotations (revision {bundle.dataset.revision}) with a dataset card and file checksums. Original files are referenced by path and sha256, never modified.</>}
@@ -127,7 +127,7 @@ export function ExportPage({ taskId }: { taskId?: string } = {}) {
         </Card>
 
         <FormatExports project={project} enabled={rights} />
-      </div>
+      </PageContainer>
     </AppLayout>
   );
 }

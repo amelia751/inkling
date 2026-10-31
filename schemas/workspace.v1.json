@@ -253,6 +253,20 @@
         },
         "layout": {
           "description": "null = auto layout from panel slots; else a dockview toJSON() document"
+        },
+        "studio": {
+          "description": "What annotators see in the Studio (Task setup → Annotators see)",
+          "type": "object",
+          "properties": {
+            "showSourceLabels": {
+              "description": "Show the labels that came with the files (source labels). Unset: hidden for classification tasks (blind by default), shown elsewhere",
+              "type": "boolean"
+            },
+            "showFilePaths": {
+              "description": "Show each item's folder path (status bar, hover card). Unset: shown",
+              "type": "boolean"
+            }
+          }
         }
       }
     },

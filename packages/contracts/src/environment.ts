@@ -63,6 +63,15 @@ export const KeybindingSchema = z.object({
   keys: z.array(z.string()).describe("Replaces the command's default keys; [] unbinds it"),
 });
 
+/** What annotators see in the Studio (todo8 D8, set in Task setup → Annotators see). */
+export const StudioViewSchema = z.object({
+  showSourceLabels: z
+    .boolean()
+    .optional()
+    .describe("Show the labels that came with the files (source labels). Unset: hidden for classification tasks (blind by default), shown elsewhere"),
+  showFilePaths: z.boolean().optional().describe("Show each item's folder path (status bar, hover card). Unset: shown"),
+});
+
 export const EnvironmentSpecSchema = z
   .object({
     $schema: z.string().optional(),
@@ -82,6 +91,7 @@ export const EnvironmentSpecSchema = z
     keybindings: z.array(KeybindingSchema).optional(),
     overrides: z.array(OverrideSchema).optional(),
     layout: z.unknown().optional().describe("null = auto layout from panel slots; else a dockview toJSON() document"),
+    studio: StudioViewSchema.optional().describe("What annotators see in the Studio (Task setup → Annotators see)"),
   })
   .meta({ id: "EnvironmentSpec" });
 
@@ -91,6 +101,7 @@ export type LabelGroup = z.infer<typeof LabelGroupSchema>;
 export type ViewportSpec = z.infer<typeof ViewportSpecSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type PanelSlots = z.infer<typeof PanelSlotsSchema>;
+export type StudioView = z.infer<typeof StudioViewSchema>;
 
 /**
  * Every class id across the env's label groups, in order, deduplicated (the transition from

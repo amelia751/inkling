@@ -940,14 +940,19 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     const name = isSeq(listingId) ? (a?.id === listedFolderId ? a.name : (findNode(listedFolderId)?.name ?? "this folder")) : (a?.kind === "folder" ? a.name : (findNode(listedFolderId)?.name ?? "this folder"));
     return { id: listedFolderId, label: name };
   };
-  const [drop, setDrop] = useState<{ id?: string; label: string } | null>(null);
+  // OS files: the veil covers only the listing; over the tree or the path bar only the folder
+  // under the pointer lights up (the same look as a row drag).
+  const [drop, setDrop] = useState<{ id?: string; label: string; area: "tree" | "path" | "list" } | null>(null);
   const depth = useRef(0);
-  const dropTarget = (el: EventTarget | null): { id?: string; label: string } => {
-    const row = el instanceof Element ? el.closest<HTMLElement>("[data-drop-id], [data-fs-drop-id]") : null;
+  const dropTarget = (el: EventTarget | null): { id?: string; label: string; area: "tree" | "path" | "list" } => {
+    const e = el instanceof Element ? el : null;
+    const area = e && treeBox.current?.contains(e) ? "tree" : e?.closest("[data-testid=path-bar]") ? "path" : "list";
+    const row = e?.closest<HTMLElement>("[data-drop-id], [data-fs-drop-id]");
     const id = row?.dataset.dropId ?? row?.dataset.fsDropId;
-    if (id && !isRootId(id)) return { id, label: row?.dataset.dropLabel ?? row?.dataset.fsDropLabel ?? "this folder" };
-    return listedFolderForDrop() ?? { label: project?.title ?? "this project" };
+    if (id && !isRootId(id)) return { id, label: row?.dataset.dropLabel ?? row?.dataset.fsDropLabel ?? "this folder", area };
+    return { ...(listedFolderForDrop() ?? { label: project?.title ?? "this project" }), area: area === "list" ? "list" : area, ...(area !== "list" ? { id: undefined } : {}) };
   };
+  const osDropId = drop && drop.area !== "list" ? (drop.id ?? null) : null;
 
   // ---- Inspector actions ----------------------------------------------------------------------
   const inspectorActions = {
@@ -1073,7 +1078,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
           if (!hasFiles(e.dataTransfer)) return zone.onDragOver(e);
           e.preventDefault();
           const t = dropTarget(e.target);
-          if (t.id !== drop?.id || t.label !== drop?.label) setDrop(t);
+          if (t.id !== drop?.id || t.label !== drop?.label || t.area !== drop?.area) setDrop(t);
         }}
         onDrop={(e) => {
           if (!hasFiles(e.dataTransfer)) return zone.onDrop(e);
@@ -1139,7 +1144,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                 onCopyPath={() => void copyPath()}
                 loadSubfolders={(id) => fetchFsChildren(projectId, id).then((r) => r.items)}
                 dropAttrs={trash ? undefined : dropAttrs}
-                dropHighlightId={dragTarget}
+                dropHighlightId={dragTarget ?? osDropId}
                 folderMenu={
                   trash || !listedNode
                     ? undefined
@@ -1274,7 +1279,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                             if (!copy && nodes.every((n) => n.parentId === parentId)) return;
                             void moveOrCopy(nodes, parentId, copy);
                           }}
-                          dropTargetId={dragTarget}
+                          dropTargetId={dragTarget ?? osDropId}
                           onDragChange={(ids) => (ids ? beginFsDrag(ids.map((id) => tree.current?.lookup(id)).filter((x): x is SourceNode => !!x).map(toDragItem), "tree") : endFsDrag())}
                           searchTerm={filter}
                           onOpenCap={() => notify(`Expand stopped at ${EXPAND_CAP.toLocaleString()}. Open folders one by one`)}
@@ -1325,7 +1330,16 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                   ))}
                 </div>
               )}
-              <div className="min-h-0 flex-1">
+              <div className="relative min-h-0 flex-1">
+                {drop?.area === "list" && (
+                  <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-veil p-6" data-testid="drop-overlay">
+                    <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-ring">
+                      <p className="rounded-lg bg-float px-4 py-2 text-body-2 shadow-float">
+                        Drop to add to <em className="font-semibold not-italic" data-testid="drop-target">{drop.label}</em>
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {trash ? (
                   <TrashView
                     items={trashItems}
@@ -1423,15 +1437,6 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
           )}
         </ResizablePanelGroup>
 
-        {drop && (
-          <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-veil p-6" data-testid="drop-overlay">
-            <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-ring">
-              <p className="rounded-lg bg-float px-4 py-2 text-body-2 shadow-float">
-                Drop to add to <em className="font-semibold not-italic" data-testid="drop-target">{drop.label}</em>
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       <QuickLook items={qlItems} current={ql} onStep={(n) => (setQl(n), !trash && setSelection([n.id]))} onClose={() => setQl(null)} onKey={(e) => qlKeys(e) || keys(e)} />

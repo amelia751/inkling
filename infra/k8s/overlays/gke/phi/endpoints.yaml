@@ -28,10 +28,10 @@ kind: ConfigMap
 metadata:
   name: versioning-config
 data:
-  # Cloud Storage buckets `buckets.versioning-objects` / `buckets.versioning-manifests`.
-  INKLING_VERSIONING_OBJECT_ENDPOINT: https://storage.googleapis.com
-  INKLING_VERSIONING_OBJECT_REGION: auto
-  INKLING_VERSIONING_OBJECT_PATH_STYLE: "true"
+  # Cloud Storage, native API with Workload Identity (no HMAC keys): buckets
+  # `buckets.versioning-objects` / `buckets.versioning-manifests`.
+  INKLING_VERSIONING_OBJECT_STORE: gcs
+  INKLING_VERSIONING_OBJECT_ENDPOINT: ""
   INKLING_VERSIONING_OBJECT_BUCKET: spurby-phi-versioning-objects
   INKLING_VERSIONING_MANIFEST_BUCKET: spurby-phi-versioning-manifests
   INKLING_VERSIONING_REDIS_URL: rediss://10.30.0.3:6378/2

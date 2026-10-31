@@ -242,7 +242,6 @@ function Studio({ projectId }: { projectId: string }) {
         onRetrySave={save}
         onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
         onShowShortcuts={() => setShortcutsOpen(true)}
-        onShowSettings={() => setSettingsOpen(true)}
         showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
         showLeftToggle={viewport !== "phone" && env.panels.left.length > 0}
       />

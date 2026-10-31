@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router";
-import { AddDataIcon, CheckIcon, ChevronDownIcon, ProjectsIcon } from "@studio/ui/icons";
+import { AddDataIcon, AnnotateIcon, CheckIcon, ChevronDownIcon, ProjectsIcon, SettingsIcon } from "@studio/ui/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,8 +8,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
-import { useProjectList } from "@/studio/lib/projects-api";
-import { projectsUrl, projectUrl, type ProjectSection } from "@/studio/lib/routes";
+import { useDatasets, useProjectList } from "@/studio/lib/projects-api";
+import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 
@@ -97,6 +97,62 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setNewProject(true)} data-testid="switcher-new-project">
           <AddDataIcon className="text-muted-foreground" /> New project
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * The Studio header's task switcher (todo8 D1): names the open task and lists the project's
+ * other tasks with their progress, plus "Task setup…". The preset's title (`2D image`) is the
+ * subtitle of the current task here, not a header status. With `compact` (the task has the
+ * project's title, which the header already shows) the trigger is the chevron alone.
+ */
+export function TaskSwitcher({ projectId, taskId, title, subtitle, compact = false, className }: { projectId: string; taskId: string; title: string; subtitle?: string; compact?: boolean; className?: string }) {
+  const navigate = useNavigate();
+  // The project's tasks, from its datasets (the same lists Overview and Datasets read).
+  const { data: datasets } = useDatasets(projectId);
+  // Progress is items with at least one annotation (a dataset's file count isn't its item count:
+  // a CT study is one item and hundreds of files).
+  const tasks: { id: string; title: string; annotatedItems?: number }[] = datasets?.flatMap((d) => d.tasks) ?? [];
+  if (!tasks.some((t) => t.id === taskId)) tasks.unshift({ id: taskId, title });
+
+  return (
+    <DropdownMenu key={taskId}>
+      <DropdownMenuTrigger
+        className={cn(compact ? "press flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]" : cn(TRIGGER, "max-w-[min(280px,32cqw)] bg-transparent"), className)}
+        aria-label={`Task: ${title}. Switch task`}
+        data-testid="task-switcher"
+      >
+        {!compact && <span className="truncate">{title}</span>}
+        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-[300px]">
+        <DropdownMenuLabel className="font-normal text-hint">Tasks</DropdownMenuLabel>
+        {tasks.slice(0, 20).map((t) => {
+          const current = t.id === taskId;
+          return (
+            <DropdownMenuItem key={t.id} onSelect={() => !current && navigate(studioUrl(projectId, t.id))} data-testid={`switch-task-${t.id}`} className="items-start">
+              <AnnotateIcon className="mt-0.5 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate">{t.title}</span>
+                {current && subtitle && <span className="block truncate text-xs text-muted-foreground" data-testid="task-subtitle">{subtitle}</span>}
+              </span>
+              {t.annotatedItems !== undefined && (
+                <span className="tnum shrink-0 text-xs text-muted-foreground" data-testid="task-progress">
+                  {t.annotatedItems} done
+                </span>
+              )}
+              {current && <CheckIcon className="text-brand-heavy" />}
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to={taskSetupUrl(projectId, taskId)} data-testid="switcher-task-setup">
+            <SettingsIcon className="text-muted-foreground" /> Task setup…
+          </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

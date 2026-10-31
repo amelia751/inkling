@@ -19,7 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { BrandMark } from "@/studio/components/layout/brand";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
-import { UserMenu } from "@/studio/components/layout/user-menu";
+import { HeaderLinks, UserMenu } from "@/studio/components/layout/user-menu";
 import { UploadLayer } from "@/studio/components/uploads/uploads";
 import { AssistantToggle, PersistentAgentDrawer } from "@/studio/components/ai/agent-drawer";
 import { useStudio } from "@/studio/stores/studio";
@@ -205,7 +205,7 @@ function AppHeader({ project, sidebarOpen, onToggleSidebar }: { project?: Projec
       <Breadcrumbs project={project} section={label} />
       <div className="ml-auto flex shrink-0 items-center gap-3">
         {project && <AssistantToggle />}
-        <div className="h-5 w-px bg-generic-accent max-sm:hidden" aria-hidden />
+        <HeaderLinks className="max-lg:hidden" />
         <UserMenu />
       </div>
     </header>

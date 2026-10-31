@@ -15,27 +15,31 @@ import type { ProjectSummary } from "@studio/contracts/types";
 import { NeedsApiError, patchProject, projectKeys, useProjectDetail } from "@/studio/lib/projects-api";
 import { projectsUrl, settingsUrl } from "@/studio/lib/routes";
 import { PluginsPage } from "./PluginsPage";
+import { ProjectMembers } from "./settings/ProjectMembers";
 
-type SettingsTab = "general" | "plugins";
+type SettingsTab = "general" | "members" | "plugins";
 
 /**
- * Project settings (todo6 Phase 8, D10): General (title, description, visibility, archive)
- * and Plugins (what used to be the dataset's Plugins page). Members waits for the members
- * and roles work on the backlog.
+ * Project settings (todo6 Phase 8, D10): General (title, description, visibility, archive),
+ * Members (project Team & Access, mocked until WorkOS: todo/todo9.md) and Plugins (what used
+ * to be the dataset's Plugins page).
  */
 export function ProjectSettingsPage() {
   const { projectId = "", tab = "general" } = useParams();
-  const current: SettingsTab = tab === "plugins" ? "plugins" : "general";
+  const current: SettingsTab = tab === "plugins" || tab === "members" ? tab : "general";
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6" data-testid="settings-page" data-tab={current}>
         <PageHeading title="Settings" />
         <nav className="mb-5 flex items-end gap-6 overflow-x-auto shadow-[inset_0_-1px_0_0_var(--g-line)] hide-scrollbar" aria-label="Settings sections">
           <TabLink to={settingsUrl(projectId, "general")}>General</TabLink>
+          <TabLink to={settingsUrl(projectId, "members")}>Members</TabLink>
           <TabLink to={settingsUrl(projectId, "plugins")}>Plugins</TabLink>
         </nav>
         {current === "general" ? (
           <General projectId={projectId} />
+        ) : current === "members" ? (
+          <ProjectMembers projectId={projectId} />
         ) : (
           <NestedPage>
             <PluginsPage />

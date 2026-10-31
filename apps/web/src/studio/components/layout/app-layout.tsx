@@ -4,8 +4,12 @@ import {
   ActivityIcon,
   AnnotateIcon,
   ArrowLeftIcon,
+  BillingIcon,
+  ChevronDownIcon,
   HomeIcon,
+  OrganizationIcon,
   OverviewIcon,
+  PersonIcon,
   ProjectSettingsIcon,
   ProjectsIcon,
   ReviewIcon,
@@ -28,7 +32,7 @@ import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
-import { homeUrl, projectUrl, projectsUrl, type ProjectSection } from "@/studio/lib/routes";
+import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
@@ -237,6 +241,11 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
           <NavItem to={homeUrl()} end icon={HomeIcon} label="Home" rail={rail} />
           <NavItem to={projectsUrl()} end icon={ProjectsIcon} label="Projects" rail={rail} />
         </NavSection>
+        <NavSection heading="Settings" rail={rail}>
+          {SETTINGS_GROUPS.map((g) => (
+            <NavGroup key={g.label} group={g} rail={rail} />
+          ))}
+        </NavSection>
         {!rail && recent.length > 0 && (
           <NavSection heading="Recent" rail={rail}>
             {recent.map((p) => (
@@ -277,6 +286,82 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
         <NavItem to={projectUrl(project.id, "settings")} icon={SETTINGS.icon} label={SETTINGS.label} rail={rail} />
       </ul>
     </nav>
+  );
+}
+
+interface NavGroupDef {
+  label: string;
+  icon: IconComponent;
+  /** Path prefix that marks the group current and opens it. */
+  base: string;
+  items: { label: string; to: string }[];
+}
+
+/** Nebius console "Settings": Organization and Billing open into their pages; the profile is one row. */
+const SETTINGS_GROUPS: NavGroupDef[] = [
+  {
+    label: "Organization",
+    icon: OrganizationIcon,
+    base: "/organization",
+    items: [
+      { label: "Team & Access", to: orgUrl("members") },
+      { label: "Projects", to: orgUrl("projects") },
+      { label: "Security", to: orgUrl("security") },
+      { label: "API keys", to: orgUrl("api-keys") },
+      { label: "Audit log", to: orgUrl("audit-log") },
+      { label: "Settings", to: orgUrl("settings") },
+    ],
+  },
+  {
+    label: "Billing",
+    icon: BillingIcon,
+    base: "/billing",
+    items: [
+      { label: "Usage", to: billingUrl("usage") },
+      { label: "Invoices", to: billingUrl("invoices") },
+      { label: "Billing details", to: billingUrl("details") },
+    ],
+  },
+  { label: "Your profile", icon: PersonIcon, base: "/settings", items: [] },
+];
+
+function NavGroup({ group, rail }: { group: NavGroupDef; rail: boolean }) {
+  const { pathname } = useLocation();
+  const inside = pathname.startsWith(group.base);
+  const [open, setOpen] = useState(inside);
+  useEffect(() => {
+    if (inside) setOpen(true);
+  }, [inside]);
+  const first = group.items[0]?.to ?? profileUrl();
+  if (rail || group.items.length === 0) return <NavItem to={first} icon={group.icon} label={group.label} rail={rail} />;
+  const Icon = group.icon;
+  return (
+    <li className="py-1" data-testid={`nav-group-${group.base.slice(1)}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="group flex h-8 w-full items-center gap-2.5 rounded-md px-3.5 text-sm text-foreground transition-colors [outline-offset:-2px] hover:bg-generic"
+      >
+        <Icon className={cn("size-4 shrink-0", inside ? "icon-gradient" : "text-hint group-hover:text-complementary")} />
+        <span className="truncate">{group.label}</span>
+        <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-hint transition-transform", !open && "-rotate-90")} />
+      </button>
+      {open && (
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {group.items.map((it) => (
+            <li key={it.to}>
+              <NavLink
+                to={it.to}
+                className={({ isActive }) => cn("flex h-8 items-center truncate rounded-md pl-[42px] pr-3 text-sm transition-colors [outline-offset:-2px]", isActive ? "bg-generic text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground")}
+              >
+                {it.label}
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }
 

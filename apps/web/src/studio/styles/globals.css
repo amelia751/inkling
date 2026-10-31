@@ -51,6 +51,7 @@
   --g-text-hint: rgb(27 45 79 / 0.6);
   --g-text-brand: rgb(85 71 234);
   --g-text-brand-heavy: rgb(76 55 220);
+  --g-misc: rgb(141 156 181); /* avatar fallback, the same in both themes */
 
   --g-info: rgb(0 104 199);
   --g-info-tint: rgb(63 155 255 / 0.1);
@@ -243,6 +244,7 @@
   --color-ring: var(--g-line-focus);
   --color-veil: var(--g-veil);
 
+  --color-misc: var(--g-misc);
   --color-info: var(--g-info);
   --color-info-tint: var(--g-info-tint);
   --color-positive: var(--g-positive);

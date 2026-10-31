@@ -154,6 +154,8 @@ interface RowExtras {
   validate?: (name: string, node: FileTreeNode) => string | null
   onRenameCancel?: (id: string) => void
   dropRefusal: { id: string; reason: string } | null
+  /** Drag and drop is on (`onMove`): rows get arborist's drag handle. */
+  dndOn: boolean
 }
 
 export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function FileTree(
@@ -342,11 +344,11 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const cut = React.useMemo(() => new Set(cutIds ?? []), [cutIds])
   const initialOpenState = React.useMemo(() => Object.fromEntries((initialOpen ?? []).map((id) => [id, true])), [initialOpen])
 
-  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal }
+  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn }
   const Node = React.useCallback(
     (props: NodeRendererProps<FileTreeNode>) => <TreeRow {...props} {...extras} />,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal],
+    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal, dndOn],
   )
 
   const Preview = React.useCallback(
@@ -507,6 +509,7 @@ function TreeRow({
   validate,
   onRenameCancel,
   dropRefusal,
+  dndOn,
 }: NodeRendererProps<FileTreeNode> & RowExtras) {
   const d = node.data
   const externalTarget = !!dropTargetId && dropTargetId === node.id
@@ -540,7 +543,7 @@ function TreeRow({
   const refused = dropRefusal?.id === node.id
   return (
     <div
-      ref={dragHandle}
+      ref={dndOn ? dragHandle : undefined}
       style={style}
       title={node.isEditing ? undefined : (refused ? dropRefusal!.reason : (d.title ?? d.name))}
       onContextMenu={onContextMenu ? (e) => onContextMenu(node.id, e) : undefined}

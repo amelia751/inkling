@@ -129,13 +129,13 @@ export const ConverterManifest = z
 export type ConverterManifest = z.infer<typeof ConverterManifest>;
 
 const DTYPES = ["bool", "int8", "uint8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float16", "float32", "float64"] as const;
-export const Dtype = z.enum(DTYPES);
+export const ConverterDtype = z.enum(DTYPES);
 
 export const ZarrArrayOut = z
   .object({
     path: RelPath.describe("Array path inside the store"),
     shape: z.array(z.int().min(1)).min(1).max(8),
-    dtype: Dtype,
+    dtype: ConverterDtype,
     chunks: z.array(z.int().min(1)).min(1).max(8),
     dimensionNames: z.array(z.string().regex(/^[a-z]{1,16}$/)).optional(),
     /** Physical spacing per dimension (mm, s…), when known. */
@@ -173,7 +173,7 @@ export const ConvertedFile = z
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     /** Arrays and images: dimensions and dtype read back from the file. */
     dims: z.array(z.int().min(1)).optional(),
-    dtype: Dtype.optional(),
+    dtype: ConverterDtype.optional(),
     /** Numeric value range (arrays), as numbers only. */
     range: z.tuple([z.number(), z.number()]).optional(),
   })

@@ -1,0 +1,39 @@
+# Managed endpoints in spurby-phi (non-secret parts, from `terraform output` of
+# infra/terraform/phi). URLs with passwords go in the `<app>-secrets` (Secret Manager → External
+# Secrets), which win over these because envFrom lists the Secret last.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  # Cloud Storage with Workload Identity (no keys): bucket `buckets.objects`.
+  INKLING_BLOB_STORE: gcs
+  INKLING_GCS_BUCKET: spurby-phi-objects
+  # Memorystore (redis_host, TLS on 6378). The full URL with the AUTH string is in api-secrets:
+  #   rediss://:<auth>@<host>:6378/0?ssl_cert_reqs=required&ssl_ca_certs=/etc/redis-ca/ca.crt
+  INKLING_REDIS_URL: rediss://10.30.0.3:6378/0?ssl_cert_reqs=required&ssl_ca_certs=/etc/redis-ca/ca.crt
+  # Platform signing key (todo10 D5): Cloud KMS, HSM (output plugin_signing_key).
+  INKLING_API_SIGNER: gcpkms
+  INKLING_API_SIGNER_KMS_KEY: projects/spurby-phi/locations/us-central1/keyRings/studio/cryptoKeys/plugin-signing/cryptoKeyVersions/1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+data:
+  KEDA_REDIS_ADDRESS: 10.30.0.3:6378
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versioning-config
+data:
+  # Cloud Storage buckets `buckets.versioning-objects` / `buckets.versioning-manifests`.
+  INKLING_VERSIONING_OBJECT_ENDPOINT: https://storage.googleapis.com
+  INKLING_VERSIONING_OBJECT_REGION: auto
+  INKLING_VERSIONING_OBJECT_PATH_STYLE: "true"
+  INKLING_VERSIONING_OBJECT_BUCKET: spurby-phi-versioning-objects
+  INKLING_VERSIONING_MANIFEST_BUCKET: spurby-phi-versioning-manifests
+  INKLING_VERSIONING_REDIS_URL: rediss://10.30.0.3:6378/2
+# Database URLs carry credentials, so they are in the Secrets; the host is sql_private_ip
+# (database `studio`, sslmode=require).

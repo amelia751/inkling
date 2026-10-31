@@ -1447,9 +1447,10 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         initialPath={segments.filter((s) => !isSeq(s.id)).map((s) => ({ id: s.id, name: s.name, locked: s.locked }))}
         loadFolders={(id) => fetchFsChildren(projectId, id).then((r) => r.items)}
         recent={readRecent(projectId)}
-        validate={(target) => {
+        validate={(target, path) => {
           const list = moveDlg?.nodes ?? [];
           if (list.some((n) => n.id === target)) return "Can't move a folder into itself";
+          if (moveDlg?.mode === "move" && list.some((n) => path.some((p) => p.id === n.id))) return "Can't move a folder into one of its own folders";
           if (moveDlg?.mode === "move" && list.every((n) => n.parentId === target)) return "It's already in this folder";
           return null;
         }}

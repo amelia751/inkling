@@ -47,8 +47,8 @@ export interface MoveDialogProps {
   loadFolders: (parentId: string) => Promise<SourceNode[]>;
   /** Recent destinations, shown above the root's folders. */
   recent?: MoveDestination[];
-  /** Why this folder can't take the items (into itself, a descendant, a name clash…), or null. */
-  validate?: (targetId: string) => string | null;
+  /** Why this folder can't take the items (into itself, a descendant, a name clash…), or null. `path`: the folders below the root down to it. */
+  validate?: (targetId: string, path: FolderRef[]) => string | null;
   /** Creates a folder; the dialog then opens it. Reject with an Error to show its message under the field. */
   onNewFolder?: (parentId: string, name: string) => Promise<FolderRef>;
   /** Live check of a new folder's name (D10), or null. Duplicates among the listed folders are caught already. */
@@ -106,7 +106,7 @@ export function MoveDialog(props: MoveDialogProps) {
   const entries: Entry[] = useMemo(() => [...(path.length === 0 ? recent.map((dest) => ({ type: "recent" as const, dest })) : []), ...folders.map((node) => ({ type: "folder" as const, node }))], [path.length, recent, folders]);
   const activeIndex = Math.min(active, Math.max(0, entries.length - 1));
 
-  const reason = here.locked ? LOCKED_TARGET : (validate?.(here.id) ?? null);
+  const reason = here.locked ? LOCKED_TARGET : (validate?.(here.id, path) ?? null);
   const go = (next: FolderRef[], focusId?: string) => {
     setPath(next);
     setCreating(false);

@@ -32,7 +32,7 @@ export function DragChip({ icon: Icon, label, copy, reason, className, style }: 
           </span>
         )}
       </div>
-      {reason && <div className="max-w-64 rounded-md bg-popover px-2 py-1 text-xs text-destructive shadow-popup" role="status">{reason}</div>}
+      {reason && <div className="max-w-64 rounded-md bg-popover px-2 py-1 text-xs text-destructive shadow-popup" role="status" data-testid="drag-chip-reason">{reason}</div>}
     </div>
   )
 }

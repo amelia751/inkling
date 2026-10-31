@@ -226,9 +226,10 @@ def main() -> int:
             check("the CSV's classes are the task's labels", bool(classes) and all(c == ["normal", "pneumonia"] for c in classes), str(classes))
             check("2D Studio: the image tools", bool(wait(lambda: page.locator("[role='toolbar'][aria-label='Annotation tools']").count() == 1, 30)))
             check("items keep their original names", bool(wait(lambda: page.get_by_text("film_001.png").count() > 0, 15)))
-            page.get_by_role("tab", name="Review").first.click()
-            badge = wait(lambda: page.get_by_text("Imported", exact=True).count() > 0, 15)
-            check("the imported badge is shown", bool(badge))
+            page.get_by_role("tab", name="Labels").first.click()
+            on_item = page.get_by_test_id("on-this-item")
+            badge = wait(lambda: on_item.get_by_text("Imported", exact=True).count() > 0, 15)
+            check("the imported badge is shown in On this image", bool(badge))
             n_before = st["n"] if st else 0
 
             # 5. Reload keeps everything.

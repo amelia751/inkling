@@ -1,8 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
+import { DecisionBar } from "@/studio/components/studio/DecisionBar";
 import { LeftSidebar, SlotTabs } from "@/studio/components/studio/LeftSidebar";
 import { StudioLayout } from "@/studio/components/studio/StudioLayout";
 import { StudioTopBar } from "@/studio/components/studio/StudioTopBar";
@@ -26,6 +27,7 @@ import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
+import { rememberTool } from "@/studio/stores/tool-prefs";
 import { nextTodoIndex } from "@/studio/lib/items";
 import { studioItems } from "@/studio/lib/item-folders";
 import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
@@ -36,17 +38,15 @@ import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
 
 const AUTOSAVE_MS = 800;
-// The schema form library only loads when the settings dialog opens.
-const ModuleConfigDialog = lazy(() => import("@/studio/components/studio/ModuleConfigForm").then((m) => ({ default: m.ModuleConfigDialog })));
 const LEGACY_TYPES = /^(interval|beat|wave|rhythm|phase|segment|event|mark|point)$/;
 
-type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
+export type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
 
 /**
  * Resolve the project's environment (its saved edits, else the manifest's) and load the
  * implementations of every module it uses, so renderers and panels mount synchronously.
  */
-function useEnvironment(project: Project | undefined): Boot {
+export function useEnvironment(project: Project | undefined): Boot {
   const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project, staleTime: Infinity });
   // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
   const workspace = useQuery({
@@ -87,7 +87,7 @@ function useEnvironment(project: Project | undefined): Boot {
 }
 
 /** The task's document (`GET /v1/tasks/:id/document`), shared with Overview's resume card. */
-function useTaskDocument(taskId: string) {
+export function useTaskDocument(taskId: string) {
   return useQuery({ queryKey: ["tasks", taskId, "document"], queryFn: () => fetchTaskDocument(taskId), enabled: !!taskId, staleTime: Infinity });
 }
 
@@ -174,7 +174,6 @@ function Studio({ projectId }: { projectId: string }) {
   // Picking a file in the phone drawer should reveal the canvas.
   useEffect(() => setSidebarOpen(false), [itemIndex]);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   useEnvBindings(env, items);
   useActivationSync(env);
   useResume(projectId, items, env);
@@ -231,7 +230,8 @@ function Studio({ projectId }: { projectId: string }) {
         )}
       </main>
       {bottom}
-      <CanvasStatusBar items={items} />
+      <DecisionBar env={env} items={items} />
+      <CanvasStatusBar items={items} onShowShortcuts={() => setShortcutsOpen(true)} />
     </>
   );
   const left = <LeftSidebar env={env} project={project} items={items} item={item} />;
@@ -248,11 +248,6 @@ function Studio({ projectId }: { projectId: string }) {
         showLeftToggle={viewport !== "phone" && env.panels.left.length > 0}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
-      {settingsOpen && (
-        <Suspense fallback={null}>
-          <ModuleConfigDialog open onOpenChange={setSettingsOpen} env={env} projectId={projectId} />
-        </Suspense>
-      )}
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       ) : (
@@ -535,7 +530,11 @@ function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts
   useHotkeys((e) => {
     const t = env.tools.find((x) => x.hotkey && matches(e, x.hotkey));
     if (t) {
-      if (!e.repeat) s().setTool(t.name);
+      if (!e.repeat) {
+        s().setTool(t.name);
+        // Pressing J makes Cobb angle the face of the Measure button (todo8 D4).
+        rememberTool(env.id, t);
+      }
       return true;
     }
     const c = classes.find((x) => x.hotkey && matches(e, x.hotkey));

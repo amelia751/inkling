@@ -149,7 +149,8 @@ export function FilesPanel({ items, env, project }: PanelProps) {
 
   const choose = (index: number) => {
     leave();
-    setItemIndex(index);
+    // Re-clicking the open item keeps the selection (setItemIndex clears it).
+    if (index !== useStudio.getState().itemIndex) setItemIndex(index);
   };
 
   const noun = itemNoun(env);

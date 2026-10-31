@@ -72,6 +72,20 @@ const commands: CommandContribution[] = [
   { id: "rejectSuggestion", keys: ["Delete", "Backspace"], label: "Reject the AI suggestion and go to the next", group: "Edit", contextual: true, when: "'suggestions' in renderer.capabilities", description: "Delete the selected AI suggestion and select the next" },
 ];
 
+/**
+ * The shortcuts sheet's Essentials (todo8 D6): at most 8 rows, each naming core commands by
+ * local name. A row shows when the environment binds at least one of its commands.
+ */
+export const ESSENTIALS: { label: string; commands: string[] }[] = [
+  { label: "Undo / redo", commands: ["undo", "redo"] },
+  { label: "Delete selected", commands: ["deleteSelection"] },
+  { label: "Previous / next item", commands: ["prevItem", "nextItem"] },
+  { label: "Next to do", commands: ["nextTodo"] },
+  { label: "Pick label", commands: ["pickLabel"] },
+  { label: "Hold Space to pan", commands: ["holdToPan"] },
+  { label: "Keyboard shortcuts", commands: ["showShortcuts"] },
+];
+
 export default defineModule({
   id: CORE,
   version: "1.0.0",
@@ -86,9 +100,9 @@ export default defineModule({
     ],
     commands,
     panels: [
-      { id: "files", title: "Files", slot: "left", description: "The project's items, grouped, with per-item progress and a filter" },
-      { id: "labels", title: "Labels", slot: "left", description: "Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector" },
-      { id: "review", title: "Review", slot: "left", description: "Every annotation with provenance, and the items with none yet" },
+      { id: "files", title: "Items", slot: "left", description: "The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides)" },
+      { id: "labels", title: "Labels", slot: "left", description: "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection" },
+      { id: "review", title: "All annotations", slot: "left", description: "Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio" },
       { id: "ai", title: `${NAMING.displayName} AI`, slot: "right", description: "Assistant that can read and edit this environment (agent tools)" },
     ],
     labelControls: [

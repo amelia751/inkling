@@ -45,6 +45,10 @@ export { default as ExploreIcon } from "@gravity-ui/icons/Compass";
 export { default as ActivityIcon } from "@gravity-ui/icons/ListTimeline";
 export { default as ProjectSettingsIcon } from "@gravity-ui/icons/Gear";
 export { default as AddDataIcon } from "@gravity-ui/icons/CloudArrowUpIn";
+export { default as TopUpIcon } from "@gravity-ui/icons/Plus";
+export { default as ContactIcon } from "@gravity-ui/icons/Comment";
+export { default as DocsIcon } from "@gravity-ui/icons/BookOpen";
+export { default as ExternalLinkIcon } from "@gravity-ui/icons/ArrowUpRightFromSquare";
 export { default as FolderIcon } from "@gravity-ui/icons/Folder";
 export { default as FolderOpenIcon } from "@gravity-ui/icons/FolderOpen";
 export { default as FileSequenceIcon } from "@gravity-ui/icons/Files";
@@ -120,6 +124,7 @@ export { default as RegionIcon } from "@gravity-ui/icons/SquareDashed";
 export { default as ProjectionIcon } from "@gravity-ui/icons/Layers";
 export { default as InterpolateIcon } from "@gravity-ui/icons/LayersVertical";
 export { default as CleanupIcon } from "@gravity-ui/icons/BroomMotion";
+export { default as OverlayOpacityIcon } from "@gravity-ui/icons/Droplet";
 export { FlipHorizontal as FlipHorizontalIcon, FlipVertical as FlipVerticalIcon, Invert as InvertIcon } from "./custom";
 
 // Status

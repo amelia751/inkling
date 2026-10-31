@@ -124,11 +124,12 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
           {showAi && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost-secondary" size="icon" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label={`${NAMING.displayName} AI panel`}>
+                <Button variant="ghost-secondary" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label={`${NAMING.displayName} AI panel`}>
                   <AiIcon />
+                  <span className="hidden @[760px]:inline">Assistant</span>
                 </Button>
               </TooltipTrigger>
-              <ActionTooltipContent title={`${aiOpen ? "Hide" : "Show"} ${NAMING.displayName} AI`} />
+              <ActionTooltipContent title={aiOpen ? "Close Assistant" : "Launch Assistant"} />
             </Tooltip>
           )}
           <MoreMenu projectId={p} taskId={project.id} datasetId={datasetId} exportInMenu={reviewFirst || readOnly} onShowShortcuts={onShowShortcuts} />

@@ -1,5 +1,6 @@
 import { labelClasses } from "@studio/contracts/environment";
 import type { Project, StudioItem } from "@studio/contracts/types";
+import { studioDefaults } from "./task-setup";
 import type { ResolvedEnv } from "@studio/plugin-ui-sdk/resolved";
 
 /**
@@ -63,26 +64,19 @@ export function withFolders(items: StudioItem[]): StudioItem[] {
   return filled.map((i) => ({ ...i, folder: i.folder!.slice(shared.length) }));
 }
 
-/** Studio view settings a Task setup may write (`env.spec.studio`, todo8 D8); read defensively. */
-function studioView(env: Pick<ResolvedEnv, "spec">): { showSourceLabels?: boolean; showFilePaths?: boolean } {
-  const v = (env.spec as { studio?: unknown }).studio;
-  return v && typeof v === "object" ? (v as { showSourceLabels?: boolean; showFilePaths?: boolean }) : {};
-}
-
 /**
  * D8, blind by default: a classification task hides the labels that came with the files
- * (no grouping, no status bar, no hover card) unless Task setup turns them on. Other kinds
- * show them as context in the hover card only.
+ * (no grouping, no status bar, no hover card) unless Task setup turns them on
+ * (`env.spec.studio.showSourceLabels`, defaults from `studioDefaults`). Other kinds show them
+ * as context in the hover card only.
  */
 export function showSourceLabels(env: Pick<ResolvedEnv, "spec" | "task">): boolean {
-  const opt = studioView(env).showSourceLabels;
-  if (typeof opt === "boolean") return opt;
-  return (env.task ?? env.spec.task) !== "classification";
+  return studioDefaults(env).showSourceLabels;
 }
 
-/** Folder paths in the status bar and the hover card (Task setup → Annotators see). */
-export function showFilePaths(env: Pick<ResolvedEnv, "spec">): boolean {
-  return studioView(env).showFilePaths !== false;
+/** Folder paths in the status bar and the hover card (Task setup → Annotators see → file paths). */
+export function showFilePaths(env: Pick<ResolvedEnv, "spec" | "task">): boolean {
+  return studioDefaults(env).showFilePaths;
 }
 
 /**

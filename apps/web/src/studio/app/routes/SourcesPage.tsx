@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DetectedKind, SourceNode, SourceSummary } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
-import { ChevronRightIcon, CloseIcon, GridViewIcon, ListViewIcon, MoreIcon, SearchIcon, SidePanelIcon } from "@studio/ui/icons";
+import { ChevronRightIcon, CloseIcon, GridViewIcon, ListViewIcon, MoreIcon, SearchIcon } from "@studio/ui/icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +20,6 @@ import { Input } from "@studio/ui/ui/input";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@studio/ui/ui/resizable";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { Skeleton } from "@studio/ui/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import { useCommands } from "@/extension-host/commands";
 import { AppLayout } from "@/studio/components/layout/app-layout";
@@ -130,6 +129,10 @@ export function SourcesPage() {
   // ---- Selection ------------------------------------------------------------------------------
   const [selected, setSelected] = useState<string | null>(null);
   useEffect(() => setSelected(fileLoc ? anchorId : null), [anchorId, fileLoc]);
+  // Details pop up when something is picked and go away with ✕ (no toolbar toggle).
+  useEffect(() => {
+    if (selected) useSourcesPrefs.getState().setInspector(true);
+  }, [selected]);
   const selectedItem = items.find((n) => n.id === selected) ?? (a && a.id === selected ? a : null);
   const inspected = selectedItem ?? (a && a.kind === "folder" && !isSeq(nodeId) ? a : (runRow ?? null));
   // What the assistant sees here: the inspected node and its facts, never file contents (todo6 Phase 6).
@@ -310,7 +313,7 @@ export function SourcesPage() {
           void fromDataTransfer(e.dataTransfer).then((picked) => addData(picked, t.id));
         }}
       >
-        {/* Toolbar: path, search, view, details, add data. */}
+        {/* Toolbar: path, search, view, add data. */}
         <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <PathBar projectId={projectId} segments={segments} loading={!!anchorId && anchor.isLoading} onCopy={() => void copyPath()} searching={searching} />
           <div className="ml-auto flex items-center gap-2">
@@ -342,16 +345,6 @@ export function SourcesPage() {
               ]}
               size="md"
             />
-            {desktop && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost-secondary" size="icon" selected={prefs.inspector} onClick={() => prefs.setInspector(!prefs.inspector)} aria-label={prefs.inspector ? "Hide details" : "Show details"} aria-pressed={prefs.inspector} data-testid="inspector-toggle">
-                    <SidePanelIcon />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>{prefs.inspector ? "Hide details" : "Show details"}</TooltipContent>
-              </Tooltip>
-            )}
             <AddDataButton size="default" onPick={(p) => void addData(p, listedFolder()?.id)} />
           </div>
         </div>
@@ -451,7 +444,7 @@ export function SourcesPage() {
               />
             )}
           </ResizablePanel>
-          {desktop && prefs.inspector && (
+          {desktop && prefs.inspector && selectedItem && (
             <>
               <ResizableHandle />
               <ResizablePanel id="inspector" defaultSize={320} minSize={260} maxSize={520}>

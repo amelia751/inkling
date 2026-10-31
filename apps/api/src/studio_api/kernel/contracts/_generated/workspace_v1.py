@@ -69,6 +69,25 @@ class Override(BaseModel):
     config: dict[str, Any] | None = None
 
 
+class Studio(BaseModel):
+    """
+    What annotators see in the Studio (Task setup → Annotators see)
+    """
+
+    showSourceLabels: Annotated[
+        bool | None,
+        Field(
+            description='Show the labels that came with the files (source labels). Unset: hidden for classification tasks (blind by default), shown elsewhere'
+        ),
+    ] = None
+    showFilePaths: Annotated[
+        bool | None,
+        Field(
+            description="Show each item's folder path (status bar, hover card). Unset: shown"
+        ),
+    ] = None
+
+
 class Type(StrEnum):
     boolean = 'boolean'
     string = 'string'
@@ -171,6 +190,12 @@ class EnvironmentSpec(BaseModel):
         Any | None,
         Field(
             description='null = auto layout from panel slots; else a dockview toJSON() document'
+        ),
+    ] = None
+    studio: Annotated[
+        Studio | None,
+        Field(
+            description='What annotators see in the Studio (Task setup → Annotators see)'
         ),
     ] = None
 

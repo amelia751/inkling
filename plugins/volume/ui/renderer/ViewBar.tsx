@@ -17,6 +17,7 @@ import {
 } from "@studio/ui/icons";
 import { COLORMAPS, CT_PRESETS } from "@studio/renderers/cornerstone/viewControls";
 import { BarButton, BarLabel, BarSelect, BarSep, ViewportBar } from "@studio/renderers/viewport-chrome/bar";
+import { OverlayOpacityControl } from "@studio/renderers/viewport-chrome/opacity";
 import { formatCombo } from "@studio/ui/keys";
 import type { Plane } from "@studio/contracts/types";
 import { LAYOUT_LABELS, PLANES, usesPlanePicker, type Layout } from "../config";
@@ -101,6 +102,7 @@ export function ViewBar(p: ViewBarProps) {
         onChange={p.onWindow}
       />
       <BarButton icon={Contrast} title={withKey("Invert", C.invert)} active={p.inverted} onClick={() => p.run(C.invert)} />
+      <OverlayOpacityControl tone="canvas" />
       <BarButton icon={FlipHorizontal2} title={withKey("Flip active view horizontally", C.flipH)} onClick={() => p.run(C.flipH)} />
       <BarButton icon={FlipVertical2} title={withKey("Flip active view vertically", C.flipV)} onClick={() => p.run(C.flipV)} />
       <BarButton icon={RotateCcw} title={withKey("Rotate active view 90° left", C.rotateLeft)} onClick={() => p.run(C.rotateLeft)} />

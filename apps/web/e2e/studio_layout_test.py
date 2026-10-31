@@ -37,7 +37,9 @@ def main() -> int:
     args = parse_args()
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
-        st = open_studio(browser, args.port, "2d-xray", fixture_annotations=[])
+        # The 2D sample is classification-only (todo8 D4); a region group brings back the Box tool drawn below.
+        region = [{"name": "labels", "control": "Labels", "classes": [{"id": "normal"}, {"id": "pneumonia"}]}]
+        st = open_studio(browser, args.port, "2d-xray", fixture_annotations=[], extra_labels=region)
         page = st.page
         try:
             page.wait_for_selector("[data-testid=image-canvas] canvas", timeout=30000)

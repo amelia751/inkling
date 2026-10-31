@@ -188,9 +188,9 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `inkling.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 
 ## panels
-- `inkling.core.panels.files` — The project's items, grouped, with per-item progress and a filter (slot left)
-- `inkling.core.panels.labels` — Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector (slot left)
-- `inkling.core.panels.review` — Every annotation with provenance, and the items with none yet (slot left)
+- `inkling.core.panels.files` — The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides) (slot left)
+- `inkling.core.panels.labels` — Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations ("On this image") and the selection (slot left)
+- `inkling.core.panels.review` — Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio (slot left)
 - `inkling.core.panels.ai` — Assistant that can read and edit this environment (agent tools) (slot right)
 - `inkling.image2d.panels.viewControls` — Window/level presets, invert, flip, rotate, fit, color map, interpolation and magnifier for the Cornerstone stack (controls follow the renderer config), plus wand mode and remove-islands for mask tools (slot viewport-bar)
 - `inkling.timeseries.panels.measurements` — Rate and RR from instants, wave intervals (ecg), track episodes and record statements (a `multiple` Choices group) (slot right)

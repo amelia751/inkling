@@ -1,11 +1,14 @@
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import * as z from "zod";
 import * as Icons from "@studio/ui/icons";
-import { AiIcon, RedoIcon, UndoIcon, type IconComponent } from "@studio/ui/icons";
+import { AiIcon, ChevronDownIcon, RedoIcon, UndoIcon, type IconComponent } from "@studio/ui/icons";
 import { Separator } from "@studio/ui/ui/separator";
 import { Slider } from "@studio/ui/ui/slider";
 import { Button } from "@studio/ui/ui/button";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuShortcut, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
+import { formatCombo } from "@studio/ui/keys";
+import type { ToolGroup } from "@studio/plugin-ui-sdk/module";
 import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import type { ShortcutId } from "@studio/ui/shortcuts";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
@@ -16,12 +19,17 @@ import { execute } from "@/extension-host/commands";
 import { visibleToolbarCommands } from "@/extension-host/contributions-loader";
 import type { ResolvedEnv } from "@/extension-host/resolve";
 import { useStudio } from "@/studio/stores/studio";
+import { rememberTool, useToolPrefs } from "@/studio/stores/tool-prefs";
+import { GROUP_TITLES, toolbarLayout } from "./toolbar-layout";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { SlotTabs } from "./LeftSidebar";
 
-const COMPACT_AFTER = 7;
-
-/** Tools, undo/redo, the active tool's options and the active label. Everything comes from the env's tool contributions. */
+/**
+ * Tools, undo/redo, the active tool's options and the active label. Everything comes from the
+ * env's tool contributions: only the tools this task can use (resolver Rule 1), with groups of
+ * three or more folded into split buttons (`toolbar-layout.ts`, todo8 D4). Separators sit only
+ * between groups; labels show beside icons when the bar has room.
+ */
 export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv; project: Project; items: StudioItem[]; item: StudioItem | undefined }) {
   const tool = useStudio((s) => s.tool);
   const setTool = useStudio((s) => s.setTool);
@@ -34,38 +42,28 @@ export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv;
   const labels = labelNames(env.labels);
   const active = tools.find((t) => t.name === tool);
   const drawing = active?.creates !== undefined;
-  const compact = tools.length > COMPACT_AFTER;
+  const lastUsed = useToolPrefs((s) => s.lastUsed[env.id]);
+  const layout = useMemo(() => toolbarLayout(tools, tool, lastUsed), [tools, tool, lastUsed]);
+  const pick = (t: Registered<"tools">) => {
+    setTool(t.name);
+    rememberTool(env.id, t);
+  };
   // Toolbar actions of declarative plugins (plugin.yaml + ui/contributions.json): shown where their `when` holds.
   const selectionCount = useStudio((s) => s.selectedIds.length);
   const actions = visibleToolbarCommands(env, item, { tool, "selection.count": selectionCount });
 
   return (
     <div className="@container hide-scrollbar flex h-10 shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-background px-2" role="toolbar" aria-label="Annotation tools">
-      {tools.map((t, i) => {
-        const newGroup = i > 0 && tools[i - 1].group !== t.group;
-        return (
-          <Fragment key={t.id}>
-            {newGroup && <Separator orientation="vertical" className="mx-0.5 h-5" />}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost-secondary"
-                  selected={tool === t.name}
-                  onClick={() => setTool(t.name)}
-                  className={cn("shrink-0", compact ? "w-7 px-0" : "px-2 @max-[720px]:w-7 @max-[720px]:px-0")}
-                  aria-pressed={tool === t.name}
-                  aria-label={t.label}
-                  data-tool={t.name}
-                >
-                  <t.icon />
-                  {!compact && <span className="hidden @[720px]:inline">{t.label}</span>}
-                </Button>
-              </TooltipTrigger>
-              <ActionTooltipContent title={t.label} shortcut={t.hotkey} description={t.hint} />
-            </Tooltip>
-          </Fragment>
-        );
-      })}
+      {layout.map((seg, i) => (
+        <Fragment key={seg.group}>
+          {i > 0 && <Separator orientation="vertical" className="mx-0.5 h-5" />}
+          {seg.kind === "fold" ? (
+            <ToolGroupButton group={seg.group} face={seg.face} tools={seg.tools} active={tool} onPick={pick} />
+          ) : (
+            seg.tools.map((t) => <ToolButton key={t.id} tool={t} selected={tool === t.name} onClick={() => pick(t)} />)
+          )}
+        </Fragment>
+      ))}
       {actions.length > 0 && <Separator orientation="vertical" className="mx-0.5 h-5" />}
       {actions.map((c) => {
         const Icon = (c.iconName && (Icons as unknown as Record<string, IconComponent>)[c.iconName]) || AiIcon;
@@ -102,6 +100,98 @@ export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv;
         </div>
       )}
     </div>
+  );
+}
+
+/** Labels beside icons from this toolbar width (container query); icons only below it. */
+const LABEL_CLASS = "hidden @[760px]:inline";
+
+function ToolButton({ tool: t, selected, onClick }: { tool: Registered<"tools">; selected: boolean; onClick: () => void }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost-secondary"
+          selected={selected}
+          onClick={onClick}
+          className="shrink-0 px-2 @max-[760px]:w-7 @max-[760px]:px-0"
+          aria-pressed={selected}
+          aria-label={t.label}
+          data-tool={t.name}
+        >
+          <t.icon />
+          <span className={LABEL_CLASS}>{t.label}</span>
+        </Button>
+      </TooltipTrigger>
+      <ActionTooltipContent title={t.label} shortcut={t.hotkey} description={t.hint} />
+    </Tooltip>
+  );
+}
+
+const LONG_PRESS_MS = 450;
+
+/**
+ * A folded tool group (todo8 D4): the face is the active or last used tool and selects it;
+ * the chevron, or a long press on the face, opens the group with each tool's name and key
+ * (Figma and Photoshop tool groups).
+ */
+function ToolGroupButton({ group, face, tools, active, onPick }: { group: ToolGroup; face: Registered<"tools">; tools: Registered<"tools">[]; active: string; onPick: (t: Registered<"tools">) => void }) {
+  const [open, setOpen] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const longPressed = useRef(false);
+  const selected = tools.some((t) => t.name === active);
+  const title = GROUP_TITLES[group];
+  const clear = () => clearTimeout(timer.current);
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <div className="flex shrink-0 items-center" role="group" aria-label={`${title} tools`} data-testid={`tool-group-${group}`}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost-secondary"
+              selected={selected}
+              aria-pressed={face.name === active}
+              aria-label={face.label}
+              data-tool={face.name}
+              className="shrink-0 rounded-r-none pl-2 pr-1 @max-[760px]:w-7 @max-[760px]:px-0"
+              onPointerDown={() => {
+                longPressed.current = false;
+                clear();
+                timer.current = setTimeout(() => {
+                  longPressed.current = true;
+                  setOpen(true);
+                }, LONG_PRESS_MS);
+              }}
+              onPointerUp={clear}
+              onPointerLeave={clear}
+              onClick={() => {
+                if (!longPressed.current) onPick(face);
+              }}
+            >
+              <face.icon />
+              <span className={LABEL_CLASS}>{face.label}</span>
+            </Button>
+          </TooltipTrigger>
+          <ActionTooltipContent title={face.label} shortcut={face.hotkey} description={face.hint} />
+        </Tooltip>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost-secondary" selected={selected} className="w-4 shrink-0 rounded-l-none px-0" aria-label={`More ${title.toLowerCase()} tools`} data-testid="tool-group-menu">
+            <ChevronDownIcon className="size-3" />
+          </Button>
+        </DropdownMenuTrigger>
+      </div>
+      <DropdownMenuContent align="start" className="min-w-48">
+        <DropdownMenuLabel className="text-xs text-muted-foreground">{title}</DropdownMenuLabel>
+        {tools.map((t) => (
+          <DropdownMenuItem key={t.id} onSelect={() => onPick(t)} data-tool-row={t.name} aria-checked={t.name === active} className={cn(t.name === active && "bg-accent")}>
+            <t.icon />
+            {t.label}
+            {t.hotkey && <DropdownMenuShortcut>{formatCombo(t.hotkey)}</DropdownMenuShortcut>}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

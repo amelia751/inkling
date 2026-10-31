@@ -15,7 +15,8 @@ import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/
 
 const SECTIONS = new Set<AgentSection>(["overview", "sources", "explore", "datasets", "studio", "review", "activity", "settings"]);
 /** todo7 D11: the drive's route may say `files`; it is the same section as `sources` (nav label "Data"). */
-const ALIASES: Record<string, AgentSection> = { files: "sources" };
+/** `tasks` (Task setup, todo8 D7) belongs with Datasets: a task is work on a dataset. */
+const ALIASES: Record<string, AgentSection> = { files: "sources", tasks: "datasets" };
 export const agentSection = (s: string | undefined): AgentSection => (s && ALIASES[s]) || (s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
 
 /** Empty-state prompts on the Files drive (todo7 Phase 8): the assistant proposes a plan; you apply it. */
@@ -39,11 +40,12 @@ export function AssistantToggle() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Button variant="ghost-secondary" size="icon" selected={open} onClick={toggle} aria-pressed={open} aria-label={`${NAMING.displayName} AI panel`} data-testid="assistant-toggle">
+        <Button variant="ghost-secondary" selected={open} onClick={toggle} aria-pressed={open} aria-label={`${NAMING.displayName} AI panel`} data-testid="assistant-toggle">
           <AiIcon />
+          <span className="max-sm:hidden">Assistant</span>
         </Button>
       </TooltipTrigger>
-      <TooltipContent>{open ? "Hide" : "Show"} {NAMING.displayName} AI</TooltipContent>
+      <TooltipContent>{open ? "Close Assistant" : "Launch Assistant"}</TooltipContent>
     </Tooltip>
   );
 }

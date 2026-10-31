@@ -40,7 +40,7 @@ export default defineModule({
         id: "cornerstone-stack",
         consumes: [RASTER],
         space: "image2d",
-        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan"],
+        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan", "overlayOpacity"],
         configSchema: StackConfigSchema,
         description: "Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config",
         example: { viewports: [{ name: "main", renderer: STACK, config: { windowLevel: false, colormap: false } }], panels: { "viewport-bar": [`${IMAGE2D}.panels.viewControls`] } },

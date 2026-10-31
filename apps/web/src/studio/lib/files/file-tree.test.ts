@@ -1,9 +1,10 @@
+/** `@studio/ui`'s FileTree (todo7 Phases 2, 3, 5), tested here where vitest and react-dom live. */
 import * as React from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { FileTree, type FileTreeHandle, type FileTreeNode, type FileTreeProps } from "./file-tree"
+import { FileTree, type FileTreeHandle, type FileTreeNode, type FileTreeProps } from "@studio/ui/ui/file-tree"
 
 // jsdom has no layout: give the tree a size so arborist renders its rows.
 class FakeResizeObserver {

@@ -159,8 +159,15 @@ def t_tier3_iframe(browser, port) -> None:
         check("tier 3: iframe has a sandbox attribute", tokens is not None, str(tokens))
         check("tier 3: sandbox doesn't allow same origin", tokens is not None and "allow-same-origin" not in tokens, str(tokens))
         check("tier 3: sandbox allows nothing beyond scripts", tokens is not None and set(tokens) <= {"allow-scripts"}, str(tokens))
-        check("tier 3: generated code is inline (srcdoc), not a main-origin URL", frame.get_attribute("srcdoc") is not None and not frame.get_attribute("src"))
-        text = wait(lambda: (lambda t: t if t.startswith("{") else None)(st.page.frame_locator("[data-testid='agent-sandbox']").locator("#out").inner_text()), 30)
+        # todo10 Phase 5: the frame is the MCP Apps sandbox proxy on a separate origin; the
+        # generated code runs one level down, in the proxy's srcdoc frame.
+        src = frame.get_attribute("src") or ""
+        studio_origin = st.page.evaluate("location.origin")
+        check("tier 3: frame is the sandbox proxy, on another origin", src.endswith("/sandbox-proxy.html") and not src.startswith(studio_origin + "/"), src)
+        view = st.page.frame_locator("[data-testid='agent-sandbox']").frame_locator("iframe")
+        inner_tokens = (st.page.frame_locator("[data-testid='agent-sandbox']").locator("iframe").get_attribute("sandbox") or "").split()
+        check("tier 3: the View's own frame allows nothing beyond scripts", set(inner_tokens) == {"allow-scripts"}, str(inner_tokens))
+        text = wait(lambda: (lambda t: t if t.startswith("{") else None)(view.locator("#out").inner_text()), 30)
         got = json.loads(text) if text else {}
         check("tier 3: runs on an opaque origin", got.get("origin") == "null", str(got))
         check("tier 3: can't reach the Studio's document", got.get("parentDoc") == "blocked", str(got))

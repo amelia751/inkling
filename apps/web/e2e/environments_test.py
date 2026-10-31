@@ -199,7 +199,7 @@ def t_agent_panels(browser, port):
         added = wait(lambda: st.store("s => s.annotations.filter(a => a.provenance === 'ai-suggested' && a.author === 'agent:sandbox').map(a => ({ label: a.label, g: a.geometry, attrs: a.attributes }))"))
         check("agent panels: tier 3 sandbox proposals arrive vetted and ai-suggested", bool(added) and len(added) == 1 and added[0]["label"] == "cat" and added[0]["g"]["type"] == "box", str(added))
         check("agent panels: the sandbox has no network", bool(added) and added[0]["attrs"]["net"] == "blocked", str(added and added[0]["attrs"]))
-        frame_text = wait(lambda: (lambda t: t if "added" in t else None)(st.page.frame_locator("[data-testid='agent-sandbox']").locator("#out").inner_text()))
+        frame_text = wait(lambda: (lambda t: t if "added" in t else None)(st.page.frame_locator("[data-testid='agent-sandbox']").frame_locator("iframe").locator("#out").inner_text()))
         check("agent panels: sandbox got its item through the bridge", bool(frame_text) and "added 1" in frame_text, str(frame_text))
         st.page.get_by_role("tab", name="Agent panel").click()
         stat = wait(lambda: st.page.get_by_test_id("agent-stat").inner_text().strip() == "1")

@@ -1,0 +1,44 @@
+<!doctype html>
+<!--
+  MCP Apps sandbox proxy (todo10 Phase 5; modelcontextprotocol/ext-apps spec 2026-01-26, "Sandbox proxy").
+  Served from a separate origin (runtime config `sandboxOrigin`; dev: sandbox.localhost) with a
+  Content-Security-Policy header that blocks all network access (vite.config.ts, nginx). The
+  Studio embeds it with sandbox="allow-scripts", so it also runs on an opaque origin. It holds no
+  data of its own: it loads the View into an inner srcdoc iframe (sandbox="allow-scripts", which
+  inherits this document's CSP) and relays JSON-RPC messages between the Studio and the View.
+-->
+<html><head><meta charset="utf-8"><title>sandbox</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head><body><script>
+(() => {
+  "use strict";
+  if (window.self === window.top) { document.body.textContent = "This page only runs inside the Studio."; return; }
+  // Isolation self-test: the Studio's document must be unreachable from here.
+  try { if (window.top.document) { document.body.textContent = "Sandbox is not isolated; refusing to run."; return; } } catch (e) { /* expected */ }
+  let inner = null;
+  const ALLOWED_TOKENS = new Set(["allow-scripts"]);
+  function load(params) {
+    if (inner) inner.remove();
+    inner = document.createElement("iframe");
+    // Never more than allow-scripts: no same origin, forms, popups, downloads or top navigation.
+    const tokens = String(params.sandbox || "allow-scripts").split(/\s+/).filter((t) => ALLOWED_TOKENS.has(t));
+    inner.setAttribute("sandbox", tokens.join(" ") || "allow-scripts");
+    inner.setAttribute("title", "viewer");
+    inner.srcdoc = typeof params.html === "string" ? params.html : "";
+    document.body.appendChild(inner);
+  }
+  addEventListener("message", (e) => {
+    const m = e.data;
+    if (!m || typeof m !== "object" || m.jsonrpc !== "2.0") return;
+    if (e.source === window.parent) {
+      if (m.method === "ui/notifications/sandbox-resource-ready") return load(m.params || {});
+      if (inner && inner.contentWindow) inner.contentWindow.postMessage(m, "*");
+    } else if (inner && e.source === inner.contentWindow) {
+      // The View can't speak for the proxy.
+      if (typeof m.method === "string" && m.method.startsWith("ui/notifications/sandbox-")) return;
+      window.parent.postMessage(m, "*");
+    }
+  });
+  window.parent.postMessage({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} }, "*");
+})();
+</script></body></html>

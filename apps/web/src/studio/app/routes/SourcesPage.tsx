@@ -265,12 +265,16 @@ export function SourcesPage() {
     }
     return { id: a.id, label: a.name };
   };
-  const [drop, setDrop] = useState<{ id?: string; label: string } | null>(null);
+  // Over the tree, only the folder row under the pointer lights up; anywhere else the listing
+  // shows the overlay (it never covers the tree).
+  type DropAt = { id?: string; label: string; zone: "tree" | "list" };
+  const [drop, setDrop] = useState<DropAt | null>(null);
   const depth = useRef(0);
-  const dropTarget = (el: EventTarget | null): { id?: string; label: string } => {
+  const dropTarget = (el: EventTarget | null): DropAt => {
+    const zone = el instanceof Node && treeBox.current?.contains(el) ? "tree" : "list";
     const row = el instanceof Element ? el.closest<HTMLElement>("[data-drop-id]") : null;
-    if (row?.dataset.dropId) return { id: row.dataset.dropId, label: row.dataset.dropLabel ?? "this folder" };
-    return listedFolder() ?? { label: project?.title ?? "this project" };
+    if (row?.dataset.dropId) return { id: row.dataset.dropId, label: row.dataset.dropLabel ?? "this folder", zone };
+    return { ...(listedFolder() ?? { label: project?.title ?? "this project" }), zone };
   };
 
   // ---- Context menu (read-only: no rename, move or delete of an original) ---------------------
@@ -302,7 +306,7 @@ export function SourcesPage() {
           if (!hasFiles(e.dataTransfer)) return;
           e.preventDefault();
           const t = dropTarget(e.target);
-          if (t.id !== drop?.id || t.label !== drop?.label) setDrop(t);
+          if (t.id !== drop?.id || t.label !== drop?.label || t.zone !== drop?.zone) setDrop(t);
         }}
         onDrop={(e) => {
           if (!hasFiles(e.dataTransfer)) return;
@@ -387,6 +391,10 @@ export function SourcesPage() {
             <>
               <ResizablePanel id="tree" defaultSize={260} minSize={180} maxSize={480}>
                 <div ref={treeBox} className="flex h-full min-h-0 flex-col" data-testid="sources-tree">
+                  {drop?.zone === "tree" && drop.id && (
+                    // Node ids are opaque hashes (`nod-…`), safe in a selector.
+                    <style>{`[data-testid=sources-tree] [data-drop-id="${CSS.escape(drop.id)}"] { background-color: var(--g-selection-hover); box-shadow: inset 0 0 0 1px var(--g-line-focus); }`}</style>
+                  )}
                   <div className="min-h-0 flex-1 px-1 pt-2">
                     {sources.isLoading && <TreeSkeleton />}
                     {sources.data && sourceList.length > 0 && (
@@ -413,7 +421,7 @@ export function SourcesPage() {
               <ResizableHandle />
             </>
           )}
-          <ResizablePanel id="listing" minSize={320}>
+          <ResizablePanel id="listing" minSize={320} className="relative">
             {importId ? (
               <ImportSummary id={importId} projectId={projectId} sources={sourceList} onClose={() => navigate(sourcesUrl(projectId, pathNode))} />
             ) : nothing ? (
@@ -443,6 +451,15 @@ export function SourcesPage() {
                 empty={<p className="text-sm text-muted-foreground">{searching ? "No files match." : "This folder is empty."}</p>}
               />
             )}
+            {drop?.zone === "list" && (
+              <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-veil p-6" data-testid="drop-overlay">
+                <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-ring">
+                  <p className="rounded-lg bg-float px-4 py-2 text-body-2 shadow-float">
+                    Drop to add to <em className="font-semibold not-italic" data-testid="drop-target">{drop.label}</em>
+                  </p>
+                </div>
+              </div>
+            )}
           </ResizablePanel>
           {desktop && prefs.inspector && selectedItem && (
             <>
@@ -454,15 +471,6 @@ export function SourcesPage() {
           )}
         </ResizablePanelGroup>
 
-        {drop && (
-          <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-veil p-6" data-testid="drop-overlay">
-            <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-ring">
-              <p className="rounded-lg bg-float px-4 py-2 text-body-2 shadow-float">
-                Drop to add to <em className="font-semibold not-italic" data-testid="drop-target">{drop.label}</em>
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       <QuickLook items={items} current={ql} onStep={(n) => (setQl(n), setSelected(n.id))} onClose={() => setQl(null)} onKey={(e) => qlKeys(e) || keys(e)} />

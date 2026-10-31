@@ -41,11 +41,20 @@ export class Registry {
   /** Bumped only when the set of active modules changes (registration, activation). */
   activationVersion = 0;
 
-  /** Idempotent: registering the same manifest object twice is a no-op; a different one with the same id throws. */
-  registerModule(m: ModuleManifest): void {
+  /**
+   * Idempotent: registering the same manifest object twice is a no-op; a different one with the
+   * same id throws, unless `replace` (dev only: Vite's SSR loader re-evaluates `bundled.ts` with
+   * fresh manifest objects while this singleton survives).
+   */
+  registerModule(m: ModuleManifest, opts: { replace?: boolean } = {}): void {
     const existing = this.modules.get(m.id);
     if (existing === m) return;
-    if (existing) throw new RegistryError(`Module "${m.id}" is already registered`);
+    if (existing && !opts.replace) throw new RegistryError(`Module "${m.id}" is already registered`);
+    if (existing) {
+      for (const [id, c] of this.byId) if (c.module === m.id) this.byId.delete(id);
+      this.modules.delete(m.id);
+      this.impls.delete(m.id);
+    }
     const added: Registered<ContributionType>[] = [];
     for (const type of CONTRIBUTION_TYPES) {
       for (const c of m.contributes[type] ?? []) {

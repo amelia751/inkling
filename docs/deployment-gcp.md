@@ -59,7 +59,11 @@ routes in `spurby-phi`, enforced by the agent's token scope in `apps/api`:
 - `verify_on_sample`, `probe_sample`: fixed-schema reports and typed answers, free text dropped or
   checked;
 - job start and job summary: counts, statuses, error classes;
-- environment and plugin control-plane routes (no item bytes);
+- environment and plugin control-plane routes (no item bytes). These include
+  `GET /plugins/{id}/files` (plugin package bytes and hashes), `POST
+  /workspaces/{ws}/plugins/load-refused` (writes one audit row) and `POST
+  /plugins/{id}/promotions` (asks only). Artifact export and import, and promotion review, need
+  `plugins.approve`, which agent tokens never carry;
 - a filtered annotation view: geometries and controlled-vocabulary labels; free text checked first.
 
 Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be

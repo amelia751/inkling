@@ -771,9 +771,69 @@ export interface paths {
         put?: never;
         /**
          * Build Artifact
-         * @description A tarball of a plugin package → checks, and unless `dryRun`, a signed `generated` registry entry (§9).
+         * @description A tarball of a plugin package → checks, and unless `dryRun`, a signed, content-addressed
+         *     `generated` registry entry with a provenance attestation (§9; todo10 Phase 3). `runId`,
+         *     `promptHash`, `model` and `sampleDigests` go into the attestation.
          */
         post: operations["build_artifact_api_v1_plugins_artifacts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Artifacts
+         * @description A tar of an OCI image layout (`oras copy --to-oci-layout`, or GET …/export) → verified,
+         *     stored and registered in this workspace at `tier`. A person's action: `plugins.approve`.
+         */
+        post: operations["import_artifacts_api_v1_plugins_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Promotions */
+        get: operations["list_promotions_api_v1_plugins_promotions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/promotions/{promotion_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Review Promotion
+         * @description Approve or reject (`{"decision": "approve" | "reject", "reason"}`); a second person only.
+         */
+        post: operations["review_promotion_api_v1_plugins_promotions__promotion_id__review_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -811,6 +871,72 @@ export interface paths {
         get: operations["docs_api_v1_plugins__plugin_id__docs_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Artifact
+         * @description The stored artifact as a tar of an OCI image layout (manifest tagged `<version>`, plus
+         *     its signature and attestation referrers), ready for `oras copy -r --from-oci-layout`.
+         */
+        get: operations["export_artifact_api_v1_plugins__plugin_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_id}/files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Package Files
+         * @description Fetch-and-hash for the browser (todo10 Phase 3): the sha256 of every file in the package
+         *     and the bytes of the `include`d ones (comma-separated paths; the manifest's
+         *     `ui.contributions` is always included). The browser hashes the bytes,
+         *     checks them against `hashes`, and recomputes the tree digest from `hashes`; it must equal
+         *     the digest the workspace pinned. Verified here too, on this load.
+         */
+        get: operations["package_files_api_v1_plugins__plugin_id__files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plugins/{plugin_id}/promotions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Promotion
+         * @description Ask for the next tier (generated → organisation → curated). Anyone who manages plugins
+         *     may ask, the agent included; only a second person approves.
+         */
+        post: operations["request_promotion_api_v1_plugins__plugin_id__promotions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2157,6 +2283,26 @@ export interface paths {
         put?: never;
         /** Grant */
         post: operations["grant_api_v1_workspaces__workspace_id__plugins_grant_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/plugins/load-refused": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load Refused
+         * @description The browser refused a plugin's bytes (fetch-and-hash mismatch): record it in the audit log.
+         */
+        post: operations["load_refused_api_v1_workspaces__workspace_id__plugins_load_refused_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3952,12 +4098,115 @@ export interface operations {
             query?: {
                 base?: string | null;
                 dryRun?: boolean;
+                runId?: string | null;
+                promptHash?: string | null;
+                model?: string | null;
+                sampleDigests?: string | null;
             };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_artifacts_api_v1_plugins_import_post: {
+        parameters: {
+            query?: {
+                tier?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_promotions_api_v1_plugins_promotions_get: {
+        parameters: {
+            query?: {
+                state?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_promotion_api_v1_plugins_promotions__promotion_id__review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                promotion_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -4024,6 +4273,110 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_artifact_api_v1_plugins__plugin_id__export_get: {
+        parameters: {
+            query: {
+                version: string;
+            };
+            header?: never;
+            path: {
+                plugin_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    package_files_api_v1_plugins__plugin_id__files_get: {
+        parameters: {
+            query?: {
+                version?: string | null;
+                include?: string;
+            };
+            header?: never;
+            path: {
+                plugin_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_promotion_api_v1_plugins__plugin_id__promotions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plugin_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -6912,6 +7265,43 @@ export interface operations {
         };
     };
     grant_api_v1_workspaces__workspace_id__plugins_grant_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    load_refused_api_v1_workspaces__workspace_id__plugins_load_refused_post: {
         parameters: {
             query?: never;
             header?: never;

@@ -50,7 +50,7 @@ class Entry:
     stored: bool = False
 
     def visible_to(self, workspace_id: str | None, org_id: str | None = None) -> bool:
-        if workspace_id is None:
+        if workspace_id is None or self.trust_tier == "curated":
             return True
         if self.trust_tier == "organisation":
             return self.org_id is not None and self.org_id == org_id

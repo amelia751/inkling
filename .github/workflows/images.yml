@@ -58,7 +58,7 @@ jobs:
             # Inputs outside the package graph: the Dockerfile, shared build inputs, locks.
             echo "$files" | grep -qE "^(apps/$app/Dockerfile|\.dockerignore|schemas/|pnpm-lock\.yaml)" && hit=true
             case "$app" in
-              api|worker) echo "$files" | grep -qE "^(uv\.lock|pyproject\.toml|packages/[^/]+-py/|registry/|plugins/)" && hit=true ;;
+              api|worker) echo "$files" | grep -qE "^(uv\.lock|pyproject\.toml|packages/([^/]+-py|signing)/|registry/|plugins/)" && hit=true ;;
               web) echo "$files" | grep -qE "^(registry/|plugins/|tsconfig\.base\.json)" && hit=true ;;
             esac
             if $hit; then apps="$apps $app"; fi

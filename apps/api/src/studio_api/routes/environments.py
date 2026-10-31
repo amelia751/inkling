@@ -6,7 +6,8 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     GET          /api/environments/{projectId}         → {revision, environment, savedAt?, author?, effective}
     PUT          /api/environments/{projectId}         → replace; 409 on a stale `revision`
     PATCH        /api/environments/{projectId}         → RFC 6902 patch of the saved (else manifest) environment
-    GET          /api/environments/{projectId}/history → every saved revision
+    GET          /api/environments/{projectId}/history → every saved revision (hashes, provenance)
+    GET          /api/environments/{projectId}/lockfile → the workspace's plugins.lock.json + its hash
     POST         /api/environments/validate            → 501: dev server only
     GET          /api/catalog[/…]                      → 501: dev server only
 
@@ -33,7 +34,8 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
-from ..kernel import projects
+from ..kernel import projects, studio_defs
+from ..kernel.canonical import content_hash
 from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision, now
 from ..streaming import blob_response
 
@@ -90,7 +92,12 @@ def _doc(row: WorkspaceEnvironment | None) -> dict:
         out["savedAt"] = _iso(row.saved_at)
     if row.author is not None:
         out["author"] = row.author
+    out["contentHash"] = content_hash(row.environment)
     return out
+
+
+def _revision(r: WorkspaceEnvironmentRevision) -> dict:
+    return {"revision": r.revision, "environment": r.environment, "savedAt": _iso(r.saved_at), "author": r.author, **studio_defs.revision_meta(r)}
 
 
 def _iso(d: datetime) -> str:
@@ -146,7 +153,21 @@ def environment_history(project_id: str, ctx: RequestContext = Depends(get_conte
     if isinstance(c, JSONResponse):
         return c
     rows = db.query(WorkspaceEnvironmentRevision).filter(WorkspaceEnvironmentRevision.workspace_id == c.workspace_id, WorkspaceEnvironmentRevision.task_id == c.task).order_by(WorkspaceEnvironmentRevision.revision).all()
-    return [{"revision": r.revision, "environment": r.environment, "savedAt": _iso(r.saved_at), "author": r.author} for r in rows]
+    return [_revision(r) for r in rows]
+
+
+@router.get("/api/environments/{project_id}/lockfile")
+def environment_lockfile(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The workspace's `plugins.lock.json` (todo10 §3.2): its ACTIVATED pins by digest."""
+    from ..plugins import installer
+
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    ensure_workspace(db, c.workspace_id)
+    installer.bootstrap(db, c)
+    lock = studio_defs.lockfile(db, c.workspace_id)
+    return {"lockfile": lock, "contentHash": studio_defs.lockfile_hash(lock)}
 
 
 async def _body(request: Request) -> dict | None:
@@ -182,7 +203,7 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
     # Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
     if "revision" in body and body["revision"] is not None and body["revision"] != cur["revision"]:
         return _json(409, {"error": "revision conflict", "current": cur})
-    author = body.get("author") or ctx.principal.removeprefix("user:")
+    prov = studio_defs.provenance(ctx, request.headers, body)
 
     if request.method == "PUT":
         environment = body.get("environment")
@@ -206,18 +227,20 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
             return _json(422, {"ok": False, "errors": errors})
         environment = spec
 
-    saved = _save(db, c, row, cur["revision"], environment, author)
+    base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
+    saved = _save(db, c, row, cur["revision"], environment, prov, studio_defs.parent_hash(db, c.workspace_id, c.task, cur["revision"], base))
     if saved is None:
         db.rollback()
         return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))})
     return saved
 
 
-def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, author: str) -> dict | None:
+def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, prov: studio_defs.Provenance, parent: str) -> dict | None:
     """Store revision `seen + 1` only if nobody else saved since (conditional UPDATE / unique
-    INSERT), and append it to the history. None on a lost race."""
+    INSERT), and append it to the history with its hashes and provenance. None on a lost race."""
     at = now()
     rev = seen + 1
+    author = prov.author
     try:
         if row is None:
             db.add(WorkspaceEnvironment(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at))
@@ -230,8 +253,12 @@ def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, se
             )
             if res.rowcount != 1:  # type: ignore[attr-defined]
                 return None
-        db.add(WorkspaceEnvironmentRevision(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at))
+        hist = WorkspaceEnvironmentRevision(
+            workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at,
+            content_hash=content_hash(environment), parent_hash=parent, author_kind=prov.kind, agent_run_id=prov.run_id, prompt_hash=prov.prompt_hash,
+        )
+        db.add(hist)
         db.flush()
     except IntegrityError:
         return None
-    return {"revision": rev, "environment": environment, "savedAt": _iso(at), "author": author}
+    return _revision(hist)

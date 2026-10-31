@@ -55,7 +55,14 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger, o Options)
 		return nil, err
 	}
 	a := &App{Cfg: cfg, Log: log, DB: d}
-	if a.Blobs = o.Blobs; a.Blobs == nil {
+	if a.Blobs = o.Blobs; a.Blobs == nil && cfg.ObjectStore == "gcs" {
+		gcs, err := storage.NewGCS(ctx, storage.GCSConfig{ObjectBucket: cfg.ObjectBucket, ManifestBucket: cfg.ManifestBucket})
+		if err != nil {
+			return nil, err
+		}
+		a.Blobs = gcs
+	}
+	if a.Blobs == nil {
 		s3, err := storage.NewS3(ctx, storage.S3Config{Endpoint: cfg.ObjectEndpoint, Region: cfg.ObjectRegion,
 			PathStyle: cfg.ObjectPathStyle, AccessKeyID: cfg.S3AccessKeyID, SecretKey: cfg.S3SecretKey,
 			ObjectBucket: cfg.ObjectBucket, ManifestBucket: cfg.ManifestBucket, TempDir: cfg.TempDir})

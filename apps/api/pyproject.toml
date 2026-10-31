@@ -15,6 +15,8 @@ dependencies = [
     "psycopg[binary]>=3.2",
     "redis>=5.2",
     "boto3>=1.35",
+    # Cloud Storage BlobStore (BLOB_STORE=gcs): native API with Application Default Credentials.
+    "google-cloud-storage>=3.4",
     "jsonpatch>=1.33",
     "studio-observability",
     "studio-signing",

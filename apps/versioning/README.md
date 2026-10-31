@@ -42,6 +42,9 @@ set -a; . ../../secrets/versioning.env; set +a
 ```
 
 Local dev needs Postgres on `:5432` and an S3-compatible server on `:9000`.
+On Google Cloud set `…_OBJECT_STORE=gcs`: Cloud Storage through its native API with
+Application Default Credentials (Workload Identity), no HMAC or key file
+(`internal/storage/gcs.go`).
 The tests use RustFS, because MinIO no longer publishes images. Make a JWT key
 pair for local tokens with `go run ./cmd/devtoken keygen ./dev-keys`, and point
 `…_JWT_PUBLIC_KEY_FILE` at `dev-keys/jwks.json`.

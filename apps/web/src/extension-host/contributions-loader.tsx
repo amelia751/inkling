@@ -149,3 +149,59 @@ export function visibleToolbarCommands(env: ResolvedEnv, item: { assets: { path:
   const ctx = { ...env.context, ...live, "item.mediaType": itemMediaType(item) };
   return env.commands.filter((c) => c.surface === "toolbar" && when(c.when, ctx));
 }
+
+// ---- Fetch-and-hash (todo10 Phase 3) -----------------------------------------------------------
+
+/** Folders the package tree digest skips (same list as `studio_signing.oci.EXCLUDE_DIRS`). */
+const TREE_EXCLUDE = new Set(["node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".data"]);
+
+const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
+
+export async function sha256Hex(data: Uint8Array | string): Promise<string> {
+  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  return hex(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
+}
+
+/** The package tree digest from `{path: sha256 hex}`: sha256 over sorted `<path>\0<hex>\n` lines. */
+export async function treeDigestOfHashes(hashes: Record<string, string>): Promise<string> {
+  const lines = Object.keys(hashes)
+    .filter((rel) => !rel.split("/").some((p) => TREE_EXCLUDE.has(p)))
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((rel) => `${rel}\0${hashes[rel]}\n`)
+    .join("");
+  return `sha256:${await sha256Hex(lines)}`;
+}
+
+/** What `GET /v1/plugins/{id}/files` returns. */
+export interface PackageFiles {
+  id: string;
+  version: string;
+  artifactDigest: string;
+  manifestDigest?: string | null;
+  signer?: string;
+  hashes: Record<string, string>;
+  files: Record<string, string>;
+}
+
+export type VerifiedPackage = { ok: true; files: Record<string, string> } | { ok: false; reason: string; expected?: string; got?: string };
+
+const b64bytes = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+
+/**
+ * Check fetched package bytes against the digest the workspace pinned (never against a digest
+ * the same response supplies): every returned file must hash to its entry in `hashes`, and the
+ * tree digest recomputed from `hashes` must equal `pinned`. Returns the files as text.
+ */
+export async function verifyPackage(pkg: PackageFiles, pinned: string | null | undefined): Promise<VerifiedPackage> {
+  if (!pinned) return { ok: false, reason: "the workspace has no pinned digest for this plugin" };
+  const got = await treeDigestOfHashes(pkg.hashes ?? {});
+  if (got !== pinned) return { ok: false, reason: "package tree digest isn't the pinned one", expected: pinned, got };
+  const out: Record<string, string> = {};
+  for (const [rel, b64] of Object.entries(pkg.files ?? {})) {
+    const bytes = b64bytes(b64);
+    const h = await sha256Hex(bytes);
+    if (h !== pkg.hashes[rel]) return { ok: false, reason: `${rel} doesn't match its hash`, expected: pkg.hashes[rel], got: h };
+    out[rel] = new TextDecoder().decode(bytes);
+  }
+  return { ok: true, files: out };
+}

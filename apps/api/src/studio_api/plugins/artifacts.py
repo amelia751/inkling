@@ -1,23 +1,24 @@
 """Artifact builder for agent-authored plugins (docs/plugins.md §9, todo2 Phase 9).
 
-    tarball → safe unpack → manifest + declarative-UI + dependency checks → digest → sign
-    (dev Ed25519 key; sigstore later) → private artifact store → registry entry with
-    trust_tier `generated`, visible to the authoring workspace only
+    tarball → safe unpack → manifest + declarative-UI + dependency checks → tree digest →
+    OCI manifest + deterministic layer at artifacts/sha256/<digest> (store.py) → signature over
+    the manifest digest (the configured Signer: local Ed25519 in dev, Cloud KMS in production)
+    → DSSE-signed in-toto provenance attestation → `plugin_artifacts` row with trust_tier
+    `generated`, visible to the authoring workspace only (todo10 Phase 3)
 
 The package is never executed here. Activation still goes through the normal install flow
-(plan → stage → validate → human approval), and `stage` verifies the signature and digest.
+(plan → stage → validate → human approval); `stage` and every later load re-verify the
+bytes, the signature and the attestation (store.verify).
 Generated plugins may only use declarative UI (D2): no `ui.module`, panels name trusted
 renderers only.
 """
 
 from __future__ import annotations
 
-import base64
 import difflib
 import io
 import json
 import re
-import shutil
 import tarfile
 import tomllib
 from dataclasses import dataclass, field
@@ -25,14 +26,15 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+from studio_signing import dsse_sign, envelope, oci
 
 from ..config import settings
 from ..context import RequestContext
+from ..models import PluginArtifact
 from ..naming import canonical_id, naming
-from . import catalog, digest
+from . import catalog, digest, store
 
 MAX_FILES = 400
 MAX_FILE_BYTES = 1024 * 1024
@@ -178,7 +180,7 @@ def _check_dependencies(files: dict[str, bytes], m: dict, r: Report) -> None:
     r.checks["dependencies"] = {"declared": deps}
 
 
-def check(files: dict[str, bytes], ctx: RequestContext) -> tuple[dict, Report]:
+def check(files: dict[str, bytes], ctx: RequestContext, db: Session | None = None) -> tuple[dict, Report]:
     """Everything that can be decided from the files alone (run_plugin_checks's host half)."""
     from ..kernel.contracts import validate_plugin_manifest
 
@@ -188,8 +190,8 @@ def check(files: dict[str, bytes], ctx: RequestContext) -> tuple[dict, Report]:
     pid = canonical_id(str(m.get("id") or ""))
     if pid and not pid.startswith(f"{naming()['namespace']}."):
         r.errors.append(f"id must be in the {naming()['namespace']} namespace")
-    for e in catalog.versions(pid):
-        if e.trust_tier != "generated":
+    for e in catalog.versions(pid, db):
+        if not e.stored:
             r.errors.append(f"{pid} is a {e.trust_tier} plugin; a generated plugin can't take its id (fork it under a new id)")
             break
         if e.workspace_id and e.workspace_id != ctx.workspace_id:
@@ -206,43 +208,6 @@ def check(files: dict[str, bytes], ctx: RequestContext) -> tuple[dict, Report]:
     return m, r
 
 
-# ---- Signing ---------------------------------------------------------------------------------
-
-
-def _signing_key() -> Ed25519PrivateKey:
-    f = settings().data_dir / "plugin-signing.key"
-    if not f.is_file():
-        f.parent.mkdir(parents=True, exist_ok=True)
-        f.write_bytes(Ed25519PrivateKey.generate().private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-        f.chmod(0o600)
-    key = serialization.load_pem_private_key(f.read_bytes(), password=None)
-    assert isinstance(key, Ed25519PrivateKey)
-    return key
-
-
-def _payload(plugin_id: str, version: str, artifact_digest: str) -> bytes:
-    return f"{plugin_id}@{version}\n{artifact_digest}\n".encode()
-
-
-def sign(plugin_id: str, version: str, artifact_digest: str) -> dict:
-    sig = _signing_key().sign(_payload(plugin_id, version, artifact_digest))
-    pub = _signing_key().public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
-    return {"alg": "ed25519", "keyId": base64.urlsafe_b64encode(pub[:8]).decode().rstrip("="), "sig": base64.b64encode(sig).decode()}
-
-
-def verify(e: catalog.Entry, staged_digest: str) -> str | None:
-    """None if `e`'s signature covers its id, version and the staged digest; else the problem."""
-    s = e.signature or {}
-    if s.get("alg") != "ed25519" or not s.get("sig"):
-        return "generated artifacts must be signed"
-    pub: Ed25519PublicKey = _signing_key().public_key()
-    try:
-        pub.verify(base64.b64decode(s["sig"]), _payload(e.id, e.version, staged_digest))
-    except Exception:  # noqa: BLE001 — InvalidSignature or a malformed signature
-        return "signature doesn't match the staged package"
-    return None
-
-
 # ---- Review diff -----------------------------------------------------------------------------
 
 
@@ -250,18 +215,23 @@ def _read_tree(root: Path) -> dict[str, bytes]:
     return {p.relative_to(root).as_posix(): p.read_bytes() for p in digest.package_files(root)}
 
 
-def _base(base: str | None, plugin_id: str) -> tuple[str, dict[str, bytes]]:
-    """The tree the diff is against: an explicit base plugin, the previous generated version, or the template."""
+def _base(db: Session, base: str | None, plugin_id: str) -> tuple[str, dict[str, bytes]]:
+    """The tree the diff is against: an explicit base plugin, the previous stored version, or the template."""
     if base and base != "template":
-        e = catalog.get(base)
-        d = catalog.package_dir(e) if e else None
-        if d is None or not d.is_dir():
+        e = catalog.get(base, db=db)
+        try:
+            files = catalog.load_files(e) if e else None
+        except oci.ArtifactRefused:
+            files = None
+        if e is None or files is None:
             raise HTTPException(422, f"base {base} isn't in the registry")
-        assert e is not None
-        return f"{e.id}@{e.version}", _read_tree(d)
-    prev = catalog.versions(plugin_id)
-    if base is None and prev and (d := catalog.package_dir(prev[-1])) and d.is_dir():
-        return f"{prev[-1].id}@{prev[-1].version}", _read_tree(d)
+        return f"{e.id}@{e.version}", files
+    prev = catalog.versions(plugin_id, db)
+    if base is None and prev:
+        try:
+            return f"{prev[-1].id}@{prev[-1].version}", catalog.load_files(prev[-1])
+        except oci.ArtifactRefused:
+            pass  # a refused base never feeds the review; fall back to the template
     tmpl = settings().plugins_dir / "_template"
     return "template", _read_tree(tmpl) if tmpl.is_dir() else {}
 
@@ -286,64 +256,130 @@ def code_diff(base_files: dict[str, bytes], files: dict[str, bytes]) -> dict:
     return {"added": added, "changed": changed, "removed": removed, "diff": text[:MAX_DIFF_CHARS], "truncated": truncated}
 
 
+# ---- Provenance ------------------------------------------------------------------------------
+
+_DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
+_SHORT = re.compile(r"^[A-Za-z0-9._:/@+-]{1,200}$")
+
+
+def provenance(run_id: str | None = None, prompt_hash: str | None = None, model: str | None = None, sample_digests: str | None = None) -> dict:
+    """What the author claims about the build (§3.1): agent run, prompt hash, model, sample
+    digests tested. Fixed formats only, so no free text reaches the attestation."""
+    out: dict = {}
+    if run_id:
+        if not _SHORT.match(run_id):
+            raise HTTPException(422, "runId must be a short identifier")
+        out["agentRunId"] = run_id
+    if prompt_hash:
+        if not _DIGEST.match(prompt_hash):
+            raise HTTPException(422, "promptHash must be sha256:<64 hex>")
+        out["promptHash"] = prompt_hash
+    if model:
+        if not _SHORT.match(model):
+            raise HTTPException(422, "model must be a short identifier")
+        out["model"] = model
+    samples = [x for x in (sample_digests or "").split(",") if x]
+    if any(not _DIGEST.match(x) for x in samples) or len(samples) > 100:
+        raise HTTPException(422, "sampleDigests must be up to 100 comma-separated sha256:<64 hex>")
+    if samples:
+        out["sampleDigests"] = samples
+    return out
+
+
 # ---- Store and registry ----------------------------------------------------------------------
 
 
-def _store_root() -> Path:
-    return settings().data_dir / "plugin-artifacts"
+def store_signed(files: dict[str, bytes], m: dict, *, plugin_id: str, version: str, external: dict, internal: dict, ctx: RequestContext, created: str) -> dict:
+    """Pack (OCI), store every blob, sign the manifest digest, attest. Returns the row's fields.
+
+    The worker's `build_plugin` produces the same layout with `studio_signing.oci.pack`.
+    """
+    mt = store.media_types()
+    packed = oci.pack(files, plugin_id=plugin_id, version=version, manifest=m, mt=mt, created=created)
+    signer = store.signer()
+    sig = envelope(signer, packed.manifest_digest)
+    msize = len(packed.blobs[packed.manifest_digest])
+    blobs = dict(packed.blobs)
+    media = dict(packed.media_types)
+    refs: list[str] = []
+
+    def add_ref(raw: bytes, cfg: bytes, layer: bytes, layer_type: str) -> str:
+        for b, t in ((raw, oci.OCI_MANIFEST), (cfg, oci.OCI_EMPTY), (layer, layer_type)):
+            blobs[oci.sha256_digest(b)] = b
+            media[oci.sha256_digest(b)] = t
+        refs.append(oci.sha256_digest(raw))
+        return refs[-1]
+
+    add_ref(*oci.referrer(packed.manifest_digest, msize, artifact_type=mt.signature, layer_media_type=mt.signature, layer=oci.canonical_json(sig)), mt.signature)
+    statement = oci.provenance_statement(
+        f"{plugin_id}@{version}",
+        packed.manifest_digest,
+        builder=f"{naming()['namespace']}.api/plugins/artifacts",
+        build_type=f"{naming()['namespace']}.plugin-artifact/v1",
+        external=external,
+        internal=internal,
+        run={"invocationId": ctx.correlation_id, "startedOn": created, "author": ctx.principal},
+    )
+    dsse = dsse_sign(signer, oci.IN_TOTO, oci.canonical_json(statement))
+    att = add_ref(*oci.referrer(packed.manifest_digest, msize, artifact_type=oci.IN_TOTO, layer_media_type=oci.DSSE, layer=oci.canonical_json(dsse)), oci.DSSE)
+    store.put(blobs, media)
+    return {"manifest_digest": packed.manifest_digest, "artifact_digest": packed.tree_digest, "signature": sig, "referrers": refs, "attestation_digest": att}
 
 
-def _generated_index() -> Path:
-    return settings().data_dir / "registry-generated.json"
-
-
-def build(data: bytes, ctx: RequestContext, *, base: str | None = None, dry_run: bool = False) -> dict:
+def build(data: bytes, ctx: RequestContext, db: Session, *, base: str | None = None, dry_run: bool = False, claims: dict | None = None) -> dict:
     files = unpack(data)
-    m, r = check(files, ctx)
+    m, r = check(files, ctx, db)
     pid, version = canonical_id(str(m.get("id") or "")), str(m.get("version") or "")
     art_digest = digest.files_digest(files)
     out = {"pluginId": pid, "version": version, "artifactDigest": art_digest, "ok": r.ok, "errors": r.errors, "warnings": r.warnings, "checks": r.checks}
     if dry_run or not r.ok:
         return out
-    existing = next((e for e in catalog.versions(pid) if e.version == version), None)
+    existing = db.get(PluginArtifact, (pid, version))
     if existing is not None:
         if existing.artifact_digest == art_digest:
-            return {**out, "registered": False, "duplicate": True}
+            return {**out, "registered": False, "duplicate": True, "manifestDigest": existing.manifest_digest}
         raise HTTPException(409, f"{pid}@{version} already exists with different contents; bump the version")
-    base_name, base_files = _base(base, pid)
+    base_name, base_files = _base(db, base, pid)
     review = {"base": base_name, **code_diff(base_files, files)}
-
-    pkg = _store_root() / pid / version / "package"
-    if pkg.exists():
-        shutil.rmtree(pkg)
-    for rel, b in files.items():
-        (pkg / rel).parent.mkdir(parents=True, exist_ok=True)
-        (pkg / rel).write_bytes(b)
-    (pkg.parent / "package.tar").write_bytes(data)
-    if digest.tree_digest(pkg) != art_digest:  # the stored tree must be exactly what was checked
-        shutil.rmtree(pkg.parent)
-        raise HTTPException(500, "artifact store wrote a different tree than was checked")
-
-    entry = {
-        "id": pid,
-        "version": version,
-        "publisher": f"generated:{ctx.principal}",
-        "trustTier": "generated",
-        "artifactDigest": art_digest,
-        "path": str(pkg),
-        "manifest": m,
-        "licenses": {"code": m.get("license")},
-        "signature": sign(pid, version, art_digest),
-        "workspaceId": ctx.workspace_id,
-        "createdBy": ctx.principal,
-        "createdAt": datetime.now(UTC).isoformat(),
-        "review": review,
+    created = datetime.now(UTC).isoformat()
+    stored = store_signed(
+        files,
+        m,
+        plugin_id=pid,
+        version=version,
+        external={**(claims or {}), "base": base_name},
+        internal={"checks": r.checks, "warnings": r.warnings},
+        ctx=ctx,
+        created=created,
+    )
+    if stored["artifact_digest"] != art_digest:  # the stored tree must be exactly what was checked
+        raise HTTPException(500, "artifact store packed a different tree than was checked")
+    # The stored bytes are read back and verified before the entry exists.
+    try:
+        store.verify(manifest_digest=stored["manifest_digest"], artifact_digest=art_digest, signature=stored["signature"], manifest=m, attestation_digest=stored["attestation_digest"])
+    except oci.ArtifactRefused as e:
+        raise HTTPException(500, f"artifact store didn't return what was written: {e}") from e
+    db.add(
+        PluginArtifact(
+            plugin_id=pid,
+            version=version,
+            publisher=f"generated:{ctx.principal}",
+            trust_tier="generated",
+            manifest=m,
+            licenses={"code": m.get("license")},
+            workspace_id=ctx.workspace_id,
+            review=review,
+            created_by=ctx.principal,
+            source="built",
+            **stored,
+        )
+    )
+    db.flush()
+    return {
+        **out,
+        "registered": True,
+        "manifestDigest": stored["manifest_digest"],
+        "signature": {k: stored["signature"][k] for k in ("signer", "alg", "keyId")},
+        "attestationDigest": stored["attestation_digest"],
+        "review": {k: v for k, v in review.items() if k != "diff"},
     }
-    idx = _generated_index()
-    doc = json.loads(idx.read_text()) if idx.is_file() else {"version": 1, "plugins": []}
-    doc["plugins"].append(entry)
-    idx.parent.mkdir(parents=True, exist_ok=True)
-    tmp = idx.with_suffix(".tmp")
-    tmp.write_text(json.dumps(doc, indent=2))
-    tmp.replace(idx)
-    return {**out, "registered": True, "review": {k: v for k, v in review.items() if k != "diff"}}

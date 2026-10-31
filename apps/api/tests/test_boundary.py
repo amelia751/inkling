@@ -197,7 +197,7 @@ def _build_job(c, h, files, sandbox_digest=None):
 
 def test_builds_register_our_bundle_only_with_a_trusted_signature(make_client, tmp_path):
     key = tmp_path / "build.key"
-    c = make_client(build_signing_key_file=key)
+    c = make_client(signer_key_file=key)
     h = agent(c)
     signer = LocalSigner.from_file(key)
     files = package()

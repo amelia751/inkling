@@ -1,0 +1,31 @@
+# web in spurby-phi proxies /api/agent/* here as /v1/* with the service token. Only
+# spurby-phi's egress address is admitted (ingress-nginx with externalTrafficPolicy: Local).
+# Run streams are SSE: no buffering, hour-long timeouts.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: PHI_EGRESS_CIDR
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [agent.example.com]
+      secretName: agent-tls
+  rules:
+    - host: agent.example.com
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: agent
+                port:
+                  name: http

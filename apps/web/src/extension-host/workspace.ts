@@ -1,7 +1,8 @@
 import { activePluginIds, WorkspaceState, type WorkspaceState as WorkspaceStateT } from "@studio/contracts/workspace";
 import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
-import { declarativeModule } from "./contributions-loader";
+import yaml from "js-yaml";
+import { declarativeModule, verifyPackage, type PackageFiles } from "./contributions-loader";
 import { registry, type ActivationResult } from "./registry";
 import { apiUrl } from "./runtime-config";
 
@@ -36,12 +37,36 @@ export async function loadRemotePlugins(state: WorkspaceStateT | null): Promise<
   for (const id of activePluginIds(state)) {
     if (registry.availableModule(id)) continue;
     const inst = state.plugins.find((p) => p.pluginId === id);
-    const res = await fetch(apiUrl(`/v1/plugins/${encodeURIComponent(id)}?version=${encodeURIComponent(inst?.version ?? "")}`), { headers: { "X-Workspace-Id": state.workspaceId } });
+    // Fetch-and-hash (todo10 Phase 3): only bytes that hash to the workspace's pin are used.
+    const headers = { "X-Workspace-Id": state.workspaceId };
+    const res = await fetch(apiUrl(`/v1/plugins/${encodeURIComponent(id)}/files?version=${encodeURIComponent(inst?.version ?? "")}&include=plugin.yaml`), { headers });
     if (!res.ok) continue;
-    const body = (await res.json()) as { manifest: unknown; contributions?: unknown };
-    const m = PluginManifest.safeParse(body.manifest);
-    if (!m.success || m.data.ui?.module || !body.contributions) continue;
-    const ui = UiContributions.safeParse(body.contributions);
+    const checked = await verifyPackage((await res.json()) as PackageFiles, inst?.artifactDigest);
+    if (!checked.ok) {
+      console.warn(`[plugins] refused ${id}@${inst?.version}: ${checked.reason}`);
+      void fetch(apiUrl(`/v1/workspaces/${encodeURIComponent(state.workspaceId)}/plugins/load-refused`), {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ pluginId: id, version: inst?.version, reason: checked.reason, expected: checked.expected, got: checked.got }),
+      }).catch(() => undefined);
+      continue;
+    }
+    let raw: unknown;
+    try {
+      raw = yaml.load(checked.files["plugin.yaml"] ?? "", { schema: yaml.JSON_SCHEMA });
+    } catch {
+      continue;
+    }
+    const m = PluginManifest.safeParse(raw);
+    const rel = m.success ? m.data.ui?.contributions : undefined;
+    if (!m.success || m.data.ui?.module || !rel || checked.files[rel] === undefined) continue;
+    let contributions: unknown;
+    try {
+      contributions = JSON.parse(checked.files[rel]);
+    } catch {
+      continue;
+    }
+    const ui = UiContributions.safeParse(contributions);
     if (!ui.success) continue;
     registry.registerModule(declarativeModule(m.data, ui.data));
     added.push(id);

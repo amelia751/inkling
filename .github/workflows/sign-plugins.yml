@@ -1,0 +1,91 @@
+# First-party plugin signing (todo10 Phase 3, D5): Sigstore cosign, keyless, from GitHub's OIDC
+# token. No key exists anywhere: Fulcio issues a short-lived certificate for this workflow's
+# identity and the signature goes to the Rekor transparency log.
+#
+#   tools/pack-plugins.py  → an OCI image layout, one manifest per plugins/<dir> (deterministic:
+#                            same tree, same manifest digest; fails if registry/index.json is stale)
+#   cosign sign-blob       → a Sigstore bundle per manifest (<id>@<version>.sigstore.json)
+#   cosign verify-blob     → checked against this workflow's identity before anything is published
+#   on main: oras copy     → ghcr.io/<owner>/<repo>/plugins/<id>:<version>, then `cosign sign`
+#                            on the registry digest (keyless, same identity) so the signature
+#                            travels with the artifact (`oras copy -r`, Phase 8)
+#
+# Verify a downloaded artifact:
+#   cosign verify-blob --bundle <id>@<version>.sigstore.json \
+#     --certificate-identity "https://github.com/<owner>/<repo>/.github/workflows/sign-plugins.yml@refs/heads/main" \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com  blobs/sha256/<manifest hex>
+name: sign-plugins
+
+on:
+  push:
+    branches: [main]
+    paths: ["plugins/**", "registry/index.json", "packages/signing/**", "tools/pack-plugins.py", ".github/workflows/sign-plugins.yml"]
+  pull_request:
+    paths: ["plugins/**", "registry/index.json", "packages/signing/**", "tools/pack-plugins.py", ".github/workflows/sign-plugins.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sign-plugins-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sign:
+    name: Pack, sign and verify first-party plugins
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write   # keyless signing: the OIDC token is the identity
+      packages: write   # push to GHCR on main
+    env:
+      OUT: dist/plugins
+      IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/sign-plugins.yml@${{ github.ref }}
+      ISSUER: https://token.actions.githubusercontent.com
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+      - run: uv sync --frozen --package studio-api   # studio-signing + pyyaml
+      - name: Pack (OCI image layout)
+        run: uv run --frozen python tools/pack-plugins.py --out "$OUT"
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign every manifest (keyless)
+        run: |
+          jq -c '.[]' "$OUT/manifests.json" | while read -r e; do
+            ref=$(jq -r '"\(.id)@\(.version)"' <<<"$e"); blob="$OUT/$(jq -r .blob <<<"$e")"
+            cosign sign-blob --yes --bundle "$OUT/$ref.sigstore.json" "$blob"
+          done
+      - name: Verify every signature against this workflow's identity
+        run: |
+          jq -c '.[]' "$OUT/manifests.json" | while read -r e; do
+            ref=$(jq -r '"\(.id)@\(.version)"' <<<"$e"); blob="$OUT/$(jq -r .blob <<<"$e")"
+            cosign verify-blob --bundle "$OUT/$ref.sigstore.json" \
+              --certificate-identity "$IDENTITY" --certificate-oidc-issuer "$ISSUER" "$blob"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signed-plugins-${{ github.sha }}
+          path: ${{ env.OUT }}
+          retention-days: 90
+      - name: Install oras
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: oras-project/setup-oras@v1
+      - name: Push to GHCR and sign the registry digests
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          REGISTRY: ghcr.io
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GH_TOKEN" | oras login "$REGISTRY" -u "$GH_ACTOR" --password-stdin
+          echo "$GH_TOKEN" | cosign login "$REGISTRY" -u "$GH_ACTOR" --password-stdin
+          repo=$(tr '[:upper:]' '[:lower:]' <<<"$REGISTRY/${{ github.repository }}/plugins")
+          jq -c '.[]' "$OUT/manifests.json" | while read -r e; do
+            id=$(jq -r .id <<<"$e"); ver=$(jq -r .version <<<"$e"); digest=$(jq -r .manifestDigest <<<"$e")
+            oras copy --from-oci-layout "$OUT@$digest" "$repo/$id:$ver"
+            cosign sign --yes "$repo/$id@$digest"
+            # The keyless bundle from sign-blob rides along as a referrer, too.
+            oras attach --artifact-type application/vnd.dev.sigstore.bundle.v0.3+json "$repo/$id@$digest" "$OUT/$id@$ver.sigstore.json:application/vnd.dev.sigstore.bundle.v0.3+json"
+          done

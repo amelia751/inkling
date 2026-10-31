@@ -14,7 +14,7 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_PLUGINS           | (all)                                     | comma-separated plugin ids this worker runs |
 | WORKER_ID                | <hostname>-<pid>                          | lease owner name |
 | WORKER_SIGNER            | local                                     | how `build_plugin` signs bundles (todo10 Phase 7): `local` (Ed25519 key file, dev) or `gcpkms` |
-| WORKER_SIGNING_KEY_FILE  | <repo>/.data/dev-build-signing.key        | the `local` key; the api's API_BUILD_SIGNING_KEY_FILE must name the same key |
+| WORKER_SIGNING_KEY_FILE  | dev: the api's <data dir>/plugin-signing.key | the `local` key; must be the api's `API_SIGNER_KEY_FILE` (the kernel verifies with its own signer) |
 | WORKER_KMS_KEY           | (none)                                    | the `gcpkms` key version (`projects/…/cryptoKeyVersions/N`) |
 | WORKER_VERIFY_PYTHON     | this interpreter                          | the pinned toolchain `verify_plugin` runs the agent's converter with |
 | WORKER_VERIFY_MEMORY_MB  | 2048                                      | address-space limit of a verify run |
@@ -149,7 +149,8 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         plugins=overrides.pop("plugins", None) or plugins,
         git_sha=env("GIT_SHA") or os.environ.get("GIT_SHA") or "unknown",
         signer=env("WORKER_SIGNER", "local") or "local",
-        signing_key_file=Path(env("WORKER_SIGNING_KEY_FILE") or REPO_ROOT / ".data" / "dev-build-signing.key"),
+        # Dev default: the api's own dev key in this checkout, so `pnpm dev` builds verify.
+        signing_key_file=Path(env("WORKER_SIGNING_KEY_FILE") or REPO_ROOT / "apps" / "api" / ".data" / "plugin-signing.key"),
         kms_key=env("WORKER_KMS_KEY"),
         verify_python=env("WORKER_VERIFY_PYTHON"),
         verify_memory_mb=num("WORKER_VERIFY_MEMORY_MB", "2048", int),

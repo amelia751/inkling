@@ -119,7 +119,7 @@ def stack(tmp_path_factory):
         {"id": "test.bad", "version": "1.0.0", "publisher": "acme", "trustTier": "vetted", "artifactDigest": tree_digest(bad), "path": str(bad), "manifest": bad_manifest},
     ]}))
     build_key = root / "build-signing.key"
-    s = config.load_settings(database_url=f"sqlite:///{root / 'api.db'}", seed_root=seed, data_dir=root / "data", secret_key="worker-test-key", registry_dir=reg, build_signing_key_file=build_key)
+    s = config.load_settings(database_url=f"sqlite:///{root / 'api.db'}", seed_root=seed, data_dir=root / "data", secret_key="worker-test-key", registry_dir=reg, signer_key_file=build_key)
     config.set_settings(s)
     db.reset_engine()
     from studio_api.app import create_app

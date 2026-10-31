@@ -1,0 +1,8 @@
+# gke/ai: the agent (namespace studio) and its build sandboxes (namespace sandboxes) on GKE
+# Autopilot in spurby-ai (infra/terraform/ai). Two sub-kustomizations because each sets its own
+# namespace. Placeholders as in ../phi (../README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - app
+  - sandboxes

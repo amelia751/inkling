@@ -1,0 +1,49 @@
+# GKE additions to components/network-policies (NetworkPolicies add up).
+#
+# api and versioning reach Google APIs only through restricted.googleapis.com (the VPC Service
+# Controls VIP; infra/terraform/phi/network.tf) and the GKE metadata server for Workload
+# Identity tokens. Nothing else here gets a route to Google APIs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: google-apis
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [api, versioning]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 199.36.153.4/30
+      ports:
+        - port: 443
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - port: 80
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.252/32
+      ports:
+        - port: 988
+---
+# web's /api/agent proxy: HTTPS to the agent's ingress address in spurby-ai, nothing else.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-to-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 203.0.113.11/32 # AGENT_INGRESS_CIDR (network-config.yaml)
+      ports:
+        - port: 443

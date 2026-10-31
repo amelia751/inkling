@@ -1,0 +1,11 @@
+# Build sandboxes (todo10 §6.1 step 3, D9): kubernetes-sigs/agent-sandbox on GKE Sandbox. Needs
+# the agent-sandbox controller and its extensions CRDs installed (../../README.md).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: sandboxes
+resources:
+  - namespace.yaml
+  - network.yaml
+  - quota.yaml
+  - template.yaml
+  - rbac.yaml

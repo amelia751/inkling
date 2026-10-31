@@ -99,6 +99,19 @@ export interface EnvironmentDocument {
   environment: EnvironmentSpec | null;
   savedAt?: string;
   author?: string;
+  /** RFC 8785 hash of `environment` (todo10 Phase 1); history rows also carry their parent's. */
+  contentHash?: string;
+  parentHash?: string;
+  authorKind?: "person" | "agent";
+  agentRunId?: string;
+  promptHash?: string;
+}
+
+/** Who made an environment change, when it was the assistant (recorded on the revision). */
+export interface ChangeProvenance {
+  kind: "agent";
+  runId?: string;
+  promptHash?: string;
 }
 
 /** The project's saved environment edits (agent or human), or `environment: null` when it runs its manifest environment. */
@@ -106,7 +119,7 @@ export async function fetchEnvironment(projectId: string): Promise<EnvironmentDo
   return json(await fetch(apiUrl(`/environments/${projectId}`)));
 }
 
-export async function saveEnvironment(projectId: string, doc: { revision: number; environment: EnvironmentSpec; author?: string }): Promise<EnvironmentDocument> {
+export async function saveEnvironment(projectId: string, doc: { revision: number; environment: EnvironmentSpec; author?: string; provenance?: ChangeProvenance }): Promise<EnvironmentDocument> {
   return json(
     await fetch(apiUrl(`/environments/${projectId}`), {
       method: "PUT",

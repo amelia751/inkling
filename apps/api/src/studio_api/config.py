@@ -25,25 +25,30 @@ that are missing or invalid, never their values.
 | API_VERSIONING_JWT_AUDIENCE / _ISSUER | versioning / api     | JWT claims for versioning calls |
 | API_VERSIONING_JWT_KID    | api-dev                          | key id in the JWT header; must be in the service's JWKS |
 | REDIS_URL                 | (none)                           | needed when JOB_QUEUE or EVENT_BUS is redis |
-| BLOB_STORE                | local                            | `local` (files) or `s3` |
+| BLOB_STORE                | local                            | `local` (files), `s3` or `gcs` |
 | S3_ENDPOINT               | (AWS)                            | S3-compatible endpoint, e.g. MinIO |
 | S3_BUCKET                 | assets                           | bucket holding seed assets (keys = seed-data paths) and derived data |
 | S3_REGION                 | us-east-1                        | |
 | S3_PREFIX                 | (none)                           | optional key prefix inside the bucket |
+| GCS_BUCKET                | (none; required for gcs)         | Cloud Storage bucket, same layout as S3_BUCKET |
+| GCS_PREFIX                | (none)                           | optional key prefix inside the bucket |
+| GCS_PROJECT               | (from credentials)               | project billed for the requests |
 | JOB_QUEUE                 | sql                              | `sql` (DB lease queue) or `redis` (ready list + leases) |
 | EVENT_BUS                 | sql                              | `sql` (outbox scan) or `redis` (Streams) |
 | REPO_ROOT                 | derived                          | where schemas/, registry/, plugins/ are (/app in images) |
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
+| API_SIGNER                | local                            | who signs generated plugin artifacts (todo10 Phase 3): `local` (Ed25519 key file) or `gcpkms` |
+| API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
+| API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
+| API_SIGNER_TRUSTED_KEYS_FILE | (none)                        | JSON `{keyId: PEM}` of other installations' public keys accepted on artifact import |
 | API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
-| API_BUILD_SIGNER          | local                            | how worker-built plugin bundles are verified (`local` Ed25519 key file, `gcpkms`); same key as the worker's |
-| API_BUILD_SIGNING_KEY_FILE | <repo>/.data/dev-build-signing.key | the `local` key (dev only) |
-| API_BUILD_KMS_KEY         | (none)                           | the `gcpkms` key version |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
-or the default AWS credential chain). `NAMING_FILE` (unprefixed: the prefix is read from it) is
+or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
+(Workload Identity on GKE; `gcloud auth application-default login` locally), never a key file. `NAMING_FILE` (unprefixed: the prefix is read from it) is
 handled in naming.py. Everything else reads settings through this module (`env()`).
 """
 
@@ -126,13 +131,16 @@ class Settings(BaseModel):
     repo_root: Path = REPO_ROOT
     worker_token: str | None = None
     redis_url: str | None = None
-    blob_store: Literal["local", "s3"] = "local"
+    blob_store: Literal["local", "s3", "gcs"] = "local"
     s3_endpoint: str | None = None
     s3_bucket: str = "assets"
     s3_region: str = "us-east-1"
     s3_prefix: str = ""
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    gcs_bucket: str | None = None
+    gcs_prefix: str = ""
+    gcs_project: str | None = None
     job_queue: Literal["sql", "redis"] = "sql"
     event_bus: Literal["sql", "redis"] = "sql"
     housekeeping_interval_s: float = 10.0
@@ -140,12 +148,15 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
-    # The data boundary (todo10 Phase 7): probe budget, free-text check, build signature check.
+    # Plugin artifact signing (todo10 Phase 3, packages/signing).
+    signer: Literal["local", "gcpkms"] = "local"
+    signer_key_file: Path | None = None
+    signer_kms_key: str | None = None
+    signer_trusted_keys_file: Path | None = None
+    # The data boundary (todo10 Phase 7): probe budget and free-text check. Worker-built
+    # bundles are verified with `signer` above (the worker signs with the same key).
     boundary_probe_budget: int = 64
     text_check: Literal["dev"] = "dev"
-    build_signer: Literal["local", "gcpkms"] = "local"
-    build_signing_key_file: Path | None = None
-    build_kms_key: str | None = None
 
     @property
     def production(self) -> bool:
@@ -183,16 +194,20 @@ _KEYS: dict[str, str] = {
     "s3_bucket": "S3_BUCKET",
     "s3_region": "S3_REGION",
     "s3_prefix": "S3_PREFIX",
+    "gcs_bucket": "GCS_BUCKET",
+    "gcs_prefix": "GCS_PREFIX",
+    "gcs_project": "GCS_PROJECT",
     "job_queue": "JOB_QUEUE",
     "event_bus": "EVENT_BUS",
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "signer": "API_SIGNER",
+    "signer_key_file": "API_SIGNER_KEY_FILE",
+    "signer_kms_key": "API_SIGNER_KMS_KEY",
+    "signer_trusted_keys_file": "API_SIGNER_TRUSTED_KEYS_FILE",
     "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
     "text_check": "API_TEXT_CHECK",
-    "build_signer": "API_BUILD_SIGNER",
-    "build_signing_key_file": "API_BUILD_SIGNING_KEY_FILE",
-    "build_kms_key": "API_BUILD_KMS_KEY",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 
@@ -251,9 +266,13 @@ def load_settings(**overrides) -> Settings:
         for f in ("secret_key", "database_url", "worker_token"):
             if not values.get(f):
                 missing.append(key_name(f))
+    if values.get("signer") == "gcpkms" and not values.get("signer_kms_key"):
+        missing.append(key_name("signer_kms_key"))
     if values.get("job_queue") == "redis" or values.get("event_bus") == "redis":
         if not values.get("redis_url"):
             missing.append(key_name("redis_url"))
+    if values.get("blob_store") == "gcs" and not values.get("gcs_bucket"):
+        missing.append(key_name("gcs_bucket"))
     if not values.get("secret_key") and not production:
         # Dev fallback: a stable per-checkout key so signed URLs survive restarts.
         data_dir.mkdir(parents=True, exist_ok=True)

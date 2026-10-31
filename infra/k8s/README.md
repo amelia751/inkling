@@ -15,6 +15,8 @@ overlays/
   dev/        one replica each, base/deps, local `studio-<app>:dev` images, dev placeholder Secrets
   staging/    managed endpoints, digests, 2+ replicas, NetworkPolicies, TLS host
   prod/       same as staging with more replicas
+  gke/        Google Cloud: phi/ (web, api, worker, versioning in spurby-phi) and ai/ (agent and
+              its build sandboxes in spurby-ai); Workload Identity, External Secrets, GKE Sandbox
 check-no-secrets.mjs                     CI: fails on a committed Secret with data
 ```
 

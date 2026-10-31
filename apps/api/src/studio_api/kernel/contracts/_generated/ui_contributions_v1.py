@@ -69,6 +69,27 @@ class Panel(BaseModel):
     visibleWhen: VisibleWhen | None = None
 
 
+class Space(StrEnum):
+    image2d = 'image2d'
+    volume = 'volume'
+    time = 'time'
+    text = 'text'
+
+
+class Renderer(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: Annotated[str, Field(pattern='^[a-z][\\w.-]*$')]
+    title: str | None = None
+    description: str | None = None
+    renderer: Annotated[str, Field(pattern='^[a-z][\\w-]*(?:\\.[\\w-]+)*\\.v\\d+$')]
+    consumes: list[str] | None = None
+    space: Space | None = Space.image2d
+    capabilities: list[str] | None = []
+    config: dict[str, Any] | None = None
+
+
 class UiContributions(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -79,3 +100,4 @@ class UiContributions(BaseModel):
         list[ToolbarAction] | None, Field(validate_default=True)
     ] = []
     panels: Annotated[list[Panel] | None, Field(validate_default=True)] = []
+    renderers: Annotated[list[Renderer] | None, Field(validate_default=True)] = []

@@ -7,3 +7,4 @@ export * from "./resolved";
 export * from "./runtime";
 export * from "./labels";
 export * from "./host";
+export * from "./viewer";

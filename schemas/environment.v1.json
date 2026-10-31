@@ -71,6 +71,7 @@
               "inkling.overlay2d",
               "inkling.cornerstone",
               "inkling.timeline",
+              "inkling.generic",
               "inkling.image2d",
               "inkling.volume",
               "inkling.timeseries",
@@ -94,6 +95,7 @@
             "kind": {
               "type": "string",
               "enum": [
+                "inkling.generic.dataKinds.files",
                 "inkling.image2d.dataKinds.raster",
                 "inkling.volume.dataKinds.volume",
                 "inkling.timeseries.dataKinds.multichannel-timeseries",
@@ -437,6 +439,7 @@
               "id": {
                 "type": "string",
                 "enum": [
+                  "inkling.generic.dataKinds.files",
                   "inkling.image2d.dataKinds.raster",
                   "inkling.volume.dataKinds.volume",
                   "inkling.timeseries.dataKinds.multichannel-timeseries",

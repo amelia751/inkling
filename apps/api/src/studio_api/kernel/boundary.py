@@ -29,7 +29,6 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -322,11 +321,10 @@ def put_bundle(j: PluginJob, data: bytes) -> dict:
 
 
 def build_signer():
-    from studio_signing import make_signer
+    """The installation's signer (plugins/store.py, `API_SIGNER`): the worker signs with the same key."""
+    from ..plugins import store
 
-    s = settings()
-    key_file = s.build_signing_key_file or (s.repo_root / ".data" / "dev-build-signing.key")
-    return make_signer(s.build_signer, key_file=Path(key_file), kms_key=s.build_kms_key)
+    return store.signer()
 
 
 def _ctx_of(j: PluginJob) -> RequestContext:
@@ -416,8 +414,9 @@ def _finish_build(db: Session, j: PluginJob, r: dict) -> dict:
         raise ValueError(f"build signature: {problem}")
     r["matchesSandbox"] = (r["sandboxDigest"] == ours) if r["sandboxDigest"] else None
     ctx = _ctx_of(j)
+    claims = {"builder": "worker.build_plugin", "sourceDigest": r["sourceDigest"], "workerKeyId": (r.get("signature") or {}).get("keyId"), **({"sandboxDigest": r["sandboxDigest"]} if r["sandboxDigest"] else {})}
     try:
-        out = artifacts.build(bundle, ctx)
+        out = artifacts.build(bundle, ctx, db, claims=claims)
     except HTTPException as e:  # e.g. 409: that version exists with other contents
         r["pass"], r["errors"] = False, [str(e.detail)[:500]]
         return r

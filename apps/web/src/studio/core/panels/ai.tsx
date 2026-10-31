@@ -8,6 +8,7 @@ import { fetchAgentStatus } from "@/studio/lib/agent/client";
 import { bareSnapshot, buildAgentContext, studioContext } from "@/studio/lib/agent/context";
 import { useAgentContext, useAgentContextStore } from "@/studio/lib/agent/providers";
 import { envProfile } from "@/studio/lib/agent/session";
+import { activeRunProvenance } from "@/studio/lib/agent/provenance";
 import { installEnvironment, persistEnvironment } from "@/studio/lib/environment-edits";
 import { itemNoun, pluralWord } from "@/studio/lib/format";
 import { useOverview } from "@/studio/lib/projects-api";
@@ -97,7 +98,7 @@ export function AiPanel({ project, items, item }: PanelProps) {
         const before = useStudio.getState().env;
         await installEnvironment(env);
         envHost.change = { summary, keys: before ? changedKeys(before.source, env.source) : [] };
-        await persistEnvironment(project.id, env, author);
+        await persistEnvironment(project.id, env, author, await activeRunProvenance(projectId));
       },
     };
     const out = await runAgentTool(name, input, envHost);

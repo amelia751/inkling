@@ -1,0 +1,15 @@
+# Workload Identity: each Kubernetes service account acts as its Google service account
+# (infra/terraform/phi/iam.tf, output service_accounts). worker and web have none.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api
+  annotations:
+    iam.gke.io/gcp-service-account: studio-api@spurby-phi.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: versioning
+  annotations:
+    iam.gke.io/gcp-service-account: studio-versioning@spurby-phi.iam.gserviceaccount.com

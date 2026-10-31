@@ -22,6 +22,7 @@ from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E4
 
 results: list[tuple[str, bool, str]] = []
 TOOLBAR = "[role=toolbar][aria-label='Annotation tools']"
+FIRST_ITEM = "2d-xray/normal/IM-0001-0001.jpeg"
 REGION = [{"name": "labels", "control": "Labels", "classes": [{"id": "normal"}, {"id": "pneumonia"}]}]
 
 # todo8 D10: a guard against re-cluttering. The image-2d toolbar shows at most this many controls
@@ -85,8 +86,8 @@ def classification(browser, port: int) -> None:
         page.mouse.click(5, 300)
         page.keyboard.press("2")
         wait_for(lambda: st.store("s => s.itemIndex") != start, "the next item")
-        recorded = st.store(f"s => s.annotations.filter(a => a.geometry.type === 'class').map(a => a.label)")
-        check("pressing 2 records Pneumonia", recorded == ["pneumonia"], str(recorded))
+        recorded = st.store("s => s.annotations.filter(a => a.geometry.type === 'class').map(a => [a.label, a.itemId])")
+        check("pressing 2 records Pneumonia on the item we were on", start == 0 and recorded == [["pneumonia", FIRST_ITEM]], str(recorded))
         check("…and advances to the next to-do item", st.store("s => s.itemIndex") == start + 1, str(st.store("s => s.itemIndex")))
 
         # The class landed on the item we were on, not the one we moved to.

@@ -150,10 +150,22 @@ export const postAddFollowed = (projectId: string, datasetId: string) => fsApi<D
 /** The signed-redirect URL of one file (`GET /source-nodes/:id/download`). */
 export const downloadUrl = (nodeId: string) => apiUrl(`/v1/source-nodes/${N(nodeId)}/download`);
 
+/** One version's bytes (`GET /source-nodes/:id/versions/:v/download`), named "name (v1).ext". */
+export const versionDownloadUrl = (nodeId: string, version: number) => apiUrl(`/v1/source-nodes/${N(nodeId)}/versions/${version}/download`);
+
+/** Download one version of a file (audited server-side like any download). */
+export function downloadVersion(nodeId: string, version: number): void {
+  clickDownload(versionDownloadUrl(nodeId, version));
+}
+
 /** Download one file (the browser follows the signed redirect; audited server-side). */
 export function downloadNode(nodeId: string): void {
+  clickDownload(downloadUrl(nodeId));
+}
+
+function clickDownload(href: string): void {
   const a = document.createElement("a");
-  a.href = downloadUrl(nodeId);
+  a.href = href;
   a.rel = "noopener";
   a.download = "";
   document.body.appendChild(a);
@@ -166,6 +178,8 @@ export interface ZipProgress {
   received: number;
   /** From Content-Length when the server sent one; a streamed ZIP usually doesn't. */
   total: number | null;
+  /** Files left out because they're held for privacy review (listed in `_held_files.txt`). */
+  held: number;
 }
 
 /**
@@ -193,7 +207,7 @@ export async function downloadZip(
     throw toFsError(new ApiError(res.status, typeof body.detail === "string" ? body.detail : `${res.status} ${res.statusText}`, body));
   }
   const total = Number(res.headers.get("Content-Length")) || null;
-  const progress: ZipProgress = { received: 0, total };
+  const progress: ZipProgress = { received: 0, total, held: Number(res.headers.get("X-Held-Files")) || 0 };
   const reader = res.body?.getReader();
   const chunks: Uint8Array[] = [];
   if (reader) {

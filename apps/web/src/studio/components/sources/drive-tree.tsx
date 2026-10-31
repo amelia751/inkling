@@ -53,6 +53,8 @@ interface Props {
   onRename?: (id: string, name: string) => void;
   onRenameCancel?: (id: string) => void;
   validate?: (name: string, n: SourceNode) => string | null;
+  /** Advice under the rename field that never blocks (Windows-reserved, a person's name). */
+  warn?: (name: string, n: SourceNode) => string | null;
   rowActions?: (n: SourceNode) => ReactNode;
   canDrag?: (n: SourceNode) => boolean;
   canDrop?: (args: { dragIds: string[]; parentId: string }) => true | string;
@@ -222,6 +224,7 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
         onRename={props.onRename}
         onRenameCancel={props.onRenameCancel}
         validate={props.validate ? (name, d) => (node(d) ? props.validate!(name, node(d)!) : null) : undefined}
+        warn={props.warn ? (name, d) => (node(d) ? props.warn!(name, node(d)!) : null) : undefined}
         rowActions={props.rowActions ? (d) => (node(d) ? props.rowActions!(node(d)!) : null) : undefined}
         canDrag={props.canDrag ? (d) => !!node(d) && props.canDrag!(node(d)!) : undefined}
         canDrop={props.canDrop}

@@ -52,6 +52,14 @@ def main() -> int:
         # A dataset made from the inbox files, before anything moves (D7: it freezes its files).
         ds = api(page, f"/projects/{pid}/datasets", "POST", {"title": "Fruit", "nodeIds": inbox_files, "task": {"title": "Annotate"}})["json"]
         ds_before = api(page, f"/projects/{pid}/datasets/{ds['id']}")["json"]
+        # An annotation on one of its items, to see it survive the move.
+        task_id = ds["tasks"][0]["id"]
+        item = (ds_before["definition"].get("files") or [{}])[0].get("assetId") or inbox_files[0]
+        ann = {"id": "e2e-move", "itemId": item, "label": "fruit", "provenance": "human", "author": "e2e", "createdAt": "2026-10-30T00:00:00Z", "geometry": {"type": "box", "x": 1, "y": 1, "w": 2, "h": 2}, "attributes": {}}
+        annotations_doc = "async ([task, doc]) => { const r = await fetch('/api/annotations/' + task, { method: doc ? 'PUT' : 'GET', headers: { 'Content-Type': 'application/json', 'X-Workspace-Id': task }, body: doc ? JSON.stringify(doc) : undefined }); return [r.status, await r.json().catch(() => null)]; }"
+        put = page.evaluate(annotations_doc, [task_id, {"revision": 0, "annotations": [ann]}])
+        check("an annotation is saved on a dataset item", put[0] == 200, str(put)[:200])
+        ds_before = api(page, f"/projects/{pid}/datasets/{ds['id']}")["json"]
 
         # ---- Drag three files from the grid onto a tree folder; Undo from the toast ---------
         open_folder(page, base, pid, inbox)
@@ -134,7 +142,10 @@ def main() -> int:
         same = ds_after["fileCount"] == ds_before["fileCount"] and sorted(f["nodeId"] for f in ds_after["definition"].get("files", [])) == sorted(f["nodeId"] for f in ds_before["definition"].get("files", []))
         check("a dataset made from the moved files still lists the same items (D7)", same, f"{ds_before['fileCount']} → {ds_after['fileCount']}")
         tasks = api(page, f"/projects/{pid}/datasets/{ds['id']}/tasks")["json"]["tasks"]
-        check("its task is unchanged", tasks and tasks[0]["annotationCount"] == ds_before["tasks"][0]["annotationCount"])
+        check("its task is unchanged", tasks and tasks[0]["annotationCount"] == ds_before["tasks"][0]["annotationCount"], f"{tasks and tasks[0].get('annotationCount')} vs {ds_before['tasks'][0].get('annotationCount')}")
+        got_ann = page.evaluate(annotations_doc, [task_id, None])
+        anns = (got_ann[1] or {}).get("annotations") or []
+        check("its annotation is intact after the move", got_ann[0] == 200 and [(a["id"], a["itemId"], a["geometry"]) for a in anns] == [(ann["id"], ann["itemId"], ann["geometry"])], str(got_ann)[:300])
 
         # ---- Move to… with the keyboard only ----------------------------------------------
         open_folder(page, base, pid, dest)
@@ -150,6 +161,7 @@ def main() -> int:
             if (page.evaluate("document.activeElement?.textContent ?? ''") or "").startswith("Move to"):
                 break
             page.keyboard.press("ArrowDown")
+            page.wait_for_timeout(120)  # Radix moves menu focus in a timeout
         page.keyboard.press("Enter")
         dlg.wait_for(timeout=5000)
         page.keyboard.press("Backspace")  # up to study

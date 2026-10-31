@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copyName, extensionChanged, keepBothName, nextUntitled, normalizeName, stem, validateName, windowsReservedWarning } from "./names";
+import { copyName, extensionChanged, keepBothName, nameWarning, nextUntitled, normalizeName, stem, validateName, windowsReservedWarning } from "./names";
 
 describe("names (todo7 D10)", () => {
   it("stems keep multi-part extensions together", () => {
@@ -70,5 +70,20 @@ describe("names (todo7 D10)", () => {
     expect(copyName("scan.dcm")).toBe("scan (copy).dcm");
     expect(copyName("scan.dcm", ["scan (copy).dcm"])).toBe("scan (copy 2).dcm");
     expect(copyName("MRI")).toBe("MRI (copy)");
+  });
+});
+
+describe("nameWarning (never blocks)", () => {
+  it("warns about Windows-reserved names, with or without an extension", () => {
+    expect(nameWarning("CON")).toMatch(/reserved on Windows/);
+    expect(nameWarning("nul.txt", { isFile: true })).toMatch(/reserved on Windows/);
+    expect(nameWarning("console")).toBeNull();
+  });
+  it("warns about names that look like a person's, like the server's privacy check", () => {
+    expect(nameWarning("Smith_John_MRI.dcm", { isFile: true })).toMatch(/person's name/);
+    expect(nameWarning("DOE^JANE")).toMatch(/person's name/);
+    expect(nameWarning("Chest_Xray")).toBeNull();
+    expect(nameWarning("case_014.dcm", { isFile: true })).toBeNull();
+    expect(nameWarning("scan_2024-03-07")).toMatch(/date/);
   });
 });

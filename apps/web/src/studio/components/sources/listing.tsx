@@ -61,7 +61,11 @@ interface Props {
   /** The row whose name is being edited, and new rows not saved yet (Enter commits even an unchanged name). */
   editingId?: string | null;
   draftIds?: ReadonlySet<string>;
+  /** Rows in the whole folder (pages load as it scrolls), for `aria-rowcount`; default: the rows loaded. */
+  total?: number;
   validateName?: (name: string, n: SourceNode) => string | null;
+  /** Advice under the rename field that never blocks (Windows-reserved, a person's name). */
+  warnName?: (name: string, n: SourceNode) => string | null;
   onRename?: (n: SourceNode, name: string) => void;
   onRenameCancel?: (n: SourceNode) => void;
   /** Drag props for a row (the page's drag controller), or undefined when it can't be dragged. */
@@ -204,6 +208,9 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
+    // React bubbles events through portals: keys pressed in a row's context menu (portaled to
+    // <body>) arrive here too. Arrow keys there belong to the menu, not to the listing.
+    if (!e.currentTarget.contains(e.target as Node)) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if ((e.target as Element).closest("input")) return;
     const step: Record<string, number> = { ArrowDown: cols, ArrowUp: -cols, ...(view === "grid" ? { ArrowRight: 1, ArrowLeft: -1 } : {}), PageDown: cols * 10, PageUp: -cols * 10 };
@@ -297,7 +304,7 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
       showFolder: !!props.showFolder,
       cut: cut.has(n.id),
       target: !!props.dropTargetId && props.dropTargetId === n.id,
-      rename: editing ? <InlineRename n={n} draft={!!props.draftIds?.has(n.id)} validate={props.validateName} onSave={(name) => props.onRename?.(n, name)} onCancel={() => props.onRenameCancel?.(n)} /> : null,
+      rename: editing ? <InlineRename n={n} draft={!!props.draftIds?.has(n.id)} validate={props.validateName} warn={props.warnName} onSave={(name) => props.onRename?.(n, name)} onCancel={() => props.onRenameCancel?.(n)} /> : null,
       attrs: {
         "data-node-id": n.id,
         "data-drop-id": drop?.id,
@@ -326,7 +333,7 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
         tabIndex={0}
         role="grid"
         aria-label="Files"
-        aria-rowcount={items.length}
+        aria-rowcount={Math.max(props.total ?? 0, items.length)}
         aria-multiselectable
         aria-busy={loading || undefined}
         onKeyDown={onKeyDown}
@@ -484,12 +491,13 @@ function Tile({ n, width, selected, cut, target, rename, attrs }: RowProps & { w
  * cancels, blur saves (or cancels when the name is invalid or unchanged); validation runs live
  * with the sentence under the field.
  */
-function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode; draft: boolean; validate?: (name: string, n: SourceNode) => string | null; onSave: (name: string) => void; onCancel: () => void }) {
+function InlineRename({ n, draft, validate, warn, onSave, onCancel }: { n: SourceNode; draft: boolean; validate?: (name: string, n: SourceNode) => string | null; warn?: (name: string, n: SourceNode) => string | null; onSave: (name: string) => void; onCancel: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(n.name);
   const done = useRef(false);
   const errId = useId();
   const error = value.trim() === n.name ? null : (validate?.(value, n) ?? null);
+  const warning = error || value.trim() === n.name ? null : (warn?.(value, n) ?? null);
   useEffect(() => {
     const el = input.current;
     if (!el) return;
@@ -518,7 +526,7 @@ function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode;
         onChange={(e) => setValue(e.target.value)}
         aria-label={`Rename ${n.name}`}
         aria-invalid={!!error || undefined}
-        aria-describedby={error ? errId : undefined}
+        aria-describedby={error || warning ? errId : undefined}
         spellCheck={false}
         autoComplete="off"
         data-testid="listing-rename-input"
@@ -543,6 +551,11 @@ function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode;
       {error && (
         <span id={errId} role="alert" className="absolute left-0 top-full z-30 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-destructive shadow-popup" data-testid="rename-error">
           {error}
+        </span>
+      )}
+      {warning && (
+        <span id={errId} role="status" className="absolute left-0 top-full z-30 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-warning shadow-popup" data-testid="rename-warning">
+          {warning}
         </span>
       )}
     </span>
@@ -588,7 +601,13 @@ function SkeletonRows({ view }: { view: "list" | "grid" }) {
   );
 }
 
+// toLocaleDateString builds a formatter per call (it was the costliest line while scrolling a
+// long listing); two shared ones do the same.
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const SHORT_DATE_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 export function shortDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  if (Number.isNaN(d.getTime())) return "—";
+  return (d.getFullYear() === new Date().getFullYear() ? SHORT_DATE : SHORT_DATE_YEAR).format(d);
 }

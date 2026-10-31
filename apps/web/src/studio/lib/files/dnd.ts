@@ -198,7 +198,7 @@ export function useFsDropZone(opts: FsDropZoneOptions) {
     const { drag } = useFsDrag.getState();
     if (!drag) return;
     const t = targetOf(e.target);
-    if (drag.source === "tree" && (t?.inTree || (e.target instanceof Element && e.target.closest("[role=tree]")))) {
+    if (drag.source === "tree" && (t?.inTree || (e.target instanceof Element && e.target.closest("[data-file-tree]")))) {
       // The tree handles drags inside itself (and draws its own ghost).
       if (useFsDrag.getState().pointer) useFsDrag.setState({ pointer: null, target: null, refusal: null });
       return;

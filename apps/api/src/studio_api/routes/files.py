@@ -15,6 +15,7 @@
     POST   /api/v1/source-nodes/{id}/versions               a replace-mode upload session (D6)
     POST   /api/v1/source-nodes/{id}/versions/{v}/restore   FsOpsResult
     GET    /api/v1/source-nodes/{id}/download               the bytes (attachment), audited
+    GET    /api/v1/source-nodes/{id}/versions/{v}/download  an older version's bytes, audited
     GET    /api/v1/source-nodes/{id}/activity               { items: FsActivityEntry[] }
     POST   /api/v1/projects/{id}/datasets/{ds}/update-versions      (GET …/preview)
     POST   /api/v1/projects/{id}/datasets/{ds}/add-followed
@@ -38,7 +39,7 @@ from sqlalchemy.orm import Session
 from ..context import RequestContext, get_context
 from ..db import get_session
 from ..kernel import assets, audit, fs, imports, projects, tree, zipstream
-from ..models import Asset, DatasetRow, ProjectRow, SourceNode
+from ..models import Asset, DatasetRow, NodeVersion, ProjectRow, SourceNode
 from ..streaming import blob_response
 
 router = APIRouter(prefix="/api/v1")
@@ -182,8 +183,10 @@ def restore_version(node_id: str, version: int, ctx: RequestContext = Depends(ge
 # ---- Download ----------------------------------------------------------------------------------
 
 
-def _held(n: SourceNode) -> str | None:
-    priv = (n.flags or {}).get("privacy")
+def _held(n: SourceNode | dict | None) -> str | None:
+    """The privacy hold's reason, if `n` (a node, or a version's flags) is held."""
+    flags = n if isinstance(n, dict) or n is None else n.flags
+    priv = (flags or {}).get("privacy")
     if priv and not priv.get("clearedBy"):
         return str(priv.get("reason") or "Held for privacy review")
     return None
@@ -209,6 +212,35 @@ def download(node_id: str, request: Request, ctx: RequestContext = Depends(get_c
     db.commit()
     resp = blob_response(assets.store_of(key), key, a.media_type or "application/octet-stream", request)
     resp.headers["Content-Disposition"] = _disposition(n.name)
+    return resp
+
+
+@router.get("/source-nodes/{node_id}/versions/{version}/download")
+def download_version(node_id: str, version: int, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """One version's bytes (D6), named `name (v1).ext` unless it's the current one. Audited like
+    a download; refused while the file, or that version, is held for privacy review."""
+    n, p = _node(db, ctx, node_id)
+    if n.is_dir:
+        raise HTTPException(422, "Folders have no versions")
+    v = db.get(NodeVersion, (n.id, version))
+    if v is None and version == (n.version or 1):
+        asset_id, flags = n.asset_id, n.flags
+    elif v is None:
+        raise HTTPException(404, f"{n.name} has no version {version}")
+    else:
+        asset_id, flags = v.asset_id, v.flags
+    if _held(n) or _held(flags):
+        raise HTTPException(423, "This file is held for privacy review: clear the hold before downloading it")
+    a = db.get(Asset, asset_id) if asset_id else None
+    if a is None:
+        raise HTTPException(404, "the version's bytes are missing")
+    key = assets.asset_key(a)
+    audit.record(db, ctx.for_scope(p.id, None), "files.downloaded", target=n.id, after={"files": 1, "nodeIds": [n.id], "version": version})
+    db.commit()
+    stem, ext = tree.split_ext(n.name)
+    name = n.name if version == (n.version or 1) else f"{stem} (v{version}){ext}"
+    resp = blob_response(assets.store_of(key), key, a.media_type or "application/octet-stream", request)
+    resp.headers["Content-Disposition"] = _disposition(name)
     return resp
 
 
@@ -288,7 +320,7 @@ def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = 
         note = ("\n".join(lines) + "\n").encode()
     name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Files"
     stamp = datetime.fromtimestamp(time.time(), UTC)
-    return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store"})
+    return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store", "X-Held-Files": str(len(held))})
 
 
 # ---- Activity ----------------------------------------------------------------------------------

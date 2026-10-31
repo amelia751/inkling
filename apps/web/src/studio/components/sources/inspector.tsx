@@ -20,6 +20,8 @@ export interface InspectorActions {
   /** Why this node can't be renamed or replaced (sample data, "Needs the full stack", the root), or null. */
   editReason?: (n: SourceNode) => string | null;
   validate?: (name: string, n: SourceNode) => string | null;
+  /** Advice under the rename field that never blocks (Windows-reserved, a person's name). */
+  warn?: (name: string, n: SourceNode) => string | null;
   /** Saves a rename; reject with an Error to keep the field open with its message. */
   onRename?: (n: SourceNode, name: string) => Promise<void>;
   /** F2 from the page: the title's rename field is open. */
@@ -62,6 +64,7 @@ export function Inspector({ projectId, item, items, onClose, actions = {} }: { p
             kind={n.kind}
             disabledReason={reason}
             validate={actions.validate ? (name) => actions.validate!(name, n) : undefined}
+            warn={actions.warn ? (name) => actions.warn!(name, n) : undefined}
             onRename={(name) => actions.onRename!(n, name)}
             editing={actions.renaming}
             onEditingChange={actions.onRenamingChange}

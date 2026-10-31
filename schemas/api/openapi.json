@@ -4973,6 +4973,53 @@
         "summary": "New Version"
       }
     },
+    "/api/v1/source-nodes/{node_id}/versions/{version}/download": {
+      "get": {
+        "description": "One version's bytes (D6), named `name (v1).ext` unless it's the current one. Audited like\na download; refused while the file, or that version, is held for privacy review.",
+        "operationId": "download_version_api_v1_source_nodes__node_id__versions__version__download_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "title": "Node Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Version"
+      }
+    },
     "/api/v1/source-nodes/{node_id}/versions/{version}/restore": {
       "post": {
         "operationId": "restore_version_api_v1_source_nodes__node_id__versions__version__restore_post",

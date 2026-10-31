@@ -29,7 +29,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import String, cast, delete, func, select
+from sqlalchemy import String, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .. import aftercommit, blobstore
@@ -95,7 +95,7 @@ def ensure_drive(db: Session, p: ProjectRow) -> SourceNode:
         if orphan.trashed_at is None:
             files, size = tree.weight(orphan)
             tree.bump(db, rid, files, size, children=1)
-    db.execute(SourceNode.__table__.update().where(SourceNode.project_id == p.id, SourceNode.project_root.is_(None)).values(project_root=rid))
+    db.execute(update(SourceNode).where(SourceNode.project_id == p.id, SourceNode.project_root.is_(None)).values(project_root=rid))
     db.expire_all()
     root = db.get(SourceNode, rid)
     assert root is not None
@@ -595,18 +595,18 @@ def purge_plan(db: Session, p: ProjectRow, roots: list[SourceNode]) -> PurgePlan
     for i in range(0, len(ids), 500):
         chunk = ids[i : i + 500]
         for nid, aid in db.execute(select(SourceNode.id, SourceNode.asset_id).where(SourceNode.id.in_(chunk), SourceNode.asset_id.is_not(None))):
-            candidates.setdefault(aid, names.get(nid, "a file"))
+            candidates.setdefault(str(aid), names.get(nid, "a file"))
         for nid, aid in db.execute(select(NodeVersion.node_id, NodeVersion.asset_id).where(NodeVersion.node_id.in_(chunk), NodeVersion.asset_id.is_not(None))):
-            candidates.setdefault(aid, names.get(nid, "a file"))
+            candidates.setdefault(str(aid), names.get(nid, "a file"))
     reasons: dict[str, str] = {}
     aids = list(candidates)
     for i in range(0, len(aids), 500):
         chunk = aids[i : i + 500]
         for nid, aid, name in db.execute(select(SourceNode.id, SourceNode.asset_id, SourceNode.name).where(SourceNode.asset_id.in_(chunk))):
-            if nid not in gone:
+            if nid not in gone and aid:
                 reasons.setdefault(aid, "another file has the same bytes")
         for nid, aid in db.execute(select(NodeVersion.node_id, NodeVersion.asset_id).where(NodeVersion.asset_id.in_(chunk))):
-            if nid not in gone and aid not in reasons:
+            if nid not in gone and aid and aid not in reasons:
                 owner = db.get(SourceNode, nid)
                 reasons[aid] = f"a version of {owner.name if owner else 'another file'} uses it"
     for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id)):
@@ -1129,7 +1129,7 @@ def redo(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str | None =
 def trash_item(db: Session, n: SourceNode, chain: tree.Chain | None, starred: set[str] | None = None) -> dict:
     d = tree.node_dict(n, starred=starred)
     parent_hidden = chain is None or len(chain.ids) < 2 or any(t is not None for t in chain.trashed[:-1])
-    location = None if parent_hidden else (chain.folder or tree.ROOT_NAME)
+    location = None if parent_hidden or chain is None else (chain.folder or tree.ROOT_NAME)
     at = n.trashed_at if n.trashed_at is None or n.trashed_at.tzinfo else n.trashed_at.replace(tzinfo=UTC)
     left = TRASH_DAYS - (now() - at).days if at else TRASH_DAYS
     d.update(trashedAt=_iso(n.trashed_at), trashedBy=n.trashed_by or "", originalLocation=location, purgeInDays=max(0, left))
@@ -1212,7 +1212,7 @@ def shortcuts(db: Session, ctx: RequestContext, p: ProjectRow, which: str, limit
         for nid, at in db.execute(select(FsOp.node_id, FsOp.at).where(FsOp.project_id == p.id, FsOp.actor == who).order_by(FsOp.id.desc()).limit(400)):
             seen.setdefault(nid, at)
         for r in db.scalars(select(NodeRecent).where(NodeRecent.project_id == p.id, NodeRecent.principal == who).order_by(NodeRecent.at.desc()).limit(200)):
-            if r.node_id not in seen or (seen[r.node_id] and r.at and _aware(r.at) > _aware(seen[r.node_id])):
+            if r.node_id not in seen or ((prev := _aware(seen[r.node_id])) is not None and r.at and (cur := _aware(r.at)) is not None and cur > prev):
                 seen[r.node_id] = r.at
         pairs = sorted(seen.items(), key=lambda kv: _aware(kv[1]) or datetime.min.replace(tzinfo=UTC), reverse=True)
     stars = starred_ids(db, p.id, who)

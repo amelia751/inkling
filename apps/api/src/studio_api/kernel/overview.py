@@ -69,7 +69,7 @@ def data_cards(db: Session, p: ProjectRow, limit: int = 4) -> list[dict]:
             # Open the folder that holds this kind when it's one folder, else the source root.
             folder = parents[0] if len(set(parents)) == 1 else s.root_node_id
             node = db.get(SourceNode, folder) if folder else None
-            title = node.name if node is not None and node.id != s.root_node_id else (db.get(SourceNode, s.root_node_id).name if s.root_node_id and db.get(SourceNode, s.root_node_id) else s.title)
+            title = node.name if node is not None and node.id != s.root_node_id else (root.name if s.root_node_id and (root := db.get(SourceNode, s.root_node_id)) is not None else s.title)
             cards.append({"type": "source", "id": f"{s.id}:{kind}", "title": title, "count": len(parents), "kind": kind, "kindLabel": kind_label(kind, len(parents)), "sourceId": s.id, "nodeId": folder})
     cards.sort(key=lambda c: -c["count"])
     return cards[:limit]

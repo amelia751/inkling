@@ -1616,6 +1616,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/source-nodes/{node_id}/versions/{version}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Version
+         * @description One version's bytes (D6), named `name (v1).ext` unless it's the current one. Audited like
+         *     a download; refused while the file, or that version, is held for privacy review.
+         */
+        get: operations["download_version_api_v1_source_nodes__node_id__versions__version__download_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/source-nodes/{node_id}/versions/{version}/restore": {
         parameters: {
             query?: never;
@@ -5817,6 +5838,38 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    download_version_api_v1_source_nodes__node_id__versions__version__download_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+                version: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

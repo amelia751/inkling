@@ -22,6 +22,7 @@ new top-level folder named after the dropped folder. New nodes get opaque ids, r
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import posixpath
@@ -31,6 +32,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from .. import blobstore
@@ -299,7 +301,12 @@ def _resumable(db: Session, ctx: RequestContext, p: ProjectRow, wanted: list[tup
 
 
 async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: str, offset: int, chunks: AsyncIterator[bytes]) -> dict:
-    """One file, or one chunk of it (`offset` > 0 continues). Returns the file's state."""
+    """One file, or one chunk of it (`offset` > 0 continues). Returns the file's state.
+
+    The bytes are read, stored and (for the last chunk) verified with no transaction open; only
+    the final state change touches the database. On SQLite a read transaction held across that
+    I/O goes stale as parallel uploads commit, and its write then fails at once with "database
+    is locked" (WAL mode doesn't wait for a stale snapshot), which made folder uploads crawl."""
     s, p = require_session(db, ctx, session_id, write=True)
     if ctx.scopes:
         raise HTTPException(403, "only people add data to a project")
@@ -312,6 +319,8 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
         return {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
     if offset != f.received:
         raise HTTPException(409, f"expected offset {f.received}")
+    sid, fid, size, sha, rel, pid = s.id, f.client_file_id, f.size, f.sha256, f.rel_path, p.id
+    db.rollback()  # no transaction across the I/O below
     store = blobstore.data()
     tmp = tempfile.NamedTemporaryFile(delete=False, dir=None)
     n = 0
@@ -319,19 +328,35 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
         with tmp:
             async for chunk in chunks:
                 n += len(chunk)
-                if offset + n > f.size or n > CHUNK_BYTES:
-                    raise HTTPException(413, "more bytes than the file's declared size" if offset + n > f.size else "chunks are at most 64 MB")
+                if offset + n > size or n > CHUNK_BYTES:
+                    raise HTTPException(413, "more bytes than the file's declared size" if offset + n > size else "chunks are at most 64 MB")
                 tmp.write(chunk)
-        if n == 0 and f.size > 0:
+        if n == 0 and size > 0:
             raise HTTPException(422, "empty chunk")
-        _put_file(store, _quarantine(s.id, f.client_file_id, offset), tmp.name)
+        _put_file(store, _quarantine(sid, fid, offset), tmp.name)
     finally:
         os.unlink(tmp.name)
-    f.received = offset + n
-    if f.received == f.size:
-        _assemble(db, s, p, f)
-    db.flush()
-    return {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
+    outcome = _assemble(store, sid, fid, size, sha, upload_key(pid, sha, rel)) if offset + n == size else None
+    for attempt in range(6):
+        try:
+            f = db.get(UploadFile, (sid, fid))
+            if f is None:
+                raise HTTPException(404, "no such file in this import")
+            if f.state == "pending" and f.received == offset:  # else a retry of this chunk got there first
+                f.received = offset + n
+                if outcome is not None:
+                    f.state, f.reason = outcome[0], outcome[1]
+                    if outcome[0] != "uploaded":
+                        f.received = 0
+            out = {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
+            db.commit()
+            return out
+        except OperationalError as e:  # SQLite only: another writer won the race; try again
+            db.rollback()
+            if attempt == 5 or "locked" not in str(e):
+                raise
+            await asyncio.sleep(0.05 * (attempt + 1))
+    raise AssertionError("unreachable")
 
 
 def _put_file(store: blobstore.BlobStore, key: str, path: str) -> None:
@@ -343,18 +368,16 @@ def _put_file(store: blobstore.BlobStore, key: str, path: str) -> None:
             store.put(key, fh.read())
 
 
-def _assemble(db: Session, s: ImportSession, p: ProjectRow, f: UploadFile) -> None:
-    """Concatenate the parts, verify size and SHA-256, and move the bytes to `sources/`."""
-    store = blobstore.data()
+def _assemble(store: blobstore.BlobStore, session_id: str, file_id: str, size: int, sha256: str, key: str) -> tuple[str, str | None]:
+    """Concatenate the parts, verify size and SHA-256, and move the bytes to `sources/`.
+    Returns the file's new (state, reason); no database access."""
     offsets = []
     pos = 0
-    while pos < f.size or (f.size == 0 and not offsets):
+    while pos < size or (size == 0 and not offsets):
         offsets.append(pos)
-        key = _quarantine(s.id, f.client_file_id, pos)
-        info = store.stat(key)
+        info = store.stat(_quarantine(session_id, file_id, pos))
         if info is None:
-            f.state, f.reason, f.received = "failed", "The connection dropped. Retry", 0
-            return
+            return "failed", "The connection dropped. Retry"
         pos += info.size
         if info.size == 0:
             break
@@ -363,21 +386,18 @@ def _assemble(db: Session, s: ImportSession, p: ProjectRow, f: UploadFile) -> No
     try:
         with tmp:
             for off in offsets:
-                for chunk in store.iter_range(_quarantine(s.id, f.client_file_id, off)):
+                for chunk in store.iter_range(_quarantine(session_id, file_id, off)):
                     h.update(chunk)
                     tmp.write(chunk)
-        size = os.path.getsize(tmp.name)
-        if size != f.size or h.hexdigest() != f.sha256:
-            f.state, f.reason, f.received = "failed", "The file changed or arrived damaged. Retry", 0
-        else:
-            key = upload_key(p.id, f.sha256, f.rel_path)
-            if store.stat(key) is None:
-                _put_file(store, key, tmp.name)
-            f.state, f.reason = "uploaded", None
+        if os.path.getsize(tmp.name) != size or h.hexdigest() != sha256:
+            return "failed", "The file changed or arrived damaged. Retry"
+        if store.stat(key) is None:
+            _put_file(store, key, tmp.name)
+        return "uploaded", None
     finally:
         os.unlink(tmp.name)
         for off in offsets:
-            store.delete(_quarantine(s.id, f.client_file_id, off))
+            store.delete(_quarantine(session_id, file_id, off))
 
 
 def retry(db: Session, ctx: RequestContext, s: ImportSession, file_ids: list[str] | None = None) -> dict:

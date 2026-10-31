@@ -222,6 +222,8 @@ def test_detect_reads_content_not_extensions():
 def test_privacy_path_rules():
     assert privacy.path_findings("Doe_John/scan.png") == ["a name looks like a person's name"]
     assert privacy.path_findings("Chest_Xray/Left_Lung.png") == []
+    assert privacy.path_findings("study/Smith_John_MRI.dcm") == ["a name looks like a person's name"]  # trailing imaging words
+    assert privacy.path_findings("Tumor_Core_T1.nii") == []
     assert privacy.path_findings("2024-03-07/a.png") == ["a name holds a date"]
     assert privacy.path_findings("mrn/12345678.dcm") == ["a name holds a record-number-shaped number"]
     assert privacy.path_findings("patient_001/IM-0001-0001.dcm") == []

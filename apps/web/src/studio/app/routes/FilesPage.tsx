@@ -53,6 +53,7 @@ import { useReorgPlans } from "@/studio/stores/reorg-plans";
 import {
   applyOptimistic,
   downloadNode,
+  downloadVersion,
   downloadZip,
   fetchFsChildren,
   findCachedNode,
@@ -74,12 +75,12 @@ import {
   type OptimisticContext,
 } from "@/studio/lib/files/api";
 import { rowsOf } from "@/studio/lib/files/optimistic";
-import { copyName, extensionChanged, nextUntitled, splitExtension, validateName } from "@/studio/lib/files/names";
+import { copyName, extensionChanged, nameWarning, nextUntitled, splitExtension, validateName } from "@/studio/lib/files/names";
 import { clipboardFor, useCutIds, useFilesClipboard, usePasteCount } from "@/studio/lib/files/clipboard";
 import { beginFsDrag, endFsDrag, fsDropTargetProps, startFsDrag, useFsDrag, useFsDropZone, type FsDragItem } from "@/studio/lib/files/dnd";
 import { FsDragGhost } from "@/studio/lib/files/drag-ghost";
 import { noticesFor, useFilesLive } from "@/studio/lib/files/live";
-import { notify } from "@/studio/lib/files/announce";
+import { dismissNotice, notify, progressNotice } from "@/studio/lib/files/announce";
 import { redoHint, undoHint, useTabUndoLabels } from "@/studio/lib/files/undo";
 import { errorText, expandRuns, useFileOps } from "./files/ops";
 import { PlanPanel } from "./files/plan-panel";
@@ -191,6 +192,22 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const redoLabel = history?.redo?.label ?? tabLabels.redo?.label ?? null;
 
   const nodeId = trash ? undefined : (pathNode ?? onlyChild ?? undefined);
+  // The drive's one folder starts open (initialOpen); one that arrives later (the first upload
+  // into an empty project) opens too, so the tree matches what a reload would show.
+  useEffect(() => {
+    if (!onlyChild) return;
+    // The tree takes the new row on one of its next renders: retry for a moment.
+    let tries = 0;
+    let timer = 0;
+    const attempt = () => {
+      const row = tree.current?.rowOf(onlyChild)?.closest("[role=treeitem]");
+      if (row?.getAttribute("aria-expanded") === "true") return;
+      if (row) tree.current?.open(onlyChild);
+      if (++tries < 40) timer = window.setTimeout(attempt, 50);
+    };
+    attempt();
+    return () => window.clearTimeout(timer);
+  }, [onlyChild]);
 
   // ---- Where we are -----------------------------------------------------------------------
   const atRoot = !nodeId || nodeId === rootId;
@@ -330,6 +347,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     return [...out];
   };
   const validate = (name: string, n: SourceNode) => validateName(name, siblingsOf(n.parentId ?? rootId, n.id), { isFile: n.kind === "file", current: n.name });
+  const warn = (name: string, n: SourceNode) => nameWarning(name, { isFile: n.kind === "file" });
 
   // ---- Edit rules ---------------------------------------------------------------------------
   const isRootId = (id: string | null | undefined) => !!id && id === rootId;
@@ -345,7 +363,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const newFolderReason = (parentId: string | null | undefined) => (!writable ? NEEDS_FULL_STACK : folderLocked(parentId) ? SAMPLE_LOCKED : null);
 
   // ---- Drafts: "Untitled folder" until Enter ------------------------------------------------
-  const drafts = useRef(new Map<string, { ctx: OptimisticContext; parentId: string; name: string }>());
+  const drafts = useRef(new Map<string, { ctx: OptimisticContext; parentId: string; name: string; where: "tree" | "list" }>());
   const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
   const [pendingEdit, setPendingEdit] = useState<{ id: string; where: "tree" | "list" } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -360,10 +378,11 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     const name = nextUntitled(siblingsOf(parent));
     const id = newNodeId();
     const ctx = await applyOptimistic(qc, projectId, [{ kind: "mkdir", parentId: parent, name, id }]);
-    drafts.current.set(id, { ctx, parentId: parent, name });
+    const shown = where === "list" && parent === listedFolderId && !searching ? "list" : "tree";
+    drafts.current.set(id, { ctx, parentId: parent, name, where: shown });
     setDraftIds((s) => new Set(s).add(id));
     if (where === "tree" && !isRootId(parent)) tree.current?.open(parent);
-    setPendingEdit({ id, where: where === "list" && parent === listedFolderId && !searching ? "list" : "tree" });
+    setPendingEdit({ id, where: shown });
   };
   const dropDraft = (id: string) => {
     drafts.current.delete(id);
@@ -394,6 +413,23 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     if (!res) rollback(qc, d.ctx);
     return true;
   };
+  // A draft lives only in the cache until Enter. If its field goes away without a blur (Back,
+  // a link, leaving the page), drop it, or a folder the server never heard of stays listed.
+  useEffect(
+    () => () => {
+      for (const [id, d] of [...drafts.current]) if (d.where === "list" && d.parentId === listedFolderId) cancelDraft(id);
+    },
+    [listedFolderId], // eslint-disable-line react-hooks/exhaustive-deps -- cancelDraft reads refs
+  );
+  useEffect(
+    () => () => {
+      for (const id of [...drafts.current.keys()]) cancelDraft(id);
+    },
+    [projectId], // eslint-disable-line react-hooks/exhaustive-deps -- on leaving the page or project
+  );
+  useEffect(() => {
+    if (editingId && !draftIds.has(editingId) && !items.some((n) => n.id === editingId)) setEditingId(null);
+  }, [editingId, draftIds, items]);
   useEffect(() => {
     if (!pendingEdit) return;
     if (pendingEdit.where === "list") {
@@ -507,17 +543,31 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   };
 
   const download = async (nodes: SourceNode[]) => {
-    if (nodes.length === 1 && nodes[0].kind === "file") return downloadNode(nodes[0].id);
-    const name = nodes.length === 1 ? `${nodes[0].name}.zip` : "files.zip";
-    const toastId = notify(`Preparing ${name}`, { group: "zip" });
-    try {
-      const p = await downloadZip(projectId, await expandRuns(projectId, nodes.map((n) => n.id)), { filename: name });
-      notify(`Downloaded ${name}`, { group: "zip", description: p.received ? `${(p.received / 1e6).toFixed(1)} MB` : undefined, tone: "success" });
-    } catch (e) {
-      if (e instanceof DOMException && e.name === "AbortError") return;
-      notify(errorText(e), { tone: "error", group: "zip" });
+    if (nodes.length === 1 && nodes[0].kind === "file") {
+      if (nodes[0].status === "privacy") return void notify("This file is held for privacy review", { tone: "error", description: "Clear the hold (or rename the file) before downloading it." });
+      return downloadNode(nodes[0].id);
     }
-    void toastId;
+    const name = nodes.length === 1 ? `${nodes[0].name}.zip` : "files.zip";
+    // One toast from start to end: "Preparing x.zip · 12.3 MB", then the outcome in its place.
+    const toastId = notify(`Preparing ${name}`, { group: "zip" });
+    let shown = 0;
+    try {
+      const p = await downloadZip(projectId, await expandRuns(projectId, nodes.map((n) => n.id)), {
+        filename: name,
+        onProgress: ({ received, total }) => {
+          if (Date.now() - shown < 250) return;
+          shown = Date.now();
+          const mb = (b: number) => (b / 1e6).toFixed(1);
+          progressNotice(toastId, `Preparing ${name}`, total ? `${mb(received)} of ${mb(total)} MB` : `${mb(received)} MB`);
+        },
+      });
+      const held = p.held ? `${plural(p.held, "file")} held for privacy review ${p.held === 1 ? "was" : "were"} left out (listed in _held_files.txt)` : undefined;
+      const size = p.received ? `${(p.received / 1e6).toFixed(1)} MB` : undefined;
+      notify(`Downloaded ${name}`, { group: "zip", replace: toastId, description: [size, held].filter(Boolean).join(" · ") || undefined, tone: "success" });
+    } catch (e) {
+      if (e instanceof DOMException && e.name === "AbortError") return void dismissNotice(toastId);
+      notify(errorText(e), { tone: "error", group: "zip", replace: toastId });
+    }
   };
 
   const toggleStar = (nodes: SourceNode[], on: boolean) => {
@@ -959,6 +1009,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     rootId,
     editReason,
     validate,
+    warn,
     onRename: async (n: SourceNode, name: string) => {
       const ok = await renameNode(n, name);
       if (!ok && name !== n.name) throw new Error("Not renamed");
@@ -974,7 +1025,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         { nodeId: n.id, version },
         { onSuccess: (r) => notify(r.summary || `Restored version ${version}`, { undo: () => void ops.undo(r.batchId), tone: "success" }), onError: (e) => notify(errorText(e), { tone: "error" }) },
       ),
-    onDownloadVersion: (n: SourceNode, version: number, isCurrent: boolean) => (isCurrent ? downloadNode(n.id) : notify(`Restore version ${version} to download it`)),
+    onDownloadVersion: (n: SourceNode, version: number, isCurrent: boolean) => (isCurrent ? downloadNode(n.id) : downloadVersion(n.id, version)),
   };
 
   // ---- Footer, trash, imports -----------------------------------------------------------------
@@ -1256,6 +1307,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                           }}
                           onRenameCancel={(id) => void cancelDraft(id)}
                           validate={validate}
+                          warn={warn}
                           rowActions={(n) => (
                             <RowActions
                               n={n}
@@ -1396,6 +1448,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                       selectedIds={selection}
                       onSelectionChange={(ids) => setSelection(ids)}
                       onOpen={(n) => (n.kind === "file" ? (setSelection([n.id]), setQl(n)) : openNode(n, "list"))}
+                      total={searching ? undefined : listQ.data?.pages[0]?.total}
                       hasMore={!searching && !!listQ.hasNextPage}
                       onMore={() => void listQ.fetchNextPage()}
                       showFolder={searching}
@@ -1404,6 +1457,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                       editingId={editingId}
                       draftIds={draftIds}
                       validateName={validate}
+                      warnName={warn}
                       onRename={(n, name) => {
                         setEditingId(null);
                         void renameNode(n, name);

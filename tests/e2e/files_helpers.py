@@ -12,6 +12,8 @@ Playwright's emulated native drag is flaky across rows that re-render.
 from __future__ import annotations
 
 import base64
+import os
+import sqlite3
 import struct
 import sys
 import tempfile
@@ -90,8 +92,9 @@ def kernel_ok(page, base: str) -> bool:
     return api(page, "/projects")["status"] == 200 and page.evaluate("async () => (await fetch('/api/v1/health')).ok")
 
 
-def new_project(page, base: str, title: str, folder: Path) -> tuple[str, str]:
-    """A scratch project with `folder` uploaded; returns (project id, the folder's node id)."""
+def new_project(page, base: str, title: str, folder: Path, *, inspected: bool = True) -> tuple[str, str]:
+    """A scratch project with `folder` uploaded; returns (project id, the folder's node id).
+    `inspected=False` returns once the bytes are in (the worker may still be inspecting)."""
     pid = api(page, "/projects", "POST", {"title": title})["json"]["id"]
     page.goto(f"{base}/projects/{pid}/files")
     page.wait_for_selector("[data-testid=drop-zone]", timeout=20000)
@@ -100,7 +103,7 @@ def new_project(page, base: str, title: str, folder: Path) -> tuple[str, str]:
     if wait(lambda: dlg.is_visible(), 5, 0.2):
         dlg.get_by_role("checkbox").click()
         page.get_by_test_id("attest-confirm").click()
-    done = wait(lambda: (lambda i: i and i[0]["state"] in ("ready", "needs_review", "imported") and i[0])(api(page, f"/projects/{pid}/imports")["json"]["imports"]), 90)
+    done = wait(lambda: (lambda i: i and i[0]["state"] in ("ready", "needs_review", "imported", *(() if inspected else ("inspecting",))) and i[0])(api(page, f"/projects/{pid}/imports")["json"]["imports"]), 90 if inspected else 240)
     if not done:
         raise RuntimeError("the upload didn't finish")
     root = children(page, pid)
@@ -200,3 +203,23 @@ def fetch_bytes(page, path: str, method: str = "GET", body: dict | None = None) 
         [path, method, body],
     )
     return r[0], base64.b64decode(r[1])
+
+
+def add_member(pid: str, principal: str, role: str = "editor") -> bool:
+    """Make `principal` a member of the project's organization, for tests with a second person.
+    The kernel has no members API yet, so this writes the API's SQLite database directly: it
+    needs the same `INKLING_API_DATA_DIR` the API was started with (default database only)."""
+    data = os.environ.get("INKLING_API_DATA_DIR")
+    db = Path(data) / "api.db" if data else None
+    if not db or not db.exists():
+        return False
+    con = sqlite3.connect(db, timeout=30)
+    try:
+        org = con.execute("select org_id from projects where id = ?", (pid,)).fetchone()
+        if not org:
+            return False
+        con.execute("insert or ignore into organization_members (org_id, principal, role) values (?, ?, ?)", (org[0], principal, role))
+        con.commit()
+        return True
+    finally:
+        con.close()

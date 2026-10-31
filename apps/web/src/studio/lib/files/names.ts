@@ -57,6 +57,39 @@ export function windowsReservedWarning(name: string): string | null {
   return RESERVED.has(base) ? `“${base}” is reserved on Windows, so this may not copy there` : null;
 }
 
+// The path-name privacy check, for advice while typing (todo7 Phase 7). A copy of the worker's
+// `inspect/privacy.py` NAME_LIKE / NOT_NAMES / DATE_LIKE (and the kernel's `privacy_names.py`);
+// the server re-checks every rename and holds the file when it matches, so this only warns.
+const NAME_LIKE = /^([A-Z][a-z]{1,20}|[A-Z]{2,20})(?:\^|_|, ?| )([A-Z][a-z]{1,20}|[A-Z]{2,20})((?:[_ -][A-Za-z0-9]{1,20})*)$/u;
+const NOT_NAMES = new Set(
+  (
+    "Chest Xray Image Images Scan Scans Series Study Studies Patient Patients Subject Subjects Normal Abnormal Pneumonia Brain Heart Cardiac " +
+    "Left Right Axial Coronal Sagittal Head Neck Spine Knee Lung Lungs Liver Kidney Breast Train Test Val Validation Data Dataset Raw Processed " +
+    "New Old Final Draft Copy Export Import Upload Batch Mask Masks Label Labels Video Videos Echo Report Reports Notes Sample Samples Case Cases " +
+    "Control Controls Group Pre Post Mri Ct Pet Us Xr Dx Cr Mr Dicom Nifti Png Jpeg Readme Misc Other Archive Backup Tmp Temp"
+  )
+    .toLowerCase()
+    .split(" "),
+);
+const DATE_LIKE = /(?<!\d)(19[0-9]{2}|20[0-9]{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12][0-9]|3[01])(?!\d)/u;
+
+/** "This looks like a person's name…" when a name would be held for privacy review, else null. */
+export function personNameWarning(name: string, { isFile = false }: { isFile?: boolean } = {}): string | null {
+  const n = normalizeName(name).trim();
+  const s = isFile ? nameStem(n) : n;
+  const m = NAME_LIKE.exec(s);
+  if (m && !NOT_NAMES.has(m[1].toLowerCase()) && !NOT_NAMES.has(m[2].toLowerCase()) && m[3].split(/[_ -]/u).every((t) => !t || /^\d+$/u.test(t) || NOT_NAMES.has(t.toLowerCase()))) {
+    return "This looks like a person's name. Use a study code instead?";
+  }
+  if (DATE_LIKE.test(s)) return "This name holds a date, which can identify a person. Leave it out?";
+  return null;
+}
+
+/** Advice under a rename or new-folder field that never blocks: Windows-reserved names, then names that look like a person's. */
+export function nameWarning(name: string, opts: { isFile?: boolean } = {}): string | null {
+  return windowsReservedWarning(name) ?? personNameWarning(name, opts);
+}
+
 /** True when a rename changes a file's extension (ask first: the content won't change). */
 export function extensionChanged(oldName: string, newName: string): boolean {
   return splitExtension(oldName)[1].toLowerCase() !== splitExtension(normalizeName(newName))[1].toLowerCase();

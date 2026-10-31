@@ -24,7 +24,7 @@ export function CanvasStatusBar({ items, onShowShortcuts }: { items: StudioItem[
   const folder = env && !showFilePaths(env) ? [] : (item?.folder ?? []);
 
   return (
-    <div className="@container flex h-8 shrink-0 items-center gap-3 border-t border-border bg-background px-2 text-xs text-muted-foreground">
+    <div className="@container flex h-8 shrink-0 items-center gap-3 border-t border-border bg-background px-2 text-xs text-muted-foreground" data-testid="status-bar">
       <div className="flex items-center gap-0.5">
         <button
           onClick={() => setItemIndex(Math.max(0, itemIndex - 1))}

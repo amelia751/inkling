@@ -221,7 +221,8 @@ def main() -> int:
                 for i in (0, 12):
                     st.act(f"s => s.setItemIndex({i})")
                     time.sleep(0.3)
-                    bar = page.locator("[data-testid=item-path]").inner_text() + " " + page.locator("main ~ div, [data-testid=viewer-status]").first.inner_text()
+                    # The status bar (the decision bar above it rightly shows the classes to pick).
+                    bar = page.locator("[data-testid=status-bar]").inner_text()
                     check(f"status bar quiet about the label: {bar}", "pneumonia" not in bar.lower() and "normal" not in bar.lower() and "source label" not in bar.lower())
                     rows(st).nth(i).hover()
                     page.wait_for_selector("[data-testid=item-hover-card]", timeout=3000)

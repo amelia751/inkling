@@ -192,6 +192,22 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const redoLabel = history?.redo?.label ?? tabLabels.redo?.label ?? null;
 
   const nodeId = trash ? undefined : (pathNode ?? onlyChild ?? undefined);
+  // The drive's one folder starts open (initialOpen); one that arrives later (the first upload
+  // into an empty project) opens too, so the tree matches what a reload would show.
+  useEffect(() => {
+    if (!onlyChild) return;
+    // The tree takes the new row on one of its next renders: retry for a moment.
+    let tries = 0;
+    let timer = 0;
+    const attempt = () => {
+      const row = tree.current?.rowOf(onlyChild)?.closest("[role=treeitem]");
+      if (row?.getAttribute("aria-expanded") === "true") return;
+      if (row) tree.current?.open(onlyChild);
+      if (++tries < 40) timer = window.setTimeout(attempt, 50);
+    };
+    attempt();
+    return () => window.clearTimeout(timer);
+  }, [onlyChild]);
 
   // ---- Where we are -----------------------------------------------------------------------
   const atRoot = !nodeId || nodeId === rootId;

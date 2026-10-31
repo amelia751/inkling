@@ -180,3 +180,34 @@ def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends
     from ..kernel import inspection
 
     return inspection.report(db, import_id, body)
+
+
+# ---- Scheduled kernel work (todo7 Phase 4) ---------------------------------------------------
+# The worker's built-in `files.empty_trash` asks every so often; the kernel runs it at most once
+# per day across every worker and replica (a `scheduled_runs` row per day, insert-or-ignore).
+
+
+@router.post("/scheduled/files.empty_trash", dependencies=[Depends(_auth)])
+def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    from datetime import UTC, datetime
+
+    from ..dbutil import insert_ignore
+    from ..kernel import fs
+    from ..models import ScheduledRun
+
+    period = datetime.now(UTC).strftime("%Y-%m-%d")
+    force = bool(body.get("force"))
+    if not force:
+        insert_ignore(db, ScheduledRun, [{"name": "files.empty_trash", "period": period, "at": datetime.now(UTC)}])
+        row = db.get(ScheduledRun, ("files.empty_trash", period))
+        if row is None or row.result is not None:
+            return {"ran": False, "period": period, "result": row.result if row else None}
+        # Claim the period: only the request whose UPDATE moved `result` from NULL runs it.
+        claimed = db.execute(ScheduledRun.__table__.update().where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"})).rowcount
+        if not claimed:
+            return {"ran": False, "period": period, "result": None}
+    days = int(body["days"]) if isinstance(body.get("days"), int) else fs.TRASH_DAYS
+    result = fs.purge_expired(db, days=max(0, days))
+    if not force:
+        db.execute(ScheduledRun.__table__.update().where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period).values(result=result))
+    return {"ran": True, "period": period, "result": result}

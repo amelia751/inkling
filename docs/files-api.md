@@ -73,3 +73,31 @@ localStorage so the nav e2e (Phase 5) can run in seed mode.
 entry names and URLs. Renaming or moving re-runs the path-name check from the worker's patterns
 (copied in-process for names); a flag raised only by the name clears with audit `privacy.cleared`
 reason "renamed".
+
+## As implemented (backend notes)
+
+`apps/api/src/studio_api/routes/files.py` and `kernel/fs.py`. Small additions to the shapes above:
+
+- `sourceId` is `null` for the drive root and for folders made in Files (they came from no import).
+  Copies keep the original's `sourceId` (the bytes' provenance).
+- Folder rows carry `revision` (bumped when their children change), for `FsOpsRequest.expect`; a stale
+  revision answers `409 { detail: "<folder> changed since you loaded it. Reload and try again" }`.
+  Folder `size` is `null`; their bytes are `totalBytes`.
+- `fs.changed` also carries `nodeIds` (the touched nodes, at most 500), so the web can invalidate
+  `["source-nodes", id]` without guessing.
+- Conflicts: `restore` uses the same 409 + `resolutions` as move and copy. Copying a node into its own
+  folder (Duplicate) never conflicts: it is named `name (copy).ext`. Copy skips identical files (same
+  sha256) without a resolution and counts them in `skipped.identical`; move reports them as conflicts
+  with `identical: true`. `replace` on a move makes the moved file's bytes a new version of the existing
+  file and moves the mover to Trash; `merge` on a move empties the moved folder into the existing one and
+  moves the empty folder to Trash.
+- `FsActivityEntry.kind` is `undo` / `redo` for entries of an undo or redo batch.
+- `GET /source-nodes/:id/download` streams the bytes (`Content-Disposition` with the current name,
+  ranges supported) rather than redirecting.
+- `POST /source-nodes/:id/versions` takes `{ files: [one file], attested: true, mode: "replace" }`;
+  `relPath` may be omitted. After `complete`, `totals.version` is the new version and the session goes
+  through inspection like any import (the node is "Checking…" until then).
+- `DELETE /sources/:id` (todo6 "Remove upload") moves the import's folder to the Trash (undoable).
+- The daily purge: the worker calls `POST /api/v1/worker/scheduled/files.empty_trash` (worker token)
+  at most hourly; the kernel runs it at most once a day (`scheduled_runs`). `{ "force": true, "days": 0 }`
+  runs it now, e.g. from a shell.

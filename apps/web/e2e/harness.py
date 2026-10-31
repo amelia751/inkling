@@ -104,7 +104,7 @@ def open_studio(
     fixture_annotations: list[dict[str, Any]] | None = None,
     workspace_state: dict[str, Any] | None = None,
 ) -> Studio:
-    """Open /datasets/<dataset> with saves intercepted.
+    """Open the Studio (/projects/<dataset>/studio/<dataset>) with saves intercepted.
 
     fixtures: map of seed path (as used in manifest asset.path) → local file served at /seed/<path>.
     extra_projects: appended to the served manifest's `projects`.
@@ -152,7 +152,9 @@ def open_studio(
         ctype = mimetypes.guess_type(str(local))[0] or "application/octet-stream"
         page.route(f"**/seed/{seed_path}", lambda route, _request=None, body=body, ctype=ctype: route.fulfill(status=200, body=body, content_type=ctype))
 
-    page.goto(f"http://localhost:{port}/datasets/{dataset}")
+    # A seed's project, dataset and task share one id (todo6 D2); `/datasets/{id}` still
+    # redirects here (navigation_test.py keeps that covered).
+    page.goto(f"http://localhost:{port}/projects/{dataset}/studio/{dataset}")
     return studio
 
 

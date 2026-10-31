@@ -1,6 +1,7 @@
 import { Enums as CoreEnums, type RenderingEngine, cache, setVolumesForViewports, utilities as csUtils, volumeLoader, type Types } from "@cornerstonejs/core";
 import * as tools from "@cornerstonejs/tools";
 import { CornerstoneBridge, type LabelmapAccess } from "@studio/renderers/cornerstone/bridge";
+import { pixelSpacingOf } from "@studio/renderers/cornerstone/dicom";
 import { ensureCornerstone, getRenderingEngine } from "@studio/renderers/cornerstone/init";
 import { exposeForTests } from "@studio/renderers/cornerstone/interactions";
 import { confidenceConnected, floodFill2D, interpolateSlices, removeIslands } from "@studio/renderers/cornerstone/regionOps";
@@ -51,6 +52,8 @@ interface Session {
   refVolumeId: string | null;
   refLabelmap: Uint8Array | null;
   geom: VolumeGeometry;
+  /** The images declare their pixel spacing (DICOM PixelSpacing, NIfTI pixdim); else spacing is Cornerstone's 1 mm default. */
+  calibrated: boolean;
   modality: string;
   bridge: CornerstoneBridge;
   intensity: Map<string, ArrayLike<number>>;
@@ -204,6 +207,7 @@ export class MprEngine {
         refVolumeId: null,
         refLabelmap: null,
         geom,
+        calibrated: !!vol.imageIds?.[0] && !!pixelSpacingOf(vol.imageIds[0]),
         modality: String((vol.metadata as { Modality?: string }).Modality ?? (primary.kind === "nifti" ? "MR" : "OT")),
         intensity,
         voi: new Map(),
@@ -780,6 +784,28 @@ export class MprEngine {
       const n = vp.getNumberOfSlices();
       csUtils.jumpToSlice(vp.element, { imageIndex: end ? n - 1 : 0 });
     });
+  /**
+   * Show voxel slice `slice` (0-based along the plane's axis, as stored placements count) in the
+   * cell showing `plane`. Cornerstone scrolls in its own slice order, which can run opposite to
+   * the voxel axis, so check after one scroll and correct. False when no cell shows the plane.
+   */
+  goToSlice(plane: Plane, slice: number): boolean {
+    const vp = this.ready ? this.vpFor(plane) : undefined;
+    const info = this.cellInfo(plane);
+    if (!vp || !info) return false;
+    const target = Math.max(0, Math.min(info.total - 1, Math.round(slice)));
+    const from = info.slice - 1;
+    if (target !== from) {
+      csUtils.scroll(vp as unknown as Types.IViewport, { delta: target - from });
+      const after = (this.cellInfo(plane)?.slice ?? from + 1) - 1;
+      const moved = after - from;
+      if (after !== target && moved) csUtils.scroll(vp as unknown as Types.IViewport, { delta: Math.sign(moved) === Math.sign(target - from) ? target - after : after - target });
+    }
+    this.activePlane = plane;
+    this.events.activeCell(plane);
+    this.events.refresh();
+    return true;
+  }
   setColormap = (name: string) => this.forMpr((vp) => setColormap(vp, name));
   setInterpolation = (linear: boolean) => this.forMpr((vp) => setInterpolation(vp, linear));
   setMip = (on: boolean) =>
@@ -918,9 +944,9 @@ export class MprEngine {
     };
   }
 
-  /** Voxel spacing of the open subject ("1.0×1.0×1.0"), for the status line. */
+  /** Voxel spacing of the open subject ("1.0×1.0×1.0" mm) for the status line; undefined unless the images declare it. */
   spacingText(): string | undefined {
-    return this.session?.geom.spacing.map((v) => v.toFixed(1)).join("×");
+    return this.session?.calibrated ? this.session.geom.spacing.map((v) => v.toFixed(1)).join("×") : undefined;
   }
 
   activeVoi(): VoiRange | undefined {

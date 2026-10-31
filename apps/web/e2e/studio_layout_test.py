@@ -1,0 +1,99 @@
+"""Studio space management (todo6 Phase 7, docs/ux.md §8): with the project rail and the left
+panel hidden and the assistant closed, the canvas takes the full width and tools still work.
+Showing them again restores the three columns.
+
+    python3 e2e/studio_layout_test.py --port 5207
+"""
+
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from harness import launch, open_studio, parse_args, sync_playwright  # noqa: E402
+
+MOD = "Meta" if sys.platform == "darwin" else "Control"
+results: list[tuple[str, bool, str]] = []
+
+
+def check(name: str, ok: bool, detail: str = "") -> None:
+    results.append((name, ok, detail))
+    print(f"{'PASS' if ok else 'FAIL'} {name}{f' — {detail}' if detail else ''}", flush=True)
+
+
+def wait_for(fn, what: str, timeout: float = 20):
+    end = time.time() + timeout
+    while time.time() < end:
+        v = fn()
+        if v:
+            return v
+        time.sleep(0.2)
+    raise AssertionError(f"timed out waiting for {what}")
+
+
+def main() -> int:
+    args = parse_args()
+    with sync_playwright() as pw:
+        browser = launch(pw, args.browser, args.headed)
+        st = open_studio(browser, args.port, "2d-xray", fixture_annotations=[])
+        page = st.page
+        try:
+            page.wait_for_selector("[data-testid=image-canvas] canvas", timeout=30000)
+            wait_for(lambda: st.store("s => s.projectId") == "2d-xray", "the Studio")
+            viewer = page.locator("main[aria-label='Viewer']")
+            w0 = viewer.bounding_box()["width"]
+            check("starts with the rail and the left panel", page.locator("[data-testid=project-rail]").count() == 1 and page.locator("[data-testid=files-panel]").count() == 1)
+            check("the assistant starts closed", st.store("s => s.aiOpen") is False)
+
+            # Hide the rail (the shared navigation command) and the left panel (its toggle).
+            page.mouse.move(3, 3)
+            page.keyboard.press(f"{MOD}+b")
+            wait_for(lambda: page.locator("[data-testid=project-rail]").count() == 0, "the rail to hide")
+            page.locator("[data-testid=toggle-left-panel]").click()
+            wait_for(lambda: page.locator("[data-testid=files-panel]").count() == 0, "the left panel to hide")
+            page.wait_for_timeout(400)
+            w1 = viewer.bounding_box()["width"]
+            check("hidden rail and panels leave a full-width canvas", w1 >= 1440 - 2 and w1 > w0, f"{w0:.0f} → {w1:.0f}px of 1440")
+            check("the toggle reports its state", page.locator("[data-testid=toggle-left-panel]").get_attribute("aria-pressed") == "false")
+
+            # A tool works with every panel hidden: draw a box with R.
+            before = st.store("s => s.annotations.length")
+            page.mouse.move(3, 3)
+            page.keyboard.press("r")
+            wait_for(lambda: st.store("s => s.tool") == "box", "the box tool")
+            b = page.locator("[data-testid=image-canvas]").bounding_box()
+            cx, cy = b["x"] + b["width"] / 2, b["y"] + b["height"] / 2
+            page.mouse.move(cx - 60, cy - 40)
+            page.mouse.down()
+            page.mouse.move(cx, cy, steps=5)
+            page.mouse.move(cx + 60, cy + 40, steps=5)
+            page.mouse.up()
+            wait_for(lambda: st.store("s => s.annotations.length") == before + 1, "the new box", 10)
+            g = st.store("s => s.annotations[s.annotations.length - 1].geometry")
+            check("the box tool draws with the assistant closed", g["type"] == "box" and g["w"] > 10, str(g))
+
+            # The shortcut brings the left panel back; the canvas gives the width back.
+            page.mouse.move(3, 3)
+            page.keyboard.press(f"Shift+{MOD}+b")
+            wait_for(lambda: page.locator("[data-testid=files-panel]").count() == 1, "the left panel to return")
+            page.keyboard.press(f"{MOD}+b")
+            wait_for(lambda: page.locator("[data-testid=project-rail]").count() == 1, "the rail to return")
+            page.wait_for_timeout(400)
+            check("showing them again narrows the canvas", viewer.bounding_box()["width"] < w1 - 200, f"{viewer.bounding_box()['width']:.0f}px")
+            rows = page.locator("[data-testid=file-row]")
+            check("Files rows show a data kind and a state", rows.count() == 20 and rows.first.locator("[data-testid=file-kind]").get_attribute("aria-label") == "Image", f"{rows.count()} rows")
+            check("the new box marks its item annotated", page.locator("[data-testid=file-row][aria-current=true]").get_attribute("data-state") == "annotated")
+            errs = [e for e in st.errors if "favicon" not in e]
+            check("no page errors", not errs, "; ".join(errs[:3]))
+        except Exception as e:  # noqa: BLE001
+            check("layout scenario ran", False, repr(e))
+        browser.close()
+    failed = [r for r in results if not r[1]]
+    print(f"\n{len(results) - len(failed)}/{len(results)} passed")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

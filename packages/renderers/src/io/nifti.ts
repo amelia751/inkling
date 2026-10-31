@@ -5,8 +5,13 @@ export interface Volume {
   dims: [number, number, number];
   /** Number of time points; 1 for a static 3D volume. Voxel (i,j,k) at time t is data[i + j·nx + k·nx·ny + t·nx·ny·nz]. */
   frames: number;
-  /** Voxel spacing in mm (i, j, k). */
+  /** Voxel spacing in mm (i, j, k); 1 on an axis whose pixdim is missing (see `calibrated`). */
   spacing: [number, number, number];
+  /**
+   * The header declares an in-plane spacing (pixdim > 0). Only then may a viewer show mm
+   * (docs/ux.md §8). Unknown units (xyzt_units 0) count as mm, as most NIfTI tools assume.
+   */
+  calibrated: boolean;
   data: Float32Array;
   /** Display window [low, high] from robust percentiles. */
   window: [number, number];
@@ -40,10 +45,13 @@ async function fetchVolume(path: string): Promise<Volume> {
   const data = new Float32Array(typed.length);
   for (let i = 0; i < typed.length; i++) data[i] = typed[i] * slope + inter;
 
+  // xyzt_units: 1 metre, 2 millimetre, 3 micron; 0 (unknown) is read as millimetres.
+  const toMm = ({ 1: 1000, 3: 0.001 } as Record<number, number>)[header.xyzt_units & 0x07] ?? 1;
   return {
     dims: [header.dims[1], header.dims[2], Math.max(1, header.dims[3])],
     frames: header.dims[0] >= 4 ? Math.max(1, header.dims[4]) : 1,
-    spacing: [header.pixDims[1] || 1, header.pixDims[2] || 1, header.pixDims[3] || 1],
+    spacing: [1, 2, 3].map((i) => (header.pixDims[i] > 0 ? header.pixDims[i] * toMm : 1)) as [number, number, number],
+    calibrated: header.pixDims[1] > 0 && header.pixDims[2] > 0,
     data,
     window: robustWindow(data),
   };

@@ -3,6 +3,7 @@ import { Spinner } from "@studio/ui/ui/spinner";
 import { SettingsIcon, ErrorIcon, CheckIcon, ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon } from "@studio/ui/icons";
 import { Breadcrumbs } from "@/studio/components/layout/switchers";
 import { useCurrentProject } from "@/studio/components/layout/app-layout";
+import { useShell } from "@/studio/stores/shell";
 import { datasetUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
@@ -40,10 +41,14 @@ interface StudioTopBarProps {
   onShowShortcuts: () => void;
   /** The environment has right-slot panels (the assistant) to toggle. */
   showAi?: boolean;
+  /** Offer the left panel's show / hide toggle (tablet and desktop). */
+  showLeftToggle?: boolean;
   onShowSettings?: () => void;
 }
 
-export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true, onShowSettings }: StudioTopBarProps) {
+export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortcuts, showAi = true, showLeftToggle = false, onShowSettings }: StudioTopBarProps) {
+  const leftOpen = useShell((s) => s.studioLeft);
+  const toggleLeft = useShell((s) => s.toggleStudioLeft);
   const aiOpen = useStudio((s) => s.aiOpen);
   const env = useStudio((s) => s.env);
   const toggleAi = useStudio((s) => s.toggleAi);
@@ -59,6 +64,16 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         <Button variant="ghost-secondary" size="icon" onClick={onOpenSidebar} aria-label="Open files and labels">
           <SidebarIcon />
         </Button>
+      )}
+      {showLeftToggle && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost-secondary" size="icon" selected={leftOpen} onClick={toggleLeft} aria-pressed={leftOpen} aria-label="Files and labels panel" data-testid="toggle-left-panel">
+              <SidebarIcon />
+            </Button>
+          </TooltipTrigger>
+          <ActionTooltipContent title={`${leftOpen ? "Hide" : "Show"} files and labels`} shortcut="toggleSidePanel" />
+        </Tooltip>
       )}
       <BrandMark compact className="hidden shrink-0 @[480px]:flex" />
       <Breadcrumbs project={routeProject} section={project.title} className="min-w-0 shrink [&_[data-testid=project-switcher]]:max-w-[min(240px,32cqw)]" />

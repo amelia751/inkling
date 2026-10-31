@@ -59,6 +59,8 @@ export interface Grid {
   frames: number;
   /** mm: in-plane x, in-plane y, slice spacing. */
   spacing: [number, number, number];
+  /** False when the file declares no spacing (it is then 1 per voxel and nothing is in mm). */
+  calibrated?: boolean;
 }
 
 // ---------- contour geometry ----------

@@ -34,6 +34,7 @@ const commands: CommandContribution[] = [
   { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Sources", when: "section == sources", description: "Open the selected folder, or show the selected file's details" },
   { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Sources", when: "section == sources", description: "Show the folder that contains the current one" },
   { id: "focusSearch", keys: ["mod+f"], label: "Search in sources", group: "Sources", when: "section == sources", description: "Search file names across the project's sources" },
+  { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide files and labels", group: "Navigate", description: "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 
   // Shared renderer gestures.

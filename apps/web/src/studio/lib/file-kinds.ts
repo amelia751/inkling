@@ -15,7 +15,7 @@ import {
   WaveformIcon,
   type IconComponent,
 } from "@studio/ui/icons";
-import type { DetectedKind, SourceNode } from "@studio/contracts/types";
+import type { DetectedKind, SourceNode, StudioItem } from "@studio/contracts/types";
 
 /**
  * File kinds as the UI shows them (todo6 §3 "File kinds"). The worker detects kinds from file
@@ -112,4 +112,18 @@ export function statusReason(n: Pick<SourceNode, "status" | "flags">): string | 
   }
   if (n.status === "unsupported") return n.flags.unsupported ?? STATUS_LABEL.unsupported;
   return n.status === "ready" ? undefined : STATUS_LABEL[n.status];
+}
+
+/**
+ * The kind a Studio item shows in the Files tab: its main asset's (not a reference mask or a
+ * thumbnail), a DICOM series when it holds several DICOM files. Null when the extension says
+ * nothing (e.g. a seed's JSON waveform): the caller shows the data kind's own icon.
+ */
+export function itemKind(item: Pick<StudioItem, "assets">): DetectedKind | null {
+  const main = item.assets.filter((a) => a.role !== "reference" && a.role !== "thumbnail");
+  const first = main[0] ?? item.assets[0];
+  if (!first) return null;
+  const kind = guessKind(first.path);
+  if (kind === "dicom" && main.filter((a) => guessKind(a.path) === "dicom").length > 1) return "dicom-series";
+  return kind === "unknown" ? null : kind;
 }

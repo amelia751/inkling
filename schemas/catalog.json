@@ -2425,6 +2425,26 @@
       }
     },
     {
+      "id": "inkling.core.commands.toggleSidePanel",
+      "type": "commands",
+      "module": "inkling.core",
+      "description": "Hide the Studio's left panel (Files, Labels, Review) so the canvas takes its width, or show it again",
+      "label": "Show or hide files and labels",
+      "keys": [
+        "shift+mod+b"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "inkling.core.commands.toggleSidePanel",
+            "keys": [
+              "shift+mod+b"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "inkling.core.commands.toggleAssistant",
       "type": "commands",
       "module": "inkling.core",

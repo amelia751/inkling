@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import functools
 import http.server
-import os
 import subprocess
 import sys
 import tempfile

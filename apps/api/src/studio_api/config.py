@@ -25,11 +25,14 @@ that are missing or invalid, never their values.
 | API_VERSIONING_JWT_AUDIENCE / _ISSUER | versioning / api     | JWT claims for versioning calls |
 | API_VERSIONING_JWT_KID    | api-dev                          | key id in the JWT header; must be in the service's JWKS |
 | REDIS_URL                 | (none)                           | needed when JOB_QUEUE or EVENT_BUS is redis |
-| BLOB_STORE                | local                            | `local` (files) or `s3` |
+| BLOB_STORE                | local                            | `local` (files), `s3` or `gcs` |
 | S3_ENDPOINT               | (AWS)                            | S3-compatible endpoint, e.g. MinIO |
 | S3_BUCKET                 | assets                           | bucket holding seed assets (keys = seed-data paths) and derived data |
 | S3_REGION                 | us-east-1                        | |
 | S3_PREFIX                 | (none)                           | optional key prefix inside the bucket |
+| GCS_BUCKET                | (none; required for gcs)         | Cloud Storage bucket, same layout as S3_BUCKET |
+| GCS_PREFIX                | (none)                           | optional key prefix inside the bucket |
+| GCS_PROJECT               | (from credentials)               | project billed for the requests |
 | JOB_QUEUE                 | sql                              | `sql` (DB lease queue) or `redis` (ready list + leases) |
 | EVENT_BUS                 | sql                              | `sql` (outbox scan) or `redis` (Streams) |
 | REPO_ROOT                 | derived                          | where schemas/, registry/, plugins/ are (/app in images) |
@@ -38,7 +41,8 @@ that are missing or invalid, never their values.
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
-or the default AWS credential chain). `NAMING_FILE` (unprefixed: the prefix is read from it) is
+or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
+(Workload Identity on GKE; `gcloud auth application-default login` locally), never a key file. `NAMING_FILE` (unprefixed: the prefix is read from it) is
 handled in naming.py. Everything else reads settings through this module (`env()`).
 """
 
@@ -121,13 +125,16 @@ class Settings(BaseModel):
     repo_root: Path = REPO_ROOT
     worker_token: str | None = None
     redis_url: str | None = None
-    blob_store: Literal["local", "s3"] = "local"
+    blob_store: Literal["local", "s3", "gcs"] = "local"
     s3_endpoint: str | None = None
     s3_bucket: str = "assets"
     s3_region: str = "us-east-1"
     s3_prefix: str = ""
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
+    gcs_bucket: str | None = None
+    gcs_prefix: str = ""
+    gcs_project: str | None = None
     job_queue: Literal["sql", "redis"] = "sql"
     event_bus: Literal["sql", "redis"] = "sql"
     housekeeping_interval_s: float = 10.0
@@ -172,6 +179,9 @@ _KEYS: dict[str, str] = {
     "s3_bucket": "S3_BUCKET",
     "s3_region": "S3_REGION",
     "s3_prefix": "S3_PREFIX",
+    "gcs_bucket": "GCS_BUCKET",
+    "gcs_prefix": "GCS_PREFIX",
+    "gcs_project": "GCS_PROJECT",
     "job_queue": "JOB_QUEUE",
     "event_bus": "EVENT_BUS",
     "git_sha": "GIT_SHA",
@@ -238,6 +248,8 @@ def load_settings(**overrides) -> Settings:
     if values.get("job_queue") == "redis" or values.get("event_bus") == "redis":
         if not values.get("redis_url"):
             missing.append(key_name("redis_url"))
+    if values.get("blob_store") == "gcs" and not values.get("gcs_bucket"):
+        missing.append(key_name("gcs_bucket"))
     if not values.get("secret_key") and not production:
         # Dev fallback: a stable per-checkout key so signed URLs survive restarts.
         data_dir.mkdir(parents=True, exist_ok=True)

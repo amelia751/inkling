@@ -44,3 +44,9 @@ describe("conflict walk", () => {
     expect(keepBothName(".env")).toBe(".env (2)");
   });
 });
+
+describe("name helpers", () => {
+  it("double extensions count as one", () => {
+    expect(keepBothName("brain.nii.gz")).toBe("brain (2).nii.gz");
+  });
+});

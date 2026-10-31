@@ -2,6 +2,7 @@ import { forwardRef, type ReactNode } from "react";
 import { Button, type ButtonProps } from "@studio/ui/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
+import { extensionOf as fileExtension } from "@/studio/lib/file-kinds";
 
 /**
  * Small pieces shared by the Files components (todo7 §2): the drop-target look, relative times,
@@ -42,8 +43,8 @@ export function fullDate(iso: string | null | undefined): string | undefined {
  */
 export function stemEnd(name: string, kind: "file" | "folder" | "sequence" = "file"): number {
   if (kind === "folder") return name.length;
-  const dot = name.lastIndexOf(".");
-  return dot > 0 ? dot : name.length;
+  // Double extensions (`.nii.gz`, `.tar.gz`) count as one, as the kernel's kinds do.
+  return name.length - fileExtension(name).length;
 }
 
 /** `.dcm` (lowercase, with the dot), or "" when there is none. */

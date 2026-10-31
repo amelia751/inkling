@@ -1,0 +1,21 @@
+# A generated (agent-authored) rung-4 viewer: declarative UI only. Its viewer code is an ESM
+# module in ui/contributions.json (`config.module`), run by studio.sandbox-frame.v1 in the MCP
+# Apps sandbox. The e2e test fills the id's namespace and packs viewer.mjs into the config.
+schemaVersion: "{{namespace}}.plugins/v1"
+id: "{{namespace}}.ply-viewer"
+name: PLY point cloud viewer
+version: 0.1.0
+description: "Shows PLY point clouds (ASCII or binary little-endian x/y/z, optional colours) in a sandboxed viewer and suggests item classes."
+publisher: generated
+license: MIT
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+capabilities: []
+runtime:
+  kind: none
+ui:
+  contributions: ui/contributions.json
+permissions:
+  required: []
+  optional: []

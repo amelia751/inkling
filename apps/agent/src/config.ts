@@ -9,7 +9,17 @@ import { maskSecret } from "./secrets.ts";
  * every service, `API_URL` / `WEB_URL` / `AGENT_TOKEN` for how services reach each other.
  * Third-party standards keep their own names.
  */
-const UNPREFIXED = new Set(["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "DAYTONA_API_KEY", "DAYTONA_API_URL", "DAYTONA_TARGET", "GIT_SHA", "HOSTNAME"]);
+const UNPREFIXED = new Set([
+  "OPENAI_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "DAYTONA_API_KEY",
+  "DAYTONA_API_URL",
+  "DAYTONA_TARGET",
+  "GOOGLE_CLOUD_PROJECT",
+  "GOOGLE_CLOUD_LOCATION",
+  "GIT_SHA",
+  "HOSTNAME",
+]);
 /** The env var a setting is read from. */
 export const envName = (key: string) => (UNPREFIXED.has(key) ? key : envKey(key));
 /** One setting, e.g. `env("AGENT_DATABASE_URL")`. */
@@ -42,6 +52,12 @@ const schema = z.object({
   AGENT_THINKING: z.enum(["off", "minimal", "low", "medium", "high"]).default("low"),
   OPENAI_API_KEY: optional,
   ANTHROPIC_API_KEY: optional,
+  /**
+   * Vertex AI (todo10 D8): `AGENT_MODEL=google-vertex:<model>` calls the model in this project and
+   * location with Application Default Credentials (Workload Identity on GKE), never a key.
+   */
+  GOOGLE_CLOUD_PROJECT: optional,
+  GOOGLE_CLOUD_LOCATION: optional,
 
   /** `off` disables sandboxes even when a Daytona key is present (e2e, offline dev). */
   AGENT_SANDBOX: z.enum(["daytona", "off"]).default("daytona"),
@@ -115,6 +131,8 @@ export interface Config {
   serviceToken: string | undefined;
   model: { provider: string; id: string; allowlist: string[]; thinking: Env["AGENT_THINKING"] };
   providerKeys: Record<string, string>;
+  /** Set when Vertex AI is configured (project and location); its "key" in providerKeys is the ADC marker. */
+  vertex: { project: string; location: string } | undefined;
   daytona: { apiKey: string; apiUrl: string; target: string | undefined } | undefined;
   sandbox: {
     autoStopMin: number;
@@ -147,6 +165,9 @@ export interface Config {
 }
 
 export const SCRIPTED_PROVIDER = "scripted";
+/** pi's Vertex AI provider. Its key is the marker pi reads as "use Application Default Credentials". */
+export const VERTEX_PROVIDER = "google-vertex";
+export const VERTEX_ADC = "gcp-vertex-credentials";
 
 export class ConfigError extends Error {
   override name = "ConfigError";
@@ -175,9 +196,16 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   const providerKeys: Record<string, string> = {};
   if (e.OPENAI_API_KEY) providerKeys.openai = e.OPENAI_API_KEY;
   if (e.ANTHROPIC_API_KEY) providerKeys.anthropic = e.ANTHROPIC_API_KEY;
+  const vertex = e.GOOGLE_CLOUD_PROJECT && e.GOOGLE_CLOUD_LOCATION ? { project: e.GOOGLE_CLOUD_PROJECT, location: e.GOOGLE_CLOUD_LOCATION } : undefined;
+  if (vertex) providerKeys[VERTEX_PROVIDER] = VERTEX_ADC;
 
   const missing: string[] = [];
-  if (!scripted && !providerKeys[provider]) missing.push(`${provider.toUpperCase()}_API_KEY`);
+  if (!scripted && !providerKeys[provider])
+    missing.push(
+      ...(provider === VERTEX_PROVIDER
+        ? (["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"] as const).filter((k) => !e[k])
+        : [`${provider.toUpperCase()}_API_KEY`]),
+    );
   const sandboxOn = e.AGENT_SANDBOX === "daytona";
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
   // Explicitly chosen backends need their URL in every stage (development included).
@@ -202,6 +230,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       serviceToken: e.AGENT_TOKEN,
       model: { provider, id, allowlist, thinking: e.AGENT_THINKING },
       providerKeys,
+      vertex,
       daytona: sandboxOn && e.DAYTONA_API_KEY
         ? { apiKey: e.DAYTONA_API_KEY, apiUrl: e.DAYTONA_API_URL, target: e.DAYTONA_TARGET }
         : undefined,
@@ -251,6 +280,7 @@ export function describeSecrets(config: Config): string {
   return [
     `openai=${maskSecret(config.providerKeys.openai)}`,
     `anthropic=${maskSecret(config.providerKeys.anthropic)}`,
+    `vertex=${config.vertex ? "adc" : "unset"}`,
     `daytona=${maskSecret(config.daytona?.apiKey)}`,
     `serviceToken=${maskSecret(config.serviceToken)}`,
   ].join(" ");

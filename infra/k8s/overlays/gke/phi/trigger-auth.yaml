@@ -1,0 +1,17 @@
+# KEDA reads the Memorystore AUTH string and CA from worker-secrets (keys KEDA_REDIS_PASSWORD,
+# KEDA_REDIS_CA); the worker itself never uses them.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: worker-queue-redis
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: worker-secrets
+      key: KEDA_REDIS_PASSWORD
+    - parameter: tls
+      name: worker-secrets
+      key: KEDA_REDIS_TLS
+    - parameter: ca
+      name: worker-secrets
+      key: KEDA_REDIS_CA

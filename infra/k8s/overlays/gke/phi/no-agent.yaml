@@ -1,0 +1,60 @@
+# The agent and its Jobs run in spurby-ai (../ai), never in the patient-data project.
+$patch: delete
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+---
+$patch: delete
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: agent-migrate
+---
+$patch: delete
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agent-sweeper
+---
+$patch: delete
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent
+---
+$patch: delete
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-sweeper

@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/ConverterManifest",
+  "$defs": {
+    "ConverterManifest": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "string",
+          "const": "inkling.converters/v1"
+        },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "accepts": {
+          "type": "object",
+          "properties": {
+            "ext": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^\\.[a-z0-9]+(?:\\.[a-z0-9]+)?$"
+              }
+            },
+            "mediaTypes": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "magic": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "offset": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 65536
+                  },
+                  "hex": {
+                    "type": "string",
+                    "pattern": "^(?:[0-9a-f]{2}){1,32}$"
+                  }
+                },
+                "required": [
+                  "offset",
+                  "hex"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "headerContains": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "produces": {
+          "type": "string",
+          "enum": [
+            "zarr",
+            "arrow",
+            "assets"
+          ]
+        },
+        "output": {
+          "default": {},
+          "type": "object",
+          "properties": {
+            "mediaType": {
+              "type": "string"
+            },
+            "ext": {
+              "type": "string",
+              "pattern": "^\\.[a-z0-9]+(?:\\.[a-z0-9]+)?$"
+            },
+            "dataKind": {
+              "description": "Full data kind id, e.g. <namespace>.volume.dataKinds.nifti",
+              "type": "string"
+            },
+            "preset": {
+              "description": "Preset that shows it, e.g. preset:volume-3d",
+              "type": "string",
+              "pattern": "^preset:[\\w-]+$"
+            }
+          },
+          "additionalProperties": false
+        },
+        "runtime": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "python"
+                },
+                "entrypoint": {
+                  "type": "string",
+                  "pattern": "^[a-z_][\\w.]*:[a-z_]\\w*$"
+                }
+              },
+              "required": [
+                "kind",
+                "entrypoint"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "wasm"
+                },
+                "module": {
+                  "type": "string",
+                  "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$",
+                  "description": "The .wasm file in the package"
+                },
+                "abi": {
+                  "default": "wasi-p1",
+                  "type": "string",
+                  "enum": [
+                    "wasi-p1",
+                    "wasi-p2"
+                  ]
+                },
+                "args": {
+                  "default": [],
+                  "maxItems": 16,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[\\w.=:-]{1,64}$"
+                  }
+                },
+                "fuelMillions": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000000
+                }
+              },
+              "required": [
+                "kind",
+                "module"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "limits": {
+          "default": {
+            "timeoutS": 120,
+            "memoryMb": 1024,
+            "maxOutputMb": 512
+          },
+          "type": "object",
+          "properties": {
+            "timeoutS": {
+              "default": 120,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 900
+            },
+            "memoryMb": {
+              "default": 1024,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 8192
+            },
+            "maxOutputMb": {
+              "default": 512,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 4096
+            }
+          },
+          "additionalProperties": false
+        },
+        "fixtures": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "title",
+        "description",
+        "accepts",
+        "produces",
+        "runtime"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/converter/v1"
+}

@@ -10,7 +10,8 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@types/react": "^19"
+    "@types/react": "^19",
+    "vitest": "^5.0.5"
   },
   "exports": {
     ".": "./src/index.ts",

@@ -4,7 +4,7 @@ import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { useStudio } from "@/studio/stores/studio";
-import { fetchEnvironment, saveEnvironment } from "./api";
+import { fetchEnvironment, saveEnvironment, type ChangeProvenance } from "./api";
 
 /**
  * The one path for changing a running environment, shared by the assistant and the config
@@ -13,9 +13,9 @@ import { fetchEnvironment, saveEnvironment } from "./api";
  */
 const revisions = new Map<string, number>();
 
-export async function persistEnvironment(projectId: string, env: ResolvedEnv, author: string): Promise<void> {
+export async function persistEnvironment(projectId: string, env: ResolvedEnv, author: string, provenance?: ChangeProvenance): Promise<void> {
   if (!revisions.has(projectId)) revisions.set(projectId, (await fetchEnvironment(projectId).catch(() => ({ revision: 0 }))).revision);
-  const saved = await saveEnvironment(projectId, { revision: revisions.get(projectId)!, environment: env.source, author });
+  const saved = await saveEnvironment(projectId, { revision: revisions.get(projectId)!, environment: env.source, author, ...(provenance ? { provenance } : {}) });
   revisions.set(projectId, saved.revision);
 }
 

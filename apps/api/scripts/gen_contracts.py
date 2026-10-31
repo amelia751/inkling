@@ -19,6 +19,30 @@ SCHEMAS = {
     "workspace_v1": "workspace.v1.json",
     "image_segment_request": "capabilities/image.segment.request.json",
     "image_segment_result": "capabilities/image.segment.result.json",
+    # The data boundary's fixed-schema reports (todo10 Phase 7).
+    "boundary_fingerprint_v1": "boundary/fingerprint.v1.json",
+    "boundary_fixtures_v1": "boundary/fixtures.v1.json",
+    "boundary_verify_report_v1": "boundary/verify-report.v1.json",
+    "boundary_probe_v1": "boundary/probe.v1.json",
+    "boundary_probe_request_v1": "boundary/probe-request.v1.json",
+    "boundary_build_v1": "boundary/build.v1.json",
+    "boundary_job_summary_v1": "boundary/job-summary.v1.json",
+    "boundary_annotations_v1": "boundary/annotations.v1.json",
+}
+CLASS_NAMES = {
+    "plugin_v1": "PluginManifest",
+    "ui_contributions_v1": "UiContributions",
+    "workspace_v1": "WorkspaceState",
+    "image_segment_request": "SegmentRequest",
+    "image_segment_result": "SegmentResult",
+    "boundary_fingerprint_v1": "Fingerprint",
+    "boundary_fixtures_v1": "FixtureSet",
+    "boundary_verify_report_v1": "VerifyReport",
+    "boundary_probe_v1": "ProbeResult",
+    "boundary_probe_request_v1": "ProbeRequest",
+    "boundary_build_v1": "BuildResult",
+    "boundary_job_summary_v1": "JobSummary",
+    "boundary_annotations_v1": "FilteredAnnotations",
 }
 OUT = REPO_ROOT / "apps/api/src/studio_api/kernel/contracts/_generated"
 HEADER = "# Generated from schemas/ by apps/api/scripts/gen_contracts.py. Do not edit.\n"
@@ -42,7 +66,7 @@ def generate(dest: Path) -> dict[str, str]:
                     "--disable-timestamp",
                     "--use-schema-description",
                     "--set-default-enum-member",
-                    "--class-name", {"plugin_v1": "PluginManifest", "ui_contributions_v1": "UiContributions", "workspace_v1": "WorkspaceState", "image_segment_request": "SegmentRequest", "image_segment_result": "SegmentResult"}[mod],
+                    "--class-name", CLASS_NAMES[mod],
                 ],
                 check=True,
                 capture_output=True,

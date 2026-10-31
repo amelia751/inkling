@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PluginsLock",
+  "$defs": {
+    "PluginsLock": {
+      "type": "object",
+      "properties": {
+        "lockfileVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "plugins": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PluginLockEntry"
+          }
+        }
+      },
+      "required": [
+        "lockfileVersion",
+        "plugins"
+      ],
+      "additionalProperties": false
+    },
+    "PluginLockEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "signer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "digest",
+        "signer",
+        "permissions",
+        "configRevision"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/plugins-lock/v1"
+}

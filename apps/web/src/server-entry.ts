@@ -6,10 +6,14 @@
 import * as z from "zod";
 import { imageSegment } from "@studio/contracts/capabilities";
 import { annotationRevisionJsonSchema } from "@studio/contracts/annotation-revision";
+import { ConversionSummary, ConverterManifest, ConverterOutput } from "@studio/contracts/converter";
 import { NAMING } from "@studio/contracts/naming";
+import { MCP_APP_MIME, MCP_APPS_PROTOCOL, VIEWER_CSP, VIEWER_TEMPLATE, VIEWER_TOOLS } from "@studio/plugin-ui-sdk/viewer";
 import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
 import { WorkspaceState } from "@studio/contracts/workspace";
+import { PluginsLock } from "@studio/contracts/lockfile";
+import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
@@ -48,6 +52,7 @@ export function patch(spec: EnvironmentSpec, ops: JsonPatchOperation[]): Validat
 }
 
 export { NAMING, envVar } from "@studio/contracts/naming";
+export { contentHash, NULL_CONTENT_HASH } from "@studio/contracts/canonical";
 
 /**
  * JSON Schemas of the shared contracts (todo2 §2.1), the source the Python kernel generates
@@ -59,10 +64,18 @@ export function contractSchemas(): Record<string, unknown> {
     "plugin.v1.json": js(PluginManifest, "plugin/v1"),
     "ui-contributions.v1.json": js(UiContributions, "ui-contributions/v1"),
     "workspace.v1.json": js(WorkspaceState, "workspace/v1"),
+    "plugins-lock.v1.json": js(PluginsLock, "plugins-lock/v1"),
+    "converter.v1.json": js(ConverterManifest, "converter/v1"),
+    "converter-output.v1.json": js(ConverterOutput, "converter-output/v1"),
+    "conversion-summary.v1.json": js(ConversionSummary, "conversion-summary/v1"),
     "capabilities/image.segment.request.json": js(imageSegment.SegmentRequest, "capabilities/image.segment/request"),
     "capabilities/image.segment.result.json": js(imageSegment.SegmentResult, "capabilities/image.segment/result"),
+    // The rung-4 viewer document (packages/plugin-ui-sdk/src/viewer.ts), read by apps/mcp to serve viewers as MCP Apps resources.
+    "viewer-runtime.v1.json": { $id: `${NAMING.schemaPrefix}://schema/viewer-runtime/v1`, protocolVersion: MCP_APPS_PROTOCOL, mimeType: MCP_APP_MIME, tools: VIEWER_TOOLS, csp: VIEWER_CSP, template: VIEWER_TEMPLATE },
     // Read by apps/versioning (Go); keeps its file-relative $id.
     "versioning/annotation-revision.schema.json": annotationRevisionJsonSchema(),
+    // The data boundary's fixed-schema reports (todo10 Phase 7); the kernel validates worker output against them.
+    ...Object.fromEntries(Object.entries(BOUNDARY_SCHEMAS).map(([name, s]) => [`boundary/${name}`, js(s, `boundary/${name.replace(/\.json$/, "")}`)])),
   };
 }
 

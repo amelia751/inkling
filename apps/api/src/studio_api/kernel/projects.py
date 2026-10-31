@@ -771,7 +771,10 @@ def create_task(db: Session, ctx: RequestContext, d: DatasetRow, title: str, kin
 
         author = person(ctx).removeprefix("user:")
         db.add(WorkspaceEnvironment(workspace_id=d.project_id, task_id=t.id, revision=1, environment=environment, author=author, saved_at=at))
-        db.add(WorkspaceEnvironmentRevision(workspace_id=d.project_id, task_id=t.id, revision=1, environment=environment, author=author, saved_at=at))
+        from .canonical import NULL_CONTENT_HASH, content_hash
+
+        # A new task's first revision has no base (todo10 Phase 1: every revision has a parent).
+        db.add(WorkspaceEnvironmentRevision(workspace_id=d.project_id, task_id=t.id, revision=1, environment=environment, author=author, saved_at=at, content_hash=content_hash(environment), parent_hash=NULL_CONTENT_HASH, author_kind="agent" if person(ctx).startswith("agent:") else "person"))
     audit.record(db, ctx.for_scope(d.project_id, t.id), "task.created", target=t.id, after={"title": t.title, "kind": t.kind, "datasetId": d.id})
     return t
 

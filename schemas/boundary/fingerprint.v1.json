@@ -1,0 +1,582 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BoundaryFingerprint",
+  "$defs": {
+    "BoundaryFingerprint": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "boundary.fingerprint/v1"
+        },
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "sampleDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "format": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "dicom",
+                "nifti",
+                "hdf5",
+                "npy",
+                "npz",
+                "csv",
+                "tsv",
+                "parquet",
+                "json",
+                "png",
+                "jpeg",
+                "tiff",
+                "zip",
+                "gzip",
+                "text",
+                "binary"
+              ]
+            },
+            "magic": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{2}){1,16}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "magicOffset": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "kind",
+            "magic",
+            "magicOffset"
+          ],
+          "additionalProperties": false
+        },
+        "endianness": {
+          "type": "string",
+          "enum": [
+            "little",
+            "big",
+            "none",
+            "unknown"
+          ]
+        },
+        "sections": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^<redacted:\\d{1,5}>$"
+                  }
+                ]
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "header",
+                  "data",
+                  "metadata",
+                  "padding",
+                  "unknown"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "offset",
+              "length",
+              "kind"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "fields": {
+          "maxItems": 512,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^<redacted:\\d{1,5}>$"
+                  }
+                ]
+              },
+              "dtype": {
+                "type": "string",
+                "enum": [
+                  "bool",
+                  "int8",
+                  "uint8",
+                  "int16",
+                  "uint16",
+                  "int32",
+                  "uint32",
+                  "int64",
+                  "uint64",
+                  "float16",
+                  "float32",
+                  "float64",
+                  "complex64",
+                  "complex128",
+                  "string",
+                  "bytes",
+                  "datetime",
+                  "object",
+                  "unknown"
+                ]
+              },
+              "shape": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "tag": {
+                "type": "string",
+                "pattern": "^\\([0-9A-F]{4},[0-9A-F]{4}\\)$"
+              },
+              "vr": {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "name",
+              "dtype"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "arrays": {
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^<redacted:\\d{1,5}>$"
+                  }
+                ]
+              },
+              "dtype": {
+                "type": "string",
+                "enum": [
+                  "bool",
+                  "int8",
+                  "uint8",
+                  "int16",
+                  "uint16",
+                  "int32",
+                  "uint32",
+                  "int64",
+                  "uint64",
+                  "float16",
+                  "float32",
+                  "float64",
+                  "complex64",
+                  "complex128",
+                  "string",
+                  "bytes",
+                  "datetime",
+                  "object",
+                  "unknown"
+                ]
+              },
+              "shape": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "endianness": {
+                "type": "string",
+                "enum": [
+                  "little",
+                  "big",
+                  "none",
+                  "unknown"
+                ]
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "order": {
+                "type": "string",
+                "enum": [
+                  "C",
+                  "F"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "dtype",
+              "shape",
+              "endianness"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "table": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "columns": {
+                  "maxItems": 512,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^<redacted:\\d{1,5}>$"
+                          }
+                        ]
+                      },
+                      "dtype": {
+                        "type": "string",
+                        "enum": [
+                          "bool",
+                          "int8",
+                          "uint8",
+                          "int16",
+                          "uint16",
+                          "int32",
+                          "uint32",
+                          "int64",
+                          "uint64",
+                          "float16",
+                          "float32",
+                          "float64",
+                          "complex64",
+                          "complex128",
+                          "string",
+                          "bytes",
+                          "datetime",
+                          "object",
+                          "unknown"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "dtype"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "rows": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "delimiter": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        ",",
+                        "\t",
+                        ";",
+                        "|"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "header": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "columns",
+                "rows",
+                "delimiter",
+                "header"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "dicom": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "transferSyntax": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^1\\.2\\.840\\.10008\\.[0-9.]{1,40}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "modality": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2,4}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rows": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "columns": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "frames": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bitsAllocated": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "bitsStored": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "samplesPerPixel": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pixelRepresentation": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "photometric": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^[A-Z0-9_]{2,16}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "removedTags": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "transferSyntax",
+                "modality",
+                "rows",
+                "columns",
+                "frames",
+                "bitsAllocated",
+                "bitsStored",
+                "samplesPerPixel",
+                "pixelRepresentation",
+                "photometric",
+                "removedTags"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "scrub": {
+          "type": "object",
+          "properties": {
+            "profile": {
+              "type": "string",
+              "enum": [
+                "dicom-ps3.15-annex-e-basic",
+                "generic-structure-v1"
+              ]
+            },
+            "valuesDropped": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "namesRedacted": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "textCheck": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,32}$"
+            }
+          },
+          "required": [
+            "profile",
+            "valuesDropped",
+            "namesRedacted",
+            "textCheck"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "sampleId",
+        "sampleDigest",
+        "bytes",
+        "format",
+        "endianness",
+        "sections",
+        "fields",
+        "arrays",
+        "table",
+        "dicom",
+        "scrub"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/boundary/fingerprint.v1"
+}

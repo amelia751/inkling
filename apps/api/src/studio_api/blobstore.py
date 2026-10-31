@@ -5,9 +5,9 @@ Two namespaces, both behind the same interface:
 - `assets()`: seed and uploaded assets. Keys are seed-data relative paths, exactly the
   `path`s in `manifest.json` (plus `manifest.json` itself and `<project>/workspace.json`).
   Local: files under `API_SEED_ROOT` (seed-data/). S3: the `S3_BUCKET` bucket
-  (`tools/fetch-seeds.py --upload` fills it).
-- `data()`: what the kernel writes (derived artifacts). Local: `API_DATA_DIR`. S3: the same
-  bucket under `.data/`; dot-prefixed keys are never served by `/seed/*`.
+  (`tools/fetch-seeds.py --upload` fills it). Cloud Storage: the `GCS_BUCKET` bucket.
+- `data()`: what the kernel writes (derived artifacts). Local: `API_DATA_DIR`. S3 / Cloud
+  Storage: the same bucket under `.data/`; dot-prefixed keys are never served by `/seed/*`.
 
 Replicas therefore share nothing on local disk; only `/tmp` is scratch.
 """
@@ -230,6 +230,110 @@ class S3BlobStore:
         return self.client.generate_presigned_url("get_object", Params={"Bucket": self.bucket, "Key": self._k(key)}, ExpiresIn=ttl_s)
 
 
+class GCSBlobStore:
+    """Cloud Storage through its native API (google-cloud-storage). Credentials are Application
+    Default Credentials only: Workload Identity on GKE, `gcloud auth application-default login`
+    locally; never a key file or an HMAC key. Ranged reads pin the object generation they
+    started on, `put_file` is a resumable upload above 8 MB, and signed URLs are V4, signed
+    through the IAM signBlob API as the workload's own service account."""
+
+    kind = "gcs"
+
+    def __init__(self, bucket: str, prefix: str = "", *, project: str | None = None, client: Any = None):
+        if client is None:
+            from google.cloud import storage
+
+            client = storage.Client(project=project)
+        self.client = client
+        self.bucket = client.bucket(bucket)
+        self.prefix = prefix.strip("/") + "/" if prefix.strip("/") else ""
+
+    def _k(self, key: str) -> str:
+        return self.prefix + safe_key(key)
+
+    @staticmethod
+    def _missing(e: Exception) -> bool:
+        return getattr(e, "code", None) == 404
+
+    def _get(self, key: str) -> Any:
+        """The object's current metadata (size, etag, generation) or None."""
+        try:
+            return self.bucket.get_blob(self._k(key))
+        except BlobNotFound:
+            return None
+
+    def stat(self, key: str) -> BlobInfo | None:
+        b = self._get(key)
+        return None if b is None else BlobInfo(int(b.size), b.etag or None)
+
+    def read(self, key: str) -> bytes:
+        try:
+            return self.bucket.blob(self._k(key)).download_as_bytes()
+        except Exception as e:
+            if self._missing(e):
+                raise BlobNotFound(key) from None
+            raise
+
+    def iter_range(self, key: str, start: int = 0, end: int | None = None) -> Iterator[bytes]:
+        b = self._get(key)
+        if b is None:
+            raise BlobNotFound(key)
+        last = int(b.size) - 1 if end is None else min(end, int(b.size) - 1)
+        pinned = self.bucket.blob(b.name, generation=b.generation)
+        pos = start
+        while pos <= last:
+            upto = min(pos + 16 * CHUNK - 1, last)
+            try:
+                data = pinned.download_as_bytes(start=pos, end=upto)
+            except Exception as e:
+                if self._missing(e):  # replaced or deleted mid-stream
+                    raise BlobNotFound(key) from None
+                raise
+            if not data:
+                break
+            for i in range(0, len(data), CHUNK):
+                yield data[i : i + CHUNK]
+            pos += len(data)
+
+    def put(self, key: str, data: bytes, content_type: str | None = None) -> None:
+        b = self.bucket.blob(self._k(key))
+        b.metadata = {"sha256": hashlib.sha256(data).hexdigest()}
+        b.upload_from_string(data, content_type=content_type or "application/octet-stream")
+
+    def put_file(self, key: str, path: str, content_type: str | None = None) -> None:
+        """Uploads are assembled in /tmp, never in memory; resumable above 8 MB."""
+        self.bucket.blob(self._k(key)).upload_from_filename(path, content_type=content_type or "application/octet-stream")
+
+    def delete(self, key: str) -> None:
+        try:
+            self.bucket.blob(self._k(key)).delete()
+        except Exception as e:
+            if not self._missing(e):
+                raise
+
+    def ping(self) -> None:
+        # objects.list, not buckets.get: the workload holds object roles only.
+        next(iter(self.client.list_blobs(self.bucket, prefix=self.prefix or None, max_results=1)), None)
+
+    def presign(self, key: str, ttl_s: int) -> str | None:
+        """None when the credentials aren't a service account (e.g. a person's local ADC)."""
+        from datetime import timedelta
+
+        creds = getattr(self.client, "_credentials", None)
+        if creds is None:
+            return None
+        if not getattr(creds, "valid", False) or not getattr(creds, "token", None):
+            from google.auth.transport.requests import Request
+
+            creds.refresh(Request())
+        email = getattr(creds, "service_account_email", None)
+        if not email or email == "default":
+            return None
+        return self.bucket.blob(self._k(key)).generate_signed_url(
+            version="v4", expiration=timedelta(seconds=ttl_s), method="GET", service_account_email=email, access_token=creds.token
+        )
+
+
 DATA_PREFIX = ".data"
 
 _cache: dict[str, tuple[Settings, BlobStore]] = {}
@@ -239,14 +343,22 @@ def _s3(s: Settings, prefix: str) -> S3BlobStore:
     return S3BlobStore(s.s3_bucket, prefix, endpoint=s.s3_endpoint, region=s.s3_region, access_key_id=s.s3_access_key_id, secret_access_key=s.s3_secret_access_key)
 
 
+def _gcs(s: Settings, prefix: str) -> GCSBlobStore:
+    assert s.gcs_bucket  # load_settings requires it for BLOB_STORE=gcs
+    return GCSBlobStore(s.gcs_bucket, prefix, project=s.gcs_project)
+
+
 def _store(name: str) -> BlobStore:
     s = settings()
     hit = _cache.get(name)
     if hit is None or hit[0] is not s:
-        if name == "assets":
-            store: BlobStore = _s3(s, s.s3_prefix) if s.blob_store == "s3" else LocalBlobStore(s.seed_root)
+        store: BlobStore
+        if s.blob_store == "s3":
+            store = _s3(s, s.s3_prefix if name == "assets" else posixpath.join(s.s3_prefix, DATA_PREFIX))
+        elif s.blob_store == "gcs":
+            store = _gcs(s, s.gcs_prefix if name == "assets" else posixpath.join(s.gcs_prefix, DATA_PREFIX))
         else:
-            store = _s3(s, posixpath.join(s.s3_prefix, DATA_PREFIX)) if s.blob_store == "s3" else LocalBlobStore(s.data_dir, create=True)
+            store = LocalBlobStore(s.seed_root) if name == "assets" else LocalBlobStore(s.data_dir, create=True)
         hit = _cache[name] = (s, store)
     return hit[1]
 

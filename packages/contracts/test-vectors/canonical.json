@@ -1,0 +1,180 @@
+{
+  "$comment": "RFC 8785 vectors shared by packages/contracts/src/canonical.test.ts and apps/api/tests/test_canonical.py. `input` is JSON text each side parses with its own parser.",
+  "vectors": [
+    {
+      "input": "null",
+      "canonical": "null",
+      "hash": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b"
+    },
+    {
+      "input": "true",
+      "canonical": "true",
+      "hash": "sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b"
+    },
+    {
+      "input": "false",
+      "canonical": "false",
+      "hash": "sha256:fcbcf165908dd18a9e49f7ff27810176db8e9f63b4352213741664245224f8aa"
+    },
+    {
+      "input": "0",
+      "canonical": "0",
+      "hash": "sha256:5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "input": "-0",
+      "canonical": "0",
+      "hash": "sha256:5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9"
+    },
+    {
+      "input": "1",
+      "canonical": "1",
+      "hash": "sha256:6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b"
+    },
+    {
+      "input": "-1",
+      "canonical": "-1",
+      "hash": "sha256:1bad6b8cf97131fceab8543e81f7757195fbb1d36b376ee994ad1cf17699c464"
+    },
+    {
+      "input": "4.50",
+      "canonical": "4.5",
+      "hash": "sha256:32209ccbf8a8e509b9027698cc173343a2695e8ecdbe899bf5335a3100c956fc"
+    },
+    {
+      "input": "2e-3",
+      "canonical": "0.002",
+      "hash": "sha256:8d938122d3904436fd32a463678148c7b7595bf667f263a65ab79059e5833a21"
+    },
+    {
+      "input": "0.000001",
+      "canonical": "0.000001",
+      "hash": "sha256:159fb29a827ad04b260aa6c8ab6d8637f8f2b38af5c4f3cb49d6a21205e040f8"
+    },
+    {
+      "input": "1e-7",
+      "canonical": "1e-7",
+      "hash": "sha256:5b33e02f2c5103a05d32f6ba9cb058294452bfbf393967f68bb30c1bdcbbab22"
+    },
+    {
+      "input": "1e21",
+      "canonical": "1e+21",
+      "hash": "sha256:241c4643fa70b1dcde1205b71be4e3bebb17e9f880c8e1a33d0ead6c27271d3c"
+    },
+    {
+      "input": "1e20",
+      "canonical": "100000000000000000000",
+      "hash": "sha256:c344e9487bfbd5c4e03c9fb90d62a5dde5e00b54d55c46e9f4a803aea162b80c"
+    },
+    {
+      "input": "1e30",
+      "canonical": "1e+30",
+      "hash": "sha256:7412d94bdf30adfa71080e057185e1a8de86e2e99a8350b011df8ac41ed5a6e3"
+    },
+    {
+      "input": "333333333.33333329",
+      "canonical": "333333333.3333333",
+      "hash": "sha256:6bd9be1c141028789cc35db62f1b43e80d5d4ee24d6d542e775deb16799ff4c7"
+    },
+    {
+      "input": "9007199254740993",
+      "canonical": "9007199254740992",
+      "hash": "sha256:c681da39d7273a6a24c15c9cac3a75526ff2ecf8ba4ee60346a0c70c8163bdb2"
+    },
+    {
+      "input": "-1.5e-300",
+      "canonical": "-1.5e-300",
+      "hash": "sha256:b6c70a1eacf30e7f095a783adece30834eb392ce4463ae05e6949ca35ec0379f"
+    },
+    {
+      "input": "5e-324",
+      "canonical": "5e-324",
+      "hash": "sha256:c46e7ca1be4c8734f373a56530787288fa2058d73d07855e9247e949f811a42a"
+    },
+    {
+      "input": "1.7976931348623157e308",
+      "canonical": "1.7976931348623157e+308",
+      "hash": "sha256:c2784e1abd6317452708f3fbf9641c16b959561bc621a1d408c23a20aa2cb585"
+    },
+    {
+      "input": "123456789012345680000",
+      "canonical": "123456789012345680000",
+      "hash": "sha256:725abf175290195635e55a971cf88e02a46d6d56e964ec2d8bc47614b9559062"
+    },
+    {
+      "input": "0.1",
+      "canonical": "0.1",
+      "hash": "sha256:14be4b45f18e0d8c67b4f719b5144eee88497e413709d11d85b096d8e2346310"
+    },
+    {
+      "input": "100",
+      "canonical": "100",
+      "hash": "sha256:ad57366865126e55649ecb23ae1d48887544976efea46a48eb5d85a6eeb4d306"
+    },
+    {
+      "input": "1E2",
+      "canonical": "100",
+      "hash": "sha256:ad57366865126e55649ecb23ae1d48887544976efea46a48eb5d85a6eeb4d306"
+    },
+    {
+      "input": "[]",
+      "canonical": "[]",
+      "hash": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "input": "{}",
+      "canonical": "{}",
+      "hash": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+    },
+    {
+      "input": "\"\"",
+      "canonical": "\"\"",
+      "hash": "sha256:12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+    },
+    {
+      "input": "\"\\u0000\\u001f\\b\\f\\n\\r\\t\"",
+      "canonical": "\"\\u0000\\u001f\\b\\f\\n\\r\\t\"",
+      "hash": "sha256:540eeab4d1f6637443e8ac3b810adfdb83d9c447eac66327ab9c418809758e32"
+    },
+    {
+      "input": "\"\\\"\\\\/\"",
+      "canonical": "\"\\\"\\\\/\"",
+      "hash": "sha256:106814b96b4576ad5efb709458f6a5e1d0b0653cf234738e0ccc6c435bdef084"
+    },
+    {
+      "input": "\"\\u20ac\\u00e9\\ud83d\\ude00\"",
+      "canonical": "\"€é😀\"",
+      "hash": "sha256:701952b4a2c07b1795a695cdac9a8226bb9fcb60a767713c3b5e85773e2e78fd"
+    },
+    {
+      "input": "\"\\u007f\\u2028\"",
+      "canonical": "\" \"",
+      "hash": "sha256:4f1d8efe6f6d24e372f25234017a5502c0fcc0f739ba754697212eecebf3c542"
+    },
+    {
+      "input": "{\"b\":1,\"a\":2,\"\\u20ac\":3,\"\\ud83d\\ude00\":4,\"\\ufb33\":5,\"aa\":6,\"A\":7,\"\":8}",
+      "canonical": "{\"\":8,\"A\":7,\"a\":2,\"aa\":6,\"b\":1,\"€\":3,\"😀\":4,\"דּ\":5}",
+      "hash": "sha256:f75dc4a347cbc1c1695c8ec2c993af731156439cc92089feb42f7ad3bb862f10"
+    },
+    {
+      "input": "[1,[2,[3,{\"z\":null,\"y\":[true,false]}]],\"x\"]",
+      "canonical": "[1,[2,[3,{\"y\":[true,false],\"z\":null}]],\"x\"]",
+      "hash": "sha256:d5d21216ab8b7646f562012de7f8815904727a99a04f098270c1b229171720fe"
+    },
+    {
+      "input": "{\"numbers\":[333333333.33333329,1E30,4.50,2e-3,0.000001],\"string\":\"\\u20ac$\\u000F\\u000aA'\\u0042\\u0022\\u005c\\\\\\\"\\/\",\"literals\":[null,true,false]}",
+      "canonical": "{\"literals\":[null,true,false],\"numbers\":[333333333.3333333,1e+30,4.5,0.002,0.000001],\"string\":\"€$\\u000f\\nA'B\\\"\\\\\\\\\\\"/\"}",
+      "hash": "sha256:85bb4e7ab300e6c01efa12053c00aafa6103086bee9d25859ff9a1a883e26503"
+    },
+    {
+      "input": "{\"extends\":\"preset:image-2d\",\"task\":\"classification\",\"labels\":[{\"name\":\"labels\",\"control\":\"Labels\",\"classes\":[{\"id\":\"cat\",\"color\":\"#ff0000\"},{\"id\":\"dog\"}]}],\"modules\":{\"x.y\":{\"config\":{\"opacity\":0.5,\"window\":[-1000,3000]}}}}",
+      "canonical": "{\"extends\":\"preset:image-2d\",\"labels\":[{\"classes\":[{\"color\":\"#ff0000\",\"id\":\"cat\"},{\"id\":\"dog\"}],\"control\":\"Labels\",\"name\":\"labels\"}],\"modules\":{\"x.y\":{\"config\":{\"opacity\":0.5,\"window\":[-1000,3000]}}},\"task\":\"classification\"}",
+      "hash": "sha256:5c416ba34a72972d652dba915b5388507569d51842c48ccdf9e53841fcd22663"
+    },
+    {
+      "input": "{\"lockfileVersion\":1,\"plugins\":[{\"id\":\"acme.image-2d\",\"version\":\"1.2.0\",\"digest\":\"sha256:b25810f7727b32e72b9fe232a8e834b495923d10d43612648ec1fab8e6c6993d\",\"signer\":\"first-party\",\"permissions\":[],\"configRevision\":0}]}",
+      "canonical": "{\"lockfileVersion\":1,\"plugins\":[{\"configRevision\":0,\"digest\":\"sha256:b25810f7727b32e72b9fe232a8e834b495923d10d43612648ec1fab8e6c6993d\",\"id\":\"acme.image-2d\",\"permissions\":[],\"signer\":\"first-party\",\"version\":\"1.2.0\"}]}",
+      "hash": "sha256:f4f8d5d80506d8a9f0e67b6a80d13ac0a4621833c08a06e21184343b1bdd0423"
+    }
+  ]
+}

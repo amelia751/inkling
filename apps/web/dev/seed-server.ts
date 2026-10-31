@@ -171,6 +171,11 @@ async function handleCatalog(req: IncomingMessage, res: ServerResponse, api: () 
 interface EnvDoc {
   revision: number;
   environment: unknown;
+  contentHash?: string;
+  parentHash?: string;
+  authorKind?: "person" | "agent";
+  agentRunId?: string;
+  promptHash?: string;
   savedAt?: string;
   author?: string;
 }
@@ -199,14 +204,21 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
       return sendJson(res, 200, { ...cur, effective: cur.environment ?? manifestEnvironment(seedRoot, id, m) });
     }
 
-    const save = (environment: unknown, author: string) => {
-      const doc: EnvDoc = { revision: current().revision + 1, environment, savedAt: new Date().toISOString(), author };
+    // Same hashes and provenance as the kernel (todo10 Phase 1): RFC 8785 content hash, the
+    // replaced revision's hash as parent (a first revision: its base's), the author kind.
+    const save = async (environment: unknown, author: string) => {
+      const cur = current();
+      const parentHash = cur.revision > 0 ? (cur.contentHash ?? (await m.contentHash(cur.environment))) : await m.contentHash(manifestEnvironment(seedRoot, id, m) ?? null);
+      const prov = body?.provenance;
+      const agent = author.startsWith("agent:") || prov?.kind === "agent";
+      const extra = agent ? { ...(/^run_[A-Za-z0-9-]{1,64}$/.test(prov?.runId ?? "") ? { agentRunId: prov!.runId } : {}), ...(/^sha256:[0-9a-f]{64}$/.test(prov?.promptHash ?? "") ? { promptHash: prov!.promptHash } : {}) } : {};
+      const doc: EnvDoc = { revision: cur.revision + 1, environment, contentHash: await m.contentHash(environment), parentHash, authorKind: agent ? "agent" : "person", ...extra, savedAt: new Date().toISOString(), author };
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(file, JSON.stringify(doc, null, 2));
       fs.appendFileSync(historyFile, JSON.stringify(doc) + "\n");
       return doc;
     };
-    const body = (await readBody(req)) as { revision?: number; environment?: unknown; patch?: unknown; author?: string } | undefined;
+    const body = (await readBody(req)) as { revision?: number; environment?: unknown; patch?: unknown; author?: string; provenance?: { kind?: string; runId?: string; promptHash?: string } } | undefined;
     if (!body) return sendJson(res, 400, { error: "missing body" });
     const cur = current();
     // Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
@@ -216,14 +228,14 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
     if (req.method === "PUT") {
       const r = m.validate(body.environment);
       if (!r.ok) return sendJson(res, 422, r);
-      return sendJson(res, 200, save(body.environment, author));
+      return sendJson(res, 200, await save(body.environment, author));
     }
     if (req.method === "PATCH") {
       const base = cur.environment ?? manifestEnvironment(seedRoot, id, m);
       if (!base) return sendJson(res, 404, { error: `no project "${id}"` });
       const r = m.patch(base as never, body.patch as never);
       if (!r.ok) return sendJson(res, 422, r);
-      return sendJson(res, 200, save(r.spec, author));
+      return sendJson(res, 200, await save(r.spec, author));
     }
     return sendJson(res, 405, { error: "method not allowed" });
   } catch (e) {

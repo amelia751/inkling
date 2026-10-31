@@ -30,7 +30,7 @@ REDIRECTS = {
     "/projects/2d-xray": "/projects/2d-xray/overview",
 }
 
-SECTIONS = ["Overview", "Sources", "Explore", "Datasets", "Studio", "Review", "Activity", "Settings"]
+SECTIONS = ["Overview", "Sources", "Studio", "Review", "Activity", "Settings"]
 
 
 def main() -> int:
@@ -70,9 +70,9 @@ def main() -> int:
         width = rail.bounding_box()["width"]
         check("toggle collapses to a rail", round(width) == 48, f"{width}px")
         check("rail marks the active section", rail.locator("[aria-current=page]").get_attribute("aria-label") == "Sources")
-        rail.get_by_role("link", name="Explore").hover()
+        rail.get_by_role("link", name="Review").hover()
         page.wait_for_timeout(1200)
-        check("rail icons have tooltips", page.get_by_role("tooltip").filter(has_text="Explore").count() >= 1)
+        check("rail icons have tooltips", page.get_by_role("tooltip").filter(has_text="Review").count() >= 1)
         page.keyboard.press("ControlOrMeta+b")
         page.wait_for_selector("[data-testid=project-sidebar]", timeout=5000)
         check("toggle expands it again", page.locator("[data-testid=project-sidebar]").count() == 1)

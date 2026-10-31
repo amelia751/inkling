@@ -4,8 +4,6 @@ import {
   ActivityIcon,
   AnnotateIcon,
   ArrowLeftIcon,
-  DatasetsIcon,
-  ExploreIcon,
   HomeIcon,
   OverviewIcon,
   ProjectSettingsIcon,
@@ -48,12 +46,14 @@ interface Section {
   icon: IconComponent;
 }
 
-/** docs/ux.md §2: the project sidebar, in this order; Settings is pinned at the bottom. */
+/**
+ * docs/ux.md §2: the project sidebar, in this order; Settings is pinned at the bottom. Explore and
+ * Datasets are off the sidebar for now. Their pages stay: Explore opens from the Overview card,
+ * attention rows and Review; a dataset's Versions and Publish & export from the Studio's top bar.
+ */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
   { section: "sources", label: "Sources", icon: SourcesIcon },
-  { section: "explore", label: "Explore", icon: ExploreIcon },
-  { section: "datasets", label: "Datasets", icon: DatasetsIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
   { section: "activity", label: "Activity", icon: ActivityIcon },

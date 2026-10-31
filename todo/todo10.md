@@ -9,10 +9,9 @@ we should not let every new format become an unreviewed blob of plugin code eith
 - makes plugin bundles **immutable, content-addressed and signed**, so any Studio can be rebuilt,
   rolled back or started in a safe mode after corruption or a malicious instruction.
 
-**Status (2026-10-31).** In progress. D1–D8 accepted as recommended; D9 accepted as a trial. Work is
-split into five worktrees (`todo10-studio-defs`, `todo10-artifacts`, `todo10-boundary`,
-`todo10-viewers`, `todo10-gcp`). Account steps that need a person (BAA, organization policies, the
-perimeter, billing) are in `docs/deployment-gcp.md`; `spurby-ai` stays outside the organization.
+**Status (2026-10-31).** Ready for agents. D1–D8 accepted as recommended; D9 accepted as a trial.
+Google Cloud groundwork is done (BAA accepted, folders, organization policies, perimeter in
+dry-run; see Phase 9). No code phase has started. How to split the work: §11.
 
 **Audit date:** 2026-10-31, against `main` a1817c7 (todo6 merged; todo7 and todo8 in progress).
 
@@ -519,9 +518,13 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 
 ### Phase 9: Google Cloud deployment (D6–D9, §6.3–6.4)
 
-1. Sign the BAA; set the org policies; create the patient-data and build projects with a VPC Service
-   Controls perimeter around the first.
-2. Terraform (or Config Connector) for Cloud SQL, Cloud Storage (artifacts bucket with retention
+1. **Done 2026-10-31** (`infra/terraform/org`): BAA accepted; `prod`/`nonprod`/`shared` folders;
+   organization policies; perimeter around `spurby-phi` in **dry-run**. The two-project text in §6.4
+   is superseded by three projects (`docs/deployment-gcp.md`); `spurby-ai` stays outside the
+   organization. Still to do here: the release egress rule to `spurby-data`, then enforcing the
+   perimeter (`-var perimeter_enforced=true`) after a clean dry-run, before customer data.
+2. Terraform, one stack per project under `infra/terraform/<stack>/` (state prefix `<stack>` in
+   `gs://spurby-phi-tfstate`, same keyless deploy identity as `org`), for Cloud SQL, Cloud Storage (artifacts bucket with retention
    lock), Cloud KMS, Artifact Registry, GKE Autopilot with a GKE Sandbox node pool, Secret Manager,
    Cloud CDN, audit log sinks. A `gke` k8s overlay next to the existing ones.
 3. A Cloud Storage `BlobStore` backend (or confirm the S3-compatible API covers multipart and ranged
@@ -554,3 +557,55 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 | 9 Google Cloud deployment | L | D6–D9; perimeter first, the rest alongside 3 and 7 |
 
 Phases 1, 3 and 4 give recoverability soonest; 5 and 6 give adaptability.
+
+---
+
+## 11. Running this with agents
+
+Five workstreams, one agent and one worktree each (`git worktree add .worktrees/<branch> -b <branch>`
+per `AGENTS.md`). Empty worktrees with these names may already exist from a cancelled start; reuse or
+recreate them. Every agent reads `AGENTS.md`, this file, `docs/deployment-gcp.md` and
+`.cursor/rules/phi-boundary.mdc` first.
+
+| Branch | Phases | Owns | Must not touch |
+|---|---|---|---|
+| `todo10-studio-defs` | 1, 2, 4 | lockfile + canonical hashing in `packages/contracts` (new files), environment routes and history in `apps/api`, `.studio/` in `apps/versioning`, safe mode and Versions UI in `apps/web` | plugin signing, `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, `apps/worker/**`, `infra/**` |
+| `todo10-artifacts` | 3, 8 | `apps/api/src/studio_api/plugins/{artifacts,digest,installer}.py`, the `Signer`, bundle verification in `extension-host/contributions-loader.ts`, CI signing under `.github/`, ORAS script under `tools/` | lockfile schema, `apps/versioning/**`, agent, worker, `infra/**` |
+| `todo10-boundary` | 7 (+ §6.1–6.3) | `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**` (incl. `policy.ts`), worker jobs `fingerprint`, `synthesize_fixtures`, `verify_plugin`, `probe`, `build_plugin`, the agent-scoped API routes and token scope, report schemas (new contracts files) | `builder.md`, environment routes, artifact storage, `infra/**` |
+| `todo10-viewers` | 5, 6 | MCP Apps sandbox proxy and `studio.sandbox-frame.v1`, viewer SDK in `packages/plugin-ui-sdk`, converter contract (new contracts file) and runtime (own worker module), `apps/agent/src/agent/prompts/builder.md` | studio shell (`apps/web/src/studio/**`), the boundary agent's worker jobs, `infra/**` |
+| `todo10-gcp` | 9 | `infra/terraform/<stack>/` (not `org` unless adding the release egress rule), the `gke` overlay, a Cloud Storage `BlobStore` backend, Vertex AI model config in `apps/agent/src/config.ts` | `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, signing code, `apps/worker/**` jobs |
+
+**Contracts between workstreams** (keep these names; the integrator wires them at merge):
+
+- Lockfile entry: `{id, version, digest: "sha256:<hex>", signer, permissions, configRevision}`.
+- `Signer`, owned by `todo10-artifacts`: `sign(digest) -> signature`, `verify(digest, signature)`,
+  `key_id`; implementations `local` (Ed25519 dev key) and `gcpkms`, chosen by `INKLING_API_SIGNER`.
+  `todo10-boundary`'s `build_plugin` calls a local interface with the same shape and a dev
+  implementation until merge.
+- Agent-scoped routes (`todo10-boundary`): `get_fingerprint`, `get_fixtures`, `verify_on_sample`,
+  `probe_sample`, job start, job summary, filtered annotations. Any change updates the list in
+  `docs/deployment-gcp.md`.
+- Converter contract (`todo10-viewers`) and verify-report schema (`todo10-boundary`) are separate new
+  files in `packages/contracts`; neither edits `environment.ts`.
+
+**Rules for every agent:**
+
+- Commit on your branch; never merge into `main`; never edit `todo/todo10.md` (report status instead;
+  the integrator ticks it).
+- Alembic migrations: put your branch slug in the filename and chain after `main`'s head; the
+  integrator re-chains at merge.
+- Don't rename anything to Spurby; names go through `NAMING` (`AGENTS.md`).
+- Google Cloud: read-only by default. Agents may `terraform init/validate/plan` with a token from
+  `gcloud auth print-access-token --impersonate-service-account=terraform@spurby-phi.iam.gserviceaccount.com --configuration=spurby-phi`.
+  **`terraform apply`, enforcing the perimeter, IAM changes and enabling APIs need a person's
+  go-ahead in chat.** Never create service-account keys (blocked anyway). Never commit account
+  emails, organization, folder or billing IDs (they're in the git-ignored `secrets/gcp.local.md`;
+  pass them as `-var`).
+- Never put real customer data anywhere while building; fixtures are synthetic.
+- Before handing back: the checks in `AGENTS.md` for every package touched, plus the phase's exit
+  tests. Report: done per phase against its exit criteria, commits, migrations, env vars, contracts
+  others need, checks run, what's left or blocked.
+
+**Merge order** (one integrator, usually a person or a coordinating agent): `todo10-studio-defs` →
+`todo10-artifacts` → `todo10-boundary` (wire the `Signer`) → `todo10-viewers` → `todo10-gcp`. Run the
+full `AGENTS.md` check list on `main` after each merge.

@@ -5,7 +5,7 @@ data lives only in `spurby-phi`, and nothing reads it from `spurby-ai`.** The re
 remaining work are in [todo10 §6](../todo/todo10.md#6-sandboxes-daytona-and-friends) and Phase 9.
 
 Status (2026-10-31): folders, organization policies and the perimeter (dry-run) are applied from
-`infra/terraform/org`. Not done yet: the BAA, enforcing the perimeter, and the infrastructure
+`infra/terraform/org`. Google Cloud BAA accepted. Not done yet: enforcing the perimeter, and the infrastructure
 inside the projects.
 
 ## Projects
@@ -91,7 +91,7 @@ agent.
 
 ## Setup order
 
-1. [ ] Accept Google Cloud's BAA for the organization (Privacy & Security in the console).
+1. [x] Google Cloud BAA accepted (2026-10-31; IAM & Admin → Privacy & Security, in any one project).
 2. [x] Organization policies (`infra/terraform/org/policies.tf`):
    - no service-account key creation (organization default);
    - only organization identities in IAM (organization default);

@@ -1537,9 +1537,13 @@ dependencies = [
     { name = "pillow" },
     { name = "pydicom" },
     { name = "studio-observability" },
+    { name = "studio-signing" },
 ]
 
 [package.optional-dependencies]
+gcpkms = [
+    { name = "studio-signing", extra = ["gcpkms"] },
+]
 otel = [
     { name = "studio-observability", extra = ["otel"] },
 ]
@@ -1561,8 +1565,10 @@ requires-dist = [
     { name = "pydicom", specifier = ">=3.0" },
     { name = "studio-observability", editable = "packages/observability-py" },
     { name = "studio-observability", extras = ["otel"], marker = "extra == 'otel'", editable = "packages/observability-py" },
+    { name = "studio-signing", editable = "packages/signing" },
+    { name = "studio-signing", extras = ["gcpkms"], marker = "extra == 'gcpkms'", editable = "packages/signing" },
 ]
-provides-extras = ["otel"]
+provides-extras = ["otel", "gcpkms"]
 
 [package.metadata.requires-dev]
 dev = [

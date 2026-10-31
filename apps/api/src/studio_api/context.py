@@ -106,6 +106,9 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
             ws, task = scope_of(db, asked)
             if ws != row.workspace_id:
                 raise HTTPException(403, "session token is bound to another workspace")
+        from .kernel import agent_scope
+
+        agent_scope.check(request, row.principal)
         delegation = db.get(SessionDelegation, row.token_hash)
         return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None, task)
     if not settings().dev_trust_headers:

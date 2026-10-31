@@ -15,6 +15,7 @@ from ..context import RequestContext, ensure_workspace, get_context, issue_sessi
 from ..db import get_session
 from ..kernel import annotations, assets, audit, events, gateway, jobs, projects, secrets
 from ..models import WorkspaceEnvironment
+from ..naming import ns
 from ..plugins import installer
 from ..streaming import blob_response
 
@@ -147,11 +148,37 @@ def asset_content(asset_id: str, request: Request, ctx: RequestContext = Depends
 def command(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if not ctx.allows("commands.invoke"):
         raise HTTPException(403, "this session can't invoke commands")
+    if ctx.principal.startswith("agent:") and str(body.get("tool") or "") == ns("versioning.checkout"):
+        # A checkout returns samples, annotation payloads and object URLs: data, not shell (todo10 §6.3).
+        raise HTTPException(403, "agent sessions can't check out dataset contents; use the filtered annotation view")
     try:
         status, out = gateway.dispatch(db, ctx, body)
     except gateway.Denied as d:
         return JSONResponse({"detail": d.detail}, status_code=d.status)
+    if ctx.principal.startswith("agent:") and isinstance(out, dict) and ("job" in out or "jobs" in out):
+        out = _agent_view(db, out)
     return JSONResponse(out, status_code=status)
+
+
+def _agent_view(db: Session, out: dict) -> dict:
+    """What an agent sees of a gateway response (todo10 §6.3): job summaries (counts, states,
+    error classes) and annotation ids, never outputs or error text."""
+    from ..kernel import boundary
+    from ..models import PluginJob
+
+    def one(j: dict | None) -> dict | None:
+        row = db.get(PluginJob, j.get("jobId")) if isinstance(j, dict) else None
+        if row is None:
+            return None
+        ids = [x for x in ((row.result or {}).get("annotationIds") or []) if isinstance(x, str)][:1000] if row.state == "succeeded" else []
+        return {**boundary.summary(row), "annotationIds": ids}
+
+    view: dict = {k: out[k] for k in ("replayed", "estimateUsd") if k in out}
+    if "job" in out:
+        view["job"] = one(out["job"])
+    if "jobs" in out:
+        view["jobs"] = [one(j) for j in out["jobs"] or []]
+    return view
 
 
 @router.get("/v1/jobs")

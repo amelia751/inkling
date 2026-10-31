@@ -39,6 +39,7 @@ from studio_observability import bound, httpx_request_hook, setup_service, trace
 
 from . import config, health
 from .config import env  # noqa: F401 — kept for callers that read namespaced env vars
+from .boundary import BoundaryRunner
 from .deid import DeidSubscriber
 from .egress import EgressProxy
 from .inspect import InspectSubscriber
@@ -73,7 +74,7 @@ def build_env(uv: str, plugin_path: Path, venv: Path) -> None:
 
 
 class Worker:
-    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0):
+    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048):
         self.kernel = kernel.rstrip("/")
         self.http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
         self.data_dir = data_dir
@@ -92,6 +93,8 @@ class Worker:
         self.inspect = InspectSubscriber(self.http, data_dir / "inspect")
         # Periodic kernel work: `files.empty_trash` (todo7 Phase 4), at most daily in the kernel.
         self.scheduled = Scheduled(self.http)
+        # Data-boundary jobs (todo10 Phase 7): fingerprint, fixtures, verify, probe, build.
+        self.boundary = BoundaryRunner(self.http, worker_id, data_dir / "boundary", signer=signer, verify_python=verify_python, verify_memory_mb=verify_memory_mb)
 
     def request_stop(self) -> None:
         """SIGTERM: no new claims from now on; the current job gets the grace period."""
@@ -272,6 +275,13 @@ class Worker:
         claim = r.json()
         if not claim.get("job"):
             return False
+        if claim.get("builtin") == "boundary":
+            self.busy = True
+            try:
+                self.boundary.run(claim)
+            finally:
+                self.busy = False
+            return True
         self.run_job(claim)
         return True
 
@@ -324,6 +334,13 @@ def prepare_envs(repo_root: Path, envs_dir: Path, only: list[str] | None, uv: st
     return 0
 
 
+def make_signer(s: config.WorkerSettings):
+    """The platform key `build_plugin` signs with (studio_signing; KMS in production)."""
+    from studio_signing import make_signer as make
+
+    return make(s.signer, key_file=s.signing_key_file, kms_key=s.kms_key)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="studio-worker")
     ap.add_argument("--kernel", default=None, help="api URL (default: <envPrefix>API_URL)")
@@ -347,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.prepare_envs:
         return prepare_envs(config.REPO_ROOT, s.envs_dir, a.plugins)
     (s.data_dir / "home").mkdir(parents=True, exist_ok=True)
-    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s)
+    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:

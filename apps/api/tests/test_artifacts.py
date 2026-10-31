@@ -224,7 +224,10 @@ def test_browser_refusals_are_audited(client):
 
 def test_agent_scopes_never_include_approval(client):
     builder = token(client, "ws-a", ["plugins.read", "plugins.manage", "plugins.author"])
-    assert build(client, package(), headers=builder).json()["registered"]
+    # Agents only dry-run here; what gets registered is the worker's rebuild (todo10 Phase 7).
+    assert build(client, package(), headers=builder).status_code == 403
+    assert build(client, package(), headers=builder, dryRun="true").json()["ok"]
+    assert build(client, package()).json()["registered"]
     plan = client.post("/api/v1/workspaces/ws-a/plugins/plan", json={"pluginId": GEN}, headers=builder).json()
     assert client.post("/api/v1/workspaces/ws-a/plugins/stage", json={"requestId": plan["requestId"]}, headers=builder).json()["state"] == "AWAITING_APPROVAL"
     assert client.post("/api/v1/workspaces/ws-a/plugins/approve", json={"requestId": plan["requestId"]}, headers=builder).status_code == 403

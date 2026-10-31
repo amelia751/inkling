@@ -11,9 +11,85 @@ we should not let every new format become an unreviewed blob of plugin code eith
 
 **Status (2026-10-31).** Ready for agents. D1–D8 accepted as recommended; D9 accepted as a trial.
 Google Cloud groundwork is done (BAA accepted, folders, organization policies, perimeter in
-dry-run; see Phase 9). No code phase has started. How to split the work: §11.
+dry-run; see Phase 9). No code phase has started. Agents: start at "Start here (agents)" below.
 
 **Audit date:** 2026-10-31, against `main` a1817c7 (todo6 merged; todo7 and todo8 in progress).
+
+---
+
+## Start here (agents)
+
+This file is the whole brief. If you were handed only this file and a workstream name, you have
+everything you need.
+
+**1. Read, in this order, before touching code:**
+
+1. `AGENTS.md` (repo rules: layout, naming, worktrees, checks).
+2. This file: the goal, §1 principles, §6 (the data boundary), the phases of your workstream in §9,
+   and §11 (ownership, contracts between workstreams, rules, merge order).
+3. `docs/deployment-gcp.md` (the three Google Cloud projects and what the agent may see).
+4. The docs for the area you'll change:
+
+   | Workstream | Read |
+   |---|---|
+   | `todo10-studio-defs` | `docs/versioning.md`, `apps/versioning/README.md`, `docs/modules.md`, `packages/contracts/src/environment.ts`, `apps/api/src/studio_api/routes/environments.py`, `apps/web/src/extension-host/workspace.ts` |
+   | `todo10-artifacts` | `docs/plugins.md`, `apps/api/src/studio_api/plugins/{installer,artifacts,policy,digest,catalog}.py`, `routes/plugins.py`, `apps/web/src/extension-host/contributions-loader.tsx`, the `BlobStore` implementation |
+   | `todo10-boundary` | `docs/agent.md`, `docs/plugins.md`, `apps/agent/src/{config.ts,sandbox/*,tools/*}`, `apps/worker/**`, `apps/api/src/studio_api/routes/**`, `secrets/README.md`, `todo/BACKLOG.md` |
+   | `todo10-viewers` | `docs/modules.md`, `docs/plugins.md`, `apps/web/src/extension-host/{trusted-renderers.tsx,registry.ts,resolve.ts}`, `packages/plugin-ui-sdk/src/module.ts`, `apps/agent/src/agent/prompts/builder.md`, `apps/mcp` |
+   | `todo10-gcp` | `infra/terraform/org/` (already applied; copy its style), `infra/k8s/README.md`, `docs/running.md`, `apps/agent/src/config.ts`, the `BlobStore` implementation |
+
+**2. Set up:**
+
+```sh
+cd /Users/anhlam/inkling
+git worktree add .worktrees/todo10-<name> -b todo10-<name> main   # or reuse the empty one if it exists
+```
+
+Work only there. If the worktree already exists and is empty (a cancelled start), first run
+`git -C .worktrees/todo10-<name> rebase main` to pick up this file.
+
+**3. The data boundary. Holds for every workstream, every commit:**
+
+- Customer data lives only in `spurby-phi`; nothing reads it from `spurby-ai`, where the agent runs.
+- No real sample, item bytes or customer file ever reaches a sandbox (Daytona or any
+  `SandboxProvider`) or the model's context. The agent gets only fingerprints, synthetic fixtures,
+  fixed-schema verify reports, typed probe answers and job summaries.
+- Raw exception text, stack-frame values and free-text annotation fields never go back to the agent
+  unfiltered. Job summaries suppress small counts (default under 20).
+- Sandbox egress stays closed; no secrets passed into sandboxes (`envVars`).
+- No new route callable by the agent token without updating the list in `docs/deployment-gcp.md`
+  and saying so in your report.
+- Nothing copies data from `spurby-phi` to `spurby-data` except the de-identified release path.
+- Plugin code that runs on real data runs in the worker (gVisor, no egress, read-only input) or the
+  browser sandbox, never in a build sandbox.
+- Development, tests and staging use synthetic data only.
+- No account emails, organization, folder or billing IDs in committed files.
+
+**4. Google Cloud access:** read-only unless a person says otherwise in chat. You may
+`terraform init/validate/plan` as the keyless deploy identity:
+
+```sh
+export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token \
+  --impersonate-service-account=terraform@spurby-phi.iam.gserviceaccount.com --configuration=spurby-phi)
+```
+
+Account IDs are in the git-ignored `/Users/anhlam/inkling/secrets/gcp.local.md`; pass them as `-var`.
+`terraform apply`, enforcing the perimeter, IAM changes and enabling APIs need a person's go-ahead.
+This works only on this Mac (it uses the person's `gcloud` sign-in).
+
+**5. Hand back** with: done per phase against its exit criteria, commits (hash + one line),
+migrations, env vars, contracts other workstreams need, checks run with results, and what's left or
+blocked. Don't merge and don't edit this file; the integrator does both.
+
+**Prompt to give each agent** (replace `<name>` with `studio-defs`, `artifacts`, `boundary`, `viewers`
+or `gcp`):
+
+> Read `/Users/anhlam/inkling/todo/todo10.md` from "Start here (agents)" and follow it. You are
+> workstream `todo10-<name>`. Do every phase §11 assigns to you, to its exit criteria.
+
+**For the integrator** (a person, or one coordinating agent): merge in the §11 order, re-chain
+Alembic migrations, wire the `Signer` into `build_plugin`, run the full `AGENTS.md` check list on
+`main` after each merge, then tick the phases here and update the Status line.
 
 ---
 
@@ -564,13 +640,13 @@ Phases 1, 3 and 4 give recoverability soonest; 5 and 6 give adaptability.
 
 Five workstreams, one agent and one worktree each (`git worktree add .worktrees/<branch> -b <branch>`
 per `AGENTS.md`). Empty worktrees with these names may already exist from a cancelled start; reuse or
-recreate them. Every agent reads `AGENTS.md`, this file, `docs/deployment-gcp.md` and
-`.cursor/rules/phi-boundary.mdc` first.
+recreate them. Reading list, setup, the data boundary and the hand-back format are in "Start here
+(agents)" at the top.
 
 | Branch | Phases | Owns | Must not touch |
 |---|---|---|---|
 | `todo10-studio-defs` | 1, 2, 4 | lockfile + canonical hashing in `packages/contracts` (new files), environment routes and history in `apps/api`, `.studio/` in `apps/versioning`, safe mode and Versions UI in `apps/web` | plugin signing, `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, `apps/worker/**`, `infra/**` |
-| `todo10-artifacts` | 3, 8 | `apps/api/src/studio_api/plugins/{artifacts,digest,installer}.py`, the `Signer`, bundle verification in `extension-host/contributions-loader.ts`, CI signing under `.github/`, ORAS script under `tools/` | lockfile schema, `apps/versioning/**`, agent, worker, `infra/**` |
+| `todo10-artifacts` | 3, 8 | `apps/api/src/studio_api/plugins/{artifacts,digest,installer}.py`, the `Signer`, bundle verification in `extension-host/contributions-loader.tsx`, CI signing under `.github/`, ORAS script under `tools/` | lockfile schema, `apps/versioning/**`, agent, worker, `infra/**` |
 | `todo10-boundary` | 7 (+ §6.1–6.3) | `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**` (incl. `policy.ts`), worker jobs `fingerprint`, `synthesize_fixtures`, `verify_plugin`, `probe`, `build_plugin`, the agent-scoped API routes and token scope, report schemas (new contracts files) | `builder.md`, environment routes, artifact storage, `infra/**` |
 | `todo10-viewers` | 5, 6 | MCP Apps sandbox proxy and `studio.sandbox-frame.v1`, viewer SDK in `packages/plugin-ui-sdk`, converter contract (new contracts file) and runtime (own worker module), `apps/agent/src/agent/prompts/builder.md` | studio shell (`apps/web/src/studio/**`), the boundary agent's worker jobs, `infra/**` |
 | `todo10-gcp` | 9 | `infra/terraform/<stack>/` (not `org` unless adding the release egress rule), the `gke` overlay, a Cloud Storage `BlobStore` backend, Vertex AI model config in `apps/agent/src/config.ts` | `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, signing code, `apps/worker/**` jobs |

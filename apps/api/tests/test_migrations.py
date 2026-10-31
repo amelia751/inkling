@@ -96,3 +96,35 @@ def test_0005_builds_one_drive_per_project_and_freezes_datasets(tmp_path):
         assert c.execute(sa.text("SELECT parent_id FROM source_nodes WHERE id = 'r-s1'")).scalar() is None
         assert c.execute(sa.text("SELECT rel_path FROM source_nodes WHERE id = 'f-a'")).scalar() == "MRI/Scan.png"
     db.reset_engine()
+
+
+def test_0006_backfills_revision_hashes_and_parents(tmp_path):
+    """todo10 Phase 1: every existing revision gets its RFC 8785 hash and a parent."""
+    import json
+
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+    from studio_api.kernel.canonical import NULL_CONTENT_HASH, content_hash
+
+    cfg = _alembic_at(tmp_path, "0005")
+    t = "2026-10-30 10:00:00"
+    envs = [{"task": "a", "x": 1.0}, {"x": 1, "task": "b"}, {"task": "a", "x": 1}]
+    with db.engine().begin() as c:
+        c.execute(sa.text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', :t)"), {"t": t})
+        for i, (task, env, author) in enumerate([("t1", envs[0], "ann"), ("t1", envs[1], "agent:m"), ("t1", envs[2], "ann"), ("t2", envs[1], None)]):
+            rev = i + 1 if task == "t1" else 1
+            c.execute(sa.text("INSERT INTO workspace_environment_history (workspace_id, task_id, revision, environment, author, saved_at) VALUES ('w', :task, :rev, :env, :a, :t)"), {"task": task, "rev": rev, "env": json.dumps(env), "a": author, "t": t})
+    command.upgrade(cfg, "0006")
+    with db.engine().begin() as c:
+        rows = c.execute(sa.text("SELECT task_id, revision, content_hash, parent_hash, author_kind FROM workspace_environment_history ORDER BY task_id, revision")).all()
+    h = [content_hash(e) for e in envs]
+    assert h[0] == h[2]  # 1.0 and 1 are the same JSON number
+    assert [(r.task_id, r.revision, r.content_hash, r.parent_hash, r.author_kind) for r in rows] == [
+        ("t1", 1, h[0], NULL_CONTENT_HASH, "person"),
+        ("t1", 2, h[1], h[0], "agent"),
+        ("t1", 3, h[2], h[1], "person"),
+        ("t2", 1, h[1], NULL_CONTENT_HASH, "person"),
+    ]
+    command.downgrade(cfg, "0005")

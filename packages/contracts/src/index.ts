@@ -13,3 +13,5 @@ export * from "./ui-contributions";
 export * from "./workspace";
 export * from "./media-types";
 export { CAPABILITIES } from "./capabilities";
+export * from "./canonical";
+export * from "./lockfile";

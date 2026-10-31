@@ -135,6 +135,13 @@ class WorkspaceEnvironmentRevision(Base):
     environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     author: Mapped[str | None] = mapped_column(String(256), nullable=True)
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # todo10 Phase 1: RFC 8785 hash of `environment`, of the revision it replaced (a first
+    # revision: its base), who made it (`person` | `agent`) and, for agents, run and prompt hash.
+    content_hash: Mapped[str] = mapped_column(String(71))
+    parent_hash: Mapped[str] = mapped_column(String(71))
+    author_kind: Mapped[str] = mapped_column(String(16), default="person")
+    agent_run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(71), nullable=True)
 
 
 # ---- Plugins (§11) -----------------------------------------------------------------------

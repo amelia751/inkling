@@ -1,0 +1,75 @@
+# Files API (todo7): the contract between the kernel and the web app
+
+The plan is `todo/todo7.md`. This page fixes the wire shapes so the backend and the web app can be
+built in parallel. Types are in `packages/contracts/src/types/index.ts` (section "Files: the
+project's drive"). All routes are under `/api/v1` and the UI calls them through
+`apps/web/src/studio/lib/files/api.ts`.
+
+## Model (decisions D1–D10)
+
+- **One drive per project (D1).** Each project has one root folder node (`DriveInfo.rootNodeId`,
+  name "Files"). Every existing source root becomes a top-level folder under it, named after the
+  source's title. `sources` rows stay as import provenance (`SourceNode.sourceId`).
+- **Ids are opaque and permanent (D3).** New nodes are `nod-<uuid hex>`; existing hashed ids are kept.
+  `Asset.path` never changes. Copies point at the same asset (D5).
+- **Paths are computed (D4).** `source_nodes.rel_path` becomes `original_path` (immutable,
+  sensitive). The current path comes from the parent chain.
+- **Locked (D2).** Seed folders and everything below them answer `locked: true`; any write that would
+  change a locked node, or put something into a locked folder, is refused (`423`, message "Sample
+  data can't be changed. Copy it to make your own"). Copying *out* of a locked folder is allowed.
+- **Names (D10).** Unique per folder case-insensitively among non-trashed siblings. No `/`, no
+  control characters, ≤255 UTF-8 bytes, trailing spaces/dots trimmed, not empty, not `.`/`..`.
+  Windows reserved names are allowed (the client warns). Errors are `422 { detail: "<sentence>" }`.
+- **Trash (D8).** `trashed_at/by`, `trash_batch_id`; trashing a folder marks only the folder (its
+  descendants are hidden with it). 30 days, then the worker's `files.empty_trash` job purges.
+  Purge deletes bytes only when nothing else references the asset.
+- **Journal (D9).** Every write is an `fs_ops` row with `before`/`after`; undo is refused (409) when any
+  touched node has a later op by anyone.
+
+## Routes
+
+| Method & path | Body → response | Notes |
+|---|---|---|
+| `GET /projects/:id/fs` | → `DriveInfo` | Creates the root lazily. Seed stand-in: `writable: false`. |
+| `GET /projects/:id/fs/children?node=&cursor=&limit=&sort=name\|kind\|size\|added&dir=asc\|desc` | → `ChildrenPage` | Same rows as `/sources/:id/children` (runs, compact chains), folders always first, sorted server-side so paging is correct. `node` defaults to the root; `seq:` ids work. Trashed nodes are excluded. |
+| `POST /projects/:id/fs/ops` | `FsOpsRequest` → `FsOpsResult` | All-or-nothing. `409 { detail: FsConflictError }` when a name conflict has no resolution; `422` invalid name or cycle ("Can't move a folder into itself"); `423` locked; `403` for agent tokens (`ctx.scopes` set). Emits `fs.changed { projectId, parentIds, batchId, actor, summary }`. |
+| `POST /projects/:id/fs/undo` / `fs/redo` | `{ batchId? }` → `FsUndoResult` | Default: the caller's last undoable (or last undone) batch. Refused with 409 `"Can't undo: patient_002 changed after that"`. |
+| `GET /projects/:id/fs/history?limit=` | → `{ undo: {batchId,label}\|null, redo: {batchId,label}\|null }` | For the "Undo move of 3 items" hint after a reload. |
+| `GET /projects/:id/trash?cursor=` | → `TrashPage` | Top-level trashed items (a trashed folder, not its contents). |
+| `POST /projects/:id/trash/empty` | → `{ purged, keptBytes: [{name, reason}] }` | Confirmation in the UI names kept bytes. `GET …/trash/empty/preview` returns the same without doing it. |
+| `GET /projects/:id/starred` / `GET /projects/:id/recent` | → `{ items: FsShortcut[] }` | Per principal, at most 50. |
+| `POST /source-nodes/:id/star` / `DELETE /source-nodes/:id/star` | → `{ starred }` | |
+| `GET /source-nodes/:id/versions` | → `{ versions: NodeVersion[] }` | |
+| `POST /source-nodes/:id/versions` | same body as `POST /projects/:id/imports` with one file, plus `mode: "replace"` → `ImportSession` | Upload then `complete` adds a version (asset is new; old stays in `node_versions`). |
+| `POST /source-nodes/:id/versions/:v/restore` | → `FsOpsResult` | Journaled `restore_version`. |
+| `GET /source-nodes/:id/download` | → 302 to a signed blob URL (or streams the bytes) | Audited `files.downloaded`. Privacy-held files: 423. |
+| `POST /projects/:id/fs/zip` | `{ nodeIds }` → streamed `application/zip` | Constant memory (`zipstream`-style, stored entries). Held files left out and listed in `_held_files.txt`. Entry names use current paths, never original paths. |
+| `GET /source-nodes/:id/activity` | → `{ items: FsActivityEntry[] }` | The node's ops and its ancestors' moves. |
+| `GET /source-nodes/:id` | → `SourceNodeDetail` | Adds `pathText`, `originalPath` (members only), `trash`, `starred`, `locked`, `version`. |
+| `POST /projects/:id/datasets/:ds/update-versions` | `{ nodeIds? }` → `DatasetSummary` | Moves pinned files to their current version; `GET …/update-versions/preview` → `{ files: [{nodeId, name, from, to, annotations}] }`. |
+| `POST /projects/:id/datasets/:ds/add-followed` | → `DatasetSummary` | Adds the new files from followed folders. |
+
+Existing `/sources/*` reads stay working as aliases. Children rows gain `starred`, `locked`,
+`version`, `totalBytes`, `trashed`.
+
+## Events
+
+`fs.changed` on the project event stream (`use-project-events.ts`):
+`{ projectId, parentIds: string[], batchId, actor, summary }`. The web invalidates
+`filesKeys.children(projectId, parentId)` for each parent and `["source-nodes", id]` for touched
+nodes, ignoring loads that started before this tab's last local op on that folder.
+
+## Seed stand-in (D12)
+
+`apps/web/dev/seed-server` answers `GET /projects/:id/fs` with `writable: false` and a synthetic root
+whose children are the source roots, `GET …/fs/children` like `/sources/:id/children`, empty
+`starred`/`recent`/`trash`, `history` with nulls, and `501` for every write. The UI disables edit
+actions with "Needs the full stack" when `writable` is false. Starring in the stand-in falls back to
+localStorage so the nav e2e (Phase 5) can run in seed mode.
+
+## Privacy (Phase 7)
+
+`originalPath`, old names in `fs_ops` and activity texts are left out of agent context, exports, ZIP
+entry names and URLs. Renaming or moving re-runs the path-name check from the worker's patterns
+(copied in-process for names); a flag raised only by the name clears with audit `privacy.cleared`
+reason "renamed".

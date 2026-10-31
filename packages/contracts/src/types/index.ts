@@ -302,6 +302,17 @@ export interface SourceNode {
   createdAt: string | null;
   /** Search results only: the folder the file is in. */
   folderPath?: string;
+  /** todo7: the namespace. All optional so the seed stand-in (read-only) needn't send them. */
+  /** The caller starred this node. */
+  starred?: boolean;
+  /** Sample data (D2), or inside it: edit actions are disabled with a reason. */
+  locked?: boolean;
+  /** Files: the current version number (1 = as uploaded, D6). */
+  version?: number;
+  /** Folders: bytes of every file below (not in Trash). */
+  totalBytes?: number | null;
+  /** In Trash (only Trash listings return these). */
+  trashed?: boolean;
 }
 
 export interface SourceNodeDetail extends SourceNode {
@@ -310,6 +321,133 @@ export interface SourceNodeDetail extends SourceNode {
   runId?: string | null;
   usedIn: { id: string; title: string; tasks: { id: string; title: string }[] }[];
   provenance: { sourceId: string; sourceTitle: string | null; importSessionId: string | null; addedBy: string | null; addedAt: string | null; sha256: string | null };
+  /** todo7 D4: the current path, computed from the parent chain ("Files/MRI/scan001.dcm" without the root). */
+  pathText?: string;
+  /** The path as uploaded (immutable). Sensitive (Phase 7): members only, never in agent context or exports. */
+  originalPath?: string | null;
+  /** In Trash: when, by whom, and where it was. */
+  trash?: { trashedAt: string; trashedBy: string; originalParentId: string | null; originalLocation: string | null } | null;
+}
+
+// ---- Files: the project's drive (todo7) ------------------------------------------------------------
+
+/** The one root per project (D1). `GET /v1/projects/:id/fs` */
+export interface DriveInfo {
+  projectId: string;
+  rootNodeId: string;
+  /** Namespace writes need the full stack (D12): the seed stand-in answers `false`. */
+  writable: boolean;
+  trashCount: number;
+}
+
+export type FsOp =
+  | { kind: "mkdir"; parentId: string; name: string; /** client-chosen id for optimistic rows (`nod-<uuid>`) */ id?: string }
+  | { kind: "rename"; nodeId: string; name: string }
+  | { kind: "move"; nodeIds: string[]; parentId: string }
+  | { kind: "copy"; nodeIds: string[]; parentId: string }
+  | { kind: "trash"; nodeIds: string[] }
+  | { kind: "restore"; nodeIds: string[] }
+  | { kind: "purge"; nodeIds: string[] };
+
+export type FsOpKind = FsOp["kind"] | "replace" | "restore_version" | "undo" | "redo";
+
+/** How to settle one name conflict (§2 conflict dialog). `replace` is files only (adds a version, D6); `merge` folders only. */
+export type FsResolution = "keep_both" | "replace" | "skip" | "merge";
+
+export interface FsConflict {
+  /** The node being moved/copied/created (or the upload's client file id). */
+  nodeId: string;
+  name: string;
+  /** The folder it would land in, and the sibling already there. */
+  parentId: string;
+  parentName: string;
+  existingId: string;
+  kind: "file" | "folder";
+  /** Same sha256 as the existing file: the client may skip silently. */
+  identical: boolean;
+}
+
+export interface FsOpsRequest {
+  ops: FsOp[];
+  /** By conflicting nodeId, or `"*"` for every conflict. */
+  resolutions?: Record<string, FsResolution>;
+  /** Optimistic concurrency: folder id → revision the client last saw (optional). */
+  expect?: Record<string, number>;
+}
+
+export interface FsOpsResult {
+  batchId: string;
+  /** Every node created or changed, in their new state. */
+  nodes: SourceNode[];
+  /** Folders whose children changed (the client invalidates these). */
+  parentIds: string[];
+  /** Human summary, e.g. "Moved 3 items to MRI". */
+  summary: string;
+  skipped?: { identical: number; byResolution: number };
+  /** e.g. "LV segmentation still uses 2 of these" (trash of dataset files). */
+  warnings?: string[];
+}
+
+/** Body of a 409 from `fs/ops`: `{ detail: { message, conflicts } }`. */
+export interface FsConflictError {
+  message: string;
+  conflicts: FsConflict[];
+}
+
+/** `POST /v1/projects/:id/fs/undo|redo` → the batch that was undone or redone. 409 `{ detail: string }` when refused (D9). */
+export interface FsUndoResult extends FsOpsResult {
+  undoneBatchId: string;
+  /** What the next undo would do (for the hint), or null. */
+  next: { batchId: string; label: string } | null;
+}
+
+export interface TrashItem extends SourceNode {
+  trashedAt: string;
+  trashedBy: string;
+  /** "MRI/patient_002" (current path of the folder it was in), or null if that folder is gone. */
+  originalLocation: string | null;
+  /** Days left before the purge job deletes it. */
+  purgeInDays: number;
+}
+
+export interface TrashPage {
+  items: TrashItem[];
+  nextCursor: string | null;
+  total: number;
+}
+
+export interface NodeVersion {
+  version: number;
+  assetId: string;
+  sha256: string | null;
+  size: number | null;
+  createdBy: string;
+  createdAt: string;
+  current: boolean;
+}
+
+export interface FsActivityEntry {
+  id: string;
+  batchId: string;
+  kind: FsOpKind;
+  actor: string;
+  at: string;
+  /** Plain sentence, e.g. "Renamed from Smith_J_MRI" — old names only to members, never sent to the assistant. */
+  text: string;
+  nodeId: string;
+}
+
+/** `GET /v1/projects/:id/recent` and `/starred`. */
+export interface FsShortcut {
+  node: SourceNode;
+  at: string | null;
+}
+
+/** Dataset definitions after todo7 D7: frozen files plus followed folders. */
+export interface DatasetFileRef {
+  nodeId: string;
+  assetId: string | null;
+  version: number;
 }
 
 export interface SourceSummary {
@@ -387,12 +525,14 @@ export interface DatasetSummary {
   projectId: string;
   title: string;
   description: string;
-  definition: { nodeIds?: string[]; seed?: boolean; labels?: Record<string, string>; [k: string]: unknown };
+  definition: { nodeIds?: string[]; files?: DatasetFileRef[]; followedFolders?: string[]; seed?: boolean; labels?: Record<string, string>; [k: string]: unknown };
   fileCount: number;
   tasks: TaskSummary[];
   createdFromProposalId: string | null;
   createdBy: string;
   createdAt: string | null;
+  /** todo7 D6/D7: pinned files with a newer version, and new files in followed folders since creation. */
+  staleness?: { newerVersions: number; newFilesInFollowed: number; followedFolderNames: string[] };
 }
 
 /** Where an attention row (or an activity entry) resolves. */

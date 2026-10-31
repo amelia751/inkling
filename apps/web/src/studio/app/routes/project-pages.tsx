@@ -1,10 +1,10 @@
-import { Link, Navigate, useParams, type Params } from "react-router";
+import { Link, Navigate, useLocation, useParams, type Params } from "react-router";
 import { AnnotateIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { useOverview } from "@/studio/lib/projects-api";
-import { datasetUrl, projectUrl, settingsUrl, sourcesUrl, studioUrl, versionReviewUrl } from "@/studio/lib/routes";
+import { datasetUrl, filesRedirect, projectUrl, settingsUrl, sourcesUrl, studioUrl, versionReviewUrl } from "@/studio/lib/routes";
 
 /**
  * Small project pages and routing glue (todo6 Phase 2): the Studio entry, the old
@@ -15,6 +15,12 @@ import { datasetUrl, projectUrl, settingsUrl, sourcesUrl, studioUrl, versionRevi
 export function LegacyRedirect({ to }: { to: (id: string, params: Readonly<Params<string>>) => string }) {
   const params = useParams();
   return <Navigate to={to(params.datasetId ?? "", params)} replace />;
+}
+
+/** `/projects/:p/sources/*` → `/projects/:p/files/*` (todo7 D11), same node id, query and hash. */
+export function SourcesRedirect() {
+  const { pathname, search, hash } = useLocation();
+  return <Navigate to={filesRedirect(pathname, search) + hash} replace />;
 }
 
 export const LEGACY = {

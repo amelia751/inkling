@@ -197,6 +197,8 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const refusalRef = React.useRef<{ id: string; reason: string } | null>(null)
   const [refusal, setRefusal] = React.useState<{ id: string; reason: string } | null>(null)
   const dragging = React.useRef<string[] | null>(null)
+  const pointerInside = React.useRef(true)
+  const [inside, setInside] = React.useState(true)
   // Recursive expands still waiting for children to load: root id → row cap.
   const recursive = React.useRef(new Map<string, number>())
 
@@ -304,10 +306,19 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
         alt.current = e.altKey
         setCopying(e.altKey)
       }
+      // The tree's ghost only over the tree; outside it, the page's drop targets draw their own.
+      const r = box.current?.getBoundingClientRect()
+      const inside = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+      if (inside !== pointerInside.current) {
+        pointerInside.current = inside
+        setInside(inside)
+      }
       // Any drag near the tree's edges (its rows, the listing's, OS files): bounded by the tree's box.
       edgeAutoScroll(scrollerOf(box.current), e.clientX, e.clientY)
     }
     const end = () => {
+      pointerInside.current = true
+      setInside(true)
       alt.current = false
       setCopying(false)
       refusalRef.current = null
@@ -340,7 +351,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
 
   const Preview = React.useCallback(
     ({ mouse, id, dragIds, isDragging }: DragPreviewProps) => {
-      if (!isDragging || !mouse) return null
+      if (!isDragging || !mouse || !inside) return null
       const first = id ? tree.current?.get(id)?.data : undefined
       return (
         <div style={{ position: "fixed", pointerEvents: "none", zIndex: 100, left: 0, top: 0, transform: `translate(${mouse.x + 12}px, ${mouse.y + 8}px)` }}>
@@ -348,7 +359,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
         </div>
       )
     },
-    [copying, refusal],
+    [copying, refusal, inside],
   )
 
   const setRefusalSoon = (r: { id: string; reason: string } | null) => {

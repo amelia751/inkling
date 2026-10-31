@@ -53,7 +53,8 @@ interface Section {
  */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
-  { section: "sources", label: "Data", icon: SourcesIcon },
+  // todo7 D11: the route is `files`; the visible label stays "Data" (the drive's root is "Files").
+  { section: "files", label: "Data", icon: SourcesIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
   { section: "activity", label: "Activity", icon: ActivityIcon },
@@ -117,7 +118,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
   const { pathname } = useLocation();
   useEffect(() => setDrawerOpen(false), [pathname]);
   const project = useCurrentProject(dataset);
-  // `when` clauses outside an environment read the page (`section == sources`); the Studio
+  // `when` clauses outside an environment read the page (`section == files`); the Studio
   // resolves its own context (section == studio) on top.
   const section = useSection();
   const shellSection = studio ? "studio" : (section ?? (project ? "overview" : "home"));

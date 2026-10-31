@@ -7,6 +7,28 @@ import { apiUrl } from "@/extension-host/runtime-config";
  * React Query keys they affect, so Overview, Sources and Explore follow an import while it
  * runs. EventSource reconnects on its own (the kernel ends a stream every few minutes).
  */
+type ProjectEventListener = (data: unknown, projectId: string) => void;
+const listeners = new Map<string, Set<ProjectEventListener>>();
+
+/** Event types forwarded to `onProjectEvent` subscribers (todo7: `fs.changed`). */
+const FORWARDED = ["fs.changed", "import.updated", "source.node.inspected"];
+
+/**
+ * Listen to one event type on the page's project stream (opened by `useProjectEvents`, one
+ * per page). `data` is the event's parsed JSON. Returns the unsubscribe function.
+ */
+export function onProjectEvent(type: string, fn: ProjectEventListener): () => void {
+  const set = listeners.get(type) ?? new Set();
+  set.add(fn);
+  listeners.set(type, set);
+  return () => set.delete(fn);
+}
+
+/** Deliver an event to subscribers (the stream, and tests). */
+export function emitProjectEvent(type: string, data: unknown, projectId: string): void {
+  listeners.get(type)?.forEach((fn) => fn(data, projectId));
+}
+
 export function useProjectEvents(projectId: string | undefined) {
   const qc = useQueryClient();
   useEffect(() => {
@@ -21,6 +43,17 @@ export function useProjectEvents(projectId: string | undefined) {
       "proposal.decided": refresh([project, ["tasks"]]),
     };
     for (const [type, fn] of Object.entries(on)) es.addEventListener(type, fn);
+    for (const type of FORWARDED) {
+      es.addEventListener(type, (e) => {
+        let data: unknown = null;
+        try {
+          data = JSON.parse((e as MessageEvent<string>).data);
+        } catch {
+          // Events without a JSON body still notify.
+        }
+        emitProjectEvent(type, data, projectId);
+      });
+    }
     return () => es.close();
   }, [projectId, qc]);
 }

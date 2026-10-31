@@ -39,7 +39,7 @@ export function SlotTabs({ slot, only, env, project, items, item }: SlotProps & 
   );
 }
 
-/** The Items panel: titled by the data kind's plural noun (Images, Studies, Slides), never "Files". */
+/** The Items panel: "Items", or the plural of the task's own noun (Cases, Clips); never a data type. */
 const ITEMS_PANEL = `${CORE}.panels.files`;
 
 /**

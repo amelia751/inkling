@@ -3866,7 +3866,7 @@
       "id": "inkling.core.panels.labels",
       "type": "panels",
       "module": "inkling.core",
-      "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection",
+      "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this item\") and the selection",
       "slot": "left",
       "example": {
         "panels": {

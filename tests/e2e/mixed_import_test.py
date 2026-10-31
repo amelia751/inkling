@@ -232,7 +232,7 @@ def main() -> int:
             page.get_by_role("tab", name="Labels").first.click()
             on_item = page.get_by_test_id("on-this-item")
             badge = wait(lambda: on_item.get_by_text("Imported", exact=True).count() > 0, 15)
-            check("the imported badge is shown in On this image", bool(badge))
+            check("the imported badge is shown in On this item", bool(badge))
             n_before = st["n"] if st else 0
 
             # 5. Reload keeps everything.

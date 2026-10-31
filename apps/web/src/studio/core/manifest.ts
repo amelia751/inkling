@@ -102,7 +102,7 @@ export default defineModule({
     commands,
     panels: [
       { id: "files", title: "Items", slot: "left", description: "The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides)" },
-      { id: "labels", title: "Labels", slot: "left", description: "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection" },
+      { id: "labels", title: "Labels", slot: "left", description: "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this item\") and the selection" },
       { id: "review", title: "All annotations", slot: "left", description: "Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio" },
       { id: "ai", title: `${NAMING.displayName} AI`, slot: "right", description: "Assistant that can read and edit this environment (agent tools)" },
     ],

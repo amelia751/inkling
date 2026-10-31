@@ -70,6 +70,11 @@ export const StudioViewSchema = z.object({
     .optional()
     .describe("Show the labels that came with the files (source labels). Unset: hidden for classification tasks (blind by default), shown elsewhere"),
   showFilePaths: z.boolean().optional().describe("Show each item's folder path (status bar, hover card). Unset: shown"),
+  itemNoun: z
+    .string()
+    .max(40)
+    .optional()
+    .describe('What one item is called in this task, singular ("case", "clip", "document"). Unset: "item"; the Studio never assumes a data type'),
 });
 
 export const EnvironmentSpecSchema = z

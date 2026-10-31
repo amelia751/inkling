@@ -30,9 +30,14 @@ export function envIcon(env: ResolvedEnv | undefined): IconComponent | undefined
   return env?.dataKind.icon;
 }
 
-/** Singular noun for the unit an expert works through ("slide", "recording"). */
+/**
+ * Singular noun for the unit an expert works through. The task names it (Task setup → "What do
+ * you call one item?": "case", "clip", "document"); otherwise it's "item". The shell never takes
+ * it from the data kind: a task's items needn't all be pictures, and "Images" over a mix of
+ * scans, reports and recordings is wrong.
+ */
 export function itemNoun(env: ResolvedEnv | undefined): string {
-  return env?.dataKind.itemNoun ?? "item";
+  return env?.spec.studio?.itemNoun?.trim().toLowerCase() || "item";
 }
 
 /** Icon for a project's data kind (the dataset switcher, cards). */

@@ -8,6 +8,7 @@ import type { Project } from "@studio/contracts/types";
 // TODO(todo8-integration): TaskSetupIcon (the same Sliders glyph) once it's in @studio/ui/icons.
 import { AiIcon, ArrowRightIcon, ChevronDownIcon, ChevronRightIcon, DeleteIcon, SettingsIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
+import { Input } from "@studio/ui/ui/input";
 import { Card } from "@studio/ui/ui/card";
 import { Checkbox } from "@studio/ui/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
@@ -277,7 +278,7 @@ function SetupEditor({ env, task, projectId, canEdit }: { env: ResolvedEnv; task
             onChange={(v) => set("studio", { ...draft.studio, showSourceLabels: v })}
             readOnly={readOnly}
             label="Labels that came with the files"
-            hint={env.task === "classification" ? "Off by default for a classification task: the folder or file a picture came from often is the answer. Turn on for correction work." : "Shown as context, never as the answer."}
+            hint={env.task === "classification" ? "Off by default for a classification task: the folder or file an item came from often is the answer. Turn on for correction work." : "Shown as context, never as the answer."}
             testid="show-source-labels"
           />
           <Toggle
@@ -288,6 +289,19 @@ function SetupEditor({ env, task, projectId, canEdit }: { env: ResolvedEnv; task
             hint="Each item's folder, in the status bar and on hover."
             testid="show-file-paths"
           />
+          <label className="mt-2 flex flex-col gap-1 text-sm">
+            <span className="font-medium">What do you call one item?</span>
+            <span className="text-muted-foreground">Used in the Studio's list and messages: “Cases 20”, “On this case”. Leave empty for “item”.</span>
+            <Input
+              value={draft.studio.itemNoun}
+              onChange={(e) => set("studio", { ...draft.studio, itemNoun: e.target.value })}
+              placeholder="item"
+              maxLength={40}
+              disabled={readOnly}
+              className="max-w-xs"
+              data-testid="item-noun"
+            />
+          </label>
         </Section>
 
         <TechnicalDetails env={env} next={next} toolIds={toolList.map((t) => t.tool.id)} />

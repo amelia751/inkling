@@ -4,21 +4,13 @@ import { CheckIcon, ChevronDownIcon, ContactIcon, CopyIcon, DocsIcon, ExternalLi
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
-import { settingsUrl } from "@/studio/lib/routes";
+import { ACCOUNT, ORG } from "@/studio/lib/account-mock";
+import { billingUrl, orgUrl, profileUrl, settingsUrl } from "@/studio/lib/routes";
 import { cn } from "@studio/ui/utils";
 
-/** Hard-coded until accounts exist: one person in their personal workspace. */
-const ACCOUNT = {
-  name: "Anh Lam",
-  email: "amelia.anh.lam@gmail.com",
-  userId: "user-e7k2d9xq4m8p1vztq9vxtt",
-  workspace: "Personal",
-  workspaceId: "ws-3hq8n2c7r5w1b4fjhjgv0gy",
-  balance: "$0.00",
-};
 const LINKS = { contact: "mailto:support@example.com", docs: "https://docs.example.com" };
 
-/** `user-e7k...q9vxtt`: both ends, short enough to sit beside the longer "Workspace ID:" label. */
+/** `user_01J...q9vxtt`: both ends, so the id stays on one line beside its label. */
 const shortId = (id: string) => (id.length > 17 ? `${id.slice(0, 8)}...${id.slice(-6)}` : id);
 
 function useCopy() {
@@ -77,23 +69,23 @@ export function UserMenu({ className }: { className?: string }) {
           <p className="truncate text-sm leading-5 text-complementary">{ACCOUNT.email}</p>
           <table className="mt-1 text-sm">
             <tbody>
-              <IdRow label="User ID" id={ACCOUNT.userId} copied={copied === "user"} onCopy={() => copy("user", ACCOUNT.userId)} />
-              <IdRow label="Workspace ID" id={ACCOUNT.workspaceId} copied={copied === "workspace"} onCopy={() => copy("workspace", ACCOUNT.workspaceId)} spaced />
+              <IdRow label="User ID" id={ACCOUNT.id} copied={copied === "user"} onCopy={() => copy("user", ACCOUNT.id)} />
+              <IdRow label="Org ID" id={ORG.id} copied={copied === "org"} onCopy={() => copy("org", ORG.id)} spaced />
             </tbody>
           </table>
           <button
             type="button"
-            onClick={() => copy("both", `User ID: ${ACCOUNT.userId}\nWorkspace ID: ${ACCOUNT.workspaceId}`)}
+            onClick={() => copy("both", `User ID: ${ACCOUNT.id}\nOrganization ID: ${ORG.id}`)}
             className="press mt-3 inline-flex h-7 w-fit items-center gap-2 rounded-lg bg-generic px-3 text-sm hover:bg-generic-hover"
             data-testid="copy-ids"
           >
-            {copied === "both" ? "Copied" : "Copy user and workspace IDs"}
+            {copied === "both" ? "Copied" : "Copy user and organization IDs"}
             {copied === "both" ? <CheckIcon className="size-3 text-positive" /> : <CopyIcon className="size-3" />}
           </button>
         </section>
 
         <section className="flex flex-col gap-3 border-t border-border px-5 py-4">
-          <p className="truncate text-[14px] font-semibold leading-[22px]">Workspace {ACCOUNT.workspace}</p>
+          <p className="truncate text-[14px] font-semibold leading-[22px]">Organization {ORG.name}</p>
           <div className="flex items-center justify-between">
             <Tooltip>
               <TooltipTrigger asChild>
@@ -101,18 +93,18 @@ export function UserMenu({ className }: { className?: string }) {
                   Account balance <InfoIcon className="size-3 text-foreground" />
                 </span>
               </TooltipTrigger>
-              <TooltipContent>Credits for AI suggestions and inspection jobs in this workspace</TooltipContent>
+              <TooltipContent>Credits for AI suggestions and inspection jobs in this organization</TooltipContent>
             </Tooltip>
-            <span className="tnum text-[14px] font-semibold leading-[22px]">{ACCOUNT.balance}</span>
+            <span className="tnum text-[14px] font-semibold leading-[22px]">${ORG.balance.toFixed(2)}</span>
           </div>
-          <button type="button" className="press flex h-7 w-full items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-generic">
+          <Link to={billingUrl("details")} className="press flex h-7 w-full items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-generic">
             <TopUpIcon className="size-4" /> Top up account balance
-          </button>
+          </Link>
         </section>
 
         <ul className="flex flex-col gap-1 border-t border-border py-3">
-          <Item>Workspace settings</Item>
-          <Item>Billing settings</Item>
+          <Item to={orgUrl()}>Organization settings</Item>
+          <Item to={billingUrl()}>Billing settings</Item>
           {projectId ? (
             <li>
               <DropdownMenuItem asChild className={ITEM}>
@@ -122,7 +114,7 @@ export function UserMenu({ className }: { className?: string }) {
           ) : (
             <Item disabled>Project settings</Item>
           )}
-          <Item>User settings</Item>
+          <Item to={profileUrl()}>User settings</Item>
           <Item>Log out</Item>
         </ul>
 
@@ -136,11 +128,11 @@ export function UserMenu({ className }: { className?: string }) {
 
 const ITEM = "min-h-9 cursor-pointer rounded-none px-5 py-0 text-[14px] leading-[22px] focus:bg-generic-hover focus:text-foreground";
 
-function Item({ children, disabled }: { children: ReactNode; disabled?: boolean }) {
+function Item({ children, disabled, to }: { children: ReactNode; disabled?: boolean; to?: string }) {
   return (
     <li>
-      <DropdownMenuItem disabled={disabled} className={ITEM}>
-        {children}
+      <DropdownMenuItem disabled={disabled} className={ITEM} asChild={!!to}>
+        {to ? <Link to={to}>{children}</Link> : children}
       </DropdownMenuItem>
     </li>
   );

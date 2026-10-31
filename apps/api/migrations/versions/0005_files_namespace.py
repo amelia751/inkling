@@ -108,7 +108,6 @@ def upgrade() -> None:
         b.add_column(sa.Column('trashed_by', sa.String(length=256), nullable=True))
         b.add_column(sa.Column('trash_batch_id', sa.String(length=64), nullable=True))
         b.create_index('ix_source_nodes_parent', ['parent_id'], unique=False)
-        b.create_index(b.f('ix_source_nodes_trashed_at'), ['trashed_at'], unique=False)
     with op.batch_alter_table('upload_files', schema=None) as b:
         b.add_column(sa.Column('node_id', sa.String(length=64), nullable=True))
 
@@ -179,6 +178,8 @@ def upgrade() -> None:
 
     _migrate_data()
 
+    op.create_index('ix_source_nodes_trash', 'source_nodes', ['project_id', 'trashed_at'], unique=False,
+                    sqlite_where=sa.text('trashed_at IS NOT NULL'), postgresql_where=sa.text('trashed_at IS NOT NULL'))
     op.create_index('uq_source_nodes_sibling_name', 'source_nodes', ['parent_id', sa.text('lower(name)'), 'name_dup'], unique=True,
                     sqlite_where=sa.text('trashed_at IS NULL'), postgresql_where=sa.text('trashed_at IS NULL'))
 
@@ -278,6 +279,7 @@ def downgrade() -> None:
     """Best effort: the namespace changes made since (new folders, Trash, versions) are lost;
     imports' folders become roots again."""
     op.drop_index('uq_source_nodes_sibling_name', table_name='source_nodes')
+    op.drop_index('ix_source_nodes_trash', table_name='source_nodes')
     conn = op.get_bind()
     nodes, *_ = _tables()
     roots = [r.id for r in conn.execute(sa.select(nodes.c.id).where(nodes.c.parent_id.is_(None), nodes.c.source_id.is_(None)))]
@@ -289,7 +291,6 @@ def downgrade() -> None:
     with op.batch_alter_table('upload_files', schema=None) as b:
         b.drop_column('node_id')
     with op.batch_alter_table('source_nodes', schema=None) as b:
-        b.drop_index(b.f('ix_source_nodes_trashed_at'))
         b.drop_index('ix_source_nodes_parent')
         for col in ('trash_batch_id', 'trashed_by', 'trashed_at', 'version', 'locked', 'revision', 'total_bytes', 'name_dup', 'project_root'):
             b.drop_column(col)

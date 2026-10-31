@@ -198,7 +198,7 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
     period = datetime.now(UTC).strftime("%Y-%m-%d")
     force = bool(body.get("force"))
     if not force:
-        insert_ignore(db, ScheduledRun, [{"name": "files.empty_trash", "period": period, "result": None, "at": datetime.now(UTC)}])
+        insert_ignore(db, ScheduledRun, [{"name": "files.empty_trash", "period": period, "at": datetime.now(UTC)}])
         row = db.get(ScheduledRun, ("files.empty_trash", period))
         if row is None or row.result is not None:
             return {"ran": False, "period": period, "result": row.result if row else None}
@@ -206,7 +206,7 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
         claimed = db.execute(ScheduledRun.__table__.update().where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"})).rowcount
         if not claimed:
             return {"ran": False, "period": period, "result": None}
-    days = int(body.get("days") or fs.TRASH_DAYS)
+    days = int(body["days"]) if isinstance(body.get("days"), int) else fs.TRASH_DAYS
     result = fs.purge_expired(db, days=max(0, days))
     if not force:
         db.execute(ScheduledRun.__table__.update().where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period).values(result=result))

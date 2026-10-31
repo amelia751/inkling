@@ -22,4 +22,6 @@ def insert_ignore(db: Session, model: Any, rows: list[dict]) -> None:
     for r in rows:
         groups.setdefault(tuple(sorted(r)), []).append(r)
     for group in groups.values():
-        db.execute(insert(model.__table__).values(group).on_conflict_do_nothing())
+        # executemany (one compiled statement, "insertmanyvalues" batches): a multi-row VALUES
+        # compiled per call costs seconds of Python for thousands of rows.
+        db.execute(insert(model.__table__).on_conflict_do_nothing(), group)

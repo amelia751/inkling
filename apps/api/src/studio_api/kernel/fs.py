@@ -877,7 +877,7 @@ def _flagged_below(db: Session, ids: list[str]) -> list[SourceNode]:
     for i in range(0, len(ids), 200):
         batch = ids[i : i + 200]
         down = select(SourceNode.id, SourceNode.is_dir, SourceNode.flags).where(SourceNode.id.in_(batch)).cte("flagged", recursive=True)
-        down = down.union_all(select(SourceNode.id, SourceNode.is_dir, SourceNode.flags).join(down, SourceNode.parent_id == down.c.id).where(SourceNode.trashed_at.is_(None)))
+        down = down.union_all(select(SourceNode.id, SourceNode.is_dir, SourceNode.flags).select_from(down).join(SourceNode, SourceNode.parent_id == down.c.id).where(SourceNode.trashed_at.is_(None)))
         hit = list(db.scalars(select(down.c.id).where(down.c.is_dir.is_(False), cast(down.c.flags, String).like('%"privacy"%'))))
         if hit:
             out.extend(db.scalars(select(SourceNode).where(SourceNode.id.in_(hit))))

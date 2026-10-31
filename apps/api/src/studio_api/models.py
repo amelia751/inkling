@@ -460,7 +460,7 @@ class SourceNode(Base):
     # Files: the current version (D6); `node_versions` keeps every one.
     version: Mapped[int] = mapped_column(Integer, default=1)
     # Trash (D8): only the trashed node is marked; its descendants are hidden with it.
-    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
     trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     import_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -477,6 +477,9 @@ Index(
     sqlite_where=SourceNode.trashed_at.is_(None),
     postgresql_where=SourceNode.trashed_at.is_(None),
 )
+# Trash listings and the purge job. Partial (only what's in Trash): a plain index on
+# `trashed_at` would tempt SQLite into scanning it for `trashed_at IS NULL` in tree walks.
+Index("ix_source_nodes_trash", SourceNode.project_id, SourceNode.trashed_at, sqlite_where=SourceNode.trashed_at.is_not(None), postgresql_where=SourceNode.trashed_at.is_not(None))
 
 
 class NodeVersion(Base):

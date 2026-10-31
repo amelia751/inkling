@@ -216,7 +216,8 @@ def subtree(db: Session, folder_id: str, *, into_trash: bool = False) -> list:
     it, with one recursive CTE. Trashed children (and what's below them) only with `into_trash`."""
     cols = (SourceNode.id, SourceNode.parent_id, SourceNode.is_dir, SourceNode.size, SourceNode.trashed_at, SourceNode.asset_id, SourceNode.name)
     down = select(*cols).where(SourceNode.id == folder_id).cte("down", recursive=True)
-    step = select(*cols).join(down, SourceNode.parent_id == down.c.id)
+    # FROM the CTE first: each new row looks its children up by the parent index.
+    step = select(*cols).select_from(down).join(SourceNode, SourceNode.parent_id == down.c.id)
     if not into_trash:
         step = step.where(SourceNode.trashed_at.is_(None))
     down = down.union_all(step)

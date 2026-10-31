@@ -104,7 +104,8 @@ def main() -> int:
             page.wait_for_timeout(400)
             check("showing them again narrows the canvas", viewer.bounding_box()["width"] < w1 - 200, f"{viewer.bounding_box()['width']:.0f}px")
             rows = page.locator("[data-testid=file-row]")
-            check("Files rows show a data kind and a state", rows.count() == 20 and rows.first.locator("[data-testid=file-kind]").get_attribute("aria-label") == "Image", f"{rows.count()} rows")
+            # todo8 D3: an item row shows its kind icon only when the task mixes kinds; every row has a state.
+            check("Items rows show a state, and no kind icon in a one-kind task", rows.count() == 20 and rows.first.get_attribute("data-state") is not None and page.locator("[data-testid=file-row] [data-testid=file-kind]").count() == 0, f"{rows.count()} rows")
             check("the new box marks its item annotated", page.locator("[data-testid=file-row][aria-current=true]").get_attribute("data-state") == "annotated")
             errs = [e for e in st.errors if "favicon" not in e]
             check("no page errors", not errs, "; ".join(errs[:3]))

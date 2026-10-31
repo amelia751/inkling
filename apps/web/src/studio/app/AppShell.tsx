@@ -1,7 +1,5 @@
 import { NAMING } from "@studio/contracts/naming";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router";
-import { Toaster } from "sonner";
-import { useTheme } from "@/studio/lib/theme";
 import { useNoSwipeBack } from "@/studio/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { StudioHostProvider } from "@/extension-host/host";
@@ -84,12 +82,6 @@ const router = createBrowserRouter([
 export function AppShell() {
   // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).
   useNoSwipeBack();
-  const { theme } = useTheme();
-  return (
-    <>
-      <RouterProvider router={router} />
-      {/* Toasts with an action ("Task setup changed · Undo"), bottom-left, clear of the assistant. */}
-      <Toaster position="bottom-left" theme={theme} />
-    </>
-  );
+  // Toasts ("Task setup changed · Undo" and the rest) come from boot.tsx's one app-wide Toaster.
+  return <RouterProvider router={router} />;
 }

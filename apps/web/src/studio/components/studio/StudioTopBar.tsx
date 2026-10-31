@@ -79,7 +79,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         {showLeftToggle && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost-secondary" size="icon" selected={leftOpen} onClick={toggleLeft} aria-pressed={leftOpen} aria-label="Files and labels panel" data-testid="toggle-left-panel">
+              <Button variant="ghost-secondary" size="icon" selected={leftOpen} onClick={toggleLeft} aria-pressed={leftOpen} aria-label="Items and labels panel" data-testid="toggle-left-panel">
                 <SidebarIcon />
               </Button>
             </TooltipTrigger>

@@ -167,7 +167,9 @@ unconditionally active together.
 
 Common capabilities: `drafting` (Enter / Esc finish or cancel a shape), `vertexUndo`,
 `holdToPan`, `rotate`, `playback`, `time`, `slices`, `planes`, `windowLevel`,
-`cornerstone`, `suggestions` (Tab / Enter review of AI suggestions).
+`cornerstone`, `suggestions` (Tab / Enter review of AI suggestions), `overlayOpacity` (the
+renderer's view menu has the overlay opacity control, `OverlayOpacityControl` from
+`@studio/renderers/viewport-chrome/opacity`; without it the Labels panel keeps the slider).
 
 ## Runtime context
 

@@ -37,8 +37,7 @@
     "panels": {
       "left": [
         "inkling.core.panels.files",
-        "inkling.core.panels.labels",
-        "inkling.core.panels.review"
+        "inkling.core.panels.labels"
       ],
       "right": [
         "inkling.core.panels.ai",

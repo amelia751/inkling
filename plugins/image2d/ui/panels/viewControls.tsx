@@ -15,6 +15,7 @@ import { Button } from "@studio/ui/ui/button";
 import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import { formatCombo } from "@studio/ui/keys";
+import { OverlayOpacityControl } from "@studio/renderers/viewport-chrome/opacity";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { COMMANDS, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";
@@ -73,6 +74,7 @@ function Select({ title, value, options, onChange }: { title: string; value: str
 
 /**
  * Viewport-bar controls of the Cornerstone stack renderer: window/level presets, invert,
+ * overlay opacity,
  * flip, rotate, fit, color map, interpolation and magnifier, plus the wand mode and
  * "remove islands" while a mask tool is active. Each group shows only when the renderer's
  * config keeps it (`windowLevel: false` for natural photos…). Reads the state and actions
@@ -90,6 +92,7 @@ export function ViewControlsPanel({ item }: PanelProps) {
     <div className="flex items-center gap-0.5" role="group" aria-label="View controls">
       {f.windowLevel && <Select title="Window / level preset" value="" options={view.voiOptions} onChange={act.applyVoiPreset} />}
       {f.invert && <IconButton icon={InvertIcon} label="Invert" command={COMMANDS.invert} active={view.invert} onClick={act.toggleInvert} />}
+      <OverlayOpacityControl />
       {(f.flip || f.rotate) && <Sep />}
       {f.flip && (
         <>

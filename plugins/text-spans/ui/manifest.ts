@@ -72,7 +72,7 @@ export default defineModule({
           viewports: [{ name: "main", renderer: `${TEXT}.renderers.reader` }],
           tools: [ns("core.tools.select"), `${TEXT}.tools.entity`],
           labels: [{ name: "entities", control: "SpanLabels", classes: [{ id: "PER", color: "#ef476f" }, { id: "ORG", color: "#118ab2" }, { id: "LOC", color: "#06d6a0" }] }],
-          panels: { left: [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")], right: [ns("core.panels.ai")] },
+          panels: { left: [ns("core.panels.files"), ns("core.panels.labels")], right: [ns("core.panels.ai")] },
           exporters: [`${TEXT}.exporters.jsonl`],
           reviewRules: [ns("core.reviewRules.unlabeled-items")],
         },

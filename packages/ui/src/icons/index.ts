@@ -99,6 +99,7 @@ export { default as RegionIcon } from "@gravity-ui/icons/SquareDashed";
 export { default as ProjectionIcon } from "@gravity-ui/icons/Layers";
 export { default as InterpolateIcon } from "@gravity-ui/icons/LayersVertical";
 export { default as CleanupIcon } from "@gravity-ui/icons/BroomMotion";
+export { default as OverlayOpacityIcon } from "@gravity-ui/icons/Droplet";
 export { FlipHorizontal as FlipHorizontalIcon, FlipVertical as FlipVerticalIcon, Invert as InvertIcon } from "./custom";
 
 // Status

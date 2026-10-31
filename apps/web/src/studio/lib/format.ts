@@ -15,3 +15,17 @@ export function pluralWord(n: number, word: string): string {
 export function plural(n: number, word: string): string {
   return `${n} ${pluralWord(n, word)}`;
 }
+
+/** "image" → "Images", "study" → "Studies": a plural noun as a title (the Studio's Items tab). */
+export function pluralTitle(word: string): string {
+  const p = pluralWord(2, word.trim() || "item");
+  return p[0].toUpperCase() + p.slice(1);
+}
+
+/** Below this many items a tab shows its count; above it the number is noise (todo8 D2). */
+export const TAB_COUNT_LIMIT = 1000;
+
+/** The Items tab's label: the data kind's plural noun, and the count only when it's under 1,000. */
+export function itemsTabLabel(noun: string, count: number): { title: string; count: number | undefined } {
+  return { title: pluralTitle(noun), count: count < TAB_COUNT_LIMIT ? count : undefined };
+}

@@ -39,8 +39,10 @@ LABEL org.opencontainers.image.source="${IMAGE_SOURCE}" \
 WORKDIR /app
 COPY --from=prod-deps /repo/ ./
 COPY --from=build /repo/apps/mcp/dist apps/mcp/dist
-# dist/main.js reads ../../../schemas/naming.json, i.e. /app/schemas/naming.json.
+# dist/main.js reads ../../../schemas/naming.json, i.e. /app/schemas/naming.json, and
+# dist/viewers.js the viewer document template (schemas/viewer-runtime.v1.json).
 COPY --from=build /repo/schemas/naming.json schemas/naming.json
+COPY --from=build /repo/schemas/viewer-runtime.v1.json schemas/viewer-runtime.v1.json
 ENV NODE_ENV=production HOME=/tmp GIT_SHA=${GIT_SHA}
 USER node
 # stdio server: no HEALTHCHECK (nothing listens).

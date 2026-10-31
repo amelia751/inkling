@@ -10,8 +10,9 @@
 // (apps/web/dev/seed-server.ts); point <envPrefix>URL at apps/api once it serves them.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { readFileSync } from "node:fs";
+import { createViewers } from "./viewers.js";
 
 type Naming = { envPrefix: string; resourcePrefix: string; displayName: string };
 type Result = { ok: boolean; status?: number; data: any };
@@ -22,6 +23,15 @@ const env = (name: string) => process.env[`${NAMING.envPrefix}${name}`];
 
 const BASE = (env("WEB_URL") ?? "http://localhost:5173").replace(/\/$/, "");
 const AUTHOR = env("MCP_AUTHOR") ?? "agent:mcp";
+// Sandboxed viewers (todo10 Phase 5) of this workspace's active plugins, served as MCP Apps.
+// The kernel's Workspace and Plugin APIs answer at <envPrefix>API_URL (default: the web URL, which proxies /api).
+const viewers = createViewers({
+  prefix: NAMING.resourcePrefix,
+  displayName: NAMING.displayName,
+  apiBase: (env("API_URL") ?? BASE).replace(/\/$/, ""),
+  webBase: BASE,
+  workspace: env("MCP_WORKSPACE"),
+});
 
 async function http(method: string, path: string, body?: unknown): Promise<Result> {
   const res = await fetch(`${BASE}${path}`, {
@@ -124,10 +134,18 @@ async function call(name: string, args: Record<string, any>): Promise<Result> {
   }
 }
 
-const server = new Server({ name: NAMING.resourcePrefix, version: "1.0.0" }, { capabilities: { tools: {} }, instructions: `${NAMING.displayName} Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. Fix errors using their path and suggestion.` });
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+const server = new Server({ name: NAMING.resourcePrefix, version: "1.0.0" }, { capabilities: { tools: { listChanged: false }, resources: {} }, instructions: `${NAMING.displayName} Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. Fix errors using their path and suggestion. view_* tools show a file in a sandboxed viewer to the user.` });
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...TOOLS, ...(await viewers.tools())] }));
+server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: await viewers.resources() }));
+server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
+  const r = await viewers.read(req.params.uri);
+  if (!r) throw new Error(`Unknown resource ${req.params.uri}`);
+  return r as never;
+});
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
+    const v = await viewers.call(req.params.name, (req.params.arguments ?? {}) as Record<string, unknown>);
+    if (v) return v as never;
     const r = await call(req.params.name, req.params.arguments ?? {});
     const text = typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
     return { content: [{ type: "text", text }], isError: !r.ok };

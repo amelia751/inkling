@@ -57,7 +57,10 @@ def main() -> int:
         nav.get_by_role("link", name="Sources", exact=True).click()
         page.wait_for_url("**/projects/2d-xray/sources")
         check("sidebar navigates", page.url.endswith("/sources"))
-        check("breadcrumb names the section", page.locator("[data-testid=breadcrumb] [aria-current=page]").inner_text() == "Sources")
+        # The URL changes before the router's transition renders the new page: wait for it.
+        crumb = page.locator("[data-testid=breadcrumb] [aria-current=page]", has_text="Sources")
+        crumb.wait_for(timeout=5000)
+        check("breadcrumb names the section", crumb.inner_text() == "Sources")
 
         # The toggle command collapses the sidebar to a 48px rail with labelled icons.
         page.mouse.click(700, 500)

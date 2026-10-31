@@ -53,7 +53,8 @@ def test_get_falls_back_to_the_manifest_environment(c):
     assert c.get("/api/environments/with-env").json() == {"revision": 0, "environment": None, "effective": ENV}
     legacy = c.get("/api/environments/legacy").json()["effective"]
     assert legacy["extends"] == "preset:pathology" and legacy["task"] == "classification"
-    assert [g["name"] for g in legacy["labels"]] == ["class", "labels"] and legacy["labels"][1]["classes"] == [{"id": "tumor"}, {"id": "stroma"}]
+    # A classification task gets only its Choices group (todo8 D4), no region copy.
+    assert [g["name"] for g in legacy["labels"]] == ["class"] and legacy["labels"][0]["classes"] == [{"id": "tumor"}, {"id": "stroma"}]
     assert c.get("/api/environments/nope").json() == {"revision": 0, "environment": None, "effective": None}
     assert c.get("/api/environments/Bad_Id").status_code == 400
 

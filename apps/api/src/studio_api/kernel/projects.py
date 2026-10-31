@@ -132,11 +132,13 @@ LEGACY_PRESETS = {
 
 
 def label_groups(labels: list[str], task: str | None) -> list[dict]:
+    """String labels as label groups. A classification task gets only its `Choices` group, no
+    region copy of the same classes (todo8 D4; `labelGroupsFrom` in apps/web/src/studio/lib/api.ts
+    and `with_environment` in tools/fetch-seeds.py do the same)."""
     classes = [{"id": label} for label in labels]
-    groups = [{"name": "labels", "control": "Labels", "classes": classes}]
     if task == "classification":
-        groups.insert(0, {"name": "class", "control": "Choices", "classes": classes})
-    return groups
+        return [{"name": "class", "control": "Choices", "classes": classes}]
+    return [{"name": "labels", "control": "Labels", "classes": classes}]
 
 
 def seed_entry(project_id: str) -> dict | None:

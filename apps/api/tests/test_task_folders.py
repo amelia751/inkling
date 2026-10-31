@@ -54,3 +54,10 @@ def test_sample_documents_carry_nodes_and_folders(client):
     first = doc["assets"][0]
     detail = client.get(f"/api/v1/source-nodes/{first['nodeId']}").json()
     assert detail["pathText"].endswith(first["path"].split("/")[-1])
+
+
+def test_classification_gets_only_its_choices_group():
+    from studio_api.kernel.projects import label_groups
+
+    assert label_groups(["normal", "pneumonia"], "classification") == [{"name": "class", "control": "Choices", "classes": [{"id": "normal"}, {"id": "pneumonia"}]}]
+    assert label_groups(["tumor"], "segmentation") == [{"name": "labels", "control": "Labels", "classes": [{"id": "tumor"}]}]

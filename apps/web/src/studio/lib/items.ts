@@ -7,8 +7,8 @@ export function projectItems(project: Project): StudioItem[] {
 }
 
 /**
- * The next item nobody has annotated yet, after `from` in queue order (the task's item order
- * for now), wrapping around; undefined when every other item has annotations. Used by the
+ * The next item nobody has annotated yet, after `from` in queue order (the Items panel's Queue
+ * lists the task's items in this order, whichever view or chip is showing), wrapping around; undefined when every other item has annotations. Used by the
  * `nextTodo` command (N) and the decision bar's advance.
  */
 export function nextTodoIndex(items: StudioItem[], annotations: readonly { itemId: string }[], from: number): number | undefined {

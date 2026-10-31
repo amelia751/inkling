@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/ConverterOutput",
+  "$defs": {
+    "ConverterOutput": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "shape": {
+              "type": "string",
+              "const": "zarr"
+            },
+            "store": {
+              "type": "string",
+              "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+            },
+            "arrays": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$",
+                    "description": "Array path inside the store"
+                  },
+                  "shape": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "dtype": {
+                    "type": "string",
+                    "enum": [
+                      "bool",
+                      "int8",
+                      "uint8",
+                      "int16",
+                      "uint16",
+                      "int32",
+                      "uint32",
+                      "int64",
+                      "uint64",
+                      "float16",
+                      "float32",
+                      "float64"
+                    ]
+                  },
+                  "chunks": {
+                    "minItems": 1,
+                    "maxItems": 8,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "dimensionNames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-z]{1,16}$"
+                    }
+                  },
+                  "spacing": {
+                    "type": "array",
+                    "items": {
+                      "type": "number",
+                      "exclusiveMinimum": 0
+                    }
+                  }
+                },
+                "required": [
+                  "path",
+                  "shape",
+                  "dtype",
+                  "chunks"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "shape",
+            "store",
+            "arrays"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shape": {
+              "type": "string",
+              "const": "arrow"
+            },
+            "file": {
+              "type": "string",
+              "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+            },
+            "rows": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "columns": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "type": {
+                    "type": "string",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "shape",
+            "file",
+            "rows",
+            "columns"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "shape": {
+              "type": "string",
+              "const": "assets"
+            },
+            "assets": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "pattern": "^(?!\\/)(?!.*\\.\\.)[\\w./-]+$"
+                  },
+                  "mediaType": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "cine",
+                      "reference",
+                      "thumbnail"
+                    ]
+                  },
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "frames": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "path",
+                  "mediaType"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "dataKind": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "shape",
+            "assets"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "$id": "inkling://schema/converter-output/v1"
+}

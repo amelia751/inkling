@@ -32,6 +32,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
@@ -84,19 +85,28 @@ def children(project_id: str, node: str | None = None, cursor: str | None = None
     return tree.children(db, p.id, parent, max(0, start), max(1, min(limit, tree.PAGE)), sort=sort, direction=dir, starred=stars)
 
 
+def _raced(fn, *args):
+    """Two people naming things in one folder at once: the unique (parent, lower(name)) index
+    stops the second; it gets a 409 to retry, and the transaction rolls back whole."""
+    try:
+        return fn(*args)
+    except IntegrityError:
+        raise HTTPException(409, "Someone else just changed this folder. Reload and try again") from None
+
+
 @router.post("/projects/{project_id}/fs/ops")
 def ops(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return fs.apply(db, ctx, _project(db, ctx, project_id, write=True), body)
+    return _raced(fs.apply, db, ctx, _project(db, ctx, project_id, write=True), body)
 
 
 @router.post("/projects/{project_id}/fs/undo")
 def undo(project_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return fs.undo(db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
+    return _raced(fs.undo, db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
 
 
 @router.post("/projects/{project_id}/fs/redo")
 def redo(project_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return fs.redo(db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
+    return _raced(fs.redo, db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
 
 
 @router.get("/projects/{project_id}/fs/history")

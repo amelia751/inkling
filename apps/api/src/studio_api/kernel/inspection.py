@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .. import blobstore
 from ..context import RequestContext
-from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode
+from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile
 from . import assets, audit, events, explore, imports, projects
 
 INSPECTOR = "worker:inspect"
@@ -49,12 +49,16 @@ def import_for_worker(db: Session, import_id: str) -> dict:
     uploaded; renames re-run it in the kernel (todo7 Phase 7)."""
     s = _session(db, import_id)
     files = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)).order_by(SourceNode.original_path)))
+    uploaded: dict[str, str] = {}
+    if (s.totals or {}).get("mode") == "replace":
+        # A new version: check the name the new file arrived with, not the first upload's.
+        uploaded = {f.node_id: f.rel_path for f in db.scalars(select(UploadFile).where(UploadFile.session_id == s.id)) if f.node_id}
     return {
         "importId": s.id,
         "projectId": s.project_id,
         "sourceId": s.source_id,
         "state": s.state,
-        "files": [{"nodeId": n.id, "relPath": n.original_path or n.name, "name": n.name, "size": n.size, "sha256": n.sha256} for n in files],
+        "files": [{"nodeId": n.id, "relPath": uploaded.get(n.id) or n.original_path or n.name, "name": n.name, "size": n.size, "sha256": n.sha256} for n in files],
     }
 
 

@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import func, literal, select
+from sqlalchemy import Integer, cast, func, literal, select
 from sqlalchemy.orm import Session
 
 from ..dbutil import insert_ignore
@@ -326,7 +326,7 @@ def chains(db: Session, ids: Iterable[str]) -> dict[str, Chain]:
     out: dict[str, Chain] = {}
     for i in range(0, len(want), 500):
         batch = want[i : i + 500]
-        up = select(SourceNode.id.label("start"), SourceNode.id.label("nid"), SourceNode.parent_id.label("pid"), SourceNode.name.label("name"), SourceNode.trashed_at.label("trashed"), literal(0).label("depth")).where(SourceNode.id.in_(batch)).cte("up", recursive=True)
+        up = select(SourceNode.id.label("start"), SourceNode.id.label("nid"), SourceNode.parent_id.label("pid"), SourceNode.name.label("name"), SourceNode.trashed_at.label("trashed"), cast(literal(0), Integer).label("depth")).where(SourceNode.id.in_(batch)).cte("up", recursive=True)
         up = up.union_all(select(up.c.start, SourceNode.id, SourceNode.parent_id, SourceNode.name, SourceNode.trashed_at, up.c.depth + 1).join(SourceNode, SourceNode.id == up.c.pid).where(up.c.depth < 512))
         rows: dict[str, list] = {}
         for r in db.execute(select(up)):

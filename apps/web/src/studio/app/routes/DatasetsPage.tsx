@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, ChevronRightIcon, DatasetsIcon, FolderIcon, InfoIcon, PrivacyIcon } from "@studio/ui/icons";
 import { AppLayout, NestedPage, PageHeading } from "@/studio/components/layout/app-layout";
 import { Badge } from "@studio/ui/ui/badge";
+import { Alert } from "@studio/ui/ui/alert";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Checkbox } from "@studio/ui/ui/checkbox";
@@ -177,7 +178,7 @@ export function DatasetDetailPage({ tab }: { tab: DatasetTab }) {
   const { projectId = "", datasetId = "" } = useParams();
   const ds = useDataset(projectId, datasetId);
   const [exportTask, setExportTask] = useState<string | null>(null);
-  if (ds.error) return <AppLayout><FullPageMessage title="Dataset not found" body={String(ds.error)} /></AppLayout>;
+  if (ds.error) return <AppLayout><FullPageMessage kind="not-found" title="Dataset not found" body={String(ds.error)} /></AppLayout>;
   const d = ds.data;
   const tasks = d?.tasks ?? [];
   const taskForExport = exportTask ?? tasks[0]?.id;
@@ -399,9 +400,9 @@ function NewDatasetDialog({ projectId, onClose }: { projectId: string; onClose: 
             </div>
           </div>
           {create.error && (
-            <p className="rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">
+            <Alert theme="danger">
               {create.error instanceof NeedsApiError ? "Creating datasets needs the full stack: see docs/running.md" : String(create.error.message)}
-            </p>
+            </Alert>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>

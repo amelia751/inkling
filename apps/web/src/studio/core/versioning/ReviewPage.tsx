@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Alert } from "@studio/ui/ui/alert";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, CheckIcon, DoneIcon, ErrorIcon, MergeIcon, TodoIcon, WarningIcon } from "@studio/ui/icons";
@@ -83,7 +84,7 @@ function ReviewBody({ datasetId, projectId, reviewId }: { datasetId: string; pro
             </>
           }
         />
-        {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+        {error && <Alert theme="danger" className="mb-3">{error}</Alert>}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
           <Badge theme={STATUS_THEME[r.status]} size="sm">{r.status.toLowerCase()}</Badge>
           <span className="text-muted-foreground">

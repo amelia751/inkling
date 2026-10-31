@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Alert } from "@studio/ui/ui/alert";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, SearchIcon } from "@studio/ui/icons";
@@ -61,7 +62,7 @@ export function PluginsPage() {
   };
 
   if (isLoading) return <FullPageMessage title="Loading plugins…" loading />;
-  if (!project) return <FullPageMessage title="Dataset not found" />;
+  if (!project) return <FullPageMessage kind="not-found" title="Dataset not found" />;
   if (!enabled)
     return (
       <AppLayout dataset={{ id: project.id, title: project.title }}>
@@ -88,7 +89,7 @@ export function PluginsPage() {
           description="Installed in this workspace only. Installing new code or permissions always asks for approval."
           actions={<Button variant="outline" size="lg" asChild><Link to={studioUrl(projectId, summary.data?.sample === false ? undefined : project.id)}><AnnotateIcon />Back to annotating</Link></Button>}
         />
-        {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+        {error && <Alert theme="danger" className="mb-3">{error}</Alert>}
 
         <h2 className="mb-2 text-body-2 font-semibold">Installed</h2>
         <Card className="mb-6 divide-y divide-border" data-testid="installed-plugins">

@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, NestedPage, PageHeading } from "@/studio/components/layout/app-layout";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@studio/ui/ui/alert-dialog";
+import { Alert } from "@studio/ui/ui/alert";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Input } from "@studio/ui/ui/input";
@@ -166,9 +167,9 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
         )}
       </Card>
       {error && (
-        <p className="rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">
+        <Alert theme="danger">
           {error instanceof NeedsApiError ? "Changing a project needs the full stack: see docs/running.md" : error.message}
-        </p>
+        </Alert>
       )}
     </div>
   );

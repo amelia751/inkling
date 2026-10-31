@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { ApiKeyIcon, CheckIcon, CopyIcon, DeleteIcon, DomainIcon, ExternalLinkIcon, InfoIcon, TopUpIcon } from "@studio/ui/icons";
-import { Alert, AlertDescription } from "@studio/ui/ui/alert";
+import { ApiKeyIcon, CheckIcon, CopyIcon, DeleteIcon, DomainIcon, ExternalLinkIcon, TopUpIcon } from "@studio/ui/icons";
+import { Alert } from "@studio/ui/ui/alert";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Checkbox } from "@studio/ui/ui/checkbox";
@@ -9,7 +9,7 @@ import { Dialog } from "@studio/ui/ui/dialog";
 import { DropdownMenuItem } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
-import { CopyId, DataTable, Field, OutlineLabel, RowMenu, SearchField, SettingsDialog, SettingsPage, fmtDate, fmtDateTime, useCopy, type Column } from "@/studio/components/settings/kit";
+import { CopyId, DataTable, Field, invalidProps, NoResults, OutlineLabel, RowMenu, SearchField, SettingsDialog, SettingsPage, fmtDate, fmtDateTime, useCopy, type Column } from "@/studio/components/settings/kit";
 import { API_KEY_SCOPES, AUDIT_ACTIONS, AUTH, ORG, useAccount, type ApiKey, type AuditEvent } from "@/studio/lib/account-mock";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { newProjectUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
@@ -67,7 +67,7 @@ export function OrgProjectsPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? "Loading projects…" : "No projects yet."} testId="org-projects-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? "Loading projects…" : q ? <NoResults what="projects" onClear={() => setQ("")} /> : "No projects yet."} testId="org-projects-table" />
     </SettingsPage>
   );
 }
@@ -88,10 +88,7 @@ function Section({ title, description, children, action }: { title: string; desc
 }
 
 const MockNote = () => (
-  <Alert>
-    <InfoIcon />
-    <AlertDescription>Sign-in, SSO and directory settings are a mock. They will be set up through WorkOS (todo/todo9.md).</AlertDescription>
-  </Alert>
+  <Alert theme="info">Sign-in, SSO and directory settings are a mock. They will be set up through WorkOS (todo/todo9.md).</Alert>
 );
 
 /** Organization › Security: sign-in methods, MFA, SSO, directory sync, domains, sessions (WorkOS AuthKit + Admin Portal). */
@@ -253,13 +250,15 @@ export function ApiKeysPage() {
 function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const createKey = useAccount((s) => s.createKey);
   const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
+  const nameError = nameTouched && !name.trim() ? "Enter a name" : null;
   const [expiry, setExpiry] = useState("90");
   const [scopes, setScopes] = useState<string[]>(["datasets:read"]);
   const [secret, setSecret] = useState<string | null>(null);
   const { copied, copy } = useCopy();
   const close = () => {
     onOpenChange(false);
-    setTimeout(() => (setName(""), setExpiry("90"), setScopes(["datasets:read"]), setSecret(null)), 200);
+    setTimeout(() => (setName(""), setNameTouched(false), setExpiry("90"), setScopes(["datasets:read"]), setSecret(null)), 200);
   };
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
@@ -289,8 +288,8 @@ function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </>
           }
         >
-          <Field label="Name" htmlFor="key-name" required>
-            <Input id="key-name" inputSize="lg" placeholder="e.g. PACS sync" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Field label="Name" htmlFor="key-name" required error={nameError}>
+            <Input id="key-name" inputSize="lg" placeholder="e.g. PACS sync" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => setNameTouched(true)} autoFocus {...invalidProps("key-name", nameError)} />
           </Field>
           <Field label="Expiration">
             <Select value={expiry} onValueChange={setExpiry}>
@@ -368,7 +367,7 @@ export function AuditLogPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(e) => e.id} empty="No events match." testId="audit-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(e) => e.id} empty={q || action !== "all" ? <NoResults what="events" onClear={() => (setQ(""), setAction("all"))} /> : "No events yet."} testId="audit-table" />
     </SettingsPage>
   );
 }
@@ -379,6 +378,7 @@ export function OrgSettingsPage() {
   const [name, setName] = useState(ORG.name);
   const [zdr, setZdr] = useState(ORG.zeroRetention);
   const [ai, setAi] = useState(ORG.aiAssist);
+  const nameError = name.trim() ? null : "Enter a name";
   const dirty = name !== ORG.name || zdr !== ORG.zeroRetention || ai !== ORG.aiAssist;
   const save = () => {
     Object.assign(ORG, { name, zeroRetention: zdr, aiAssist: ai });
@@ -388,8 +388,8 @@ export function OrgSettingsPage() {
   return (
     <SettingsPage title="Settings" testId="org-settings">
       <div className="flex max-w-[458px] flex-col gap-6">
-        <Field label="Organization name" htmlFor="org-name" required>
-          <Input id="org-name" inputSize="lg" value={name} onChange={(e) => setName(e.target.value)} />
+        <Field label="Organization name" htmlFor="org-name" required error={nameError}>
+          <Input id="org-name" inputSize="lg" value={name} onChange={(e) => setName(e.target.value)} {...invalidProps("org-name", nameError)} />
         </Field>
         <Field label="Created">
           <span className="text-sm text-muted-foreground">{fmtDate(ORG.createdAt)}</span>

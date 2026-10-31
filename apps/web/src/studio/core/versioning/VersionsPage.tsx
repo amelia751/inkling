@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Alert } from "@studio/ui/ui/alert";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, BranchIcon, MergeIcon, TagIcon, UndoIcon } from "@studio/ui/icons";
@@ -95,7 +96,7 @@ function History({ datasetId }: { datasetId: string }) {
           <Button key={b.name} size="sm" variant="ghost-secondary" selected={b.name === shown} onClick={() => setRef(b.name)} className="font-mono text-xs">{b.name}</Button>
         ))}
       </div>
-      {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+      {error && <Alert theme="danger" className="mb-3">{error}</Alert>}
       <Card className="divide-y divide-border" data-testid="commit-history">
         {(commits.data?.items ?? []).map((c, i) => (
           <div key={c.oid} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" data-commit={c.oid}>
@@ -162,7 +163,7 @@ function Releases({ datasetId }: { datasetId: string }) {
         <Input value={tag} onChange={(e) => setTag(e.target.value)} placeholder="Tag, e.g. v2" className="w-48" aria-label="Release tag" />
         <Button size="sm" disabled={!tag.trim() || create.isPending} onClick={() => create.mutate()}><TagIcon /> Release main</Button>
       </div>
-      {error && <p className="mb-3 rounded-md bg-danger-tint px-3 py-2 text-sm text-danger" role="alert">{error}</p>}
+      {error && <Alert theme="danger" className="mb-3">{error}</Alert>}
       <Card className="divide-y divide-border" data-testid="release-list">
         {(releases.data?.items ?? []).map((r) => (
           <div key={r.tag} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" data-release={r.tag}>

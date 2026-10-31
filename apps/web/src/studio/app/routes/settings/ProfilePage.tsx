@@ -4,7 +4,7 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Checkbox } from "@studio/ui/ui/checkbox";
 import { Input } from "@studio/ui/ui/input";
-import { CopyId, DataTable, Field, SettingsPage, type Column } from "@/studio/components/settings/kit";
+import { CopyId, DataTable, Field, invalidProps, SettingsPage, type Column } from "@/studio/components/settings/kit";
 import { ACCOUNT, useAccount } from "@/studio/lib/account-mock";
 
 interface Session {
@@ -24,6 +24,7 @@ const SESSIONS: Session[] = [
 export function ProfilePage() {
   const log = useAccount((s) => s.log);
   const [first, setFirst] = useState(ACCOUNT.firstName);
+  const firstError = first.trim() ? null : "Enter your first name";
   const [last, setLast] = useState(ACCOUNT.lastName);
   const [marketing, setMarketing] = useState(ACCOUNT.marketing);
   const [sessions, setSessions] = useState(SESSIONS);
@@ -67,8 +68,8 @@ export function ProfilePage() {
         <Field label="Email">
           <span className="text-sm">{ACCOUNT.email}</span>
         </Field>
-        <Field label="First name" htmlFor="first-name" required>
-          <Input id="first-name" inputSize="lg" value={first} onChange={(e) => setFirst(e.target.value)} />
+        <Field label="First name" htmlFor="first-name" required error={firstError}>
+          <Input id="first-name" inputSize="lg" value={first} onChange={(e) => setFirst(e.target.value)} {...invalidProps("first-name", firstError)} />
         </Field>
         <Field label="Last name" htmlFor="last-name">
           <Input id="last-name" inputSize="lg" value={last} onChange={(e) => setLast(e.target.value)} />

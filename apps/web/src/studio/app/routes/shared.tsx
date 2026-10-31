@@ -1,6 +1,7 @@
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@studio/ui/ui/button";
+import { ErrorState, type ErrorStateKind } from "@studio/ui/ui/error-state";
 import { Loader } from "@studio/ui/ui/loader";
 import { fetchAnnotations, fetchProjects } from "@/studio/lib/api";
 
@@ -34,15 +35,31 @@ export function useSavedAnnotations(id: string, enabled = true) {
   return useQuery({ queryKey: ["annotations", id, "summary"], queryFn: () => fetchAnnotations(id), enabled, staleTime: 10_000 });
 }
 
-export function FullPageMessage({ title, body, loading = false }: { title: string; body?: string; loading?: boolean }) {
+/**
+ * A whole-page state: loading, or an error/empty page (`kind` picks the illustration, as in
+ * ErrorState). Errors with a thrown value should use `ErrorView` (routes/errors.tsx) instead,
+ * which also chooses the title and the next step.
+ */
+export function FullPageMessage({ title, body, loading = false, kind }: { title: string; body?: string; loading?: boolean; kind?: ErrorStateKind }) {
+  if (loading)
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+        <Loader className="mb-2" />
+        <h1 className="text-body-2 font-semibold">{title}</h1>
+        {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}
+      </div>
+    );
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-      {loading && <Loader className="mb-2" />}
-      <h1 className="text-body-2 font-semibold">{title}</h1>
-      {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}
-      {!loading && (
-        <Link to="/projects" className={buttonVariants({ variant: "outline", className: "mt-3" })}>Back to projects</Link>
-      )}
-    </div>
+    <ErrorState
+      variant="page"
+      kind={kind}
+      title={title}
+      description={body}
+      actions={
+        <Link to="/projects" className={buttonVariants({ variant: "outline", size: "lg" })}>
+          Back to projects
+        </Link>
+      }
+    />
   );
 }

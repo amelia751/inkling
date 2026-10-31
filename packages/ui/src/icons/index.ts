@@ -136,6 +136,7 @@ export { default as FitIcon } from "@gravity-ui/icons/ArrowsExpand";
 export { default as FullscreenIcon } from "@gravity-ui/icons/ChevronsExpandUpRight";
 export { default as RotateLeftIcon } from "@gravity-ui/icons/ArrowRotateLeft";
 export { default as RotateRightIcon } from "@gravity-ui/icons/ArrowRotateRight";
+export { default as RetryIcon } from "@gravity-ui/icons/ArrowRotateRight";
 export { default as GridIcon } from "@gravity-ui/icons/LayoutCells";
 export { default as ChartIcon } from "@gravity-ui/icons/ChartColumn";
 export { default as RegionIcon } from "@gravity-ui/icons/SquareDashed";

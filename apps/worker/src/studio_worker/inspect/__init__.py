@@ -16,6 +16,8 @@ and are deleted after each file.
 
 from __future__ import annotations
 
+from typing import Any
+
 import logging
 import os
 import posixpath
@@ -114,6 +116,7 @@ class InspectSubscriber:
     def inspect_one(self, f: dict, paths: list[str], hea_stems: set[str]) -> tuple[dict, dicom.Instance | None]:
         nid, name, size = f["nodeId"], f["name"], int(f.get("size") or 0)
         head = self._range(nid, 0, HEAD - 1) if size else b""
+        facts: dict[str, Any]
         kind, facts = detect.detect(name, head)
         flags: dict = {}
         full: bytes | None = None

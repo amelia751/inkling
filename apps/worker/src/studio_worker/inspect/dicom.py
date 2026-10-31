@@ -77,7 +77,7 @@ def header_facts(ds, node_id: str, name: str) -> tuple[dict, dict | None, Instan
         "pixelSpacing": list(spacing) if spacing else None,
         "sliceThickness": _num(g("SliceThickness")),
         "frames": frames,
-        "instanceNumber": int(_num(g("InstanceNumber"))) if _num(g("InstanceNumber")) is not None else None,
+        "instanceNumber": int(n) if (n := _num(g("InstanceNumber"))) is not None else None,
         "transferSyntax": str(getattr(getattr(ds, "file_meta", None), "TransferSyntaxUID", "") or "") or None,
         "bitsAllocated": int(g("BitsAllocated")) if g("BitsAllocated") is not None else None,
     }
@@ -105,7 +105,7 @@ def _ranges(nums: list[int]) -> str:
     for n in nums:
         if start is None:
             start = prev = n
-        elif n == prev + 1:
+        elif prev is not None and n == prev + 1:
             prev = n
         else:
             out.append(f"{start}–{prev}" if start != prev else str(start))
@@ -172,6 +172,7 @@ def thumbnail(data: bytes, size: int = 256) -> bytes | None:
     try:
         import numpy as np
         import pydicom
+        from pydicom.multival import MultiValue
         from PIL import Image
 
         ds = pydicom.dcmread(io.BytesIO(data))
@@ -183,8 +184,8 @@ def thumbnail(data: bytes, size: int = 256) -> bytes | None:
         arr = arr * slope + intercept
         center, width = ds.get("WindowCenter"), ds.get("WindowWidth")
         if center is not None and width is not None:
-            c = float(center[0] if isinstance(center, pydicom.multival.MultiValue) else center)
-            w = float(width[0] if isinstance(width, pydicom.multival.MultiValue) else width)
+            c = float(center[0] if isinstance(center, MultiValue) else center)
+            w = float(width[0] if isinstance(width, MultiValue) else width)
             lo, hi = c - w / 2, c + w / 2
         else:
             lo, hi = float(np.percentile(arr, 1)), float(np.percentile(arr, 99))

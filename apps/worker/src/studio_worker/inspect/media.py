@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from typing import Any
 
 
 def image_facts(data: bytes) -> tuple[dict, bytes | None]:
@@ -40,7 +41,7 @@ def volume_facts(data: bytes, name: str, kind: str) -> tuple[str, dict]:
         with tempfile.NamedTemporaryFile(suffix=suffix) as f:
             f.write(data)
             f.flush()
-            img = nib.load(f.name)
+            img: Any = nib.load(f.name)  # a NIfTI image (nibabel types it as the base class)
             shape = [int(x) for x in img.shape]
             zooms = [round(float(z), 4) for z in img.header.get_zooms()]
             dtype = str(img.get_data_dtype())

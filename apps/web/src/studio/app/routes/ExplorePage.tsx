@@ -396,7 +396,7 @@ const RULE_WORDS = { exact: "Exactly as written", normalized: "Ignore case, spac
 
 function RelationshipRow({ projectId, p, selected, onSelect }: { projectId: string; p: Proposal; selected: boolean; onSelect: () => void }) {
   const ev = p.evidence as unknown as RelationshipEvidence;
-  const payload = p.payload as { table?: string; tableNodeId?: string; column?: string; target?: "files" | "folders"; rule?: string; resolutions?: Record<string, string> };
+  const payload = p.payload as { table?: string; tableNodeId?: string; column?: string; target?: "files" | "folders"; rule?: string; resolutions?: Record<string, string>; summary?: string };
   const [why, setWhy] = useState(false);
   const [editing, setEditing] = useState(false);
   const decide = useDecide(projectId);
@@ -407,13 +407,20 @@ function RelationshipRow({ projectId, p, selected, onSelect }: { projectId: stri
       <div className="flex flex-wrap items-start gap-x-4 gap-y-2" onClick={onSelect}>
         <RelationshipIcon className="mt-0.5 size-4 shrink-0 text-hint" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm">
-            <code className="font-medium">{payload.table}</code> › <code>{payload.column}</code> ↔ {payload.target === "folders" ? "folder names" : "file names"}
-          </p>
-          <p className="tnum mt-0.5 text-sm text-muted-foreground" data-testid="relationship-counts">
-            {ev.matched} matched · {ev.unmatched} not found · {ev.ambiguous} ambiguous
-            {(ev.resolved > 0 || ev.skipped > 0) && ` · ${[ev.resolved && `${ev.resolved} picked`, ev.skipped && `${ev.skipped} skipped`].filter(Boolean).join(", ")} by you`}
-          </p>
+          {payload.tableNodeId ? (
+            <>
+              <p className="text-sm">
+                <code className="font-medium">{payload.table}</code> › <code>{payload.column}</code> ↔ {payload.target === "folders" ? "folder names" : "file names"}
+              </p>
+              <p className="tnum mt-0.5 text-sm text-muted-foreground" data-testid="relationship-counts">
+                {ev.matched} matched · {ev.unmatched} not found · {ev.ambiguous} ambiguous
+                {(ev.resolved > 0 || ev.skipped > 0) && ` · ${[ev.resolved && `${ev.resolved} picked`, ev.skipped && `${ev.skipped} skipped`].filter(Boolean).join(", ")} by you`}
+              </p>
+            </>
+          ) : (
+            // A link between two folders or files (the assistant's): no table rows to count.
+            <p className="text-sm">{payload.summary ?? ""}</p>
+          )}
         </div>
         {p.status === "proposed" ? <Strength strength={p.strength} /> : <Origin p={p} />}
       </div>

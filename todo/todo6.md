@@ -16,7 +16,8 @@ needs (approve a CSV-to-image mapping, then open the 2D Studio). Everything else
 
 ## Status (2026-10-30)
 
-In progress. Phase 1 done (see its "Done" note).
+Code complete (Phases 1–8 and 10, Phase 9's checks and docs), merged as `todo6-int`. Open: Phase 9's
+accessibility pass, performance budget and moderated user sessions (see its "Status" note).
 
 ---
 
@@ -841,7 +842,7 @@ attention is the queue's top 5. Tests: `apps/api/tests/test_review_activity.py`,
 
 ## Phase 9. Verification and usability
 
-- [ ] All `AGENTS.md` checks, `uv run pytest`, `go test ./...`, both e2e suites twice in a row.
+- [x] All `AGENTS.md` checks, `uv run pytest`, `go test ./...`, both e2e suites twice in a row.
 - [ ] Accessibility pass on the new pages:
   - tree and list keyboard-only (navigate, open, Quick Look, search);
   - focus order and visible focus;
@@ -860,13 +861,36 @@ attention is the queue's top 5. Tests: `apps/api/tests/test_review_activity.py`,
 
   Measure time to the first Studio from the drop (product.md §13), unaided completion, and every moment
   of hesitation. Record findings in `docs/ux.md` §15 (new "What we learned").
-- [ ] Update the docs:
+- [x] Update the docs:
   - glossary rows for Organization, Project, Source, Import session, Dataset, Collection, Task, Proposal
     and Version (D1);
   - `docs/ui.md` §2 and §6 point to `docs/ux.md` for the IA, and keep the Studio rules;
   - `docs/product.md` §6 entities;
   - `docs/running.md`, for which flows need the API (D4).
 
+
+**Status (2026-10-30, branch `todo6-int`).**
+- Checks, all on the merged branch: root `pnpm typecheck` (10/10) and `pnpm test` (7/7), web unit
+  tests 294, API pytest 120 (7 skipped), worker pytest 20, agent 110 (15 skipped), `go test ./...`,
+  ruff, `check:boundaries`, `check:names`, `check:icons`, `check:python-imports`, `emit:schemas
+  --check`, OpenAPI `--check`. `pnpm lint` passes except `apps/versioning` (no `golangci-lint`
+  here; BACKLOG). The merge's pyright run caught 18 type errors in the new worker and kernel code
+  that the phase branches hadn't run; fixed.
+- `apps/web/e2e`, twice in a row on one frozen server: every suite passed both rounds except the
+  drawing checks of `image2d_test` (eraser / SEG pixel count) and `volume3d_test` (island count),
+  which each failed in one round and passed in the other. They're flaky on unmodified `main` too
+  (`image2d_test` 1 of 3 runs failed there) under this machine's load. `navigation_test` 30/30 three
+  times after the switcher fix.
+- `tests/e2e` against API + worker + agent (SQLite, local blobstore, no Docker), twice:
+  `sources_test` 18/18 (the "can't read" check now runs, with the real worker),
+  `mixed_import_test` 30/30, `agent_test` 26/26, `review_activity_test` 21/21. Merging broke two
+  tests (testids the Sources page replaced) and the assistant's folder↔folder proposal; fixed.
+- Not done: the accessibility pass (keyboard-only, focus order, 200% zoom) and the performance
+  budget were not measured (only the e2e keyboard checks in `sources_test.py` ran); the five
+  moderated sessions need people.
+- Docs: glossary, `docs/ui.md` §2/§6, `docs/product.md` §6, `docs/running.md` (seed mode vs the
+  API and worker, running them without Docker, the upload limits), `docs/ux.md` §6/§11 (routes,
+  import states). `ui.md` §5A, §10 and its last line still describe the dataset-first flow.
 ---
 
 ## Phase 10. Leave the rest on the backlog

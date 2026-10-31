@@ -204,7 +204,7 @@ def review_facets(db: Session, p: ProjectRow, items: list[dict]) -> dict:
     return {
         "types": dict(Counter(i["type"] for i in items)),
         "severities": dict(Counter(i["severity"] for i in items)),
-        "datasets": [{"id": d, "title": titles.get(d, d), "count": n} for d, n in sorted(by_ds.items(), key=lambda kv: titles.get(kv[0], kv[0]).lower())],
+        "datasets": [{"id": d, "title": titles.get(d, d), "count": n} for d, n in sorted(by_ds.items(), key=lambda kv: (titles.get(kv[0]) or kv[0]).lower())],
     }
 
 

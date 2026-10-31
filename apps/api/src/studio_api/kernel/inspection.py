@@ -116,7 +116,8 @@ def report(db: Session, import_id: str, body: dict) -> dict:
     assert p is not None
     ctx = service_context(p.id)
     nodes = {n.id: n for n in db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)))}
-    reported = body.get("nodes") if isinstance(body.get("nodes"), list) else []
+    raw_nodes = body.get("nodes")
+    reported: list = raw_nodes if isinstance(raw_nodes, list) else []
     updated: list[str] = []
     for r in reported:
         if not isinstance(r, dict) or r.get("nodeId") not in nodes:
@@ -124,7 +125,8 @@ def report(db: Session, import_id: str, body: dict) -> dict:
         n = nodes[r["nodeId"]]
         kind = r.get("detectedKind")
         n.detected_kind = kind if kind in KINDS else "unknown"
-        facts = r.get("facts") if isinstance(r.get("facts"), dict) else {}
+        raw_facts = r.get("facts")
+        facts: dict = raw_facts if isinstance(raw_facts, dict) else {}
         if len(json.dumps(facts, default=str)) > MAX_FACTS_BYTES:
             facts = {k: v for k, v in facts.items() if k in ("format", "width", "height", "frames", "dicom", "series", "thumbnail")} | {"truncated": True}
         n.facts = {**(n.facts or {}), **facts, "inspector": str(body.get("inspector") or "worker")[:64]}
@@ -142,7 +144,8 @@ def report(db: Session, import_id: str, body: dict) -> dict:
             n.flags = {**(n.flags or {}), "unsupported": "We couldn't check this file"}
     db.flush()
     created: list[Proposal] = []
-    for g in body.get("groups") if isinstance(body.get("groups"), list) else []:
+    raw_groups = body.get("groups")
+    for g in raw_groups if isinstance(raw_groups, list) else []:
         if not isinstance(g, dict):
             continue
         ids = [i for i in g.get("nodeIds") or [] if i in nodes]

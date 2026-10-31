@@ -364,7 +364,18 @@ def from_agent(db: Session, p: ProjectRow, kind: str, payload: dict, evidence: d
     keep the one asked for). Other kinds and payloads already in the kernel's shape pass through."""
     reason = str(evidence.get("reason") or "")[:2000]
     if kind == "relationship" and isinstance(payload.get("from"), dict) and "tableNodeId" not in payload:
-        t = _agent_table(db, p, str(payload["from"].get("nodeId") or ""))
+        src = db.get(SourceNode, str(payload["from"].get("nodeId") or ""))
+        if src is None or src.project_id != p.id:
+            raise HTTPException(404, "no such file or folder in this project")
+        if src.detected_kind != "table":
+            # Two folders or files (not a table column): nothing for the kernel to count, so the
+            # proposal carries the assistant's reason only, and Explore shows it as words.
+            to = db.get(SourceNode, str((payload.get("to") or {}).get("nodeId") or ""))
+            if to is None or to.project_id != p.id:
+                raise HTTPException(404, "no such file or folder in this project")
+            summary = f"{src.name} ↔ {to.name}: {str(payload.get('rule') or '')[:200]}".rstrip(": ")
+            return {**payload, "summary": summary}, {"reason": reason, "why": [reason] if reason else [], "summary": summary}, None
+        t = _agent_table(db, p, src.id)
         names, rows = table_rows(db, t)
         column = str(payload["from"].get("column") or "")
         to = db.get(SourceNode, str((payload.get("to") or {}).get("nodeId") or ""))
@@ -549,7 +560,7 @@ def _linked(db: Session, p: ProjectRow, pr: Proposal, key: str) -> Proposal | No
     return other if other is not None and other.project_id == p.id and other.status in ("proposed", "confirmed") else None
 
 
-def _labels(db: Session, p: ProjectRow, pr: Proposal, files: list[SourceNode]) -> tuple[list[dict], dict[str, tuple[str, int]], SourceNode | None]:
+def _labels(db: Session, p: ProjectRow, pr: Proposal, files: list[SourceNode]) -> tuple[list[str], dict[str, tuple[str, int]], SourceNode | None]:
     """(label classes, file node id → (class id, table row), table) from the linked proposals' current state."""
     rel, mp = _linked(db, p, pr, "relationshipProposalId"), _linked(db, p, pr, "mappingProposalId")
     if rel is None or mp is None:

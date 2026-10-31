@@ -155,3 +155,9 @@ def test_assistant_proposals_get_kernel_evidence_in_explores_shape(client):
     assert mp["payload"]["column"] == "diagnosis" and {c["id"] for c in mp["payload"]["classes"]} == {"healthy", "lesion"}
     no_label = {"kind": "mapping", "payload": {"nodeId": table, "columns": [{"name": "patient_id", "role": "key"}]}}
     assert client.post(f"/api/v1/projects/{p}/proposals", json=no_label).status_code == 422
+    # Two folders: nothing to count, so the assistant's reason is all the evidence.
+    folders = [client.get(f"/api/v1/source-nodes/{n['nodeId']}").json()["parentId"] for n in nodes if n["name"] == "scan.png"][:2]
+    pair = {"kind": "relationship", "payload": {"from": {"nodeId": folders[0]}, "to": {"nodeId": folders[1]}, "rule": "same patient"}, "evidence": {"reason": "same id"}}
+    r = client.post(f"/api/v1/projects/{p}/proposals", json=pair)
+    assert r.status_code == 201, r.text
+    assert r.json()["payload"]["summary"].endswith("same patient") and r.json()["evidence"]["why"] == ["same id"]

@@ -147,7 +147,7 @@ def main() -> int:
         if unknown:
             page.goto(f"{base}/projects/{pid}/sources/{unknown['id']}")
             page.wait_for_selector("[data-testid=inspector-kind]", timeout=15000)
-            check("the unknown file says we can't read it yet", "can't read this file yet" in page.locator("[data-testid=inspector]").inner_text().lower(), unknown["status"])
+            check("the unknown file says we can't read it yet", "can't read this file yet" in page.locator("aside[data-testid=inspector]").inner_text().lower(), unknown["status"])
         else:
             skip("the unknown file says we can't read it yet", "no inspection worker reported within 45s (Phase 5); files stay 'Checking…'")
             item = api(page, f"/projects/{pid}/search?q=mystery")["json"]["items"]

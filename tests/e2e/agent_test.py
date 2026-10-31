@@ -201,7 +201,7 @@ def t_project_assistant(browser, port):
     page.on("console", lambda m: m.type == "error" and errors.append(m.text))
     try:
         page.goto(f"http://localhost:{port}/projects/2d-xray/sources")
-        page.get_by_test_id("section-sources").wait_for(timeout=30000)
+        page.get_by_test_id("sources-page").wait_for(timeout=30000)
         page.get_by_label(f"{NAMING['displayName']} AI panel").click()
         drawer = page.get_by_test_id("agent-drawer")
         drawer.wait_for(timeout=10000)
@@ -211,7 +211,8 @@ def t_project_assistant(browser, port):
         if consent.count():
             consent.click()
         chip = page.get_by_test_id("agent-context")
-        check("context chip: Sources", chip.inner_text().strip() == "Sources", chip.inner_text())
+        # The Sources page shares the folder it shows (a single source opens on its root folder).
+        check("context chip: Sources", chip.inner_text().strip().startswith("Sources"), chip.inner_text())
         ask(page, "What did I import?")
         page.get_by_text("You imported one source with 20 images").wait_for(timeout=20000)
         steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()

@@ -16,6 +16,10 @@ import { ExplorePage } from "./routes/ExplorePage";
 import { SourcesPage } from "./routes/SourcesPage";
 import { LEGACY, LegacyRedirect, SectionFrame, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
+import { MembersPage } from "./routes/settings/MembersPage";
+import { ApiKeysPage, AuditLogPage, OrgProjectsPage, OrgSettingsPage, SecurityPage } from "./routes/settings/OrgPages";
+import { BillingDetailsPage, InvoicesPage, UsagePage } from "./routes/settings/BillingPages";
+import { ProfilePage } from "./routes/settings/ProfilePage";
 
 /**
  * Routes (todo6 Phase 2.1, docs/ux.md §11). Project and task ids are in the path; node ids,
@@ -47,6 +51,19 @@ const router = createBrowserRouter([
   { path: "/projects/:projectId/activity", element: <ActivityPage /> },
   { path: "/projects/:projectId/settings", element: <Navigate to="general" replace /> },
   { path: "/projects/:projectId/settings/:tab", element: <ProjectSettingsPage /> },
+  { path: "/organization", element: <Navigate to="members" replace /> },
+  { path: "/organization/members", element: <MembersPage /> },
+  { path: "/organization/projects", element: <OrgProjectsPage /> },
+  { path: "/organization/security", element: <SecurityPage /> },
+  { path: "/organization/api-keys", element: <ApiKeysPage /> },
+  { path: "/organization/audit-log", element: <AuditLogPage /> },
+  { path: "/organization/settings", element: <OrgSettingsPage /> },
+  { path: "/billing", element: <Navigate to="usage" replace /> },
+  { path: "/billing/usage", element: <UsagePage /> },
+  { path: "/billing/invoices", element: <InvoicesPage /> },
+  { path: "/billing/details", element: <BillingDetailsPage /> },
+  { path: "/settings", element: <Navigate to="profile" replace /> },
+  { path: "/settings/profile", element: <ProfilePage /> },
   // Before projects (todo6 D2 makes the ids line up): keep every old link working.
   { path: "/datasets/:datasetId", element: <LegacyRedirect to={LEGACY.studio} /> },
   { path: "/datasets/:datasetId/review", element: <LegacyRedirect to={LEGACY.review} /> },

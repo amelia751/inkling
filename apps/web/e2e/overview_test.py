@@ -56,11 +56,11 @@ def main() -> int:
         check("Home shows recent project cards", page.locator("[data-testid=project-card]").count() >= 1)
         check("sample projects are badged", page.locator("[data-testid=project-card]").first.get_by_text("Sample").count() == 1)
 
-        # Work in the Studio: item 3, the box tool. Resume is written as you go.
+        # Work in the Studio: item 3, the length tool (the classification sample has no drawing tools, todo8 D4).
         page.goto(f"{base}/projects/2d-xray/studio/2d-xray")
         page.wait_for_selector("main[aria-label='Viewer']", timeout=30000)
         page.wait_for_timeout(1500)
-        page.evaluate(f"async () => {{ const m = await import('{STORE}'); const s = m.useStudio.getState(); s.setItemIndex(3); s.setTool('box'); }}")
+        page.evaluate(f"async () => {{ const m = await import('{STORE}'); const s = m.useStudio.getState(); s.setItemIndex(3); s.setTool('length'); }}")
         page.wait_for_timeout(2500)
         item = store(page, "s => s.itemIndex")
 
@@ -75,7 +75,7 @@ def main() -> int:
         page.wait_for_selector("main[aria-label='Viewer']", timeout=30000)
         page.wait_for_timeout(1500)
         check("Open Studio restores the item", store(page, "s => s.itemIndex") == item == 3, str(store(page, "s => s.itemIndex")))
-        check("Open Studio restores the tool", store(page, "s => s.tool") == "box", store(page, "s => s.tool"))
+        check("Open Studio restores the tool", store(page, "s => s.tool") == "length", store(page, "s => s.tool"))
 
         # Data cards open Sources; nothing needs attention in a seed.
         page.goto(f"{base}/projects/2d-xray/overview")

@@ -103,6 +103,7 @@ def open_studio(
     device_scale_factor: float = 1,
     fixture_annotations: list[dict[str, Any]] | None = None,
     workspace_state: dict[str, Any] | None = None,
+    extra_labels: list[dict[str, Any]] | None = None,
 ) -> Studio:
     """Open the Studio (/projects/<dataset>/studio/<dataset>) with saves intercepted.
 
@@ -113,6 +114,8 @@ def open_studio(
     fixture_annotations: answer the annotations GET with exactly these, instead of the
       server's copy of e2e/fixtures/annotations/<dataset>.json.
     workspace_state: answer the workspace's active-plugin state (Workspace API) with this.
+    extra_labels: label groups appended to the dataset's environment in the served manifest,
+      e.g. a region group so the classification-only 2D sample offers drawing tools (todo8 D4).
     """
     ctx = browser.new_context(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=device_scale_factor)
     if init_script:
@@ -138,14 +141,27 @@ def open_studio(
     if workspace_state is not None:
         page.route(f"**/api/v1/workspaces/{dataset}/state", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(workspace_state)))
 
-    if extra_projects:
+    if extra_projects or extra_labels:
         def manifest(route: Route) -> None:
             res = route.fetch()
             data = res.json()
-            data["projects"] = data["projects"] + extra_projects
+            data["projects"] = data["projects"] + (extra_projects or [])
+            for p in data["projects"]:
+                if extra_labels and p["id"] == dataset and "environment" in p:
+                    p["environment"]["labels"] = p["environment"].get("labels", []) + extra_labels
             route.fulfill(response=res, body=json.dumps(data), content_type="application/json")
 
         page.route("**/seed/manifest.json", manifest)
+
+    if extra_labels:
+        def task_document(route: Route) -> None:
+            res = route.fetch()
+            data = res.json()
+            env = data.setdefault("environment", {})
+            env["labels"] = env.get("labels", []) + extra_labels
+            route.fulfill(response=res, body=json.dumps(data), content_type="application/json")
+
+        page.route(f"**/api/v1/tasks/{dataset}/document", task_document)
 
     for seed_path, local in (fixtures or {}).items():
         body = Path(local).read_bytes()

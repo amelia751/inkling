@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import { CheckIcon, ChevronDownIcon, ContactIcon, CopyIcon, DocsIcon, ExternalLinkIcon, InfoIcon, TopUpIcon } from "@studio/ui/icons";
+import { CheckIcon, ChevronDownIcon, CopyIcon, InfoIcon, TopUpIcon } from "@studio/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
@@ -16,7 +16,6 @@ const ACCOUNT = {
   workspaceId: "ws-3hq8n2c7r5w1b4fjhjgv0gy",
   balance: "$0.00",
 };
-const LINKS = { contact: "mailto:support@example.com", docs: "https://docs.example.com" };
 
 /** `user-e7k...q9vxtt`: both ends, short enough to sit beside the longer "Workspace ID:" label. */
 const shortId = (id: string) => (id.length > 17 ? `${id.slice(0, 8)}...${id.slice(-6)}` : id);
@@ -29,23 +28,6 @@ function useCopy() {
     setTimeout(() => setCopied((c) => (c === key ? null : c)), 1200);
   };
   return { copied, copy };
-}
-
-const HEADER_LINK = "press flex h-7 items-center gap-2 rounded-lg px-3 text-sm text-complementary hover:bg-generic-hover hover:text-foreground [&_svg]:size-4";
-
-/** "Contact us" and "Documentation ↗", then a divider, left of the account menu. */
-export function HeaderLinks({ className }: { className?: string }) {
-  return (
-    <div className={cn("flex items-center gap-3", className)}>
-      <a href={LINKS.contact} className={HEADER_LINK}>
-        <ContactIcon /> Contact us
-      </a>
-      <a href={LINKS.docs} target="_blank" rel="noreferrer" className={HEADER_LINK}>
-        <DocsIcon /> Documentation <ExternalLinkIcon />
-      </a>
-      <div className="h-5 w-px bg-generic-accent" aria-hidden />
-    </div>
-  );
 }
 
 /** The signed-in person's menu (avatar, top right), measured from the Nebius console's. */

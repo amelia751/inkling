@@ -306,6 +306,44 @@
         "summary": "Environment History"
       }
     },
+    "/api/environments/{project_id}/lockfile": {
+      "get": {
+        "description": "The workspace's `plugins.lock.json` (todo10 \u00a73.2): its ACTIVATED pins by digest.",
+        "operationId": "environment_lockfile_api_environments__project_id__lockfile_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Environment Lockfile"
+      }
+    },
     "/api/v1/annotations": {
       "get": {
         "operationId": "list_annotations_api_v1_annotations_get",

@@ -19,6 +19,7 @@ dependencies = [
     "google-cloud-storage>=3.4",
     "jsonpatch>=1.33",
     "studio-observability",
+    "studio-signing",
     # The generated versioning client (src/studio_api/clients/versioning) needs these.
     "attrs>=24.2",
     "python-dateutil>=2.9",
@@ -27,6 +28,8 @@ dependencies = [
 [project.optional-dependencies]
 # OpenTelemetry export (on when OTEL_EXPORTER_OTLP_ENDPOINT is set): `uv sync --extra otel`.
 otel = ["studio-observability[otel]"]
+# Sign generated plugins with Cloud KMS (INKLING_API_SIGNER=gcpkms).
+gcpkms = ["studio-signing[gcpkms]"]
 
 [dependency-groups]
 dev = [
@@ -36,6 +39,7 @@ dev = [
 
 [tool.uv.sources]
 studio-observability = { workspace = true }
+studio-signing = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

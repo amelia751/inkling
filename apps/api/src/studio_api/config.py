@@ -39,6 +39,10 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
+| API_SIGNER                | local                            | who signs generated plugin artifacts (todo10 Phase 3): `local` (Ed25519 key file) or `gcpkms` |
+| API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
+| API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
+| API_SIGNER_TRUSTED_KEYS_FILE | (none)                        | JSON `{keyId: PEM}` of other installations' public keys accepted on artifact import |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
@@ -142,6 +146,11 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    # Plugin artifact signing (todo10 Phase 3, packages/signing).
+    signer: Literal["local", "gcpkms"] = "local"
+    signer_key_file: Path | None = None
+    signer_kms_key: str | None = None
+    signer_trusted_keys_file: Path | None = None
 
     @property
     def production(self) -> bool:
@@ -187,6 +196,10 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "signer": "API_SIGNER",
+    "signer_key_file": "API_SIGNER_KEY_FILE",
+    "signer_kms_key": "API_SIGNER_KMS_KEY",
+    "signer_trusted_keys_file": "API_SIGNER_TRUSTED_KEYS_FILE",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 
@@ -245,6 +258,8 @@ def load_settings(**overrides) -> Settings:
         for f in ("secret_key", "database_url", "worker_token"):
             if not values.get(f):
                 missing.append(key_name(f))
+    if values.get("signer") == "gcpkms" and not values.get("signer_kms_key"):
+        missing.append(key_name("signer_kms_key"))
     if values.get("job_queue") == "redis" or values.get("event_bus") == "redis":
         if not values.get("redis_url"):
             missing.append(key_name("redis_url"))

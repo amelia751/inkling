@@ -145,7 +145,7 @@ def registry_client(make_client, tmp_path: Path):
     versions) that requires it, and a vetted plugin with a dependency conflict."""
 
     def make(**overrides):
-        seg_files = {"uv.lock": "# locked\n", "ui/contributions.json": json.dumps({"toolbarActions": [{"id": "segment", "surface": "image.viewer.toolbar", "title": "Segment", "command": "test.seg.segment_objects"}], "panels": []})}
+        seg_files = {"uv.lock": "# locked\n", "skills/segmentation/SKILL.md": "Use segment_objects for masks.", "ui/contributions.json": json.dumps({"toolbarActions": [{"id": "segment", "surface": "image.viewer.toolbar", "title": "Segment", "command": "test.seg.segment_objects"}], "panels": []})}
         reg = write_registry(
             tmp_path / "repo",
             [

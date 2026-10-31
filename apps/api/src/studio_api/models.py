@@ -135,6 +135,13 @@ class WorkspaceEnvironmentRevision(Base):
     environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     author: Mapped[str | None] = mapped_column(String(256), nullable=True)
     saved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # todo10 Phase 1: RFC 8785 hash of `environment`, of the revision it replaced (a first
+    # revision: its base), who made it (`person` | `agent`) and, for agents, run and prompt hash.
+    content_hash: Mapped[str] = mapped_column(String(71))
+    parent_hash: Mapped[str] = mapped_column(String(71))
+    author_kind: Mapped[str] = mapped_column(String(16), default="person")
+    agent_run_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    prompt_hash: Mapped[str | None] = mapped_column(String(71), nullable=True)
 
 
 # ---- Plugins (§11) -----------------------------------------------------------------------
@@ -156,6 +163,57 @@ class PluginVersion(Base):
     manifest: Mapped[dict] = mapped_column(JSON)
     signature: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PluginArtifact(Base):
+    """Signed, content-addressed plugin artifacts the kernel built or imported (todo10 Phase 3, 8).
+
+    The bytes live in the BlobStore at `artifacts/sha256/<hex>` (an OCI manifest, its config and
+    one package layer, plus signature and attestation referrers); this row is the registry
+    entry. `manifest_digest` is what's signed; `artifact_digest` is the package tree digest that
+    workspace pins and lockfiles carry. Rows are immutable except for promotion (tier, org).
+    """
+
+    __tablename__ = "plugin_artifacts"
+    plugin_id: Mapped[str] = mapped_column(String(256), primary_key=True)
+    version: Mapped[str] = mapped_column(String(64), primary_key=True)
+    manifest_digest: Mapped[str] = mapped_column(String(80), index=True)
+    artifact_digest: Mapped[str] = mapped_column(String(80))
+    trust_tier: Mapped[str] = mapped_column(String(32), default="generated")  # generated | organisation | curated
+    publisher: Mapped[str] = mapped_column(String(256))
+    # generated: visible to this workspace only; organisation: to every project of org_id.
+    workspace_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    org_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    manifest: Mapped[dict] = mapped_column(JSON)
+    signature: Mapped[dict] = mapped_column(JSON)
+    referrers: Mapped[list] = mapped_column(JSON, default=list)
+    attestation_digest: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    review: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    licenses: Mapped[dict] = mapped_column(JSON, default=dict)
+    source: Mapped[str] = mapped_column(String(32), default="built")  # built | imported
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    promoted_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    promoted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PluginPromotion(Base):
+    """Append-only promotion reviews (todo10 Phase 8): generated → organisation → curated."""
+
+    __tablename__ = "plugin_promotions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    plugin_id: Mapped[str] = mapped_column(String(256), index=True)
+    version: Mapped[str] = mapped_column(String(64))
+    manifest_digest: Mapped[str] = mapped_column(String(80))
+    from_tier: Mapped[str] = mapped_column(String(32))
+    to_tier: Mapped[str] = mapped_column(String(32))
+    state: Mapped[str] = mapped_column(String(16))  # requested | approved | rejected
+    requested_by: Mapped[str] = mapped_column(String(256))
+    reviewed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="")
+    workspace_id: Mapped[str] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PluginCapability(Base):

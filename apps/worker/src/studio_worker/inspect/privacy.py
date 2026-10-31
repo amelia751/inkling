@@ -33,7 +33,8 @@ DICOM_PHI_TAGS = (
 ANONYMIZED = re.compile(r"^(|anon\w*|anonymi[sz]ed|removed|unknown|none|n/?a|x+|0+|redacted|deidentified|de-identified|\*+|-+)$", re.I)
 
 # `Lastname_Firstname`, `DOE^JANE`, `Doe, Jane`: two capitalised words. Imaging words are not names.
-NAME_LIKE = re.compile(r"^([A-Z][a-z]{1,20}|[A-Z]{2,20})(?:\^|_|, ?| )([A-Z][a-z]{1,20}|[A-Z]{2,20})$")
+# They may be followed by imaging words or numbers (`Smith_John_MRI`, `DOE_JANE_2`), checked below.
+NAME_LIKE = re.compile(r"^([A-Z][a-z]{1,20}|[A-Z]{2,20})(?:\^|_|, ?| )([A-Z][a-z]{1,20}|[A-Z]{2,20})((?:[_ -][A-Za-z0-9]{1,20})*)$")
 NOT_NAMES = {
     w.lower()
     for w in (
@@ -75,7 +76,7 @@ def path_findings(rel_path: str) -> list[str]:
     for i, part in enumerate(parts):
         stem = part.rsplit(".", 1)[0] if i == len(parts) - 1 and "." in part else part
         m = NAME_LIKE.match(stem)
-        if m and m.group(1).lower() not in NOT_NAMES and m.group(2).lower() not in NOT_NAMES:
+        if m and m.group(1).lower() not in NOT_NAMES and m.group(2).lower() not in NOT_NAMES and all(t.isdigit() or t.lower() in NOT_NAMES for t in re.split(r"[_ -]", m.group(3)) if t):
             out.append("a name looks like a person's name")
         if DATE_LIKE.search(stem):
             out.append("a name holds a date")

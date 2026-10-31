@@ -62,6 +62,8 @@ interface Props {
   editingId?: string | null;
   draftIds?: ReadonlySet<string>;
   validateName?: (name: string, n: SourceNode) => string | null;
+  /** Advice under the rename field that never blocks (Windows-reserved, a person's name). */
+  warnName?: (name: string, n: SourceNode) => string | null;
   onRename?: (n: SourceNode, name: string) => void;
   onRenameCancel?: (n: SourceNode) => void;
   /** Drag props for a row (the page's drag controller), or undefined when it can't be dragged. */
@@ -300,7 +302,7 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
       showFolder: !!props.showFolder,
       cut: cut.has(n.id),
       target: !!props.dropTargetId && props.dropTargetId === n.id,
-      rename: editing ? <InlineRename n={n} draft={!!props.draftIds?.has(n.id)} validate={props.validateName} onSave={(name) => props.onRename?.(n, name)} onCancel={() => props.onRenameCancel?.(n)} /> : null,
+      rename: editing ? <InlineRename n={n} draft={!!props.draftIds?.has(n.id)} validate={props.validateName} warn={props.warnName} onSave={(name) => props.onRename?.(n, name)} onCancel={() => props.onRenameCancel?.(n)} /> : null,
       attrs: {
         "data-node-id": n.id,
         "data-drop-id": drop?.id,
@@ -487,12 +489,13 @@ function Tile({ n, width, selected, cut, target, rename, attrs }: RowProps & { w
  * cancels, blur saves (or cancels when the name is invalid or unchanged); validation runs live
  * with the sentence under the field.
  */
-function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode; draft: boolean; validate?: (name: string, n: SourceNode) => string | null; onSave: (name: string) => void; onCancel: () => void }) {
+function InlineRename({ n, draft, validate, warn, onSave, onCancel }: { n: SourceNode; draft: boolean; validate?: (name: string, n: SourceNode) => string | null; warn?: (name: string, n: SourceNode) => string | null; onSave: (name: string) => void; onCancel: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(n.name);
   const done = useRef(false);
   const errId = useId();
   const error = value.trim() === n.name ? null : (validate?.(value, n) ?? null);
+  const warning = error || value.trim() === n.name ? null : (warn?.(value, n) ?? null);
   useEffect(() => {
     const el = input.current;
     if (!el) return;
@@ -521,7 +524,7 @@ function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode;
         onChange={(e) => setValue(e.target.value)}
         aria-label={`Rename ${n.name}`}
         aria-invalid={!!error || undefined}
-        aria-describedby={error ? errId : undefined}
+        aria-describedby={error || warning ? errId : undefined}
         spellCheck={false}
         autoComplete="off"
         data-testid="listing-rename-input"
@@ -546,6 +549,11 @@ function InlineRename({ n, draft, validate, onSave, onCancel }: { n: SourceNode;
       {error && (
         <span id={errId} role="alert" className="absolute left-0 top-full z-30 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-destructive shadow-popup" data-testid="rename-error">
           {error}
+        </span>
+      )}
+      {warning && (
+        <span id={errId} role="status" className="absolute left-0 top-full z-30 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-warning shadow-popup" data-testid="rename-warning">
+          {warning}
         </span>
       )}
     </span>

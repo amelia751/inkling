@@ -41,6 +41,8 @@ export interface NotifyOptions {
   tone?: "info" | "success" | "error";
   /** Toasts with the same group within `COLLAPSE_MS` replace each other (default "files"). */
   group?: string;
+  /** Replace this toast (from an earlier `notify`) instead of collapsing into "+N more". */
+  replace?: string | number;
 }
 
 const COLLAPSE_MS = 2000;
@@ -50,13 +52,13 @@ const recent = new Map<string, { at: number; count: number; id: string | number 
  * Tell the person what happened: a toast plus the live region. Returns the toast id (to
  * update or dismiss it, e.g. a ZIP's progress).
  */
-export function notify(text: string, { undo, action: extra, description, tone = "info", group = "files" }: NotifyOptions = {}): string | number {
+export function notify(text: string, { undo, action: extra, description, tone = "info", group = "files", replace }: NotifyOptions = {}): string | number {
   announce(description ? `${text}. ${description}` : text);
   const now = Date.now();
   const prev = recent.get(group);
-  const collapsed = prev && now - prev.at < COLLAPSE_MS;
+  const collapsed = replace === undefined && prev && now - prev.at < COLLAPSE_MS;
   const count = collapsed ? prev.count + 1 : 1;
-  const id = collapsed ? prev.id : `${group}-${now}`;
+  const id = replace ?? (collapsed ? prev.id : `${group}-${now}`);
   const more = count > 1 ? `+${count - 1} more` : undefined;
   const options = {
     id,
@@ -68,6 +70,11 @@ export function notify(text: string, { undo, action: extra, description, tone = 
   else toast(text, options);
   recent.set(group, { at: now, count, id });
   return id;
+}
+
+/** Update a long operation's toast in place (e.g. a ZIP's MB so far). Not announced: only its start and outcome are. */
+export function progressNotice(id: string | number, text: string, description?: string): void {
+  toast(text, { id, description });
 }
 
 /** Dismiss a toast `notify` returned. */

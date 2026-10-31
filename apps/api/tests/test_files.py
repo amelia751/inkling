@@ -533,12 +533,34 @@ def test_zip_streams_current_names_and_leaves_held_files_out(client):
     note = z.read("_held_files.txt").decode()
     assert "MRI/Smith_John.png" in note and "privacy" in note
     assert all(i.compress_type == zipfile.ZIP_STORED for i in z.infolist())
+    assert r.headers["x-held-files"] == "1"
     with kdb.session_scope() as db:
         assert db.query(PluginAudit).filter(PluginAudit.workspace_id == p, PluginAudit.action == "files.downloaded").count() == 1
     # A single file downloads with its current name; a held one is refused.
     one = client.get(f"/api/v1/source-nodes/{n['a.png'].id}/download")
     assert one.status_code == 200 and one.content == a and 'filename="a.png"' in one.headers["content-disposition"]
     assert client.get(f"/api/v1/source-nodes/{n['Smith_John.png'].id}/download").status_code == 423
+
+
+def test_an_older_version_downloads_with_its_number_and_is_audited(client):
+    v1, v2 = png(4, 4), png(9, 9)
+    p, root, imp = _new(client, {"study/a.png": v1})
+    _inspect_all(client, imp)
+    n = _by_name(p)["a.png"]
+    _report(client, _replace(client, n.id, v2), {"a.png": "image"})
+    old = client.get(f"/api/v1/source-nodes/{n.id}/versions/1/download")
+    assert old.status_code == 200 and old.content == v1 and 'filename="a (v1).png"' in old.headers["content-disposition"]
+    cur = client.get(f"/api/v1/source-nodes/{n.id}/versions/2/download")
+    assert cur.content == v2 and 'filename="a.png"' in cur.headers["content-disposition"]
+    assert client.get(f"/api/v1/source-nodes/{n.id}/versions/7/download").status_code == 404
+    with kdb.session_scope() as db:
+        rows = db.query(PluginAudit).filter(PluginAudit.workspace_id == p, PluginAudit.action == "files.downloaded").all()
+        assert sorted((r.after_ref or {}).get("version") for r in rows) == [1, 2]
+    # A held file's versions are held too.
+    with kdb.session_scope() as db:
+        node = db.get(SourceNode, n.id)
+        node.flags = {**(node.flags or {}), "privacy": {"reason": "Held: header", "source": "header"}}
+    assert client.get(f"/api/v1/source-nodes/{n.id}/versions/1/download").status_code == 423
 
 
 def test_zip_writer_streams_in_bounded_chunks(client, monkeypatch):

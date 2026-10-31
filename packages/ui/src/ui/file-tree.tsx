@@ -110,6 +110,8 @@ export interface FileTreeProps {
   onRenameCancel?: (id: string) => void
   /** Live validation: an error sentence shown under the field (Enter is refused), or null. */
   validate?: (name: string, node: FileTreeNode) => string | null
+  /** Live advice that never blocks (a name Windows reserves, a person's name), shown when there's no error. */
+  warn?: (name: string, node: FileTreeNode) => string | null
   /** Hover / focus actions at the end of a row (the `+` and `⋯`); clicks don't select the row. */
   rowActions?: (node: FileTreeNode) => React.ReactNode
 
@@ -160,6 +162,7 @@ interface RowExtras {
   onContextMenu?: (id: string, e: React.MouseEvent) => void
   rowActions?: (node: FileTreeNode) => React.ReactNode
   validate?: (name: string, node: FileTreeNode) => string | null
+  warn?: (name: string, node: FileTreeNode) => string | null
   onRenameCancel?: (id: string) => void
   dropRefusal: { id: string; reason: string } | null
   /** Drag and drop is on (`onMove`): rows get arborist's drag handle. */
@@ -184,6 +187,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     onRename,
     onRenameCancel,
     validate,
+    warn,
     rowActions,
     canDrag,
     canDrop,
@@ -327,8 +331,10 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
         setCopying(e.altKey)
       }
       // The tree's ghost only over the tree; outside it, the page's drop targets draw their own.
-      const r = box.current?.getBoundingClientRect()
-      const inside = !!r && e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+      // "Over" means the event's target is in the tree's box (`data-file-tree`), the same test the
+      // page uses, so at the edges exactly one of the two ghosts shows (a bounding-box test here
+      // disagreed with the page's along the box's padding and scrollbar: two ghosts).
+      const inside = !!e.target && !!box.current?.contains(e.target as globalThis.Node)
       if (inside !== pointerInside.current) {
         pointerInside.current = inside
         setInside(inside)
@@ -362,7 +368,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const cut = React.useMemo(() => new Set(cutIds ?? []), [cutIds])
   const initialOpenState = React.useMemo(() => Object.fromEntries((initialOpen ?? []).map((id) => [id, true])), [initialOpen])
 
-  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn, rowProps }
+  const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, warn, onRenameCancel, dropRefusal: refusal, dndOn, rowProps }
   // Rows read these through context: a new renderer would remount every row, and remounting the
   // dragged row cancels a native drag (e.g. when the drop target or a callback changes mid-drag).
   const Node = React.useCallback((props: NodeRendererProps<FileTreeNode>) => <ContextRow {...props} />, [])
@@ -390,6 +396,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   return (
     <div
       ref={box}
+      data-file-tree=""
       className={cn("group/tree relative h-full min-h-0 w-full text-body", className)}
       onKeyDownCapture={(e) => {
         // Keys from a portaled child (a row's context menu) bubble here through React; not ours.
@@ -534,6 +541,7 @@ function TreeRow({
   onContextMenu,
   rowActions,
   validate,
+  warn,
   onRenameCancel,
   dropRefusal,
   dndOn,
@@ -609,7 +617,7 @@ function TreeRow({
       </span>
       <Icon className={cn("size-4 shrink-0", node.isSelected ? "icon-gradient" : "text-hint")} aria-hidden />
       {node.isEditing ? (
-        <RenameInput node={node} validate={validate} onCancel={onRenameCancel} />
+        <RenameInput node={node} validate={validate} warn={warn} onCancel={onRenameCancel} />
       ) : (
         <>
           <span className="min-w-0 flex-1 truncate">{d.name}</span>
@@ -638,13 +646,14 @@ function TreeRow({
  * focus (Finder), Enter saves, Esc cancels, blur saves (or cancels when the name is invalid
  * or unchanged). Validation runs as you type, with the sentence under the field.
  */
-function RenameInput({ node, validate, onCancel }: { node: NodeApi<FileTreeNode>; validate?: RowExtras["validate"]; onCancel?: (id: string) => void }) {
+function RenameInput({ node, validate, warn, onCancel }: { node: NodeApi<FileTreeNode>; validate?: RowExtras["validate"]; warn?: RowExtras["warn"]; onCancel?: (id: string) => void }) {
   const input = React.useRef<HTMLInputElement>(null)
   const initial = node.data.editName ?? node.data.name
   const [value, setValue] = React.useState(initial)
   const done = React.useRef(false)
   const errorId = React.useId()
   const error = value.trim() === initial ? null : (validate?.(value, node.data) ?? null)
+  const warning = error || value.trim() === initial ? null : (warn?.(value, node.data) ?? null)
 
   React.useEffect(() => {
     const el = input.current
@@ -676,7 +685,7 @@ function RenameInput({ node, validate, onCancel }: { node: NodeApi<FileTreeNode>
         onChange={(e) => setValue(e.target.value)}
         aria-label={`Rename ${initial}`}
         aria-invalid={!!error || undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error || warning ? errorId : undefined}
         spellCheck={false}
         autoComplete="off"
         data-testid="tree-rename-input"
@@ -698,6 +707,11 @@ function RenameInput({ node, validate, onCancel }: { node: NodeApi<FileTreeNode>
       {error && (
         <span id={errorId} role="alert" className="absolute left-0 top-full z-10 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-destructive shadow-popup" data-testid="tree-rename-error">
           {error}
+        </span>
+      )}
+      {warning && (
+        <span id={errorId} role="status" className="absolute left-0 top-full z-10 mt-0.5 max-w-72 whitespace-normal rounded-md bg-popover px-2 py-1 text-xs text-warning shadow-popup" data-testid="tree-rename-warning">
+          {warning}
         </span>
       )}
     </span>

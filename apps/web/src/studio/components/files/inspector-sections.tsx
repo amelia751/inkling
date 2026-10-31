@@ -38,6 +38,8 @@ export interface RenameableTitleProps {
   disabledReason?: string | null;
   /** Live check (D10): the sentence to show under the field, or null. Runs on the trimmed name. */
   validate?: (name: string) => string | null;
+  /** Advice that never blocks (Windows-reserved, a person's name), shown when there's no error. */
+  warn?: (name: string) => string | null;
   /** Saves the trimmed name. Reject with an Error to keep the field open with its message. */
   onRename: (name: string) => void | Promise<void>;
   /** Controlled editing (F2 or Enter-on-name from the page); uncontrolled when left out. */
@@ -63,7 +65,7 @@ export function extensionChange(from: string, to: string, kind: SourceNode["kind
  * blur saves (or cancels when the name is invalid). An extension change asks first ("The file's
  * content won't change"). The error sits under the field.
  */
-export function RenameableTitle({ name, displayName, kind, disabledReason, validate, onRename, editing: editingProp, onEditingChange }: RenameableTitleProps) {
+export function RenameableTitle({ name, displayName, kind, disabledReason, validate, warn, onRename, editing: editingProp, onEditingChange }: RenameableTitleProps) {
   const [own, setOwn] = useState(false);
   const editing = editingProp ?? own;
   const setEditing = (v: boolean) => {
@@ -92,6 +94,7 @@ export function RenameableTitle({ name, displayName, kind, disabledReason, valid
   const trimmed = value.replace(/[ .]+$/, "").trim();
   const problem = !trimmed ? "A name can't be empty" : (validate?.(trimmed) ?? null);
   const error = serverError ?? (trimmed !== name ? problem : null);
+  const warning = !error && trimmed && trimmed !== name ? (warn?.(trimmed) ?? null) : null;
 
   const cancel = () => {
     setConfirmExt(null);
@@ -165,6 +168,11 @@ export function RenameableTitle({ name, displayName, kind, disabledReason, valid
       {error && (
         <p id={errId} className="mt-1 text-xs text-danger" data-testid="rename-error">
           {error}
+        </p>
+      )}
+      {warning && (
+        <p role="status" className="mt-1 text-xs text-warning" data-testid="rename-warning">
+          {warning}
         </p>
       )}
       {confirmExt && (

@@ -45,6 +45,7 @@ export { default as ExploreIcon } from "@gravity-ui/icons/Compass";
 export { default as ActivityIcon } from "@gravity-ui/icons/ListTimeline";
 export { default as ProjectSettingsIcon } from "@gravity-ui/icons/Gear";
 export { default as AddDataIcon } from "@gravity-ui/icons/CloudArrowUpIn";
+export { default as TopUpIcon } from "@gravity-ui/icons/Plus";
 export { default as FolderIcon } from "@gravity-ui/icons/Folder";
 export { default as FolderOpenIcon } from "@gravity-ui/icons/FolderOpen";
 export { default as FileSequenceIcon } from "@gravity-ui/icons/Files";

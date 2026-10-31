@@ -222,7 +222,7 @@ hospital_research/
 └── annotations/masks.nii.gz
 ```
 
-**ImportSession states:** queued → inspecting → needs review / ready → imported / failed. Show partial successes; failures should be actionable without discarding successfully inspected files.
+**ImportSession states:** uploading → inspecting → needs review / ready → imported / failed. Show partial successes; failures should be actionable without discarding successfully inspected files.
 
 **Discovery results** should include:
 - Confirmed file types, modality signals, dimensions, codecs, row/column profiles and checksums.
@@ -322,9 +322,9 @@ Dataset versions must record inputs, transforms, tasks, annotation versions and 
 ## 11. Suggested routes and component structure
 
 ```text
-/workspace
-/workspace/projects
-/workspace/projects/new
+/
+/projects
+/projects/new
 /projects/:projectId/overview
 /projects/:projectId/sources
 /projects/:projectId/explore

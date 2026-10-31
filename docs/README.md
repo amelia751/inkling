@@ -3,7 +3,8 @@
 | Doc | What it covers |
 |---|---|
 | [`product.md`](product.md) | What the product is: users, data types, the Studio, the backend split (was `inkling.md` at the root). |
-| [`ui.md`](ui.md) | UI rules: layout, provenance colours, saving states, keyboard. |
+| [`ux.md`](ux.md) | The product's information architecture: projects, their sections (Overview, Sources, Explore, Datasets, Studio, Review, Activity) and the assistant. |
+| [`ui.md`](ui.md) | Studio rules: layout, provenance colours, saving states, keyboard. |
 | [`modules.md`](modules.md) | The modular Studio: environments, modules (a plugin's UI half), contributions, presets. |
 | [`modules-reference.md`](modules-reference.md) | Generated reference of every contribution (`pnpm emit:schemas`). Don't edit by hand. |
 | [`plugins.md`](plugins.md) | Plugin infrastructure: manifests, kernel, control plane, workers, agent authoring, security. |
@@ -19,7 +20,7 @@ the word in the right-hand column.
 
 | Term | Means | Not (say this instead) |
 |---|---|---|
-| **Studio** | the annotation UI shell (`apps/web/src/studio/`) | the whole product (say the product name), or the code scope `@studio` |
+| **Studio** | the annotation editor for one task (`/projects/:projectId/studio/:taskId`). Its code is in `apps/web/src/studio/`, which also holds the rest of the web shell | the whole product (say the product name), the other project sections, or the code scope `@studio` |
 | **Plugin** | an installable unit: `plugin.yaml` + optional `ui/` + optional worker code | — |
 | **Module** | a plugin's UI half (`ModuleManifest`, `ui/manifest.ts`) | a plugin |
 | **Extension host** | the registry, resolver, commands and catalogue in the web app (`apps/web/src/extension-host/`) | the API's plugin control plane |
@@ -27,17 +28,26 @@ the word in the right-hand column.
 | **Kernel** | the stable core inside the API (`studio_api/kernel/`, `plugins.md` §6) | the API service |
 | **Environment** | a JSON spec of what one Studio shows (`environment.v1.json`) | a deployment target: dev, staging and prod are **stages** (`infra/k8s/overlays/<stage>`) |
 | **Preset** | an environment shipped in `registry/presets/` | — |
-| **Workspace** | per-project plugin activation and settings (`workspace.v1.json`) | a pnpm or uv workspace: say **repo workspace** |
+| **Organization** | the account level: a person's or a team's projects and members (`organizations`, `org_id`). UI copy may call it "Workspace" | the kernel's workspace |
+| **Project** | a durable research goal, the container for sources, datasets and tasks (`projects`) | a dataset, or a seed entry in `manifest.json` (each seed is one project, dataset and task with the same id) |
+| **Workspace** | the kernel's per-project plugin activation and settings (`workspace.v1.json`). The kernel `Workspace` row is 1:1 with a project: `workspace_id` is the project id | the organization, even where UI copy says "Workspace"; a pnpm or uv workspace: say **repo workspace** |
+| **Source** | original material as uploaded (an upload or a seed), kept as an immutable tree of `source_nodes` | a dataset |
+| **Import session** | one upload into a project: its files, the rights attestation and its state (`uploading → inspecting → needs_review` or `ready → imported`, or `failed`, `cancelled`) | an upload of a single file (that's an upload file) |
+| **Dataset** | a logical set of items built from one or more sources: which source nodes, how they group, a preset | a source, a project or a version |
+| **Collection** | a coherent group within a dataset (MRI studies, echo recordings). Not stored on its own yet: a dataset's definition says how items group | a folder in a source |
+| **Task** | work on a dataset (classification, segmentation, event marking). It owns one environment and one annotation document, both keyed by `task_id` | a plugin job |
+| **Proposal** | something the inspection worker or the assistant suggests (a group, relationship, mapping, dataset or task), with evidence and a strength. It changes nothing until a person confirms it | a confirmed relationship or dataset |
+| **Version** | an immutable snapshot of a dataset in `apps/versioning` (Datasets › Versions) | an environment revision, or an annotation document save |
 
 ## Repo map
 
 ```text
 .
 ├── apps/            DEPLOYABLES: one Dockerfile, one k8s Deployment each, scaled independently
-│   ├── web/         Studio SPA (static files behind nginx in production)
-│   ├── api/         Python kernel + plugin control plane (FastAPI)
+│   ├── web/         the SPA: Home, projects and their sections, the Studio (static files behind nginx in production)
+│   ├── api/         Python kernel (projects, sources, imports, proposals) + plugin control plane (FastAPI)
 │   ├── agent/       Node agent runtime (pi + Daytona sandboxes)
-│   ├── worker/      Python plugin job runner (scales on queue depth)
+│   ├── worker/      Python plugin job runner + built-in subscribers: de-id checks, inspection of uploads (scales on queue depth)
 │   ├── versioning/  Go dataset versioning service
 │   └── mcp/         MCP server (stdio) for outside agents
 ├── plugins/         EXTENSIONS, never deployed alone: plugin.yaml, ui/, optional Python worker, skills/

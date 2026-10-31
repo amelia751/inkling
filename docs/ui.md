@@ -17,33 +17,37 @@
 
 ## 2. Primary information architecture
 
-The Studio canvas is **not** the app's first page for a returning user. The initial page is a workspace dashboard, from which users enter a specific dataset Studio.
+The app's information architecture is in [`ux.md`](ux.md): the organization and its projects
+(§2, §3), the project sidebar and its sections (§2, §5), the Overview (§4), the assistant
+drawer (§9) and the routes (§11). This document keeps the rules for the Studio, the editor for
+one task.
+
+In short:
+
+- Home (`/`) lists recent projects; `/projects` lists all of them.
+- A project has a sidebar with Overview, Sources, Explore, Datasets, Studio, Review and
+  Activity, and Settings at the bottom. The breadcrumb reads `Workspace ▾ / Project ▾ / Section`
+  ("Workspace" is the organization in UI copy).
+- The Studio opens one task at `/projects/:projectId/studio/:taskId`. There the project sidebar
+  collapses to a 48px icon rail.
+- The assistant follows the project across sections: a drawer on the right outside the Studio,
+  the Studio's right panel inside it. Same thread, same context chip.
+- Export and versions live under Datasets › (dataset) › Publish & export and Versions; plugins
+  under Settings › Plugins. Old `/datasets/:id/…` links redirect.
+
+The Studio itself:
 
 ```text
-Inkling
-├── Workspace / Dashboard
-│   ├── My datasets
-│   ├── Recent projects
-│   ├── Create dataset
-│   └── Import data
-├── Dataset Studio / :datasetId
-│   ├── Files (left tab)
-│   ├── Labels & layers (left tab)
-│   ├── Review queue (left tab)
-│   ├── Viewer / canvas (center)
-│   └── Inkling AI assistant (right)
-├── Dataset review / :datasetId/review
-│   ├── Validation issues
-│   ├── Annotation review
-│   └── Dataset summary
-└── Publish / export / :datasetId/publish
-    ├── Dataset card
-    ├── Rights and permissions
-    ├── Format selection
-    └── Publish or download
+Studio / :projectId / :taskId
+├── Project rail (collapsed project sidebar)
+├── Files (left tab, task-scoped)
+├── Labels & layers (left tab)
+├── Review queue (left tab)
+├── Viewer / canvas (center)
+└── Inkling AI assistant (right)
 ```
 
-**MVP:** Workspace, Studio, Review, and Export. Public marketplace browsing, paid licensing, and creator storefronts are later phases.
+Public marketplace browsing, paid licensing, and creator storefronts are later phases.
 
 ## 3. Desktop Studio layout
 
@@ -73,7 +77,7 @@ Inkling
 
 ### Top bar
 
-- Inkling logo and breadcrumb: Workspace → Dataset name.
+- Project rail and breadcrumb: Workspace → Project → task.
 - Dataset status: Draft, Processing, Needs Review, Ready for Export.
 - Autosave state: Saving, Saved, Offline/Error. Never imply saved until the server confirms it.
 - Collaborator/avatar controls **only when collaboration is implemented**.
@@ -168,45 +172,35 @@ For the MVP, support **2D images first**, followed by one **3D CT/MRI** workflow
 4. Choose appropriate export representation, including images, annotations, and machine-readable metadata.
 5. Download or publish approved version. Commercial marketplace transactions are out of scope for MVP.
 
-## 6. Suggested React component structure
+## 6. React component structure
+
+The pages outside the Studio and their components (`ProjectShell`, `ResumeWorkCard`,
+`AttentionQueue`, the source tree, `PersistentAgentDrawer`, …) follow [`ux.md`](ux.md) §11.
+The project shell isn't a separate component: `AppLayout` grows the project sidebar and rail.
+What's where today:
 
 ```text
-apps/web/src/
+apps/web/src/studio/
 ├── app/
-│   ├── routes/
-│   │   ├── WorkspacePage.tsx
-│   │   ├── DatasetStudioPage.tsx
-│   │   ├── ReviewPage.tsx
-│   │   └── ExportPage.tsx
-│   └── AppShell.tsx
+│   ├── AppShell.tsx              # routes (ux.md §11), legacy /datasets/… redirects
+│   └── routes/                   # HomePage, ProjectsPage, ProjectOverviewPage, SourcesPage,
+│                                 # ExplorePage, DatasetsPage, DatasetStudioPage, ProjectReviewPage,
+│                                 # ReviewPage, ActivityPage, ProjectSettingsPage, ExportPage, PluginsPage
 ├── components/
-│   ├── ui/                       # shadcn/ui primitives
-│   ├── studio/
-│   │   ├── StudioShell.tsx
-│   │   ├── StudioTopBar.tsx
-│   │   ├── LeftSidebar.tsx
-│   │   ├── FilesTab.tsx
-│   │   ├── LabelsTab.tsx
-│   │   ├── ReviewTab.tsx
-│   │   ├── CanvasToolbar.tsx
-│   │   ├── CanvasStatusBar.tsx
-│   │   ├── ViewerHost.tsx
-│   │   ├── AiAssistantPanel.tsx
-│   │   ├── AnnotationPreview.tsx
-│   │   └── ValidationNotice.tsx
-│   └── datasets/
-│       ├── DatasetCard.tsx
-│       ├── CreateDatasetWizard.tsx
-│       └── ImportProgress.tsx
-├── viewers/
-│   ├── ViewerAdapter.ts
-│   ├── cornerstone/
-│   └── pathology/               # later
-├── hooks/
-├── stores/                      # Zustand for ephemeral studio state
-├── api/                         # TanStack Query + generated API client
-└── types/
+│   ├── layout/                   # AppLayout (project sidebar and rail), breadcrumb switchers
+│   ├── ai/                       # AssistantPanel, the agent drawer, cards
+│   ├── sources/                  # tree, listing, inspector, Quick Look, imports
+│   ├── uploads/                  # the upload tray
+│   ├── projects/                 # New project
+│   └── studio/                   # StudioLayout, StudioTopBar, LeftSidebar, CanvasToolbar,
+│                                 # CanvasStatusBar, ViewportHost, PanelHost
+├── core/panels/                  # Files, Labels, Review and AI panels of the Studio
+├── lib/                          # API clients, routes, resume, uploads (hash worker, folder walk)
+└── stores/                       # Zustand: studio, shell, sources, uploads, agent
 ```
+
+Shared primitives (shadcn, the file tree, icons) are in `packages/ui`; viewers are trusted
+renderers in `packages/renderers` and plugins (`docs/modules.md`).
 
 **State split:** React/Zustand owns selected tools, panels, current sample and in-progress edits. TanStack Query owns server state. Cornerstone manages image cache/rendering; avoid putting pixel arrays in React state. Persisted annotation records come from the backend.
 

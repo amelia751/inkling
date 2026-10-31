@@ -387,76 +387,89 @@ trees, ids and data cards as the kernel for every seed). Deviations:
 /projects/:projectId/activity
 /projects/:projectId/settings/:tab?     general | plugins | members
 ```
-- [ ] Legacy redirects keep the e2e contract: `/datasets/:id` → `/projects/:id/studio/:id`;
+- [x] Legacy redirects keep the e2e contract: `/datasets/:id` → `/projects/:id/studio/:id`;
   `/datasets/:id/{review,export,plugins,versions}` → their new homes (D2 makes the ids line up).
   `harness.py` keeps working without edits. Update it to the new URL in Phase 9 and keep the redirect test.
-- [ ] Project and task ids live in the path. Selections that are safe (the tab, the view mode) go in the
+- [x] Project and task ids live in the path. Selections that are safe (the tab, the view mode) go in the
   query; file names and patient-ish strings never do.
 
 ### 2.2 `ProjectShell` (`apps/web/src/studio/components/layout/project-shell.tsx`)
-- [ ] Extend `AppLayout`, don't fork it. Outside a project, the sidebar shows **Home, Projects** (and
+- [x] Extend `AppLayout`, don't fork it. Outside a project, the sidebar shows **Home, Projects** (and
   Recent: the last 5 opened projects). Inside one, it shows a project header (icon tile, title, a
   "← All projects" link) and **Overview, Sources, Explore, Datasets, Studio, Review, Activity**, with
   **Settings** pinned at the bottom.
-- [ ] The header breadcrumb becomes `Workspace ▾ / Project ▾ / Section`. Both are switchers: the
+- [x] The header breadcrumb becomes `Workspace ▾ / Project ▾ / Section`. Both are switchers: the
   workspace switcher is a placeholder with a single personal org, and the project switcher replaces
   `DatasetSwitcher`.
-- [ ] Studio mode: the project sidebar becomes a **48px rail** (icons plus tooltips; the active section is
+- [x] Studio mode: the project sidebar becomes a **48px rail** (icons plus tooltips; the active section is
   marked with a 2px bar). `StudioTopBar` gains the same breadcrumb. Keyboard: the existing sidebar toggle
   command, so it's declared once.
-- [ ] "Studio" in the nav opens the last-used task (from resume). With several tasks, it opens a small
+- [x] "Studio" in the nav opens the last-used task (from resume). With several tasks, it opens a small
   picker; with none, it goes to Datasets with a hint.
-- [ ] Phone and tablet use the existing `Sheet` drawer behavior; Studio routes show "Annotation works best
+- [x] Phone and tablet use the existing `Sheet` drawer behavior; Studio routes show "Annotation works best
   on a larger screen" on phones but still open (ux.md §4, responsive).
-- [ ] Icons from §3, exported from `@studio/ui/icons` (`pnpm check:icons`).
+- [x] Icons from §3, exported from `@studio/ui/icons` (`pnpm check:icons`).
 
 **Exit:** every existing page is reachable from the new nav; the old URLs redirect; the `apps/web/e2e`
 suite passes unchanged; there's a new `apps/web/e2e/navigation_test.py` (rail collapse, breadcrumb
 switchers, redirects).
 
+
+**Done (2026-10-30, branch `todo6-p2`).** Taken over from an interrupted session's uncommitted work
+(`e8d9658`), then finished. Every §2.1 route exists; the old `/datasets/:id[/…]` URLs redirect.
+`AppLayout` is the project shell: Home/Projects/Recent outside a project, the seven sections plus
+Settings inside, a 48px rail (mod+B, the `toggleNavigation` command), `Workspace ▾ / Project ▾ /
+Section` switchers. Code: `components/layout/{app-layout,switchers}.tsx`, `stores/shell.ts`,
+`lib/routes.ts`, `app/routes/project-pages.tsx`. `navigation_test.py` (30 checks). Deviations:
+- New shell commands are scoped with `when` clauses: Sources keys have `when: "section == sources"`,
+  every environment resolves with `section: "studio"`, and outside the Studio `AppLayout` sets the
+  section through `setShellContext()` (`extension-host/commands.ts`). Otherwise Space and Enter
+  collided with plugin keys (11 preset tests failed). `shell-commands.test.ts` covers it.
+- The switcher menu is keyed by project id: the old menu's closing animation swallowed the next
+  click after a switch (`switcher-new-project` timed out).
 ---
 
 ## Phase 3. Home, Create project and Project Overview
 
 ### 3.1 Home (`routes/HomePage.tsx`, replacing `WorkspacePage`)
-- [ ] The heading asks "What are you working on?". The primary action is **New project**. A natural-language
+- [x] The heading asks "What are you working on?". The primary action is **New project**. A natural-language
   field below it ("Describe what you want to build, or drop files here") creates a project from the
   sentence (title and description suggested from it, editable before creation). Dropping files onto
   Home starts New project with them attached.
-- [ ] Recent project cards (a grid of up to 6): icon tile, title, one-line description, "Edited 2 h ago",
+- [x] Recent project cards (a grid of up to 6): icon tile, title, one-line description, "Edited 2 h ago",
   and one **Resume** action when there's resume state. No metrics. All projects is a separate list page
   (`/projects`) with search and sort.
-- [ ] Seed projects show a small "Sample" badge and keep their license line (the restricted badge
+- [x] Seed projects show a small "Sample" badge and keep their license line (the restricted badge
   carries over from `DatasetCard`).
-- [ ] Empty state (no projects yet): the drop surface plus three example prompts as chips ("Classify
+- [x] Empty state (no projects yet): the drop surface plus three example prompts as chips ("Classify
   chest X-rays", "Outline the left ventricle in cardiac MRI", "Mark events in ECG recordings"). The
   chips fill the field; they don't run anything.
 
 ### 3.2 Create project (`/projects/new`, also a dialog from anywhere)
-- [ ] One screen: name (or a goal sentence), an optional description, and the drop area. **Create** works
+- [x] One screen: name (or a goal sentence), an optional description, and the drop area. **Create** works
   with no files at all.
-- [ ] If files were attached, open the **rights attestation** before anything uploads: "I'm allowed to use
+- [x] If files were attached, open the **rights attestation** before anything uploads: "I'm allowed to use
   these files for research, and they're de-identified or synthetic." It's one checkbox plus a "What
   counts?" link to `docs/` copy. The answer is stored on the import session.
-- [ ] After creation, go to Overview with the import tray running. When inspection finishes:
+- [x] After creation, go to Overview with the import tray running. When inspection finishes:
   - A clean set (one image kind, optional matching table) shows a *proposal card* on Overview: "Looks
     like 118 chest X-rays with labels from `labels.csv`. **Create dataset & open Studio** · Review first".
   - A mixed set shows "**See what we found** → Explore" instead (ux.md §3 step 4, progressive disclosure).
 
 ### 3.3 Overview (`routes/ProjectOverviewPage.tsx`, components per ux.md §11)
-- [ ] `ProjectHeader`: breadcrumb, a subtle icon, an inline-editable title and description, a
+- [x] `ProjectHeader`: breadcrumb, a subtle icon, an inline-editable title and description, a
   Private/Shared chip, and the `•••` menu (Settings, Rename, Archive). No analytics row.
-- [ ] `ResumeWorkCard` is shown only when resume state exists:
+- [x] `ResumeWorkCard` is shown only when resume state exists:
   - A thumbnail (the item's preview from `/source-nodes/:id/preview`, else the data-kind icon on
     `--canvas`), the task title, "Study 012 · 3D volume annotation" (item name plus data kind label), and
     progress as "13 of 20 annotated" (verifiable; "reviewed" waits for P1 review status).
   - **Open Studio →** restores task, item, placement and tool.
   - With no resume state, it shows an encouraging start: "Pick up where the data is: **Open Studio**" if a
     task exists, else nothing.
-- [ ] `SourceSummaryCards`: 2–4 cards from `overview.data`: confirmed collections first, else sources by
+- [x] `SourceSummaryCards`: 2–4 cards from `overview.data`: confirmed collections first, else sources by
   detected kind ("MRI scans · 120 · 3D volumes", "Diagnoses · 247 rows · Table"). Each opens its source
   folder or dataset. There's a `+ Add data` card, and "View sources" in the section header.
-- [ ] `AttentionQueue` holds at most 5 rows, ordered by severity, from `overview.attention`:
+- [x] `AttentionQueue` holds at most 5 rows, ordered by severity, from `overview.attention`:
   - privacy holds;
   - failed or partial imports;
   - unconfirmed proposals ("7 records need matching");
@@ -464,10 +477,10 @@ switchers, redirects).
 
   Each row deep-links to its resolution surface (an Explore tab with the proposal selected, Sources with
   the node selected, the version review). Empty: "You're all caught up." in muted text, no illustration.
-- [ ] Empty project (no sources): the ux.md §4 empty state. "Let's start with your data.", a big drop
+- [x] Empty project (no sources): the ux.md §4 empty state. "Let's start with your data.", a big drop
   zone, **Browse files** and **Browse folder**, and "Or tell Inkling what you're trying to create…"
   (which opens the assistant drawer focused).
-- [ ] Skeletons match the real card geometry (as `DatasetCardSkeleton` does today).
+- [x] Skeletons match the real card geometry (as `DatasetCardSkeleton` does today).
 
 **Exit:** `apps/web/e2e/overview_test.py` (seed mode) checks:
 - the resume card restores item and tool after reload;
@@ -475,6 +488,14 @@ switchers, redirects).
 - attention is empty for seeds;
 - no element on Overview shows a number the API didn't return.
 
+
+**Done (2026-10-30, branch `todo6-p2`, same commits as Phase 2).** Home (goal field, example chips that
+only fill it, drop-anywhere, up to 6 cards with Sample badge, licence line and Resume), `/projects`
+(search, sort), Create project (`components/projects/new-project.tsx`, a page and a dialog from the
+project switcher; attestation before any upload) and Overview (`ProjectHeader`, `ResumeWorkCard`,
+`SourceSummaryCards`, `AttentionQueue`, empty state, card-shaped skeletons).
+`overview_test.py` (11 checks). Deviations: the product name in copy comes from
+`NAMING.displayName`; the resume card restores through router state `{ resume: true }` (Phase 7).
 ---
 
 ## Phase 4. Sources: the file browser and the upload pipeline
@@ -496,50 +517,50 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
 │   Oct 30 · 1,204 ✓ 3 ⚠│                                              │  none           │
 └──────────────────────┴──────────────────────────────────────────────┴────────────────┘
 ```
-- [ ] Three panes (resizable split, D6): the **tree** (260px), the **listing** of the selected folder, and the
+- [x] Three panes (resizable split, D6): the **tree** (260px), the **listing** of the selected folder, and the
   **inspector** of the selected item (320px, collapsible, remembered).
-- [ ] The tree's roots are the project's sources (one per import or seed). Below them, a quiet
+- [x] The tree's roots are the project's sources (one per import or seed). Below them, a quiet
   **Imports** section lists import sessions (date, counts, state icon); clicking one opens its session
   summary in the listing pane.
-- [ ] The path bar is a breadcrumb of folder names. Clicking a segment navigates; the last segment shows
+- [x] The path bar is a breadcrumb of folder names. Clicking a segment navigates; the last segment shows
   a `•••` with "Copy path" (a deliberate action, because paths may contain identifiers).
 
 ### 4.2 Tree (`packages/ui/src/ui/file-tree.tsx`, D5)
-- [ ] react-arborist, controlled:
+- [x] react-arborist, controlled:
   - `data` is built from pages of `/children`, loaded on expand with a 150ms skeleton row.
   - Ids are node ids.
   - `rowHeight` is 28.
   - Height comes from a `ResizeObserver`, as kiwifs's `KiwiTree.tsx` does.
-- [ ] Row: chevron, Folder/FolderOpen or kind icon, name (compact chains such as `MRI / patient_002`
+- [x] Row: chevron, Folder/FolderOpen or kind icon, name (compact chains such as `MRI / patient_002`
   rendered as one row, from kiwifs `treeTransform.ts`), then right-aligned hint-color counts and **one**
   status icon (checking spinner, privacy, warning, error). A tooltip shows the full name and the status
   reason.
-- [ ] Sequences: a run like `scan001…scan120.dcm` (the same `sequence_key`) shows as one
+- [x] Sequences: a run like `scan001…scan120.dcm` (the same `sequence_key`) shows as one
   `FileSequenceIcon` row "scan001–scan120.dcm · 120 files" that expands to the files.
-- [ ] Sorting is folders first, then natural order (`Intl.Collator` with `numeric: true`), matching the
+- [x] Sorting is folders first, then natural order (`Intl.Collator` with `numeric: true`), matching the
   server.
-- [ ] Keyboard follows Finder and Drive (declared as core commands, not hard-coded):
+- [x] Keyboard follows Finder and Drive (declared as core commands, not hard-coded):
   - arrows move and expand or collapse; Enter opens a folder or the inspector; **Space** opens Quick Look
     (a large preview dialog);
   - ⌘↑ goes to the parent; type-ahead jumps to a name; ⌘F focuses search;
   - Shift- and ⌘-click select ranges and sets.
-- [ ] ARIA: `role="tree"`, `treeitem`, `aria-expanded`, `aria-level`, `aria-setsize`, `aria-posinset`.
+- [x] ARIA: `role="tree"`, `treeitem`, `aria-expanded`, `aria-level`, `aria-setsize`, `aria-posinset`.
   Check what arborist emits and add what's missing. Focus ring uses `--g-line-focus`.
-- [ ] Reveal: selecting something elsewhere (an Overview card, an attention row, an assistant link)
+- [x] Reveal: selecting something elsewhere (an Overview card, an attention row, an assistant link)
   scrolls to the node and plays kiwifs's one-second reveal flash (`kiwi-tree-reveal-flash`), retuned to
   `--g-selection-hover`.
-- [ ] The tree keeps no rename, move, delete or drag-to-reorder (design implication 2). Context menu:
+- [x] The tree keeps no rename, move, delete or drag-to-reorder (design implication 2). Context menu:
   Open, Quick Look, Show in Explore, Copy path, and *for a source root* "Remove upload…" (disabled with a
   reason when a dataset uses it).
 
 ### 4.3 Listing and inspector
-- [ ] The list view (default) is virtualized (D6). Columns: Name, Kind (plain label with a count for
+- [x] The list view (default) is virtualized (D6). Columns: Name, Kind (plain label with a count for
   folders and sequences), Size, Status, Added. Sortable; double-click opens.
-- [ ] The grid view is for folders that are mostly images: thumbnails from inspection (the first slice of a
+- [x] The grid view is for folders that are mostly images: thumbnails from inspection (the first slice of a
   series with a default window). A view switch remembers per folder kind, not per path.
-- [ ] Search: a server-side name search within the project (`?q=`). Results show their folder path in hint
+- [x] Search: a server-side name search within the project (`?q=`). Results show their folder path in hint
   text, and filter chips for Kind and Status ("Needs attention", "Can't read").
-- [ ] Inspector sections, each omitted when it has nothing to show:
+- [x] Inspector sections, each omitted when it has nothing to show:
   - **Preview**: an image, the table head (first 50 rows and column types), DICOM key facts (modality,
     series description, size, spacing, slice count; never patient name, ID or birth date), a video
     poster plus duration and codec, or a PDF's first page.
@@ -547,40 +568,40 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
   - **Used in**: datasets and tasks.
   - **Flags**: privacy, duplicate (of which file) or unsupported, each with a next step.
   - **Provenance**: the import session, who added it and when, and the SHA-256 (shortened, copyable).
-- [ ] Quick Look (Space) shows the same preview large, with ←/→ to step through siblings.
+- [x] Quick Look (Space) shows the same preview large, with ←/→ to step through siblings.
 
 ### 4.4 Adding data (`apps/web/src/studio/lib/uploads/`)
-- [ ] Entry points: the `+ Add data` split button (Files… / Folder… via `<input webkitdirectory>`), drag
+- [x] Entry points: the `+ Add data` split button (Files… / Folder… via `<input webkitdirectory>`), drag
   and drop anywhere on Sources or Overview, the empty-state zone, and Home.
-- [ ] A recursive folder drop uses `DataTransferItem.webkitGetAsEntry()` to walk directories (kiwifs only
+- [x] A recursive folder drop uses `DataTransferItem.webkitGetAsEntry()` to walk directories (kiwifs only
   reads `dataTransfer.files`, which flattens or drops folders). `rel_path` keeps the original structure.
-- [ ] The drop overlay covers the page: a dashed `--g-line-focus` border on a `--g-veil` backdrop reading
+- [x] The drop overlay covers the page: a dashed `--g-line-focus` border on a `--g-veil` backdrop reading
   "Drop to add to *patient_002*" (the hovered folder or the root). Dropping onto a *file* row targets its
   folder, as in kiwifs.
-- [ ] Before upload (client side, in a Web Worker):
+- [x] Before upload (client side, in a Web Worker):
   - walk the dropped tree, skip system junk, hash, and build the session request;
   - large batches show "Preparing 1,204 files…" with a cancel button.
-- [ ] The attestation dialog appears once per project for each person (D7, §3.2).
-- [ ] The upload tray sits bottom-right and is collapsible, like Drive:
+- [x] The attestation dialog appears once per project for each person (D7, §3.2).
+- [x] The upload tray sits bottom-right and is collapsible, like Drive:
   - one line per session: "Uploading 1,204 files · 38%", then "Checking files…", then "Ready · 3 need
     attention";
   - it expands to per-file rows, with failed files first;
   - **Retry failed**, **Cancel** and **Keep working** are always available;
   - `beforeunload` warns only while bytes are in flight.
-- [ ] Resume: re-dropping the same folder after a reload matches by hash. Uploaded files show
+- [x] Resume: re-dropping the same folder after a reload matches by hash. Uploaded files show
   "Already in this project" and are skipped.
-- [ ] Concurrency of 4 files, chunked above 64 MB, exponential backoff, and per-file errors with plain
+- [x] Concurrency of 4 files, chunked above 64 MB, exponential backoff, and per-file errors with plain
   reasons ("The connection dropped. Retry", "Too large: limit is 2 GB per file").
-- [ ] Limits come from env (`INKLING_API_UPLOAD_MAX_FILE_BYTES`, `…_MAX_SESSION_FILES`), read in
+- [x] Limits come from env (`INKLING_API_UPLOAD_MAX_FILE_BYTES`, `…_MAX_SESSION_FILES`), read in
   `apps/api/src/studio_api/config.py`.
 
 ### 4.5 Server side of uploads
-- [ ] Files arrive in `quarantine/<session>/…` in the `BlobStore`, and the server verifies size and SHA-256.
+- [x] Files arrive in `quarantine/<session>/…` in the `BlobStore`, and the server verifies size and SHA-256.
   Accepted files become `Asset` rows and `source_nodes`. Duplicates by hash within a project link to the
   existing asset, with the flag `duplicate_of`.
-- [ ] Completion emits `source.uploaded` (outbox `PluginEvent`); the worker picks it up (Phase 5). Nothing
+- [x] Completion emits `source.uploaded` (outbox `PluginEvent`); the worker picks it up (Phase 5). Nothing
   is viewable in the Studio until inspection marks it `ready`.
-- [ ] ZIP archives are kept as files in P0; "Expand archive" is a P1 action (BACKLOG).
+- [x] ZIP archives are kept as files in P0; "Expand archive" is a P1 action (BACKLOG).
 
 **Exit:**
 - `tests/e2e/sources_test.py` (API + worker): drop a nested fixture folder of synthetic PNGs, a CSV, a
@@ -590,36 +611,54 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
 - `apps/web/e2e/sources_test.py` (seed mode): keyboard navigation, sequence collapse, Quick Look, search,
   and no patient-ish strings in the URL.
 
+
+**Done (2026-10-30, branch `todo6-p4`).** `routes/SourcesPage.tsx` with `components/sources/
+{source-tree,listing,inspector,quick-look}.tsx`, `stores/sources.ts`; the upload pipeline in
+`lib/uploads/`, `stores/uploads.ts`, `components/uploads/`. Tests: `apps/api/tests/test_sources.py`
+(6), `apps/web/e2e/sources_test.py` (39 checks, seed mode), `tests/e2e/sources_test.py` (API, SQLite,
+local blobstore). Deviations:
+- Run ids are opaque (`seq:<folder>:<sha256(key)[:12]>`): they carried file-name patterns into
+  URLs. `GET /v1/source-nodes/:id` returns `runId`.
+- Duplicates link to the stored asset (bytes kept once) with `duplicate_of`; a folder dropped onto
+  a same-named folder merges into it, so a re-drop onto its own source skips everything.
+- Quick Look steps with the core `prevItem`/`nextItem` commands (↑/↓ and ←/→). Separate ←/→
+  commands broke image2d's freehand e2e (4 of 4 runs) even behind a `when`; not root-caused.
+- `source.uploaded` payload: `{projectId, importId, sourceId, nodeIds}` (outbox, idempotency key
+  `source.uploaded:<importId>`).
+- A real `webkitGetAsEntry` drag isn't e2e-tested (Playwright can't build file-system entries);
+  the Folder… picker runs the same walk. Below 1024px the tree and inspector are hidden.
+- SQLite answers some concurrent upload chunks with "database is locked"; the client's backoff
+  retries them. Postgres untested.
 ---
 
 ## Phase 5. Inspection worker and Explore
 
 ### 5.1 Inspection (`apps/worker/src/studio_worker/inspect/`)
-- [ ] A built-in subscriber like `deid.py` (`EventConsumption` acks), for `source.uploaded`. Per file:
+- [x] A built-in subscriber like `deid.py` (`EventConsumption` acks), for `source.uploaded`. Per file:
   detect the kind from content, extract facts, make a thumbnail where it makes sense, and set flags.
   Libraries: `pydicom`, `nibabel`, Pillow, stdlib `csv`, `openpyxl`, and ffprobe if present. Check
   licences before adding; `pydicom` and `nibabel` are already named in `docs/product.md`.
-- [ ] DICOM: group by StudyInstanceUID and SeriesInstanceUID into *candidate* series. Check the slice
+- [x] DICOM: group by StudyInstanceUID and SeriesInstanceUID into *candidate* series. Check the slice
   count against InstanceNumber gaps and orientation consistency; a gap is a quality flag, not a silent fix
   (ux.md §7: file count ≠ volume).
-- [ ] Privacy: reuse and extend the `deid.py` checks to DICOM headers (PatientName, PatientID, BirthDate,
+- [x] Privacy: reuse and extend the `deid.py` checks to DICOM headers (PatientName, PatientID, BirthDate,
   …) and **path names** (name-like `Lastname_Firstname`, dates, MRN-shaped numbers). A hit sets a
   `privacy` flag and holds the node out of datasets until a person clears it with a reason. That's
   recorded in the audit; this is a development check, not de-identification, as `deid.py` says.
-- [ ] Tables: delimiter and encoding sniffing, header detection, a per-column type and fill profile, a
+- [x] Tables: delimiter and encoding sniffing, header detection, a per-column type and fill profile, a
   candidate key (unique, mostly non-null), and values that look like folder or file names.
-- [ ] **Proposals** (status `proposed`, created_by `worker:inspect`), each with evidence:
+- [x] **Proposals** (status `proposed`, created_by `worker:inspect`), each with evidence:
   - *group*: "120 DICOM files form 1 MRI series (MR, 256×256, 120 slices)".
   - *relationship*: table column ↔ folder or file names, after normalizing IDs (`P001` = `p-001` = `1`
     only when the column is numeric-like, never across names). Evidence: matched, unmatched and ambiguous
     counts plus examples.
   - *dataset/task*: for clean sets, a proposed dataset definition plus a preset (`preset:image-2d` plus
     label classes from a categorical column).
-- [ ] Session state moves to `needs_review` when any proposal or flag needs a person, else `ready`.
+- [x] Session state moves to `needs_review` when any proposal or flag needs a person, else `ready`.
 
 ### 5.2 Explore (`routes/ExplorePage.tsx`)
-- [ ] Tabs: **Summary · Relationships · Mappings · Quality**. The URL holds the tab and the selected proposal id.
-- [ ] **Summary** (`ShapeSummary`): the three levels from ux.md §7 as columns:
+- [x] Tabs: **Summary · Relationships · Mappings · Quality**. The URL holds the tab and the selected proposal id.
+- [x] **Summary** (`ShapeSummary`): the three levels from ux.md §7 as columns:
 
   | Level | Shows |
   |---|---|
@@ -628,7 +667,7 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
   | Tasks | existing tasks, plus proposed ones |
 
   A clean project shows one card: "Ready to annotate: **Create dataset & open Studio**" (ux.md §7, last line).
-- [ ] **Relationships** is a list first and a graph later (P1).
+- [x] **Relationships** is a list first and a graph later (P1).
   - Each row reads "`diagnoses.csv` › `patient_id` ↔ `MRI/` folder names", followed by strength words,
     "118 matched · 2 not found · 0 ambiguous", and **Why?** (evidence and examples), **Confirm**, **Edit**,
     **Dismiss**.
@@ -636,12 +675,12 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
     The server recomputes the matches.
   - **Unmatched and ambiguous rows** list inline, with a fix for each (pick the folder, or skip the row).
     Nothing merges until confirmed, and never by filename alone for patient identity (ux.md §6).
-- [ ] **Mappings** (`MappingReview`): source field → dataset field, with three example values, a conflict
+- [x] **Mappings** (`MappingReview`): source field → dataset field, with three example values, a conflict
   badge and the same Confirm, Edit and Dismiss. P0 shows the label mapping (a categorical column → label
   classes) needed for the acceptance flow.
-- [ ] **Quality**: missing values, duplicates, mismatched IDs, unsupported files, series gaps and privacy
+- [x] **Quality**: missing values, duplicates, mismatched IDs, unsupported files, series gaps and privacy
   holds, each linking to the exact node or row.
-- [ ] Confirming a *dataset/task* proposal:
+- [x] Confirming a *dataset/task* proposal:
   - shows an **action preview**: the dataset name, which files, how items group, the label classes, and
     "imports 118 labels as *imported* annotations" (D8);
   - **Create & open Studio** then creates the dataset and task, writes the environment, and navigates to
@@ -656,68 +695,113 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
    the `imported` badge.
 5. Reloading the page keeps everything.
 
+
+**Done (2026-10-30, branch `todo6-p5`).** Worker: `apps/worker/src/studio_worker/inspect/{detect,dicom,
+privacy,tables,media}.py` (new deps, all permissive: pydicom MIT, Pillow MIT-CMU, nibabel MIT,
+openpyxl MIT, numpy BSD). Kernel: `kernel/{inspection,explore}.py`, `routes/{worker,explore}.py`.
+UI: `routes/ExplorePage.tsx`. Tests: `apps/worker/tests/test_inspection.py`,
+`apps/api/tests/test_explore.py`, `tests/e2e/mixed_import_test.py`. Deviations:
+- The worker reports facts, flags and series groups; the **kernel** builds relationship, mapping
+  and dataset proposals, so server-side recompute and first proposals share one matcher.
+- ID rule: `P001` = `p-001` = `1` = `patient_001` = `pt001`; the numeric rule is refused for
+  non-numeric-like columns and caps strength at "possible". A relationship needs ≥ 2 matches and
+  ≥ 30% of rows (one coincidental `s1` ↔ `series1` isn't one).
+- DICOM UIDs are stored as hashes; privacy flags name fields, never values.
+- `SeedAsset` gained optional `name` and `nodeId`; image2d's `groupItems` shows `a.name`.
+- New routes `GET /v1/projects/:id/explore`, `GET /v1/proposals/:id/preview`; audit
+  `import.inspected`.
+- Integration: the assistant's `propose_relationship`/`propose_schema` payloads are rebuilt by
+  the kernel (`explore.from_agent`) into Explore's shape with computed evidence; Explore and
+  Sources register their assistant context.
+- Not done: ffprobe and NIfTI facts have no tests; confirming a `group` proposal only marks it;
+  Explore in seed mode says it needs the full stack.
 ---
 
 ## Phase 6. The assistant everywhere (P0: read-only context)
 
-- [ ] Split `core/panels/ai.tsx` into a reusable `AssistantPanel` (thread, composer, cards, consent) and two
+- [x] Split `core/panels/ai.tsx` into a reusable `AssistantPanel` (thread, composer, cards, consent) and two
   hosts:
   - the Studio's right slot, as today: same testids, `agent-log` included;
   - a `PersistentAgentDrawer` in `ProjectShell` (340px, resizable, toggled by the same AI button and
     command).
-- [ ] An `AgentContextProvider` per section supplies `snapshot()` and `turnContext()`:
+- [x] An `AgentContextProvider` per section supplies `snapshot()` and `turnContext()`:
   - Overview: the project summary.
   - Sources: the selected node and its facts, never file contents.
   - Explore: the selected proposal.
   - Studio: today's `buildAgentContext`.
 
   `lib/agent/context.ts` becomes one of these providers.
-- [ ] Threads are already keyed by project id (`stores/agent.ts`), so the conversation survives section
+- [x] Threads are already keyed by project id (`stores/agent.ts`), so the conversation survives section
   changes. A `ContextIndicator` chip above the composer says what the assistant can see ("Sources ›
   MRI/patient_002"), and the user can remove it.
-- [ ] New read-only tools in `apps/agent/src/tools/project.ts`:
+- [x] New read-only tools in `apps/agent/src/tools/project.ts`:
   - `project_overview`, `list_sources`, `describe_source_node`, `list_proposals` and
     `list_import_issues`, all through kernel routes with the run's session token;
   - a client card tool `open_location`, which renders "Open Sources › MRI/patient_002" as a button; the
     agent never navigates by itself.
-- [ ] P1 hooks, built now behind the existing approval cards:
+- [x] P1 hooks, built now behind the existing approval cards:
   - `propose_schema` and `propose_relationship` create `proposals` rows (`created_by: agent:<run>`). They're
     safe because proposals change nothing.
   - Confirming stays a human click in Explore, and the card links there.
-- [ ] `restricted` projects and privacy-held nodes are never sent to a third-party model. The existing
+- [x] `restricted` projects and privacy-held nodes are never sent to a third-party model. The existing
   `Consent` gate extends to "this project contains held files; the assistant won't see them".
 
 **Exit:** `tests/e2e/agent_test.py` gains a scripted run: ask "What did I import?" on Sources, get an
 answer from `list_sources`, switch to Overview, and the thread and context chip update. The agent's
 attempt to confirm a proposal is refused by the API (403) and reported as such.
 
+
+**Done (2026-10-30, branch `todo6-p6`).** `components/ai/{assistant-panel,agent-drawer}.tsx`,
+`lib/agent/{providers,session}.ts`, `apps/agent/src/tools/project.ts`, `packages/agent-protocol`
+(card kind `location`, `ApprovalDetail`). `tests/e2e/agent_test.py` 26/26 against the real kernel,
+including the real 403 on confirm. Deviations:
+- One conversation and agent session per project, shared by the drawer and the Studio slot;
+  outside the Studio, environment tools answer "Needs the Studio".
+- `agent:<run>` comes from an `X-Agent-Run` header, honoured only for `agent:` session tokens (the
+  browser mints the token before the run exists).
+- Restricted projects share structure only (kinds, counts, statuses), not nothing; held files are
+  counted, never named.
 ---
 
 ## Phase 7. Studio integration
 
-- [ ] Route `/projects/:p/studio/:task`. `DatasetStudioPage` loads `GET /v1/tasks/:id/document` (seeds:
+- [x] Route `/projects/:p/studio/:task`. `DatasetStudioPage` loads `GET /v1/tasks/:id/document` (seeds:
   the manifest project, same shape), so nothing below the page changes.
-- [ ] Files tab (`core/panels/files.tsx`) stays task-scoped. For volume and series data kinds it lists
+- [x] Files tab (`core/panels/files.tsx`) stays task-scoped. For volume and series data kinds it lists
   series or studies (it already groups by `item.group`). Add the data-kind icon and the `imported` or
   annotated state per item. No source tree here (ux.md §8).
-- [ ] Resume writes (D9): debounced `PUT /resume` on item, placement or tool change, and on `pagehide`.
-- [ ] Status bar rule from ux.md §8: millimeters only when the item has calibrated spacing. Audit
+- [x] Resume writes (D9): debounced `PUT /resume` on item, placement or tool change, and on `pagehide`.
+- [x] Status bar rule from ux.md §8: millimeters only when the item has calibrated spacing. Audit
   `CanvasStatusBar` and each renderer's `viewerStatus` for "px shown as mm".
-- [ ] Project rail (Phase 2) plus the dockview panels: hiding both side panels leaves a full-width canvas;
+- [x] Project rail (Phase 2) plus the dockview panels: hiding both side panels leaves a full-width canvas;
   every tool keeps working with the assistant closed (`apps/web/e2e` already covers the tools).
 
 **Exit:** the full `apps/web/e2e` suite passes on the new routes (harness updated, redirect test kept), and
 resume returns to the same item, slice and tool after a reload and from Overview.
 
+
+**Done (2026-10-30, branch `todo6-p7`).** `DatasetStudioPage` loads `GET /v1/tasks/:id/document`;
+`lib/resume.ts`; Files tab kind icons and Annotated / Imported / AI-suggestions states; a
+left-panel toggle (`toggleSidePanel`, shift+mod+B); `harness.py` opens `/projects/{id}/studio/{id}`
+(the redirect is tested in `navigation_test.py`). New e2e `resume_test.py` (15) and
+`studio_layout_test.py` (9). Deviations:
+- Placement is `{plane, slice}` (volume), `{frame, slice}` (cine), `{frame}` (video), applied
+  through a new SDK hook `useRequestedPlacement` and `MprEngine.goToSlice`.
+- Resume restores on router state `{ resume: true }`, `?resume`, or a reload of the Studio; a
+  plain link doesn't. Writes wait for the restore to settle.
+- mm audit: the volume showed "… mm" always (and "undefined mm" before load), cine treated a
+  missing NIfTI pixdim as 1 mm. Both now say "No voxel/pixel spacing". NIfTI unit code 0 is still
+  read as mm (as most tools do).
+- Not done: the task title in the status bar (ux.md §8, not in this exit).
 ---
 
 ## Phase 8. Datasets, Review and Activity sections
 
-- [ ] **Datasets** (`routes/DatasetsPage.tsx`): a list of datasets with their tasks, each task with
+- [x] **Datasets** (`routes/DatasetsPage.tsx`): a list of datasets with their tasks, each task with
   **Open Studio**. Dataset detail has tabs **Tasks · Versions** (the existing `VersionsPage`) ·
   **Publish & export** (the existing `ExportPage`). **New dataset** without a proposal is a simple form
   (pick folders, pick a preset); the guided path stays Explore.
-- [ ] **Review** (`routes/ProjectReviewPage.tsx`): one filterable queue (filters by type, severity and
+- [x] **Review** (`routes/ProjectReviewPage.tsx`): one filterable queue (filters by type, severity and
   dataset) over:
   - import issues;
   - privacy holds;
@@ -727,18 +811,32 @@ resume returns to the same item, slice and tool after a reload and from Overview
 
   Each row opens its exact surface. The Overview attention queue is the top 5 of this list, from the same
   endpoint.
-- [ ] **Activity** (`routes/ActivityPage.tsx`): a chronological feed from `PluginAudit` (rename in docs
+- [x] **Activity** (`routes/ActivityPage.tsx`): a chronological feed from `PluginAudit` (rename in docs
   only: "the audit log"), import sessions, proposal decisions, dataset and task creation, version commits
   and merges, and environment revisions. It's grouped by day. Each entry names who (person, or assistant
   on behalf of a person, from `SessionDelegation`), what, and links to the artifact. Write every new action
   in Phases 1–7 to the audit log with these action names: `project.created`, `import.completed`,
   `proposal.confirmed`, `privacy.cleared`, `dataset.created`, `task.created`.
-- [ ] Settings › Plugins hosts today's `PluginsPage`; Settings › General has the title, description,
+- [x] Settings › Plugins hosts today's `PluginsPage`; Settings › General has the title, description,
   visibility and archive.
 
 **Exit:** every attention item type has a test that clicks through to the right place, and Activity shows
 the mixed-import flow's events in order with the right actors.
 
+
+**Done (2026-10-30, branch `todo6-p8`).** `routes/{DatasetsPage,ProjectReviewPage,ActivityPage,
+ProjectSettingsPage}.tsx`; `GET /v1/projects/:id/review?type=&severity=&dataset=`; Overview's
+attention is the queue's top 5. Tests: `apps/api/tests/test_review_activity.py`,
+`apps/web/src/studio/lib/routes.test.ts`, `apps/web/e2e/sections_test.py` (22),
+`tests/e2e/review_activity_test.py` (21). Deviations:
+- Version review rows come from the kernel's `versioning.review.open` audit entries minus those a
+  `versioning.merge` closed (no call to apps/versioning); a review closed another way stays listed.
+- `proposal.created` is audited in `create_proposal`; activity actors are person, assistant (on
+  behalf of, from `SessionDelegation`) or system.
+- The per-task annotation list lives at `/projects/:p/review/:taskId`.
+- `review_activity_test.py` writes a privacy flag, an unknown kind and a version-review audit row
+  straight to the kernel DB, so it must share the API's `INKLING_API_DATABASE_URL`.
+- Not done: Settings › Members (backlog); seed-mode activity has only the sample-load entry.
 ---
 
 ## Phase 9. Verification and usability

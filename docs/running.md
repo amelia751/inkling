@@ -8,7 +8,8 @@ Three ways, from lightest to most production-like. All of them run from the repo
 | 2. `pnpm stack:up` | every app from its image, behind one router on :8080 | reproducing production issues, cross-service e2e |
 | 3. `kubectl apply -k infra/k8s/overlays/dev` | every app on a local kind/k3d cluster | Kubernetes manifests, scaling, probes |
 
-Prerequisites: Node 24 (`.nvmrc`), pnpm (version pinned in `package.json`), uv, Docker. Then:
+Prerequisites: Node 24 (`.nvmrc`), pnpm (version pinned in `package.json`), uv, and Docker for
+modes 2 and 3 and `infra:up`. Then:
 
 ```sh
 pnpm install && uv sync
@@ -65,6 +66,67 @@ export INKLING_S3_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=dev-only-s3-a
   AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
 pnpm seeds:upload                              # or: uv run tools/fetch-seeds.py --upload-only
 ```
+
+### Seed mode, or the API and worker
+
+The web app runs in one of two modes. Which one depends on whether the Vite dev server knows
+where the API is (`INKLING_API_URL`).
+
+**Seed mode** (`pnpm --filter @studio/web dev`, or `pnpm exec vite` in `apps/web`). Vite's seed
+server stands in for the API, read-only (`apps/web/dev/project-stand-in.ts`). Each seed in
+`seed-data/manifest.json` becomes one project, one source, one dataset and one task, all with
+the seed's id. These work:
+
+- Home and All projects;
+- Overview, including the resume card (resume state is kept in `seed-data/.resume/`);
+- Sources browsing: the tree, listing, inspector, Quick Look and search;
+- the Studio, with annotations saved to `seed-data/.annotations/`;
+- Datasets, Review and Activity, read-only.
+
+Every other write answers `501 needs the API`, and the page says so: creating or editing a
+project, adding data, creating datasets or tasks, clearing a privacy hold, and confirming or
+dismissing a proposal. `apps/web/e2e` runs in this mode.
+
+**With the API and worker.** These need the API: creating projects, uploads and import
+sessions, Explore and its proposals, confirming, and new datasets and tasks.
+Inspection of uploaded files (kinds, facts, thumbnails, privacy flags and the proposals built
+from them) also needs the worker. Without a worker, uploads stay "Checking…" and never reach a
+task.
+
+`pnpm dev` starts all four apps, but Vite only proxies to the API when told where it is:
+
+```sh
+INKLING_API_URL=http://127.0.0.1:8000 pnpm dev
+```
+
+None of this needs Docker: without the env above, the API uses SQLite and local files under
+`apps/api/.data/`, and the worker reaches a loopback API with the dev worker token. To run the
+three by hand (as the `tests/e2e/` docstrings do, each on its own ports and data dir), from the
+repo root:
+
+```sh
+INKLING_API_DATA_DIR=/tmp/studio-dev uv run --package studio-api uvicorn studio_api.app:app --port 8205
+uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8205
+cd apps/web && INKLING_API_URL=http://127.0.0.1:8205 pnpm exec vite --port 5205 --strictPort
+```
+
+Add `INKLING_E2E=1` to the Vite line for a frozen dev server, and `INKLING_AGENT_URL` (with
+`INKLING_AGENT_TOKEN`) to reach an agent elsewhere than :8100. `tests/e2e/sources_test.py`,
+`mixed_import_test.py`, `review_activity_test.py` and the project part of `agent_test.py` run
+against this setup; their docstrings give the exact commands.
+
+The worker's inspection reads DICOM, NIfTI, images and spreadsheets with its own Python
+dependencies; it probes video only when `ffprobe` is on the `PATH`.
+
+Upload limits, read by the API (`apps/api/src/studio_api/config.py`):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `INKLING_API_UPLOAD_MAX_FILE_BYTES` | 2147483648 (2 GB) | largest file an import session accepts |
+| `INKLING_API_UPLOAD_MAX_SESSION_FILES` | 20000 | most files in one import session |
+
+Uploaded bytes go to the API's data BlobStore (`INKLING_API_DATA_DIR` locally, the `assets`
+bucket under its data prefix with `INKLING_BLOB_STORE=s3`), never to `/seed`.
 
 ## 2. `pnpm stack:up` (prod-like, local)
 

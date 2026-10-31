@@ -335,6 +335,9 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     }
     if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see docs/running.md" });
 
+    // Explore reads proposals, which only the inspection worker makes: the UI says it needs the full stack.
+    if (head === "projects" && id && sub === "explore") return send(501, { error: "needs the API", detail: "Explore needs the full stack: see docs/running.md" });
+
     if (head === "projects") {
       if (!id) {
         const q = url.searchParams.get("q")?.toLowerCase();

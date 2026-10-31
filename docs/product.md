@@ -305,19 +305,33 @@ Authorized users download supported output package
 
 ### Entities
 
+The containers follow `docs/ux.md` §2: **Organization ⊃ Project ⊃ Source and Dataset ⊃ Task**.
+A project is not a dataset, a source is not a dataset, and a dataset is not a task.
+
 - `User`: auth subject and profile; external identity provider ID.
-- `Organization`: organization with memberships and RBAC roles.
-- `Project`: owner, modality, task, dataset purpose, permitted data policy.
+- `Organization`: a personal or team account with memberships and RBAC roles (`owner`, `editor`, `viewer`). UI copy may call it "Workspace".
+- `Project`: a durable research goal inside an organization; title, description, visibility (private or shared). Each project has one kernel workspace with the same id (its plugin activation and settings).
+- `Source`: original material as uploaded (an upload, a seed, later a connector), stored as an immutable tree of source nodes. Each node keeps its relative path, size, SHA-256, detected kind, facts and flags (privacy, unsupported, duplicate of).
+- `ImportSession`: one upload into a project, with its files, the rights attestation and its state (`uploading → inspecting → needs_review` or `ready → imported`, or `failed`, `cancelled`). Partial success is normal.
 - `Asset`: immutable raw binary, SHA-256 digest, MIME/type, storage key, rights declaration, metadata.
+- `Proposal`: a suggested group, relationship, mapping, dataset or task, with evidence and a strength (strong, possible, weak). The inspection worker and the assistant create proposals; only a person confirms or dismisses one.
+- `Dataset`: a logical set of items built from one or more sources: which source nodes, how items group into collections, a preset.
+- `Task`: work on a dataset (classification, segmentation, event marking), with one environment and one annotation document.
+- `Resume`: per person and project, the last task, item, placement and tool, so "Continue" reopens exactly where they left off.
 - `Study` and `Series`: DICOM-native groupings where applicable; patient pseudonym scoped to authorized project.
 - `Sample`: annotatable unit; points to asset/study/series/frame as needed.
 - `Ontology`: named/versioned label definitions, descriptions, allowed relations.
-- `Annotation`: creator or model label and geometry, coordinate frame, target sample, time index and provenance.
+- `Annotation`: creator or model label and geometry, coordinate frame, target sample, time index and provenance (`human-created`, `ai-suggested`, `human-corrected`, or `imported` from a source file and row).
 - `ReviewIssue`: sample/annotation-specific concern, status, assignee, comments.
 - `DatasetVersion`: immutable manifest tying asset hashes, ontology versions, accepted annotations, export artifacts.
 - `AuditEvent`: append-only changes to permissions, annotation approvals and publication status.
 - `Export`: output format, job status, artifact key, checksum and validation result.
 - `LicenseGrant` (future): rights, distribution scope, sublicensing, commercial bundling, territory and revocation terms.
+
+Two rules hold for all of them:
+
+- **Originals are immutable.** Nothing renames, moves, edits or deletes a file inside a source. Organizing means labeling and linking in datasets. A whole upload can be removed only while no dataset uses it.
+- **Proposals change nothing until a person confirms them.** Confirming is a human action; the assistant can create proposals but never confirm them. Imported labels count as unreviewed until a person reviews them.
 
 ### Geometry conventions
 

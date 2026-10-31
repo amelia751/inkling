@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert } from "@studio/ui/ui/alert";
+import { Loader } from "@studio/ui/ui/loader";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, BranchIcon, MergeIcon, TagIcon, UndoIcon } from "@studio/ui/icons";
@@ -116,7 +117,7 @@ function History({ datasetId }: { datasetId: string }) {
             )}
           </div>
         ))}
-        {commits.isLoading && <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>}
+        {commits.isLoading && <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><Loader size="s" /> Loading</p>}
       </Card>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Loader } from "@studio/ui/ui/loader";
 import { Link } from "react-router";
 import { ApiKeyIcon, CheckIcon, CopyIcon, DeleteIcon, DomainIcon, ExternalLinkIcon, TopUpIcon } from "@studio/ui/icons";
 import { Alert } from "@studio/ui/ui/alert";
@@ -67,7 +68,7 @@ export function OrgProjectsPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? "Loading projects…" : q ? <NoResults what="projects" onClear={() => setQ("")} /> : "No projects yet."} testId="org-projects-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : "No projects yet."} testId="org-projects-table" />
     </SettingsPage>
   );
 }

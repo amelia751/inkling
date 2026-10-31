@@ -2,6 +2,7 @@ import { CardiacIcon as HeartPulse } from "@studio/ui/icons";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { BarPick, BarSegmented, BarToggle } from "@studio/renderers/viewport-chrome/controls";
 import { cn } from "@studio/ui/utils";
+import { MenuSelect } from "@studio/ui/ui/menu-select";
 import type { Code, StripChartConfig } from "../config";
 import { isPassthrough, type FilterConfig } from "../dsp";
 import type { LayoutMode, ScaleMode } from "./layout";
@@ -171,20 +172,22 @@ export function ToolOptions(p: {
         </div>
       )}
       {p.tool === "rhythm" && (
-        <label className="flex items-center gap-1">
-          <span className="text-canvas-foreground/55">{cfg.track.label}</span>
-          {cfg.trackCodes.length > 0 && (
-            <select value={p.trackCode} onChange={(e) => p.setTrackCode(e.target.value)} className="h-6 rounded-md border border-white/15 bg-canvas px-1 text-xs">
-              {cfg.trackCodes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.id}
-                  {r.name ? ` — ${r.name}` : ""}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-center gap-1">
+          {cfg.trackCodes.length > 0 ? (
+            <MenuSelect
+              title={cfg.track.label}
+              value={p.trackCode}
+              options={cfg.trackCodes.map((r) => ({ value: r.id, label: r.name ? `${r.id} — ${r.name}` : r.id }))}
+              onChange={p.setTrackCode}
+              tone="canvas"
+              prefix={<span className="text-canvas-foreground/55">{cfg.track.label}</span>}
+              className="gap-1"
+            />
+          ) : (
+            <span className="text-canvas-foreground/55">{cfg.track.label}</span>
           )}
           <span className="ml-1 text-canvas-foreground/45">Drag on the {cfg.track.label.toLowerCase()} track (or any {noun})</span>
-        </label>
+        </div>
       )}
       {p.tool === "wave" && (
         <span className="text-canvas-foreground/60">

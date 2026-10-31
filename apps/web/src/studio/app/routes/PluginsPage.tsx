@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Alert } from "@studio/ui/ui/alert";
+import { Loader } from "@studio/ui/ui/loader";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, SearchIcon } from "@studio/ui/icons";
@@ -61,7 +62,7 @@ export function PluginsPage() {
     }
   };
 
-  if (isLoading) return <FullPageMessage title="Loading plugins…" loading />;
+  if (isLoading) return <FullPageMessage title="Loading plugins" loading />;
   if (!project) return <FullPageMessage kind="not-found" title="Dataset not found" />;
   if (!enabled)
     return (
@@ -113,7 +114,7 @@ export function PluginsPage() {
               <Button variant="ghost-secondary" size="sm" disabled={act.isPending} onClick={() => act.mutate(() => rollbackPlugin(datasetId, p.pluginId))}>Roll back</Button>
             </div>
           ))}
-          {installed.isLoading && <p className="px-4 py-3 text-sm text-muted-foreground">Loading…</p>}
+          {installed.isLoading && <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><Loader size="s" /> Loading</p>}
         </Card>
 
         <div className="mb-2 flex items-center gap-3">

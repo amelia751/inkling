@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import type { IconComponent } from "@studio/ui/icons";
 import { cn } from "@studio/ui/utils";
+import { MenuSelect } from "@studio/ui/ui/menu-select";
 
 /**
  * Small controls for viewport bars on the dark canvas (and `ToolbarButton` for the light
@@ -30,23 +31,18 @@ export function BarSegmented<T extends string | number>({ label, value, options,
   );
 }
 
-/** A labelled numeric `<select>`; 0 shows as "off". */
+/** A labelled numeric picker ("HP 0.5 Hz"); 0 shows as "off". */
 export function BarPick({ label, value, options, unit, onChange, title }: { label: string; value: number; options: number[]; unit: string; onChange: (v: number) => void; title: string }) {
   return (
-    <label className="flex items-center gap-1" title={title}>
-      <span className="text-canvas-foreground/55">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(+e.target.value)}
-        className={cn("tnum h-6 rounded-md border border-white/15 bg-canvas px-1 text-xs", value ? "text-canvas-foreground" : "text-canvas-foreground/55")}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o ? `${o} ${unit}` : "off"}
-          </option>
-        ))}
-      </select>
-    </label>
+    <MenuSelect
+      title={title}
+      value={String(value)}
+      options={options.map((o) => ({ value: String(o), label: o ? `${o} ${unit}` : "off" }))}
+      onChange={(v) => onChange(+v)}
+      tone="canvas"
+      prefix={<span className="text-canvas-foreground/55">{label}</span>}
+      className={cn("tnum gap-1", !value && "text-canvas-foreground/55")}
+    />
   );
 }
 

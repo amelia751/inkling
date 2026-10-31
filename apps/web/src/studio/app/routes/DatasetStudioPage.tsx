@@ -134,12 +134,12 @@ function StudioPage() {
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
-  if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio…" loading />;
+  if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio" loading />;
   if (error || !project) return <FullPageMessage kind="not-found" title="Task not found" body={`No task “${datasetId}” in this project. Seeds need pnpm seeds, then a reload.`} />;
   if (saved.error) return <FullPageMessage kind="error" title="Couldn't load annotations" body={String(saved.error)} />;
   if (boot.status === "errors") return <EnvErrors errors={boot.errors} />;
   if (boot.status === "failed") return <FullPageMessage kind="error" title="Couldn't load this environment's modules" body={boot.message} />;
-  if (boot.status === "loading" || projectId !== project.id) return <FullPageMessage title="Opening Studio…" loading />;
+  if (boot.status === "loading" || projectId !== project.id) return <FullPageMessage title="Opening Studio" loading />;
   return <Studio key={project.id} projectId={project.id} />;
 }
 

@@ -121,7 +121,7 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
   const childrenOf = (id: string, depth = 0): FileTreeNode[] => {
     const f = folders[id];
     if (!f) return [];
-    if (!f.items) return f.loading ? [{ id: `${id}:loading`, name: "Loading…", icon: FolderIcon, placeholder: "loading" }] : [];
+    if (!f.items) return f.loading ? [{ id: `${id}:loading`, name: "Loading", icon: FolderIcon, placeholder: "loading" }] : [];
     const out = f.items.map((n) => toTreeNode(n, id, depth));
     if (f.hasMore) out.push({ id: `${id}:more`, name: "Load more", icon: FolderIcon, placeholder: "more", onMore: () => more.get(id)?.() });
     return out;

@@ -80,7 +80,7 @@ export const SourceTree = forwardRef<SourceTreeHandle, Props>(function SourceTre
     const out: FileTreeNode[] = [];
     for (const p of list) {
       if (!p.items) {
-        if (p.loading) out.push({ id: `${id}:loading:${out.length}`, name: "Loading…", icon: FolderIcon, placeholder: "loading" });
+        if (p.loading) out.push({ id: `${id}:loading:${out.length}`, name: "Loading", icon: FolderIcon, placeholder: "loading" });
         continue;
       }
       out.push(...p.items.map((n) => toTreeNode(n, id)));

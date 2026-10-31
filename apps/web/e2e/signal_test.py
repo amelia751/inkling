@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 sys.path.insert(0, str(Path(__file__).parent))
-from harness import RUNTIME, Studio, launch, open_studio, parse_args, sync_playwright  # noqa: E402
+from harness import RUNTIME, Studio, launch, open_studio, parse_args, pick, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[3]
 REC = json.loads((ROOT / "seed-data/ecg-waveform/HR00001.json").read_text())
@@ -544,14 +544,14 @@ def t_rhythm_tool(browser, port):
     st = boot(browser, port)
     g = Geo(st)
     press(st, "y")
-    st.page.locator("label:has-text('Rhythm') select").select_option("(AFIB")
+    pick(st.page, "Rhythm", "(AFIB")
     drag(st, (g.x(1.0), g.track_y()), (g.x(4.0), g.track_y()))
     r = anns(st, "rhythm")
     assert len(r) == 1 and r[0]["attributes"]["rhythm"] == "(AFIB" and r[0]["geometry"]["channel"] == "rhythm" and r[0]["label"] == "(AFIB", r
     near(r[0]["geometry"]["start"], 1.0, 0.01, "rhythm start")
     near(r[0]["geometry"]["end"], 4.0, 0.01, "rhythm end")
     # Changing the picker while the episode is selected relabels it.
-    st.page.locator("label:has-text('Rhythm') select").select_option("(AFL")
+    pick(st.page, "Rhythm", "(AFL")
     assert anns(st, "rhythm")[0]["attributes"]["rhythm"] == "(AFL"
     assert st.page.get_by_role("button", name=re.compile(r"\(AFL")).count() >= 1, "listed in the side panel"
     assert not st.errors, st.errors
@@ -745,21 +745,21 @@ def t_filters(browser, port):
     badge = lambda: st.page.locator("text=/^(Filtered|Unfiltered)/").first.inner_text()  # noqa: E731
     assert badge() == "Unfiltered", badge()
     h0 = canvas_hash(st)
-    st.page.get_by_label("HP").select_option("0.5")
+    pick(st.page, "High-pass (baseline wander)", "0.5 Hz")
     settle(st)
     assert badge() == "Filtered 0.5–∞ Hz", badge()
     h1 = canvas_hash(st)
     assert h1 != h0, "HP changes trace pixels"
-    st.page.get_by_label("Notch").select_option("50")
+    pick(st.page, "Mains notch", "50 Hz")
     settle(st)
-    st.page.get_by_label("LP").select_option("40")
+    pick(st.page, "Low-pass (muscle noise)", "40 Hz")
     settle(st)
     assert badge() == "Filtered 0.5–40 Hz · 50 Hz notch", badge()
     assert canvas_hash(st) not in (h0, h1)
     assert "0.5–40 Hz · 50 Hz notch" in st.store("s => s.viewerStatus")
     st.shot("signal-filtered", OUT)
-    for lbl in ("HP", "Notch", "LP"):
-        st.page.get_by_label(lbl).select_option("0")
+    for lbl in ("High-pass (baseline wander)", "Mains notch", "Low-pass (muscle noise)"):
+        pick(st.page, lbl, "off")
     settle(st)
     expect(lambda: badge() == "Unfiltered" and canvas_hash(st) == h0, "filters off restores the raw trace")
     # Annotation times are unaffected by filtering (display only).
@@ -903,7 +903,7 @@ def t_exporters(browser, port):
     seg(st, "Window", "2.5s")
     g = Geo(st)
     press(st, "y")
-    st.page.locator("label:has-text('Rhythm') select").select_option("(AFIB")
+    pick(st.page, "Rhythm", "(AFIB")
     drag(st, (g.x(0.5), g.track_y()), (g.x(2.0), g.track_y()))
     press(st, "q")
     press(st, "2")

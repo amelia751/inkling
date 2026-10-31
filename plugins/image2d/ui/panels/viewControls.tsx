@@ -14,6 +14,7 @@ import {
   type IconComponent,
 } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
+import { MenuSelect } from "@studio/ui/ui/menu-select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
@@ -54,25 +55,7 @@ function IconButton({ icon: Icon, label, command, active, onClick, children }: {
 }
 
 function Select({ title, value, options, onChange }: { title: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void }) {
-  return (
-    <select
-      title={title}
-      aria-label={title}
-      value={value}
-      onChange={(e) => {
-        onChange(e.target.value);
-        // Give keys back to the studio shortcuts (a focused <select> swallows arrows).
-        e.target.blur();
-      }}
-      className="h-7 shrink-0 rounded-md border border-border bg-background px-1.5 text-xs text-foreground outline-none hover:bg-generic focus:border-primary"
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
+  return <MenuSelect title={title} value={value} options={options} onChange={onChange} />;
 }
 
 function MenuRow({ icon: Icon, label, command, shortcut, onSelect }: { icon: IconComponent; label: string; command?: string; shortcut?: string; onSelect: () => void }) {

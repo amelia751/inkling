@@ -70,6 +70,50 @@ class Studio:
         return path
 
 
+def _menu_button(page: Page, name: str):
+    """A MenuSelect trigger: its accessible name is "<title>: <current value>"."""
+    return page.get_by_role("button", name=f"{name}:").first
+
+
+def pick(page: Page, name: str, option: str) -> None:
+    """Choose `option` in a MenuSelect (the Studio's styled pickers, not native selects):
+    open the trigger titled `name`, then click the menu row (exact label, else the first row
+    that starts with it, e.g. "(AFIB" for "(AFIB — Atrial fibrillation")."""
+    _wait_menus_closed(page)
+    _menu_button(page, name).click()
+    menu = page.get_by_role("menu").last
+    menu.wait_for()
+    for role in ("menuitemradio", "menuitem"):
+        row = menu.get_by_role(role, name=option, exact=True)
+        if row.count():
+            row.first.click()
+            _wait_menus_closed(page)
+            return
+    rows = menu.locator("[role=menuitemradio], [role=menuitem]")
+    for i in range(rows.count()):
+        if rows.nth(i).inner_text().strip().startswith(option):
+            rows.nth(i).click()
+            _wait_menus_closed(page)
+            return
+    raise AssertionError(f"{name}: no row {option!r} in {menu.inner_text()!r}")
+
+
+def _wait_menus_closed(page: Page, timeout_ms: int = 3000) -> None:
+    page.wait_for_function("() => !document.querySelector('[role=menu]')", timeout=timeout_ms)
+
+
+def menu_options(page: Page, name: str) -> str:
+    """The rows of a MenuSelect, as text (opens and closes it)."""
+    _wait_menus_closed(page)
+    _menu_button(page, name).click()
+    menu = page.get_by_role("menu").last
+    menu.wait_for()
+    text = menu.inner_text()
+    page.keyboard.press("Escape")
+    _wait_menus_closed(page)
+    return text
+
+
 def check_seeds() -> None:
     """Fail fast when seed-data/ is missing or its manifest is out of date (`fetch-seeds.py --check`)."""
     res = subprocess.run([sys.executable, str(REPO / "tools" / "fetch-seeds.py"), "--check"], capture_output=True, text=True)

@@ -159,7 +159,7 @@ export function OsdRenderer({ project, item, config, runtime }: RendererProps) {
       </div>
 
       {ui.hint && <div className="pointer-events-none absolute left-1/2 top-14 -translate-x-1/2 rounded-md bg-black/65 px-2 py-1 text-xs text-white">{ui.hint}</div>}
-      {!ui.ready && !ui.error && <CanvasNotice loading>Loading slide tiles…</CanvasNotice>}
+      {!ui.ready && !ui.error && <CanvasNotice loading>Loading slide tiles</CanvasNotice>}
       {ui.error && <CanvasNotice>{ui.error}</CanvasNotice>}
     </div>
   );

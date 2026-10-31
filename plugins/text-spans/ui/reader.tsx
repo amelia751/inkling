@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader } from "@studio/ui/ui/loader";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
@@ -76,7 +77,7 @@ export function TextReader({ item, project, runtime }: RendererProps) {
   };
 
   if (error) return <div className="p-6 text-sm text-muted-foreground">Couldn't load this document: {error}</div>;
-  if (text === null) return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+  if (text === null) return <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground"><Loader size="s" /> Loading</div>;
   return (
     <div className="h-full overflow-auto bg-background" data-testid="text-reader">
       <div

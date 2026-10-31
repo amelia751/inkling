@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Loader } from "@studio/ui/ui/loader";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BranchIcon, CheckIcon, ChevronDownIcon, ErrorIcon, HistoryIcon } from "@studio/ui/icons";
@@ -42,7 +43,7 @@ function SaveText({ prefix }: { prefix?: string }) {
   if (saveState === "saving") {
     return (
       <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="status" data-testid={prefix ? undefined : "work-state"} data-state="saving">
-        {lead} <Spinner /> <span className="hidden @[640px]:inline">Saving…</span>
+        {lead} <Spinner /> <span className="hidden @[640px]:inline">Saving</span>
       </span>
     );
   }
@@ -111,7 +112,7 @@ function VersionedChip({ projectId }: { projectId: string }) {
           data-branch={target?.name}
         >
           <BranchIcon />
-          {dirty ? "Save before switching" : (target?.label ?? (branches.isLoading ? "Loading…" : "View the published copy"))}
+          {dirty ? "Save before switching" : (target?.label ?? (branches.isLoading ? <><Loader size="s" /> Loading</> : "View the published copy"))}
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to={datasetUrl(routeProject ?? projectId, projectId, "versions")}>

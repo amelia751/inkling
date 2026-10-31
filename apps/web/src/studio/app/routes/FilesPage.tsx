@@ -509,7 +509,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const download = async (nodes: SourceNode[]) => {
     if (nodes.length === 1 && nodes[0].kind === "file") return downloadNode(nodes[0].id);
     const name = nodes.length === 1 ? `${nodes[0].name}.zip` : "files.zip";
-    const toastId = notify(`Preparing ${name}…`, { group: "zip" });
+    const toastId = notify(`Preparing ${name}`, { group: "zip" });
     try {
       const p = await downloadZip(projectId, await expandRuns(projectId, nodes.map((n) => n.id)), { filename: name });
       notify(`Downloaded ${name}`, { group: "zip", description: p.received ? `${(p.received / 1e6).toFixed(1)} MB` : undefined, tone: "success" });
@@ -1101,7 +1101,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
             e.target.value = "";
             if (!file || !n) return;
             if (!writable) return void notify(NEEDS_FULL_STACK, { tone: "error" });
-            notify(`Uploading a new version of “${n.name}”…`, { group: "replace" });
+            notify(`Uploading a new version of “${n.name}”`, { group: "replace" });
             replace.mutate({ nodeId: n.id, file }, { onSuccess: () => notify(`“${n.name}” has a new version`, { group: "replace", tone: "success" }), onError: (err) => notify(errorText(err), { tone: "error", group: "replace" }) });
           }}
         />
@@ -1163,7 +1163,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         )}
         {(searching || !!query) && (
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-1.5 text-sm" data-testid="search-chips" onMouseDown={(e) => e.preventDefault()}>
-            <span className="mr-1 text-muted-foreground">{searching ? (search.isLoading ? "Searching…" : `${(search.data ?? []).length.toLocaleString()}${(search.data ?? []).length >= 200 ? "+" : ""} found`) : "Filter"}</span>
+            <span className="mr-1 text-muted-foreground">{searching ? (search.isLoading ? "Searching" : `${(search.data ?? []).length.toLocaleString()}${(search.data ?? []).length >= 200 ? "+" : ""} found`) : "Filter"}</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Chip on={!!kind} data-testid="chip-kind">{kind ? KINDS[kind].plural : "Kind"}</Chip>

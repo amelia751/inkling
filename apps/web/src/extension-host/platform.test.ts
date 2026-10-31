@@ -46,6 +46,12 @@ describe("registry", () => {
   it("rejects a second manifest with the same id", () => {
     expect(() => reg().registerModule({ ...coreFixture })).toThrow(RegistryError);
   });
+  it("replaces a module and its contributions when asked", () => {
+    const r = reg();
+    r.registerModule({ ...coreFixture, contributes: { ...coreFixture.contributes, tools: [] } }, { replace: true });
+    expect(r.get("tools", "test.core.tools.box")).toBeUndefined();
+    expect(r.geometry("span")?.id).toBe("test.core.geometries.span");
+  });
   it("loads implementations lazily and caches them", async () => {
     let loads = 0;
     const r = createRegistry([

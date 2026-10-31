@@ -15,9 +15,22 @@ are kept as provenance. This replaces todo6's "design implication 2: originals a
 
 **Audit date:** 2026-10-30, against `main` 06da688 (todo6 merged).
 
-## Status (2026-10-30)
+## Status (2026-10-31)
 
-Not started. This file is the plan; nothing in the code has changed yet.
+Implemented and verified on the full stack (API on SQLite + worker + agent with the scripted model),
+except where noted. Branch `todo7-finish` (from `todo8-studio`, `main` merged).
+
+- Phases 1–8: done. Kernel `apps/api/src/studio_api/kernel/fs.py`, `routes/files.py`, migration 0005;
+  web `app/routes/FilesPage.tsx`, `app/routes/files/*`, `components/files/*`, `lib/files/*`.
+- Exit tests, all green: `tests/e2e/files_edit_test.py` (Phase 2, 17/17), `files_move_test.py` (3,
+  24/24), `files_trash_test.py` (4, 24/24), `files_versions_test.py` (6, 16/16),
+  `files_privacy_test.py` (7, 10/10), `agent_test.py` with `t_files_reorganize` (8, 39/39),
+  `files_perf_test.py` (9, 16/16), `apps/web/e2e/files_nav_test.py` (5, seed mode, 20/20);
+  `sources_test.py` and `mixed_import_test.py` still pass on the full stack.
+- Phase 9: checks, performance and accessibility done (numbers below); docs and BACKLOG done.
+- Left: the usability sessions (people), Postgres (migration 0005 and the api suite were not run
+  against Postgres: no Docker daemon on the machine), a screen-reader pass, and the natural sort of a
+  100k-file folder's listing (~1.8 s a page on SQLite).
 
 ---
 
@@ -75,35 +88,35 @@ never changes*. That becomes an invariant (D3).
 
 ## 1. Decisions (decide before Phase 1)
 
-- [ ] **D1. One drive per project.** Today every import and every seed is its own tree root (`sources`).
+- [x] **D1. One drive per project.** Today every import and every seed is its own tree root (`sources`).
   **Recommended:**
   - The project has **one root** ("Files"). An import lands in a folder you choose (default: a new folder
     named after the dropped folder, or the folder you dropped on).
   - `sources` stay as import *provenance* (who brought what, when, from where), shown in the inspector and
     the Imports list, not as roots.
   - Migration: each existing source root becomes a top-level folder with the source's title.
-- [ ] **D2. Sample data is locked.** Seed folders are read-only (a `LockIcon` on the row, "Sample data
+- [x] **D2. Sample data is locked.** Seed folders are read-only (a `LockIcon` on the row, "Sample data
   can't be changed. Copy it to make your own"). Copy-out is allowed, and costs nothing (D5).
-- [ ] **D3. Identity and storage invariants.**
+- [x] **D3. Identity and storage invariants.**
   - **Node ids are opaque and permanent.** New nodes get `nod-<uuid>`, and existing hashed ids are kept
     as they are. Upload idempotency moves to `upload_files.node_id` (a re-sent file in the same session
     finds its node), not to a path hash.
   - **`Asset.path` (the storage key) never changes** after upload, whatever happens to the name.
   - **Bytes are never mutated.** "Replace" makes a new asset and a new node version (D6).
-- [ ] **D4. Paths are computed, not stored.** Drop the stored current path. Keep `original_path` (the path
+- [x] **D4. Paths are computed, not stored.** Drop the stored current path. Keep `original_path` (the path
   as uploaded, read-only, from today's `rel_path`).
   - The current path comes from the parent chain (`tree.ancestors`, or a recursive CTE for lists). Search
     results and breadcrumbs need at most a few hundred of them.
   - A move is then one row update plus count updates up two ancestor chains, whatever the folder size.
-- [ ] **D5. Copy is free.** Copy and duplicate create new nodes pointing at the **same asset**; no bytes are
+- [x] **D5. Copy is free.** Copy and duplicate create new nodes pointing at the **same asset**; no bytes are
   copied. Deleting a copy never affects the original.
-- [ ] **D6. Versions of a file.** Uploading a file with the same name into the same folder asks **Keep
+- [x] **D6. Versions of a file.** Uploading a file with the same name into the same folder asks **Keep
   both / Replace / Skip**. "Replace" adds a version: the node points at the new asset, and `node_versions`
   keeps the old one. You can restore any version.
   - **Datasets pin asset versions**, so a replaced file shows "Newer version available" in its dataset and
     changes only when someone updates it there, with a warning that annotations stay on the version they
     were drawn on.
-- [ ] **D7. Datasets resolve to files when created.** **Recommended:**
+- [x] **D7. Datasets resolve to files when created.** **Recommended:**
   - Creating a dataset turns folder references into a frozen list of file node ids and their asset
     versions (`definition.files`).
   - The folders are kept only as `definition.followedFolders`, for a banner: "4 new files in *MRI* since
@@ -111,29 +124,29 @@ never changes*. That becomes an invariant (D3).
   - Migration `0005` resolves existing definitions once.
   - *Alternative:* datasets follow folders live. That's simpler, but a drag in Files would silently change
     a dataset. Rejected.
-- [ ] **D8. Delete means Trash.** Delete moves to Trash (soft delete with `trashed_at`, `trashed_by` and
+- [x] **D8. Delete means Trash.** Delete moves to Trash (soft delete with `trashed_at`, `trashed_by` and
   `trash_batch_id`).
   - Restore puts things back where they were (or in the root if that folder is gone, saying so).
   - Items stay 30 days, then a worker job purges them. "Delete forever" is manual.
   - Bytes are deleted only when no node (including in Trash), dataset, version or annotation references
     the asset. Otherwise purging removes the name and keeps the bytes, and the dialog says why ("Kept:
     the *LV v2* version uses it").
-- [ ] **D9. Undo lives on the server.** Every operation writes an `fs_ops` journal row with its inverse.
+- [x] **D9. Undo lives on the server.** Every operation writes an `fs_ops` journal row with its inverse.
   ⌘Z undoes the last batch *this person* did in this project, if nothing has touched those nodes since.
   Otherwise: "Can't undo: *patient_002* changed after that". kiwifs's client-side zundo stack can't survive
   a reload or another tab; ours must.
-- [ ] **D10. Name rules.**
+- [x] **D10. Name rules.**
   - Names are unique per folder, **case-insensitively** for new operations, so exports to macOS and
     Windows don't collide. Existing case-only duplicates are allowed and marked.
   - Names can't contain `/` or control characters, and are at most 255 bytes. Trailing spaces and dots
     are trimmed. Windows reserved names (`CON`, `NUL`, …) get a warning, not a block.
   - Changing an extension asks for confirmation ("The file's content won't change").
-- [ ] **D11. The visible name of the section.** The data is now a file system, and "Files" is the word
+- [x] **D11. The visible name of the section.** The data is now a file system, and "Files" is the word
   researchers use. **Recommended:** the nav label and page title become **Files**, and the route becomes
   `/projects/:p/files/:nodeId?`. `/sources/*` redirects, and every `data-testid` (`sources-page`,
   `sources-tree`, …) stays as it is (regression contract). "Source" stays the word for an import's
   provenance. ux.md §2 and the glossary are updated.
-- [ ] **D12. Namespace operations need the API.** The seed server's stand-in stays read-only (writes return
+- [x] **D12. Namespace operations need the API.** The seed server's stand-in stays read-only (writes return
   501, and the UI disables the edit actions with "Needs the full stack"). UI tests for editing live in
   `tests/e2e/`, against a scratch project.
 
@@ -264,31 +277,31 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
 ## Phase 1. Backend: a namespace that can change safely
 
 ### 1.1 Schema (migration `0005_files_namespace`)
-- [ ] `source_nodes` changes:
+- [x] `source_nodes` changes:
   - rename `rel_path` → `original_path` (immutable);
   - add `project_root` (all nodes of a project share one root, D1);
   - add `trashed_at`, `trashed_by`, `trash_batch_id`, `starred_by` (a JSON set of principals; or a
     `node_stars` table if it grows), `version` (int) and `total_bytes` (folders);
   - unique index on (parent_id, lower(name)) where `trashed_at` is null, created after flagging existing
     case-only duplicates (D10).
-- [ ] Re-parent existing source roots under one project root per project, one folder per source (D1).
+- [x] Re-parent existing source roots under one project root per project, one folder per source (D1).
   Seed folders get `locked = true`.
-- [ ] `node_versions` (node_id, version, asset_id, sha256, size, created_by, created_at), backfilled with
+- [x] `node_versions` (node_id, version, asset_id, sha256, size, created_by, created_at), backfilled with
   version 1 for every file.
-- [ ] `fs_ops` (id, project_id, batch_id, actor, kind
+- [x] `fs_ops` (id, project_id, batch_id, actor, kind
   `mkdir|rename|move|copy|trash|restore|purge|replace|restore_version`, node_id, `before` JSON, `after`
   JSON, at, `undone_by_batch`). Index on (project_id, actor, at).
-- [ ] `upload_files.node_id`: idempotent upload completion (D3). New node ids are `nod-<uuid>`; stop calling
+- [x] `upload_files.node_id`: idempotent upload completion (D3). New node ids are `nod-<uuid>`; stop calling
   `node_id(source, path)` for new rows.
-- [ ] Dataset definitions: resolve `nodeIds` into `files: [{nodeId, assetId, version}]` plus
+- [x] Dataset definitions: resolve `nodeIds` into `files: [{nodeId, assetId, version}]` plus
   `followedFolders` (D7). `tree.files_under` is then used only for previews and for the "new files"
   banner.
 
 ### 1.2 Kernel (`kernel/fs.py`, new; `tree.py` loses path writes)
-- [ ] `path_of(node)` and `paths_of(nodes)` (one recursive CTE) replace every `rel_path` read:
+- [x] `path_of(node)` and `paths_of(nodes)` (one recursive CTE) replace every `rel_path` read:
   `projects.py` `folderPath`, search results, Explore's evidence, exports. Use
   `rg -n "rel_path" apps/api apps/worker` to find them all; inspection keeps reading `original_path`.
-- [ ] `apply(db, ctx, project, ops: list[Op], *, expect: dict[parent_id, revision] | None) -> Batch`:
+- [x] `apply(db, ctx, project, ops: list[Op], *, expect: dict[parent_id, revision] | None) -> Batch`:
   - one transaction, all-or-nothing;
   - validates names (D10), lock state (D2), cycles (no folder into itself or below), membership and
     conflicts (returns `409 { conflicts: [...] }` unless every conflict carries a resolution);
@@ -296,18 +309,18 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
   - updates `child_count`, `descendant_count` and `total_bytes` along the old and new ancestor chains;
   - records one audit entry per batch (`files.moved`, `files.renamed`, `files.trashed`, …, with counts and
     the batch id), and emits `fs.changed`.
-- [ ] `undo(db, ctx, project, batch_id)` and `redo`. Refuse when any touched node has a later op by anyone
+- [x] `undo(db, ctx, project, batch_id)` and `redo`. Refuse when any touched node has a later op by anyone
   (D9). An undone batch is itself journaled.
-- [ ] `trash`, `restore`, `purge`, and an `empty_trash` worker job. It runs daily, purges items over 30
+- [x] `trash`, `restore`, `purge`, and an `empty_trash` worker job. It runs daily, purges items over 30
   days old, and keeps bytes still referenced (D8).
-- [ ] `replace(node, upload)`: a new asset, `version += 1`, a `node_versions` row, and inspection re-runs on
+- [x] `replace(node, upload)`: a new asset, `version += 1`, a `node_versions` row, and inspection re-runs on
   the new bytes. `restore_version(node, v)` is a journaled op.
-- [ ] Proposals that reference nodes whose names changed are marked `stale` (status unchanged, and an
+- [x] Proposals that reference nodes whose names changed are marked `stale` (status unchanged, and an
   evidence flag). Explore shows "Names changed since this was suggested. **Re-check**", which re-runs the
   matcher for that proposal. Confirmed relationships hold node ids and stay valid.
 
 ### 1.3 Routes (`routes/files.py`; `/sources/*` reads stay as aliases)
-- [ ] `POST /v1/projects/:id/fs/ops` with a body of `{ ops: [...], resolutions?: {...}, expect?: {...} }`
+- [x] `POST /v1/projects/:id/fs/ops` with a body of `{ ops: [...], resolutions?: {...}, expect?: {...} }`
   → `{ batchId, nodes, conflicts? }`. Op shapes:
   - `{ kind: "mkdir", parentId, name }`
   - `{ kind: "rename", nodeId, name }`
@@ -316,21 +329,21 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
   - `{ kind: "trash", nodeIds }`
   - `{ kind: "restore", nodeIds }`
   - `{ kind: "purge", nodeIds }`
-- [ ] `POST /v1/projects/:id/fs/undo` and `…/redo` (`{ batchId? }`, defaulting to the caller's last).
-- [ ] `GET /v1/projects/:id/trash?cursor=` and `GET /v1/projects/:id/starred`.
+- [x] `POST /v1/projects/:id/fs/undo` and `…/redo` (`{ batchId? }`, defaulting to the caller's last).
+- [x] `GET /v1/projects/:id/trash?cursor=` and `GET /v1/projects/:id/starred`.
   `POST /v1/source-nodes/:id/star` / `DELETE` for unstar.
   `GET /v1/projects/:id/recent` (from `fs_ops`, `project_resume` and inspector opens, per principal).
-- [ ] `GET /v1/source-nodes/:id/versions`, `POST /v1/source-nodes/:id/versions` (an upload session in
+- [x] `GET /v1/source-nodes/:id/versions`, `POST /v1/source-nodes/:id/versions` (an upload session in
   replace mode), and `POST /v1/source-nodes/:id/versions/:v/restore`.
-- [ ] `GET /v1/source-nodes/:id/download` (a signed redirect) and `POST /v1/projects/:id/fs/zip`
+- [x] `GET /v1/source-nodes/:id/download` (a signed redirect) and `POST /v1/projects/:id/fs/zip`
   (`{ nodeIds }` → a streamed ZIP built from the `BlobStore`, never buffered whole, and audited as
   `files.downloaded`). Privacy-held files are left out, with a `_held_files.txt` listing what was left
   out and why.
-- [ ] `GET /v1/source-nodes/:id/activity`: `fs_ops` for the node and its ancestors' moves.
-- [ ] Children responses gain `starred`, `locked`, `version`, `totalBytes` and `trashed`, and the node
+- [x] `GET /v1/source-nodes/:id/activity`: `fs_ops` for the node and its ancestors' moves.
+- [x] Children responses gain `starred`, `locked`, `version`, `totalBytes` and `trashed`, and the node
   detail gains `path` (computed) and `originalPath`. `originalPath` is **left out of agent context and
   exports**, because it may still hold the identifier someone renamed away (Phase 7).
-- [ ] Regenerate the OpenAPI spec and `packages/api-client`, and update the `packages/contracts` types.
+- [x] Regenerate the OpenAPI spec and `packages/api-client`, and update the `packages/contracts` types.
 
 **Exit:** `uv run pytest`:
 - 10k-file folder moves touch O(depth) rows;
@@ -348,27 +361,27 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
 
 ## Phase 2. Create, rename, select
 
-- [ ] `packages/ui/src/ui/file-tree.tsx`:
+- [x] `packages/ui/src/ui/file-tree.tsx`:
   - allow `editable`, `onRename`, `onCreate` and multi-selection (arborist already supports these;
     kiwifs passes `onRename` to `<Tree>`);
   - expose `edit(id)` on the handle;
   - add a `RenameInput` (select-without-extension, validation slot, Enter / Esc / blur), from kiwifs
     `KiwiTree.tsx` ~1770;
   - add the hover `+` and `⋯` row actions as props (`rowActions`).
-- [ ] New folder (⇧⌘N, the tree header, the New menu, a row `+`, the context menu) creates "Untitled
+- [x] New folder (⇧⌘N, the tree header, the New menu, a row `+`, the context menu) creates "Untitled
   folder" (then "Untitled folder 2"…) optimistically, opens it in rename mode, and commits on Enter. Esc
   on an untouched new folder removes it.
-- [ ] Rename from the tree, the list's Name cell (`listing.tsx` gets an editing row state), the inspector
+- [x] Rename from the tree, the list's Name cell (`listing.tsx` gets an editing row state), the inspector
   title and F2. Extension changes confirm first (D10).
-- [ ] Multi-select in the tree and listing:
+- [x] Multi-select in the tree and listing:
   - ⇧ and ⌘ click, ⇧↑↓, ⌘A, Esc;
   - in the grid, **rubber-band selection** (pointer drag on empty space) with autoscroll;
   - the selection is shared between tree and listing for the listed folder.
-- [ ] The selection bar (§2) replaces the toolbar when anything is selected; the inspector shows a summary
+- [x] The selection bar (§2) replaces the toolbar when anything is selected; the inspector shows a summary
   for several items ("12 items · 1.4 GB · 3 kinds").
-- [ ] A Radix context menu on every row and on breadcrumb segments, replacing today's positioned
+- [x] A Radix context menu on every row and on breadcrumb segments, replacing today's positioned
   `DropdownMenu` hack in `SourcesPage.tsx`.
-- [ ] Context items "Upload files here" and "Upload folder here" (kiwifs "Upload files to …").
+- [x] Context items "Upload files here" and "Upload folder here" (kiwifs "Upload files to …").
 
 **Exit:** `tests/e2e/files_edit_test.py`, keyboard only:
 - make a folder, name it, rename a file (only the stem selected), and get refused on a duplicate name with
@@ -379,26 +392,26 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
 
 ## Phase 3. Move, copy, paste
 
-- [ ] Arborist drag and drop on (`disableDrag` / `disableDrop` become functions: locked samples and
+- [x] Arborist drag and drop on (`disableDrag` / `disableDrop` become functions: locked samples and
   placeholders can't be dragged, and only folders accept drops). `onMove` follows kiwifs `handleMove`:
   refuse a folder into itself, apply optimistically, call `fs/ops`, and roll back with a toast on failure.
-- [ ] Drag from the listing (list and grid) to tree folders, listing folders and breadcrumb segments, with
+- [x] Drag from the listing (list and grid) to tree folders, listing folders and breadcrumb segments, with
   one shared drag controller (`apps/web/src/studio/lib/files/dnd.ts`). Includes spring-loading at 700ms,
   autoscroll, the "3 items" ghost, and ⌥ to copy (§2).
-- [ ] **Move to…** dialog (`components/files/move-dialog.tsx`):
+- [x] **Move to…** dialog (`components/files/move-dialog.tsx`):
   - a folder picker with a breadcrumb and a flat folder list (Patch `add-secret-dialog.tsx`), recent
     destinations at the top, and "New folder" inside the dialog;
   - **Move here** is disabled with a reason for invalid targets;
   - it's also used for "Copy to…" from sample data.
-- [ ] Clipboard (`lib/files/clipboard.ts`, kiwifs `treeClipboard` but node ids and per-tab):
+- [x] Clipboard (`lib/files/clipboard.ts`, kiwifs `treeClipboard` but node ids and per-tab):
   - ⌘X marks items as cut (50% opacity), ⌘C copies, and ⌘V pastes into the focused folder or the listed
     one;
   - it survives navigation within the project and clears on project change;
   - copy is free (D5).
-- [ ] Duplicate (⌘D): "name (copy).ext" next to the original, then rename mode.
-- [ ] The conflict dialog (§2) for move, copy and paste, driven by the 409 `conflicts` list; resolutions
+- [x] Duplicate (⌘D): "name (copy).ext" next to the original, then rename mode.
+- [x] The conflict dialog (§2) for move, copy and paste, driven by the 409 `conflicts` list; resolutions
   go back in one retry.
-- [ ] Moving across a locked folder, or out of one, offers copy instead ("Sample data can't be moved.
+- [x] Moving across a locked folder, or out of one, offers copy instead ("Sample data can't be moved.
   **Copy instead**").
 
 **Exit:** `tests/e2e/files_move_test.py`:
@@ -413,18 +426,18 @@ Declared as core commands with `when: section == files`. Never hard-coded: `AGEN
 
 ## Phase 4. Trash and undo
 
-- [ ] Move to Trash (⌘⌫, the menu, the selection bar). No confirmation, because it's reversible; a toast
+- [x] Move to Trash (⌘⌫, the menu, the selection bar). No confirmation, because it's reversible; a toast
   with Undo instead. Items a dataset uses get a softer warning in the toast ("*LV segmentation* still uses
   2 of these").
-- [ ] A Trash view (`/projects/:p/files/trash`, in the tree footer with a count):
+- [x] A Trash view (`/projects/:p/files/trash`, in the tree footer with a count):
   - columns Name, Original location, Deleted by, Deleted;
   - Restore, Delete forever and **Empty Trash** (with a confirmation that names any bytes that will be
     kept, D8);
   - items in Trash can't be opened in the Studio; Quick Look still works.
-- [ ] Undo and redo (⌘Z / ⇧⌘Z) through `fs/undo` and `fs/redo`, with an "Undo *move of 3 items*" label in
+- [x] Undo and redo (⌘Z / ⇧⌘Z) through `fs/undo` and `fs/redo`, with an "Undo *move of 3 items*" label in
   the Edit hint of the context menu. A refused undo explains itself (D9). The client keeps only the batch
   ids of this tab's operations, for labels; the truth is on the server.
-- [ ] "Remove upload…" from todo6 becomes "Move import to Trash", reachable from the Imports list.
+- [x] "Remove upload…" from todo6 becomes "Move import to Trash", reachable from the Imports list.
 
 **Exit:** trash a folder of 500 files, reload, restore it, and it's back with its counts. Undo works after a
 reload. An undo after a colleague renamed one of the files is refused with the name. Empty Trash keeps
@@ -434,27 +447,27 @@ bytes a version uses.
 
 ## Phase 5. Finding your way: sort, filter, star, recent, breadcrumbs
 
-- [ ] Tree header (§2) with:
+- [x] Tree header (§2) with:
   - **Collapse all** (`api.closeAll()`) and ⌥-click to expand recursively (kiwifs `openFolderRecursive`);
     expansion is capped at 2,000 rows, with "Expand stopped at 2,000. Open folders one by one";
   - a **Sort** menu: Name (default) · Kind · Size · Date added, with folders first always, remembered per
     person (localStorage, like kiwifs `kiwifs-tree-sort`), and applied server-side in `children` so
     paging stays correct.
-- [ ] **Tree filter** (kiwifs's sidebar filter): it narrows the *loaded* tree by name as you type (arborist
+- [x] **Tree filter** (kiwifs's sidebar filter): it narrows the *loaded* tree by name as you type (arborist
   `searchTerm`, with kiwifs `treeSearchMatch` covering compact chains). The project-wide search box in the
   toolbar stays separate, for files not loaded yet. The two placeholders say which is which ("Filter
   folders shown" / "Search all files").
-- [ ] **Starred** and **Recent** sections in the tree footer (kiwifs `AppSidebar` sections). Collapsible,
+- [x] **Starred** and **Recent** sections in the tree footer (kiwifs `AppSidebar` sections). Collapsible,
   remembered, at most 8 rows each; clicking reveals the item in the tree.
-- [ ] Breadcrumb upgrades (Finder path bar / Drive):
+- [x] Breadcrumb upgrades (Finder path bar / Drive):
   - every segment is a **drop target**;
   - the chevron between segments opens a menu of that folder's subfolders;
   - long paths collapse the middle into `…` with a menu;
   - the last segment's `⋯` gets the full folder context menu.
-- [ ] **Auto-reveal**: opening a file from anywhere (Overview, Explore, the assistant, Studio "Show in
+- [x] **Auto-reveal**: opening a file from anywhere (Overview, Explore, the assistant, Studio "Show in
   Files") reveals it in the tree, as todo6 does, now also when the tree is filtered (the filter clears with
   a note).
-- [ ] Folder sizes: the listing's Size column shows `totalBytes` for folders, and the inspector shows
+- [x] Folder sizes: the listing's Size column shows `totalBytes` for folders, and the inspector shows
   "1,204 files · 2.3 GB".
 
 **Exit:** `apps/web/e2e/files_nav_test.py` (seed mode, read-only features): sort by size keeps folders first
@@ -465,19 +478,19 @@ reload, and dropping on a breadcrumb segment is wired up (the API part is in `te
 
 ## Phase 6. Versions, download and activity per file
 
-- [ ] Inspector **Versions** section (files with more than one version): version number, who, when, size,
+- [x] Inspector **Versions** section (files with more than one version): version number, who, when, size,
   "Current" chip, **Restore** and **Download**. "Replace with new version…" opens a file picker, then an
   upload session in replace mode (D6).
-- [ ] Datasets show "Newer version available for 3 files". Updating opens a preview listing the affected
+- [x] Datasets show "Newer version available for 3 files". Updating opens a preview listing the affected
   items and how many annotations stay on the old version, then **Update** (a journaled dataset change, in
   Activity).
-- [ ] Download: a single file is a signed URL; a folder or a selection is a streamed ZIP (Phase 1.3) with a
+- [x] Download: a single file is a signed URL; a folder or a selection is a streamed ZIP (Phase 1.3) with a
   progress toast. Downloads are audited, and held files are left out with an explanation inside the ZIP
   and in the toast.
-- [ ] Inspector **Activity** section: "Renamed from *Smith_J_MRI* by Lam · 2 h ago" (old names shown only to
+- [x] Inspector **Activity** section: "Renamed from *Smith_J_MRI* by Lam · 2 h ago" (old names shown only to
   members, never sent to the assistant), moves, versions, restores. The project Activity page groups the
   same events by batch ("Lam moved 120 files to *MRI/patient_002*").
-- [ ] Inspector **Provenance** gains "Uploaded as *original_path*" behind a "Show original name" button
+- [x] Inspector **Provenance** gains "Uploaded as *original_path*" behind a "Show original name" button
   (Phase 7 explains why it's hidden).
 
 **Exit:** replacing a file shows two versions; restoring version 1 brings back its thumbnail and facts; a
@@ -488,15 +501,15 @@ the note.
 
 ## Phase 7. Privacy and the namespace
 
-- [ ] Renaming or moving a node re-runs the **path-name privacy check** (the worker's `deid.py` patterns,
+- [x] Renaming or moving a node re-runs the **path-name privacy check** (the worker's `deid.py` patterns,
   run in-process for names, since it's cheap) on the new path. A flag raised only by the name clears
   automatically when the new name is clean, with an audit entry `privacy.cleared` and reason "renamed".
   The flag's "next step" in the inspector becomes **Rename to remove it**.
-- [ ] `originalPath` and old names in `fs_ops` are sensitive:
+- [x] `originalPath` and old names in `fs_ops` are sensitive:
   - left out of agent context, exports, ZIP file names and URLs;
   - shown only to project members, behind "Show original name";
   - the e2e test asserts the agent snapshot never contains them.
-- [ ] New folder names are checked the same way as you type ("This looks like a person's name. Use a
+- [x] New folder names are checked the same way as you type ("This looks like a person's name. Use a
   study code instead?"). It warns and never blocks.
 
 **Exit:** a file uploaded as `Smith_John_MRI.dcm` is held; renaming it to `case_014.dcm` clears the hold
@@ -506,15 +519,15 @@ with an audit entry; the assistant's context for that node shows only `case_014.
 
 ## Phase 8. The assistant can organize (with approval)
 
-- [ ] Read tools: `list_folder` (names, kinds, counts; never contents or original names) and
+- [x] Read tools: `list_folder` (names, kinds, counts; never contents or original names) and
   `find_files` (name or kind search).
-- [ ] `propose_reorganization` produces a plan: a list of `mkdir`, `move` and `rename` ops with a one-line
+- [x] `propose_reorganization` produces a plan: a list of `mkdir`, `move` and `rename` ops with a one-line
   reason each. For example, "Group by patient: 47 folders → *patient_001…047*". It renders as an approval
   card with a **before / after tree diff**: moved rows dashed, new folders marked, counts per folder.
   - **Apply** sends one `fs/ops` batch as the *user*, after approval: the agent token can't write the
     namespace (Phase 1 exit). One ⌘Z undoes the whole plan.
   - **Edit** opens the plan in Files with every op as a checkbox.
-- [ ] Prompt examples in the empty assistant state on Files: "Group these scans by patient", "Rename files
+- [x] Prompt examples in the empty assistant state on Files: "Group these scans by patient", "Rename files
   to remove dates", "Put all spreadsheets in one folder".
 
 **Exit:** `tests/e2e/agent_test.py` gains a scripted run: the agent proposes grouping six files into two
@@ -526,27 +539,43 @@ call gets a 403.
 ## Phase 9. Verification and docs
 
 - [ ] All `AGENTS.md` checks, `uv run pytest`, `go test ./...`, and both e2e suites twice in a row.
-- [ ] Performance:
+  *2026-10-31: every check passes (`pnpm lint` only lacks `golangci-lint` on the machine), pytest
+  (api 154, worker 22), `go test ./...`; the Files full-stack e2e ran green twice in a row, but not
+  every test of both suites twice. Postgres not run (no Docker daemon).*
+- [x] Performance:
   - moving a folder of 100k files commits in under 200ms (D4);
   - renaming shows in other tabs within 1s (SSE);
   - drag over a 5,000-row virtualized listing stays at 60fps;
   - a ZIP of 2 GB streams in constant memory.
-- [ ] Accessibility:
+
+  *Measured 2026-10-31 (`apps/api/scripts/bench_fs.py`, `tests/e2e/files_perf_test.py`, SQLite,
+  M-series laptop): move of a 100k-file folder 31–47 ms (undo 40 ms); a rename shows in another tab
+  in 160–210 ms (the event stream now polls every 250 ms; it was ~1 s); 56–58 fps dragging over 5,000
+  rows while scrolling (headless dev build, worst frame 34–100 ms); a 2.3 GB ZIP streams at ~355 MB/s
+  with no RSS growth. A page of a 100k-file folder's listing went from ~5.9 s to ~1.8 s (still the
+  slowest thing here: the natural sort of every name).*
+- [x] Accessibility:
   - every drag has a keyboard path (Cut/Paste, Move to…);
   - rename fields are labelled;
   - live-region announcements for every operation;
   - context menus fully keyboard operable (Shift+F10 / the Menu key opens them).
+
+  *Checked by `files_perf_test.py` and `files_move_test.py` (keyboard-only Move to…, cut/paste,
+  copy/paste, Shift+F10 and the Menu key in the tree and the listing, labelled rename fields, the
+  live region after rename, copy, paste, trash and undo). Not checked with a screen reader.*
 - [ ] Usability: rerun todo6's sessions with three new tasks:
   1. Put patient 2's scans in their own folder.
   2. You renamed the wrong folder; fix it.
   3. Get rid of the duplicate spreadsheet, then change your mind.
-- [ ] Docs:
+
+  *Not done: needs people.*
+- [x] Docs:
   - `docs/ux.md` principle 3 becomes "Bytes are immutable; names and folders are yours, and every change
     can be undone", and §6 Sources becomes "Files";
   - the glossary gets Files (the project's drive) vs Source (an import's provenance), and Trash;
   - `docs/ui.md` gets the keyboard table;
   - `todo6.md` design implication 2 gets a note pointing here.
-- [ ] Move to `BACKLOG.md`:
+- [x] Move to `BACKLOG.md`:
   - shared links to a file or folder;
   - a column view (Finder);
   - drag out to the desktop (Chrome `DownloadURL`);

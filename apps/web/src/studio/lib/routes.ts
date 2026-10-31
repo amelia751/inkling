@@ -24,6 +24,13 @@ export const studioUrl = (projectId: string, taskId?: string) => `${projectUrl(p
 export const taskSetupUrl = (projectId: string, taskId: string) => `/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/setup`;
 export const settingsUrl = (projectId: string, tab: "general" | "plugins" | "members" = "general") => `${projectUrl(projectId, "settings")}/${tab}`;
 
+/** Organization, billing and personal settings, outside any project (laid out like the Nebius console). */
+export type OrgPage = "members" | "projects" | "security" | "api-keys" | "audit-log" | "settings";
+export type BillingPage = "usage" | "invoices" | "details";
+export const orgUrl = (page: OrgPage = "members") => `/organization/${page}`;
+export const billingUrl = (page: BillingPage = "usage") => `/billing/${page}`;
+export const profileUrl = () => "/settings/profile";
+
 function withQuery(path: string, query?: Record<string, string | undefined>): string {
   const q = Object.entries(query ?? {}).filter((e): e is [string, string] => !!e[1]);
   return q.length ? `${path}?${new URLSearchParams(q).toString()}` : path;

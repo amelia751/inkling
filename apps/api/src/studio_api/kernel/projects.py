@@ -774,6 +774,24 @@ def create_task(db: Session, ctx: RequestContext, d: DatasetRow, title: str, kin
     return t
 
 
+def add_folders(db: Session, entries: list[dict]) -> None:
+    """todo8 D3: set each entry's `folder`, its node's current Data folder (names from the
+    parent chain, never `original_path`) below the task's common folder. Entries whose node
+    is gone keep no `folder`."""
+    found = tree.chains(db, [str(e["nodeId"]) for e in entries if e.get("nodeId")])
+    folders = {i: found[str(e["nodeId"])].names[1:-1] for i, e in enumerate(entries) if e.get("nodeId") and str(e["nodeId"]) in found}
+    if not folders:
+        return
+    common = list(next(iter(folders.values())))
+    for names in folders.values():
+        k = 0
+        while k < len(common) and k < len(names) and common[k] == names[k]:
+            k += 1
+        del common[k:]
+    for i, names in folders.items():
+        entries[i]["folder"] = names[len(common) :]
+
+
 def task_document(db: Session, t: TaskRow) -> dict:
     """A `Project`-shaped document (packages/contracts `Project`), so every data kind's
     `groupItems(project)` works unchanged for uploaded data: the compatibility seam."""
@@ -784,6 +802,13 @@ def task_document(db: Session, t: TaskRow) -> dict:
     if p.seed and t.id == p.id and (raw := seed_entry(p.id)):
         doc = {k: v for k, v in raw.items() if k not in ("viewer",)}
         environment = env or manifest_environment(p.id) or {}
+        # The sample's files are nodes with stable ids (`ensure_seeds`): copy the manifest's
+        # entries (cached, shared) and add each one's node and current folder.
+        _, rels = _seed_files(raw)
+        seeded = [{**a, "nodeId": tree.node_id(p.id, rel)} for rel, a in rels]
+        add_folders(db, seeded)
+        by_path = {a["path"]: a for a in seeded}
+        doc["assets"] = [by_path.get(a.get("path"), a) for a in raw.get("assets") or []]
         return {**doc, "id": t.id, "title": t.title, "environment": environment, "labels": environment.get("labels"), "task": environment.get("task") or raw.get("task"), "status": "available"}
     d = db.get(DatasetRow, t.dataset_id)
     definition = (d.definition if d else None) or {}
@@ -809,6 +834,7 @@ def task_document(db: Session, t: TaskRow) -> dict:
             if n.id in labels:
                 entry["label"] = labels[n.id]
             items.append(entry)
+    add_folders(db, items)
     return {
         "id": t.id,
         "title": t.title,

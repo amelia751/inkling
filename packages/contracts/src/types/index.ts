@@ -27,6 +27,8 @@ export interface SeedAsset {
   /** Uploaded files (task documents): the original file name and its source node; `path` is content-addressed. */
   name?: string;
   nodeId?: string;
+  /** todo8 D3: the node's current Data folder below the task's common folder (task documents). */
+  folder?: string[];
 }
 
 export interface Project {

@@ -210,7 +210,8 @@
         "windowLevel",
         "zoom",
         "rotate",
-        "holdToPan"
+        "holdToPan",
+        "overlayOpacity"
       ],
       "example": {
         "viewports": [
@@ -434,7 +435,8 @@
         "holdToPan",
         "slices",
         "planes",
-        "crosshairs"
+        "crosshairs",
+        "overlayOpacity"
       ],
       "example": {
         "viewports": [
@@ -3786,7 +3788,7 @@
       "id": "inkling.core.panels.files",
       "type": "panels",
       "module": "inkling.core",
-      "description": "The project's items, grouped, with per-item progress and a filter",
+      "description": "The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides)",
       "slot": "left",
       "example": {
         "panels": {
@@ -3800,7 +3802,7 @@
       "id": "inkling.core.panels.labels",
       "type": "panels",
       "module": "inkling.core",
-      "description": "Label classes (pick, hide, lock), item-level classes, overlay opacity and the selection inspector",
+      "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this image\") and the selection",
       "slot": "left",
       "example": {
         "panels": {
@@ -3814,7 +3816,7 @@
       "id": "inkling.core.panels.review",
       "type": "panels",
       "module": "inkling.core",
-      "description": "Every annotation with provenance, and the items with none yet",
+      "description": "Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio",
       "slot": "left",
       "example": {
         "panels": {
@@ -4740,8 +4742,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -4808,8 +4809,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.cardiac-metrics.panels.metrics",
@@ -4879,8 +4879,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -5437,8 +5436,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.timeseries.panels.measurements",
@@ -5512,8 +5510,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -5578,8 +5575,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -5635,8 +5631,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai",
@@ -5721,8 +5716,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -5820,8 +5814,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.timeseries.panels.measurements",
@@ -5873,8 +5866,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"
@@ -5934,8 +5926,7 @@
         "panels": {
           "left": [
             "inkling.core.panels.files",
-            "inkling.core.panels.labels",
-            "inkling.core.panels.review"
+            "inkling.core.panels.labels"
           ],
           "right": [
             "inkling.core.panels.ai"

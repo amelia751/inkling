@@ -5,3 +5,4 @@ export { useCanvasSize } from "./useCanvasSize";
 export { formatTime } from "./format";
 export { Transport, rangeBounds, useFramePlayback, type FrameRange, type PlayMode, type TransportProps } from "./transport";
 export { Legend } from "./legend";
+export { OverlayOpacityControl } from "./opacity";

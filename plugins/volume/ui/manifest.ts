@@ -34,7 +34,7 @@ export default defineModule({
         id: "cornerstone-mpr",
         consumes: [VOLUME_KIND],
         space: "volume",
-        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan", "slices", "planes", "crosshairs"],
+        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan", "slices", "planes", "crosshairs", "overlayOpacity"],
         configSchema: mprConfigSchema,
         description: "Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D",
         example: { viewports: [{ name: "main", renderer: MPR, config: { layout: "mpr3d", layouts: ["mpr", "mpr3d", "plane3d"] } }] },

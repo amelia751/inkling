@@ -3,6 +3,7 @@ import { MODULES, presets } from "@/extension-host/bundled";
 import { labelGroupsFrom, normalizeProject } from "@/studio/lib/api";
 import { registry } from "./registry";
 import { resolveEnvironment } from "./resolve";
+import { ns } from "@studio/contracts/naming";
 
 const PRESETS = ["image-2d", "volume-3d", "ecg", "video", "cine-4d", "pathology"];
 
@@ -16,7 +17,18 @@ describe("bundled presets", () => {
     const r = resolveEnvironment({ extends: `preset:${id}`, labels: labelGroupsFrom(["a", "b"], "classification") }, registry);
     expect(r.errors).toBeUndefined();
     expect(r.env!.tools[0].name).toBe("select");
-    expect(r.env!.panels.left.map((p) => p.name)).toEqual(["files", "labels", "review"]);
+    expect(r.env!.panels.left.map((p) => p.name)).toEqual(["files", "labels"]);
+  });
+
+  it("drops the Studio's Review tab from every preset but keeps the panel registered (todo8 D2)", () => {
+    for (const p of presets.contributes.presets!) {
+      const left = resolveEnvironment({ extends: `preset:${p.id}` }, registry).env?.panels.left.map((x) => x.name) ?? [];
+      expect(left, p.id).not.toContain("review");
+    }
+    // Stored environments may still list it: it resolves, titled "All annotations".
+    const r = resolveEnvironment({ extends: "preset:image-2d", panels: { left: [ns("core.panels.files"), ns("core.panels.labels"), ns("core.panels.review")] } }, registry);
+    expect(r.errors).toBeUndefined();
+    expect(r.env!.panels.left.map((x) => x.title)).toEqual(["Items", "Labels", "All annotations"]);
   });
 
   it("migrates v1 manifest projects to environments", () => {

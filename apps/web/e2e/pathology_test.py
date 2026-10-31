@@ -466,14 +466,14 @@ def pan_to_selection_from_sidebar(p: P):
     p.fit(TISSUE[0] - 2000, TISSUE[1] - 1500, 4000, 3000)
     sx, sy = p.js("return c.view.toScreen(arg[0], arg[1]);", far)
     assert sx > p.js("return c.view.width;"), "fixture should start off-screen"
-    p.page.get_by_role("tab", name="Review").click()
-    p.page.locator("button", has_text="Box 1500").first.click()
+    p.page.get_by_role("tab", name="Labels").click()
+    p.page.locator("[data-testid='on-this-item'] [data-testid='annotation-row'] button", has_text="Box 1500").first.click()
     p.page.wait_for_timeout(1200)
     p.frames(3)
     w, h = p.js("return [c.view.width, c.view.height];")
     corners = [p.js("return c.view.toScreen(arg[0], arg[1]);", q) for q in [far, (far[0] + 1500, far[1] + 1000)]]
     assert all(0 <= x <= w and 0 <= y <= h for x, y in corners), corners
-    p.page.get_by_role("tab", name="Files").click()
+    p.page.get_by_role("tab", name="Slides").click()
     p.shot("pan-to-selection")
 
 

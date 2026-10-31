@@ -38,11 +38,13 @@ def labels_and_selection(browser, port: int, out: Path) -> None:
     check("tool key switches tool", s.store("s => s.tool") == "box", s.store("s => s.tool"))
     page.keyboard.press("v")
 
-    # Hide / lock buttons on a label row.
-    page.get_by_role("button", name="Hide normal").click()
+    # Hide / lock live in a label row's ⋯ menu; while on, the row shows a button that undoes it.
+    page.get_by_role("button", name="More for normal").click()
+    page.get_by_role("menuitem", name="Hide normal").click()
     check("hide label", s.store("s => s.hiddenLabels") == ["normal"])
     page.get_by_role("button", name="Show normal").click()
-    page.get_by_role("button", name="Lock normal").click()
+    page.get_by_role("button", name="More for normal").click()
+    page.get_by_role("menuitem", name="Lock normal").click()
     check("lock label", s.store("s => s.lockedLabels") == ["normal"])
 
     # Locked labels survive Delete; unlocking allows it.
@@ -53,12 +55,15 @@ def labels_and_selection(browser, port: int, out: Path) -> None:
     check("locked label blocks delete", s.store(f"s => s.annotations.some(a => a.id === '{first}')"))
     page.get_by_role("button", name="Unlock normal").click()
 
-    # Opacity slider writes the store.
+    # Overlay opacity is in the viewport bar's View controls; its slider writes the store.
+    page.get_by_test_id("overlay-opacity").click()
     slider = page.get_by_role("slider", name="Overlay opacity")
     slider.focus()
     page.keyboard.press("ArrowLeft")
     page.keyboard.press("ArrowLeft")
     check("opacity slider", abs(s.store("s => s.overlayOpacity") - 0.9) < 1e-6, str(s.store("s => s.overlayOpacity")))
+    page.keyboard.press("Escape")
+    check("no opacity slider left in the Labels panel", page.locator("[role='tabpanel']").get_by_role("slider", name="Overlay opacity").count() == 0)
 
     # ⌘A selects the item's annotations; bulk relabel is one undo step.
     page.mouse.click(5, 300)
@@ -80,13 +85,25 @@ def labels_and_selection(browser, port: int, out: Path) -> None:
     page.wait_for_timeout(200)
     check("bulk relabel undoes in one step", s.store("s => s.annotations.filter(a => s.selectedIds.includes(a.id)).every(a => a.label === 'normal')"))
 
-    # Shift-click in the review list adds to the selection.
-    page.get_by_role("tab", name="Review").click()
+    # Shift-click in "On this image" adds to the selection (the Studio's Review tab is gone).
+    check("no Review tab in the Studio", page.get_by_role("tab", name="Review").count() == 0)
+    check("the Items tab is named by the data kind", page.get_by_role("tab", name="Images").count() == 1)
     page.keyboard.press("Escape")
-    cards = page.locator("[role='tabpanel'] button.w-full.text-left")
-    cards.nth(0).click()
-    cards.nth(1).click(modifiers=["Shift"])
-    check("shift-click review list multi-selects", s.store("s => s.selectedIds.length") == 2, str(s.store("s => s.selectedIds.length")))
+    rows = page.locator("[data-testid='on-this-item'] [data-testid='annotation-row']")
+    check("On this image lists the item's annotations", rows.count() >= 2, f"{rows.count()} rows")
+    rows.nth(0).locator("button").first.click()
+    check("click in On this image selects", s.store("s => s.selectedIds.length") == 1)
+    rows.nth(1).locator("button").first.click(modifiers=["Shift"])
+    check("shift-click On this image multi-selects", s.store("s => s.selectedIds.length") == 2, str(s.store("s => s.selectedIds.length")))
+    check("the selection is pinned below the lists", page.locator("[data-testid='selection-section'] [aria-label='Selected annotations']").count() == 1)
+    n = rows.count()
+    rows.nth(0).hover()
+    rows.nth(0).get_by_role("button", name="Remove").click()
+    page.wait_for_timeout(200)
+    check("hover Remove deletes the row", rows.count() == n - 1, f"{n} -> {rows.count()}")
+    page.mouse.click(5, 300)
+    page.keyboard.press("Meta+z")
+    page.wait_for_timeout(200)
 
     # Item navigation from the shell.
     page.keyboard.press("Escape")

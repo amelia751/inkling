@@ -92,8 +92,9 @@ def kernel_ok(page, base: str) -> bool:
     return api(page, "/projects")["status"] == 200 and page.evaluate("async () => (await fetch('/api/v1/health')).ok")
 
 
-def new_project(page, base: str, title: str, folder: Path) -> tuple[str, str]:
-    """A scratch project with `folder` uploaded; returns (project id, the folder's node id)."""
+def new_project(page, base: str, title: str, folder: Path, *, inspected: bool = True) -> tuple[str, str]:
+    """A scratch project with `folder` uploaded; returns (project id, the folder's node id).
+    `inspected=False` returns once the bytes are in (the worker may still be inspecting)."""
     pid = api(page, "/projects", "POST", {"title": title})["json"]["id"]
     page.goto(f"{base}/projects/{pid}/files")
     page.wait_for_selector("[data-testid=drop-zone]", timeout=20000)
@@ -102,7 +103,7 @@ def new_project(page, base: str, title: str, folder: Path) -> tuple[str, str]:
     if wait(lambda: dlg.is_visible(), 5, 0.2):
         dlg.get_by_role("checkbox").click()
         page.get_by_test_id("attest-confirm").click()
-    done = wait(lambda: (lambda i: i and i[0]["state"] in ("ready", "needs_review", "imported") and i[0])(api(page, f"/projects/{pid}/imports")["json"]["imports"]), 90)
+    done = wait(lambda: (lambda i: i and i[0]["state"] in ("ready", "needs_review", "imported", *(() if inspected else ("inspecting",))) and i[0])(api(page, f"/projects/{pid}/imports")["json"]["imports"]), 90 if inspected else 240)
     if not done:
         raise RuntimeError("the upload didn't finish")
     root = children(page, pid)

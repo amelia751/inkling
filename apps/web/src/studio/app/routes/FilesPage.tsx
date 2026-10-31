@@ -1448,6 +1448,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                       selectedIds={selection}
                       onSelectionChange={(ids) => setSelection(ids)}
                       onOpen={(n) => (n.kind === "file" ? (setSelection([n.id]), setQl(n)) : openNode(n, "list"))}
+                      total={searching ? undefined : listQ.data?.pages[0]?.total}
                       hasMore={!searching && !!listQ.hasNextPage}
                       onMore={() => void listQ.fetchNextPage()}
                       showFolder={searching}

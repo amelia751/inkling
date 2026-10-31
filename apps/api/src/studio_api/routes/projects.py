@@ -166,7 +166,10 @@ def project_activity(project_id: str, cursor: int | None = None, limit: int = 10
 
 # ---- Live updates ------------------------------------------------------------------------------
 
-SSE_POLL_S = 1.0
+# Polling the outbox 4×/s keeps a change visible in other tabs well inside 1 s (todo7 Phase 9:
+# at 1 s a rename took ~1 s to show); keep-alives go out every SSE_KEEPALIVE_S only.
+SSE_POLL_S = 0.25
+SSE_KEEPALIVE_S = 15.0
 SSE_MAX_S = 300.0
 
 
@@ -197,13 +200,17 @@ async def project_events(project_id: str, request: Request, ctx: RequestContext 
     async def stream():
         cursor = last or newest()
         yield "retry: 3000\n\n"
-        waited = 0.0
+        waited = quiet = 0.0
         while waited < SSE_MAX_S and not await request.is_disconnected():
             for eid, kind, payload in after(cursor):
                 cursor = eid
+                quiet = 0.0
                 yield f"id: {eid}\nevent: {kind}\ndata: {json.dumps(payload)}\n\n"
             await asyncio.sleep(SSE_POLL_S)
             waited += SSE_POLL_S
-            yield ": keep-alive\n\n"
+            quiet += SSE_POLL_S
+            if quiet >= SSE_KEEPALIVE_S:
+                quiet = 0.0
+                yield ": keep-alive\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})

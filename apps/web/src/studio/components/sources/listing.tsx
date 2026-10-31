@@ -61,6 +61,8 @@ interface Props {
   /** The row whose name is being edited, and new rows not saved yet (Enter commits even an unchanged name). */
   editingId?: string | null;
   draftIds?: ReadonlySet<string>;
+  /** Rows in the whole folder (pages load as it scrolls), for `aria-rowcount`; default: the rows loaded. */
+  total?: number;
   validateName?: (name: string, n: SourceNode) => string | null;
   /** Advice under the rename field that never blocks (Windows-reserved, a person's name). */
   warnName?: (name: string, n: SourceNode) => string | null;
@@ -331,7 +333,7 @@ export const Listing = forwardRef<ListingHandle, Props>(function Listing(props, 
         tabIndex={0}
         role="grid"
         aria-label="Files"
-        aria-rowcount={items.length}
+        aria-rowcount={Math.max(props.total ?? 0, items.length)}
         aria-multiselectable
         aria-busy={loading || undefined}
         onKeyDown={onKeyDown}
@@ -599,7 +601,13 @@ function SkeletonRows({ view }: { view: "list" | "grid" }) {
   );
 }
 
+// toLocaleDateString builds a formatter per call (it was the costliest line while scrolling a
+// long listing); two shared ones do the same.
+const SHORT_DATE = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const SHORT_DATE_YEAR = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+
 export function shortDate(iso: string): string {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: d.getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
+  if (Number.isNaN(d.getTime())) return "—";
+  return (d.getFullYear() === new Date().getFullYear() ? SHORT_DATE : SHORT_DATE_YEAR).format(d);
 }

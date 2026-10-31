@@ -4,7 +4,7 @@ Folders, organization policies and the VPC Service Controls perimeter around `sp
 projects themselves already exist and aren't managed here. Layout and reasons: `docs/deployment-gcp.md`.
 
 Runs as the keyless deploy identity `terraform@spurby-phi.iam.gserviceaccount.com`. A person with
-Token Creator on it (today `hello@`) mints a short-lived token; no key files:
+Token Creator on it (the Workspace super admin) mints a short-lived token; no key files:
 
 ```sh
 export GOOGLE_OAUTH_ACCESS_TOKEN=$(gcloud auth print-access-token \

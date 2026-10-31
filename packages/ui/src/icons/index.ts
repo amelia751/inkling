@@ -61,6 +61,23 @@ export { default as NoRelationshipIcon } from "@gravity-ui/icons/LinkSlash";
 export { default as ListViewIcon } from "@gravity-ui/icons/ListUl";
 export { default as GridViewIcon } from "@gravity-ui/icons/LayoutCells";
 export { default as QuickLookIcon } from "@gravity-ui/icons/Eye";
+// Files (todo7 §2 Visuals): the project's drive. Reused glyphs keep one meaning per job.
+export { default as NewFolderIcon } from "@gravity-ui/icons/FolderPlus";
+export { default as RenameIcon } from "@gravity-ui/icons/PencilToLine";
+export { default as MoveIcon } from "@gravity-ui/icons/FolderArrowRight";
+export { default as CutIcon } from "@gravity-ui/icons/Scissors";
+/** Gravity has no clipboard glyph. */
+export { default as PasteIcon } from "@gravity-ui/icons/CopyArrowRight";
+/** Move to Trash: the same glyph as `DeleteIcon`. */
+export { default as TrashIcon } from "@gravity-ui/icons/TrashBin";
+export { default as RestoreIcon } from "@gravity-ui/icons/ArrowUturnCcwLeft";
+export { default as StarIcon } from "@gravity-ui/icons/Star";
+export { default as StarFillIcon } from "@gravity-ui/icons/StarFill";
+/** The same glyph as `ExportIcon`. */
+export { default as DownloadIcon } from "@gravity-ui/icons/ArrowDownToLine";
+/** A file's versions: the same glyph as `HistoryIcon`. */
+export { default as VersionsIcon } from "@gravity-ui/icons/ClockArrowRotateLeft";
+export { default as CollapseAllIcon } from "@gravity-ui/icons/ChevronsCollapseVertical";
 // Annotations written from a source file (a CSV column): todo6 D8.
 export { default as ImportedIcon } from "@gravity-ui/icons/FileArrowUp";
 // Dataset versioning

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { TrashItem } from "@studio/contracts/types";
-import { DeleteIcon, UndoIcon } from "@studio/ui/icons";
+import { DeleteIcon, RestoreIcon } from "@studio/ui/icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,8 +84,7 @@ export function TrashView(props: TrashViewProps) {
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-1.5 text-sm" data-testid="trash-selection">
           <span className="tnum font-semibold">{selectedIds.length.toLocaleString()} selected</span>
           <ReasonButton variant="ghost" size="sm" reason={disabledReason} onClick={() => onRestore(selectedIds)} data-testid="trash-restore-selected">
-            {/* TODO(todo7-integration): swap to <RestoreIcon> (same glyph) */}
-            <UndoIcon /> Restore
+            <RestoreIcon /> Restore
           </ReasonButton>
           <ReasonButton variant="ghost" size="sm" className={disabledReason ? undefined : "text-danger hover:text-danger"} reason={disabledReason} onClick={() => setConfirmDelete(selectedIds)} data-testid="trash-delete-selected">
             <DeleteIcon /> Delete forever
@@ -151,7 +150,7 @@ export function TrashView(props: TrashViewProps) {
               </span>
               <span className="flex justify-end gap-0.5">
                 <ReasonButton variant="ghost-secondary" size="icon-sm" reason={disabledReason} tip="Restore" aria-label={`Restore ${it.name}`} onClick={() => onRestore([it.id])} data-testid="trash-restore">
-                  <UndoIcon />
+                  <RestoreIcon />
                 </ReasonButton>
                 <ReasonButton variant="ghost-secondary" size="icon-sm" reason={disabledReason} tip="Delete forever" aria-label={`Delete ${it.name} forever`} onClick={() => setConfirmDelete([it.id])} data-testid="trash-delete">
                   <DeleteIcon />

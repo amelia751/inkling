@@ -13,10 +13,13 @@ import { cn } from "@studio/ui/utils";
 import type { CardState } from "@/studio/stores/agent";
 import { isEditable, useStudio } from "@/studio/stores/studio";
 import type { Project, StudioItem } from "@studio/contracts/types";
-import { targetUrl } from "@/studio/lib/routes";
+import { filesUrl, targetUrl } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { fetchNode, projectKeys } from "@/studio/lib/projects-api";
-import { applyReorgPlan, planNodeIds, planSummary, undoReorgBatch } from "@/studio/lib/agent/reorg";
+import { planNodeIds, planSnapshot, planSummary, planToDiffOps, planToFsOps, reorgError, undoReorgBatch, type DiffNodeInfo } from "@/studio/lib/agent/reorg";
+import { useFsOps } from "@/studio/lib/files/api";
+import { useTabUndo } from "@/studio/lib/files/undo";
+import { ReorgDiff } from "@/studio/components/files/reorg-diff";
 import { useReorgPlans } from "@/studio/stores/reorg-plans";
 import { Markdown } from "./markdown";
 
@@ -359,11 +362,21 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
   const names = useMemo(() => new Map(ids.map((id, i) => [id, lookups[i]?.data?.name] as const)), [ids, lookups]);
   const refresh = () =>
     qc.invalidateQueries({ predicate: (q) => ["sources", "source-nodes", "files", "fs"].includes(String(q.queryKey[0])) || (q.queryKey[0] === "projects" && q.queryKey[1] === projectId) });
+  const fsOps = useFsOps(projectId);
+  // The before / after tree, once the touched nodes' current names are known.
+  const settled = lookups.every((l) => !l.isLoading);
+  const snapshot = useMemo(
+    () => planSnapshot(lookups.flatMap((l): DiffNodeInfo[] => (l.data ? [{ id: l.data.id, name: l.data.name, kind: l.data.kind, parentId: l.data.parentId }] : []))),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed when the lookups settle
+    [settled, ids],
+  );
+  const diffOps = useMemo(() => planToDiffOps(plan), [plan]);
   const apply = async () => {
     setBusy("apply");
     setError(null);
     try {
-      const r = await applyReorgPlan(projectId, plan);
+      // One fs/ops batch through the Files API (optimistic rows, this tab's undo label).
+      const r = await fsOps.mutateAsync(planToFsOps(plan)).catch((e: unknown) => Promise.reject(reorgError(e)));
       useReorgPlans.getState().setBatch(plan.id, r.batchId);
       setState("applied");
       void refresh();
@@ -378,7 +391,9 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
     setBusy("undo");
     setError(null);
     try {
-      await undoReorgBatch(projectId, batchId);
+      const r = await undoReorgBatch(projectId, batchId);
+      useTabUndo.getState().markUndone(r.undoneBatchId);
+      if (r.batchId) useTabUndo.getState().noteOwn(r.batchId);
       useReorgPlans.getState().setBatch(plan.id, null);
       setState("undone");
       void refresh();
@@ -391,8 +406,7 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
   const edit = () => {
     useReorgPlans.getState().put(projectId, plan);
     if (window.innerWidth < 1024) useShell.getState().setAssistant(false);
-    // TODO(todo7-integration): use the files route helper (`/projects/:p/files?plan=`) once routes land; `/sources` redirects there.
-    navigate(`${targetUrl(projectId, { section: "sources" })}?plan=${encodeURIComponent(plan.id)}`);
+    navigate(filesUrl(projectId, null, { plan: plan.id }));
   };
   const newName = new Map(plan.ops.flatMap((o) => (o.kind === "mkdir" ? [[o.ref, o.name] as const] : [])));
   const where = (parentId: string) => newName.get(parentId) ?? names.get(parentId) ?? "a folder";
@@ -421,7 +435,11 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
   return (
     <div data-testid="agent-reorg" data-plan-id={plan.id} data-state={state}>
       <Shell icon={FolderIcon} tone="ai" title={plan.title} meta={planSummary(plan)} footer={footer}>
-        {/* TODO(todo7-integration): use <ReorgDiff plan={plan} names={names} projectId={projectId} /> (components/files/reorg-diff.tsx, applyPlanToTree) for the before/after tree; this list is the stand-in. */}
+        {settled && snapshot.children?.length ? (
+          <div className="px-3 pb-2">
+            <ReorgDiff tree={snapshot} ops={diffOps} actions={false} steps={false} />
+          </div>
+        ) : null}
         <ul className="max-h-72 space-y-1.5 overflow-y-auto px-3 pb-3" data-testid="agent-reorg-diff">
           {plan.ops.map((o, i) => (
             <li key={i} className="flex gap-2" data-testid="agent-reorg-op" data-kind={o.kind}>

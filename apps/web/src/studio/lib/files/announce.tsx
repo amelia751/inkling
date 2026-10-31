@@ -34,6 +34,8 @@ export function LiveRegion() {
 export interface NotifyOptions {
   /** Adds an **Undo** action to the toast. */
   undo?: () => void;
+  /** Another action instead of Undo (e.g. "Copy instead" for sample data). */
+  action?: { label: string; onClick: () => void };
   /** Smaller second line (e.g. "12 identical files skipped", a dataset warning). */
   description?: string;
   tone?: "info" | "success" | "error";
@@ -48,7 +50,7 @@ const recent = new Map<string, { at: number; count: number; id: string | number 
  * Tell the person what happened: a toast plus the live region. Returns the toast id (to
  * update or dismiss it, e.g. a ZIP's progress).
  */
-export function notify(text: string, { undo, description, tone = "info", group = "files" }: NotifyOptions = {}): string | number {
+export function notify(text: string, { undo, action: extra, description, tone = "info", group = "files" }: NotifyOptions = {}): string | number {
   announce(description ? `${text}. ${description}` : text);
   const now = Date.now();
   const prev = recent.get(group);
@@ -59,7 +61,7 @@ export function notify(text: string, { undo, description, tone = "info", group =
   const options = {
     id,
     description: [description, more].filter(Boolean).join(" · ") || undefined,
-    action: undo ? { label: "Undo", onClick: () => undo() } : undefined,
+    action: undo ? { label: "Undo", onClick: () => undo() } : extra,
   };
   if (tone === "error") toast.error(text, options);
   else if (tone === "success") toast.success(text, options);

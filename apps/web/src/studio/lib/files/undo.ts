@@ -24,6 +24,9 @@ interface UndoState {
   markUndone: (batchId: string) => void;
   markRedone: (batchId: string) => void;
   clear: (projectId?: string) => void;
+  /** Batches this tab caused that aren't undo steps of their own (the undo and redo batches), newest last. */
+  own: string[];
+  noteOwn: (batchId: string) => void;
 }
 
 const MAX = 50;
@@ -31,6 +34,8 @@ const MAX = 50;
 export const useTabUndo = create<UndoState>((set) => ({
   done: [],
   undone: [],
+  own: [],
+  noteOwn: (batchId) => set((s) => ({ own: [...s.own.filter((x) => x !== batchId), batchId].slice(-MAX) })),
   record: (b) => set((s) => ({ done: [...s.done.filter((x) => x.batchId !== b.batchId), { ...b, at: Date.now() }].slice(-MAX), undone: s.undone.filter((x) => x.projectId !== b.projectId) })),
   markUndone: (batchId) =>
     set((s) => {

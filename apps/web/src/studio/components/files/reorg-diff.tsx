@@ -200,16 +200,20 @@ export interface ReorgDiffProps {
   ops: ReorgOp[];
   /** The plan's headline, e.g. "Group by patient: 47 folders → patient_001…047". */
   summary?: string;
-  onApply: () => void;
+  onApply?: () => void;
   /** Opens the plan in Files with every op as a checkbox. */
   onEdit?: () => void;
-  onDismiss: () => void;
+  onDismiss?: () => void;
   applying?: boolean;
   /** Set: Apply is inert with this reason (e.g. "Needs the full stack", or the plan has errors). */
   applyDisabledReason?: string | null;
+  /** Show the Apply / Edit / Dismiss row (default true; a host with its own footer turns it off). */
+  actions?: boolean;
+  /** Show the collapsible list of steps (default true). */
+  steps?: boolean;
 }
 
-export function ReorgDiff({ tree, ops, summary, onApply, onEdit, onDismiss, applying, applyDisabledReason }: ReorgDiffProps) {
+export function ReorgDiff({ tree, ops, summary, onApply, onEdit, onDismiss, applying, applyDisabledReason, actions = true, steps = true }: ReorgDiffProps) {
   const plan = useMemo(() => applyPlanToTree(tree, ops), [tree, ops]);
   const [stepsOpen, setStepsOpen] = useState(false);
   const { stats } = plan;
@@ -236,7 +240,7 @@ export function ReorgDiff({ tree, ops, summary, onApply, onEdit, onDismiss, appl
           ))}
         </ul>
       )}
-      <div>
+      {steps && <div>
         <button type="button" className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground" aria-expanded={stepsOpen} onClick={() => setStepsOpen((o) => !o)} data-testid="reorg-steps-toggle">
           {stepsOpen ? <ChevronDownIcon className="size-3" aria-hidden /> : <ChevronRightIcon className="size-3" aria-hidden />}
           {plural(ops.length, "step")}
@@ -251,12 +255,12 @@ export function ReorgDiff({ tree, ops, summary, onApply, onEdit, onDismiss, appl
             ))}
           </ol>
         )}
-      </div>
-      <div className="flex flex-wrap justify-end gap-2">
+      </div>}
+      {actions && <div className="flex flex-wrap justify-end gap-2">
         <Button variant="ghost-secondary" onClick={onDismiss} data-testid="reorg-dismiss">Dismiss</Button>
         {onEdit && <Button variant="outline" onClick={onEdit} data-testid="reorg-edit">Edit</Button>}
         <ReasonButton reason={applyDisabledReason} loading={applying} onClick={onApply} data-testid="reorg-apply">Apply</ReasonButton>
-      </div>
+      </div>}
     </div>
   );
 }

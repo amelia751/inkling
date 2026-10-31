@@ -37,8 +37,9 @@ export function useProjectEvents(projectId: string | undefined) {
     const refresh = (keys: unknown[][]) => () => keys.forEach((queryKey) => void qc.invalidateQueries({ queryKey }));
     const project = ["projects", projectId];
     const on = {
-      "import.updated": refresh([project, ["sources"]]),
-      "source.node.inspected": refresh([project, ["sources"], ["source-nodes"]]),
+      // The drive (todo7) lists imported files too: its children pages follow imports and inspection.
+      "import.updated": refresh([project, ["sources"], ["files", projectId]]),
+      "source.node.inspected": refresh([project, ["sources"], ["source-nodes"], ["files", projectId, "children"]]),
       "proposal.created": refresh([project]),
       "proposal.decided": refresh([project, ["tasks"]]),
     };

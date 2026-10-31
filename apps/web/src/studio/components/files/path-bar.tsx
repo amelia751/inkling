@@ -50,6 +50,13 @@ export interface PathBarProps {
   folderMenu?: (segment: PathSegment) => ReactNode;
   /** Most segments shown before the middle collapses into `…` (default 4). */
   maxSegments?: number;
+  /**
+   * Attributes that make a segment a target of the page's own drag controller (instead of
+   * `onDropOnSegment`'s handlers), e.g. `fsDropTargetProps(id, name)`.
+   */
+  dropAttrs?: (id: string, name: string) => Record<string, string> | undefined;
+  /** The segment the page's drag controller has under the pointer (highlighted). */
+  dropHighlightId?: string | null;
 }
 
 type Item = { type: "seg"; seg: PathSegment; last: boolean } | { type: "more"; hidden: PathSegment[] };
@@ -58,8 +65,9 @@ type Load = { state: "loading" } | { state: "error" } | { state: "ready"; folder
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function PathBar(props: PathBarProps) {
-  const { rootLabel = "Files", rootId, segments, hrefFor, loading, searching, onCopyPath, loadSubfolders, onDropOnSegment, acceptsDrop, folderMenu, maxSegments = 4 } = props;
-  const [over, setOver] = useState<string | null>(null);
+  const { rootLabel = "Files", rootId, segments, hrefFor, loading, searching, onCopyPath, loadSubfolders, onDropOnSegment, acceptsDrop, folderMenu, maxSegments = 4, dropAttrs, dropHighlightId } = props;
+  const [ownOver, setOver] = useState<string | null>(null);
+  const over = dropHighlightId ?? ownOver;
   const [loads, setLoads] = useState<Record<string, Load>>({});
 
   const load = (id: string) => {
@@ -71,7 +79,8 @@ export function PathBar(props: PathBarProps) {
     );
   };
 
-  const dropProps = (id: string | null | undefined) => {
+  const dropProps = (id: string | null | undefined, name = "") => {
+    if (id && dropAttrs) return { "data-drop-segment": id, ...(dropAttrs(id, name) ?? {}) };
     if (!id || !onDropOnSegment) return {};
     const ok = (e: React.DragEvent) => (acceptsDrop ? acceptsDrop(id, e) : true);
     return {
@@ -124,7 +133,7 @@ export function PathBar(props: PathBarProps) {
   const segClass = "truncate rounded-sm px-1 text-muted-foreground hover:bg-generic hover:text-foreground";
   return (
     <nav aria-label="Folder path" className="flex min-w-0 flex-1 items-center gap-0.5 text-sm" data-testid="path-bar">
-      <Link to={hrefFor(null)} className={cn("shrink-0 rounded-sm px-1 hover:bg-generic", segments.length || searching ? "text-muted-foreground" : "font-semibold", over === rootId && DROP_HIGHLIGHT)} data-testid="path-root" {...dropProps(rootId)}>
+      <Link to={hrefFor(null)} className={cn("shrink-0 rounded-sm px-1 hover:bg-generic", segments.length || searching ? "text-muted-foreground" : "font-semibold", over === rootId && DROP_HIGHLIGHT)} data-testid="path-root" data-node-id={rootId ?? undefined} {...dropProps(rootId, rootLabel)}>
         {searching ? "Search results" : rootLabel}
       </Link>
       {loading && <Skeleton className="ml-1 h-3 w-40" />}
@@ -138,7 +147,7 @@ export function PathBar(props: PathBarProps) {
                 {lead}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button type="button" className={segClass} aria-label={`${it.hidden.length} more folders`} title={it.hidden.map((h) => h.name).join(" / ")} data-testid="path-collapsed" {...dropProps(it.hidden.at(-1)!.id)}>
+                    <button type="button" className={segClass} aria-label={`${it.hidden.length} more folders`} title={it.hidden.map((h) => h.name).join(" / ")} data-testid="path-collapsed" {...dropProps(it.hidden.at(-1)!.id, it.hidden.at(-1)!.name)}>
                       …
                     </button>
                   </DropdownMenuTrigger>
@@ -161,12 +170,12 @@ export function PathBar(props: PathBarProps) {
             <span key={seg.id} className={cn("flex items-center gap-0.5", last ? "min-w-0" : "min-w-0 max-w-[12rem] shrink")}>
               {lead}
               {last ? (
-                <span className={cn("flex min-w-0 items-center gap-1 rounded-sm px-1 font-semibold", over === seg.id && DROP_HIGHLIGHT)} data-testid="path-current" {...dropProps(seg.id)}>
+                <span className={cn("flex min-w-0 items-center gap-1 rounded-sm px-1 font-semibold", over === seg.id && DROP_HIGHLIGHT)} data-testid="path-current" data-node-id={seg.id} {...dropProps(seg.id, seg.name)}>
                   <span className="truncate">{seg.name}</span>
                   {seg.locked && <LockIcon className="size-3 shrink-0 text-hint" aria-label="Sample data" />}
                 </span>
               ) : (
-                <Link to={hrefFor(seg.id)} className={cn(segClass, over === seg.id && DROP_HIGHLIGHT)} data-testid="path-segment" data-node-id={seg.id} {...dropProps(seg.id)}>
+                <Link to={hrefFor(seg.id)} className={cn(segClass, over === seg.id && DROP_HIGHLIGHT)} data-testid="path-segment" data-node-id={seg.id} {...dropProps(seg.id, seg.name)}>
                   {seg.name}
                 </Link>
               )}

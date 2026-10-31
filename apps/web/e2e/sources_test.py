@@ -139,13 +139,14 @@ def main() -> int:
         page.get_by_role("button", name="Clear").click()
         page.wait_for_timeout(400)
 
-        # Context menu is read-only: no rename, move or delete of a file.
+        # Context menu (todo7 §2): sample data is locked, so edit items show disabled with the reason.
         page.locator("[role=treeitem]").filter(has_text="pneumonia").click(button="right")
         menu = page.locator("[data-testid=sources-context-menu]")
         menu.wait_for(timeout=5000)
-        items = menu.get_by_role("menuitem").all_inner_texts()
-        check("context menu: open, explore, copy path", {"Open", "Show in Explore", "Copy path"} <= set(items), str(items))
-        check("context menu has no rename/move/delete", not any(re.search(r"rename|move|delete", i, re.I) for i in items))
+        items = [i.split("\n")[0] for i in menu.get_by_role("menuitem").all_inner_texts()]
+        check("context menu (sample): open, copy to, download, copy path", {"Open", "Copy to…", "Download as ZIP", "Copy path"} <= set(items), str(items))
+        disabled = menu.locator("[role=menuitem][data-disabled]").all_inner_texts()
+        check("context menu: rename, move and trash are disabled with the reason", all(any(i.startswith(w) and "Sample data can't be changed" in i for i in disabled) for w in ("Rename", "Move to…", "Move to Trash")), str(disabled))
         page.keyboard.press("Escape")
 
         # Reveal: a link to a nested file opens its folders and selects it.
@@ -160,8 +161,13 @@ def main() -> int:
         hr = page.evaluate("async () => (await (await fetch('/api/v1/projects/ecg-waveform/search?q=HR00005')).json()).items[0].id")
         page.goto(f"{base}/projects/ecg-waveform/sources/{hr}")
         page.wait_for_function("document.querySelectorAll('[data-testid=listing-row]').length === 10", timeout=15000)
-        check("a file in a run lists the run", SEQ in page.locator("[data-testid=path-current]").inner_text())
         check("and selects the file", page.locator("[data-testid=listing-row][aria-selected=true] [data-testid=row-name]").inner_text() == "HR00005.json")
+        # todo7 §2: the selection bar replaces the toolbar while something is selected; Esc clears it.
+        check("the selection bar says 1 selected", page.locator("[data-testid=selection-count]").inner_text() == "1 selected")
+        page.locator("body").click(position={"x": 5, "y": 890})
+        page.keyboard.press("Escape")
+        page.locator("[data-testid=path-current]").wait_for(timeout=5000)
+        check("a file in a run lists the run", SEQ in page.locator("[data-testid=path-current]").inner_text())
         page.wait_for_selector("[role=treeitem][aria-selected=true]:has-text('HR00005.json')", timeout=15000)
         check("and reveals it inside the run in the tree", True)
 

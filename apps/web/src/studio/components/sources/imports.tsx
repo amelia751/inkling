@@ -70,10 +70,12 @@ export function ImportsList({ sessions, selectedId, onOpen }: { sessions: Import
 
 const FILE_STATE: Record<string, string> = { pending: "Not uploaded yet", uploaded: "Uploaded", skipped_duplicate: "Already in this project", rejected: "Not accepted", failed: "Didn't upload" };
 
-export function ImportSummary({ id, projectId, sources, onClose }: { id: string; projectId: string; sources: SourceSummary[]; onClose: () => void }) {
+export function ImportSummary({ id, projectId, sources, onClose, onTrash, trashReason }: { id: string; projectId: string; sources: SourceSummary[]; onClose: () => void; onTrash?: (source: SourceSummary) => void; trashReason?: (source: SourceSummary) => string | null }) {
   const q = useImport(id);
   const s = q.data;
-  const root = s ? sources.find((x) => x.id === s.sourceId)?.rootNodeId : undefined;
+  const source = s ? sources.find((x) => x.id === s.sourceId) : undefined;
+  const root = source?.rootNodeId ?? s?.targetNodeId ?? undefined;
+  const why = source && trashReason ? trashReason(source) : null;
   return (
     <div className="thin-scrollbar h-full overflow-y-auto p-5" data-testid="import-summary">
       <div className="mb-4 flex items-start gap-3">
@@ -88,6 +90,11 @@ export function ImportSummary({ id, projectId, sources, onClose }: { id: string;
         {root && (
           <Button variant="outline" asChild>
             <Link to={sourcesUrl(projectId, root)}>Show files</Link>
+          </Button>
+        )}
+        {source?.rootNodeId && onTrash && (
+          <Button variant="outline" disabled={!!why} title={why ?? undefined} onClick={() => onTrash(source)} data-testid="import-trash">
+            Move import to Trash
           </Button>
         )}
         <Button variant="ghost-secondary" size="icon" onClick={onClose} aria-label="Close import summary">

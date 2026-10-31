@@ -29,6 +29,10 @@ export interface TreeFooterProps {
   onDropOnNode?: (node: SourceNode, dataTransfer: DataTransfer) => void;
   /** May this drag drop here? (Only types are readable during a drag.) Default: yes, for folders. */
   acceptsDrop?: (node: SourceNode, e: React.DragEvent) => boolean;
+  /** Attributes that make a starred folder a target of the page's drag controller (instead of `onDropOnNode`). */
+  dropAttrs?: (node: SourceNode) => Record<string, string> | undefined;
+  /** The starred folder the page's drag controller has under the pointer (highlighted). */
+  dropHighlightId?: string | null;
 }
 
 const MAX_ROWS = 8;
@@ -53,7 +57,7 @@ function writeOpen(o: Open) {
   }
 }
 
-export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash, trashActive, onOpenImports, importsCount, importsActive, onDropOnNode, acceptsDrop }: TreeFooterProps) {
+export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash, trashActive, onOpenImports, importsCount, importsActive, onDropOnNode, acceptsDrop, dropAttrs, dropHighlightId }: TreeFooterProps) {
   const [open, setOpen] = useState<Open>(readOpen);
   const toggle = (k: keyof Open) =>
     setOpen((o) => {
@@ -66,7 +70,7 @@ export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash,
       {starred.length > 0 && (
         <Section id="starred" title="Starred" open={open.starred} onToggle={() => toggle("starred")}>
           {starred.slice(0, MAX_ROWS).map((s) => (
-            <ShortcutRow key={s.node.id} s={s} onReveal={onReveal} onDropOnNode={onDropOnNode} acceptsDrop={acceptsDrop} />
+            <ShortcutRow key={s.node.id} s={s} onReveal={onReveal} onDropOnNode={onDropOnNode} acceptsDrop={acceptsDrop} attrs={s.node.kind === "folder" ? dropAttrs?.(s.node) : undefined} highlighted={dropHighlightId === s.node.id} />
           ))}
         </Section>
       )}
@@ -112,7 +116,7 @@ function Section({ id, title, open, onToggle, children }: { id: string; title: s
   );
 }
 
-function ShortcutRow({ s, onReveal, showWhen, onDropOnNode, acceptsDrop }: { s: FsShortcut; onReveal: (n: SourceNode) => void; showWhen?: boolean; onDropOnNode?: TreeFooterProps["onDropOnNode"]; acceptsDrop?: TreeFooterProps["acceptsDrop"] }) {
+function ShortcutRow({ s, onReveal, showWhen, onDropOnNode, acceptsDrop, attrs, highlighted }: { s: FsShortcut; onReveal: (n: SourceNode) => void; showWhen?: boolean; onDropOnNode?: TreeFooterProps["onDropOnNode"]; acceptsDrop?: TreeFooterProps["acceptsDrop"]; attrs?: Record<string, string>; highlighted?: boolean }) {
   const [over, setOver] = useState(false);
   const n = s.node;
   const Icon = nodeIcon(n);
@@ -124,9 +128,10 @@ function ShortcutRow({ s, onReveal, showWhen, onDropOnNode, acceptsDrop }: { s: 
         type="button"
         onClick={() => onReveal(n)}
         title={n.folderPath ? `${n.folderPath}/${n.name}` : n.name}
-        className={cn("flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-generic", over && DROP_HIGHLIGHT)}
+        className={cn("flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-generic", (over || highlighted) && DROP_HIGHLIGHT)}
         data-testid="tree-footer-row"
         data-node-id={n.id}
+        {...attrs}
         onDragOver={(e) => {
           if (!accepts(e)) return;
           e.preventDefault();

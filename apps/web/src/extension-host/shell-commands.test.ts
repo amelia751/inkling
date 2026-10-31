@@ -12,7 +12,7 @@ const coreCommand = (name: string) => ns(`core.commands.${name}`);
 describe("shell commands", () => {
   const SOURCES = ["quickLook", "openItem", "parentFolder", "focusSearch"].map(coreCommand);
   // todo7 §2 Keyboard: the file operations, declared the same way.
-  const FILES = ["newFolder", "rename", "cut", "copy", "paste", "duplicate", "moveToTrash", "clearSelection", "expandAllBelow", "toggleInspector"].map(coreCommand);
+  const FILES = ["newFolder", "rename", "cut", "copy", "paste", "duplicate", "moveToTrash", "clearSelection", "expandAllBelow", "toggleInspector", "contextMenu"].map(coreCommand);
 
   it.each(["image-2d", "video", "cine-4d", "ecg"])("preset:%s leaves the Sources keys out of the Studio", (id) => {
     const r = resolveEnvironment({ extends: `preset:${id}`, labels: labelGroupsFrom(["a"], "classification") }, registry);

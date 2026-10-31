@@ -19,6 +19,9 @@ import { createDataset, fetchChildren, fetchSources, NeedsApiError, projectKeys,
 import { datasetUrl, exploreUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
 import { VersionsPage } from "@/studio/core/versioning";
 import { ExportPage } from "./ExportPage";
+import { FollowedFoldersBanner, NewerVersionsBanner } from "@/studio/components/files";
+import { fetchUpdateVersionsPreview, useAddFollowed, useUpdateVersions } from "@/studio/lib/files/api";
+import { notify } from "@/studio/lib/files/announce";
 import { FullPageMessage } from "./shared";
 
 /**
@@ -131,6 +134,42 @@ function TaskList({ projectId, tasks }: { projectId: string; tasks: TaskSummary[
 
 // ---- Dataset detail ---------------------------------------------------------------------------
 
+/**
+ * todo7 D6 / D7: a dataset pins file versions and freezes its file list, so these say when it
+ * could change: newer versions of its files (Update, with a preview), and new files in the
+ * folders it followed (Add them).
+ */
+function DatasetBanners({ projectId, dataset }: { projectId: string; dataset: DatasetSummary }) {
+  const update = useUpdateVersions(projectId, dataset.id);
+  const addFollowed = useAddFollowed(projectId, dataset.id);
+  const s = dataset.staleness;
+  if (!s || (!s.newerVersions && !s.newFilesInFollowed)) return null;
+  const fail = (e: unknown) => notify(e instanceof NeedsApiError ? "Needs the full stack" : e instanceof Error ? e.message : String(e), { tone: "error" });
+  return (
+    <div className="mb-4 space-y-2" data-testid="dataset-banners">
+      <NewerVersionsBanner
+        count={s.newerVersions}
+        loadPreview={() => fetchUpdateVersionsPreview(projectId, dataset.id).then((r) => r.files)}
+        onUpdate={async (nodeIds) => {
+          await update.mutateAsync({ nodeIds });
+          notify(`Updated ${nodeIds.length} ${nodeIds.length === 1 ? "file" : "files"} to the newest version`, { tone: "success" });
+        }}
+      />
+      <FollowedFoldersBanner
+        count={s.newFilesInFollowed}
+        folders={s.followedFolderNames}
+        busy={addFollowed.isPending}
+        onAdd={() =>
+          addFollowed.mutateAsync().then(
+            () => void notify(`Added ${s.newFilesInFollowed} new ${s.newFilesInFollowed === 1 ? "file" : "files"} to ${dataset.title}`, { tone: "success" }),
+            (e: unknown) => void fail(e),
+          )
+        }
+      />
+    </div>
+  );
+}
+
 type DatasetTab = "tasks" | "versions" | "publish";
 
 /** `/projects/:p/datasets/:d` (+ `/versions`, `/publish`): the dataset's tabs, one shell. */
@@ -155,6 +194,7 @@ export function DatasetDetailPage({ tab }: { tab: DatasetTab }) {
           <TabLink to={datasetUrl(projectId, datasetId, "versions")}>Versions</TabLink>
           <TabLink to={datasetUrl(projectId, datasetId, "publish")}>Publish & export</TabLink>
         </nav>
+        {d && <DatasetBanners projectId={projectId} dataset={d} />}
         {tab === "tasks" &&
           (d ? (
             <Card className="overflow-hidden" data-testid="dataset-tasks">

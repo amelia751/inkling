@@ -391,7 +391,7 @@ AppShell
 │   │   ├── ResumeWorkCard
 │   │   ├── SourceSummaryCards
 │   │   └── AttentionQueue
-│   ├── SourcesPage
+│   ├── FilesPage
 │   ├── ExplorePage
 │   │   ├── ShapeSummary
 │   │   ├── DataPreview

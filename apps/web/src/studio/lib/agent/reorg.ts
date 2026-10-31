@@ -1,7 +1,18 @@
 import type { ReorgOp, ReorgPlan } from "@studio/agent-protocol";
 import type { FsConflictError, FsOp, FsOpsRequest, FsOpsResult, FsUndoResult } from "@studio/contracts/types";
-import { apiUrl } from "@/extension-host/runtime-config";
-import { api, ApiError } from "@/studio/lib/projects-api";
+import { ApiError, FsConflictApiError, NeedsApiError, postFsOps, postUndo } from "@/studio/lib/files/api";
+
+/** `ReorgDiff`'s shapes (components/files/reorg-diff.tsx), restated so this module stays React-free. */
+export type DiffOp =
+  | { kind: "mkdir"; id: string; parentId: string; name: string; reason: string }
+  | { kind: "move"; nodeIds: string[]; parentId: string; reason: string }
+  | { kind: "rename"; nodeId: string; name: string; reason: string };
+export interface DiffTreeNode {
+  id: string;
+  name: string;
+  kind: "folder" | "file" | "sequence";
+  children?: DiffTreeNode[];
+}
 
 /**
  * Reorganization plans (todo7 Phase 8): the assistant's `propose_reorganization` becomes a card;
@@ -154,17 +165,54 @@ export function planToFsOps(plan: ReorgPlan, opts: { include?: ReadonlySet<numbe
   return { ops };
 }
 
-/**
- * Apply as the signed-in person (the browser's own credentials, never the agent's token).
- * TODO(todo7-integration): call through `apps/web/src/studio/lib/files/api.ts` (conflict
- * dialog, optimistic rows) once it lands; the wire shape is the same (docs/files-api.md).
- */
+/** Apply as the signed-in person (the browser's own credentials, never the agent's token), through the Files API. */
 export async function applyReorgPlan(projectId: string, plan: ReorgPlan, include?: ReadonlySet<number>): Promise<FsOpsResult> {
-  const body = planToFsOps(plan, { include });
-  const res = await fetch(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/fs/ops`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (res.ok) return (await res.json()) as FsOpsResult;
-  const detail = ((await res.json().catch(() => ({}))) as { detail?: unknown }).detail;
-  throw new ApiError(res.status, applyErrorText(res.status, detail));
+  try {
+    return await postFsOps(projectId, planToFsOps(plan, { include }));
+  } catch (e) {
+    throw reorgError(e);
+  }
+}
+
+/** The Files API's typed error as the card's sentence (409 names the conflicts). */
+export function reorgError(e: unknown): Error {
+  if (e instanceof FsConflictApiError) return new ApiError(409, applyErrorText(409, { message: e.message, conflicts: e.conflicts }));
+  if (e instanceof NeedsApiError) return new ApiError(501, applyErrorText(501, null));
+  if (e instanceof ApiError) return new ApiError(e.status, applyErrorText(e.status, (e.body as { detail?: unknown } | undefined)?.detail ?? e.message));
+  return e instanceof Error ? e : new Error(String(e));
+}
+
+/**
+ * The plan as `ReorgDiff` input: the agent protocol's mkdir ops name their folder by
+ * `ref: "new:<handle>"`; the diff wants an `id`. The ref is unique within the plan, so it serves
+ * as the stable client id (later moves already use it as their `parentId`). Wire types unchanged.
+ */
+export function planToDiffOps(plan: ReorgPlan): DiffOp[] {
+  return plan.ops.map((o): DiffOp => (o.kind === "mkdir" ? { kind: "mkdir", id: o.ref, parentId: o.parentId, name: o.name, reason: o.reason } : o.kind === "move" ? { kind: "move", nodeIds: o.nodeIds, parentId: o.parentId, reason: o.reason } : { kind: "rename", nodeId: o.nodeId, name: o.name, reason: o.reason }));
+}
+
+/** What the diff needs to know about an existing node (from its detail). */
+export interface DiffNodeInfo {
+  id: string;
+  name: string;
+  kind: "folder" | "file" | "sequence";
+  parentId: string | null;
+}
+
+/**
+ * A snapshot tree for the diff from the nodes the plan touches: each node under its parent when
+ * the parent is known, else under a "Files" root. Enough for before/after of what moves.
+ */
+export function planSnapshot(nodes: DiffNodeInfo[]): DiffTreeNode {
+  const root: DiffTreeNode = { id: "__root__", name: "Files", kind: "folder", children: [] };
+  const byId = new Map<string, DiffTreeNode>(nodes.map((n) => [n.id, { id: n.id, name: n.name, kind: n.kind, ...(n.kind === "file" ? {} : { children: [] }) }]));
+  for (const n of nodes) {
+    const me = byId.get(n.id)!;
+    const parent = (n.parentId && byId.get(n.parentId)) || root;
+    if (parent === me) continue;
+    (parent.children ??= []).push(me);
+  }
+  return root;
 }
 
 /** A sentence for the card: 409 names the conflicts (a plan has no conflict dialog; Edit in Files does). */
@@ -182,5 +230,4 @@ export function applyErrorText(status: number, detail: unknown): string {
 }
 
 /** Undo exactly that batch (the server refuses, 409 with a sentence, when something changed since). */
-export const undoReorgBatch = (projectId: string, batchId: string) =>
-  api<FsUndoResult>(`/projects/${encodeURIComponent(projectId)}/fs/undo`, { method: "POST", json: { batchId } });
+export const undoReorgBatch = (projectId: string, batchId: string): Promise<FsUndoResult> => postUndo(projectId, batchId).catch((e: unknown) => Promise.reject(reorgError(e)));

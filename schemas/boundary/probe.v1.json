@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BoundaryProbeResult",
+  "$defs": {
+    "BoundaryProbeResult": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "boundary.probe/v1"
+        },
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "sampleDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "answers": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "op": {
+                "type": "string",
+                "enum": [
+                  "magic",
+                  "read_int",
+                  "read_float",
+                  "find",
+                  "read_text",
+                  "field_names",
+                  "section_sizes",
+                  "size"
+                ]
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "error": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "out_of_range",
+                      "unsupported",
+                      "budget_exhausted"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "anyOf": [
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^-?\\d{1,20}$"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[A-Za-z0-9 _.:/-]{0,32}$"
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^<redacted:\\d{1,5}>$"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "offsets": {
+                "anyOf": [
+                  {
+                    "maxItems": 16,
+                    "type": "array",
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "names": {
+                "anyOf": [
+                  {
+                    "maxItems": 512,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                        },
+                        {
+                          "type": "string",
+                          "pattern": "^<redacted:\\d{1,5}>$"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sections": {
+                "anyOf": [
+                  {
+                    "maxItems": 64,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                            },
+                            {
+                              "type": "string",
+                              "pattern": "^<redacted:\\d{1,5}>$"
+                            }
+                          ]
+                        },
+                        "offset": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "length": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "header",
+                            "data",
+                            "metadata",
+                            "padding",
+                            "unknown"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "offset",
+                        "length",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "op",
+              "ok",
+              "error",
+              "value",
+              "offsets",
+              "names",
+              "sections"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "used": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "remaining": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "used",
+            "limit",
+            "remaining"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "sampleId",
+        "sampleDigest",
+        "answers",
+        "budget"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/boundary/probe.v1"
+}

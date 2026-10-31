@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/BoundaryVerifyReport",
+  "$defs": {
+    "BoundaryVerifyReport": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "const": "boundary.verify-report/v1"
+        },
+        "pass": {
+          "type": "boolean"
+        },
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "sampleDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "sourceDigest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "load",
+            "convert",
+            "check",
+            "done"
+          ]
+        },
+        "errorClass": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "ImportError",
+                "ModuleNotFoundError",
+                "SyntaxError",
+                "IndentationError",
+                "NameError",
+                "AttributeError",
+                "TypeError",
+                "ValueError",
+                "KeyError",
+                "IndexError",
+                "LookupError",
+                "AssertionError",
+                "ZeroDivisionError",
+                "OverflowError",
+                "ArithmeticError",
+                "MemoryError",
+                "RecursionError",
+                "NotImplementedError",
+                "RuntimeError",
+                "OSError",
+                "FileNotFoundError",
+                "PermissionError",
+                "EOFError",
+                "UnicodeError",
+                "UnicodeDecodeError",
+                "StructError",
+                "BufferError",
+                "StopIteration",
+                "TimeoutError",
+                "NetworkBlocked",
+                "ProcessBlocked",
+                "WriteBlocked",
+                "EntrypointMissing",
+                "OutputInvalid",
+                "NoOutput",
+                "Timeout",
+                "MemoryLimit",
+                "Crash",
+                "Other"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorFile": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*\\/)*[A-Za-z0-9_-][A-Za-z0-9_.-]*$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "errorLine": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "outputs": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$"
+                  },
+                  {
+                    "type": "string",
+                    "pattern": "^<redacted:\\d{1,5}>$"
+                  }
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "array",
+                  "table",
+                  "scalar",
+                  "bytes",
+                  "mapping",
+                  "list",
+                  "none",
+                  "unknown"
+                ]
+              },
+              "dtype": {
+                "type": "string",
+                "enum": [
+                  "bool",
+                  "int8",
+                  "uint8",
+                  "int16",
+                  "uint16",
+                  "int32",
+                  "uint32",
+                  "int64",
+                  "uint64",
+                  "float16",
+                  "float32",
+                  "float64",
+                  "complex64",
+                  "complex128",
+                  "string",
+                  "bytes",
+                  "datetime",
+                  "object",
+                  "unknown"
+                ]
+              },
+              "shape": {
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "min": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "max": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "mean": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "nanCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "dtype",
+              "shape",
+              "min",
+              "max",
+              "mean",
+              "nanCount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "timedOut": {
+          "type": "boolean"
+        },
+        "toolchain": {
+          "type": "object",
+          "properties": {
+            "python": {
+              "type": "string",
+              "pattern": "^\\d+\\.\\d+\\.\\d+$"
+            },
+            "runner": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{1,32}$"
+            }
+          },
+          "required": [
+            "python",
+            "runner"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "schema",
+        "pass",
+        "sampleId",
+        "sampleDigest",
+        "sourceDigest",
+        "stage",
+        "errorClass",
+        "errorFile",
+        "errorLine",
+        "outputs",
+        "durationMs",
+        "timedOut",
+        "toolchain"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/boundary/verify-report.v1"
+}

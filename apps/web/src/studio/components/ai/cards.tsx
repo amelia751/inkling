@@ -393,6 +393,7 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
     try {
       const r = await undoReorgBatch(projectId, batchId);
       useTabUndo.getState().markUndone(r.undoneBatchId);
+      if (r.batchId) useTabUndo.getState().noteOwn(r.batchId);
       useReorgPlans.getState().setBatch(plan.id, null);
       setState("undone");
       void refresh();

@@ -501,6 +501,7 @@ function useUndoRedo(projectId: string, dir: "undo" | "redo") {
     mutationFn: (v) => (dir === "undo" ? postUndo : postRedo)(projectId, v ? v.batchId : undefined),
     onSuccess: (res) => {
       const tab = useTabUndo.getState();
+      if (res.batchId) tab.noteOwn(res.batchId);
       if (dir === "undo") tab.markUndone(res.undoneBatchId);
       else tab.markRedone(res.undoneBatchId);
       invalidateFolders(qc, projectId, res.parentIds);

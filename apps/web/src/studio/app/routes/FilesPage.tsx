@@ -403,8 +403,15 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         setPendingEdit(null);
       }
     } else if (tree.current?.lookup(pendingEdit.id)) {
-      tree.current.edit(pendingEdit.id);
-      setPendingEdit(null);
+      // The tree takes the new row on its next render: retry for a moment.
+      const id = pendingEdit.id;
+      let tries = 0;
+      const attempt = () => {
+        if (tree.current?.edit(id)) return setPendingEdit((p) => (p?.id === id ? null : p));
+        if (++tries < 20) timer = window.setTimeout(attempt, 50);
+      };
+      let timer = window.setTimeout(attempt, 0);
+      return () => window.clearTimeout(timer);
     }
   }, [pendingEdit, items, treeTick]);
 

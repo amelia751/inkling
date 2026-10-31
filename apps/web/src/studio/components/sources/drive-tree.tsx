@@ -28,7 +28,8 @@ export interface DriveTreeHandle {
   /** The row that has keyboard focus, if any. */
   focused: () => SourceNode | undefined;
   lookup: (id: string) => SourceNode | undefined;
-  edit: (id: string) => void;
+  /** False while the row isn't in the tree yet. */
+  edit: (id: string) => boolean;
   closeAll: () => void;
   openRecursive: (id: string, cap?: number) => boolean;
   open: (id: string) => void;
@@ -164,7 +165,7 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
     focus: () => tree.current?.focus(),
     focused: () => (focusedId.current ? known.current.get(focusedId.current) : undefined),
     lookup: (id) => known.current.get(id),
-    edit: (id) => tree.current?.edit(id),
+    edit: (id) => tree.current?.edit(id) ?? false,
     closeAll: () => {
       tree.current?.closeAll();
       setOpen([]);

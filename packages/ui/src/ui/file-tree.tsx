@@ -61,8 +61,8 @@ export interface FileTreeHandle {
   reveal: (id: string) => void
   focus: () => void
   api: () => TreeApi<FileTreeNode> | null | undefined
-  /** Open the rename field on a node (no-op when the tree or the node isn't editable). */
-  edit: (id: string) => void
+  /** Open the rename field on a node; false when the tree doesn't show it (yet) or it isn't editable. */
+  edit: (id: string) => boolean
   /** Collapse every folder (`onToggle` reports each). */
   closeAll: () => void
   /**
@@ -276,9 +276,10 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
     edit: (id) => {
       const t = tree.current
       const n = t?.get(id)
-      if (!t || !n || !isEditable(n.data)) return
+      if (!t || !n || !isEditable(n.data)) return false
       t.openParents(id)
       void t.edit(id)
+      return true
     },
     closeAll: () => {
       recursive.current.clear()
@@ -354,11 +355,9 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
   const initialOpenState = React.useMemo(() => Object.fromEntries((initialOpen ?? []).map((id) => [id, true])), [initialOpen])
 
   const extras: RowExtras = { flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, dropRefusal: refusal, dndOn }
-  const Node = React.useCallback(
-    (props: NodeRendererProps<FileTreeNode>) => <TreeRow {...props} {...extras} />,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [flash, dropTargetId, cut, onContextMenu, rowActions, validate, onRenameCancel, refusal, dndOn],
-  )
+  // Rows read these through context: a new renderer would remount every row, and remounting the
+  // dragged row cancels a native drag (e.g. when the drop target or a callback changes mid-drag).
+  const Node = React.useCallback((props: NodeRendererProps<FileTreeNode>) => <ContextRow {...props} />, [])
 
   const Preview = React.useCallback(
     ({ mouse, id, dragIds, isDragging }: DragPreviewProps) => {
@@ -413,6 +412,7 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
       }}
     >
       {size.height > 0 && (
+        <RowExtrasContext.Provider value={extras}>
         <Tree<FileTreeNode>
           ref={tree}
           data={data}
@@ -471,10 +471,18 @@ export const FileTree = React.forwardRef<FileTreeHandle, FileTreeProps>(function
         >
           {Node}
         </Tree>
+        </RowExtrasContext.Provider>
       )}
     </div>
   )
 })
+
+const RowExtrasContext = React.createContext<RowExtras | null>(null)
+
+function ContextRow(props: NodeRendererProps<FileTreeNode>) {
+  const extras = React.useContext(RowExtrasContext)!
+  return <TreeRow {...props} {...extras} />
+}
 
 /** The element arborist scrolls (react-window's outer div, the one with overflow). */
 function scrollerOf(box: HTMLElement | null): HTMLElement | null {

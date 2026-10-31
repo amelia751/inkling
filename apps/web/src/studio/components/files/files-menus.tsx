@@ -228,6 +228,8 @@ export function menuItems(rowType: FilesRowType, ctx: MenuContext = {}): MenuEnt
         { id: "copyTo", label: "Copy to…", icon: ICONS.copy, disabled: writable ? null : NEEDS_FULL_STACK, group: 0 },
         folderish ? { id: "downloadZip", label: "Download as ZIP", icon: ICONS.download, group: 0 } : { id: "download", label: "Download", icon: ICONS.download, group: 0 },
         { id: "copyPath", label: "Copy path", group: 0 },
+        // Starring changes nothing in the sample (stars are per person), so it stays.
+        star(0),
         // Edit items stay visible, disabled with the reason (D2).
         { id: "rename", label: "Rename", icon: ICONS.rename, command: FILES_COMMANDS.rename, disabled: SAMPLE_LOCKED, group: 1 },
         { id: "moveTo", label: "Move to…", icon: ICONS.moveTo, disabled: SAMPLE_LOCKED, group: 1 },

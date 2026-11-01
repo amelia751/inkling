@@ -182,7 +182,7 @@ def for_import(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> D
         return d
     if kind not in ORIGINS:
         raise HTTPException(422, f"origin.kind must be one of {', '.join(ORIGINS)}")
-    out = create(db, ctx, p, {"origin": kind, **{k: v for k, v in origin.items() if k in ("conversationId", "messageId", "conversationTitle")}, **({"taskId": body["taskId"]} if body.get("taskId") else {})})
+    out = create(db, ctx, p, {"origin": kind, **{k: v for k, v in (origin or {}).items() if k in ("conversationId", "messageId", "conversationTitle")}, **({"taskId": body["taskId"]} if body.get("taskId") else {})})
     d = db.get(Drop, out["id"])
     assert d is not None
     return d
@@ -404,8 +404,9 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
     files = []
     for _f, n in visible[offset : offset + limit]:
         facts = {k: v for k, v in (n.facts or {}).items() if k in TECHNICAL_FACTS and isinstance(v, (int, float, str, list, dict))}
-        if isinstance(facts.get("columns"), list):
-            facts["columns"] = [{"name": c.get("name"), "type": c.get("type")} if isinstance(c, dict) else c for c in facts["columns"]][:200]
+        cols = facts.get("columns")
+        if isinstance(cols, list):
+            facts["columns"] = [{"name": c.get("name"), "type": c.get("type")} if isinstance(c, dict) else c for c in cols][:200]
         files.append({"nodeId": n.id, "agentName": name_screen.agent_name(n), **({"kind": n.detected_kind} if n.detected_kind else {}), **({"facts": facts} if facts else {})})
     total = sum(states.values())
     out = {

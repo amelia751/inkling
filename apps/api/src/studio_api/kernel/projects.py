@@ -474,7 +474,7 @@ def describe_node(db: Session, n: SourceNode, ctx: RequestContext | None = None)
     out["runId"] = tree.run_of(db, n)
     src = db.get(Source, n.source_id) if n.source_id else None
     session = db.get(ImportSession, n.import_session_id) if n.import_session_id else None
-    out["provenance"] = {
+    provenance: dict[str, Any] = {
         "sourceId": n.source_id,
         "sourceTitle": src.title if src else None,
         "importSessionId": n.import_session_id,
@@ -483,6 +483,7 @@ def describe_node(db: Session, n: SourceNode, ctx: RequestContext | None = None)
         "sha256": n.sha256,
         "sourceKind": src.kind if src else None,
     }
+    out["provenance"] = provenance
     if session is not None and session.drop_id:
         # todo13 D4: "Shared in chat · <conversation> · <date>".
         from ..models import Drop
@@ -490,7 +491,7 @@ def describe_node(db: Session, n: SourceNode, ctx: RequestContext | None = None)
         d = db.get(Drop, session.drop_id)
         if d is not None:
             folder = db.get(SourceNode, d.folder_node_id) if d.folder_node_id else None
-            out["provenance"]["drop"] = {"dropId": d.id, "origin": d.origin, "conversationId": d.conversation_id, "conversationTitle": (d.declared or {}).get("conversationTitle") or (folder.name if folder else None), "conversationDeleted": bool((d.declared or {}).get("conversationDeleted")), "sharedAt": iso(d.created_at), "removedFromChat": n.id in (d.removed or [])}
+            provenance["drop"] = {"dropId": d.id, "origin": d.origin, "conversationId": d.conversation_id, "conversationTitle": (d.declared or {}).get("conversationTitle") or (folder.name if folder else None), "conversationDeleted": bool((d.declared or {}).get("conversationDeleted")), "sharedAt": iso(d.created_at), "removedFromChat": n.id in (d.removed or [])}
     if n.trashed_at is not None:
         parent_ok = len(chain.ids) >= 2 and not any(t is not None for t in chain.trashed[:-1])
         out["trash"] = {"trashedAt": iso(n.trashed_at), "trashedBy": n.trashed_by or "", "originalParentId": n.parent_id, "originalLocation": (chain.folder or tree.ROOT_NAME) if parent_ok else None}

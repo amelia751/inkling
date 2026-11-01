@@ -1,4 +1,5 @@
 import { Link, useParams } from "react-router";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { ActivityIcon, AiIcon, ChevronRightIcon, HumanIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
@@ -32,7 +33,7 @@ export function ActivityPage() {
         <PageHeading title="Activity" description="Who changed what, and when." />
         {feed.isLoading && <Skeleton className="h-48 rounded-lg" />}
         {feed.error && <p className="text-sm text-muted-foreground">Couldn't load activity: {String(feed.error)}</p>}
-        {feed.data && !entries.length && <p className="text-sm text-muted-foreground" data-testid="activity-empty">Nothing has happened here yet.</p>}
+        {feed.data && !entries.length && <EmptyState art="activity" title="No activity yet" description="Uploads, edits, reviews and releases in this project show up here, with who did them and when." data-testid="activity-empty" />}
         <div className="flex flex-col gap-6">
           {days.map(([day, list]) => (
             <section key={day} aria-label={day} data-testid="activity-day">

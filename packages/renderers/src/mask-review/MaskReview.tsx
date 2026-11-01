@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import * as z from "zod";
 import { labelNames, type Annotation } from "@studio/contracts";
 import { labelColor, useHost, type PanelProps } from "@studio/plugin-ui-sdk";
@@ -100,7 +101,11 @@ export function MaskReview({ env, item, config }: PanelProps) {
             </li>
           );
         })}
-        {!masks.length && <li className="px-3 py-4 text-muted-foreground">No masks on this item yet. Use Segment in the toolbar.</li>}
+        {!masks.length && (
+          <li>
+            <EmptyState size="s" art="annotation" title="No masks yet" description="Use Segment in the toolbar to add one to this item." />
+          </li>
+        )}
       </ul>
     </aside>
   );

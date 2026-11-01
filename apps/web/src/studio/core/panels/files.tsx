@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AiIcon, CloseIcon, DoneIcon, FolderIcon, FolderOpenIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
@@ -319,16 +320,12 @@ function kindIconOf(item: StudioItem, fallback: ComponentType<{ className?: stri
 }
 
 function Empty({ query, filter, total, noun }: { query: string; filter: string; total: number; noun: string }) {
-  const text = query.trim()
-    ? `No ${pluralWord(2, noun)} match “${query.trim()}”.`
-    : filter === "todo"
-      ? `All ${plural(total, noun)} done.`
-      : filter === "review"
-        ? "Nothing needs review."
-        : filter === "done"
-          ? `No ${pluralWord(2, noun)} done yet.`
-          : `No ${pluralWord(2, noun)} here.`;
-  return <p className="px-2 py-6 text-center text-sm text-muted-foreground">{text}</p>;
+  const many = pluralWord(2, noun);
+  if (query.trim()) return <EmptyState size="s" art="no-results" title={`No ${many} found`} description={`Nothing matches “${query.trim()}”.`} />;
+  if (filter === "todo") return <EmptyState size="s" art="success" title={`All ${plural(total, noun)} done`} />;
+  if (filter === "review") return <EmptyState size="s" art="success" title="Nothing needs review" />;
+  if (filter === "done") return <EmptyState size="s" art="task" title={`No ${many} done yet`} />;
+  return <EmptyState size="s" art="dataset" title={`No ${many} here`} />;
 }
 
 interface RowEvents {

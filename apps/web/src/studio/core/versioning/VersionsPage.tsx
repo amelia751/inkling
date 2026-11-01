@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Alert } from "@studio/ui/ui/alert";
 import { Loader } from "@studio/ui/ui/loader";
 import { Link, useParams } from "react-router";
@@ -142,7 +143,7 @@ function Reviews({ datasetId, projectId }: { datasetId: string; projectId: strin
           <Badge theme={STATUS_THEME[r.status]}>{r.status.toLowerCase()}</Badge>
         </Link>
       ))}
-      {reviews.data?.items.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">No reviews yet. "Request review" in the Studio opens one.</p>}
+      {reviews.data?.items.length === 0 && <EmptyState size="m" art="review" title="No reviews yet" description={'Choose "Request review" in the Studio to have someone check the annotations before a release.'} />}
     </Card>
   );
 }
@@ -180,7 +181,7 @@ function Releases({ datasetId }: { datasetId: string }) {
             <Badge theme="clear">{r.retention_policy}</Badge>
           </div>
         ))}
-        {releases.data?.items.length === 0 && <p className="px-4 py-3 text-sm text-muted-foreground">No releases yet.</p>}
+        {releases.data?.items.length === 0 && <EmptyState size="m" art="release" title="No releases yet" description="A release pins a reviewed version of the annotations, so it can be exported and cited later." />}
       </Card>
     </div>
   );

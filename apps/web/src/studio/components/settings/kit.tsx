@@ -3,7 +3,6 @@ import { CheckIcon, CopyIcon, MoreIcon, SearchIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { DialogContent, DialogDescription, DialogTitle } from "@studio/ui/ui/dialog";
-import { ErrorState } from "@studio/ui/ui/error-state";
 import { FieldError } from "@studio/ui/ui/field-error";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { cn } from "@studio/ui/utils";
@@ -250,18 +249,7 @@ export function Field({ label, htmlFor, required, description, error, children }
 /** Props for the control inside a `Field` with an error: red border, message read out. */
 export const invalidProps = (id: string, error: string | null | undefined) => (error ? { "aria-invalid": true, "aria-describedby": `${id}-error` } : {});
 
-/** The table's empty state when a search or filter hides every row (Nebius "No users found"). */
-export function NoResults({ what, onClear }: { what: string; onClear?: () => void }) {
-  return (
-    <ErrorState
-      kind="no-results"
-      title={`No ${what} found`}
-      description="Try a different search or clear the filters."
-      actions={onClear && <Button variant="outline" size="lg" onClick={onClear}>Clear filters</Button>}
-      data-testid="no-results"
-    />
-  );
-}
+export { NoResults } from "@studio/ui/ui/empty-state";
 
 /** Balance card (230×83) in the top right of billing pages. */
 export function BalanceCard() {

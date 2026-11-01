@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DetectedKind, FsOp, SourceNode, SourceSummary, TrashItem } from "@studio/contracts/types";
@@ -1471,7 +1472,13 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                       dragProps={dragProps}
                       dropAttrs={(n) => fsDropTargetProps(n.id, n.name)}
                       dropTargetId={dragTarget}
-                      empty={<p className="text-sm text-muted-foreground">{searching ? "No files match." : "This folder is empty."}</p>}
+                      empty={
+                        searching ? (
+                          <NoResults what="files" />
+                        ) : (
+                          <EmptyState art="folder" title="This folder is empty" description="Drop files or folders here, or use Add data. Originals are kept exactly as they are." />
+                        )
+                      }
                     />,
                     "h-full",
                   )

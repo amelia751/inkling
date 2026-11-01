@@ -1,5 +1,6 @@
 import { Link, useParams, useSearchParams } from "react-router";
-import { ChevronRightIcon, DoneIcon, ErrorIcon, PrivacyIcon, RelationshipIcon, ReviewIcon, WarningIcon, type IconComponent } from "@studio/ui/icons";
+import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
+import { ChevronRightIcon, ErrorIcon, PrivacyIcon, RelationshipIcon, ReviewIcon, WarningIcon, type IconComponent } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Badge } from "@studio/ui/ui/badge";
 import { Card } from "@studio/ui/ui/card";
@@ -85,17 +86,18 @@ export function ProjectReviewPage() {
               ))}
             </Card>
           ) : (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="review-empty">
-              <DoneIcon className="size-4 text-positive" />
-              {filtered ? "Nothing matches these filters." : "You're all caught up."}
-            </p>
+            filtered ? (
+              <NoResults size="m" data-testid="review-empty" />
+            ) : (
+              <EmptyState size="m" art="success" title="You're all caught up" description="Nothing is waiting for a decision from you." data-testid="review-empty" />
+            )
           ))}
 
         <section className="mt-8" aria-labelledby="annotation-review-heading">
           <h2 id="annotation-review-heading" className="mb-1 text-body-2 font-semibold">Annotation review</h2>
           <p className="mb-3 text-sm text-muted-foreground">Saved annotations per task, with the Studio setup's review rules.</p>
           {datasets.isLoading && <Skeleton className="h-16 rounded-lg" />}
-          {datasets.data && !tasks.length && <p className="text-sm text-muted-foreground">No tasks yet.</p>}
+          {datasets.data && !tasks.length && <EmptyState size="m" art="task" title="No tasks yet" description="Add a task to a dataset to start annotating. Its saved work is reviewed here." />}
           {tasks.length > 0 && (
             <Card className="divide-y divide-border overflow-hidden" data-testid="annotation-review">
               {tasks

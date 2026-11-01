@@ -1,7 +1,8 @@
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@studio/ui/ui/button";
-import { ErrorState, type ErrorStateKind } from "@studio/ui/ui/error-state";
+import type { IllustrationName } from "@studio/ui/illustrations";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Loader } from "@studio/ui/ui/loader";
 import { fetchAnnotations, fetchProjects } from "@/studio/lib/api";
 
@@ -40,7 +41,7 @@ export function useSavedAnnotations(id: string, enabled = true) {
  * ErrorState). Errors with a thrown value should use `ErrorView` (routes/errors.tsx) instead,
  * which also chooses the title and the next step.
  */
-export function FullPageMessage({ title, body, loading = false, kind }: { title: string; body?: string; loading?: boolean; kind?: ErrorStateKind }) {
+export function FullPageMessage({ title, body, loading = false, kind }: { title: string; body?: string; loading?: boolean; kind?: IllustrationName }) {
   if (loading)
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
@@ -50,9 +51,10 @@ export function FullPageMessage({ title, body, loading = false, kind }: { title:
       </div>
     );
   return (
-    <ErrorState
+    <EmptyState
       variant="page"
-      kind={kind}
+      art={kind}
+      role={kind === "error" ? "alert" : undefined}
       title={title}
       description={body}
       actions={

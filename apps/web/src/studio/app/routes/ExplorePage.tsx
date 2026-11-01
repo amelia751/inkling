@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -303,7 +304,7 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
         </Column>
         <Column title="Tasks" hint="What you'll annotate">
           {s.tasks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No task yet. Confirm how your files fit together first.</p>
+            <EmptyState size="s" art="task" title="No tasks yet" description="Confirm how your files fit together first." />
           ) : (
             <ul className="flex flex-col gap-2" data-testid="summary-tasks">
               {s.tasks.map((t) => (
@@ -623,7 +624,7 @@ function MappingRow({ projectId, p, selected, onSelect }: { projectId: string; p
 const QUALITY_ICON: Record<QualityItem["type"], IconComponent> = { privacy: PrivacyIcon, unsupported: UnknownFileIcon, duplicate: WarningIcon, series: WarningIcon, mismatch: RelationshipIcon, missing: WarningIcon };
 
 function QualityList({ projectId, items }: { projectId: string; items: QualityItem[] }) {
-  if (items.length === 0) return <p className="text-sm text-muted-foreground" data-testid="quality-empty">No problems found in your files.</p>;
+  if (items.length === 0) return <EmptyState size="m" art="success" title="No problems found" description="Nothing in your files needs fixing." data-testid="quality-empty" />;
   return (
     <Card className="divide-y divide-border overflow-hidden" data-testid="quality-list">
       {items.map((q) => {

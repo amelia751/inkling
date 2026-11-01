@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { DoneIcon, ExportIcon, AnnotateIcon, WarningIcon } from "@studio/ui/icons";
@@ -134,7 +135,7 @@ export function ReviewPage() {
                 ))}
               </tbody>
             </table>
-            {!rows.length && <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nothing saved yet. Annotations appear here once the Studio saves them.</p>}
+            {!rows.length && <EmptyState art="annotation" title="No annotations yet" description="Annotations appear here once the Studio saves them." />}
           </div>
         </Card>
       </div>

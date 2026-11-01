@@ -346,7 +346,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
             </div>
           )
         ) : (
-          <FullPageMessage title="Nothing to annotate" body="This project has no items for its data kind." />
+          <FullPageMessage kind="dataset" title="Nothing to annotate" body="This project has no items for its data kind." />
         )}
       </main>
       {bottom}

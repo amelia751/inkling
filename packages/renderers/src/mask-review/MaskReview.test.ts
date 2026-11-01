@@ -112,7 +112,7 @@ describe("MaskReview (studio.mask-review.v1)", () => {
     render([mask("h1", { provenance: "human-created", author: "alice", attributes: {} })], { config: { onlySuggested: false } });
     expect(el.querySelectorAll("[data-mask]").length).toBe(1);
     act(() => root.render(createElement(MaskReview as never, { env: env(), item: { ...item, id: "img/none.png" }, config: {} } as never)));
-    expect(el.textContent).toContain("No masks on this item yet");
+    expect(el.textContent).toContain("No masks yet");
   });
 
   it("accept and reject write review_status and visibility, never delete", () => {

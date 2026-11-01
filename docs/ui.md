@@ -263,7 +263,7 @@ Every error says what happened and the next step, in plain words; never a bare s
 | Tier | Use for | Component |
 | --- | --- | --- |
 | Page | Unknown URL, deleted item, no access, server unreachable, crash, stale deploy | `ErrorState variant="page"` (`NotFoundPage`, `RouteError`, `ErrorView`, `FullPageMessage`) |
-| Section | Empty list, search or filter with no results | `ErrorState variant="section"`; tables use `NoResults` |
+| Section | Empty list, search or filter with no results | `EmptyState` / `NoResults` (below) |
 | Inline alert | An action in a page or dialog failed; a note about the whole page | `Alert theme="danger" \| "warning" \| "info"` |
 | Field | One input is invalid | `Field error=…` + `invalidProps(id, error)`: red border, 13px danger text under the input |
 | Toast | A background action finished or failed, nothing to fix on the page | `notify(msg, { tone })` |
@@ -275,9 +275,44 @@ Every error says what happened and the next step, in plain words; never a bare s
 - Every route sits under one `errorElement` (`RouteError`), so a page that throws never leaves a
   blank tab.
 - Validate a field on blur or on submit, not while the person is still typing.
-- Illustrations (`@studio/ui/illustrations`) follow the Nebius console: a 2px window outline in the
-  brand line colour over a faint tilted panel, plus one glyph (warning, danger, magnifier, lock,
-  check), coloured by the `--ill-*` tokens. Danger red is for errors only, never for decoration.
+
+#### Empty states
+
+`EmptyState` (`@studio/ui/ui/empty-state`) is the Nebius console's `n-empty-state`: illustration,
+title, one-sentence description, one action. Use it whenever a page, table, card or panel has
+nothing to show; a one-line grey sentence is only for a list inside a dialog or a row of a card
+that has other content.
+
+| Size | Where | Layout |
+| --- | --- | --- |
+| `l` (default) | Pages and tables | 160px art beside the text, 24px apart; title 20/24 semibold |
+| `m` | Cards and narrower sections | 112px art beside the text; title 15/20 semibold |
+| `s` | Studio panels, sidebars, popovers | 72px art above the text, centred; title 13 semibold |
+
+Three kinds, each with fixed wording:
+
+- **Nothing created yet**: art for the kind of thing (`folder`, `files`, `dataset`, `task`,
+  `annotation`, `review`, `release`, `members`, `key`, `activity`, `billing`, `plugin`, `trash`).
+  Title "No *things* yet"; description says what the thing is for, in one sentence; action
+  "Create *thing*" (outlined, size lg) when the person can make one here.
+- **Search or filter hid everything**: `NoResults`. Title "No results" or "No *things* found",
+  description "Try a different search or clear all filters.", action "Clear filters" unless the
+  filter bar above already has one (one way to clear, not two).
+- **Nothing left to do**: `art="success"`, e.g. "You're all caught up", "No problems found".
+
+Write titles without a full stop and descriptions as one sentence with one. Don't explain why
+the list is empty unless the person can do something about it.
+
+#### Illustrations
+
+`@studio/ui/illustrations` follows the Nebius console: one object per kind of thing, a 2px
+gradient outline (`--ill-line-from` → `--ill-line-to`, brand to blue) over a muted body
+(`--ill-body`, `--ill-body-strong`) and a faint tilted backdrop (`--ill-panel`), with at most one
+solid accent (`--ill-accent`). Errors and searches are a browser window with one glyph: warning
+(not found), danger (error), magnifier (no results), lock (no access), check (success), question
+tile (generic empty). Danger red is for errors only, never for decoration; lime stays reserved
+for AI provenance. Draw new art in the same 160×160 grid with the same tokens, and register it in
+`ILLUSTRATIONS`.
 
 ## 10. MVP implementation order and acceptance criteria
 

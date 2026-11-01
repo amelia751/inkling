@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { DeleteIcon, TodoIcon } from "@studio/ui/icons";
 import { ScrollArea } from "@studio/ui/ui/scroll-area";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
@@ -65,7 +66,7 @@ export function ReviewPanel({ env, items }: PanelProps) {
               </div>
             ))}
           {filter === "all" && !annotations.length && (
-            <p className="px-2 py-6 text-center text-sm text-muted-foreground">No annotations yet. Pick a label and draw on the canvas.</p>
+            <EmptyState size="s" art="annotation" title="No annotations yet" description="Pick a label and draw on the canvas." />
           )}
           {filter === "unlabeled" &&
             unlabeled.map((i) => (

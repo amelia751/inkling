@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
 import { Link, useLocation, useNavigate } from "react-router";
 import { AddDataIcon, SearchIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
@@ -46,7 +47,21 @@ export function ProjectsPage() {
           {isLoading && [0, 1, 2].map((i) => <ProjectCardSkeleton key={i} />)}
           {data?.map((p) => <ProjectCard key={p.id} project={p} />)}
         </div>
-        {data && !data.length && <p className="text-sm text-muted-foreground">{q ? "No project matches." : "No projects yet."}</p>}
+        {data && !data.length &&
+          (q.trim() ? (
+            <NoResults what="projects" onClear={() => setQ("")} />
+          ) : (
+            <EmptyState
+              art="folder"
+              title="No projects yet"
+              description="A project holds your files, the datasets you build from them and the annotation work on them."
+              actions={
+                <Button variant="outline" size="lg" asChild>
+                  <Link to={newProjectUrl()}>Create project</Link>
+                </Button>
+              }
+            />
+          ))}
       </div>
     </AppLayout>
   );

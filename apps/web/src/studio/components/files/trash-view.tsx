@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import type { TrashItem } from "@studio/contracts/types";
 import { DeleteIcon, RestoreIcon } from "@studio/ui/icons";
 import {
@@ -115,11 +116,7 @@ export function TrashView(props: TrashViewProps) {
           </div>
         )}
         {!loading && !items.length && (
-          <div className="flex flex-col items-center gap-2 px-4 py-16 text-center" data-testid="trash-empty-state">
-            <DeleteIcon className="size-8 text-hint" aria-hidden />
-            <p className="text-sm font-semibold">Trash is empty</p>
-            <p className="max-w-xs text-sm text-muted-foreground">Things you delete stay here for 30 days, so you can put them back.</p>
-          </div>
+          <EmptyState art="trash" title="Trash is empty" description="Things you delete stay here for 30 days, so you can put them back." data-testid="trash-empty-state" />
         )}
         {items.map((it) => {
           const Icon = nodeIcon(it);

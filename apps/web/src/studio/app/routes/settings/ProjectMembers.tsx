@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { DeleteIcon, InviteIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Dialog } from "@studio/ui/ui/dialog";
@@ -63,7 +64,14 @@ export function ProjectMembers({ projectId }: { projectId: string }) {
           <InviteIcon /> Add user
         </Button>
       </div>
-      <DataTable columns={columns} rows={rows} rowKey={(m) => m.id} empty="No one has been added to this project." testId="project-members-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(m) => m.id} empty={
+          <EmptyState
+            art="members"
+            title="No members yet"
+            description="Add people from your organization, or invite someone new, to annotate and review in this project."
+            actions={<Button variant="outline" size="lg" onClick={() => setAdding(true)}>Add user</Button>}
+          />
+        } testId="project-members-table" />
       <AddUserDialog projectId={projectId} open={adding} onOpenChange={setAdding} />
     </div>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Loader } from "@studio/ui/ui/loader";
 import { Link } from "react-router";
 import { ApiKeyIcon, CheckIcon, CopyIcon, DeleteIcon, DomainIcon, ExternalLinkIcon, TopUpIcon } from "@studio/ui/icons";
@@ -68,7 +69,7 @@ export function OrgProjectsPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : "No projects yet."} testId="org-projects-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : <EmptyState art="folder" title="No projects yet" description="A project holds your files, the datasets you build from them and the annotation work on them." actions={<Button variant="outline" size="lg" asChild><Link to={newProjectUrl()}>Create project</Link></Button>} />} testId="org-projects-table" />
     </SettingsPage>
   );
 }
@@ -242,7 +243,14 @@ export function ApiKeysPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(k) => k.id} empty="No API keys yet." testId="api-keys-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(k) => k.id} empty={
+          <EmptyState
+            art="key"
+            title="No API keys yet"
+            description="An API key lets scripts and pipelines upload data and read annotations on behalf of this organization."
+            actions={<Button variant="outline" size="lg" onClick={() => setCreating(true)}>Create API key</Button>}
+          />
+        } testId="api-keys-table" />
       <CreateKeyDialog open={creating} onOpenChange={setCreating} />
     </SettingsPage>
   );

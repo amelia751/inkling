@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
@@ -48,7 +49,7 @@ export function UsagePage() {
       {view === "table" ? (
         <DataTable columns={usageColumns} rows={USAGE} rowKey={(u) => u.product} testId="usage-table" />
       ) : (
-        <div className="flex h-64 items-center justify-center rounded-xl border border-border text-sm text-muted-foreground">No charges this period.</div>
+        <EmptyState size="m" art="billing" title="No charges this period" description="Usage appears here as projects run AI jobs and store data." className="rounded-xl border border-border" />
       )}
     </SettingsPage>
   );
@@ -66,7 +67,7 @@ const invoiceColumns: Column<InvoiceRow>[] = [
 export function InvoicesPage() {
   return (
     <SettingsPage title="Invoices" testId="billing-invoices" aside={<BalanceCard />}>
-      <DataTable columns={invoiceColumns} rows={INVOICES} rowKey={(i) => i.number} empty="No invoices yet." testId="invoices-table" />
+      <DataTable columns={invoiceColumns} rows={INVOICES} rowKey={(i) => i.number} empty={<EmptyState art="billing" title="No invoices yet" description="An invoice is issued at the end of each month you have charges." />} testId="invoices-table" />
     </SettingsPage>
   );
 }

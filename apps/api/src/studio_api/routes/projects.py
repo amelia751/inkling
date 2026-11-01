@@ -214,7 +214,7 @@ async def project_events(project_id: str, request: Request, ctx: RequestContext 
     last = request.headers.get("Last-Event-ID") or request.query_params.get("after")
     db.close()
 
-    types = sorted(events.PROJECT_EVENTS - {"source.uploaded"})
+    types = sorted(events.PROJECT_EVENTS - {"source.uploaded", "archive.unpack.requested"})
 
     def newest() -> str | None:
         with session_scope() as s:

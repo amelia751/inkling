@@ -90,6 +90,12 @@ test checks each entry exists. Change this list and that file together.
 - Project reads with no file contents: project, overview, sources, proposals (read, create),
   review, search, drive listing, imports, source nodes and their activity; asset metadata
   (`GET /api/v1/assets`: ids, paths, types, sizes).
+- Drop plans and dataset structure (todo13 Milestone 2): `GET`/`PUT /api/v1/drops/{id}/plan` (read,
+  change before apply), `POST /api/v1/drops/{id}/apply` (only plans that touch nothing but the
+  person's own drafts, D6; `…/undo` is not on the list), `GET`/`PUT /api/v1/datasets/{id}/structure`
+  (writes land on the agent's own `work/agent-*` branch; accepting stays a person's), and
+  `GET /api/v1/projects/{p}/datasets/{d}/collections`. Plans and structures carry node ids,
+  kinds, counts, generic collection names and column names (technical facts), never file names.
 
 Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be
 singled out. The annotator's browser talks to the API in `spurby-phi` directly, never through the

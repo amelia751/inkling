@@ -638,7 +638,19 @@ def staleness(db: Session, d: DatasetRow, pairs: list[tuple[SourceNode, dict]] |
 def dataset_dict(db: Session, d: DatasetRow) -> dict:
     tasks = [task_dict(db, t) for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at))]
     pairs = dataset_files(db, d)
-    return {"id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(pairs), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at), "staleness": staleness(db, d, pairs)}
+    from . import collections
+
+    return {"id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(pairs), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at), "staleness": staleness(db, d, pairs),
+            "collections": collections.list_dicts(db, d), "draft": is_draft_dataset(db, d)}
+
+
+def is_draft_dataset(db: Session, d: DatasetRow) -> bool:
+    """todo13 D6: a dataset is a draft while it was made as one (a boot or a drop: `definition.draft`)
+    or all its tasks are drafts, and no task of it was published."""
+    states = list(db.scalars(select(TaskRow.state).where(TaskRow.dataset_id == d.id)))
+    if any((st or "published") == "published" for st in states):
+        return False
+    return bool((d.definition or {}).get("draft")) or (bool(states) and all(st == "draft" for st in states))
 
 
 def _annotation_counts(db: Session, d: DatasetRow) -> Counter:
@@ -709,7 +721,7 @@ def add_followed(db: Session, ctx: RequestContext, d: DatasetRow) -> DatasetRow:
 def task_dict(db: Session, t: TaskRow) -> dict:
     doc = db.get(AnnotationDocumentRow, (t.project_id, t.id))
     anns = doc.annotations if doc else []
-    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id}
+    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id, "collectionId": t.collection_id}
 
 
 def require_dataset(db: Session, ctx: RequestContext, dataset_id: str) -> tuple[DatasetRow, ProjectRow]:
@@ -824,10 +836,16 @@ def task_document(db: Session, t: TaskRow) -> dict:
 
     ingesting = ingest.task_items(db, t.id)
     theirs = {ti.node_id for ti in ingesting}
+    from . import collections
+
+    # todo13 D7: a task on one collection sees only that collection's files.
+    in_collection = collections.item_filter(db, t, d)
     if d is not None:
         for n, ref in dataset_files(db, d, include_hidden=False):
             if n.id in theirs:
                 continue  # listed below, in drop order, with its ingest state
+            if in_collection is not None and not in_collection(n.id):
+                continue
             kind, facts, flags, asset_id, sha, size = pinned_view(db, n, ref)
             if asset_id is None or (kind or "") not in VIEWABLE or kind is None:
                 continue
@@ -858,13 +876,16 @@ def task_document(db: Session, t: TaskRow) -> dict:
         "license": "Your data: you confirmed you may use it for research",
         "status": "available",
         "projectId": p.id,
+        "datasetId": t.dataset_id,
+        "collectionId": t.collection_id,
         "assets": items,
     }
 
 
 # ---- Proposals ---------------------------------------------------------------------------------
 
-PROPOSAL_KINDS = {"group", "relationship", "mapping", "dataset", "task"}
+# todo13 D8: `structure`, a change to a published dataset's structure.json, confirmed by a person.
+PROPOSAL_KINDS = {"group", "relationship", "mapping", "dataset", "task", "structure"}
 STRENGTHS = {"strong", "possible", "weak"}
 
 

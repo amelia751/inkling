@@ -97,6 +97,15 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/source-nodes/{{node_id}}/activity"),  # agent view: no original names
         ("GET", f"{P}/proposals/{{proposal_id}}"),
         ("POST", f"{P}/proposals/{{proposal_id}}/confirm"),  # the kernel refuses agents (403) itself
+        # todo13 M2: drop plans (apply only D6-safe ones, never undo), dataset structure (writes
+        # go to the agent's own work/agent-* branch), a dataset's collections. Kinds, counts,
+        # node ids and generic collection names; never file names.
+        ("GET", f"{P}/drops/{{drop_id}}/plan"),
+        ("PUT", f"{P}/drops/{{drop_id}}/plan"),
+        ("POST", f"{P}/drops/{{drop_id}}/apply"),
+        ("GET", f"{P}/datasets/{{dataset_id}}/structure"),
+        ("PUT", f"{P}/datasets/{{dataset_id}}/structure"),
+        ("GET", f"{P}/projects/{{project_id}}/datasets/{{dataset_id}}/collections"),
     }
 )
 

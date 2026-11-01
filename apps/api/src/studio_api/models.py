@@ -771,6 +771,9 @@ class TaskRow(Base):
     booted_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
     published_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # todo13 D7: the collection this task works on. None = every collection of its dataset (tasks
+    # made before collections whose dataset holds several viewable kinds keep seeing them all).
+    collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class Boot(Base):
@@ -855,4 +858,67 @@ class TaskItem(Base):
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---- todo13 Milestone 2: collections, drop plans, dataset structure -------------------------------
+
+
+class DatasetCollectionRow(Base):
+    """A dataset's collection (todo13 D7): one logical kind ("Chest X-rays", "CT series", "Labels
+    table"). Which files belong to it: the dataset's pinned file refs with this `collectionId`,
+    else (refs made before collections) the refs whose pinned kind is the collection's kind.
+    `suggested` until a person confirms the dataset's structure (D8)."""
+
+    __tablename__ = "dataset_collections"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    dataset_id: Mapped[str] = mapped_column(ForeignKey("datasets.id"), index=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    name: Mapped[str] = mapped_column(String(256))
+    kind: Mapped[str] = mapped_column(String(32))
+    # Technical shape the classifier matches on (`{"modality": "CT"}`); never content values.
+    shape: Mapped[dict] = mapped_column(JSON, default=dict)
+    suggested: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class DropPlanRow(Base):
+    """A drop's classification and plan (todo13 D5, D6), and what applying it created, so Undo
+    can take exactly that back. Keyed by the drop id (the `drops` table is todo13-drops')."""
+
+    __tablename__ = "drop_plans"
+    drop_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    # planned | applying | applied | undone | failed
+    state: Mapped[str] = mapped_column(String(16), default="planned")
+    plan: Mapped[dict] = mapped_column(JSON, default=dict)
+    groups: Mapped[list] = mapped_column(JSON, default=list)
+    # What the plan was made against: {datasetId?, taskId?, origin?, request?}.
+    context: Mapped[dict] = mapped_column(JSON, default=dict)
+    auto: Mapped[bool] = mapped_column(Boolean, default=False)
+    fast_path: Mapped[bool] = mapped_column(Boolean, default=False)
+    # {datasetsCreated, collectionsCreated, tasksCreated, refsAdded: {datasetId: [nodeId]}, pipelineRunIds, unpackRequested}
+    applied: Mapped[dict] = mapped_column(JSON, default=dict)
+    error: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_by: Mapped[str] = mapped_column(String(256))
+    applied_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    undo_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class DatasetStructureRow(Base):
+    """`structure.json` (todo13 D8) per dataset and branch: `draft` is the person's working draft;
+    an agent's proposal lives on its `work/agent-*` branch until accepted. Kept by the kernel
+    until apps/versioning admits `structure.json` in a commit's tree (then mirrored there)."""
+
+    __tablename__ = "dataset_structures"
+    dataset_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    branch: Mapped[str] = mapped_column(String(256), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    structure: Mapped[dict] = mapped_column(JSON, default=dict)
+    hash: Mapped[str] = mapped_column(String(80))
+    updated_by: Mapped[str] = mapped_column(String(256))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

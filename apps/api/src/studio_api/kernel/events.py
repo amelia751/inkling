@@ -69,12 +69,24 @@ EVENT_TYPES = {
         "review.requested",
         "review.approved",
     )),
+    # Drops (todo13 §5 contracts). todo13-drops publishes `drop.received` and `drop.file`;
+    # todo13-organize the rest (classifier, plan, apply). `archive.unpack.requested` starts the
+    # worker's archive unpack (todo13 M2 item 7). The integrator dedupes this block at merge.
+    *(DROP_EVENTS := (
+        "drop.received",
+        "drop.file",
+        "drop.classified",
+        "drop.planned",
+        "drop.applied",
+        "drop.failed",
+    )),
+    "archive.unpack.requested",
 }
 
 # Project updates (the project SSE stream, GET /v1/projects/:id/events, carries these; the
 # pipeline's are all project-scoped: a run belongs to one project): never rate limited (an import of 10k files is one
 # session, but its progress events must not starve plugin events or each other).
-PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed", *PIPELINE_EVENTS}
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed", *PIPELINE_EVENTS, *DROP_EVENTS, "archive.unpack.requested"}
 
 
 # Published by the kernel itself when a job ends: never rate limited either, or a busy

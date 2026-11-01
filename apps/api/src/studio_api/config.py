@@ -49,6 +49,9 @@ that are missing or invalid, never their values.
 | API_ARTIFACTS_BUCKET      | (none: the data area)            | `s3`/`gcs`: separate bucket for content-addressed plugin artifacts (`artifacts/sha256/*`, retention-locked) |
 | API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
+| API_FEATURE_AUTO_APPLY    | 0                                | todo13 D6: drop plans touching only the person's own drafts apply on their own (off: every plan asks) |
+| API_FEATURE_FAST_PATH     | 0                                | todo13 principle 3: a drop whose kinds pick one preset boots before the agent |
+| API_DROP_UNDO_SECONDS     | 30                               | todo13 D6: how long an applied drop plan can be undone |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
@@ -165,6 +168,11 @@ class Settings(BaseModel):
     # bundles are verified with `signer` above (the worker signs with the same key).
     boundary_probe_budget: int = 64
     text_check: Literal["dev"] = "dev"
+    # todo13-organize (§7.1): drop plans. todo13-entry adds the rest of `API_FEATURE_*` and
+    # GET /api/v1/features; the integrator dedupes this block at merge.
+    feature_auto_apply: bool = False
+    feature_fast_path: bool = False
+    drop_undo_seconds: int = 30
 
     @property
     def production(self) -> bool:
@@ -220,6 +228,9 @@ _KEYS: dict[str, str] = {
     "artifacts_bucket": "API_ARTIFACTS_BUCKET",
     "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
     "text_check": "API_TEXT_CHECK",
+    "feature_auto_apply": "API_FEATURE_AUTO_APPLY",
+    "feature_fast_path": "API_FEATURE_FAST_PATH",
+    "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

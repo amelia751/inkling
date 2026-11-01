@@ -5,8 +5,9 @@ data lives only in `spurby-phi`, and nothing reads it from `spurby-ai`.** The re
 remaining work are in [todo10 §6](../todo/todo10.md#6-sandboxes-daytona-and-friends) and Phase 9.
 
 Status (2026-10-31): folders, organization policies and the perimeter (dry-run) are applied from
-`infra/terraform/org`. Google Cloud BAA accepted. Not done yet: enforcing the perimeter, and the infrastructure
-inside the projects.
+`infra/terraform/org`. Google Cloud BAA accepted. The infrastructure inside the projects is written
+and planned (`infra/terraform/{phi,ai,data}`, `infra/k8s/overlays/gke`), not applied. Not done yet:
+applying it and enforcing the perimeter (see "Before the first apply").
 
 ## Projects
 
@@ -103,8 +104,37 @@ agent.
    - `spurby-phi` only: CMEK required for Cloud Storage and Cloud SQL, public access prevention, no
      external IPs on VMs (GKE nodes). `spurby-data` keeps these off so it can serve public data.
 3. [~] VPC Service Controls perimeter around `spurby-phi` (`perimeter.tf`), in **dry-run**. No
-   Google-API ingress for `spurby-ai` (the agent uses our API over HTTPS). Add the release egress
-   rule to `spurby-data` with its bucket, watch dry-run violations, then enforce before customer data.
-4. [ ] Infrastructure inside each project (todo10 Phase 9).
+   Google-API ingress for `spurby-ai` (the agent uses our API over HTTPS). Written, not applied: an
+   ingress rule for operators (`admin_identities`, the deploy identity first, so Terraform's state
+   and kubectl still work once enforced) and the one-way release egress rule to `spurby-data`
+   (`release_egress`). Watch dry-run violations (`python3 tests/gcp/perimeter_test.py --expect
+   dry-run --check-log`), then enforce before customer data and rerun it with `--expect enforced`.
+4. [~] Infrastructure inside each project, written and planned, not applied: one Terraform stack
+   per project (`infra/terraform/{phi,ai,data}`, each with a README), and the Kubernetes overlays
+   `infra/k8s/overlays/gke/{phi,ai}`.
 
 Steps 1–3 come before any customer data arrives.
+
+### Before the first apply
+
+- The state bucket `gs://spurby-phi-tfstate` sits in `spurby-phi`, where CMEK is now required for
+  Cloud Storage, so it refuses new objects (locks, new stacks' state, the next state version of
+  `org`) until it has a default KMS key. Give it one, in location `us` (the bucket's), by hand,
+  before any Terraform apply.
+- `spurby-ai` is outside the organization, so the deploy identity needs a role there, granted by
+  the project's owner (`infra/terraform/ai/README.md`).
+
+### How the pieces connect
+
+- Both clusters are GKE Autopilot with private nodes. Plugin code on real data runs only in the
+  `spurby-phi` worker, under GKE Sandbox (`runtimeClassName: gvisor`), with no egress except the
+  api. Build sandboxes in `spurby-ai` (agent-sandbox, gVisor) have no network at all.
+- The two projects talk over HTTPS between fixed Cloud NAT addresses: web → the agent's host, the
+  agent → a separate agent-only host on the api (the Studio's host refuses the agent's address).
+  Details: `infra/k8s/overlays/gke/README.md`.
+- Pods use Workload Identity; app secrets are Secret Manager secrets synced by the External
+  Secrets Operator into the usual `<app>-secrets`. Cloud Storage is reached through its native API
+  (`BLOB_STORE=gcs` in apps/api, `OBJECT_STORE=gcs` in apps/versioning), never HMAC keys.
+- The agent's model is on Vertex AI in `spurby-ai` (`AGENT_MODEL=google-vertex:…`, D8) and its
+  allowlist holds only Vertex models. Confirm that the BAA covers `spurby-ai` (a separate billing
+  account outside the organization) and that the model is on the HIPAA covered list.

@@ -1,0 +1,9 @@
+# No traffic in or out of a build sandbox, not even DNS: dependencies are baked into the image
+# and the agent works through the Kubernetes API (exec, file copy), never the pod network.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]

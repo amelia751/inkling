@@ -1,0 +1,30 @@
+# The agent's only door into spurby-phi: a separate host that admits spurby-ai's egress address
+# only, routing to the api (the Studio's host refuses that address). Which routes the agent may
+# call is decided by its token scope in apps/api (docs/deployment-gcp.md, "What the agent sees");
+# /seed and the web app aren't routed here at all. ingress-nginx must preserve client addresses
+# (controller Service externalTrafficPolicy: Local).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: agent-api
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: AGENT_EGRESS_CIDR
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [agent-api.example.com]
+      secretName: agent-api-tls
+  rules:
+    - host: agent-api.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  name: http

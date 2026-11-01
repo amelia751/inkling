@@ -1,0 +1,68 @@
+# One template for plugin builds and a warm pool so a build doesn't wait for a node. Each
+# sandbox: gVisor (GKE Sandbox), no service account token, no env secrets, non-root, read-only
+# root with writable /workspace and /tmp, a hard deadline. The image is the pinned build
+# toolchain (the Daytona snapshot's equivalent) in spurby-ai's Artifact Registry.
+#
+# API versions follow kubernetes-sigs/agent-sandbox v0.1 (agents.x-k8s.io, extensions); check
+# them against the release you install.
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: plugin-build
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sandbox
+        app.kubernetes.io/component: plugin-build
+    spec:
+      runtimeClassName: gvisor
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      restartPolicy: Never
+      activeDeadlineSeconds: 3600
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sandbox
+          image: us-central1-docker.pkg.dev/spurby-ai/images/studio-sandbox@sha256:0000000000000000000000000000000000000000000000000000000000000000
+          command: ["sleep", "infinity"]
+          workingDir: /workspace
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: workspace
+          emptyDir:
+            sizeLimit: 4Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxWarmPool
+metadata:
+  name: plugin-build
+spec:
+  replicas: 2
+  sandboxTemplateRef:
+    name: plugin-build

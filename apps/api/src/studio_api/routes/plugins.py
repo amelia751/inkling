@@ -77,6 +77,10 @@ async def build_artifact(
     `generated` registry entry with a provenance attestation (§9; todo10 Phase 3). `runId`,
     `promptHash`, `model` and `sampleDigests` go into the attestation."""
     _need(ctx, "plugins.author")
+    if not dryRun and ctx.principal.startswith("agent:"):
+        # todo10 Phase 7: a sandbox's package is only checked; the bundle that gets registered is
+        # the worker's rebuild of the source (POST /api/v1/boundary/builds).
+        raise HTTPException(403, "agents register plugins through /api/v1/boundary/builds (our rebuild); this route only dry-runs for them")
     data = await request.body()
     if len(data) > MAX_ARTIFACT_BYTES:
         raise HTTPException(413, "artifact too large")

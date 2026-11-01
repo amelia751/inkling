@@ -1,7 +1,8 @@
 import { mediaTypeOf } from "@studio/contracts/media-types";
 import type { PluginManifest } from "@studio/contracts/plugin-manifest";
-import type { PanelDecl, UiContributions, VisibleWhen } from "@studio/contracts/ui-contributions";
-import { defineModule, type CommandContribution, type ModuleManifest, type PanelContribution, type PanelProps, type ResolvedEnv } from "@studio/plugin-ui-sdk";
+import type { PanelDecl, RendererDecl, UiContributions, VisibleWhen } from "@studio/contracts/ui-contributions";
+import { defineModule, type CommandContribution, type ModuleManifest, type PanelContribution, type PanelProps, type RendererContribution, type RendererProps, type ResolvedEnv } from "@studio/plugin-ui-sdk";
+import { FILES_KIND, GENERIC } from "./sandbox/manifest";
 import { registerCommand } from "./commands";
 import { dispatch } from "./gateway";
 import { SURFACE_PLACEMENT } from "./surfaces";
@@ -53,6 +54,20 @@ function trustedPanel(p: PanelDecl) {
   return DeclaredPanel;
 }
 
+/** A viewport on a named trusted renderer that can fill one (todo10 rung 4); others fail closed. */
+function trustedViewport(pluginId: string, d: RendererDecl) {
+  const r = trustedRenderer(d.renderer);
+  function DeclaredViewport(props: RendererProps) {
+    if (!r?.viewport) return <RendererUnavailable name={d.renderer} reason={r ? "it can't fill a viewport" : undefined} />;
+    const config = r.configSchema ? (r.configSchema.safeParse({ ...d.config, ...props.config }).data as Record<string, unknown> | undefined) : { ...d.config, ...props.config };
+    if (!config) return <RendererUnavailable name={d.renderer} reason="its config is invalid" />;
+    const Viewport = r.viewport;
+    return <Viewport {...props} config={config} pluginId={pluginId} />;
+  }
+  DeclaredViewport.displayName = `DeclaredViewport(${d.renderer})`;
+  return DeclaredViewport;
+}
+
 export function RendererUnavailable({ name, reason }: { name: string; reason?: string }) {
   return (
     <div role="note" data-testid="renderer-unavailable" className="p-3 text-sm text-muted-foreground">
@@ -84,21 +99,31 @@ export function declarativeModule(m: Pick<PluginManifest, "id" | "version" | "na
       when: whenFrom(p.visibleWhen),
     };
   });
-  const impl = { panels: Object.fromEntries(ui.panels.map((p) => [p.id, trustedPanel(p)])) };
+  const decls = ui.renderers ?? [];
+  const renderers: RendererContribution[] = decls.map((d) => ({
+    id: d.id,
+    consumes: d.consumes?.length ? d.consumes : [FILES_KIND],
+    space: d.space,
+    capabilities: d.capabilities,
+    description: d.description ?? d.title ?? `${d.renderer} viewer`,
+  }));
+  const impl = { panels: Object.fromEntries(ui.panels.map((p) => [p.id, trustedPanel(p)])), renderers: Object.fromEntries(decls.map((d) => [d.id, trustedViewport(m.id, d)])) };
   return defineModule({
     id: m.id,
     version: m.version,
     title: m.name,
     description: m.description ?? m.name,
     ambient: true,
-    contributes: { commands, panels },
+    // Viewers consume the generic files kind, so it comes along.
+    ...(renderers.length ? { requires: [GENERIC] } : {}),
+    contributes: { commands, panels, renderers },
     load: async () => impl,
   });
 }
 
 /** Every renderer name a contributions file uses that the host doesn't have. */
 export function unknownRenderers(ui: UiContributions): string[] {
-  return ui.panels.map((p) => p.renderer).filter((r) => !trustedRenderer(r));
+  return [...ui.panels.map((p) => p.renderer), ...(ui.renderers ?? []).map((r) => r.renderer)].filter((r) => !trustedRenderer(r));
 }
 
 /**

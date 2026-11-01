@@ -54,11 +54,27 @@ EVENT_TYPES = {
     "item.preview_ready",
     "item.ready",
     "item.failed",
+    # Pipelines (todo12 §4 M1, docs/pipeline.md §15): published by `service:pipeline` through
+    # POST /api/v1/service/events, source "pipeline", idempotency key `<run_id>/<event>[/<step_id>]`.
+    *(PIPELINE_EVENTS := (
+        "pipeline.run.started",
+        "pipeline.run.completed",
+        "pipeline.run.failed",
+        "pipeline.run.paused",
+        "pipeline.step.started",
+        "pipeline.step.completed",
+        "pipeline.step.failed",
+        "pipeline.output.staged",
+        "dataset.candidate.created",
+        "review.requested",
+        "review.approved",
+    )),
 }
 
-# Kernel-published project updates: never rate limited (an import of 10k files is one
+# Project updates (the project SSE stream, GET /v1/projects/:id/events, carries these; the
+# pipeline's are all project-scoped: a run belongs to one project): never rate limited (an import of 10k files is one
 # session, but its progress events must not starve plugin events or each other).
-PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed"}
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed", *PIPELINE_EVENTS}
 
 
 # Published by the kernel itself when a job ends: never rate limited either, or a busy

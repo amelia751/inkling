@@ -3,8 +3,8 @@
 `service:pipeline` (apps/pipeline) authenticates with `Authorization: Bearer <token>`, the
 token being `<envPrefix>API_PIPELINE_TOKEN` (in dev, `dev-only-pipeline-token` when unset; in
 production, unset means the principal doesn't exist). It may call only the routes below:
-enqueue a job, read a job it enqueued, read the cross-workspace service event feed, and
-publish pipeline events. A global dependency (`guard`, installed in app.py) answers 403 for
+enqueue a job, read a job it enqueued, read the cross-workspace service event feed, publish
+pipeline events, and stage blobs under `pipeline/` (kernel/service_blobs.py). A global dependency (`guard`, installed in app.py) answers 403 for
 that token on every other route, as `agent_scope.py` does for agent sessions.
 """
 
@@ -27,6 +27,8 @@ SERVICE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ("GET", f"{P}/jobs/{{job_id}}"),
             ("GET", f"{P}/events"),
             ("POST", f"{P}/events"),
+            ("PUT", f"{P}/blobs/{{key:path}}"),
+            ("GET", f"{P}/blobs/{{key:path}}"),
         }
     ),
 }

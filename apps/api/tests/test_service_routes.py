@@ -69,7 +69,7 @@ def test_the_pipeline_token_reaches_only_its_routes(client):
         assert r.status_code == 403, (method, path, r.status_code)
     # And the allowed ones don't 403 on the principal (they may 404/422 on the filler ids).
     for method, path in allowed:
-        assert client.request(method, fill(path), headers=svc(), json={}).status_code != 403, (method, path)
+        assert client.request(method, fill(path).replace("blobs/x", "blobs/pipeline/x"), headers=svc(), json={}).status_code != 403, (method, path)
 
 
 def test_service_routes_are_for_service_principals_only(client):
@@ -189,6 +189,49 @@ def test_the_feed_long_polls_until_an_event_arrives(client, monkeypatch):
 def test_publishing_is_limited_to_the_principals_types(client):
     body = {"workspace_id": "ws-a", "type": "job.succeeded", "payload": {}, "idempotency_key": "x"}
     assert client.post(f"{S}/events", json=body, headers=svc()).status_code == 403
+
+
+def test_pipeline_event_keys_name_the_run_event_step_and_partition(client):
+    def pub(key, payload=None, type_="pipeline.step.completed"):
+        return client.post(f"{S}/events", json={"workspace_id": "ws-a", "type": type_, "payload": payload or {"run_id": "r1"}, "idempotency_key": key}, headers=svc())
+
+    assert pub("r1/pipeline.step.completed").status_code == 200
+    assert pub("r1/pipeline.step.completed/inspect").status_code == 200
+    assert pub("r1/pipeline.step.completed/inspect/p7").status_code == 200
+    for bad in ("r1", "r1/pipeline.step.started/inspect", "r1/pipeline.step.completed/a/b/c", "/pipeline.step.completed"):
+        assert pub(bad).status_code == 422, bad
+    assert pub("r2/pipeline.step.completed").status_code == 422  # payload.run_id is r1
+
+
+# ---- Blob staging -----------------------------------------------------------------------------------
+
+
+def put_blob(client, key: str, data: bytes, sha: str | None = None, ct: str = "application/json"):
+    import hashlib
+
+    return client.put(f"{S}/blobs/{key}", content=data, headers={**svc(), "Content-Type": ct, "X-Content-SHA256": sha if sha is not None else hashlib.sha256(data).hexdigest()})
+
+
+def test_blob_staging_verifies_and_never_overwrites(client):
+    import hashlib
+
+    key = "pipeline/run1/inspect/1/report.json"
+    r = put_blob(client, key, b'{"ok": true}')
+    assert r.status_code == 201
+    ref = r.json()
+    assert ref == {"key": key, "sha256": "sha256:" + hashlib.sha256(b'{"ok": true}').hexdigest(), "size": 12, "media_type": "application/json"}
+    again = put_blob(client, key, b'{"ok": true}')
+    assert again.status_code == 200 and again.json() == ref  # a retried step
+    assert put_blob(client, key, b'{"ok": false}').status_code == 409  # immutable
+    assert put_blob(client, "pipeline/run1/x", b"abc", sha="0" * 64).status_code == 422  # hash mismatch
+    assert put_blob(client, "pipeline/run1/y", b"abc", sha="").status_code == 422
+    assert put_blob(client, "sources/ws-a/evil", b"abc").status_code == 403  # outside pipeline/
+    assert put_blob(client, "pipeline/../sources/x", b"abc").status_code in (403, 404, 422)
+    got = client.get(f"{S}/blobs/{key}", headers=svc())
+    assert got.status_code == 200 and got.content == b'{"ok": true}' and got.headers["content-type"].startswith("application/json")
+    assert got.headers["x-content-sha256"] == ref["sha256"]
+    assert client.get(f"{S}/blobs/pipeline/nope", headers=svc()).status_code == 404
+    assert client.get(f"{S}/blobs/{key}", headers=ws("ws-a")).status_code == 401  # people don't read staging
 
 
 pg = pytest.mark.skipif(not (env("TEST_DATABASE_URL") or "").startswith("postgres"), reason="set <envPrefix>TEST_DATABASE_URL to a Postgres URL")

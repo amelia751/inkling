@@ -47,6 +47,7 @@ resource "google_container_cluster" "agent" {
 resource "google_service_account" "nodes" {
   account_id   = "gke-nodes"
   display_name = "GKE nodes (agent cluster)"
+  depends_on   = [google_project_service.this]
 }
 
 resource "google_project_iam_member" "nodes" {

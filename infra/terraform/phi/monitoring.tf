@@ -182,7 +182,20 @@ resource "google_logging_metric" "drop_auto_undone" {
 
 # ---- Alerts -----------------------------------------------------------------------------------
 
+# Monitoring refuses an alert on a log-based metric until the metric has propagated (up to 10
+# minutes after it's created). On a first apply this runs alongside the cluster's creation.
+resource "time_sleep" "metrics_visible" {
+  create_duration = "600s"
+  depends_on = [
+    google_logging_metric.drop_first_interactive,
+    google_logging_metric.name_screen_errors,
+    google_logging_metric.name_screen_batches,
+    google_logging_metric.drops_stuck,
+  ]
+}
+
 resource "google_monitoring_alert_policy" "drop_first_interactive_p95" {
+  depends_on            = [time_sleep.metrics_visible]
   display_name          = "Drops: p95 drop to first interactive item over 30 s"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels
@@ -213,6 +226,7 @@ resource "google_monitoring_alert_policy" "drop_first_interactive_p95" {
 }
 
 resource "google_monitoring_alert_policy" "name_screen_error_rate" {
+  depends_on            = [time_sleep.metrics_visible]
   display_name          = "Drops: name screening error rate over 5 %"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels
@@ -234,6 +248,7 @@ resource "google_monitoring_alert_policy" "name_screen_error_rate" {
 }
 
 resource "google_monitoring_alert_policy" "drop_stuck_inspecting" {
+  depends_on            = [time_sleep.metrics_visible]
   display_name          = "Drops: a drop stuck inspecting over 10 min"
   combiner              = "OR"
   notification_channels = var.alert_notification_channels

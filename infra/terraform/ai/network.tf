@@ -45,8 +45,9 @@ resource "google_compute_router" "nat" {
 }
 
 resource "google_compute_address" "nat" {
-  name   = "nat-egress"
-  region = var.region
+  name       = "nat-egress"
+  region     = var.region
+  depends_on = [google_project_service.this]
 }
 
 resource "google_compute_router_nat" "nat" {
@@ -64,6 +65,7 @@ resource "google_compute_router_nat" "nat" {
 
 # Public address of the agent's ingress (web in spurby-phi proxies /api/agent here).
 resource "google_compute_address" "ingress" {
-  name   = "agent-ingress"
-  region = var.region
+  name       = "agent-ingress"
+  region     = var.region
+  depends_on = [google_project_service.this]
 }

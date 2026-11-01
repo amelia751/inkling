@@ -76,6 +76,8 @@ secretGenerator:
       - ADMIN_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/postgres?sslmode=disable
       - API_APP_PASSWORD=dev-only-api-app-pw
       - PIPELINE_APP_PASSWORD=dev-only-pipeline-pw
+      - VERSIONING_OWNER_PASSWORD=dev-only-owner-pw
+      - VERSIONING_APP_PASSWORD=dev-only-app-pw
 
 # The service-JWT key pairs (Secrets `api-versioning-jwt` and `pipeline-versioning-jwt`,
 # ConfigMaps `versioning-jwks` and `api-jwks`) aren't generated here, so no private key is ever

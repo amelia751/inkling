@@ -5,7 +5,7 @@
 --
 -- CONNECTION LIMIT is each service's connection budget on the shared instance (todo12 E7): the
 -- pipeline gets at most 20 across `studio` (schema `pipeline`) and `pipeline_engine`.
--- versioning's roles come from its own `migrate bootstrap` (apps/versioning/README.md).
+-- versioning's roles are here too (its `migrate bootstrap` is for local superuser databases).
 \set ON_ERROR_STOP on
 SET client_min_messages = warning;
 
@@ -23,8 +23,22 @@ REVOKE ALL ON DATABASE pipeline_engine FROM PUBLIC;
 -- Only in `studio`: in pipeline_engine DBOS uses its own schema.
 ALTER ROLE pipeline_app IN DATABASE studio SET search_path = pipeline;
 
+-- versioning: the same roles and schema as its `migrate bootstrap`, which can't run against Cloud
+-- SQL as is (the admin must be a member of versioning_owner to create a schema it owns).
+SELECT 'CREATE ROLE versioning_owner LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'versioning_owner') \gexec
+ALTER ROLE versioning_owner LOGIN PASSWORD :'versioning_owner_pw';
+SELECT 'CREATE ROLE versioning_app LOGIN' WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'versioning_app') \gexec
+ALTER ROLE versioning_app LOGIN NOBYPASSRLS PASSWORD :'versioning_app_pw';
+GRANT versioning_owner TO CURRENT_USER;
+GRANT CONNECT, CREATE ON DATABASE studio TO versioning_owner;
+GRANT CONNECT ON DATABASE studio TO versioning_app;
+ALTER ROLE versioning_owner SET search_path = versioning;
+ALTER ROLE versioning_app SET search_path = versioning;
+
 \c studio
 SET client_min_messages = warning;
 -- PostgreSQL 15+ no longer lets every role create in `public`; the api's Alembic tables live there.
 GRANT USAGE, CREATE ON SCHEMA public TO api_app;
 CREATE SCHEMA IF NOT EXISTS pipeline AUTHORIZATION pipeline_app;
+CREATE SCHEMA IF NOT EXISTS versioning AUTHORIZATION versioning_owner;
+GRANT USAGE ON SCHEMA versioning TO versioning_app;

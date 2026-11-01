@@ -53,6 +53,7 @@ resource "google_service_account" "app" {
   }
   account_id   = each.key == "agent" ? "studio-agent" : each.key
   display_name = each.value
+  depends_on   = [google_project_service.this]
 }
 
 resource "google_service_account_iam_member" "workload_identity" {

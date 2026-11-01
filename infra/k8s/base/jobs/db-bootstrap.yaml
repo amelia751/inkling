@@ -1,7 +1,8 @@
 # One-time database bootstrap (todo12 A2/A5): Cloud SQL has no public IP and the cluster is
 # default-deny, so roles are created from inside, by this Job, not from a laptop. Suspended:
 # applying the manifests never runs it. A person fills db-bootstrap-secrets (keys
-# ADMIN_DATABASE_URL, API_APP_PASSWORD, PIPELINE_APP_PASSWORD), then
+# ADMIN_DATABASE_URL, API_APP_PASSWORD, PIPELINE_APP_PASSWORD, VERSIONING_OWNER_PASSWORD,
+# VERSIONING_APP_PASSWORD), then
 #   kubectl -n studio patch job db-bootstrap --type=merge -p '{"spec":{"suspend":false}}'
 #   kubectl -n studio wait --for=condition=complete job/db-bootstrap --timeout=5m
 # and disables that secret's version afterwards. The SQL is db-bootstrap.sql (ConfigMap
@@ -50,6 +51,8 @@ spec:
               for i in $(seq 1 60); do pg_isready -q -d "$ADMIN_DATABASE_URL" && break; sleep 2; done
               exec psql "$ADMIN_DATABASE_URL" -X -q \
                 -v api_pw="$API_APP_PASSWORD" -v pipeline_pw="$PIPELINE_APP_PASSWORD" \
+                -v versioning_owner_pw="$VERSIONING_OWNER_PASSWORD" \
+                -v versioning_app_pw="$VERSIONING_APP_PASSWORD" \
                 -f /sql/db-bootstrap.sql
           env:
             - name: HOME

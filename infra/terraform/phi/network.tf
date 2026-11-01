@@ -89,8 +89,9 @@ resource "google_compute_router" "nat" {
 
 # A fixed egress address, so spurby-ai's ingress can admit only this project's web proxy.
 resource "google_compute_address" "nat" {
-  name   = "nat-egress"
-  region = var.region
+  name       = "nat-egress"
+  region     = var.region
+  depends_on = [google_project_service.this]
 }
 
 resource "google_compute_router_nat" "nat" {
@@ -108,6 +109,7 @@ resource "google_compute_router_nat" "nat" {
 
 # Public address of the Studio's ingress (ingress-nginx's LoadBalancer Service uses it).
 resource "google_compute_address" "ingress" {
-  name   = "studio-ingress"
-  region = var.region
+  name       = "studio-ingress"
+  region     = var.region
+  depends_on = [google_project_service.this]
 }

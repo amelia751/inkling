@@ -59,10 +59,29 @@ resource "google_container_cluster" "studio" {
   depends_on = [google_project_service.this, google_kms_crypto_key_iam_member.cmek]
 }
 
+# The cluster enforces the project's singleton policy, so this is what it admits: our `images`
+# registry (apps and the mirrored add-ons, todo12 A4) and, through Google's global policy, GKE's
+# own system images. Everything else is refused and logged.
+resource "google_binary_authorization_policy" "this" {
+  global_policy_evaluation_mode = "ENABLE"
+
+  admission_whitelist_patterns {
+    name_pattern = "${var.region}-docker.pkg.dev/${var.project}/images/**"
+  }
+
+  default_admission_rule {
+    evaluation_mode  = "ALWAYS_DENY"
+    enforcement_mode = "ENFORCED_BLOCK_AND_AUDIT_LOG"
+  }
+
+  depends_on = [google_project_service.this]
+}
+
 # Nodes log, report metrics and pull our images; nothing else.
 resource "google_service_account" "nodes" {
   account_id   = "gke-nodes"
   display_name = "GKE nodes (studio cluster)"
+  depends_on   = [google_project_service.this]
 }
 
 resource "google_project_iam_member" "nodes" {

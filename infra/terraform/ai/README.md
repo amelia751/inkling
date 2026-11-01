@@ -16,6 +16,9 @@ project owner grants one (once, by hand):
 ```sh
 gcloud projects add-iam-policy-binding spurby-ai --configuration=spurby-ai \
   --member=serviceAccount:terraform@spurby-phi.iam.gserviceaccount.com --role=roles/owner
+# Terraform enables the other APIs, but can't until these are on (a new project has none):
+gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com \
+  iam.googleapis.com --project=spurby-ai --configuration=spurby-ai
 ```
 
 Then, as in `../phi` (state prefix `ai` in the same bucket):

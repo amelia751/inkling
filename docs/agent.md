@@ -110,7 +110,7 @@ pi is a TypeScript agent harness with a mature loop: steering and follow-up queu
 
 | Pydantic AI Harness | pi equivalent in Inkling |
 |---|---|
-| Coder | pi's bash/read/write/edit/ls tool definitions with Daytona `operations`, plus remote find/grep, `run_python`, `preview_url`, `export_artifact`, `upload_dataset_sample` (`tools/sandbox.ts`) |
+| Coder | pi's bash/read/write/edit/ls tool definitions with Daytona `operations`, plus remote find/grep, `run_python`, `preview_url`, `export_artifact` (`tools/sandbox.ts`); `get_fingerprint`, `get_fixtures` (`tools/boundary.ts`): no dataset file ever enters a sandbox (todo10 Phase 7) |
 | Skills | pi skills (not enabled; host discovery is off) |
 | Compaction | pi compaction (`SettingsManager.inMemory({ compaction: { enabled: true } })`) |
 | SpendLimits | budgets in `tools/policy.ts` (tool calls, wall clock, `usage.cost.total` per run) |
@@ -231,6 +231,35 @@ zod-validated settings; fails closed in production. Model allowlist, budgets, co
 ### 7.4 Skills
 
 Not enabled. If added, they are versioned with the service, loaded from an explicit path (never discovered from the host), and treated as instructions only: permissions stay in the tool layer.
+
+### 7.5 The data boundary (todo10 §6, Phase 7)
+
+Real samples never reach a sandbox or the model. `tools/boundary.ts` gives the builder (and, for
+fixtures, the coder) typed access instead, through the kernel's `/api/v1/boundary/*` routes, which
+run worker jobs inside the patient-data project:
+
+| Tool | What comes back |
+|---|---|
+| `get_fingerprint` | structure with values dropped (DICOM PS3.15 Annex E; names checked for free text) |
+| `get_fixtures` | synthetic files with that structure, copied into the sandbox (`<plugin>/fixtures/`), each checked against the sha256 the kernel listed |
+| `verify_on_sample` | the agent's converter run on the real sample in the worker (no network, no writes, read-only input): pass/fail, stage, error class, file and line in the agent's own source, output kinds/dtypes/shapes/ranges |
+| `probe_sample` | typed answers to magic / read_int / read_float / find / read_text / field_names / section_sizes / size; text as `<redacted:N>` unless structural; budgeted per sample, audited |
+| `build_plugin_artifact` | our worker's rebuild of the *source* (built files dropped), its digest and signature; that bundle is registered, the sandbox's package is only compared |
+
+Every result is parsed with `@studio/contracts/boundary`; an unknown field fails the tool. The
+kernel lets agent tokens call only the routes in `docs/deployment-gcp.md`; the policy refuses
+any sample-upload tool and sandbox commands that name byte routes.
+
+**Sandbox providers** (`sandbox/provider.ts`, `AGENT_SANDBOX`): `daytona` (default), `local` (a
+container here: `--network none`, gVisor `runsc`, read-only root, `AGENT_SANDBOX_LOCAL_IMAGE`),
+`gke` (kubernetes-sigs/agent-sandbox claims from `AGENT_SANDBOX_GKE_TEMPLATE` in
+`AGENT_SANDBOX_GKE_NAMESPACE`, driven over the Kubernetes API and pods/exec only; set
+`NODE_EXTRA_CA_CERTS` to the service-account CA), `fake` (in-memory, records to
+`AGENT_SANDBOX_FAKE_DIR`; dev/tests only), `off`. Every sandbox is created with no network; a
+provider that can't block it (Daytona tier 1–2) refuses, unless `AGENT_SANDBOX_NETWORK=org-default`
+(never in production). No env vars from us beyond `PYTHONUNBUFFERED`/`MPLBACKEND`; build sandboxes
+live at most `AGENT_SANDBOX_BUILD_TTL_MIN` (60). The snapshot pins `uv` and `pytest`, and plugin
+checks run `uv sync --locked --offline`. End-to-end: `tests/e2e/boundary_canary_test.py`.
 
 ## 8. Session, run, and sandbox lifecycle
 

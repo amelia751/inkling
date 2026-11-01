@@ -21,7 +21,7 @@ import tarfile
 BUILDER = "canonical-source-v1"
 SOURCE_EXT = {".py", ".pyi", ".yaml", ".yml", ".json", ".toml", ".lock", ".md", ".txt", ".cfg", ".ini", ".csv", ".typed"}
 SOURCE_NAMES = {"LICENSE", "LICENCE", "NOTICE", "README", "uv.lock", "py.typed", ".python-version"}
-BUILD_DIRS = {"dist", "build", "__pycache__", ".venv", "node_modules", ".pytest_cache", ".ruff_cache", ".data", ".schemas", ".mypy_cache"}
+BUILD_DIRS = {"fixtures", "dist", "build", "__pycache__", ".venv", "node_modules", ".pytest_cache", ".ruff_cache", ".data", ".schemas", ".mypy_cache"}
 BUILD_EXT = {".whl", ".pyc", ".pyo", ".so", ".dylib", ".dll", ".egg", ".tar", ".tgz", ".gz", ".zip", ".o", ".a"}
 EXCLUDE_DIGEST = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".data"}
 MAX_FILE = 1024 * 1024

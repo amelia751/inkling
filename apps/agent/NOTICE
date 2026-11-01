@@ -21,4 +21,4 @@ License.
 
 Modifications: per-session sandboxes instead of one global sandbox (no CLI flags), lazy
 acquisition through a session manager, background-safe and streaming exec, ripgrep with a grep/find
-fallback, Inkling-specific tools (run_python, preview_url, export_artifact, upload_dataset_sample).
+fallback, Inkling-specific tools (run_python, preview_url, export_artifact).

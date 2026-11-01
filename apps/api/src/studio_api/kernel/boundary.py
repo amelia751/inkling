@@ -97,7 +97,8 @@ def suppress(n: int) -> int | str:
 
 
 def _validate(model: type[BaseModel], doc: Any) -> dict:
-    return model.model_validate(doc).model_dump(mode="json", by_alias=True)
+    # exclude_unset: optional fields stay absent (the TS contract treats `null` and absent differently).
+    return model.model_validate(doc).model_dump(mode="json", by_alias=True, exclude_unset=True)
 
 
 def is_agent(ctx: RequestContext) -> bool:

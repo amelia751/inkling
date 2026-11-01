@@ -99,7 +99,7 @@ func TestPipelinePrincipal(t *testing.T) {
 	if rv.str("checked_target_oid") != newMain {
 		t.Fatalf("review not re-checked against the new head: %s", rv.Raw)
 	}
-	rv = e.passChecks(repo, rv, "READY")
+	e.passChecks(repo, rv, "READY")
 	if r := e.do(pipeline, "POST", path+"/merge", map[string]any{"idempotency_key": idem()}); r.Status != 409 || r.str("code") != "stale_head" {
 		t.Fatalf("pipeline merged with a stale approval: %d %s", r.Status, r.Raw)
 	}

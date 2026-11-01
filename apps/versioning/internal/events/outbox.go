@@ -45,7 +45,7 @@ func NewRedisStreams(url, caFile string) (*RedisStreams, error) {
 		return nil, fmt.Errorf("redis url: %w", err)
 	}
 	if caFile != "" && opt.TLSConfig != nil {
-		pem, err := os.ReadFile(caFile)
+		pem, err := os.ReadFile(caFile) // #nosec G304 -- operator-provided CA path
 		if err != nil {
 			return nil, fmt.Errorf("redis ca: %w", err)
 		}

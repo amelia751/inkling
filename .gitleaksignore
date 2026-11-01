@@ -1,0 +1,7 @@
+# False positives (gitleaks fingerprints: commit:file:rule:line).
+# Generated OpenAPI spec, embedded as compressed base64.
+fc7c149cc5b9e661370a5f74744343a22cc26b32:apps/versioning/internal/api/api.gen.go:generic-api-key:5978
+# A throwaway API secret for the e2e test's own temporary api process.
+b5ea5fac6819b580eebd07bdfc33589fb6ee29ff:tests/e2e/boundary_canary_test.py:generic-api-key:131
+# An idempotency key in a unit test.
+8aabc76d74a3480901777acdcb9774f3411232eb:apps/versioning/internal/service/idempotency_test.go:generic-api-key:41

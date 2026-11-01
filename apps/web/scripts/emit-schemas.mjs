@@ -38,8 +38,14 @@ try {
     const path = join(root, rel);
     const before = existsSync(path) ? readFileSync(path, "utf8") : null;
     if (before === text) continue;
-    if (check) stale.push(rel);
-    else {
+    if (check) {
+      stale.push(rel);
+      const [a, b] = [(before ?? "").split("\n"), text.split("\n")];
+      const diffs = [];
+      for (let i = 0; i < Math.max(a.length, b.length) && diffs.length < 5; i++)
+        if (a[i] !== b[i]) diffs.push(`  ${rel}:${i + 1}\n    - ${a[i] ?? ""}\n    + ${b[i] ?? ""}`);
+      console.error(diffs.join("\n"));
+    } else {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, text);
       console.log(`wrote ${rel}`);

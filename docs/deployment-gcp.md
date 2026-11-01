@@ -34,7 +34,7 @@ usually attached to the billing account, not the project, but check the credit's
 | Project | Holds | Rules |
 |---|---|---|
 | `spurby-ai` | `apps/agent`, model calls, egress to Daytona | Never holds customer data. Reaches `spurby-phi` only through the agent-facing API routes below. |
-| `spurby-phi` | Everything a customer uploads; `apps/api`, `apps/worker`, `apps/versioning` serving it; Cloud SQL, Cloud Storage, Cloud KMS, Healthcare API, Sensitive Data Protection | Inside a VPC Service Controls perimeter. Only products on Google's HIPAA covered-products list. |
+| `spurby-phi` | Everything a customer uploads; `apps/api`, `apps/worker`, `apps/versioning`, `apps/pipeline` serving it; Cloud SQL, Cloud Storage, Cloud KMS, Healthcare API, Sensitive Data Protection | Inside a VPC Service Controls perimeter. Only products on Google's HIPAA covered-products list. |
 | `spurby-data` | Data we curate: public datasets, seed data, e2e and synthetic fixtures, demos, de-identified releases | Normal controls; may be public-facing. |
 
 Development and staging get their own projects (`*-dev`, `*-staging`) with synthetic data only. Never
@@ -108,13 +108,16 @@ agent.
 
 | Piece | Google service |
 |---|---|
-| Postgres | Cloud SQL for PostgreSQL 17, private IP, CMEK |
+| Postgres | Cloud SQL for PostgreSQL 17, private IP, CMEK; database `studio` (api, versioning and pipeline schemas) and `pipeline_engine` (DBOS state), one role per service with a `CONNECTION LIMIT` |
 | `BlobStore`, plugin artifacts | Cloud Storage; retention lock on the artifacts bucket |
 | Bundle delivery | Cloud CDN in front of the artifacts bucket |
 | DICOM de-identification | Healthcare API dataset with Google-managed encryption, the one exception to CMEK: the API can't de-identify CMEK-encrypted resources or use CMEK inside a perimeter |
 | Platform signing key | Cloud KMS asymmetric key, HSM protection (cosign `gcpkms://…`) |
-| First-party CI signing | GitHub OIDC through Workload Identity Federation |
+| First-party CI signing, image pushes | GitHub OIDC through Workload Identity Federation (`infra/terraform/phi/ci.tf`: this repository's `main` branch only, service account `ci-images` with `artifactregistry.writer` on `images` only) |
 | Container images, OCI artifacts | Artifact Registry; Binary Authorization |
+| Pipeline service (`apps/pipeline`, docs/pipeline.md) | GKE Deployment `pipeline` (2+ replicas, HPA on CPU, PDB), port 8095, called only by the api; reaches the api, versioning and Cloud SQL. No Google identity until Milestone 3 |
+| Bucket notifications (pipeline Milestone 3) | Pub/Sub topic and **pull** subscription with CMEK (push is restricted inside a perimeter); `pipeline_connectors_enabled` |
+| GPU steps (pipeline Milestone 4) | `worker-gpu` Deployment on Autopilot's Accelerator class (NVIDIA L4, GKE Sandbox, Spot), regional L4 quota requested by a person; `gpu_workers_enabled` |
 | Kubernetes | GKE Autopilot; a `gke` overlay next to `infra/k8s/overlays/{dev,staging,prod}` |
 | Worker running untrusted plugin code | GKE Sandbox (gVisor) node pool, NetworkPolicy denying egress, read-only input |
 | Secrets | Secret Manager + Workload Identity, surfaced as the usual `INKLING_*` env vars |
@@ -135,26 +138,48 @@ agent.
    and kubectl still work once enforced) and the one-way release egress rule to `spurby-data`
    (`release_egress`). Watch dry-run violations (`python3 tests/gcp/perimeter_test.py --expect
    dry-run --check-log`), then enforce before customer data and rerun it with `--expect enforced`.
-4. [~] Infrastructure inside each project, written and planned, not applied: one Terraform stack
+4. [ ] State bucket key (todo12 A1): `gs://spurby-phi-tfstate` gets a default CMEK key from a
+   small hand-made key ring `tfstate` in location `us` (the phi stack's ring is regional and
+   doesn't exist before its first apply). Commands: todo12 A1. Until then every stack's
+   `terraform init` fails writing its lock (`412 … CMEK is required`).
+5. [~] Infrastructure inside each project, written and planned, not applied: one Terraform stack
    per project (`infra/terraform/{phi,ai,data}`, each with a README), and the Kubernetes overlays
-   `infra/k8s/overlays/gke/{phi,ai}`.
+   `infra/k8s/overlays/gke/{phi,ai}`. Apply order: `phi`, `data`, `ai` (todo12 A3).
+6. [ ] Cluster add-ons (ingress-nginx, cert-manager, External Secrets, KEDA; mirrored images),
+   namespace `studio`, ConfigMap `redis-ca` (`infra/k8s/overlays/gke/README.md`).
+7. [ ] Databases: set the `postgres` password, fill `db-bootstrap-secrets` and run the suspended
+   `db-bootstrap` Job (roles `api_app` and `pipeline_app` with their connection limits, schema
+   `pipeline`, owner of `pipeline_engine`; `infra/k8s/base/jobs/db-bootstrap.sql`), then
+   versioning's `migrate bootstrap`. Then fill the `<app>-secrets` in Secret Manager
+   (`pipeline-secrets` and `pipeline-versioning-jwt` from pipeline Milestone 1).
+8. [ ] Images: CI through Workload Identity Federation (`ci.tf`; plus a perimeter ingress rule for
+   `ci-images`), or a person under impersonation; digests into the overlays.
+9. [ ] Render with real values (`infra/k8s/overlays/gke/live/{phi,ai}`, from git-ignored
+   `local.env` files filled from `terraform output`), validate, apply; DNS.
+10. [ ] Smoke test on synthetic data, then enforce the perimeter (step 3) before any customer data.
 
-Steps 1–3 come before any customer data arrives.
+Steps 1–3 come before any customer data arrives; the pipeline's Milestone 3 (Pub/Sub,
+`pipeline_connectors_enabled`) and Milestone 4 (GPU, `gpu_workers_enabled` and the L4 quota) each
+switch on only when that milestone ships.
 
 ### Before the first apply
 
 - The state bucket `gs://spurby-phi-tfstate` sits in `spurby-phi`, where CMEK is now required for
   Cloud Storage, so it refuses new objects (locks, new stacks' state, the next state version of
   `org`) until it has a default KMS key. Give it one, in location `us` (the bucket's), by hand,
-  before any Terraform apply.
+  before any Terraform apply: key ring `tfstate`, key `state` (90-day rotation), the Cloud Storage
+  service agent as its encrypter/decrypter, then `gcloud storage buckets update
+  gs://spurby-phi-tfstate --default-encryption-key=…` (setup order step 4). Not done yet.
 - `spurby-ai` is outside the organization, so the deploy identity needs a role there, granted by
   the project's owner (`infra/terraform/ai/README.md`).
 
 ### How the pieces connect
 
 - Both clusters are GKE Autopilot with private nodes. Plugin code on real data runs only in the
-  `spurby-phi` worker, under GKE Sandbox (`runtimeClassName: gvisor`), with no egress except the
-  api. Build sandboxes in `spurby-ai` (agent-sandbox, gVisor) have no network at all.
+  `spurby-phi` worker (and, from pipeline Milestone 4, `worker-gpu`), under GKE Sandbox
+  (`runtimeClassName: gvisor`), with no egress except the api. The pipeline pod reaches only the
+  api, versioning and Cloud SQL (from Milestone 3 also `restricted.googleapis.com` for Pub/Sub);
+  only the api calls it. Build sandboxes in `spurby-ai` (agent-sandbox, gVisor) have no network at all.
 - The two projects talk over HTTPS between fixed Cloud NAT addresses: web → the agent's host, the
   agent → a separate agent-only host on the api (the Studio's host refuses the agent's address).
   Details: `infra/k8s/overlays/gke/README.md`.

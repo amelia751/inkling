@@ -1,0 +1,83 @@
+# Copies the values in ConfigMap `gke-values` (local.env.example here, ../live/phi/local.env for
+# a real render) into every field that needs them. A Component so both entry points run the
+# same replacements; the later run (live) wins, since a replacement overwrites whatever is there.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+replacements:
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.DATA_SERVICES_CIDR }
+    targets:
+      - select: { kind: NetworkPolicy, name: api }
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select: { kind: NetworkPolicy, name: versioning }
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select: { kind: NetworkPolicy, name: pipeline }
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select: { kind: NetworkPolicy, name: migrations }
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_EGRESS_CIDR }
+    targets:
+      - select: { kind: Ingress, name: studio }
+        fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/denylist-source-range]
+      - select: { kind: Ingress, name: agent-api }
+        fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/whitelist-source-range]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_INGRESS_CIDR }
+    targets:
+      - select: { kind: NetworkPolicy, name: web-to-agent }
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+  # rediss://<host:port>/<db>?…: the third "/"-separated part.
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.REDIS_HOST }
+    targets:
+      - select: { kind: ConfigMap, name: api-config }
+        fieldPaths: [data.INKLING_REDIS_URL]
+        options: { delimiter: /, index: 2 }
+      - select: { kind: ConfigMap, name: versioning-config }
+        fieldPaths: [data.INKLING_VERSIONING_REDIS_URL]
+        options: { delimiter: /, index: 2 }
+      - select: { kind: ConfigMap, name: worker-config }
+        fieldPaths: [data.KEDA_REDIS_ADDRESS]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.OBJECTS_BUCKET }
+    targets:
+      - select: { kind: ConfigMap, name: api-config }
+        fieldPaths: [data.INKLING_GCS_BUCKET]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.VERSIONING_OBJECTS_BUCKET }
+    targets:
+      - select: { kind: ConfigMap, name: versioning-config }
+        fieldPaths: [data.INKLING_VERSIONING_OBJECT_BUCKET]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.VERSIONING_MANIFESTS_BUCKET }
+    targets:
+      - select: { kind: ConfigMap, name: versioning-config }
+        fieldPaths: [data.INKLING_VERSIONING_MANIFEST_BUCKET]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.PLUGIN_SIGNING_KEY }
+    targets:
+      - select: { kind: ConfigMap, name: api-config }
+        fieldPaths: [data.INKLING_API_SIGNER_KMS_KEY]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.API_SERVICE_ACCOUNT }
+    targets:
+      - select: { kind: ServiceAccount, name: api }
+        fieldPaths: [metadata.annotations.iam\.gke\.io/gcp-service-account]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.VERSIONING_SERVICE_ACCOUNT }
+    targets:
+      - select: { kind: ServiceAccount, name: versioning }
+        fieldPaths: [metadata.annotations.iam\.gke\.io/gcp-service-account]
+  # Milestone 3 only: these targets exist once components/pipeline-connectors is on.
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.PIPELINE_SERVICE_ACCOUNT }
+    targets:
+      - select: { kind: ServiceAccount, name: pipeline, annotationSelector: iam.gke.io/gcp-service-account }
+        fieldPaths: [metadata.annotations.iam\.gke\.io/gcp-service-account]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.PIPELINE_CONNECTOR_SUBSCRIPTION }
+    targets:
+      - select: { kind: ConfigMap, name: pipeline-connectors-config }
+        fieldPaths: [data.INKLING_PIPELINE_CONNECTOR_SUBSCRIPTION]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.STUDIO_HOST }
+    targets:
+      - select: { kind: Ingress, name: studio }
+        fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_API_HOST }
+    targets:
+      - select: { kind: Ingress, name: agent-api }
+        fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_URL }
+    targets:
+      - select: { kind: Deployment, name: web }
+        fieldPaths:
+          - spec.template.spec.containers.[name=web].env.[name=INKLING_AGENT_URL].value

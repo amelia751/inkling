@@ -3,5 +3,11 @@ kind: Kustomization
 resources:
   - api-migrate.yaml
   - versioning-migrate.yaml
+  - pipeline-migrate.yaml
   - agent-migrate.yaml
   - agent-sweeper.yaml
+  - db-bootstrap.yaml
+configMapGenerator:
+  - name: db-bootstrap-sql
+    files:
+      - db-bootstrap.sql

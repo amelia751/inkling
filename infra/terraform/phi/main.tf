@@ -41,13 +41,13 @@ locals {
   # Kubernetes namespace of the apps (infra/k8s/overlays/gke/phi).
   ns = "studio"
   # Workload Identity member for a Kubernetes service account in that namespace.
-  wi = { for ksa in ["api", "versioning", "release", "external-secrets"] :
+  wi = { for ksa in ["api", "versioning", "release", "external-secrets", "pipeline"] :
     ksa => "serviceAccount:${var.project}.svc.id.goog[${ksa == "external-secrets" ? "external-secrets" : local.ns}/${ksa}]"
   }
 }
 
 resource "google_project_service" "this" {
-  for_each = toset([
+  for_each = toset(concat([
     "artifactregistry.googleapis.com",
     "binaryauthorization.googleapis.com",
     "cloudkms.googleapis.com",
@@ -65,7 +65,11 @@ resource "google_project_service" "this" {
     "servicenetworking.googleapis.com",
     "sqladmin.googleapis.com",
     "storage.googleapis.com",
-  ])
+    "sts.googleapis.com", # GitHub OIDC token exchange (ci.tf)
+    ],
+    var.pipeline_connectors_enabled ? ["pubsub.googleapis.com"] : [],
+    var.gpu_workers_enabled ? ["cloudquotas.googleapis.com"] : [],
+  ))
   service            = each.key
   disable_on_destroy = false
 }

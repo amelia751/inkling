@@ -1,0 +1,83 @@
+# One-time database bootstrap (todo12 A2/A5): Cloud SQL has no public IP and the cluster is
+# default-deny, so roles are created from inside, by this Job, not from a laptop. Suspended:
+# applying the manifests never runs it. A person fills db-bootstrap-secrets (keys
+# ADMIN_DATABASE_URL, API_APP_PASSWORD, PIPELINE_APP_PASSWORD), then
+#   kubectl -n studio patch job db-bootstrap --type=merge -p '{"spec":{"suspend":false}}'
+#   kubectl -n studio wait --for=condition=complete job/db-bootstrap --timeout=5m
+# and disables that secret's version afterwards. The SQL is db-bootstrap.sql (ConfigMap
+# db-bootstrap-sql). The only egress is Postgres (NetworkPolicy `migrations`).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-bootstrap
+  labels:
+    app.kubernetes.io/name: db-bootstrap
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-bootstrap
+  labels:
+    app.kubernetes.io/name: db-bootstrap
+    app.kubernetes.io/component: migration
+spec:
+  suspend: true
+  backoffLimit: 2
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: db-bootstrap
+    spec:
+      restartPolicy: Never
+      serviceAccountName: db-bootstrap
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: psql
+          # Mirrored into the project's registry in the gke overlay (phi nodes have no egress).
+          image: postgres:17
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              for i in $(seq 1 60); do pg_isready -q -d "$ADMIN_DATABASE_URL" && break; sleep 2; done
+              exec psql "$ADMIN_DATABASE_URL" -X -q \
+                -v api_pw="$API_APP_PASSWORD" -v pipeline_pw="$PIPELINE_APP_PASSWORD" \
+                -f /sql/db-bootstrap.sql
+          env:
+            - name: HOME
+              value: /tmp
+          envFrom:
+            - secretRef:
+                name: db-bootstrap-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: sql
+              mountPath: /sql
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: sql
+          configMap:
+            name: db-bootstrap-sql
+        - name: tmp
+          emptyDir: {}

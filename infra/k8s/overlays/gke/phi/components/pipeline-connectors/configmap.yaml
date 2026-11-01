@@ -1,0 +1,10 @@
+# Connector settings for apps/pipeline (Milestone 3). The subscription comes from gke-values
+# (terraform output pipeline_connector_subscription).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-connectors-config
+data:
+  INKLING_PIPELINE_CONNECTOR_SUBSCRIPTION: PIPELINE_CONNECTOR_SUBSCRIPTION
+  # Periodic prefix listing that catches missed notifications.
+  INKLING_PIPELINE_CONNECTOR_RECONCILE_INTERVAL: 15m

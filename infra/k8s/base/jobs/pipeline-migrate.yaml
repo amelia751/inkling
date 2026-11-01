@@ -1,0 +1,52 @@
+# goose migrations for the `pipeline` schema in database `studio`, run as pipeline_app (which
+# owns the schema; db-bootstrap creates both). DBOS creates its own system tables in
+# `pipeline_engine` when the server launches, so this Job doesn't touch that database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pipeline-migrate
+  labels:
+    app.kubernetes.io/name: pipeline-migrate
+    app.kubernetes.io/component: migration
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 4
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pipeline-migrate
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: pipeline
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: studio-pipeline
+          command: ["/app/bin/migrate", "up"]
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

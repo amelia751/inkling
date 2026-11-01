@@ -91,3 +91,55 @@ variable "master_ipv4_cidr" {
   type        = string
   default     = "172.16.0.0/28"
 }
+
+# ---- CI (ci.tf) ------------------------------------------------------------------------------
+
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose `main` branch may push images. Pass as -var; empty: no CI federation."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of that repository (`gh api repos/<owner>/<name> --jq .id`). The condition matches IDs, which survive renames and can't be re-registered by someone else."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository_owner_id" {
+  description = "Numeric ID of the repository's owner (`gh api repos/<owner>/<name> --jq .owner.id`)."
+  type        = string
+  default     = ""
+}
+
+# ---- Pipeline milestones (todo12 A10). Off until their milestone ships. ----------------------
+
+variable "pipeline_connectors_enabled" {
+  description = "Milestone 3: pipeline Google identity, Pub/Sub topic + pull subscription, landing bucket notifications (pipeline-connectors.tf)."
+  type        = bool
+  default     = false
+}
+
+variable "pipeline_connector_buckets" {
+  description = "Extra buckets in this project (names) whose object notifications feed the pipeline, besides the `landing` bucket. Milestone 3."
+  type        = list(string)
+  default     = []
+}
+
+variable "gpu_workers_enabled" {
+  description = "Milestone 4: regional NVIDIA L4 quota preferences for the worker-gpu Deployment (gpu.tf). A person applies it; Google may grant less."
+  type        = bool
+  default     = false
+}
+
+variable "gpu_l4_quota" {
+  description = "Regional NVIDIA L4 GPUs to request: on-demand and Spot (preemptible)."
+  type        = object({ on_demand = number, spot = number })
+  default     = { on_demand = 4, spot = 8 }
+}
+
+variable "quota_contact_email" {
+  description = "Who Google contacts about the GPU quota request. Pass as -var (never commit an address)."
+  type        = string
+  default     = ""
+}

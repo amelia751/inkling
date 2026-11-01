@@ -2,8 +2,20 @@
 # JSON object of its keys. Terraform creates the empty secrets; a person adds versions
 # (README.md), so no value is ever in state. The External Secrets Operator syncs them into the
 # cluster (infra/k8s/overlays/gke/phi/external-secrets.yaml).
+# pipeline-versioning-jwt holds {"jwt.key": "<PEM>"} for the pipeline's versioning calls (kid
+# `pipeline`). db-bootstrap-secrets holds the admin DSN and the role passwords the db-bootstrap
+# Job sets; add a version only while bootstrapping, then disable it.
 locals {
-  app_secrets = toset(["web-secrets", "api-secrets", "worker-secrets", "versioning-secrets", "api-versioning-jwt"])
+  app_secrets = toset([
+    "web-secrets",
+    "api-secrets",
+    "worker-secrets",
+    "versioning-secrets",
+    "api-versioning-jwt",
+    "pipeline-secrets",
+    "pipeline-versioning-jwt",
+    "db-bootstrap-secrets",
+  ])
 }
 
 resource "google_secret_manager_secret" "app" {

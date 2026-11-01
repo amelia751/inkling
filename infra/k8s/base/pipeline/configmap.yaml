@@ -1,0 +1,23 @@
+# Non-secret settings for apps/pipeline (keys: <envPrefix>PIPELINE_*, todo12 §6). pipeline-secrets
+# holds both database URLs (role pipeline_app) and the token it presents to the api's service
+# routes. The versioning signing key is Secret pipeline-versioning-jwt; the api's public key
+# (to verify the api's calls) is ConfigMap api-jwks. Both are created per stage
+# (tools/versioning-keys.mjs; infra/k8s/README.md).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pipeline-config
+data:
+  INKLING_ENV: production
+  INKLING_PIPELINE_PORT: "8095"
+  # Per pod, across both databases. pods (HPA max 4) × pool ≤ pipeline_app's CONNECTION LIMIT
+  # (20), leaving room for pipeline-migrate.
+  INKLING_PIPELINE_DB_POOL_MAX: "4"
+  INKLING_PIPELINE_API_URL: http://api
+  INKLING_PIPELINE_VERSIONING_URL: http://versioning:8090
+  INKLING_PIPELINE_VERSIONING_JWT_KID: pipeline
+  INKLING_PIPELINE_VERSIONING_JWT_KEY_FILE: /etc/pipeline/versioning/jwt.key
+  INKLING_PIPELINE_API_JWKS_FILE: /etc/pipeline/api-jwks/jwks.json
+  INKLING_PIPELINE_RUN_DEADLINE: 24h
+  INKLING_PIPELINE_DRAIN_DEADLINE: 72h
+  INKLING_PIPELINE_ENGINE_RETENTION: 720h

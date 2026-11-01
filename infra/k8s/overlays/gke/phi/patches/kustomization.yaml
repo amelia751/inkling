@@ -1,0 +1,75 @@
+# The gke/phi changes to base, as a Component so they apply before values/ (kustomize runs a
+# kustomization's own patches after its components, which would overwrite the replaced values).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  - path: no-agent.yaml
+  - path: endpoints.yaml
+  - path: workload-identity.yaml
+  # The worker is the only pod that runs plugin code on real data: GKE Sandbox (gVisor).
+  - target:
+      kind: Deployment
+      name: worker
+    patch: |-
+      - op: add
+        path: /spec/template/spec/runtimeClassName
+        value: gvisor
+  # web proxies /api/agent to the agent's public host in spurby-ai: AGENT_URL (values/).
+  # Memorystore serves TLS with its own CA (ConfigMap redis-ca, from `terraform output redis_ca`).
+  - target:
+      kind: Deployment
+      name: (api|versioning)
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: redis-ca
+          configMap:
+            name: redis-ca
+            optional: true
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: redis-ca
+          mountPath: /etc/redis-ca
+          readOnly: true
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: (web|api)
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+  - target:
+      kind: ScaledObject
+      name: worker
+    patch: |-
+      - op: replace
+        path: /spec/maxReplicaCount
+        value: 30
+      - op: add
+        path: /spec/triggers/0/metadata/enableTLS
+        value: "true"
+      - op: add
+        path: /spec/triggers/0/authenticationRef
+        value:
+          name: worker-queue-redis
+  # The Studio's host. spurby-ai's egress address is refused here: the agent uses agent-api only.
+  - target:
+      kind: Ingress
+      name: studio
+    patch: |-
+      - op: add
+        path: /spec/rules/0/host
+        value: studio.example.com
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts: [studio.example.com]
+            secretName: studio-tls
+      - op: add
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt
+      - op: add
+        path: /metadata/annotations/nginx.ingress.kubernetes.io~1denylist-source-range
+        value: AGENT_EGRESS_CIDR

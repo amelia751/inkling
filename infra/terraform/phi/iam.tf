@@ -1,13 +1,16 @@
 # One Google service account per Kubernetes service account that needs Google APIs, bound
 # through Workload Identity (no key files). The worker and web have none: the worker talks only
-# to the api, web only to the agent.
+# to the api, web only to the agent. The pipeline gets one only from Milestone 3
+# (pipeline_connectors_enabled, pipeline-connectors.tf): Pub/Sub and connector bucket reads.
 resource "google_service_account" "app" {
-  for_each = {
+  for_each = merge({
     api              = "apps/api: BlobStore, plugin signing, Healthcare API, Sensitive Data Protection"
     versioning       = "apps/versioning: object and manifest buckets"
     release          = "De-identified release copy to spurby-data (one-way, audited)"
     external-secrets = "External Secrets Operator: reads app secrets from Secret Manager"
-  }
+    }, var.pipeline_connectors_enabled ? {
+    pipeline = "apps/pipeline (Milestone 3): connector notifications and bucket listing, read-only"
+  } : {})
   account_id   = each.key == "external-secrets" ? "external-secrets" : "studio-${each.key}"
   display_name = each.value
 }

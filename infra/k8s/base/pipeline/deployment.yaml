@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pipeline
+  labels:
+    app.kubernetes.io/name: pipeline
+    app.kubernetes.io/component: pipeline
+spec:
+  # replicas: managed by the HPA, 2 or more (overlays/dev removes the HPA and runs one).
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: pipeline
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pipeline
+        app.kubernetes.io/component: pipeline
+    spec:
+      serviceAccountName: pipeline
+      automountServiceAccountToken: false
+      # Workflows are durable: a pod stopped mid-step is recovered from its last checkpoint by
+      # another replica, so the grace period only lets in-flight HTTP requests finish.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipeline
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipeline
+      containers:
+        - name: pipeline
+          image: studio-pipeline
+          ports:
+            - name: http
+              containerPort: 8095
+          envFrom:
+            - configMapRef:
+                name: pipeline-config
+            - secretRef:
+                name: pipeline-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          # Ready once both databases answer and the engine has launched.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Let endpoints drop the pod before the server stops accepting (the image has no shell,
+          # hence the built-in sleep action).
+          lifecycle:
+            preStop:
+              sleep:
+                seconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: versioning-jwt
+              mountPath: /etc/pipeline/versioning
+              readOnly: true
+            - name: api-jwks
+              mountPath: /etc/pipeline/api-jwks
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+        # Ed25519 private key (PKCS8 PEM, key `jwt.key`, kid `pipeline`), created out of band
+        # (infra/k8s/README.md; dev: `pnpm k8s:dev-keys`).
+        - name: versioning-jwt
+          secret:
+            secretName: pipeline-versioning-jwt
+            defaultMode: 0400
+        # Public key of the api's signer (kid `api`), to verify the api's calls.
+        - name: api-jwks
+          configMap:
+            name: api-jwks

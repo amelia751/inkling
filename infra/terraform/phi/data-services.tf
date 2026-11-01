@@ -1,5 +1,5 @@
-# Cloud SQL for PostgreSQL 17 (api and versioning share database `studio`, as in the prod
-# overlay) and Memorystore for Redis (job queue, event bus, KEDA's queue length). Private IP
+# Cloud SQL for PostgreSQL 17 (api, versioning and the pipeline's tables share database
+# `studio`; the pipeline engine has `pipeline_engine`) and Memorystore for Redis (job queue, event bus, KEDA's queue length). Private IP
 # only, CMEK. Database roles and passwords are created out of band (README.md), so no password
 # is ever in Terraform state.
 resource "google_sql_database_instance" "studio" {
@@ -61,6 +61,15 @@ resource "google_sql_database_instance" "studio" {
 
 resource "google_sql_database" "studio" {
   name     = "studio"
+  instance = google_sql_database_instance.studio.name
+}
+
+# apps/pipeline's engine state (DBOS system tables), next to `studio` on the same instance
+# (todo12 E7). Owned by role pipeline_app, which the db-bootstrap Job creates (README.md); its
+# CONNECTION LIMIT is the pipeline's connection budget. The pipeline's own tables are schema
+# `pipeline` in database `studio`.
+resource "google_sql_database" "pipeline_engine" {
+  name     = "pipeline_engine"
   instance = google_sql_database_instance.studio.name
 }
 

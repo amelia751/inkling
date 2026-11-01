@@ -225,14 +225,15 @@ helm repo add kedacore https://kedacore.github.io/charts && helm repo update
 helm install keda kedacore/keda --namespace keda --create-namespace --wait
 
 # Images: build locally, then load them into the cluster's nodes
-for app in web api agent worker versioning; do
+for app in web api agent worker versioning pipeline; do
   docker build -f apps/$app/Dockerfile -t studio-$app:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
   kind load docker-image studio-$app:dev --name studio
 done
 
 # Deploy (namespace studio-dev): apps, in-cluster Postgres/Redis/S3, migrations, Ingress
 kubectl apply -k infra/k8s/overlays/dev
-# Once per cluster: the api → versioning JWT key pair (api and versioning wait for it)
+# Once per cluster: the service-JWT key pairs (api and pipeline signers; versioning-jwks and
+# api-jwks). api, versioning and pipeline wait for them.
 pnpm k8s:dev-keys
 kubectl -n studio-dev get pods -w
 open http://localhost:8081
@@ -258,9 +259,16 @@ Notes:
   kubectl -n studio-dev set env deployment/agent INKLING_AGENT_MODEL=openai:gpt-6.1-sol INKLING_AGENT_SANDBOX=daytona
   ```
 
-- Migration Jobs (`api-migrate`, `versioning-migrate`) are garbage-collected 5 minutes after
-  they finish, so re-applying runs them again (they're idempotent). Under Argo CD they're
-  PreSync hooks.
+- Migration Jobs (`api-migrate`, `versioning-migrate`, `pipeline-migrate`) are garbage-collected
+  5 minutes after they finish, so re-applying runs them again (they're idempotent). Under Argo CD
+  they're PreSync hooks.
+- The pipeline (`apps/pipeline`, :8095, called by the api only) runs one replica in dev. Its
+  database roles come from the `db-bootstrap` Job, which the dev overlay runs on apply (in
+  staging and on Google Cloud it is suspended until a person starts it): `pipeline_app`, schema
+  `pipeline` in `studio`, owner of `pipeline_engine` (created by the dev Postgres's `init.sql`,
+  so a Postgres volume from before the pipeline needs `CREATE DATABASE pipeline_engine` once).
+  `pipeline-migrate` retries until the roles exist. Check it with
+  `kubectl -n studio-dev port-forward svc/pipeline 8095` and `curl localhost:8095/readyz`.
 - Seeds: `kubectl -n studio-dev port-forward svc/s3 9000`, then upload as in mode 1.
 - Try scaling: `kubectl -n studio-dev scale deployment/api --replicas=3`.
 - Tear down: `kind delete cluster --name studio`.

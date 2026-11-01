@@ -23,3 +23,8 @@ data:
   INKLING_API_VERSIONING_JWT_KEY_FILE: /etc/api/versioning/jwt.key
   INKLING_API_VERSIONING_JWKS_FILE: /tmp/versioning-jwks.json
   INKLING_API_VERSIONING_JWT_KID: api
+  # The pipeline's private API (apps/pipeline): the api signs each call with the same key and kid
+  # (audience `pipeline`); the pipeline verifies against ConfigMap api-jwks. The token the
+  # pipeline presents to the api's service routes is <envPrefix>API_PIPELINE_TOKEN in api-secrets.
+  INKLING_API_PIPELINE_URL: http://pipeline:8095
+  INKLING_API_PIPELINE_JWT_KID: api

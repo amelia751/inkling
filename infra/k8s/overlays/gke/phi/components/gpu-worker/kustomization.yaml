@@ -1,0 +1,17 @@
+# Milestone 4 (todo12 A10, E8): a second worker Deployment, worker-gpu, that claims only
+# GPU-class kernel jobs, on Autopilot's Accelerator compute class (NVIDIA L4) under GKE Sandbox
+# (gVisor supports L4). Same rules as the worker: no Google identity, no secrets beyond its
+# kernel token, egress to api:8000 only. Turn on after the regional L4 quota is granted
+# (`terraform apply -var gpu_workers_enabled=true …` in infra/terraform/phi, or by hand; a
+# person's step): add `components/gpu-worker` to ../../kustomization.yaml, before `values`.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - deployment.yaml
+  - scaledobject.yaml
+  - pdb.yaml
+  - network.yaml
+configMapGenerator:
+  - name: worker-gpu-config
+    literals:
+      - INKLING_WORKER_RESOURCE_CLASSES=gpu

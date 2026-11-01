@@ -43,6 +43,22 @@ const (
 	KindService = "service"
 )
 
+// The pipeline service's identity (todo12 Milestone 1). Tokens signed with
+// kid PipelineKID (its own Ed25519 key, published in versioning-jwks next to
+// the api's) carry issuer PipelineIssuer and the actor PipelineActorID, and
+// become a principal with Service = ServicePipeline. No other key may claim
+// that actor. What the pipeline may do is fenced in internal/authz and the
+// server's route allowlist.
+const (
+	PipelineKID     = "pipeline"
+	PipelineIssuer  = "pipeline"
+	PipelineActorID = "service:pipeline"
+	ServicePipeline = "pipeline"
+)
+
+// PipelineScopes are the only scopes a pipeline token may carry.
+var PipelineScopes = map[string]bool{ScopeRead: true, ScopeWrite: true, ScopeReview: true, ScopeMerge: true}
+
 // MaxLifetime bounds exp-iat; apps/api mints 60 s tokens.
 const MaxLifetime = 120 * time.Second
 
@@ -60,7 +76,13 @@ type Principal struct {
 	Actor     Actor
 	Scopes    map[string]bool
 	RequestID string
+	// Service names a restricted backend principal (ServicePipeline), set
+	// only from its own signing key.
+	Service string
 }
+
+// IsPipeline reports whether p is the pipeline service.
+func (p *Principal) IsPipeline() bool { return p != nil && p.Service == ServicePipeline }
 
 // Has reports whether the principal holds scope.
 func (p *Principal) Has(scope string) bool { return p.Scopes[scope] }
@@ -197,12 +219,13 @@ func (v *Verifier) Verify(token string) (*Principal, error) {
 	var c Claims
 	parser := jwt.NewParser(
 		jwt.WithValidMethods([]string{jwt.SigningMethodEdDSA.Alg()}),
-		jwt.WithAudience(v.audience), jwt.WithIssuer(v.issuer),
+		jwt.WithAudience(v.audience),
 		jwt.WithExpirationRequired(), jwt.WithIssuedAt(), jwt.WithLeeway(5*time.Second),
 		jwt.WithTimeFunc(v.now),
 	)
+	var kid string
 	_, err := parser.ParseWithClaims(token, &c, func(t *jwt.Token) (any, error) {
-		kid, _ := t.Header["kid"].(string)
+		kid, _ = t.Header["kid"].(string)
 		if kid == "" {
 			kid = "default"
 		}
@@ -216,6 +239,14 @@ func (v *Verifier) Verify(token string) (*Principal, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrUnauthenticated, err)
+	}
+	// Each key has one issuer: the pipeline's key can't mint api tokens and vice versa.
+	wantIssuer := v.issuer
+	if kid == PipelineKID {
+		wantIssuer = PipelineIssuer
+	}
+	if c.Issuer != wantIssuer {
+		return nil, fmt.Errorf("%w: issuer %q not accepted for key %q", ErrUnauthenticated, c.Issuer, kid)
 	}
 	if c.IssuedAt == nil || c.ExpiresAt.Sub(c.IssuedAt.Time) > MaxLifetime {
 		return nil, fmt.Errorf("%w: token lifetime exceeds %s", ErrUnauthenticated, MaxLifetime)
@@ -241,6 +272,20 @@ func (v *Verifier) Verify(token string) (*Principal, error) {
 	p := &Principal{TenantID: c.TenantID, ProjectID: c.ProjectID, Actor: c.Actor, RequestID: c.RequestID, Scopes: map[string]bool{}}
 	for _, s := range c.Scopes {
 		p.Scopes[s] = true
+	}
+	switch {
+	case kid == PipelineKID:
+		if c.Actor.ID != PipelineActorID || c.Actor.Kind != KindService || c.Actor.OnBehalfOf != "" {
+			return nil, fmt.Errorf("%w: the pipeline key signs only for %s", ErrUnauthenticated, PipelineActorID)
+		}
+		for s := range p.Scopes {
+			if !PipelineScopes[s] {
+				return nil, fmt.Errorf("%w: scope %s is not available to the pipeline", ErrUnauthenticated, s)
+			}
+		}
+		p.Service = ServicePipeline
+	case c.Actor.ID == PipelineActorID || c.Actor.OnBehalfOf == PipelineActorID:
+		return nil, fmt.Errorf("%w: %s is reserved for the pipeline key", ErrUnauthenticated, PipelineActorID)
 	}
 	return p, nil
 }

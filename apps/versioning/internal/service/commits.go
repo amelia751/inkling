@@ -16,7 +16,10 @@ import (
 	"studio.local/versioning/internal/storage"
 )
 
-var oidRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var (
+	oidRE    = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	digestRE = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
+)
 
 // CommitInput is a linear commit request (spec §10 example).
 type CommitInput struct {
@@ -61,6 +64,9 @@ func (s *Service) Commit(ctx context.Context, p *authn.Principal, repoID string,
 	}
 	if !authz.AgentBranchAllowed(p, in.Branch) {
 		return nil, errf(http.StatusForbidden, "forbidden", "agents may only commit to work/agent-* branches")
+	}
+	if !authz.PipelineBranchAllowed(p, in.Branch) {
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service may only write pipeline/* branches")
 	}
 	studioFiles, err := validateStudio(in.Studio)
 	if err != nil {
@@ -257,6 +263,9 @@ func (s *Service) advance(ctx context.Context, p *authn.Principal, a advanceArgs
 // Revert creates a new commit whose manifest and Studio definition equal the
 // target's (spec §6; todo10: restoring a version restores its Studio setup).
 func (s *Service) Revert(ctx context.Context, p *authn.Principal, repoID, branch, expected, target, message, idemKey string) (*CommitResult, error) {
+	if p.IsPipeline() {
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service cannot revert")
+	}
 	var root string
 	if err := s.read(ctx, p.TenantID, func(q *db.Queries) error {
 		if _, err := s.repo(ctx, q, p, repoID); err != nil {

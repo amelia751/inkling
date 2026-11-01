@@ -1,0 +1,126 @@
+{
+  "steps": [
+    {
+      "id": "inkling.ingest.inspect",
+      "version": "1.0.0",
+      "runtime": "kernel_job",
+      "job_kind": "inspect",
+      "description": "Fingerprint, unpack and detect the kind of each staged upload; propose items.",
+      "inputs": {
+        "source": {
+          "type": "upload_session",
+          "required": true
+        }
+      },
+      "outputs": {
+        "items": {
+          "type": "item_set",
+          "required": true
+        },
+        "report": {
+          "type": "report",
+          "required": true
+        }
+      },
+      "resource_class": "cpu",
+      "partitionable": false,
+      "deterministic": true,
+      "default_timeout_seconds": 1800
+    },
+    {
+      "id": "inkling.ingest.derivatives",
+      "version": "1.0.0",
+      "runtime": "kernel_job",
+      "job_kind": "derivatives",
+      "description": "Thumbnails, previews and pyramids for a batch of items (todo11 derivatives).",
+      "inputs": {
+        "items": {
+          "type": "item_set",
+          "required": true
+        }
+      },
+      "outputs": {
+        "derived": {
+          "type": "artifact_set",
+          "required": true
+        },
+        "report": {
+          "type": "report",
+          "required": true
+        }
+      },
+      "resource_class": "cpu",
+      "partitionable": true,
+      "deterministic": true,
+      "default_timeout_seconds": 1800
+    },
+    {
+      "id": "inkling.pipeline.validate",
+      "version": "1.0.0",
+      "runtime": "builtin",
+      "description": "Check every item against the run's policy; split accepted from quarantined.",
+      "inputs": {
+        "items": {
+          "type": "item_set",
+          "required": true
+        },
+        "derived": {
+          "type": "artifact_set",
+          "required": false
+        },
+        "report": {
+          "type": "report",
+          "required": false
+        }
+      },
+      "outputs": {
+        "accepted": {
+          "type": "item_set",
+          "required": true
+        },
+        "quarantined": {
+          "type": "item_set",
+          "required": true
+        },
+        "report": {
+          "type": "report",
+          "required": true
+        }
+      },
+      "resource_class": "cpu",
+      "partitionable": false,
+      "deterministic": true,
+      "default_timeout_seconds": 600
+    },
+    {
+      "id": "inkling.pipeline.propose",
+      "version": "1.0.0",
+      "runtime": "builtin",
+      "description": "Stage the output manifest and create the candidate commit and review in versioning.",
+      "inputs": {
+        "accepted": {
+          "type": "item_set",
+          "required": true
+        },
+        "derived": {
+          "type": "artifact_set",
+          "required": false
+        },
+        "report": {
+          "type": "report",
+          "required": false
+        }
+      },
+      "outputs": {
+        "candidate": {
+          "type": "candidate_commit",
+          "required": true
+        }
+      },
+      "resource_class": "cpu",
+      "partitionable": false,
+      "deterministic": false,
+      "default_timeout_seconds": 600
+    }
+  ]
+}

@@ -17,3 +17,5 @@ export { CAPABILITIES } from "./capabilities";
 export * from "./canonical";
 export * from "./lockfile";
 export * from "./boundary";
+/** Pipeline contracts; also importable directly as `@studio/contracts/pipeline`. */
+export * as pipeline from "./pipeline";

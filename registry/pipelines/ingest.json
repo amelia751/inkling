@@ -1,0 +1,81 @@
+{
+  "apiVersion": "inkling.dev/v1",
+  "kind": "Pipeline",
+  "metadata": {
+    "name": "ingest",
+    "description": "Uploads → inspect → derivatives → validate → candidate dataset version for review."
+  },
+  "inputs": {
+    "upload": {
+      "type": "upload_session",
+      "description": "The finished upload session, pinned at run start.",
+      "pin_at_run_start": true
+    }
+  },
+  "trigger": {
+    "type": "upload.completed"
+  },
+  "steps": [
+    {
+      "id": "inspect",
+      "uses": "inkling.ingest.inspect@1",
+      "inputs": {
+        "source": "${inputs.upload}"
+      }
+    },
+    {
+      "id": "derivatives",
+      "uses": "inkling.ingest.derivatives@1",
+      "needs": [
+        "inspect"
+      ],
+      "inputs": {
+        "items": "${steps.inspect.outputs.items}"
+      },
+      "fan_out": {
+        "over": "${steps.inspect.outputs.items}",
+        "batch_size": 64,
+        "max_partitions": 1000
+      },
+      "on_failure": "quarantine"
+    },
+    {
+      "id": "validate",
+      "uses": "inkling.pipeline.validate@1",
+      "needs": [
+        "inspect",
+        "derivatives"
+      ],
+      "inputs": {
+        "items": "${steps.inspect.outputs.items}",
+        "derived": "${steps.derivatives.outputs.derived}",
+        "report": "${steps.inspect.outputs.report}"
+      }
+    },
+    {
+      "id": "propose",
+      "uses": "inkling.pipeline.propose@1",
+      "needs": [
+        "validate",
+        "derivatives"
+      ],
+      "inputs": {
+        "accepted": "${steps.validate.outputs.accepted}",
+        "derived": "${steps.derivatives.outputs.derived}",
+        "report": "${steps.validate.outputs.report}"
+      }
+    }
+  ],
+  "outputs": {
+    "candidate": "${steps.propose.outputs.candidate}"
+  },
+  "policy": {
+    "review": "required",
+    "partial_success": {
+      "allowed": true,
+      "min_success_ratio": 0
+    },
+    "deadline_seconds": 86400,
+    "compatibility": "compatible"
+  }
+}

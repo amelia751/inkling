@@ -37,6 +37,9 @@ var (
 	minioC *testenv.S3
 	signer *authn.Signer
 	pubKey ed25519.PublicKey
+	// The pipeline service's own key (kid "pipeline", todo12).
+	pipeSigner *authn.Signer
+	pipePub    ed25519.PublicKey
 )
 
 func TestMain(m *testing.M) {
@@ -47,6 +50,9 @@ func TestMain(m *testing.M) {
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	pubKey = pub
 	signer = &authn.Signer{Key: priv, KID: "test", Issuer: "api", Audience: "versioning"}
+	pp, pk, _ := ed25519.GenerateKey(rand.Reader)
+	pipePub = pp
+	pipeSigner = &authn.Signer{Key: pk, KID: authn.PipelineKID, Issuer: authn.PipelineIssuer, Audience: "versioning"}
 	code := m.Run()
 	for _, f := range cleanups {
 		f()
@@ -113,7 +119,7 @@ func newEnv(t *testing.T, opts ...envOpt) *env {
 		log = slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
 	a, err := app.Build(ctx, cfg, log, app.Options{Blobs: s3,
-		Verifier: authn.NewStaticVerifier(map[string]ed25519.PublicKey{"test": pubKey}, "versioning", "api")})
+		Verifier: authn.NewStaticVerifier(map[string]ed25519.PublicKey{"test": pubKey, authn.PipelineKID: pipePub}, "versioning", "api")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,6 +153,13 @@ var (
 )
 
 func (e *env) token(a authn.Actor) string {
+	if a.ID == authn.PipelineActorID {
+		tok, err := pipeSigner.Token(e.tenant, e.project, a, []string{authn.ScopeRead, authn.ScopeWrite, authn.ScopeReview, authn.ScopeMerge}, "")
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		return tok
+	}
 	tok, err := signer.Token(e.tenant, e.project, a, authn.AllScopes, "")
 	if err != nil {
 		e.t.Fatal(err)

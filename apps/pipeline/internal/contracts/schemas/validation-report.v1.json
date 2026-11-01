@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PipelineValidationReport",
+  "$defs": {
+    "PipelineValidationReport": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "definition_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "plan_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "diagnostics": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PipelineCompileDiagnostic"
+          }
+        }
+      },
+      "required": [
+        "ok",
+        "diagnostics"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineCompileDiagnostic": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "schema",
+            "duplicate_step",
+            "unknown_step",
+            "cycle",
+            "unknown_ref",
+            "ref_not_upstream",
+            "type_mismatch",
+            "missing_input",
+            "unknown_port",
+            "unresolved_step",
+            "unsigned_step",
+            "modality_mismatch",
+            "fan_out_unbounded",
+            "fan_out_not_partitionable",
+            "limit_exceeded",
+            "unknown_output"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "code",
+        "path",
+        "message"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/pipeline/validation-report.v1"
+}

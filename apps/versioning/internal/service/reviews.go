@@ -187,6 +187,9 @@ func (s *Service) CreateReview(ctx context.Context, p *authn.Principal, repoID s
 	if err := require(p, authn.ScopeReview); err != nil {
 		return nil, err
 	}
+	if !authz.PipelineBranchAllowed(p, in.SourceBranch) {
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service may only open reviews from pipeline/* branches")
+	}
 	if in.SourceBranch == in.TargetBranch {
 		return nil, errf(http.StatusBadRequest, "bad_request", "source and target must differ")
 	}
@@ -404,6 +407,9 @@ func (s *Service) PublishReview(ctx context.Context, p *authn.Principal, repoID,
 		if r.AuthorID != p.Actor.ID {
 			return errf(http.StatusForbidden, "forbidden", "only the author can publish a draft")
 		}
+		if !authz.PipelineBranchAllowed(p, r.SourceBranch) {
+			return errf(http.StatusForbidden, "forbidden", "the pipeline service may only open reviews from pipeline/* branches")
+		}
 		src, err := q.GetBranch(ctx, db.GetBranchParams{RepoID: repoID, Name: r.SourceBranch})
 		if err != nil {
 			return err
@@ -421,10 +427,19 @@ func (s *Service) PublishReview(ctx context.Context, p *authn.Principal, repoID,
 	})
 }
 
-// Approve records an approval bound to the reviewed source oid.
-func (s *Service) Approve(ctx context.Context, p *authn.Principal, repoID, reviewID, sourceOID string) (*ReviewView, error) {
+// Approve records an approval bound to the reviewed source oid, the target it
+// was checked against and, for pipeline candidates, the digest of the output
+// manifest the reviewer saw (todo12). Approving the same thing twice returns
+// the same approval id; approving again after the target moved mints a new one.
+func (s *Service) Approve(ctx context.Context, p *authn.Principal, repoID, reviewID, sourceOID, candidateDigest string) (*ReviewView, error) {
 	if err := require(p, authn.ScopeApprove); err != nil {
 		return nil, err
+	}
+	if p.Actor.ID == authn.PipelineActorID || p.Service == authn.ServicePipeline {
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service cannot approve")
+	}
+	if candidateDigest != "" && !digestRE.MatchString(candidateDigest) {
+		return nil, errf(http.StatusBadRequest, "bad_request", "candidate_digest must be sha256:<hex>")
 	}
 	return s.mutateReview(ctx, p, repoID, reviewID, func(q *db.Queries, _ pgx.Tx, r db.VersioningReviewRequest) error {
 		switch r.Status {
@@ -438,11 +453,16 @@ func (s *Service) Approve(ctx context.Context, p *authn.Principal, repoID, revie
 		if sourceOID != r.SourceOid {
 			return &Error{Status: http.StatusConflict, Code: "stale_head", Detail: "the source changed since you reviewed it", CurrentHead: r.SourceOid}
 		}
-		if err := q.InsertApproval(ctx, db.InsertApprovalParams{TenantID: p.TenantID, ReviewID: r.ID, ReviewerID: p.Actor.ID,
-			ApprovedSourceOid: sourceOID}); err != nil {
+		a, err := q.InsertApproval(ctx, db.InsertApprovalParams{TenantID: p.TenantID, ReviewID: r.ID, ReviewerID: p.Actor.ID,
+			ApprovedSourceOid: sourceOID, ID: ids.New(), CandidateDigest: strOrNil(candidateDigest), ApprovedTargetOid: r.CheckedTargetOid})
+		if err != nil {
 			return err
 		}
-		return s.audit(ctx, q, p, repoID, "review.approved", r.ID, sourceOID, nil)
+		if candidateDigest != "" && deref(a.CandidateDigest) != candidateDigest {
+			return errf(http.StatusConflict, "conflict", "this approval is already bound to another candidate digest")
+		}
+		return s.audit(ctx, q, p, repoID, "review.approved", r.ID, sourceOID, map[string]string{"approval_id": a.ID,
+			"candidate_digest": candidateDigest})
 	})
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"studio.local/versioning/internal/authn"
+	"studio.local/versioning/internal/authz"
 	"studio.local/versioning/internal/db"
 )
 
@@ -46,6 +47,9 @@ func (s *Service) CreateBranch(ctx context.Context, p *authn.Principal, repoID, 
 	}
 	if err := ValidateBranchName(name); err != nil {
 		return nil, errf(http.StatusBadRequest, "bad_request", "invalid branch name: %v", err)
+	}
+	if !authz.PipelineBranchAllowed(p, name) || (protected && p.IsPipeline()) {
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service may only write pipeline/* branches")
 	}
 	if protected {
 		if err := require(p, authn.ScopeAdmin); err != nil {

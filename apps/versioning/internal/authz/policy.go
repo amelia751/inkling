@@ -13,9 +13,44 @@ import (
 
 // Policy errors.
 var (
-	ErrSelfApproval = errors.New("authors cannot approve their own review")
-	ErrAgentAction  = errors.New("agent actors cannot approve or merge reviews")
+	ErrSelfApproval   = errors.New("authors cannot approve their own review")
+	ErrAgentAction    = errors.New("agent actors cannot approve or merge reviews")
+	ErrServiceApprove = errors.New("the pipeline service cannot approve reviews")
 )
+
+// PipelineBranchPrefix is the only namespace the pipeline service writes to
+// (candidates live on pipeline/<run_id>, todo12 §5).
+const PipelineBranchPrefix = "pipeline/"
+
+// PipelineBranchAllowed reports whether p may write branch: any branch for
+// other principals, only pipeline/* for the pipeline service.
+func PipelineBranchAllowed(p *authn.Principal, branch string) bool {
+	if !p.IsPipeline() {
+		return true
+	}
+	return strings.HasPrefix(branch, PipelineBranchPrefix) && len(branch) > len(PipelineBranchPrefix)
+}
+
+// PipelineMergeAllowed is the pipeline's extra merge guard: at least one
+// approval by someone else on the review's current source, given while the
+// review was checked against the current target. An approval from before the
+// target moved is stale and doesn't count, whatever the repo's own rules say.
+func PipelineMergeAllowed(p *authn.Principal, source, checkedTarget string, approvals []Approval) bool {
+	if !p.IsPipeline() {
+		return true
+	}
+	for _, a := range approvals {
+		if a.ReviewerID != authn.PipelineActorID && a.SourceOID == source && a.TargetOID != "" && a.TargetOID == checkedTarget {
+			return true
+		}
+	}
+	return false
+}
+
+// Approval is what PipelineMergeAllowed needs of an approval row.
+type Approval struct {
+	ReviewerID, SourceOID, TargetOID string
+}
 
 // CanApprove applies the approval rules (spec §9, §16C; todo4 2.4):
 //   - an author cannot approve their own review;
@@ -27,6 +62,9 @@ var (
 func CanApprove(reviewer *authn.Principal, authorID, authorOnBehalfOf string) error {
 	if reviewer.Actor.Kind == authn.KindAgent {
 		return ErrAgentAction
+	}
+	if reviewer.IsPipeline() || reviewer.Actor.ID == authn.PipelineActorID {
+		return ErrServiceApprove
 	}
 	if reviewer.Actor.ID == authorID {
 		return ErrSelfApproval

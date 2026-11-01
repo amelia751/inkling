@@ -56,7 +56,7 @@ func New(o Options) http.Handler {
 			return r.Method + " " + r.URL.Path
 		}))
 	})
-	r.Use(limits(o), authenticate(o.Verifier))
+	r.Use(limits(o), authenticate(o.Verifier), pipelineScope)
 	strict := api.NewStrictHandlerWithOptions(o.Handlers, nil, api.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			writeProblem(w, r, &service.Error{Status: http.StatusBadRequest, Code: "bad_request", Detail: err.Error()})

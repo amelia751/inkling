@@ -33,9 +33,18 @@ FOR UPDATE;
 -- name: OpenReviewHeads :many
 SELECT source_oid, checked_target_oid FROM versioning.review_requests WHERE repo_id = $1 AND status NOT IN ('MERGED', 'CLOSED');
 
--- name: InsertApproval :exec
-INSERT INTO versioning.review_approvals (tenant_id, review_id, reviewer_id, approved_source_oid)
-VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING;
+-- name: InsertApproval :one
+-- A repeat for the same (reviewer, source, target) returns the stored approval unchanged; after
+-- the target moved it becomes a new approval (new id, digest and target).
+INSERT INTO versioning.review_approvals AS a (tenant_id, review_id, reviewer_id, approved_source_oid, id, candidate_digest, approved_target_oid)
+VALUES (sqlc.arg(tenant_id), sqlc.arg(review_id), sqlc.arg(reviewer_id), sqlc.arg(approved_source_oid), sqlc.arg(id),
+        sqlc.narg(candidate_digest), sqlc.narg(approved_target_oid))
+ON CONFLICT (review_id, reviewer_id, approved_source_oid) DO UPDATE SET
+  id = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN EXCLUDED.id ELSE a.id END,
+  candidate_digest = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN EXCLUDED.candidate_digest ELSE a.candidate_digest END,
+  created_at = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN now() ELSE a.created_at END,
+  approved_target_oid = EXCLUDED.approved_target_oid
+RETURNING *;
 
 -- name: ListApprovals :many
 SELECT * FROM versioning.review_approvals WHERE review_id = $1 ORDER BY created_at;

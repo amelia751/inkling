@@ -261,7 +261,7 @@ func TestScaleUpdateDiffMergeCheckout(t *testing.T) {
 	if err != nil || v.Row.Status != service.StReady {
 		t.Fatalf("not ready: %v %+v", err, v)
 	}
-	if _, err := h.a.Svc.Approve(ctx, h.alice, repoID, rv.Row.ID, rv.Row.SourceOid); err != nil {
+	if _, err := h.a.Svc.Approve(ctx, h.alice, repoID, rv.Row.ID, rv.Row.SourceOid, ""); err != nil {
 		t.Fatal(err)
 	}
 	start = time.Now()

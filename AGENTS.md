@@ -52,6 +52,32 @@ In `apps/web` before you hand work back:
   plugin install + worker) are in `tests/e2e/`. The `data-testid`s and store fields
   those tests use are a regression contract: keep them working.
 
+## Testing the product: drive it yourself, not through the in-house agent
+
+**Key rule.** When you test the product (does an environment validate and boot, does a drop land in
+Files, does the Studio render, does a plan apply), *you* drive it. Don't send chat messages to the
+in-house agent (`apps/agent`) to do work you can do yourself; every such run costs model calls and
+proves nothing about your change. Use:
+
+- the repo's MCP server (`pnpm mcp`; `catalog`, `get_environment`, `validate_environment`,
+  `patch_environment`, `set_environment`) for environments;
+- the kernel's HTTP API with a dev person token (`POST …/boots`, `…/imports`, `GET …/drops/{id}`,
+  …) for boots, uploads and data;
+- a browser (the IDE's browser tools, or the Playwright e2e in `apps/web/e2e/` and `tests/e2e/`)
+  for what a person sees.
+
+**Testing the in-house agent itself** (its tools, policy, protocol, prompts) is the only reason to
+run it, and it must be small:
+
+- use the scripted model by default (`AGENT_MODEL=scripted` with a fixture, prefixed as usual);
+  it's free and deterministic;
+- a real model only when the test is about the model's behavior: one conversation, the fewest
+  turns that prove the point, the smallest fixture, a cheap model from the allowlist, a hard stop
+  after a few turns; never in a loop, watch mode or the default `pnpm test` (live tests stay in
+  `test/live`, run by hand);
+- report how many real-model runs you made and roughly what they cost in your hand-back;
+- stop the agent service (and anything else you started) when you're done.
+
 ## Architecture in one paragraph
 
 The Studio shell runs an **environment** (JSON) that references **modules** (the UI half of

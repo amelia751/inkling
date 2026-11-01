@@ -40,13 +40,18 @@ This file plus `AGENTS.md` is the whole brief.
    gets file IDs, screened names and typed technical facts (§2, D3). The agent's transcript lives in
    `spurby-ai`, so nothing stored there may contain an original file name that failed screening, a
    thumbnail, a URL to bytes or a content-derived value.
-4. **Don't touch todo12's files** (todo12 §5): `apps/pipeline/**`, `apps/versioning/**`,
+4. **Test the product yourself, not through the in-house agent** (`AGENTS.md`, "Testing the
+   product"). To check that a drop lands, an environment boots or a Studio renders, drive it with
+   the repo's MCP server (`pnpm mcp`), the kernel's HTTP API and a browser. Run `apps/agent` only to
+   test the agent itself (its tools, policy, protocol), with the scripted model; real-model runs
+   are only the few in §6, kept small and reported.
+5. **Don't touch todo12's files** (todo12 §5): `apps/pipeline/**`, `apps/versioning/**`,
    `packages/contracts/src/pipeline/**`, `kernel/{queue,jobs}.py`, `routes/pipelines.py`,
    `apps/web/src/studio/core/pipelines/**`, `infra/terraform/**` (except the integrator's
    `phi/monitoring.tf`, §7.3). Where
    this plan needs the pipeline, it uses todo12's contracts and falls back to today's import flow
    until todo12 Milestone 1 merges (D9).
-5. **Hand back:**
+6. **Hand back:**
    - done per item against its exit tests;
    - commits, migrations, routes, events, agent tools and scope entries added;
    - the checks run (`AGENTS.md` list plus your e2e) and the journey timings you touched (§6);
@@ -372,7 +377,7 @@ here to start". The first drop fills it.
 **Exit tests (Milestone 2):**
 
 - journeys J1–J12 (§6) pass with the scripted model;
-- J1's real-model run is measured and reported (target in §6);
+- J1 timed with the scripted model; the real-model measurement waits for Milestone 4 (§6);
 - a second, different drop never reloads or changes the open Studio;
 - every §3.3 row has a classifier test and one e2e case;
 - the backfill migration upgrades and downgrades a fixture database with existing datasets and
@@ -462,6 +467,8 @@ Milestone 1 against the contracts and fills in as Milestone 2 merges. Coordinate
 
 **Rules** (as todo11 §6):
 
+- testing per `AGENTS.md` "Testing the product": drive drops, boots and the UI yourself (MCP
+  server, kernel API, browser); the in-house agent only for agent tests, scripted model by default;
 - branch slug in Alembic filenames;
 - never merge, never edit this file;
 - no product name outside `naming.ts`;
@@ -504,6 +511,11 @@ Milestone 4. After each merge, run the journey suite (§6).
 | Request or drop to Studio configured by the agent, real model (J1, J2) | < 60 s | measured and reported; gated once stable |
 | Second drop to plan card (J4) | < 5 s after first group classified | e2e |
 | Background ingest (bytes/s, time to all ready) | tracked | not gated (todo11 §7) |
+
+**Real-model runs are the exception.** The journeys run on the scripted model. The only real-model
+runs in todo13 are the 60-second measurement: J1 and J2, three runs each, by the integrator in
+Milestone 4 (plus one run per workstream if its change alters the agent's prompt or tools). Each
+uses the smallest fixture and stops when the Studio is ready. Report the count and rough cost.
 
 ---
 

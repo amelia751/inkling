@@ -21,6 +21,7 @@
     "@rjsf/validator-ajv8": "^6.11.0",
     "@studio/agent-protocol": "workspace:*",
     "@studio/contracts": "workspace:*",
+    "@studio/environment-core": "workspace:*",
     "@studio/plugin-cardiac-metrics": "workspace:*",
     "@studio/plugin-cine": "workspace:*",
     "@studio/plugin-dicom-export": "workspace:*",

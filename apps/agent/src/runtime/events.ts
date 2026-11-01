@@ -80,9 +80,19 @@ export function toolTitle(name: string, args: any, label?: string): string {
   }
 }
 
+/**
+ * Tools whose arguments stream to the browser while the model writes them (todo11 D4): the
+ * start / args-delta / end triple, AG-UI TOOL_CALL_START / TOOL_CALL_ARGS / TOOL_CALL_END. Kept
+ * to tools whose arguments are worth showing early and never carry secrets; everything else
+ * appears only at execution (`tool-call`), with its input redacted.
+ */
+export const STREAMED_ARG_TOOLS: ReadonlySet<string> = new Set(["boot_studio"]);
+
 /** Stateful projection of one run's pi events onto the Studio panel contract. */
 export class Projector {
   private readonly args = new Map<string, unknown>();
+  /** Content index of a tool call in the message being streamed → its id, or null when not streamed. */
+  private readonly streaming = new Map<number, string | null>();
   private readonly progress = new Map<string, number>();
   spendUsd = 0;
 
@@ -100,6 +110,7 @@ export class Projector {
         const a = e.assistantMessageEvent;
         if (a.type === "text_delta") return [{ type: "text", delta: a.delta }];
         if (a.type === "thinking_delta") return [{ type: "reasoning", delta: a.delta }];
+        if (a.type === "toolcall_start" || a.type === "toolcall_delta" || a.type === "toolcall_end") return this.streamArgs(a);
         return [];
       }
       case "tool_execution_start":
@@ -119,6 +130,7 @@ export class Projector {
         return [{ type: "tool-result", id: e.toolCallId, ok: !e.isError, summary: summarize(e.result), input }];
       }
       case "message_end": {
+        this.streaming.clear();
         const m = e.message as any;
         if (m?.role !== "assistant") return [];
         const out: AgentEventBody[] = [];
@@ -138,6 +150,29 @@ export class Projector {
       default:
         return [];
     }
+  }
+
+  /**
+   * pi's `toolcall_*` updates → the triple, for STREAMED_ARG_TOOLS only. The deltas are pi's raw
+   * JSON fragments, passed through untouched (the consumer concatenates them). Some providers
+   * name the call only at the first delta, so the decision waits until the name is known.
+   */
+  private streamArgs(a: { type: "toolcall_start" | "toolcall_delta" | "toolcall_end"; contentIndex: number; delta?: string; partial: { content: unknown[] } }): AgentEventBody[] {
+    const out: AgentEventBody[] = [];
+    if (!this.streaming.has(a.contentIndex)) {
+      const c = a.partial.content[a.contentIndex] as { type?: string; id?: string; name?: string } | undefined;
+      if (c?.type === "toolCall" && c.name && c.id) {
+        const streamed = STREAMED_ARG_TOOLS.has(c.name);
+        this.streaming.set(a.contentIndex, streamed ? c.id : null);
+        if (streamed) out.push({ type: "tool-call-start", id: c.id, name: c.name });
+      }
+    }
+    const id = this.streaming.get(a.contentIndex);
+    if (a.type === "toolcall_end") this.streaming.delete(a.contentIndex);
+    if (!id) return out;
+    if (a.type === "toolcall_delta" && a.delta) out.push({ type: "tool-call-args", id, delta: a.delta });
+    if (a.type === "toolcall_end") out.push({ type: "tool-call-end", id });
+    return out;
   }
 }
 

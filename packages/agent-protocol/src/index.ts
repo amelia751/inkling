@@ -122,6 +122,16 @@ export type AgentEventBody =
   | { type: "reasoning"; delta: string }
   | { type: "text"; delta: string }
   | { type: "tool-call"; id: string; name: string; title: string }
+  /**
+   * Streamed tool arguments (todo11 D4, AG-UI TOOL_CALL_START / TOOL_CALL_ARGS / TOOL_CALL_END),
+   * sent while the model is still writing the call, only for tools whose arguments are worth
+   * showing early (`boot_studio`). `delta` is a raw string fragment of the arguments' JSON:
+   * concatenate them, never treat one as a parsed object. `tool-call` (execution start) still
+   * follows with the same `id`.
+   */
+  | { type: "tool-call-start"; id: string; name: string }
+  | { type: "tool-call-args"; id: string; delta: string }
+  | { type: "tool-call-end"; id: string }
   | { type: "tool-progress"; id: string; text: string }
   | { type: "tool-result"; id: string; ok: boolean; summary: string; input: unknown }
   | { type: "usage"; inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number }
@@ -132,7 +142,12 @@ export type AgentEventBody =
   | { type: "sandbox"; state: SandboxState; sandboxId?: string }
   | { type: "artifact"; id: string; name: string; bytes: number; sha256: string }
   | { type: "error"; message: string }
-  | { type: "done"; status: RunStatus };
+  | { type: "done"; status: RunStatus }
+  /**
+   * Anything with no AG-UI 1.0 equivalent (AG-UI CUSTOM). New run events go here as
+   * `{name, value}` rather than as new top-level types; see `ag-ui-map.ts`.
+   */
+  | { type: "custom"; name: string; value: unknown };
 
 /** Every event carries its run, a per-run sequence number (monotonic from 1) and a timestamp (ms). */
 export type AgentEvent = AgentEventBody & { seq: number; runId: string; at: number };

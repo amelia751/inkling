@@ -76,7 +76,9 @@ def xlsx() -> bytes:
 
 def upload(url: str, project: str, files: dict[str, bytes]) -> dict:
     body = {"attested": True, "files": [{"clientFileId": f"f{i}", "relPath": rel, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for i, (rel, d) in enumerate(files.items())]}
-    s = httpx.post(f"{url}/api/v1/projects/{project}/imports", json=body).json()
+    r = httpx.post(f"{url}/api/v1/projects/{project}/imports", json=body)
+    assert r.status_code < 300, (r.status_code, r.text[:500])
+    s = r.json()
     for f in s["files"]:
         if f["uploadUrl"]:
             data = next(d for rel, d in files.items() if rel.endswith(f["relPath"]))

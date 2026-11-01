@@ -190,7 +190,7 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         h2 = studio_defs.save_revision(db, tc, row, 1, refined, prov, h1.content_hash, patch)
         if h2 is None:
             raise HTTPException(409, "the new task's environment was written concurrently")
-        _step(db, scoped, b, "refine", _describe(patch))
+        _step(db, scoped, b, "refine", _describe(patch or []))
 
     b.state, b.ms, b.finished_at = "ready", int((time.monotonic() - started) * 1000), now()
     events.publish(db, scoped, "boot.ready", {"bootId": boot_id, "taskIds": [t.id], "ms": b.ms}, source="kernel")

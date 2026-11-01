@@ -276,7 +276,8 @@ def put_derived(db: Session, ti: TaskItem, role: str, data: bytes, media_type: s
 def report(db: Session, ti: TaskItem, body: dict) -> dict:
     """One or more stages, in order (`stages: [{stage, meta}]`, or one `stage` + `meta`); each
     merges its meta into the item and is one `item.<stage>` event."""
-    raw = body.get("stages") if isinstance(body.get("stages"), list) else [{"stage": body.get("stage"), "meta": body.get("meta")}]
+    stages = body.get("stages")
+    raw = stages if isinstance(stages, list) else [{"stage": body.get("stage"), "meta": body.get("meta")}]
     for r in raw:
         stage = r.get("stage") if isinstance(r, dict) else None
         if stage not in STAGES:

@@ -73,8 +73,8 @@ def _shape_facts(kind: str, f: dict) -> dict[str, tuple[str, str | None]]:
     """(label, value) per fact key, plain words; a value of None means "not known"."""
     out: dict[str, tuple[str, str | None]] = {}
     w, h = _num(f.get("width")), _num(f.get("height"))
-    dicom = f.get("dicom") if isinstance(f.get("dicom"), dict) else {}
-    video = f.get("video") if isinstance(f.get("video"), dict) else {}
+    dicom = d if isinstance(d := f.get("dicom"), dict) else {}
+    video = v if isinstance(v := f.get("video"), dict) else {}
     if kind in ("image", "dicom", "dicom-series", "slide", "mask", "volume"):
         out["size"] = ("Image size", f"{int(w)} × {int(h)} px" if w and h else None)
     if kind == "image":
@@ -103,7 +103,7 @@ def _shape_facts(kind: str, f: dict) -> dict[str, tuple[str, str | None]]:
         out["mpp"] = ("Microns per pixel", _fmt(round(mpp, 4)) if mpp else None)
         out["magnification"] = ("Magnification", f"{_fmt(mag)}×" if mag else None)
     if kind == "table":
-        t = f.get("table") if isinstance(f.get("table"), dict) else {}
+        t = tb if isinstance(tb := f.get("table"), dict) else {}
         cols = _num(t.get("columnCount")) or (len(t["columns"]) if isinstance(t.get("columns"), list) else None)
         out["columns"] = ("Columns", f"{int(cols)}" if cols else None)
         out["delimiter"] = ("Delimiter", str(t["delimiter"]) if t.get("delimiter") else None)

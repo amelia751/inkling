@@ -108,6 +108,8 @@ def apply_patch(base, ops) -> tuple[dict | None, list[dict]]:
         except (jsonpatch.JsonPatchException, jsonpatch.JsonPointerException, KeyError, TypeError, ValueError, IndexError) as e:
             desc = f"{op.get('op')} {op.get('path')}" if isinstance(op, dict) else "?"
             return None, [{"path": f"/{i}", "code": "patch", "message": f"Patch op {i} ({desc}): {e}"}]
+    if not isinstance(spec, dict):
+        return None, [{"path": "", "code": "patch", "message": "The patched environment must be an object"}]
     return spec, []
 
 

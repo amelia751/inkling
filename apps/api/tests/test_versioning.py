@@ -301,8 +301,8 @@ def test_commands_through_the_gateway(vc):
     assert d["summary"]["annotation.added"] == 1
     rv = call("review.open", title="from agent").json()["result"]
     assert rv["source_branch"] == branch["name"]
-    co = call("checkout", ref=branch["name"]).json()["result"]
-    assert len(co["annotations"]) == 1
+    # Checkouts return dataset contents: refused for agents (todo10 §6.3); people still check out.
+    assert call("checkout", ref=branch["name"]).status_code == 403
     stale = call("commit", branch=branch["name"], expected_head=branch["commit_oid"], changes={"annotations": [ann("g2")]})
     assert stale.status_code == 409 and stale.json()["code"] == "stale_head"
     assert call("diff").status_code == 200  # defaults: main ← the caller's work branch

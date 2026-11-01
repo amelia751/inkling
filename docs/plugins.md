@@ -441,7 +441,25 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
   workspace's pin in `contributions-loader.tsx`). Every refusal returns its reason and writes a
   `plugins.artifact.refused` audit entry (`where`: stage, inspect, docs, files, browser).
 
-### 9.3 The ladder and converters (todo10 Phases 5–6)
+### 9.4 Distribution and promotion (todo10 Phase 8)
+
+- **Export / import.** `GET /api/v1/plugins/{id}/export?version=` returns a tar of an OCI
+  image layout: the manifest tagged `<version>` plus its signature and attestation referrers.
+  `POST /api/v1/plugins/import?tier=` takes one back. It verifies every byte and requires a
+  signature by this installation's key or one in `INKLING_API_SIGNER_TRUSTED_KEYS_FILE`; nothing
+  is stored unless all of it passes, and refusals are audited (`where: import`). Both need
+  `plugins.approve`, so agent tokens can't call them. `tools/oras-plugins.sh` moves layouts
+  through any OCI registry with `oras copy -r`: `export`, `import`, `mirror`, and `save`/`load`
+  for air-gapped sites. `zot` starts a local zot registry.
+- **Promotion tiers.** `generated` (the authoring workspace) → `organisation` (every project of
+  its organisation) → `curated` (every workspace of the installation), one step at a time.
+  `POST /api/v1/plugins/{id}/promotions` asks (`plugins.manage`, a person).
+  `POST /api/v1/plugins/promotions/{n}/review` decides (`plugins.approve`). The reviewer must be
+  neither the requester nor the artifact's author, and the artifact is re-verified at approval.
+  Requests and decisions are append-only `plugin_promotions` rows plus audit entries. Only the
+  authoring workspace may publish later versions of an id, whatever its tier.
+
+### 9.5 The ladder and converters (todo10 Phases 5–6)
 
 The builder agent adapts the Studio on the lowest rung that works
 (`apps/agent/src/agent/prompts/builder.md`): configuration, then a **converter**, then a

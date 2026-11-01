@@ -349,6 +349,9 @@ importers:
       js-yaml:
         specifier: 4.3.2
         version: 4.3.2
+      jsondiffpatch:
+        specifier: 0.7.6
+        version: 0.7.6
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -1204,6 +1207,9 @@ packages:
 
   '@daytona/toolbox-api-client@0.227.0':
     resolution: {integrity: sha512-jz31/ctC9NpLRz+n5u8mdNJZk8cXUwjORpkQiaXG7eWtA5RMFDkg6Y4HLc4YX0EJIaXDgLjX04fa9ePBGBuCig==}
+
+  '@dmsnell/diff-match-patch@1.1.0':
+    resolution: {integrity: sha512-yejLPmM5pjsGvxS9gXablUSbInW7H976c/FJ4iQxWIm7/38xBySRemTPDe34lhg1gVLbJntX0+sH0jYfU+PN9A==}
 
   '@earendil-works/pi-agent-core@1.4.0':
     resolution: {integrity: sha512-PoKY84SKUwnt7S5QBZaGUqfNO1kjP3KHpHUA9QpFTj4cOjaVWMYIcBPJ6FDRCdE8Zen9OSECQUd0uUfVgtSmgA==}
@@ -3638,6 +3644,11 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  jsondiffpatch@0.7.6:
+    resolution: {integrity: sha512-zE9+AXFq+MkTolDor2Cw1nJzLC0aleqPkYf52Kb4Kn4mJcka/gFHpGI2JBVEJCfWOvBl0OoxZS+wuLdislQcqg==}
+    engines: {node: ^18.0.0 || >=20.0.0}
+    hasBin: true
+
   jsonpointer@5.0.1:
     resolution: {integrity: sha512-p/nXbhSEcu3pZRdkW1OfJhpsVtW1gd4Wa1fnQc9YLiTfAjn0312eMKimbdIQzuZl9aa9xUGaRlP9T/CJE/ditQ==}
     engines: {node: '>=0.10.0'}
@@ -5495,6 +5506,8 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - supports-color
+
+  '@dmsnell/diff-match-patch@1.1.0': {}
 
   '@earendil-works/pi-agent-core@1.4.0(@aws-sdk/credential-provider-node@3.972.90)(@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7))(@smithy/signature-v4@5.7.4)(supports-color@10.2.2)(undici@8.10.2)(ws@8.22.0)(zod@4.6.7)':
     dependencies:
@@ -7917,6 +7930,10 @@ snapshots:
   json-schema-typed@8.0.2: {}
 
   json5@2.2.3: {}
+
+  jsondiffpatch@0.7.6:
+    dependencies:
+      '@dmsnell/diff-match-patch': 1.1.0
 
   jsonpointer@5.0.1: {}
 

@@ -26,7 +26,7 @@ func (q *Queries) DeleteRelease(ctx context.Context, arg DeleteReleaseParams) er
 }
 
 const getRelease = `-- name: GetRelease :one
-SELECT tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations FROM versioning.dataset_releases WHERE repo_id = $1 AND tag = $2
+SELECT tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations, studio_tree FROM versioning.dataset_releases WHERE repo_id = $1 AND tag = $2
 `
 
 type GetReleaseParams struct {
@@ -48,14 +48,15 @@ func (q *Queries) GetRelease(ctx context.Context, arg GetReleaseParams) (Version
 		&i.RetentionPolicy,
 		&i.RetainUntil,
 		&i.Attestations,
+		&i.StudioTree,
 	)
 	return i, err
 }
 
 const insertRelease = `-- name: InsertRelease :one
-INSERT INTO versioning.dataset_releases (tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, retention_policy, retain_until, attestations)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations
+INSERT INTO versioning.dataset_releases (tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, retention_policy, retain_until, attestations, studio_tree)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations, studio_tree
 `
 
 type InsertReleaseParams struct {
@@ -68,6 +69,7 @@ type InsertReleaseParams struct {
 	RetentionPolicy string
 	RetainUntil     *time.Time
 	Attestations    json.RawMessage
+	StudioTree      *string
 }
 
 func (q *Queries) InsertRelease(ctx context.Context, arg InsertReleaseParams) (VersioningDatasetRelease, error) {
@@ -81,6 +83,7 @@ func (q *Queries) InsertRelease(ctx context.Context, arg InsertReleaseParams) (V
 		arg.RetentionPolicy,
 		arg.RetainUntil,
 		arg.Attestations,
+		arg.StudioTree,
 	)
 	var i VersioningDatasetRelease
 	err := row.Scan(
@@ -94,12 +97,13 @@ func (q *Queries) InsertRelease(ctx context.Context, arg InsertReleaseParams) (V
 		&i.RetentionPolicy,
 		&i.RetainUntil,
 		&i.Attestations,
+		&i.StudioTree,
 	)
 	return i, err
 }
 
 const listReleases = `-- name: ListReleases :many
-SELECT tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations FROM versioning.dataset_releases WHERE repo_id = $1 ORDER BY created_at, tag
+SELECT tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, created_at, retention_policy, retain_until, attestations, studio_tree FROM versioning.dataset_releases WHERE repo_id = $1 ORDER BY created_at, tag
 `
 
 func (q *Queries) ListReleases(ctx context.Context, repoID string) ([]VersioningDatasetRelease, error) {
@@ -122,6 +126,7 @@ func (q *Queries) ListReleases(ctx context.Context, repoID string) ([]Versioning
 			&i.RetentionPolicy,
 			&i.RetainUntil,
 			&i.Attestations,
+			&i.StudioTree,
 		); err != nil {
 			return nil, err
 		}

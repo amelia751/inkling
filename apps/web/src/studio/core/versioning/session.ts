@@ -3,6 +3,22 @@ import type { Annotation, AnnotationDocument } from "@studio/contracts/types";
 import { api, fetchStatus, VersioningError, type VersionedDocument } from "./api";
 
 /**
+ * Commit the live Studio setup (lockfile, environments, READMEs) onto this person's work
+ * branch at a meaningful moment (todo10 §3.2: Task setup saved, an agent change approved).
+ * A no-op without versioning; never throws (the setup itself is already saved).
+ */
+export async function commitStudioSetup(datasetId: string, reason: string): Promise<boolean> {
+  try {
+    if (!(await versioningEnabled(datasetId))) return false;
+    await api.commitStudio(datasetId, datasetId, reason);
+    return true;
+  } catch (e) {
+    console.warn("[versioning] couldn't commit the Studio setup", e);
+    return false;
+  }
+}
+
+/**
  * The Studio's versioned save flow (todo4 Phase 6, V12). Off by default: it turns on only
  * when the kernel is on and reports apps/versioning configured, so the plain save path (and
  * every e2e test that runs without the kernel) is unchanged.

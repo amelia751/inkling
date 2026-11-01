@@ -4,7 +4,7 @@
  * review and release pages. Platform features, not plugins; type-specific diff previews
  * come from modules through the extension host's `diffPreview` registry.
  */
-export { loadDocument, saveVersioned, StaleHeadError, useVersioning, versioningEnabled, reapply } from "./session";
+export { loadDocument, saveVersioned, StaleHeadError, useVersioning, versioningEnabled, reapply, commitStudioSetup } from "./session";
 export { RequestReview, StaleNotice, useDraftHasChanges } from "./VersioningControls";
 export { WorkStateChip } from "./WorkStateChip";
 export { VersionsPage } from "./VersionsPage";

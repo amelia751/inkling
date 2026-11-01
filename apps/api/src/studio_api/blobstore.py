@@ -353,7 +353,13 @@ def _store(name: str) -> BlobStore:
     hit = _cache.get(name)
     if hit is None or hit[0] is not s:
         store: BlobStore
-        if s.blob_store == "s3":
+        if name == "artifacts":
+            # A separate (retention-locked) bucket of the same backend; keys keep their
+            # `artifacts/sha256/<hex>` form. Local stores have no buckets: artifacts() is data().
+            bucket = s.artifacts_bucket
+            assert bucket and s.blob_store in ("s3", "gcs")
+            store = GCSBlobStore(bucket, "", project=s.gcs_project) if s.blob_store == "gcs" else S3BlobStore(bucket, "", endpoint=s.s3_endpoint, region=s.s3_region, access_key_id=s.s3_access_key_id, secret_access_key=s.s3_secret_access_key)
+        elif s.blob_store == "s3":
             store = _s3(s, s.s3_prefix if name == "assets" else posixpath.join(s.s3_prefix, DATA_PREFIX))
         elif s.blob_store == "gcs":
             store = _gcs(s, s.gcs_prefix if name == "assets" else posixpath.join(s.gcs_prefix, DATA_PREFIX))
@@ -371,6 +377,15 @@ def assets() -> BlobStore:
 def data() -> BlobStore:
     """Kernel-written data (derived artifacts)."""
     return _store("data")
+
+
+def artifacts() -> BlobStore:
+    """Content-addressed plugin artifacts (`artifacts/sha256/<hex>`, todo10 Phase 3): the
+    `API_ARTIFACTS_BUCKET` bucket when set (write-once, retention-locked in production), else data()."""
+    s = settings()
+    if not s.artifacts_bucket or s.blob_store == "local":
+        return data()
+    return _store("artifacts")
 
 
 def reset() -> None:

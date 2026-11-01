@@ -261,14 +261,22 @@ func (h *Handlers) PutManifest(ctx context.Context, req api.PutManifestRequestOb
 
 func commitResult(r *service.CommitResult) api.CommitResult {
 	return api.CommitResult{CommitOid: r.CommitOID, Branch: r.Branch, HeadGeneration: r.HeadGeneration,
-		ManifestRoot: r.ManifestRoot, RequestId: r.RequestID}
+		ManifestRoot: r.ManifestRoot, StudioTree: strp(r.StudioTree), RequestId: r.RequestID}
 }
 
 // CreateCommit runs the commit protocol.
 func (h *Handlers) CreateCommit(ctx context.Context, req api.CreateCommitRequestObject) (api.CreateCommitResponseObject, error) {
 	b := req.Body
-	r, err := h.Svc.Commit(ctx, principal(ctx), req.RepoId.String(), service.CommitInput{Branch: b.Branch, ExpectedHead: b.ExpectedHead,
-		ManifestRoot: b.ManifestRoot, Message: b.Message, IdempotencyKey: b.IdempotencyKey, Tool: deref(b.Tool), Inputs: deref(b.Inputs)})
+	in := service.CommitInput{Branch: b.Branch, ExpectedHead: b.ExpectedHead,
+		ManifestRoot: b.ManifestRoot, Message: b.Message, IdempotencyKey: b.IdempotencyKey, Tool: deref(b.Tool), Inputs: deref(b.Inputs)}
+	if b.Studio != nil {
+		files := b.Studio.Files
+		if files == nil {
+			files = map[string]string{}
+		}
+		in.Studio = &service.StudioInput{Files: files}
+	}
+	r, err := h.Svc.Commit(ctx, principal(ctx), req.RepoId.String(), in)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +299,17 @@ func commitOut(v *service.CommitView) api.Commit {
 	return api.Commit{Oid: c.OID, Parents: append([]string{}, c.Parents...), ManifestRoot: v.Row.ManifestRoot,
 		ManifestFormat: strp(ds.ManifestFormat), SampleCount: &ds.SampleCount, AnnotationCount: &ds.AnnotationCount,
 		AuthorId: v.Row.AuthorID, OnBehalfOf: v.Row.OnBehalfOf, Message: v.Row.Message,
-		Operation: api.CommitOperation(c.Snapshot.Provenance.Operation), CreatedAt: v.Row.CreatedAt}
+		Operation: api.CommitOperation(c.Snapshot.Provenance.Operation), CreatedAt: v.Row.CreatedAt,
+		StudioTree: strp(c.Snapshot.Studio.OID)}
+}
+
+// GetStudio returns the `.studio/` files at a ref (todo10 §3.2).
+func (h *Handlers) GetStudio(ctx context.Context, req api.GetStudioRequestObject) (api.GetStudioResponseObject, error) {
+	v, err := h.Svc.GetStudio(ctx, principal(ctx), req.RepoId.String(), req.Params.Ref)
+	if err != nil {
+		return nil, err
+	}
+	return api.GetStudio200JSONResponse(api.Studio{CommitOid: v.CommitOID, StudioTree: strp(v.StudioTree), Files: v.Files}), nil
 }
 
 // GetCommit returns one commit.
@@ -540,7 +558,7 @@ func releaseOut(r db.VersioningDatasetRelease) api.Release {
 	att := []map[string]any{}
 	_ = json.Unmarshal(r.Attestations, &att)
 	return api.Release{Tag: r.Tag, CommitOid: r.CommitOid, ManifestRoot: r.ManifestRoot, CreatedBy: r.CreatedBy,
-		CreatedAt: r.CreatedAt, RetentionPolicy: r.RetentionPolicy, RetainUntil: r.RetainUntil, Attestations: att}
+		CreatedAt: r.CreatedAt, RetentionPolicy: r.RetentionPolicy, RetainUntil: r.RetainUntil, Attestations: att, StudioTree: r.StudioTree}
 }
 
 // CreateRelease publishes a release.

@@ -69,6 +69,7 @@ type VersioningDatasetRelease struct {
 	RetentionPolicy string
 	RetainUntil     *time.Time
 	Attestations    json.RawMessage
+	StudioTree      *string
 }
 
 type VersioningDatasetRepository struct {

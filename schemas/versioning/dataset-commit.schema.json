@@ -16,11 +16,12 @@
     "on_behalf_of": {"type": "string"},
     "message": {"type": "string", "maxLength": 2000},
     "operation": {"enum": ["init", "commit", "merge", "revert"]},
-    "created_at": {"type": "string", "format": "date-time"}
+    "created_at": {"type": "string", "format": "date-time"},
+    "studio_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "Git tree id of the commit's .studio/ subtree (todo10 §3.2)."}
   },
   "$defs": {
     "tree": {
-      "description": "Git tree of every commit: canonical JSON pointer documents only.",
+      "description": "Git tree of every commit: canonical JSON pointer documents, plus an optional `.studio/` subtree (plugins.lock.json, tasks/<id>/environment.json, tasks/<id>/README.md; todo10 §3.2).",
       "type": "object",
       "required": ["dataset.json", "ontology.json", "policy.json", "provenance.json"],
       "properties": {

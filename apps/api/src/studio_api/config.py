@@ -43,6 +43,9 @@ that are missing or invalid, never their values.
 | API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
 | API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
 | API_SIGNER_TRUSTED_KEYS_FILE | (none)                        | JSON `{keyId: PEM}` of other installations' public keys accepted on artifact import |
+| API_ARTIFACTS_BUCKET      | (none: the data area)            | `s3`/`gcs`: separate bucket for content-addressed plugin artifacts (`artifacts/sha256/*`, retention-locked) |
+| API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
+| API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
@@ -151,6 +154,11 @@ class Settings(BaseModel):
     signer_key_file: Path | None = None
     signer_kms_key: str | None = None
     signer_trusted_keys_file: Path | None = None
+    artifacts_bucket: str | None = None
+    # The data boundary (todo10 Phase 7): probe budget and free-text check. Worker-built
+    # bundles are verified with `signer` above (the worker signs with the same key).
+    boundary_probe_budget: int = 64
+    text_check: Literal["dev"] = "dev"
 
     @property
     def production(self) -> bool:
@@ -200,6 +208,9 @@ _KEYS: dict[str, str] = {
     "signer_key_file": "API_SIGNER_KEY_FILE",
     "signer_kms_key": "API_SIGNER_KMS_KEY",
     "signer_trusted_keys_file": "API_SIGNER_TRUSTED_KEYS_FILE",
+    "artifacts_bucket": "API_ARTIFACTS_BUCKET",
+    "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
+    "text_check": "API_TEXT_CHECK",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

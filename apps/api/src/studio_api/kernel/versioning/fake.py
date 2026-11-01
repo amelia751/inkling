@@ -6,6 +6,9 @@ shapes, problem codes (`stale_head`, `protected_branch`, `self_approval`, `not_r
 on branch heads, a protected `main`, review states with a pending external
 `deidentification` check, three-way annotation conflicts and resolutions. It verifies the
 minted JWT's scopes and actor the way the service does (but not its signature).
+It keeps the Studio definition (`.studio/`, todo10 Phase 2) the same way: a commit's
+`studio.files` replace the tree (RFC 8785 canonical JSON only), no `studio` keeps the
+parent's, a revert restores the target's, a merge takes the changed side, a release pins it.
 Not implemented: chunked manifests, field-level merges, GC, purge, legal holds.
 """
 
@@ -13,12 +16,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import threading
 import uuid
 from datetime import UTC, datetime
 
+from ..canonical import canonicalize
 from .auth import decode_unverified
 from .client import VersioningProblem, problem
+
+STUDIO_PATH = re.compile(r"^(plugins\.lock\.json|tasks/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/(environment\.json|README\.md))$")
 
 
 def _now() -> str:
@@ -43,6 +50,7 @@ class FakeVersioning:
         self.manifests: dict[str, dict] = {}
         self.calls: list[tuple[str, dict]] = []  # (method, claims) for assertions
         self.idem: dict[tuple, dict] = {}
+        self.studio_trees: dict[str, dict[str, str]] = {}
 
     # ---- plumbing ----------------------------------------------------------------------
 
@@ -67,11 +75,44 @@ class FakeVersioning:
         self.manifests[root] = json.loads(json.dumps(m))
         return root
 
-    def _commit_obj(self, r: dict, root: str, parents: list[str], author: dict, message: str, op: str) -> str:
+    def _commit_obj(self, r: dict, root: str, parents: list[str], author: dict, message: str, op: str, studio: str | None = None) -> str:
         oid = hashlib.sha1(_canon([root, parents, author.get("id"), message, uuid.uuid4().hex])).hexdigest()
         m = self.manifests[root]
         r["commits"][oid] = {"oid": oid, "parents": parents, "manifest_root": root, "manifest_format": "json-v1", "sample_count": len(m["samples"]), "annotation_count": len(m["annotations"]), "author_id": author.get("id"), "on_behalf_of": author.get("on_behalf_of"), "message": message, "operation": op, "created_at": _now()}
+        if studio:
+            r["commits"][oid]["studio_tree"] = studio
         return oid
+
+    def _studio(self, r: dict, oid: str | None) -> str | None:
+        return r["commits"][oid].get("studio_tree") if oid in r["commits"] else None
+
+    def _studio_tree(self, files: dict) -> str | None:
+        if not isinstance(files, dict):
+            raise problem(400, "bad_request", "studio.files must be an object")
+        for path, text in files.items():
+            if not STUDIO_PATH.fullmatch(path) or ".." in path or not isinstance(text, str):
+                raise problem(400, "bad_request", f"{path!r} isn't a .studio path")
+            if path.endswith(".json"):
+                try:
+                    ok = canonicalize(json.loads(text)) == text
+                except ValueError:
+                    raise problem(400, "bad_request", f"{path} isn't JSON") from None
+                if not ok:
+                    raise problem(400, "not_canonical", f"{path} must be RFC 8785 canonical JSON")
+        if not files:
+            return None
+        oid = hashlib.sha1(_canon(files)).hexdigest()
+        self.studio_trees[oid] = dict(files)
+        return oid
+
+    def get_studio(self, token, repo_id, ref):
+        with self.lock:
+            r = self._repo(self._auth("get_studio", token, "versioning:read"), repo_id)
+            if ref.startswith("tag:") and ref[4:] not in r["releases"]:
+                raise problem(404, "not_found", "release not found")
+            oid = self._resolve(r, ref)
+            tree = self._studio(r, oid)
+            return {"commit_oid": oid, **({"studio_tree": tree} if tree else {}), "files": dict(self.studio_trees.get(tree, {})) if tree else {}}
 
     def _branch(self, r: dict, name: str) -> dict:
         b = r["branches"].get(name)
@@ -266,9 +307,10 @@ class FakeVersioning:
                 raise problem(422, "validation_failed", "manifest root is not registered for this repository")
             if b["commit_oid"] != body["expected_head"]:
                 raise VersioningProblem(409, {"title": "stale head", "code": "stale_head", "detail": "the branch moved", "current_head": b["commit_oid"], "head_generation": b["generation"]})
-            oid = self._commit_obj(r, body["manifest_root"], [body["expected_head"]], c["actor"], body.get("message", ""), "commit")
+            studio = self._studio_tree((body["studio"] or {}).get("files")) if body.get("studio") is not None else self._studio(r, body["expected_head"])
+            oid = self._commit_obj(r, body["manifest_root"], [body["expected_head"]], c["actor"], body.get("message", ""), "commit", studio)
             nb = self._advance(r, body["branch"], body["expected_head"], oid)
-            out = {"commit_oid": oid, "branch": body["branch"], "head_generation": nb["generation"], "manifest_root": body["manifest_root"], "request_id": c.get("request_id", "")}
+            out = {"commit_oid": oid, "branch": body["branch"], "head_generation": nb["generation"], "manifest_root": body["manifest_root"], **({"studio_tree": studio} if studio else {}), "request_id": c.get("request_id", "")}
             self.idem[key] = out
             return out
 
@@ -291,8 +333,9 @@ class FakeVersioning:
             if self._branch(r, body["branch"])["protected"]:
                 raise problem(403, "protected_branch", "protected")
             root = r["commits"][body["target_oid"]]["manifest_root"]
-            self._advance(r, body["branch"], body["expected_head"], oid := self._commit_obj(r, root, [body["expected_head"]], c["actor"], body.get("message", ""), "revert"))
-            return {"commit_oid": oid, "branch": body["branch"], "head_generation": r["branches"][body["branch"]]["generation"], "manifest_root": root, "request_id": ""}
+            studio = self._studio(r, body["target_oid"])  # restoring a version restores its Studio setup
+            self._advance(r, body["branch"], body["expected_head"], oid := self._commit_obj(r, root, [body["expected_head"]], c["actor"], body.get("message", ""), "revert", studio))
+            return {"commit_oid": oid, "branch": body["branch"], "head_generation": r["branches"][body["branch"]]["generation"], "manifest_root": root, **({"studio_tree": studio} if studio else {}), "request_id": ""}
 
     def get_diff(self, token, repo_id, base, head, cursor=None, limit=100):
         with self.lock:
@@ -419,7 +462,8 @@ class FakeVersioning:
                     by[aid] = x["custom"]
             merged["annotations"] = list(by.values())
             root = self._write_manifest(merged)
-            oid = self._commit_obj(r, root, [rv["checked_target_oid"], rv["source_oid"]], c["actor"], body.get("message") or f"Merge {rv['source_branch']}", "merge")
+            base, tgt_s, src_s = (self._studio(r, o) for o in (self._merge_base(r, rv["checked_target_oid"], rv["source_oid"]), rv["checked_target_oid"], rv["source_oid"]))
+            oid = self._commit_obj(r, root, [rv["checked_target_oid"], rv["source_oid"]], c["actor"], body.get("message") or f"Merge {rv['source_branch']}", "merge", tgt_s if src_s == base else src_s)
             rv["status"], rv["merge_oid"] = "MERGING", oid
             self._advance(r, rv["target_branch"], rv["checked_target_oid"], oid)
             rv["status"] = "MERGED"
@@ -434,6 +478,8 @@ class FakeVersioning:
                     return dict(r["releases"][body["tag"]])
                 raise problem(409, "conflict", "tag exists")
             rel = {"tag": body["tag"], "commit_oid": body["commit_oid"], "manifest_root": r["commits"][body["commit_oid"]]["manifest_root"], "created_by": c["actor"]["id"], "created_at": _now(), "retention_policy": body.get("retention_policy", "standard"), "attestations": []}
+            if self._studio(r, body["commit_oid"]):
+                rel["studio_tree"] = self._studio(r, body["commit_oid"])
             r["releases"][body["tag"]] = rel
             return dict(rel)
 

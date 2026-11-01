@@ -27,6 +27,10 @@ type CommitInput struct {
 	IdempotencyKey string   `json:"-"`
 	Tool           string   `json:"tool,omitempty"`
 	Inputs         []string `json:"inputs,omitempty"`
+	// Studio replaces the `.studio/` tree; nil keeps the parent's (studio.go).
+	Studio *StudioInput `json:"studio,omitempty"`
+	// studioTree sets the tree to an existing one (revert: the target's).
+	studioTree *string
 }
 
 // CommitResult is returned by every head-advancing write.
@@ -35,6 +39,7 @@ type CommitResult struct {
 	Branch         string `json:"branch"`
 	HeadGeneration int64  `json:"head_generation"`
 	ManifestRoot   string `json:"manifest_root"`
+	StudioTree     string `json:"studio_tree,omitempty"`
 	RequestID      string `json:"request_id"`
 }
 
@@ -56,6 +61,10 @@ func (s *Service) Commit(ctx context.Context, p *authn.Principal, repoID string,
 	}
 	if !authz.AgentBranchAllowed(p, in.Branch) {
 		return nil, errf(http.StatusForbidden, "forbidden", "agents may only commit to work/agent-* branches")
+	}
+	studioFiles, err := validateStudio(in.Studio)
+	if err != nil {
+		return nil, err
 	}
 	k, err := newIdem(repoID, in.Branch, in.IdempotencyKey, in)
 	if err != nil {
@@ -107,7 +116,22 @@ func (s *Service) Commit(ctx context.Context, p *authn.Principal, repoID string,
 	w := &manifests.Written{RootHash: root.RootHash, Format: root.Format, Samples: int(root.SampleCount),
 		Annots: int(root.AnnotationCount), Manifest: &manifests.Manifest{Ontology: m.Ontology}}
 	snap := s.snapshot(repoID, repo.PolicyID, w, p, "commit", in.Tool, in.Inputs, "")
-	oid, err := s.Git.Open(ctx, p.TenantID, repoID).WriteCommit(snap, []string{in.ExpectedHead}, p.Actor.ID, in.Message, s.Now())
+	switch {
+	case in.Studio != nil:
+		snap.Studio.Files = studioFiles
+	case in.studioTree != nil:
+		snap.Studio.OID = *in.studioTree
+	default:
+		if snap.Studio.OID, err = s.studioOf(ctx, p.TenantID, repoID, in.ExpectedHead); err != nil {
+			return nil, err
+		}
+	}
+	g := s.Git.Open(ctx, p.TenantID, repoID)
+	oid, err := g.WriteCommit(snap, []string{in.ExpectedHead}, p.Actor.ID, in.Message, s.Now())
+	if err != nil {
+		return nil, err
+	}
+	studioTree, err := s.studioOf(ctx, p.TenantID, repoID, oid)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +139,7 @@ func (s *Service) Commit(ctx context.Context, p *authn.Principal, repoID string,
 		return nil, err
 	}
 	res, err := s.advance(ctx, p, advanceArgs{repoID: repoID, branch: in.Branch, expected: in.ExpectedHead, newOID: oid,
-		root: in.ManifestRoot, parents: []string{in.ExpectedHead}, message: in.Message, event: "commit.created", idem: &k})
+		root: in.ManifestRoot, studio: studioTree, parents: []string{in.ExpectedHead}, message: in.Message, event: "commit.created", idem: &k})
 	if err != nil {
 		var se *Error
 		if errors.As(err, &se) && se.Code == "stale_head" {
@@ -159,11 +183,11 @@ func (s *Service) recheckRootArtifacts(ctx context.Context, q *db.Queries, tenan
 }
 
 type advanceArgs struct {
-	repoID, branch, expected, newOID, root, message, event string
-	parents                                                []string
-	idem                                                   *idem
-	allowProtected                                         bool
-	extra                                                  func(q *db.Queries, tx pgx.Tx, gen int64) error
+	repoID, branch, expected, newOID, root, studio, message, event string
+	parents                                                        []string
+	idem                                                           *idem
+	allowProtected                                                 bool
+	extra                                                          func(q *db.Queries, tx pgx.Tx, gen int64) error
 }
 
 // advance performs step 5: the conditional head move and everything that
@@ -214,7 +238,7 @@ func (s *Service) advance(ctx context.Context, p *authn.Principal, a advanceArgs
 				return err
 			}
 		}
-		res = &CommitResult{CommitOID: a.newOID, Branch: a.branch, HeadGeneration: gen, ManifestRoot: a.root, RequestID: p.RequestID}
+		res = &CommitResult{CommitOID: a.newOID, Branch: a.branch, HeadGeneration: gen, ManifestRoot: a.root, StudioTree: a.studio, RequestID: p.RequestID}
 		if a.idem != nil {
 			if err := s.storeIdem(ctx, q, p.TenantID, *a.idem, http.StatusCreated, res); err != nil {
 				return err
@@ -230,7 +254,8 @@ func (s *Service) advance(ctx context.Context, p *authn.Principal, a advanceArgs
 	return res, err
 }
 
-// Revert creates a new commit whose manifest equals the target's (spec §6).
+// Revert creates a new commit whose manifest and Studio definition equal the
+// target's (spec §6; todo10: restoring a version restores its Studio setup).
 func (s *Service) Revert(ctx context.Context, p *authn.Principal, repoID, branch, expected, target, message, idemKey string) (*CommitResult, error) {
 	var root string
 	if err := s.read(ctx, p.TenantID, func(q *db.Queries) error {
@@ -249,8 +274,12 @@ func (s *Service) Revert(ctx context.Context, p *authn.Principal, repoID, branch
 	if message == "" {
 		message = "Revert to " + target[:12]
 	}
+	studio, err := s.studioOf(ctx, p.TenantID, repoID, target)
+	if err != nil {
+		return nil, err
+	}
 	return s.Commit(ctx, p, repoID, CommitInput{Branch: branch, ExpectedHead: expected, ManifestRoot: root,
-		Message: message, IdempotencyKey: idemKey, Tool: "revert", Inputs: []string{target}})
+		Message: message, IdempotencyKey: idemKey, Tool: "revert", Inputs: []string{target}, studioTree: &studio})
 }
 
 // CommitView is a commit with its snapshot.

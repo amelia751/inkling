@@ -33,7 +33,7 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
 
   const promptText = useCallback((initial?: string) => new Promise<string | null>((resolve) => setPrompt({ initial, resolve })), []);
 
-  // ---------------------------------------------------------------- mount (once per item: the shell keys the host by item id)
+  // ---------------------------------------------------------------- mount (once: item switches go through engine.setItem)
   useEffect(() => {
     const element = elementRef.current, host = containerRef.current;
     if (!element || !host) return;
@@ -55,6 +55,11 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // The manifest declares `itemSwap`, so the shell passes the next item instead of remounting.
+  useEffect(() => {
+    void engineRef.current?.setItem(item);
+    setPrompt(null);
+  }, [item]);
 
   const engine = engineRef.current;
   const ready = engine?.status === "ready";

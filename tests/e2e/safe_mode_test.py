@@ -179,7 +179,8 @@ def run(a, k: Kernel) -> int:
             page.goto(url)
             page.wait_for_selector("[data-testid='start-safe-mode']", timeout=90000)
             t0 = time.monotonic()
-            check("the Studio no longer starts, and offers safe mode", page.locator(toolbar).count() == 0)
+            # todo11 Milestone 1: a broken panel fails on its own; the rest of the Studio keeps working.
+            check("the broken panel fails on its own and offers safe mode", page.locator("[data-testid='slot-failed']").count() >= 1 and page.locator(toolbar).count() == 1)
 
             # 3. Safe mode: last known good, first-party only.
             page.get_by_test_id("start-safe-mode").click()

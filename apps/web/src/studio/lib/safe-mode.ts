@@ -23,6 +23,14 @@ export interface KnownGood {
 
 export const isSafeMode = (search: string): boolean => new URLSearchParams(search).has("safe");
 
+/** The current Studio URL in (or out of) safe mode. Followed as a full page load: the registry starts clean. */
+export function safeHref(on: boolean): string {
+  const u = new URL(window.location.href);
+  if (on) u.searchParams.set("safe", "");
+  else u.searchParams.delete("safe");
+  return u.pathname + u.search + u.hash;
+}
+
 const env = (id: string, sub: string) => apiUrl(`/environments/${encodeURIComponent(id)}/${sub}`);
 const send = (url: string, method: string, body?: unknown) => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 

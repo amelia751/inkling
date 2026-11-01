@@ -9,9 +9,12 @@ we should not let every new format become an unreviewed blob of plugin code eith
 - makes plugin bundles **immutable, content-addressed and signed**, so any Studio can be rebuilt,
   rolled back or started in a safe mode after corruption or a malicious instruction.
 
-**Status (2026-10-31).** Ready for agents. D1–D8 accepted as recommended; D9 accepted as a trial.
-Google Cloud groundwork is done (BAA accepted, folders, organization policies, perimeter in
-dry-run; see Phase 9). No code phase has started. Agents: start at "Start here (agents)" below.
+**Status (2026-10-31, evening).** Phases 1–8 merged into `main`, each to its exit criteria (some
+exits use the scripted agent and scripted approvals; see the notes under each phase). Phase 9: all
+Terraform stacks, the `gke` overlays and the Cloud Storage backends are written and planned, but
+**nothing is applied**. The Terraform state bucket refuses writes until it gets a CMEK key, and every
+apply needs a person (commands in `docs/deployment-gcp.md` and the Phase 9 notes). Migrations on
+`main`: kernel `0006` → `0007` → `0006b`; versioning goose `00002_studio_tree.sql`.
 
 **Audit date:** 2026-10-31, against `main` a1817c7 (todo6 merged; todo7 and todo8 in progress).
 
@@ -512,6 +515,11 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    - every revision row has a parent;
    - the lockfile round-trips.
 
+5. **Done 2026-10-31** (`todo10-studio-defs`): `packages/contracts/src/{lockfile,canonical}.ts`,
+   `kernel/canonical.py` (shared vectors in `packages/contracts/test-vectors/canonical.json`), migration
+   `0006` (hashes, parent, author kind, run id, prompt hash; old rows backfilled),
+   `GET /api/environments/{id}/lockfile`.
+
 ### Phase 2: Studio definitions in the project repository (D1)
 
 1. `apps/versioning`: a `.studio/` tree convention. A commit writes the lockfile and each task's
@@ -522,6 +530,12 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 5. **Exit:**
    - an e2e test checks that a release pins the environment and lockfile;
    - restoring an old version restores its Studio setup.
+
+6. **Done 2026-10-31** (`todo10-studio-defs`): `.studio/` subtree in `apps/versioning` (canonical
+   JSON, releases pin `studio_tree`), `POST /api/v1/datasets/{id}/studio/commits`, Versions › Studio
+   setup tab with a jsondiffpatch diff; e2e `tests/e2e/versioning/flow_studio_test.py`.
+   `last-known-good` lives in the kernel (`studio_known_good`), not as a versioning ref, so recovery
+   doesn't depend on that service. Left: a named ref in `apps/versioning` too, if wanted.
 
 ### Phase 3: content-addressed, signed artifacts (D4, D5)
 
@@ -534,6 +548,14 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    integrity or fetch-and-hash.
 4. **Exit:** a tampered byte is refused with a reason, and that refusal is in the audit log.
 
+5. **Done 2026-10-31** (`todo10-artifacts`): `packages/signing` (`studio_signing`: `Signer` with
+   `local` and `gcpkms`, DSSE, OCI layout), bundles at `artifacts/sha256/<digest>` (`plugin_artifacts`,
+   migration `0007`, optional separate bucket `INKLING_API_ARTIFACTS_BUCKET`), SLSA provenance
+   attestations, verify on every load in the API and in the browser (fetch-and-hash), refusals audited
+   as `plugins.artifact.refused`; cosign keyless CI in `.github/workflows/sign-plugins.yml` (not run
+   yet: needs GitHub). e2e `tests/e2e/artifacts_test.py`. The worker's `build_plugin` signs with
+   `studio_signing`.
+
 ### Phase 4: safe mode and rollback
 
 1. A `?safe` boot that uses `last-known-good`'s lockfile with non-first-party plugins off, plus a
@@ -541,6 +563,11 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 2. A one-transaction rollback to `last-known-good`; a hash-chained audit entry.
 3. **Exit:** an e2e test installs a plugin that breaks the Studio, then recovers through safe mode and
    rollback in under a minute, with no model call.
+
+4. **Done 2026-10-31** (`todo10-studio-defs`): `?safe` boot and "Start in safe mode" on the error
+   screens, last-known-good (person or passing checks only; migration `0006b`), one-transaction rollback,
+   hash-chained `plugin_audit`. e2e `tests/e2e/safe_mode_test.py` recovers in about 30 s with no agent
+   call.
 
 ### Phase 5: sandboxed viewers on MCP Apps (D2)
 
@@ -552,6 +579,14 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    - one rung-4 viewer, for a format we don't support, built by the agent and approved by a person;
    - the same viewer renders in an MCP Apps host outside Inkling.
 
+4. **Done 2026-10-31** (`todo10-viewers`): `apps/web/public/sandbox-proxy.html` on a separate origin
+   (`sandboxOrigin` in the runtime config), JSON-RPC host bridge, `studio.sandbox-frame.v1` ported (the
+   tier-3 API kept as a shim), viewer SDK in `packages/plugin-ui-sdk/src/viewer.ts`, `apps/mcp` serves
+   viewers as `ui://` resources. e2e `tests/e2e/viewer_test.py` (a PLY point-cloud viewer) and
+   `tests/e2e/mcp_apps_host_test.py` (renders in a host built on `@modelcontextprotocol/ext-apps`).
+   **Scripted:** the agent's authoring and the person's approval call. Left: test in Claude or ChatGPT;
+   set `sandboxOrigin` to a separate host in staging and prod.
+
 ### Phase 6: converters (D3) and the agent ladder
 
 1. A converter contract: a sample file in, a canonical shape out (Zarr, Arrow, assets). Implement it in
@@ -561,6 +596,13 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    others fail. It reports the rung it chose and why.
 3. **Exit:** the agent opens an unsupported format with only a converter and an environment, with no
    viewer code.
+
+4. **Done 2026-10-31** (`todo10-viewers`): converter contract (`packages/contracts/src/converter.ts`),
+   worker runtime `studio_worker.convert` (Python in an isolated child process; WASI preview 1 under
+   wasmtime, D3 trial: a MetaImage → NIfTI converter in C), `builder.md` follows the ladder and names
+   the boundary tools. e2e `tests/e2e/converter_test.py`. **Scripted:** the agent's decisions.
+   Left: WASI preview-2 components, a committed jco/browser test, a convert job kind plus an
+   asset-registration route, two-file `.mhd` + `.raw`.
 
 ### Phase 7: build outside, verify inside (§6)
 
@@ -587,10 +629,25 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    - the installed bundle's digest is our build's, not Daytona's;
    - switching provider is a config change.
 
+10. **Done 2026-10-31** (`todo10-boundary`): worker jobs in `apps/worker/src/studio_worker/boundary/`,
+    report schemas `packages/contracts/src/boundary.ts` → `schemas/boundary/`, `/api/v1/boundary/*`
+    routes, agent-route allowlist `kernel/agent_scope.py` (403 on everything else), agent tools
+    `get_fingerprint`/`get_fixtures`/`verify_on_sample`/`probe_sample`, sample upload removed,
+    `SandboxProvider` (`daytona|local|gke|fake|off`, network blocked on every tier). e2e
+    `tests/e2e/boundary_canary_test.py` (fake sandbox, scripted model). Left: free-text check is a dev
+    allowlist until Sensitive Data Protection is wired (`kernel/textcheck.py`); `local` and `gke`
+    providers not run against real runtimes; worker build attestation not yet merged into the OCI
+    provenance statement; the browser's dataset snapshot (item names) still reaches the agent.
+
 ### Phase 8: distribution (later)
 
 1. Export and import through an OCI registry (ORAS, zot); `oras copy` for air-gapped mirrors.
 2. Promotion tiers (generated → organisation → curated) with review.
+
+3. **Done 2026-10-31** (`todo10-artifacts`): OCI layout export/import with signature and attestation
+   referrers, `tools/oras-plugins.sh` (export, import, mirror, air-gapped save/load, local zot),
+   promotion generated → organisation → curated with four-eyes review. Not exercised against a real
+   registry (oras, zot and cosign aren't installed here).
 
 ### Phase 9: Google Cloud deployment (D6–D9, §6.3–6.4)
 
@@ -610,7 +667,13 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
    view for the agent that filters free text.
 6. D8: switch the agent's model to Vertex AI. D9: a GKE Sandbox `SandboxProvider`, trialled against
    Daytona.
-7. **Exit:**
+7. **Written 2026-10-31, not applied** (`todo10-gcp`): stacks `infra/terraform/{phi,ai,data}`,
+   perimeter release egress and operator ingress rules in `org`, `infra/k8s/overlays/gke/{phi,ai}`, Cloud
+   Storage backends for `apps/api` and `apps/versioning`, Vertex AI config (pi supports Gemini only on
+   Vertex), `tests/gcp/perimeter_test.py` (dry-run log shows the would-be refusals). **Blocked on a
+   person:** CMEK on `gs://spurby-phi-tfstate` (412 on every write), the deploy identity on `spurby-ai`,
+   then the applies, then enforcement. Confirm the BAA covers `spurby-ai` before switching to Vertex.
+8. **Exit:**
    - from the build project, a direct read of a patient-data bucket or Cloud SQL is refused by the
      perimeter (asserted in a test);
    - the Phase 7 canary test passes on Google Cloud;

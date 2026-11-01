@@ -35,6 +35,7 @@ import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/c
 import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "../tools/dataset.ts";
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
+import { createDropTools, dropBlock, dropPart, fetchDropSummary } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
@@ -83,6 +84,8 @@ export class SessionContext {
   onClientToolSettled: ((callId: string) => void) | undefined;
   /** Kernel session token (builder / task); memory only, the Studio refreshes it per message. */
   kernelToken: string | undefined;
+  /** The kernel client the project tools use (set in build), also for reading a message's drop. */
+  kernel: KernelClient | undefined;
   private unsubscribe: (() => void) | undefined;
 
   constructor(
@@ -372,8 +375,12 @@ export class SessionService {
       workspaceId: meta.projectId,
       token: () => ctx.kernelToken,
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}),
+      fetchImpl: this.deps.fetchImpl,
     });
+    ctx.kernel = kernel;
     tools.push(...createProjectTools(kernel));
+    // todo13: files dropped in the chat (screened names and facts only).
+    tools.push(...createDropTools(kernel));
     if (profile.studio) {
       ctx.policy.creationIntent = (text) => isCreationIntent(text, this.studio.intents);
       // Studio tools (todo11): the API's boot and environment routes with the same token and headers.
@@ -541,10 +548,15 @@ export class SessionService {
         throw new HttpError(400, (err as Error).message);
       }
     }
-    const text = req.context?.trim() ? `<studio_context>\n${req.context.trim()}\n</studio_context>\n\n${req.text}` : req.text;
+    // todo13 D3: a drop is read from the kernel as the agent (screened names, technical facts),
+    // never from the browser; the model gets that summary, never bytes, names or links.
+    const drop = req.drop ? await this.readDrop(ctx, req.drop.dropId) : undefined;
+    const userText = [drop?.block, req.text].filter(Boolean).join("\n\n");
+    const text = req.context?.trim() ? `<studio_context>\n${req.context.trim()}\n</studio_context>\n\n${userText}` : userText;
     const active = ctx.activeRun;
     if (active && !active.done) {
       ctx.policy.userText += `\n${req.text}`;
+      if (drop?.part) active.events.push({ type: "custom", name: "drop", value: drop.part });
       if (active.status === "queued") active.pending.push(text);
       else await ctx.piSession.steer(text);
       return { run: active, steered: true };
@@ -574,8 +586,21 @@ export class SessionService {
       this.runIndex.delete(old);
     }
     run.events.push({ type: "run-status", status: "queued" });
+    if (drop?.part) run.events.push({ type: "custom", name: "drop", value: drop.part });
     void this.execute(ctx, run);
     return { run, steered: false };
+  }
+
+  /** The drop on a message, as the model will read it, and the part the browser renders. */
+  private async readDrop(ctx: SessionContext, dropId: string) {
+    if (!ctx.kernel) return { block: dropBlock(undefined, dropId, "no kernel access"), part: undefined };
+    try {
+      const summary = await fetchDropSummary(ctx.kernel, dropId);
+      return { block: dropBlock(summary, dropId), part: dropPart(summary) };
+    } catch (err) {
+      this.deps.log.warn({ sessionId: ctx.id, dropId, err: sanitizeError(String(err)) }, "drop not readable");
+      return { block: dropBlock(undefined, dropId, "the drop couldn't be read yet; try get_drop"), part: undefined };
+    }
   }
 
   private async execute(ctx: SessionContext, run: Run): Promise<void> {

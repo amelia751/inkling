@@ -281,6 +281,8 @@ export interface ProjectSummary {
   resume: ResumeState | null;
   /** Whether this person already confirmed the rights attestation in this project. */
   attested: boolean;
+  /** todo13 D14: this person's role in the project's organization (`viewer` can't drop or edit). */
+  role?: "owner" | "admin" | "editor" | "contributor" | "viewer" | string | null;
   license?: string;
   restricted?: boolean;
 }
@@ -352,7 +354,18 @@ export interface SourceNodeDetail extends SourceNode {
   /** The numbered run (`seq:…`, an opaque id) a file is collapsed into in its folder, if any. */
   runId?: string | null;
   usedIn: { id: string; title: string; tasks: { id: string; title: string }[] }[];
-  provenance: { sourceId: string; sourceTitle: string | null; importSessionId: string | null; addedBy: string | null; addedAt: string | null; sha256: string | null };
+  provenance: {
+    sourceId: string;
+    sourceTitle: string | null;
+    importSessionId: string | null;
+    addedBy: string | null;
+    addedAt: string | null;
+    sha256: string | null;
+    /** todo13: `chat` for files shared in a conversation. */
+    sourceKind?: "upload" | "seed" | "connector" | "chat" | null;
+    /** todo13 D4: "Shared in chat · <conversation> · <date>". */
+    drop?: import("../drops").DropProvenance;
+  };
   /** todo7 D4: the current path, computed from the parent chain ("Files/MRI/scan001.dcm" without the root). */
   pathText?: string;
   /** The path as uploaded (immutable). Sensitive (Phase 7): members only, never in agent context or exports. */
@@ -486,7 +499,7 @@ export interface SourceSummary {
   id: string;
   projectId: string;
   title: string;
-  kind: "upload" | "seed" | "connector";
+  kind: "upload" | "seed" | "connector" | "chat";
   status: string;
   rootNodeId: string | null;
   fileCount: number;
@@ -517,6 +530,8 @@ export interface ImportSession {
   startedAt: string | null;
   finishedAt: string | null;
   error: string | null;
+  /** todo13: the drop (one gesture) this session belongs to. */
+  dropId?: string | null;
   files?: { clientFileId: string; relPath: string; size: number; sha256: string; received: number; state: UploadFileState; reason: string | null; uploadUrl: string | null }[];
 }
 

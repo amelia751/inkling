@@ -73,12 +73,16 @@ const schemas = {
     restricted: z.boolean().optional(),
     kernelToken: z.string().min(16).max(512).optional(),
   }),
-  message: z.object({
-    text: z.string().min(1).max(32_000),
-    context: z.string().max(200_000).optional(),
-    snapshot: snapshotSchema.optional(),
-    kernelToken: z.string().min(16).max(512).optional(),
-  }),
+  message: z
+    .object({
+      text: z.string().max(32_000),
+      context: z.string().max(200_000).optional(),
+      snapshot: snapshotSchema.optional(),
+      kernelToken: z.string().min(16).max(512).optional(),
+      // todo13: a drop alone is a message too.
+      drop: z.object({ dropId: z.string().regex(/^drp-[a-z0-9]{8,40}$/, "dropId must look like drp-…") }).optional(),
+    })
+    .refine((m) => m.text.length > 0 || !!m.drop, { message: "text must not be empty (unless the message carries a drop)", path: ["text"] }),
   clientTool: z.object({ ok: z.boolean(), output: z.unknown() }),
   approval: z.object({ decision: z.enum(["approve", "reject"]), note: z.string().max(2000).optional() }),
 };

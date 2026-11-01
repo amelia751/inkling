@@ -174,8 +174,27 @@ export interface CreateSessionResponse {
   model: string;
 }
 
+/**
+ * A drop on a user message (todo13 D2/D3): files the person dropped, pasted or attached, already
+ * uploaded to Files by the browser. The message carries the reference, never bytes; the agent
+ * reads the drop's `DropSummary` (screened names, kinds, technical facts) from the kernel.
+ */
+export interface DropRef {
+  dropId: string;
+}
+
+/** The drop part of a user message as the agent stores and emits it (`custom` name `drop`). */
+export interface DropMessagePart {
+  type: "drop";
+  dropId: string;
+  files: { nodeId: string; agentName: string; kind?: string; state: string }[];
+}
+
 export interface SendMessageRequest {
+  /** May be empty when the message is a drop alone. */
   text: string;
+  /** todo13: files dropped with this message (a drop alone is a message too). */
+  drop?: DropRef;
   /** Per-turn state shown to the model with this message, e.g. the `<environment>` block. */
   context?: string;
   /** Dataset snapshot for the dataset tools; replaces the session's previous one. */

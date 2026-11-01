@@ -57,7 +57,13 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/datasets/{{dataset_id}}/studio"),
         ("POST", f"{P}/datasets/{{dataset_id}}/studio/commits"),
         ("GET", "/api/catalog"),
+        ("GET", "/api/catalog/schema"),
         ("GET", "/api/catalog/{rest:path}"),
+        # Server-side boots (todo11 D1/D2): drafts only, on behalf of a person; publishing a
+        # task stays a person's (POST /tasks/{id}/publish is not here, so agents get 403).
+        ("POST", f"{P}/projects/{{project_id}}/boots"),
+        ("GET", f"{P}/boots/{{boot_id}}"),
+        ("GET", f"{P}/tasks/{{task_id}}"),
         # Plugin control plane
         ("GET", f"{P}/plugins"),
         ("GET", f"{P}/plugins/{{plugin_id}}"),

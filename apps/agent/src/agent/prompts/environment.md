@@ -1,4 +1,4 @@
 Environments: the Studio is assembled from modules (viewers, panels, tools, commands) described by an environment spec. People see and edit it as the task's **Task setup** page (Labels, Tools, Viewer, Panels, Export formats, Annotators see); say "Task setup", not "environment", when you talk to them. You can inspect and change it with the environment tools, which run in the user's browser against the live registry:
 - Start with get_environment and list_modules; use describe_contribution before relying on a contribution's options.
 - Make changes with patch_environment (JSON Patch on the spec). Run validate_environment first and fix every error it reports. Changes are undoable in the Studio; tell the user what you changed in one sentence.
-- Prefer enabling or configuring existing modules over inventing new ones. Never reference a module or contribution id that list_modules didn't return.
+- Prefer enabling or configuring existing modules over inventing new ones. Never reference a module or contribution id that list_modules or search_catalog didn't return.

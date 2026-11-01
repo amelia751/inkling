@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from .conftest import png, ws
+from .conftest import png, ws, at_rev
 
 ENV = {"extends": "preset:image-2d", "task": "classification", "labels": [{"name": "labels", "control": "Labels", "classes": [{"id": "cat"}]}]}
 
@@ -66,35 +66,44 @@ def test_put_is_optimistic_and_keeps_history(c):
     assert doc["revision"] == 1 and doc["environment"] == ENV and doc["author"] == "ann" and doc["savedAt"].endswith("Z")
     stale = c.put("/api/environments/with-env", json={"revision": 0, "environment": {**ENV, "task": "x"}})
     assert stale.status_code == 409 and stale.json()["error"] == "revision conflict" and stale.json()["current"]["revision"] == 1
-    r = c.put("/api/environments/with-env", json={"environment": {**ENV, "task": "segmentation"}})  # no revision: last writer wins
+    # todo11 D2: no revision is no longer "last writer wins"; it's refused.
+    missing = c.put("/api/environments/with-env", json={"environment": {**ENV, "task": "segmentation"}})
+    assert missing.status_code == 422 and missing.json()["errors"][0]["path"] == "/revision"
+    r = c.put("/api/environments/with-env", json={"revision": 1, "environment": {**ENV, "task": "segmentation"}})
     assert r.json()["revision"] == 2 and r.json()["author"] == "local-expert"
     got = c.get("/api/environments/with-env").json()
     assert got["revision"] == 2 and got["effective"]["task"] == "segmentation" and got["environment"] == got["effective"]
     hist = c.get("/api/environments/with-env/history").json()
     assert [h["revision"] for h in hist] == [1, 2] and hist[0]["environment"] == ENV and set(hist[0]) == {"revision", "environment", "savedAt", "author", "contentHash", "parentHash", "authorKind"}
     assert c.put("/api/environments/with-env", content=b"").status_code == 400
-    assert c.put("/api/environments/with-env", json={"environment": "nope"}).status_code == 422
+    assert c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": "nope"}).status_code == 422
 
 
 def test_patch_applies_rfc6902_to_the_saved_or_manifest_environment(c):
-    r = c.patch("/api/environments/with-env", json={"patch": [{"op": "replace", "path": "/task", "value": "detection"}, {"op": "add", "path": "/labels/0/classes/-", "value": {"id": "dog"}}]})
+    r = c.patch("/api/environments/with-env", json={**at_rev(c, "with-env", None), "patch": [{"op": "replace", "path": "/task", "value": "detection"}, {"op": "add", "path": "/labels/0/classes/-", "value": {"id": "dog"}}]})
     assert r.status_code == 200, r.text
     assert r.json()["revision"] == 1 and r.json()["environment"]["task"] == "detection"
     assert r.json()["environment"]["labels"][0]["classes"] == [{"id": "cat"}, {"id": "dog"}]
     r = c.patch("/api/environments/with-env", json={"revision": 1, "patch": [{"op": "remove", "path": "/task"}]})
     assert r.status_code == 200 and "task" not in r.json()["environment"]
-    bad = c.patch("/api/environments/with-env", json={"patch": [{"op": "replace", "path": "/nope/deeper", "value": 1}]})
+    bad = c.patch("/api/environments/with-env", json={**at_rev(c, "with-env", None), "patch": [{"op": "replace", "path": "/nope/deeper", "value": 1}]})
     assert bad.status_code == 422 and bad.json()["ok"] is False and bad.json()["errors"][0]["path"] == "/0"
     assert c.get("/api/environments/with-env").json()["revision"] == 2  # a failed patch saves nothing
-    assert c.patch("/api/environments/with-env", json={"patch": {"op": "x"}}).status_code == 422
-    assert c.patch("/api/environments/nope", json={"patch": []}).status_code == 404
+    assert c.patch("/api/environments/with-env", json={**at_rev(c, "with-env", None), "patch": {"op": "x"}}).status_code == 422
+    assert c.patch("/api/environments/nope", json={**at_rev(c, "nope", None), "patch": []}).status_code == 404
     assert c.patch("/api/environments/with-env", json={"revision": 0, "patch": []}).status_code == 409
 
 
-def test_validation_and_catalog_stay_on_the_dev_server(c):
+def test_validation_and_catalog_are_served_by_the_api(c):
+    """todo11 D2: no more 501 split brain for validation and the catalogue."""
     r = c.post("/api/environments/validate", json=ENV)
-    assert r.status_code == 501 and "dev server" in r.json()["error"]
-    assert c.get("/api/catalog").status_code == 501 and c.get("/api/catalog/schema").status_code == 501
+    assert r.status_code == 200 and r.json()["ok"], r.text
+    bad = c.post("/api/environments/validate", json={**ENV, "tools": ["inkling.core.tools.nope"]})
+    assert bad.status_code == 422 and bad.json()["errors"][0] == {"path": "/tools/0", "code": "reference", "message": bad.json()["errors"][0]["message"]}
+    cat = c.get("/api/catalog").json()
+    assert cat["version"] == 1 and cat["modules"] and cat["contributions"]
+    assert c.get("/api/catalog/schema").json()["$ref"] == "#/$defs/EnvironmentSpec"
+    assert c.get("/api/catalog/capabilities").status_code == 501
 
 
 def test_a_session_token_cant_edit_another_workspace(c):
@@ -109,9 +118,9 @@ def test_every_revision_has_a_stable_hash_and_a_parent(c):
     from studio_api.kernel.canonical import content_hash
 
     reordered = json.loads(json.dumps(ENV, sort_keys=True))  # same value, other key order
-    a = c.put("/api/environments/with-env", json={"environment": ENV, "author": "ann"}).json()
-    b = c.put("/api/environments/with-env", json={"environment": {**ENV, "task": "detection"}}).json()
-    back = c.put("/api/environments/with-env", json={"environment": reordered}).json()
+    a = c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": ENV, "author": "ann"}).json()
+    b = c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": {**ENV, "task": "detection"}}).json()
+    back = c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": reordered}).json()
     # The first revision's parent is its base (the manifest environment); then each other's.
     assert a["parentHash"] == content_hash(ENV) == a["contentHash"]
     assert b["parentHash"] == a["contentHash"] != b["contentHash"]
@@ -125,21 +134,21 @@ def test_every_revision_has_a_stable_hash_and_a_parent(c):
 
     assert c.get("/api/environments/nope").json()["effective"] is None
     base = c.get("/api/environments/ws-b").json()["effective"]
-    first = c.put("/api/environments/ws-b", json={"environment": ENV}).json()
+    first = c.put("/api/environments/ws-b", json={**at_rev(c, "ws-b", None), "environment": ENV}).json()
     assert first["parentHash"] == (content_hash(base) if base is not None else NULL_CONTENT_HASH)
 
 
 def test_agent_revisions_record_the_run_and_prompt_hash(c):
     ph = "sha256:" + "ab" * 32
     # The Studio's assistant panel: a person's session saying its agent made the change.
-    r = c.put("/api/environments/with-env", json={"environment": ENV, "author": "agent:claude", "provenance": {"runId": "run_42", "promptHash": ph}}).json()
+    r = c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": ENV, "author": "agent:claude", "provenance": {"runId": "run_42", "promptHash": ph}}).json()
     assert r["authorKind"] == "agent" and r["agentRunId"] == "run_42" and r["promptHash"] == ph and r["author"] == "agent:claude"
     # Garbage provenance is dropped, not stored.
-    r = c.put("/api/environments/with-env", json={"environment": ENV, "author": "agent:x", "provenance": {"runId": "../etc", "promptHash": "md5:1"}}).json()
+    r = c.put("/api/environments/with-env", json={**at_rev(c, "with-env", None), "environment": ENV, "author": "agent:x", "provenance": {"runId": "../etc", "promptHash": "md5:1"}}).json()
     assert r["authorKind"] == "agent" and "agentRunId" not in r and "promptHash" not in r
     # An agent session is always an agent, whatever author it claims.
     tok = c.post("/api/v1/sessions", json={"scopes": ["assets.read"], "agent": "builder"}, headers=ws("with-env")).json()["token"]
-    r = c.patch("/api/environments/with-env", json={"patch": [{"op": "replace", "path": "/task", "value": "detection"}], "author": "dr-house"}, headers={"Authorization": f"Bearer {tok}", "X-Agent-Run": "run_7", "X-Agent-Prompt-Hash": ph})
+    r = c.patch("/api/environments/with-env", json={**at_rev(c, "with-env", None), "patch": [{"op": "replace", "path": "/task", "value": "detection"}], "author": "dr-house"}, headers={"Authorization": f"Bearer {tok}", "X-Agent-Run": "run_7", "X-Agent-Prompt-Hash": ph})
     assert r.status_code == 200, r.text
     assert r.json()["author"] == "agent:run_7" and r.json()["authorKind"] == "agent" and r.json()["agentRunId"] == "run_7" and r.json()["promptHash"] == ph
     kinds = [h["authorKind"] for h in c.get("/api/environments/with-env/history").json()]

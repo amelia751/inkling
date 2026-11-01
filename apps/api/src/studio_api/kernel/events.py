@@ -39,11 +39,17 @@ EVENT_TYPES = {
     "proposal.decided",
     # Files (todo7): a namespace batch changed these folders' children.
     "fs.changed",
+    # Live boot (todo11 §6 contracts): every environment write, and a boot's progress.
+    "environment.updated",
+    "boot.started",
+    "boot.step",
+    "boot.ready",
+    "boot.failed",
 }
 
 # Kernel-published project updates: never rate limited (an import of 10k files is one
 # session, but its progress events must not starve plugin events or each other).
-PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed"}
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed"}
 
 
 def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:

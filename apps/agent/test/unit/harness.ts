@@ -7,7 +7,7 @@ import { createApp } from "../../src/app.ts";
 import { loadConfig, withPrefix } from "../../src/config.ts";
 import { createLogger } from "../../src/log.ts";
 import type { AgentEvent, ClientToolSpec, DatasetSnapshot } from "@studio/agent-protocol";
-import { SessionService } from "../../src/runtime/sessions.ts";
+import { SessionService, type SessionServiceDeps } from "../../src/runtime/sessions.ts";
 import { NAMING } from "../../src/naming.ts";
 
 const RES = NAMING.resourcePrefix;
@@ -15,7 +15,7 @@ const RES = NAMING.resourcePrefix;
 export const TOKEN = "test-service-token-0123456789";
 
 /** A real pi runtime + session service + HTTP app on a scripted model; no network. */
-export async function harness(fixture: ScriptFixture, env: Record<string, string> = {}, extraTools: ToolDefinition<any, any, any>[] = []) {
+export async function harness(fixture: ScriptFixture, env: Record<string, string> = {}, extraTools: ToolDefinition<any, any, any>[] = [], deps: Partial<SessionServiceDeps> = {}) {
   const dir = mkdtempSync(join(tmpdir(), `${RES}-agent-`));
   const { config } = loadConfig(withPrefix({
     ENV: "test",
@@ -28,7 +28,7 @@ export async function harness(fixture: ScriptFixture, env: Record<string, string
   const runtime = await createModelRuntime(config);
   registerScriptedProvider(runtime, fixture);
   const log = createLogger("silent");
-  const sessions = new SessionService({ config, runtime, log, extraTools });
+  const sessions = new SessionService({ config, runtime, log, extraTools, ...deps });
   const app = createApp({ config, sessions, log });
   const call = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) =>
     app.request(path, {

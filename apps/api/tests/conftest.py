@@ -180,3 +180,10 @@ def run_worker_once(c, result, cost=None, worker="w1"):
 def mask_result(provider="mock", model="mock-1", h=30, w=40):
     counts = [0, h * w]  # all foreground, column-major
     return {"instances": [{"instance_id": "a", "mask": {"encoding": "rle", "size": [h, w], "counts": counts}}], "provider": provider, "model": model}
+
+
+def at_rev(c, task: str, headers: dict | None = None) -> dict:
+    """`{"revision": <current>}` for an environment write (todo11 D2: writes must send the
+    revision they edited; a stale one is a 409)."""
+    r = c.get(f"/api/environments/{task}", headers=headers or {})
+    return {"revision": r.json().get("revision", 0) if r.status_code == 200 else 0}

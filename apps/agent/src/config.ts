@@ -110,6 +110,13 @@ const schema = z.object({
   /** Fixture for AGENT_MODEL=scripted (dev/test only): a JSON array of scripted assistant turns. */
   AGENT_SCRIPT: optional,
   AGENT_DATA_DIR: optional,
+  /**
+   * The generated catalogue (schemas/catalog.json) and the preset intent table
+   * (registry/intents.json), read once at startup for the Studio tools (todo11). Defaults: the
+   * repo copies next to this service (the image ships both).
+   */
+  AGENT_CATALOG_FILE: optional,
+  AGENT_INTENTS_FILE: optional,
 
   /** Where sessions, transcripts, run records and pending approvals live (store/). */
   AGENT_STORE: z.enum(["file", "postgres"]).default("file"),
@@ -176,6 +183,8 @@ export interface Config {
   /** Set when the model is `scripted`: path of the replay fixture. */
   script: string | undefined;
   dataDir: string | undefined;
+  /** Overrides for schemas/catalog.json and registry/intents.json (agent/catalog.ts has the defaults). */
+  studioFiles: { catalog: string | undefined; intents: string | undefined };
   logLevel: Env["LOG_LEVEL"];
   store: { kind: Env["AGENT_STORE"]; databaseUrl: string | undefined; schema: string; autoMigrate: boolean };
   bus: { kind: Env["AGENT_EVENT_BUS"]; redisUrl: string | undefined; streamMaxLen: number; streamTtlS: number };
@@ -287,6 +296,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       egressProbe: e.AGENT_EGRESS_PROBE,
       script: scripted ? e.AGENT_SCRIPT : undefined,
       dataDir: e.AGENT_DATA_DIR,
+      studioFiles: { catalog: e.AGENT_CATALOG_FILE, intents: e.AGENT_INTENTS_FILE },
       logLevel: e.LOG_LEVEL,
       store: { kind: e.AGENT_STORE, databaseUrl: e.AGENT_DATABASE_URL, schema: e.AGENT_DATABASE_SCHEMA, autoMigrate: e.AGENT_AUTO_MIGRATE },
       bus: { kind: e.AGENT_EVENT_BUS, redisUrl: e.AGENT_REDIS_URL, streamMaxLen: Math.max(100, e.AGENT_RUN_STREAM_MAXLEN), streamTtlS: e.AGENT_RUN_STREAM_TTL_S },

@@ -28,6 +28,7 @@
     "@studio/agent-protocol": "workspace:*",
     "@studio/contracts": "workspace:*",
     "@studio/observability-ts": "workspace:*",
+    "@studio/studio-tools": "workspace:*",
     "hono": "4.13.14",
     "ioredis": "5.11.1",
     "pg": "8.23.1",

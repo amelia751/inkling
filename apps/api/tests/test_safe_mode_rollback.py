@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from studio_api.kernel.canonical import content_hash
 
-from .conftest import ws
+from .conftest import ws, at_rev
 from .test_installer_flow import install
 
 ENV1 = {"extends": "preset:image-2d", "task": "classification", "labels": [{"name": "labels", "control": "Labels", "classes": [{"id": "cat"}]}]}
@@ -25,14 +25,14 @@ def agent(c, run="run_9"):
 def test_known_good_moves_by_a_person_or_by_passing_checks_never_by_the_agent(registry_client):
     c = registry_client()
     assert c.get("/api/environments/ws-a/last-known-good", headers=H).status_code == 404
-    r1 = c.put("/api/environments/ws-a", json={"environment": ENV1}, headers=H).json()
+    r1 = c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", H), "environment": ENV1}, headers=H).json()
     # A clean boot of a person's revision moves it.
     ok = c.post("/api/environments/ws-a/checks", json={"revision": 1, "contentHash": r1["contentHash"], "ok": True}, headers=H).json()
     assert ok["moved"] and ok["knownGood"]["movedBecause"] == "checks" and ok["knownGood"]["contentHash"] == content_hash(ENV1)
     assert ok["knownGood"]["lockfileHash"] == lock(c)["contentHash"]
     # An agent's change: booting it doesn't make it known good; the agent can't either.
     a = agent(c)
-    r2 = c.patch("/api/environments/ws-a", json={"patch": [{"op": "replace", "path": "/task", "value": "detection"}]}, headers=a)
+    r2 = c.patch("/api/environments/ws-a", json={**at_rev(c, "ws-a", a), "patch": [{"op": "replace", "path": "/task", "value": "detection"}]}, headers=a)
     assert r2.status_code == 200 and r2.json()["authorKind"] == "agent"
     no = c.post("/api/environments/ws-a/checks", json={"revision": 2, "contentHash": r2.json()["contentHash"], "ok": True}, headers=H).json()
     assert no["moved"] is False and "agent" in no["reason"]
@@ -50,7 +50,7 @@ def test_known_good_moves_by_a_person_or_by_passing_checks_never_by_the_agent(re
 
 def test_checks_never_bless_a_plugin_that_widens_permissions(registry_client):
     c = registry_client()
-    c.put("/api/environments/ws-a", json={"environment": ENV1}, headers=H)
+    c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", H), "environment": ENV1}, headers=H)
     assert c.put("/api/environments/ws-a/last-known-good", json={}, headers=H).json()["moved"]
     install(c, "ws-a", "test.seg", "1.0.0")
     r = c.post("/api/environments/ws-a/checks", json={"revision": 1, "ok": True}, headers=H).json()
@@ -60,11 +60,11 @@ def test_checks_never_bless_a_plugin_that_widens_permissions(registry_client):
 
 def test_rollback_restores_environment_and_pins_in_one_transaction_with_a_chained_audit(registry_client):
     c = registry_client()
-    good = c.put("/api/environments/ws-a", json={"environment": ENV1}, headers=H).json()
+    good = c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", H), "environment": ENV1}, headers=H).json()
     kg = c.put("/api/environments/ws-a/last-known-good", json={}, headers=H).json()["knownGood"]
     # A plugin is installed and the environment changed to use something that doesn't load.
     install(c, "ws-a", "test.seg", "1.0.0")
-    c.put("/api/environments/ws-a", json={"environment": BROKEN}, headers=H)
+    c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", H), "environment": BROKEN}, headers=H)
     assert "test.seg" in [p["id"] for p in lock(c)["lockfile"]["plugins"]]
     r = c.post("/api/environments/ws-a/rollback", headers=H)
     assert r.status_code == 200, r.text
@@ -86,7 +86,7 @@ def test_rollback_restores_environment_and_pins_in_one_transaction_with_a_chaine
 
 def test_a_tampered_audit_entry_breaks_the_chain(registry_client):
     c = registry_client()
-    c.put("/api/environments/ws-a", json={"environment": ENV1}, headers=H)
+    c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", H), "environment": ENV1}, headers=H)
     c.put("/api/environments/ws-a/last-known-good", json={}, headers=H)
     c.post("/api/environments/ws-a/rollback", headers=H)
     assert c.get("/api/environments/ws-a/audit", headers=H).json()["ok"]

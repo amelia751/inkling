@@ -7,10 +7,12 @@ configures modules, datasets, viewers or labels by hand.
 Our advantage isn't supporting every agent protocol or having the most sophisticated pipeline. It's
 making complicated data feel simple.
 
-**Status (2026-10-31).** Plan amended after review; nothing started.
+**Status (2026-10-31).** Plan amended after review.
 
-- **Milestone 1 can start now.**
-- **Milestone 2** starts after Milestone 1's measurements land.
+- **Milestone 1 can start now.** In progress on `todo11-shell`.
+- **Milestone 2** starts after Milestone 1's measurements land. **Server side (`todo11-boot`) done
+  early, in parallel, and merged** (it touches nothing in Milestone 1's files; the D4 guardrails item
+  is still open). Its client side (`todo11-live`) has not started. See the ✅ notes in Milestone 2.
 - **Milestone 3** follows.
 - **Milestone 4** (external agents) is deliberately later and only outlined.
 
@@ -348,24 +350,92 @@ A user can create a Studio from chat without opening the Studio first.
 1. `packages/environment-core`: a pure TypeScript resolver and validator over `schemas/catalog.json`
    and the environment schema. Used by `apps/web`, the Vite seed server (ending the 501 split brain)
    and `apps/agent`. It ships the conformance fixtures.
+   - ✅ **Done (todo11-boot), validator part:**
+     - `checkWrite` covers: the JSON Patch (all ops or none), the agent scope, shape against
+       `environment.v1.json` with its id enums removed, and references.
+     - References are checked against the schema's enums, or against an installed plugin, matched
+       by the `<pluginId>.` prefix.
+     - `reference-slots.json` is one table, read by both TypeScript and Python. It says where an
+       environment names a contribution, and which paths an agent may patch.
+     - `fixtures/cases.json` has 28 cases; the bundled presets validate.
+   - ⏳ **Not yet:**
+     - Moving the resolver itself (`extends` merge, overrides) into the package.
+     - Switching `apps/web` and the Vite seed server (`dev/seed-server.ts`) over to it. Both are
+       under `apps/web`, next to Milestone 1's files, so they wait for `todo11-shell` to merge.
+     - `boundaries` already allows extension-host and shell to import it.
 2. **API enforcement (D2):**
    - required `revision` on writes, 409 on stale;
    - the agent mutation-scope allowlist;
    - schema and reference checks in Python;
    - the conformance test against the fixtures.
+   - ✅ **Done.** The checks live in `kernel/environment_policy.py` and run from
+     `routes/environments.py` on every PUT and PATCH, for every caller:
+     - **Revision:** a missing `revision` gets 422 (no more "last writer wins"); a stale one gets
+       409.
+     - **Who may write (D2.1):** an agent may write only the drafts booted for the same person, or
+       the task the person had open when they minted its token. That task is stored in the new
+       `session_delegations.task_id`, set by `POST /v1/sessions` from `X-Workspace-Id`.
+     - **Scope (D2.3):** agents may patch `/title`, `/description`, `/task`, `/extends`,
+       `/labels`, `/layout`, `/overrides`, `/studio` and `/viewports/<i>/config`. They may change
+       `/modules/<id>` only for installed plugins, and may never PUT. Anything else gets 403.
+     - **Shape and references:** errors get 422.
+     - **Validate and catalogue:** `POST /api/environments/validate`, `GET /api/catalog` and
+       `GET /api/catalog/schema` are now answered by the API (they returned 501).
+       `/api/catalog/capabilities` and `/api/catalog/plugins/…` still need the dev server.
+     - **Tests:** `test_environment_conformance.py` runs the same fixtures as the vitest suite.
+     - **Approval:** the person-side approval path for permission-widening changes is unchanged
+       (installs still go through plugin approval).
 3. `POST /api/v1/projects/:id/boots {bootId, preset, patch?, files?, folders?, name?}`:
    - idempotent on `bootId`;
    - creates a **draft** task, links the given files or folders into its dataset, writes the
      environment, emits `boot.started`, `boot.step` and `boot.ready|failed`;
    - draft tasks get a `draft` state with a person-only `publish`;
    - the agent token is allowed on the boot routes, within D2's scope.
+   - ✅ **Done.** The code is in `kernel/boots.py` and `routes/boots.py`.
+     - **Ordering:** everything is validated before anything is created, so a refused boot leaves
+       nothing behind.
+     - **Revisions:** revision 1 is the preset and revision 2 is the refinement patch, so Undo
+       reverts only the model's part.
+     - **Replays:** replaying a `bootId` returns the same boot; reusing it with a different body
+       gets 409.
+     - **Failures:** a crash after validation is recorded as a `failed` boot plus `boot.failed`,
+       in its own transaction.
+     - **Reading back:** `GET /api/v1/boots/:id`.
+     - **Publishing:** `POST /api/v1/tasks/:id/publish` is person-only. It isn't in
+       `AGENT_ROUTES`, and the kernel refuses agents as well.
+     - **Agent routes:** `AGENT_ROUTES` now includes the boot routes and `GET /api/v1/tasks/:id`;
+       `docs/deployment-gcp.md` is updated.
+     - **Migration:** `0008_todo11_boot_drafts_and_boots`, on head `0006b`, adds:
+       - `tasks.state`, `boot_id`, `booted_by`, `published_by`, `published_at`;
+       - a `boots` table;
+       - `session_delegations.task_id`.
+     - **Task fields:** `task_dict` now carries `state` and `bootId`.
+     - **Ledger labels** name artefacts: "Created draft “X-ray Studio”", "Linked 2 files", "Set up
+       from preset:image-2d", "Added 5 labels".
 4. Project events (D3): `environment.updated {taskId, revision, patch?, author}` on every environment
    write, plus `boot.*`, on the existing stream with replay.
+   - ✅ **Done.**
+     - `studio_defs.save_revision` publishes `environment.updated` in the write's own
+       transaction. Every write path goes through it: PUT, PATCH, boots, rollback, restore.
+     - Payload: `{taskId, revision, author, authorKind, contentHash, parentHash, runId?, patch?}`.
+     - `patch` is present for PATCH writes up to 64 KB; it's absent for PUT or rollback, where the
+       client refetches.
+     - The `boot.*` and `environment.updated` types are added to `PROJECT_EVENTS`, so they flow
+       on `GET /v1/projects/:id/events` with `Last-Event-ID` replay.
 5. `packages/studio-tools`, the shared tool layer (D10's "now" part): schemas plus an HTTP client for
    - `boot_studio({projectId, preset?, intent?, patch?, files?, folders?, name?, bootId})`;
    - `patch_studio({taskId, patch, revision})`;
    - `get_studio_state({taskId})`;
    - `search_catalog({query, detail})`.
+   - ✅ **Done.** The package exports:
+     - TypeBox schemas, and `STUDIO_TOOLS` in a fixed order (plus `offer_studio`);
+     - `StudioClient`, whose errors are typed `StudioApiError {status, errors[], current}`;
+     - framework-neutral `createStudioHandlers`, ready for MCP to reuse in Milestone 4;
+     - `resolveIntent` and `isCreationIntent` (`none | offer | create`; no model);
+     - `searchCatalog` and `compactPresetIndex`;
+     - `deriveBootId`.
+
+     It imports only `typebox`. 47 unit tests.
 6. `apps/agent`:
    - register these as **server** tools (so no open Studio is needed);
    - the harness calls the boot route as soon as `boot_studio` starts (preset from the call, or from
@@ -376,6 +446,29 @@ A user can create a Studio from chat without opening the Studio first.
    - give the system prompt and tool list a stable order for prompt caching;
    - the D4 guardrails: `ag-ui-map.ts` and its test; streamed `boot_studio` args, if pi exposes them,
      as the start / args-delta / end triple; new non-AG-UI events under the `custom` envelope.
+   - ✅ **Done.**
+     - **Registration:** `tools/studio.ts` registers the server tools on `assistant`,
+       `environment-designer` and `coder`.
+     - **Boot:** `boot_studio` posts the boot route as soon as it executes. Its `bootId` comes
+       from run id + tool call id, so a retry is idempotent.
+     - **Creation gate (D5):** the policy lets `boot_studio` run only when the person's own words
+       are an explicit "create". Otherwise it soft-denies and steers the model to `offer_studio`.
+       Side effect: a bare "yes, do it" after an offer is refused, which is one of the open
+       points below.
+     - **Offer card:** `offer_studio` is a server tool that creates nothing; todo11-live renders
+       it.
+     - **Prompt:** the `boot` profile is a prompt file, `prompts/boot.md`, added to those
+       profiles. A new `ProfileName` would break the web's `Record<ProfileName,…>`.
+     - **Catalogue:** the request's `catalogPrompt` is accepted but no longer injected. Instead
+       the prompt gets a ~3.3 KB preset and module index from `schemas/catalog.json`, plus
+       `search_catalog`.
+     - **Order:** prompt parts and the tool list are in a fixed order; a test checks two sessions
+       are byte-identical.
+     - **Intent table:** it lives at **`registry/intents.json`**, not `registry/presets/`. The web
+       globs `registry/presets/*.json` as presets.
+     - **Env vars:** `INKLING_AGENT_CATALOG_FILE` and `INKLING_AGENT_INTENTS_FILE`.
+     - **Dockerfile:** it now copies `registry/intents.json`.
+     - ⏳ **D4 guardrails** (added on `main` after this work started): not done yet.
 
 **Client (`todo11-live`):**
 
@@ -403,6 +496,34 @@ A user can create a Studio from chat without opening the Studio first.
     - no web file other than the agent store consumes raw run events;
     - "explain pneumothorax" boots nothing;
     - input tokens per boot are down at least 70% against today, measured from `usage` events.
+    - **Server-side exit status (todo11-boot):**
+      - ✅ Agent token can't publish (403), can't add an uninstalled module (403), and a stale
+        `revision` gets 409 (`apps/api/tests/test_boots.py`).
+      - ✅ Conformance fixtures pass on both sides.
+      - ✅ "Explain pneumothorax" boots nothing: `isCreationIntent` returns `none` and the policy
+        gate refuses `boot_studio`.
+      - ⚠️ **Tokens: −41%, not −70%.** These are characters of the environment-designer system
+        prompt plus tool schemas, divided by 4 for tokens. The faux model's `usage` leaves out
+        the system prompt and tools, so it can't measure this.
+        - Total: 52,182 → 30,660 chars (~13.0k → ~7.7k tokens).
+        - The catalogue part alone went from ~31.4k chars to ~8.9k (−72%).
+        - What's left is mostly the browser's client-tool specs (~9.8k, owned by the web), project
+          tools (~5.9k) and `base.md` (~3.1k).
+        - To reach 70%:
+          - the web stops sending the `list_modules` and `describe_contribution` client tools
+            that `search_catalog` now covers;
+          - expose project and file tools lazily;
+          - shorten `base.md`.
+      - ⏳ The navigation and 500 ms live-update e2e tests depend on `todo11-live`.
+    - **todo11-boot open points (for the integrator):**
+      - **Creation gate:** a bare "yes, create it", sent after an `offer_studio` card, is refused.
+        The click on the card should call the boot route directly; that's `todo11-live`.
+      - **Plugin ids:** an installed plugin's contributions count as valid by the `<pluginId>.`
+        prefix, not by checking its pinned list of contributions.
+      - **Environment writes and roles:** env writes don't yet require `write` role for a
+        `viewer` member. That was the behaviour before too.
+      - **Boot timing:** boots run synchronously inside the request (milliseconds), so
+        `boot.started` arrives after the task exists.
 
 ### Milestone 3: progressive data ingestion (`todo11-ingest`), in slices
 
@@ -478,7 +599,7 @@ Write a todo12 for this when it starts.
 | Branch | Milestone | Owns | Must not touch |
 |---|---|---|---|
 | `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
-| `todo11-boot` | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
+| `todo11-boot` ✅ (merged; D4 guardrails pending) | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
 | `todo11-live` | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
 | `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 
@@ -543,6 +664,9 @@ These depend on total bytes, bandwidth, formats, decode cost and workers, so a s
 never blocks declaring the Studio usable.
 
 **Tokens:** input tokens per in-app boot down at least 70% against today (`usage` events).
+**Measured by todo11-boot:** environment-designer prompt plus tools went from 52,182 to 30,660
+chars (−41%). The catalogue portion went from ~31.4k to ~8.9k chars (−72%). See Milestone 2,
+"Server-side exit status".
 
 ---
 

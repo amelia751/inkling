@@ -68,7 +68,13 @@ test checks each entry exists. Change this list and that file together.
     `POST annotations/export` (a server-side snapshot; the document never passes through the agent).
 - Job start: `POST /api/v1/commands` (answers agents with job summaries; `versioning.checkout` refused).
 - Environment control plane: `GET`/`PATCH /api/environments/{id}`, `GET …/history`,
-  `POST /api/environments/validate`, `GET /api/catalog…`.
+  `POST /api/environments/validate`, `GET /api/catalog…`. The API enforces todo11 D2 on every
+  write (`kernel/environment_policy.py`): a required `revision`, only the agent's own drafts or the
+  task the person opened it on, an allowlist of patchable paths, installed modules only, and
+  shape and reference checks.
+- Boots (todo11 D1): `POST /api/v1/projects/{id}/boots` (drafts only, on behalf of a person),
+  `GET /api/v1/boots/{id}`, `GET /api/v1/tasks/{id}`. `POST /api/v1/tasks/{id}/publish` is not on
+  the list: only a person publishes.
 - Studio definitions (todo10 Phases 1, 2, 4): `GET /api/environments/{id}/lockfile`,
   `…/last-known-good`, `…/audit`, `PUT …/readme` (notes), `GET /api/v1/datasets/{id}/studio` and
   `POST …/studio/commits` (only onto `work/agent-*`). Moving last-known-good, boot checks and

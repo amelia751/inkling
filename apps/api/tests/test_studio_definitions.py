@@ -9,6 +9,7 @@ import pytest
 from studio_api.kernel import studio_defs
 from studio_api.kernel.canonical import content_hash
 
+from .conftest import at_rev
 from .test_versioning import ALICE, BOB, ann, deid_pass, fake, save, vc, work  # noqa: F401
 
 ENV1 = {"extends": "preset:image-2d", "task": "classification", "labels": [{"name": "labels", "control": "Labels", "classes": [{"id": "cat"}]}]}
@@ -16,7 +17,7 @@ ENV2 = {**ENV1, "task": "detection"}
 
 
 def put_env(c, env, headers=ALICE):
-    r = c.put("/api/environments/ws-a", json={"environment": env}, headers=headers)
+    r = c.put("/api/environments/ws-a", json={**at_rev(c, "ws-a", headers), "environment": env}, headers=headers)
     assert r.status_code == 200, r.text
     return r.json()
 

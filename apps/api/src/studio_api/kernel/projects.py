@@ -709,7 +709,7 @@ def add_followed(db: Session, ctx: RequestContext, d: DatasetRow) -> DatasetRow:
 def task_dict(db: Session, t: TaskRow) -> dict:
     doc = db.get(AnnotationDocumentRow, (t.project_id, t.id))
     anns = doc.annotations if doc else []
-    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at)}
+    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id}
 
 
 def require_dataset(db: Session, ctx: RequestContext, dataset_id: str) -> tuple[DatasetRow, ProjectRow]:

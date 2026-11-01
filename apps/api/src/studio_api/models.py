@@ -433,6 +433,9 @@ class SessionDelegation(Base):
     __tablename__ = "session_delegations"
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     on_behalf_of: Mapped[str] = mapped_column(String(256))
+    # The task the person had open when they minted it (todo11 D2.1): an agent may write that
+    # task's environment, besides the drafts it booted. Never taken from a later request header.
+    task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class VersionedAnnotationPayload(Base):
@@ -718,6 +721,37 @@ class TaskRow(Base):
     revision: Mapped[int] = mapped_column(Integer, default=0)
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # todo11 D1: a boot makes `draft` tasks; only a person publishes them. Everything made
+    # before (and every task a person creates) is `published`.
+    state: Mapped[str] = mapped_column(String(16), default="published", server_default="published")
+    boot_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Who made the draft: `agent:<run>` or `user:…`, and the person it was made for.
+    booted_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    published_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class Boot(Base):
+    """A Studio boot (todo11 D1, `POST /api/v1/projects/:id/boots`): idempotent on `id` (the
+    caller's bootId). Its progress is also on the project event stream as `boot.*`."""
+
+    __tablename__ = "boots"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    preset: Mapped[str] = mapped_column(String(128))
+    state: Mapped[str] = mapped_column(String(16))  # running | ready | failed
+    task_ids: Mapped[list] = mapped_column(JSON, default=list)
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+    # {kind: person|agent, runId?}; `principal` is the caller, `on_behalf_of` the person.
+    initiator: Mapped[dict] = mapped_column(JSON, default=dict)
+    principal: Mapped[str] = mapped_column(String(256))
+    on_behalf_of: Mapped[str] = mapped_column(String(256))
+    # Hash of the request body, so a replay with a different body is a 409, not a silent no-op.
+    request_hash: Mapped[str] = mapped_column(String(80))
+    error: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Proposal(Base):

@@ -127,6 +127,8 @@ The client picks a profile by **name**; it never grants capabilities. Client-dec
 | `environment-designer` (Studio default) | above + environment client tools (`list_modules`, `describe_contribution`, `get_environment`, `validate_environment`, `preview_environment`, `patch_environment`, `run_command`) | none |
 | `coder` | above + sandbox tools | Daytona, created lazily on the first sandbox tool call |
 
+**Studio tools (todo11 Milestone 2).** `assistant`, `environment-designer` and `coder` also get four server tools from `packages/studio-tools` (`boot_studio`, `patch_studio`, `get_studio_state`, `search_catalog`) plus `offer_studio` (a card, creates nothing). They call the API with the session's kernel token, so no Studio tab needs to be open. `boot_studio` posts `POST /api/v1/projects/:id/boots` as soon as it runs (preset from the call, else from `registry/intents.json`), with a bootId derived from run + call id so a retry is idempotent, and the policy runs it only when the person's own words ask to create (D5; otherwise a soft deny steers to `offer_studio`). The browser's `catalogPrompt` is no longer injected: the system prompt carries a compact preset and module index (`apps/agent/src/agent/catalog.ts`) and the model looks ids up with `search_catalog`. Prompt parts and tools are in a fixed order for prompt caching. Env: `INKLING_AGENT_CATALOG_FILE`, `INKLING_AGENT_INTENTS_FILE` (default: the repo's `schemas/catalog.json`, `registry/intents.json`).
+
 pi's own built-in tools would run on the host, so sessions are created with `noTools: "builtin"` and only Inkling's tools are registered. Nothing is discovered from disk: no `AGENTS.md`, skills, prompt templates, themes or extensions from the host or `~/.pi`.
 
 ### 4.2 Capability selection policy

@@ -37,19 +37,26 @@ export interface Profile {
   sandbox: boolean | "optional";
   /** Server tools over the kernel (tools/kernel.ts); the session needs a kernel token. */
   kernel?: "builder" | "task";
+  /**
+   * Studio server tools (tools/studio.ts, todo11): boot_studio, patch_studio, get_studio_state,
+   * search_catalog, offer_studio. The `boot` prompt comes last in `prompts`, followed by the
+   * compact preset index.
+   */
+  studio?: boolean;
   prompts: string[];
 }
 
 /** Host-owned: the client picks a profile by name, never by capability. */
 export const PROFILES: Record<ProfileName, Profile> = {
-  assistant: { name: "assistant", clientTools: CARD_TOOLS, sandbox: false, prompts: ["base"] },
+  assistant: { name: "assistant", clientTools: CARD_TOOLS, sandbox: false, studio: true, prompts: ["base", "boot"] },
   "environment-designer": {
     name: "environment-designer",
     clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS],
     sandbox: false,
-    prompts: ["base", "environment"],
+    studio: true,
+    prompts: ["base", "environment", "boot"],
   },
-  coder: { name: "coder", clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS], sandbox: true, prompts: ["base", "environment", "coding"] },
+  coder: { name: "coder", clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS], sandbox: true, studio: true, prompts: ["base", "environment", "coding", "boot"] },
   // Builder tools plus environment client tools; no data-plane writes (no run_command, no
   // gateway). Its sandbox, when there is one, only holds plugin source (Phase 9).
   builder: {
@@ -70,6 +77,12 @@ export function isProfileName(name: string): name is ProfileName {
   return Object.hasOwn(PROFILES, name);
 }
 
-export function systemPrompt(profile: Profile, extra: (string | undefined)[] = []): string {
-  return [...profile.prompts.map(prompt), ...extra.filter(Boolean)].join("\n\n");
+/**
+ * The system prompt, in a fixed order so providers can cache it (todo11): the profile's prompt
+ * files in their listed order, then the compact preset index (static per deployment: it changes
+ * only with the catalogue), then `dynamic` parts last. Per-turn state goes in user messages, not
+ * here. The browser's `catalogPrompt` is no longer part of it.
+ */
+export function systemPrompt(profile: Profile, parts: { studioIndex?: string; dynamic?: (string | undefined)[] } = {}): string {
+  return [...profile.prompts.map(prompt), profile.studio ? parts.studioIndex : undefined, ...(parts.dynamic ?? [])].filter(Boolean).join("\n\n");
 }

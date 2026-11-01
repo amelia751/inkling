@@ -31,7 +31,7 @@ def run(api: str) -> None:
 
     alice.post("/api/v1/datasets", json={"id": ds, "name": "Scans"}, expect=201)
     # Task setup: environment and notes, saved.
-    alice.req("PUT", f"/api/environments/{ws}", json={"environment": ENV1}, expect=200)
+    alice.req("PUT", f"/api/environments/{ws}", json={"revision": alice.get(f"/api/environments/{ws}", expect=200).json()["revision"], "environment": ENV1}, expect=200)
     alice.req("PUT", f"/api/environments/{ws}/readme", json={"text": "# Scans\n\nBox every lesion.\n"}, expect=200)
     lock1 = alice.get(f"/api/environments/{ws}/lockfile", expect=200).json()
     assert lock1["lockfile"]["plugins"], "the workspace has first-party pins"
@@ -59,7 +59,7 @@ def run(api: str) -> None:
     assert rel["studio"]["lockfileHash"] == lock1["contentHash"] and "studioWarning" not in rel, rel
 
     # The setup changes: another class, and a plugin disabled.
-    alice.req("PUT", f"/api/environments/{ws}", json={"environment": ENV2}, expect=200)
+    alice.req("PUT", f"/api/environments/{ws}", json={"revision": alice.get(f"/api/environments/{ws}", expect=200).json()["revision"], "environment": ENV2}, expect=200)
     # (one nothing else requires: disabling a required plugin is refused)
     victim = next(p for p in reversed(lock1["lockfile"]["plugins"]) if alice.post(f"/api/v1/workspaces/{ws}/plugins/disable", json={"pluginId": p["id"]}).status_code == 200)
     assert alice.get(f"/api/environments/{ws}/lockfile", expect=200).json()["contentHash"] != lock1["contentHash"]

@@ -7,7 +7,9 @@
  * layouts where those characters need Shift.
  */
 
-export const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+// Browser only: Node has a `navigator` too, and generated files (schemas/catalog.json) must not
+// depend on the OS that generates them.
+export const IS_MAC = typeof window !== "undefined" && typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 export interface ParsedCombo {
   mod: boolean;

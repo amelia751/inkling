@@ -2621,14 +2621,14 @@
       "label": "Move to Trash",
       "when": "section == sources",
       "keys": [
-        "mod+Backspace"
+        "Delete"
       ],
       "example": {
         "keybindings": [
           {
             "command": "inkling.core.commands.moveToTrash",
             "keys": [
-              "mod+Backspace"
+              "Delete"
             ]
           }
         ]

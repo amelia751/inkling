@@ -63,11 +63,12 @@
   --g-danger-heavy: rgb(221 0 56);
   --g-danger-tint: rgb(255 45 80 / 0.1);
   /* Error and empty-state illustrations (packages/ui/src/illustrations), Nebius's colours. */
-  --ill-line-from: var(--g-text-brand);
-  --ill-line-to: rgb(36 128 230);
-  --ill-body: rgb(85 71 234 / 0.06);
-  --ill-body-strong: rgb(85 71 234 / 0.14);
-  --ill-accent: rgb(140 130 255);
+  --ill-ink-1: rgb(40 168 232);
+  --ill-ink-2: rgb(64 126 244);
+  --ill-ink-3: rgb(104 68 236);
+  --ill-body: rgb(84 104 220 / 0.07);
+  --ill-body-strong: rgb(84 104 220 / 0.14);
+  --ill-shade: rgb(40 50 120 / 0.06);
   --ill-panel: rgb(85 71 234 / 0.06);
   --ill-warning: rgb(255 161 5 / 0.5);
   --ill-danger: rgb(255 45 80 / 0.45);
@@ -151,11 +152,12 @@
   --g-danger: rgb(253 90 104);
   --g-danger-heavy: rgb(245 66 87);
   --g-danger-tint: rgb(255 45 80 / 0.15);
-  --ill-line-from: var(--g-text-brand);
-  --ill-line-to: rgb(63 155 255);
+  --ill-ink-1: rgb(96 206 255);
+  --ill-ink-2: rgb(104 156 255);
+  --ill-ink-3: rgb(128 92 255);
   --ill-body: rgb(92 97 118 / 0.28);
-  --ill-body-strong: rgb(92 97 118 / 0.6);
-  --ill-accent: rgb(105 96 250);
+  --ill-body-strong: rgb(92 97 118 / 0.5);
+  --ill-shade: rgb(0 0 0 / 0.22);
   --ill-panel: rgb(216 236 252 / 0.08);
   --ill-warning: rgb(255 161 5 / 0.5);
   --ill-danger: rgb(255 45 80 / 0.5);

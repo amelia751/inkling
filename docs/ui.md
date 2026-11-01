@@ -305,14 +305,25 @@ the list is empty unless the person can do something about it.
 
 #### Illustrations
 
-`@studio/ui/illustrations` follows the Nebius console: one object per kind of thing, a 2px
-gradient outline (`--ill-line-from` → `--ill-line-to`, brand to blue) over a muted body
-(`--ill-body`, `--ill-body-strong`) and a faint tilted backdrop (`--ill-panel`), with at most one
-solid accent (`--ill-accent`). Errors and searches are a browser window with one glyph: warning
-(not found), danger (error), magnifier (no results), lock (no access), check (success), question
-tile (generic empty). Danger red is for errors only, never for decoration; lime stays reserved
-for AI provenance. Draw new art in the same 160×160 grid with the same tokens, and register it in
-`ILLUSTRATIONS`.
+`@studio/ui/illustrations` is our own set, drawn in the manner of the Nebius console. Each picture
+is one object on a 160×160 grid, filling most of it, in two layers:
+
+- **Body**: translucent fills: `--ill-body`, `--ill-body-strong` for a nearer or raised part, and
+  `--ill-shade` laid over the dark face of a solid (the box, the bin). Each object sits on a soft
+  backdrop that follows its shape (a tilted card, a hexagon behind a box).
+- **Ink**: every outline and the one solid accent per picture, drawn white into a single mask over
+  one diagonal gradient (`--ill-ink-1` cyan, top right → `--ill-ink-3` violet, bottom left), so
+  lines and accent read as one stroke of colour. Black in the mask hides ink behind a nearer shape
+  and cuts glyphs out of an accent (the check in a badge, the play triangle).
+
+Errors and searches are a browser window with one glyph: warning (not found), danger (error),
+magnifier (no results), padlock (no access), check (success), question tile (generic empty).
+Status glyphs use `--ill-warning` / `--ill-danger` / `--ill-positive`; danger red is for errors
+only, and lime stays reserved for AI provenance. Objects: folder, files, dataset, task,
+annotation, review, release, members, key, activity, billing, plugin, trash, scan (stacked
+slices), signal (a trace on a grid), video (a player). Draw new art on the same grid with 2px
+lines (3px for small details that must survive the 72px size), keep everything inside the frame,
+and register it in `ILLUSTRATIONS`.
 
 ## 10. MVP implementation order and acceptance criteria
 

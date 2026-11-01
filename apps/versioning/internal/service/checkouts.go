@@ -54,6 +54,10 @@ func (s *Service) CreateCheckout(ctx context.Context, p *authn.Principal, repoID
 	if err := require(p, authn.ScopeCheckout); err != nil {
 		return nil, err
 	}
+	if p.IsPipeline() && in.IncludeURLs {
+		// The pipeline reads manifests to build candidates, never object bytes (todo12).
+		return nil, errf(http.StatusForbidden, "forbidden", "the pipeline service checks out manifests only (include_urls: false)")
+	}
 	if !s.Limiter.Allow("checkout", p.Actor.ID, s.Cfg.RateCheckoutPerMin) {
 		return nil, errf(http.StatusTooManyRequests, "rate_limited", "checkout rate limit exceeded")
 	}

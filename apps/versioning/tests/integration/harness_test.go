@@ -154,7 +154,7 @@ var (
 
 func (e *env) token(a authn.Actor) string {
 	if a.ID == authn.PipelineActorID {
-		tok, err := pipeSigner.Token(e.tenant, e.project, a, []string{authn.ScopeRead, authn.ScopeWrite, authn.ScopeReview, authn.ScopeMerge}, "")
+		tok, err := pipeSigner.Token(e.tenant, e.project, a, []string{authn.ScopeRead, authn.ScopeWrite, authn.ScopeReview, authn.ScopeMerge, authn.ScopeCheckout}, "")
 		if err != nil {
 			e.t.Fatal(err)
 		}

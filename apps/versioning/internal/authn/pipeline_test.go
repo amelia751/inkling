@@ -25,7 +25,7 @@ var pipelineActor = Actor{ID: PipelineActorID, Kind: KindService}
 
 func TestPipelineKeyIsThePipelinePrincipal(t *testing.T) {
 	v, _, pipe := keys(t)
-	tok, err := pipe.Token(tenant, project, pipelineActor, []string{ScopeRead, ScopeWrite, ScopeReview, ScopeMerge}, "r1")
+	tok, err := pipe.Token(tenant, project, pipelineActor, []string{ScopeRead, ScopeWrite, ScopeReview, ScopeMerge, ScopeCheckout}, "r1")
 	if err != nil {
 		t.Fatal(err)
 	}

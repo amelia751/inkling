@@ -34,6 +34,8 @@ var pipelineRoutes = []struct {
 	{http.MethodGet, regexp.MustCompile(`^/internal/v1/repos/[^/]+/reviews/[^/]+$`)},
 	{http.MethodPost, regexp.MustCompile(`^/internal/v1/repos/[^/]+/reviews/[^/]+/publish$`)},
 	{http.MethodPost, regexp.MustCompile(`^/internal/v1/repos/[^/]+/reviews/[^/]+/merge$`)},
+	// Manifest-only: the service refuses the pipeline a checkout with signed URLs.
+	{http.MethodPost, regexp.MustCompile(`^/internal/v1/repos/[^/]+/checkouts$`)},
 }
 
 // PipelineAllowed reports whether the pipeline service may call method path.

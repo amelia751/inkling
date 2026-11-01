@@ -57,7 +57,8 @@ const (
 )
 
 // PipelineScopes are the only scopes a pipeline token may carry.
-var PipelineScopes = map[string]bool{ScopeRead: true, ScopeWrite: true, ScopeReview: true, ScopeMerge: true}
+// ScopeCheckout is for manifest-only checkouts (include_urls: false; signed URLs are refused).
+var PipelineScopes = map[string]bool{ScopeRead: true, ScopeWrite: true, ScopeReview: true, ScopeMerge: true, ScopeCheckout: true}
 
 // MaxLifetime bounds exp-iat; apps/api mints 60 s tokens.
 const MaxLifetime = 120 * time.Second

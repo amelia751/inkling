@@ -7,13 +7,13 @@ func TestPipelineRouteAllowlist(t *testing.T) {
 	const review = repo + "/reviews/44444444-4444-4444-8444-444444444444"
 	allowed := [][2]string{
 		{"GET", repo}, {"POST", repo + "/branches"}, {"POST", repo + "/manifests"}, {"POST", repo + "/commits"},
-		{"POST", repo + "/reviews"}, {"GET", review}, {"POST", review + "/merge"}, {"POST", review + "/publish"},
+		{"POST", repo + "/reviews"}, {"GET", review}, {"POST", review + "/merge"}, {"POST", review + "/publish"}, {"POST", repo + "/checkouts"},
 	}
 	denied := [][2]string{
 		{"POST", "/internal/v1/repos"}, {"DELETE", repo + "/branches"}, {"POST", repo + "/reverts"},
 		{"POST", review + "/approve"}, {"POST", review + "/close"}, {"POST", review + "/checks/deidentification"},
 		{"POST", review + "/resolutions"}, {"POST", repo + "/releases"}, {"DELETE", repo + "/releases/v1"},
-		{"POST", repo + "/legal-holds"}, {"POST", repo + "/checkouts"}, {"POST", "/internal/v1/artifacts/" + "ab/purge"},
+		{"POST", repo + "/legal-holds"}, {"POST", "/internal/v1/artifacts/" + "ab/purge"},
 	}
 	for _, r := range allowed {
 		if !PipelineAllowed(r[0], r[1]) {

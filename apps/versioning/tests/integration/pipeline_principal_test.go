@@ -49,6 +49,15 @@ func TestPipelinePrincipal(t *testing.T) {
 		t.Fatalf("pipeline released: %d", r.Status)
 	}
 
+	// It reads manifests to build a candidate, never signed object URLs.
+	if r := e.do(pipeline, "POST", "/internal/v1/repos/"+repo+"/checkouts", map[string]any{"ref": main}); r.Status != 403 {
+		t.Fatalf("pipeline got signed URLs: %d", r.Status)
+	}
+	co := e.must(e.do(pipeline, "POST", "/internal/v1/repos/"+repo+"/checkouts", map[string]any{"ref": main, "include_urls": false}), 200)
+	if s, _ := co.Body["samples"].([]any); len(s) != 1 {
+		t.Fatalf("manifest checkout: %s", co.Raw)
+	}
+
 	// Its own candidate branch, commit and review work.
 	h := e.must(e.do(pipeline, "POST", "/internal/v1/repos/"+repo+"/branches", map[string]any{"name": "pipeline/run_1", "from": "main"},
 		"Idempotency-Key", idem()), 201).str("commit_oid")

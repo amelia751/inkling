@@ -142,6 +142,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     drop_id = body.get("dropId")
     if isinstance(drop_id, str) and DROP_RE.fullmatch(drop_id):
         initiator["dropId"] = drop_id
+        # The project's first Studio: the person who dropped lands in it wherever they dropped.
+        if db.scalar(select(TaskRow.id).where(TaskRow.project_id == p.id).limit(1)) is None:
+            initiator["firstStudio"] = True
     b = Boot(id=boot_id, project_id=p.id, preset=preset, state="running", task_ids=[], steps=[], initiator=initiator, principal=ctx.principal, on_behalf_of=projects.person(ctx), request_hash=rh)
     db.add(b)
 

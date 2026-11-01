@@ -401,3 +401,21 @@ def test_a_drop_stuck_inspecting_is_logged(client, caplog):
         assert drops.log_stuck(db) == 1
     stuck = [x for x in _json_lines(caplog) if x["msg"] == "drop.stuck"]
     assert stuck and stuck[0]["dropId"] == drop["id"] and stuck[0]["stuck_ms"] >= 600_000
+
+
+def test_a_table_dropped_into_a_dataset_is_checked_against_its_file_names(client):
+    """§3.3 (J5): a labels CSV dropped later is keyed by names already in the dataset; the worker
+    gets those names with the import (it's in the project's perimeter), never the agent."""
+    pid = _project(client)
+    _, imp = _drop(client, pid, {"cxr_1.png": png(5, 5), "cxr_2.png": png(6, 6)})
+    nodes = [f["nodeId"] for f in client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["files"]]
+    ds = client.post(f"/api/v1/projects/{pid}/datasets", json={"title": "X", "nodeIds": nodes}).json()
+    d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": "conv-2", "datasetId": ds["id"], "files": 1, "bytes": 30}).json()
+    csv = b"file,label\ncxr_1.png,a\ncxr_2.png,b\n"
+    s = client.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": _files({"labels.csv": csv}), "origin": {"kind": "chat", "conversationId": "conv-2", "dropId": d["id"]}}).json()
+    client.put(s["files"][0]["uploadUrl"], content=csv)
+    client.post(f"/api/v1/imports/{s['id']}/complete")
+    listing = client.get(f"/api/v1/worker/inspect/imports/{s['id']}", headers=W()).json()
+    assert sorted(listing["knownNames"]) == ["cxr_1.png", "cxr_2.png"]
+    # An import without a table doesn't carry them.
+    assert "knownNames" not in client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()

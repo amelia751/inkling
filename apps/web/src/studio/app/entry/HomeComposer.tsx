@@ -14,6 +14,8 @@ import { useShell } from "@/studio/stores/shell";
 import { useAgent } from "@/studio/stores/agent";
 import { feature } from "@/studio/lib/features";
 import { newDropId } from "@/studio/core/drops/api";
+import { presetFor, studioName } from "@/studio/lib/studio-boot";
+import { useBoots } from "@/studio/stores/boots";
 import { useDropFiles, pickedFrom } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
 import { createProject, projectTitle } from "./start-project";
@@ -75,6 +77,10 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
       const p = await createProject(title, goal && title !== goal ? goal : "");
       markTimeline("project-created");
       void qc.invalidateQueries({ queryKey: projectKeys.all });
+      // §3.5 fast path: a request that names a preset boots its Studio now (the person lands in
+      // it); the message still goes to the assistant, which refines it (labels, structure).
+      const match = g.kind === "send" && feature("fastPath") ? presetFor(g.text) : null;
+      if (match) void useBoots.getState().start(p.id, { preset: match.preset, name: studioName(match.matched.find((m) => !m.startsWith("kind:")) ?? "") || undefined }).catch(() => undefined);
       deliver(p.id, g);
     } catch (e) {
       setError(e instanceof NeedsApiError ? "Creating a project needs the full stack (the API): see docs/running.md" : e instanceof Error ? e.message : String(e));

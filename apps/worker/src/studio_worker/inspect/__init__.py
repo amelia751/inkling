@@ -71,22 +71,25 @@ class InspectSubscriber:
         if imp.get("state") != "inspecting":
             return "not-inspecting"
         files = imp.get("files") or []
-        report = self.inspect_files(files)
+        # Names of the files already in the drop's dataset (kernel, todo13 §3.3): a labels table
+        # dropped later is keyed by them, not by names in its own import.
+        report = self.inspect_files(files, known=[str(n) for n in imp.get("knownNames") or []])
         r = self.http.post(f"/api/v1/worker/inspect/imports/{import_id}/report", json={"inspector": INSPECTOR, **report})
         if r.status_code == 409:
             return "stale"
         r.raise_for_status()
         return str(r.json().get("state"))
 
-    def inspect_files(self, files: list[dict]) -> dict:
+    def inspect_files(self, files: list[dict], known: list[str] | None = None) -> dict:
         paths = [f["relPath"] for f in files]
+        names = paths + (known or [])
         stems = {posixpath.splitext(p)[0] for p in paths if p.lower().endswith(".hea")}
         nodes: list[dict] = []
         instances: list[dicom.Instance] = []
         sizes = {f["nodeId"]: int(f.get("size") or 0) for f in files}
         for f in files:
             try:
-                out, inst = self.inspect_one(f, paths, stems)
+                out, inst = self.inspect_one(f, names, stems)
             except httpx.HTTPError:
                 raise
             except Exception as e:  # noqa: BLE001 — one odd file never stops the import

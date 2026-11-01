@@ -163,9 +163,12 @@ function ActivityTimeline({ projectId, datasetId }: { projectId: string; dataset
   return (
     <section aria-labelledby="history-heading" data-testid="history-activity">
       <h2 id="history-heading" className="mb-1 text-body-2 font-semibold">What changed</h2>
-      <p className="mb-3 text-sm text-muted-foreground" data-testid="history-versioning-off">
-        Only the working draft exists here: approved versions and releases appear once versioning is turned on.
-      </p>
+      {/* `versioning-off` is the versions page's old test id (sections_test.py); kept working. */}
+      <div data-testid="versioning-off">
+        <p className="mb-3 text-sm text-muted-foreground" data-testid="history-versioning-off">
+          Only the working draft exists here: approved versions and releases appear once versioning is turned on.
+        </p>
+      </div>
       {feed.error ? (
         <ErrorView variant="section" error={feed.error} what="this dataset's history" onRetry={() => void feed.refetch()} />
       ) : feed.isLoading ? (

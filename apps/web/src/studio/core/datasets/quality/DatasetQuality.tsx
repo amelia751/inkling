@@ -12,8 +12,9 @@ import { cn } from "@studio/ui/utils";
 import { ErrorView } from "@/studio/app/routes/errors";
 import { projectUrl, targetUrl } from "@/studio/lib/routes";
 import type { DatasetViewProps } from "../DatasetLayout";
-import { groupIssues } from "../model";
-import { DatasetInspector, Facts, InspectorSection, SelectableRow, Workspace } from "../shared";
+import { useDatasetAttention, usePipelineProblems } from "../api";
+import { groupIssues, pipelineAttention, rankAttention } from "../model";
+import { AttentionLine, DatasetInspector, Facts, InspectorSection, SelectableRow, Workspace } from "../shared";
 
 /**
  * Quality (docs/datasets.md §8): grouped issues with severity, impact and the next action, not a
@@ -22,6 +23,10 @@ import { DatasetInspector, Facts, InspectorSection, SelectableRow, Workspace } f
 export function DatasetQuality({ projectId, dataset, profile }: DatasetViewProps) {
   const [only, setOnly] = useState<"all" | "blocking">("all");
   const [selected, setSelected] = useState<string | null>(null);
+  const attention = useDatasetAttention(projectId, dataset.id);
+  const pipeline = usePipelineProblems(projectId);
+  // Beyond inspection: drop plans still waiting for a decision, and todo12's pipeline validation.
+  const extra = rankAttention([...(attention.data?.items ?? []).filter((i) => i.kind === "plan"), ...pipelineAttention(pipeline.data, dataset.id)]);
   if (profile.error) return <ErrorView variant="section" error={profile.error} what="quality checks" onRetry={() => void profile.refetch()} />;
   const p = profile.data;
   if (!p)
@@ -48,11 +53,19 @@ export function DatasetQuality({ projectId, dataset, profile }: DatasetViewProps
           />
         )}
       </div>
-      {p.issues.length === 0 ? (
+      {extra.length > 0 && (
+        <section aria-labelledby="q-extra" className="mb-5" data-testid="quality-extra">
+          <h2 id="q-extra" className="mb-2 text-sm font-medium text-muted-foreground">From drops and pipeline runs</h2>
+          <Card className="divide-y divide-border overflow-hidden">
+            {extra.map((i) => <AttentionLine key={i.id} projectId={projectId} item={i} />)}
+          </Card>
+        </section>
+      )}
+      {p.issues.length === 0 && extra.length === 0 ? (
         <Card>
           <EmptyState art="success" title="No problems found" description="Every file this dataset pins passed inspection." data-testid="quality-clean" />
         </Card>
-      ) : issues.length === 0 ? (
+      ) : p.issues.length === 0 ? null : issues.length === 0 ? (
         <Card>
           <EmptyState art="success" size="m" title="Nothing blocks a release" description="The issues left are worth a look but don't stop publishing." />
         </Card>

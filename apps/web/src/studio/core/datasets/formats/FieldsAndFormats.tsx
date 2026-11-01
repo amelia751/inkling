@@ -53,6 +53,7 @@ export function FieldsAndFormats({ projectId, profile }: DatasetViewProps) {
           art="files"
           title="Nothing to describe yet"
           description="Fields and formats appear once the dataset has files and they've been checked."
+          data-testid="fields-empty"
           actions={
             <Button variant="outline" size="lg" asChild>
               <Link to={sourcesUrl(projectId)}>Open Sources</Link>
@@ -95,13 +96,13 @@ export function FieldsAndFormats({ projectId, profile }: DatasetViewProps) {
         </Select>
       )}
       <Workspace inspector={field && <FieldInspector collection={c} field={field} onClose={() => set("field", null)} />} inspectorTitle={field?.name ?? "Field"} onCloseInspector={() => set("field", null)}>
-        <CollectionShape collection={c} selected={field?.id ?? null} onSelect={(id) => set("field", id)} />
+        <CollectionShape collection={c} snapshot={p.snapshot.label} selected={field?.id ?? null} onSelect={(id) => set("field", id)} />
       </Workspace>
     </div>
   );
 }
 
-function CollectionShape({ collection: c, selected, onSelect }: { collection: DatasetCollection; selected: string | null; onSelect: (id: string) => void }) {
+function CollectionShape({ collection: c, snapshot, selected, onSelect }: { collection: DatasetCollection; snapshot: string; selected: string | null; onSelect: (id: string) => void }) {
   const shape = itemShape(c);
   const columns = c.fields.filter((f) => f.id.startsWith("col:"));
   const properties = c.fields.filter((f) => !f.id.startsWith("col:"));
@@ -167,7 +168,21 @@ function CollectionShape({ collection: c, selected, onSelect }: { collection: Da
       </section>
 
       {columns.length > 0 && <FieldTable title="Columns" hint="From the tables' headers; values are never shown here." fields={columns} selected={selected} onSelect={onSelect} testid="collection-columns" />}
-      {properties.length > 0 && <FieldTable title="Properties of each item" hint="What every item carries, from inspection." fields={properties} selected={selected} onSelect={onSelect} testid="collection-fields" />}
+      {properties.length > 0 && <FieldTable title="Properties of each item" hint="What every item carries, from inspection and the structure." fields={properties} selected={selected} onSelect={onSelect} testid="collection-fields" />}
+
+      <section aria-labelledby="ff-provenance">
+        <h3 id="ff-provenance" className="mb-2 text-body-2 font-semibold">Where this comes from</h3>
+        <Card className="p-4 text-sm" data-testid="collection-provenance">
+          <Facts
+            rows={[
+              ["Snapshot", snapshot],
+              ["Backed by", `${c.files.toLocaleString()} ${c.files === 1 ? "file" : "files"} this dataset pins`],
+              ["Read by", "Inspection of each file (technical facts only, never contents)"],
+              ["Collection", c.suggested ? "Suggested from the files; not confirmed yet" : "Confirmed in the dataset's structure"],
+            ]}
+          />
+        </Card>
+      </section>
 
       <details className="group text-sm">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-muted-foreground hover:text-foreground">
@@ -209,10 +224,13 @@ function FieldTable({ title, hint, fields, selected, onSelect, testid }: { title
             {fields.map((f) => (
               <tr key={f.id} className={cn("hover:bg-generic", selected === f.id && "bg-selection hover:bg-selection-hover")} data-testid="field-row" data-field={f.id}>
                 <td className="px-4 py-2">
-                  <button type="button" onClick={() => onSelect(f.id)} className="flex items-center gap-2 text-left font-medium hover:underline" aria-pressed={selected === f.id}>
-                    {f.name}
+                  <span className="flex items-center gap-2">
+                    <button type="button" onClick={() => onSelect(f.id)} className="text-left font-medium hover:underline" aria-pressed={selected === f.id}>
+                      {f.name}
+                    </button>
                     {f.key && <Badge theme="info" size="xs">Key</Badge>}
-                  </button>
+                    {f.suggested && <SuggestedBadge what="This field" />}
+                  </span>
                 </td>
                 <td className="px-4 py-2 text-muted-foreground">{fieldType(f.type)}</td>
                 <td className="hidden px-4 py-2 text-muted-foreground sm:table-cell">{f.unit ?? "—"}</td>
@@ -241,6 +259,7 @@ function FieldInspector({ collection: c, field: f, onClose }: { collection: Data
             ["Belongs to", c.name],
             ...(f.key ? ([["Key", "Unique in every table that has it"]] as [string, string][]) : []),
             ["Comes from", f.source === "inspection" ? "Inspection of the files" : "The dataset's structure"],
+            ["Status", f.suggested ? "Suggested, not confirmed" : f.source === "structure" ? "Confirmed" : "Measured from the files"],
           ]}
         />
       </InspectorSection>

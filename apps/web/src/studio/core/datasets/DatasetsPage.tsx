@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import type { DatasetProfile, DatasetSummary } from "@studio/contracts/types";
-import { AiIcon, ArrowRightIcon, DatasetsIcon, GridViewIcon, InfoIcon, ListViewIcon, PrivacyIcon, SearchIcon, SourcesIcon } from "@studio/ui/icons";
+import type { DatasetSummary } from "@studio/contracts/types";
+import { AiIcon, ArrowRightIcon, DatasetsIcon, GridViewIcon, InfoIcon, ListViewIcon, PrivacyIcon, SearchIcon, SourcesIcon, UploadIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
@@ -12,14 +12,16 @@ import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
 import { ErrorView } from "@/studio/app/routes/errors";
-import { AttentionRow } from "@/studio/app/routes/ProjectOverviewPage";
 import { relativeTime } from "@/studio/components/files";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { kindIcon } from "@/studio/lib/file-kinds";
-import { useDatasets, useOverview, useReviewQueue } from "@/studio/lib/projects-api";
-import { datasetUrl, exploreUrl, sourcesUrl, studioUrl } from "@/studio/lib/routes";
-import { useDatasetProfiles } from "./api";
-import { contentSummary, countOf, datasetStatus, MODALITIES, modalitiesOf, STATUS_LABEL, STATUS_THEME, type DatasetStatus, type Modality } from "./model";
+import { useDatasets, useOverview, useProjectSummary, useReviewQueue } from "@/studio/lib/projects-api";
+import { canEditTaskSetup } from "@/studio/lib/task-setup";
+import { datasetUrl, exploreUrl, projectUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { useDatasetAttention, useDatasetProfiles, useDatasetSummaries, usePipelineProblems, type DatasetLandingSummary } from "./api";
+import { readRecentDatasets, useAddData } from "./add-data";
+import { attentionFromQueue, contentSummary, countOf, datasetStatus, MODALITIES, modalitiesOf, pipelineAttention, rankAttention, STATUS_LABEL, STATUS_THEME, summaryFromProfile, type DatasetStatus, type Modality } from "./model";
+import { AttentionLine } from "./shared";
 import { TaskList } from "./DatasetOverview";
 import { NewDatasetDialog } from "./NewDatasetDialog";
 
@@ -35,8 +37,17 @@ export function DatasetsPage() {
   const [params] = useSearchParams();
   const datasets = useDatasets(projectId);
   const list = useMemo(() => datasets.data ?? [], [datasets.data]);
-  const profiles = useDatasetProfiles(projectId, list.map((d) => d.id));
-  const profileOf = (id: string) => profiles[list.findIndex((d) => d.id === id)]?.data;
+  const canEdit = canEditTaskSetup(useProjectSummary(projectId).data);
+  const addData = useAddData(projectId);
+  // One request for every card; a server without it (null) falls back to a profile per dataset.
+  const summaries = useDatasetSummaries(projectId);
+  const fallback = summaries.data === null;
+  const profiles = useDatasetProfiles(projectId, fallback ? list.map((d) => d.id) : [], fallback);
+  const profileOf = (id: string): DatasetLandingSummary | undefined => {
+    if (!fallback) return summaries.data?.datasets.find((s) => s.datasetId === id);
+    const p = profiles[list.findIndex((d) => d.id === id)]?.data;
+    return p && summaryFromProfile(id, p);
+  };
   const [creating, setCreating] = useState(false);
   const [q, setQ] = useState("");
   const [modality, setModality] = useState<Modality | "">("");
@@ -64,9 +75,11 @@ export function DatasetsPage() {
               <Button variant="outline" size="lg" asChild>
                 <Link to={sourcesUrl(projectId)} data-testid="add-from-sources"><SourcesIcon /> Add from sources</Link>
               </Button>
-              <Button size="lg" onClick={() => setCreating(true)} data-testid="new-dataset">
-                <DatasetsIcon /> Create dataset
-              </Button>
+              {canEdit && (
+                <Button size="lg" onClick={() => setCreating(true)} data-testid="new-dataset">
+                  <DatasetsIcon /> Create dataset
+                </Button>
+              )}
             </>
           }
         />
@@ -84,25 +97,7 @@ export function DatasetsPage() {
         ) : datasets.isLoading ? (
           <LandingSkeleton />
         ) : list.length === 0 ? (
-          <EmptyState
-            art="dataset"
-            title="No datasets yet"
-            description={
-              <>
-                Your datasets will appear here once you create one from your sources.
-                <span className="mt-2 block text-hint">For example: 200 chest X-rays and a table of diagnoses, labelled normal or pneumonia.</span>
-              </>
-            }
-            actions={
-              <>
-                <Button variant="outline" size="lg" onClick={() => setCreating(true)}>Create dataset</Button>
-                <Button variant="ghost-secondary" size="lg" asChild>
-                  <Link to={sourcesUrl(projectId)}>Explore sources</Link>
-                </Button>
-              </>
-            }
-            data-testid="datasets-empty"
-          />
+          <DatasetsEmpty projectId={projectId} canEdit={canEdit} onCreate={() => setCreating(true)} onAdd={addData} />
         ) : (
           <div className="flex flex-col gap-8">
             <ContinueWorking projectId={projectId} datasets={list} />
@@ -161,60 +156,147 @@ export function DatasetsPage() {
 
 function LandingSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2" aria-busy>
+    <div className="grid gap-4 md:grid-cols-2" aria-busy data-testid="datasets-loading">
       {[0, 1].map((i) => <Skeleton key={i} className="h-48 rounded-lg" />)}
     </div>
   );
 }
 
-/** Where someone was working (the project's resume state), with the next step one click away. */
+/**
+ * No datasets yet (todo13 §3.1): what will appear here and the composer's two actions, not a
+ * link to another page. `no-datasets` is the old test id, kept working beside `datasets-empty`.
+ */
+function DatasetsEmpty({ projectId, canEdit, onCreate, onAdd }: { projectId: string; canEdit: boolean; onCreate: () => void; onAdd: (intent: "drop" | "ask") => void }) {
+  return (
+    <div data-testid="no-datasets">
+      <EmptyState
+        art="dataset"
+        title="No datasets yet"
+        description={
+          <>
+            Your datasets will appear here once you add data. Drop files, or describe what you need.
+            <span className="mt-2 block text-hint">For example: 200 chest X-rays, labelled normal or pneumonia.</span>
+            {!canEdit && <span className="mt-2 block" data-testid="datasets-empty-viewer">You can view this project. Ask a contributor to add files.</span>}
+          </>
+        }
+        actions={
+          <>
+            {canEdit && (
+              <Button size="lg" onClick={() => onAdd("drop")} data-testid="datasets-empty-drop">
+                <UploadIcon /> Drop files
+              </Button>
+            )}
+            <Button variant="outline" size="lg" onClick={() => onAdd("ask")} data-testid="datasets-empty-ask">
+              <AiIcon className="text-ai-text" /> Ask the assistant
+            </Button>
+            {canEdit && (
+              <Button variant="ghost-secondary" size="lg" onClick={onCreate} data-testid="datasets-empty-create">
+                Create dataset
+              </Button>
+            )}
+          </>
+        }
+        data-testid="datasets-empty"
+      />
+    </div>
+  );
+}
+
+/**
+ * Where someone was working (§2.1 "Continue working"): the Studio they left, then the datasets
+ * this person opened last, each with its most relevant next step.
+ */
 function ContinueWorking({ projectId, datasets }: { projectId: string; datasets: DatasetSummary[] }) {
   const overview = useOverview(projectId);
+  const attention = useDatasetAttention(projectId);
   const resume = overview.data?.resume;
   const d = resume && datasets.find((x) => x.id === resume.datasetId);
-  if (!resume || !d) return null;
+  const recent = useMemo(() => readRecentDatasets(projectId), [projectId]);
+  const opened = recent
+    .map((r) => ({ ...r, d: datasets.find((x) => x.id === r.id) }))
+    .filter((r): r is { id: string; at: number; d: DatasetSummary } => !!r.d && r.id !== d?.id)
+    .slice(0, d ? 2 : 3);
+  if (!(resume && d) && !opened.length) return null;
+  const next = (id: string) => rankAttention((attention.data?.items ?? []).filter((i) => i.datasetId === id))[0];
   return (
     <section aria-labelledby="continue-datasets">
       <h2 id="continue-datasets" className="mb-3 text-body-2 font-semibold">Continue working</h2>
-      <Card className="flex flex-wrap items-center gap-4 p-4" data-testid="datasets-continue">
-        <AiIcon className="size-4 shrink-0 text-ai-text" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{resume.taskTitle}</p>
-          <p className="truncate text-sm text-muted-foreground">
-            In {d.title}
-            {resume.at && <> · {relativeTime(resume.at)}</>}
-          </p>
-        </div>
-        <Button variant="outline" size="lg" asChild>
-          <Link to={datasetUrl(projectId, d.id)}>Open dataset</Link>
-        </Button>
-        <Button size="lg" asChild>
-          <Link to={studioUrl(projectId, resume.taskId)} state={{ resume: true }}>Open Studio <ArrowRightIcon /></Link>
-        </Button>
-      </Card>
+      <div className="flex flex-col gap-3">
+        {resume && d && (
+          <Card className="flex flex-wrap items-center gap-4 p-4" data-testid="datasets-continue">
+            <AiIcon className="size-4 shrink-0 text-ai-text" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{resume.taskTitle}</p>
+              <p className="truncate text-sm text-muted-foreground">
+                In {d.title}
+                {resume.at && <> · {relativeTime(resume.at)}</>}
+              </p>
+            </div>
+            <Button variant="outline" size="lg" asChild>
+              <Link to={datasetUrl(projectId, d.id)}>Open dataset</Link>
+            </Button>
+            <Button size="lg" asChild>
+              <Link to={studioUrl(projectId, resume.taskId)} state={{ resume: true }}>Open Studio <ArrowRightIcon /></Link>
+            </Button>
+          </Card>
+        )}
+        {opened.length > 0 && (
+          <Card className="divide-y divide-border overflow-hidden" data-testid="datasets-recent">
+            {opened.map((r) => {
+              const step = next(r.id);
+              return (
+                <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3 text-sm" data-testid="recent-dataset" data-dataset-id={r.id}>
+                  <DatasetsIcon className="size-4 shrink-0 text-hint" />
+                  <span className="min-w-0 flex-1">
+                    <Link to={datasetUrl(projectId, r.id)} className="block truncate font-medium hover:underline">{r.d.title}</Link>
+                    <span className="block truncate text-muted-foreground">Opened {relativeTime(new Date(r.at).toISOString())}{step && <> · {step.title}</>}</span>
+                  </span>
+                  {step && (
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={targetUrl(projectId, step.action.target)}>{step.action.label}</Link>
+                    </Button>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </div>
     </section>
   );
 }
 
-/** The project's queue, only the rows about a dataset (malformed files, suggestions, reviews). */
+const ATTENTION_SHOWN = 5;
+
+/**
+ * §2.1 "Needs attention" across the project's datasets: malformed files, unconfirmed
+ * suggestions, drop plans waiting for a decision and pipeline runs that need a person,
+ * riskiest first. A server without the attention read falls back to the review queue's rows.
+ */
 function NeedsAttention({ projectId }: { projectId: string }) {
+  const attention = useDatasetAttention(projectId);
   const queue = useReviewQueue(projectId);
-  const items = (queue.data?.items ?? []).filter((i) => i.datasetId);
+  const pipeline = usePipelineProblems(projectId);
+  const base = attention.data === null ? attentionFromQueue(queue.data?.items ?? []) : (attention.data?.items ?? []);
+  const items = rankAttention([...base, ...pipelineAttention(pipeline.data)]);
+  if (attention.isLoading) return <Skeleton className="h-24 rounded-lg" />;
+  if (attention.error) return <ErrorView variant="section" error={attention.error} what="what needs attention" onRetry={() => void attention.refetch()} />;
   if (!items.length) return null;
+  const total = (attention.data?.total ?? base.length) + (items.length - base.length);
   return (
     <section aria-labelledby="datasets-attention">
       <div className="mb-3 flex items-baseline justify-between gap-4">
         <h2 id="datasets-attention" className="text-body-2 font-semibold">Needs attention</h2>
-        {items.length > 4 && <Link to={`/projects/${encodeURIComponent(projectId)}/review`} className="text-sm text-brand hover:underline">All {items.length} in Review</Link>}
+        {total > ATTENTION_SHOWN && <Link to={projectUrl(projectId, "review")} className="text-sm text-brand hover:underline">{total - ATTENTION_SHOWN} more in Review</Link>}
       </div>
       <Card className="divide-y divide-border overflow-hidden" data-testid="datasets-attention">
-        {items.slice(0, 4).map((i) => <AttentionRow key={i.id} projectId={projectId} item={i} />)}
+        {items.slice(0, ATTENTION_SHOWN).map((i) => <AttentionLine key={i.id} projectId={projectId} item={i} showDataset />)}
       </Card>
     </section>
   );
 }
 
-function ModalityIcons({ profile }: { profile: DatasetProfile }) {
+function ModalityIcons({ profile }: { profile: DatasetLandingSummary }) {
   return (
     <span className="flex shrink-0 items-center gap-1 text-hint" aria-hidden>
       {profile.collections.slice(0, 4).map((c) => {
@@ -225,15 +307,15 @@ function ModalityIcons({ profile }: { profile: DatasetProfile }) {
   );
 }
 
-function StatusBadge({ dataset, profile }: { dataset: DatasetSummary; profile?: DatasetProfile }) {
+function StatusBadge({ dataset, profile }: { dataset: DatasetSummary; profile?: DatasetLandingSummary }) {
   const s = datasetStatus(dataset, profile);
   return s ? <Badge theme={STATUS_THEME[s]} size="xs" data-testid="dataset-status">{STATUS_LABEL[s]}</Badge> : null;
 }
 
 /** §2.1's card: name, purpose, modalities, content at a stated level, structure, freshness. */
-function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string; dataset: DatasetSummary; profile?: DatasetProfile }) {
+function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string; dataset: DatasetSummary; profile?: DatasetLandingSummary }) {
   const held = Array.isArray(d.definition.heldNodeIds) ? d.definition.heldNodeIds.length : 0;
-  const issues = p?.issues.reduce((n, i) => n + i.count, 0) ?? 0;
+  const changed = p?.lastChangedAt ?? d.createdAt;
   return (
     <Card className="flex flex-col overflow-hidden" data-testid="dataset-card" data-dataset-id={d.id}>
       <div className="flex flex-1 flex-col gap-1 px-4 pb-3 pt-4">
@@ -252,12 +334,14 @@ function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string;
               <span className="truncate">{p.collections.map((c) => c.name).join(" · ") || "No files yet"}</span>
             </p>
             {p.collections.length > 0 && <p className="tnum text-sm text-muted-foreground" data-testid="dataset-content">{contentSummary(p)}</p>}
-            <p className="text-sm text-muted-foreground">
-              Structure: {countOf(p.collections.length, { one: "collection", other: "collections" })} · {countOf(p.relationships.length, { one: "connection", other: "connections" })}
+            <p className="text-sm text-muted-foreground" data-testid="dataset-structure-line">
+              Structure: {countOf(p.collections.length + p.moreCollections, { one: "collection", other: "collections" })} · {countOf(p.relationships, { one: "connection", other: "connections" })}
+              {p.suggestions > 0 && <> · {countOf(p.suggestions, { one: "suggestion", other: "suggestions" })} to confirm</>}
             </p>
             <p className="text-sm">
-              {issues > 0 ? <span className="text-warning">{countOf(issues, { one: "item needs attention", other: "items need attention" })}</span> : <span className="text-muted-foreground">No problems found</span>}
-              {d.createdAt && <span className="text-muted-foreground"> · Created {relativeTime(d.createdAt)}</span>}
+              {p.issues.items > 0 ? <span className="text-warning">{countOf(p.issues.items, { one: "item needs attention", other: "items need attention" })}</span> : <span className="text-muted-foreground">No problems found</span>}
+              {p.checking > 0 && <span className="text-muted-foreground"> · {countOf(p.checking, { one: "file", other: "files" })} processing</span>}
+              {changed && <span className="text-muted-foreground"> · {p.lastChangedAt ? "Changed" : "Created"} {relativeTime(changed)}</span>}
             </p>
           </>
         ) : (
@@ -287,7 +371,7 @@ function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string;
 }
 
 /** The comfortable list view: one row per dataset, the same facts in a line. */
-function DatasetRow({ projectId, dataset: d, profile: p }: { projectId: string; dataset: DatasetSummary; profile?: DatasetProfile }) {
+function DatasetRow({ projectId, dataset: d, profile: p }: { projectId: string; dataset: DatasetSummary; profile?: DatasetLandingSummary }) {
   return (
     <Link to={datasetUrl(projectId, d.id)} className={cn("flex items-center gap-4 px-4 py-3 text-sm hover:bg-generic")} data-testid="dataset-row" data-dataset-id={d.id}>
       {p ? <ModalityIcons profile={p} /> : <Skeleton className="size-4" />}

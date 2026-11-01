@@ -183,6 +183,12 @@ heading it gets in the shortcuts sheet. Declarative plugins' toolbar actions
 off by default for classification tasks, so the labels people make are an independent read)
 and `showFilePaths`. Defaults come from `studioDefaults` in `apps/web/src/studio/lib/task-setup.ts`.
 
+`collectionId` (optional, todo13 D7) names the dataset collection the Studio works on. The task's
+own collection (`tasks.collection_id`) decides which items its document holds; a module receives
+the same `Project` document either way, only narrowed to that collection, so nothing changes for
+renderers or data kinds. A data kind may declare `fileKinds` (the detected kinds it opens:
+`image`, `dicom-series`…); the catalogue read filters by it (`/api/catalog?kind=`, "Find a plugin").
+
 Merging: objects merge, arrays replace, `overrides` and `keybindings` concatenate, and
 `labels` groups merge by `name` (a same-named group replaces the preset's; new groups append).
 `resolveEnvironment` never throws for bad input; every problem comes back as

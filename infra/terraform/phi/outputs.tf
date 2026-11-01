@@ -54,3 +54,18 @@ output "cluster" {
 output "healthcare_dataset" {
   value = google_healthcare_dataset.studio.id
 }
+
+output "ci_workload_identity_provider" {
+  description = "For google-github-actions/auth `workload_identity_provider` (empty until the github_* variables are set)."
+  value       = local.ci_enabled ? google_iam_workload_identity_pool_provider.github[0].name : ""
+}
+
+output "ci_service_account" {
+  description = "For google-github-actions/auth `service_account`: pushes to `images` only."
+  value       = local.ci_enabled ? google_service_account.ci_images[0].email : ""
+}
+
+output "pipeline_connector_subscription" {
+  description = "Milestone 3: the pull subscription apps/pipeline consumes (empty while pipeline_connectors_enabled=false)."
+  value       = var.pipeline_connectors_enabled ? google_pubsub_subscription.connector_objects[0].id : ""
+}

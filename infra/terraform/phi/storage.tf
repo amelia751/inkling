@@ -1,6 +1,6 @@
 # Every bucket: CMEK, uniform access, public access prevented, object versioning on.
 locals {
-  buckets = {
+  buckets = merge({
     # apps/api BlobStore: seed and uploaded assets at the root, kernel-written data under .data/
     # (INKLING_GCS_BUCKET).
     objects = { retention_days = 0, locked = false }
@@ -12,7 +12,11 @@ locals {
     versioning-manifests = { retention_days = 0, locked = false }
     # Audit log sink (audit.tf).
     audit-logs = { retention_days = var.audit_retention_days, locked = var.audit_retention_locked }
-  }
+    }, var.pipeline_connectors_enabled ? {
+    # Milestone 3: where connector sources land; its notifications feed the pipeline
+    # (pipeline-connectors.tf).
+    landing = { retention_days = 0, locked = false }
+  } : {})
 }
 
 resource "google_storage_bucket" "this" {

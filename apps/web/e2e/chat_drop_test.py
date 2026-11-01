@@ -258,7 +258,9 @@ def t_chat_drop(browser, port):
         while time.time() < end:
             now = set(chips.evaluate_all("els => els.map(e => e.dataset.state)"))
             states |= now
-            if now <= {"ready", "kept"}:
+            # (Empty while the page moves: the fast path opens the project's first Studio,
+            # with this chat beside it.)
+            if now and now <= {"ready", "kept"}:
                 break
             time.sleep(0.2)
         check("drop: chips move through live states to ready", "ready" in states and len(states) >= 2, str(sorted(states)))

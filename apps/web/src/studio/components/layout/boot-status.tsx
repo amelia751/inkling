@@ -6,6 +6,7 @@ import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
 import { useStudio } from "@/studio/stores/studio";
 import { usePendingAsks } from "@/studio/app/entry/pending-ask";
+import { useDrops } from "@/studio/core/drops/store";
 import { bootSeconds, formatSeconds, useBoots, type BootView } from "@/studio/stores/boots";
 
 /** How long the pill stays after a boot finishes ("Studio ready · 0.4 s"). */
@@ -27,7 +28,10 @@ export function BootNavigator() {
     // So does a message queued for this project before it existed (Home's send, todo13 D1): it's
     // sent from the Studio's panel once that's open.
     const queued = !!boot && usePendingAsks.getState().asks[boot.projectId] !== undefined;
-    if ((boot?.initiator?.kind === "agent" || queued) && !useStudio.getState().aiOpen) useStudio.getState().toggleAi();
+    // A fast-path boot from a drop shared in the chat (or Home's): the chat stays beside it.
+    const dropped = (boot?.initiator as { dropId?: string } | undefined)?.dropId;
+    const fromChat = !!dropped && !!useDrops.getState().drops[dropped]?.conversationId;
+    if ((boot?.initiator?.kind === "agent" || queued || fromChat) && !useStudio.getState().aiOpen) useStudio.getState().toggleAi();
     if (pathname !== nav.url) navigate(nav.url, { viewTransition: true });
   }, [nav, navigate, pathname]);
   return null;

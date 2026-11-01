@@ -13,7 +13,8 @@ const RES = NAMING.resourcePrefix;
  *   GET   /seed/*                       → files under seed-data/
  *   GET   /api/annotations/:projectId   → saved annotation document (or empty)
  *   PUT   /api/annotations/:projectId   → persist annotation document
- *   GET   /api/catalog                  → module / contribution catalogue (agent surface)
+ *   GET   /api/catalog                  → module / contribution catalogue (agent surface);
+ *                                           `?kind=<detected kind>`: only the data kinds that open it
  *   GET   /api/catalog/schema           → environment JSON Schema with registered-id enums
  *   GET   /api/catalog/capabilities     → capabilities of active plugins (plugin.yaml)
  *   GET   /api/catalog/plugins/:id      → one plugin's manifest and declarative UI
@@ -168,7 +169,8 @@ async function handleCatalog(req: IncomingMessage, res: ServerResponse, api: () 
     res.setHeader("Content-Type", "text/markdown");
     return res.end(m.prompt());
   }
-  return sendJson(res, 200, m.catalog());
+  const kind = new URL(req.url ?? "/", "http://dev").searchParams.get("kind");
+  return sendJson(res, 200, kind ? m.catalogOfKind(kind) : m.catalog());
 }
 
 interface EnvDoc {

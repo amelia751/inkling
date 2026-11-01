@@ -17,6 +17,11 @@ import { KernelError, type KernelClient } from "./kernel.ts";
  * path; only that a held file exists), and a `restricted` project shares structure only
  * (kinds, counts and statuses, no file or folder names).
  *
+ * Structure (todo13 D8): `propose_structure` drafts a dataset's `structure.json` (collections,
+ * fields, relationships, label definitions with stable ids) on the agent's own `work/agent-*`
+ * branch and returns the diff against the person's draft. The person accepts it; with the
+ * kernel's auto-apply on, it's accepted for them when the dataset is their own draft (D6).
+ *
  * Files (todo7 Phase 8): `list_folder` and `find_files` read the project's drive by current
  * names. They never return contents, facts or the name a file was uploaded with
  * (`originalPath`, old names: they may hold the identifier someone renamed away). The
@@ -35,6 +40,7 @@ export const PROJECT_TOOL_NAMES = [
   "confirm_proposal",
   "list_folder",
   "find_files",
+  "propose_structure",
 ] as const;
 
 const out = (value: unknown, summary: string) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], details: { summary } });
@@ -410,5 +416,63 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
     },
   });
 
-  return [overview, listSources, describeNode, listProposals, importIssues, proposeSchema, proposeRelationship, confirm, listFolder, findFiles];
+  const id = Type.String({ minLength: 1, maxLength: 128, pattern: "^[A-Za-z0-9][A-Za-z0-9_.:-]*$", description: "A stable id you choose (never a position): 'col-xray', 'normal'. Keep the ids the draft already has." });
+  const suggested = Type.Optional(Type.Boolean({ description: "true for anything you inferred; the person confirms it." }));
+  const proposeStructure = defineTool({
+    name: "propose_structure",
+    label: "Drafting the dataset structure",
+    description:
+      "Draft a dataset's structure: its collections (one kind each), their fields (from inspection facts: dimensions, modality, column names and types), relationships between collections, and the annotation definitions with stable label ids (from the person's request). Writes your own work branch, never the person's draft, and returns what changed against the draft; the person accepts it. Send the whole structure (read the current one from the plan or dataset first) and keep existing ids.",
+    promptSnippet: "Draft a dataset's structure.json on your own branch (the person accepts it)",
+    parameters: Type.Object({
+      datasetId: Type.String({ description: "The dataset (from a drop plan, a boot or the project overview)." }),
+      structure: Type.Object({
+        schemaVersion: Type.Literal(1),
+        collections: Type.Array(
+          Type.Object({
+            id,
+            name: Type.String({ minLength: 1, maxLength: 200 }),
+            kind: Type.String({ description: "A detected kind: image, dicom, dicom-series, volume, video, waveform, slide, table…" }),
+            formats: Type.Array(Type.String(), { maxItems: 32 }),
+            fields: Type.Array(
+              Type.Object({
+                id,
+                name: Type.String({ minLength: 1, maxLength: 200 }),
+                type: Type.Union(["integer", "number", "decimal", "text", "category", "id", "date", "boolean", "list", "path", "empty"].map((t) => Type.Literal(t))),
+                unit: Type.Optional(Type.String({ maxLength: 32 })),
+                required: Type.Boolean(),
+                suggested,
+              }),
+              { maxItems: 500 },
+            ),
+            suggested,
+          }),
+          { maxItems: 200 },
+        ),
+        relationships: Type.Array(
+          Type.Object({ id, from: id, to: id, cardinality: Type.Union(["1:1", "1:N", "N:1", "N:N"].map((t) => Type.Literal(t))), keys: Type.Array(Type.String(), { maxItems: 8 }), suggested }),
+          { maxItems: 500 },
+        ),
+        annotations: Type.Array(
+          Type.Object({
+            id,
+            collectionId: id,
+            geometry: Type.String({ description: "A core geometry: class, box, polygon, mask, span, instant…" }),
+            labels: Type.Array(Type.Object({ id, name: Type.String({ minLength: 1, maxLength: 200 }), color: Type.Optional(Type.String({ pattern: "^#[0-9a-fA-F]{6}$" })) }), { maxItems: 1000 }),
+            suggested,
+          }),
+          { maxItems: 200 },
+        ),
+      }),
+      reason: Type.String({ description: "One plain sentence: what you drafted and why." }),
+    }),
+    async execute(_id, args, signal) {
+      const r = await k.request<any>("PUT", `/datasets/${enc(args.datasetId)}/structure`, { json: { structure: args.structure }, signal });
+      const diff = (r.diff ?? []) as { op: string; path: string }[];
+      const result = { datasetId: args.datasetId, branch: r.branch, hash: r.hash, diff, accepted: !!r.accepted };
+      return out(result, r.accepted ? `Structure drafted · ${plural(diff.length, "change")} (accepted on your draft)` : `Structure proposed · ${plural(diff.length, "change")} to accept`);
+    },
+  });
+
+  return [overview, listSources, describeNode, listProposals, importIssues, proposeSchema, proposeRelationship, confirm, listFolder, findFiles, proposeStructure];
 }

@@ -15,8 +15,10 @@ import { WorkspaceState } from "@studio/contracts/workspace";
 import { PluginsLock } from "@studio/contracts/lockfile";
 import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { PIPELINE_SCHEMAS, pipelineDocuments } from "@studio/contracts/pipeline";
+import { DatasetStructure } from "@studio/contracts/dataset-structure";
+import { DropPlan } from "@studio/contracts/drop-plan";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
-import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
+import { catalogForKind, catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
@@ -24,6 +26,8 @@ import { resolveEnvironment, type EnvError } from "@/extension-host/resolve";
 import { checkWrite, type CheckResult, type EnvError as CoreError, type JsonPatchOperation as CoreOperation } from "@studio/environment-core";
 
 export const catalog = () => describeCatalog(registry);
+/** `?kind=<detected kind>` on the catalogue read (todo13 "Find a plugin"). */
+export const catalogOfKind = (kind: string) => catalogForKind(describeCatalog(registry), kind);
 export { listCapabilities } from "@/extension-host/agent";
 
 /** Dev workspace state when seed-data/<project>/workspace.json is absent: every bundled plugin active. */
@@ -111,6 +115,9 @@ export function contractSchemas(): Record<string, unknown> {
     // Pipeline contracts (todo12 Milestone 1), read by apps/pipeline (Go), plus its generated documents.
     ...Object.fromEntries(Object.entries(PIPELINE_SCHEMAS).map(([path, s]) => [path, js(s, path.replace(/\.json$/, ""))])),
     ...pipelineDocuments(),
+    // todo13 §5: the dataset structure the kernel validates `structure.json` writes against, and the drop plan.
+    "dataset-structure.v1.json": js(DatasetStructure, "dataset-structure/v1"),
+    "drop-plan.v1.json": js(DropPlan, "drop-plan/v1"),
   };
 }
 

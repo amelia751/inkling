@@ -178,4 +178,8 @@ def report(db: Session, import_id: str, body: dict) -> dict:
     if s.drop_id:
         drops.session_inspected(db, ctx, s, list(nodes))
     events.publish(db, ctx, "import.updated", {"projectId": p.id, "importId": s.id, "state": s.state}, source="kernel")
+    # todo13 M2: a drop is classified (and maybe applied) once its last session is inspected.
+    from . import drops_plan
+
+    drops_plan.after_inspection(db, s)
     return {"state": s.state, "inspected": len(updated), "proposals": [pr.id for pr in created]}

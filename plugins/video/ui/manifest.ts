@@ -26,7 +26,7 @@ export default defineModule({
   requires: [ns("overlay2d"), ns("timeline")],
   contributes: {
     dataKinds: [
-      { id: "video", label: "Video", icon: VideoIcon, itemNoun: "video", match: { ext: [".mp4", ".webm", ".zip"] }, groupItems, description: "One item per video file (or frame archive)" },
+      { id: "video", label: "Video", icon: VideoIcon, itemNoun: "video", match: { ext: [".mp4", ".webm", ".zip"] }, fileKinds: ["video"], groupItems, description: "One item per video file (or frame archive)" },
     ],
     renderers: [
       {

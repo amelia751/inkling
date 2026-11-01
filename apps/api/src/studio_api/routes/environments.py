@@ -144,9 +144,17 @@ async def validate_environment(request: Request, ctx: RequestContext = Depends(g
 
 
 @router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)
-def catalog():
-    """The generated catalogue (`schemas/catalog.json`), the same file the web server serves."""
-    return _static_json("catalog.json")
+def catalog(kind: str | None = None):
+    """The generated catalogue (`schemas/catalog.json`), the same file the web server serves.
+    `?kind=<detected kind>` (todo13 "Find a plugin"): only the data kinds that open that kind
+    of file (their `fileKinds`), and their modules; none means no plugin for it yet."""
+    out = _static_json("catalog.json")
+    if not kind or not isinstance(out, dict):
+        return out
+    k = kind.strip().lower()
+    contributions = [c for c in out.get("contributions") or [] if c.get("type") == "dataKinds" and k in (c.get("fileKinds") or [])]
+    modules = {c["module"] for c in contributions}
+    return {"version": 1, "modules": [m for m in out.get("modules") or [] if m.get("id") in modules], "contributions": contributions}
 
 
 @router.api_route("/api/catalog/schema", methods=["GET"], include_in_schema=False)

@@ -278,6 +278,21 @@ provider that can't block it (Daytona tier 1–2) refuses, unless `AGENT_SANDBOX
 live at most `AGENT_SANDBOX_BUILD_TTL_MIN` (60). The snapshot pins `uv` and `pytest`, and plugin
 checks run `uv sync --locked --offline`. End-to-end: `tests/e2e/boundary_canary_test.py`.
 
+### 7.6 Drop plans and dataset structure (todo13 Milestone 2)
+
+After inspection the kernel classifies a drop and plans it (`drop.classified`, `drop.planned`;
+`kernel/drops_classify.py`, `kernel/drops_plan.py`). The agent reads a plan with
+`GET /api/v1/drops/{id}/plan`, may change it before it's applied (`PUT …/plan`) and may apply only
+plans that touch nothing but the person's own drafts (D6); Undo is the person's. Plans carry node
+ids, kinds, counts and generic collection names, never file names.
+
+`propose_structure` (project tools) drafts a dataset's `DatasetStructure v1` (collections,
+fields, relationships, label definitions with stable ids) on the agent's own `work/agent-*`
+branch through `PUT /api/v1/datasets/{id}/structure` and returns the diff against the person's
+draft; the person accepts it (`POST …/structure/accept`), or the kernel does for them when the
+dataset is their own draft and `API_FEATURE_AUTO_APPLY` is on. The policy allows the call (it
+never writes the person's draft).
+
 ## 8. Session, run, and sandbox lifecycle
 
 ### 8.1 Storage schema (proposed)

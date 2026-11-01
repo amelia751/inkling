@@ -568,6 +568,8 @@ export interface TaskSummary {
   /** todo11 D1: a boot creates a draft; only a person publishes it. */
   state?: "draft" | "published";
   bootId?: string | null;
+  /** todo13 D7: the collection this task works on; absent or null = every collection (tasks made before collections). */
+  collectionId?: string | null;
 }
 
 export interface DatasetSummary {

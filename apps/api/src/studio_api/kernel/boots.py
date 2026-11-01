@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext
 from ..models import Boot, DatasetRow, ProjectRow, SourceNode, TaskRow, WorkspaceEnvironment, now
-from . import audit, environment_policy, events, projects, studio_defs
+from . import audit, environment_policy, events, projects, studio_defs, tree
 
 BOOT_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_NODES = 10_000
@@ -54,7 +54,7 @@ def agent_may_write(db: Session, ctx: RequestContext, task_id: str) -> bool:
 
 
 def _request_hash(body: dict) -> str:
-    keep = {k: body.get(k) for k in ("preset", "patch", "files", "folders", "name", "intent")}
+    keep = {k: body.get(k) for k in ("preset", "patch", "files", "folders", "name", "intent", "collectionId")}
     return "sha256:" + hashlib.sha256(json.dumps(keep, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -122,6 +122,16 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         if missing:
             return 422, {"ok": False, "errors": [{"path": "/files", "code": "reference", "message": f"not in this project: {missing[:5]}"}]}
 
+    # todo13 D7: a boot on an existing collection makes a Studio for it (no new dataset).
+    collection = None
+    collection_id = body.get("collectionId")
+    if collection_id is not None:
+        from ..models import DatasetCollectionRow
+
+        collection = db.get(DatasetCollectionRow, collection_id) if isinstance(collection_id, str) else None
+        if collection is None or collection.project_id != p.id:
+            return 422, {"ok": False, "errors": [{"path": "/collectionId", "code": "reference", "message": "no such collection in this project"}]}
+
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
     initiator = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
@@ -129,14 +139,24 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     db.add(b)
 
     # The draft: a dataset of the given files (possibly none yet) and its task.
-    if node_ids:
-        d = projects.create_dataset(db, ctx, p, title, {"nodeIds": node_ids})
+    from . import collections
+
+    if collection is not None:
+        d = db.get(DatasetRow, collection.dataset_id)
+        assert d is not None
+        if node_ids:
+            collections.add_files(db, d, collection.id, [n.id for n in tree.files_under(db, node_ids)])
+    elif node_ids:
+        d = projects.create_dataset(db, ctx, p, title, {"nodeIds": node_ids, "draft": True})
     else:
-        d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": []}, created_by=projects.person(ctx))
+        d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True}, created_by=projects.person(ctx))
         db.add(d)
         db.flush()
+    if collection is None:
+        collection = _default_collection(db, ctx, d, preset)
     t = projects.create_task(db, ctx, d, title, "annotate", None)
     t.state, t.boot_id, t.booted_by = "draft", boot_id, ctx.principal
+    t.collection_id = collection.id if collection is not None else None
     b.task_ids = [t.id]
     db.flush()
     scoped = ctx.for_scope(p.id, None)
@@ -167,6 +187,27 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     audit.record(db, scoped, "boot.ready", target=boot_id, after={"preset": preset, "taskIds": [t.id], "initiator": initiator})
     db.flush()
     return 202, boot_doc(b)
+
+
+def _default_collection(db: Session, ctx: RequestContext, d: DatasetRow, preset: str):
+    """The collection a new draft's Studio works on: one per kind among its files, and the
+    viewable one the preset is for (or the first viewable); an empty draft gets an empty
+    collection of the preset's first file kind (J2: "an empty collection")."""
+    from . import collections, intents
+
+    rows = collections.ensure(db, ctx, d)
+    viewable = [c for c in rows if c.kind in collections.VIEWABLE_COLLECTIONS]
+    entry = next((e for e in intents.table().get("intents") or [] if e.get("preset") == preset), None)
+    kinds = [k for k in (entry or {}).get("fileKinds") or []]
+    for k in kinds:
+        for c in viewable:
+            if c.kind == k:
+                return c
+    if viewable:
+        return viewable[0]
+    if not rows and kinds:
+        return collections.create(db, ctx, d, kinds[0])
+    return None
 
 
 def record_failure(db: Session, ctx: RequestContext, project_id: str, body: dict, step: str, message: str) -> dict | None:

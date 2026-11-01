@@ -57,6 +57,7 @@ that are missing or invalid, never their values.
 | API_ARTIFACTS_BUCKET      | (none: the data area)            | `s3`/`gcs`: separate bucket for content-addressed plugin artifacts (`artifacts/sha256/*`, retention-locked) |
 | API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
+| API_DROP_UNDO_SECONDS     | 30                               | todo13 D6: how long an applied drop plan can be undone |
 
 Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
 gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
@@ -198,6 +199,9 @@ class Settings(BaseModel):
     # bundles are verified with `signer` above (the worker signs with the same key).
     boundary_probe_budget: int = 64
     text_check: Literal["dev"] = "dev"
+    # todo13 D6 (§7.1): how long an applied drop plan can be undone. The `API_FEATURE_*` flags
+    # are todo13-entry's (`kernel/features.py`); drop plans read them through `drop_flags`.
+    drop_undo_seconds: int = 30
 
     # ---- Feature flags (todo13 §7.1): None = the default for `env` (off in production). ----
     feature_chat_drops: bool | None = None
@@ -278,6 +282,7 @@ _KEYS: dict[str, str] = {
     "feature_auto_apply": "API_FEATURE_AUTO_APPLY",
     "feature_fast_path": "API_FEATURE_FAST_PATH",
     "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
+    "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

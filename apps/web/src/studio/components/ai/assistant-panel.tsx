@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import { DropPlanCards } from "@/studio/core/drops";
 import { useQuery } from "@tanstack/react-query";
 import { AiIcon, AttachIcon, ChevronLeftIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
@@ -159,7 +160,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
       {status.isLoading ? (
         <div className="flex flex-1 items-center justify-center"><Loader /></div>
       ) : !status.data?.configured ? (
-        <NotConfigured status={status.data} studio={!!props.studio} />
+        <>
+          <NotConfigured status={status.data} studio={!!props.studio} />
+          {/* Drop plans are the kernel's: they show (and apply) without the assistant. */}
+          <DropPlanCards projectId={project.id} />
+        </>
       ) : !consent ? (
         <Consent provider={status.data.provider} model={status.data.model ?? ""} project={project} studio={!!props.studio} onAccept={() => setConsent(true)} />
       ) : view === "files" ? (
@@ -306,6 +311,7 @@ function Conversation({
             )}
           </div>
         )}
+        <DropPlanCards projectId={project.id} />
       </div>
       <Composer
         project={project}

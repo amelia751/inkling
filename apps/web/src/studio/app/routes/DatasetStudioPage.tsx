@@ -13,6 +13,7 @@ import { remountsOnItemSwitch, ViewportHost } from "@/studio/components/studio/V
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
+import { useLiveDropItems } from "@/studio/core/drops";
 import { setLabelClasses } from "@studio/plugin-ui-sdk/labels";
 import { ANNOTATIONS_VERSION } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/extension-host/commands";
@@ -151,6 +152,8 @@ function StudioPage() {
     warmFromHint(datasetId);
   }
   const { data: project, isLoading, error } = useTaskDocument(datasetId);
+  // todo13 J3: a drop applied to this Studio's collection shows up without a reload.
+  useLiveDropItems(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
   // branch; otherwise the plain document, exactly as before.
   const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => loadDocument(datasetId, () => fetchAnnotations(datasetId)), enabled: !!project, staleTime: Infinity });

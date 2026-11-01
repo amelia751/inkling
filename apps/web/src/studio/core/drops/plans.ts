@@ -1,0 +1,229 @@
+import { create } from "zustand";
+import type { DropAction, DropGroup, DropPlan, DropPlanState } from "@studio/contracts/drop-plan";
+import { apiUrl } from "@/extension-host/runtime-config";
+import { onProjectEvent } from "@/studio/lib/use-project-events";
+import { api } from "@/studio/lib/projects-api";
+import { studioUrl } from "@/studio/lib/routes";
+import { useBoots } from "@/studio/stores/boots";
+
+/**
+ * Drop plans (todo13 D5, D6, §3.3): what the plan card shows, fed by the project stream's
+ * `drop.classified`, `drop.planned`, `drop.applied` and `drop.failed` events, plus the plan
+ * route (`GET /drops/{id}/plan`) for a card opened after its events went by.
+ *
+ * Apply, Change and Undo go to the kernel (`POST /drops/{id}/apply`, `PUT …/plan`, `POST …/undo`);
+ * their answers and the events say the same thing, whichever lands first.
+ *
+ * Navigation: the tab that dropped (`markOwn`, called by the composer's drop card) opens the
+ * Studio a fast-path apply booted; every other tab gets the card's "Open Studio" link. A second
+ * drop never navigates an open Studio away (J4): only a fast path (a new dataset) does.
+ */
+
+export type PlanPhase = "classified" | "planned" | "applying" | "applied" | "undone" | "failed";
+
+export interface PlanView {
+  dropId: string;
+  projectId: string;
+  state: PlanPhase;
+  groups: Omit<DropGroup, "nodeIds">[];
+  plan?: DropPlan;
+  auto: boolean;
+  fastPath: boolean;
+  datasetId?: string;
+  taskIds: string[];
+  collectionIds: string[];
+  undoUntil: string | null;
+  pipelineRunIds?: string[];
+  failed?: { step: string; errorClass: string };
+  /** Archives the worker refused to unpack (zip bomb, traversal, …): node id → reason. */
+  refused: Record<string, string>;
+  /** This tab made the drop (it navigates on a fast path). */
+  own: boolean;
+  seenAt: number;
+}
+
+interface PlansState {
+  plans: Record<string, PlanView>;
+  load: (dropId: string) => Promise<PlanView | undefined>;
+  apply: (dropId: string, actions?: Partial<DropAction>[]) => Promise<void>;
+  change: (dropId: string, actions: Partial<DropAction>[]) => Promise<void>;
+  undo: (dropId: string) => Promise<void>;
+  markOwn: (dropId: string) => void;
+}
+
+const enc = encodeURIComponent;
+
+function blank(dropId: string, projectId: string): PlanView {
+  return { dropId, projectId, state: "classified", groups: [], auto: false, fastPath: false, taskIds: [], collectionIds: [], undoUntil: null, refused: {}, own: false, seenAt: Date.now() };
+}
+
+/** Undo is offered while the window is open (D6: 30 s by default, the server's clock decides). */
+export const undoSecondsLeft = (p: PlanView, now = Date.now()) => (p.state === "applied" && p.undoUntil ? Math.max(0, Math.ceil((Date.parse(p.undoUntil) - now) / 1000)) : 0);
+
+/** Asks that hold the plan for a person (the others are offers beside an action). */
+export const QUESTIONS = new Set(["labels_table", "tabular_collection", "which_dataset"]);
+
+export const usePlans = create<PlansState>()((set, get) => {
+  const put = (dropId: string, projectId: string, fn: (p: PlanView) => PlanView) =>
+    set((s) => ({ plans: { ...s.plans, [dropId]: fn(s.plans[dropId] ?? blank(dropId, projectId)) } }));
+
+  const fromState = (st: DropPlanState, projectId?: string) =>
+    put(st.dropId, projectId ?? st.projectId, (p) => ({
+      ...p,
+      projectId: st.projectId ?? p.projectId,
+      state: st.state,
+      plan: st.plan,
+      groups: st.groups.map(({ nodeIds: _ids, ...g }) => g),
+      auto: st.auto,
+      fastPath: !!st.fastPath,
+      datasetId: st.datasetId ?? p.datasetId,
+      taskIds: st.taskIds,
+      collectionIds: st.collectionIds,
+      undoUntil: st.undoUntil,
+      pipelineRunIds: st.pipelineRunIds,
+      failed: st.error ? { step: st.error.step, errorClass: st.error.errorClass } : p.failed,
+    }));
+
+  onProjectEvent("drop.classified", (data, projectId) => {
+    const e = data as { dropId?: string; groups?: Omit<DropGroup, "nodeIds">[] } | null;
+    if (!e?.dropId) return;
+    put(e.dropId, projectId, (p) => ({ ...p, groups: e.groups ?? p.groups, state: p.state === "classified" ? "classified" : p.state }));
+  });
+  onProjectEvent("drop.planned", (data, projectId) => {
+    const e = data as { dropId?: string; plan?: DropPlan; auto?: boolean } | null;
+    if (!e?.dropId || !e.plan) return;
+    put(e.dropId, projectId, (p) => ({ ...p, plan: e.plan, auto: !!e.auto, state: e.auto ? "applying" : "planned", failed: undefined }));
+  });
+  onProjectEvent("drop.applied", (data, projectId) => {
+    const e = data as { dropId?: string; datasetId?: string; taskIds?: string[]; undoUntil?: string | null; collectionIds?: string[]; pipelineRunIds?: string[]; undone?: boolean; fastPath?: boolean } | null;
+    if (!e?.dropId) return;
+    const before = get().plans[e.dropId];
+    put(e.dropId, projectId, (p) => ({
+      ...p,
+      state: e.undone ? "undone" : "applied",
+      datasetId: e.datasetId ?? p.datasetId,
+      taskIds: e.undone ? [] : (e.taskIds ?? p.taskIds),
+      collectionIds: e.undone ? [] : (e.collectionIds ?? p.collectionIds),
+      undoUntil: e.undone ? null : (e.undoUntil ?? null),
+      pipelineRunIds: e.pipelineRunIds ?? p.pipelineRunIds,
+      fastPath: !!e.fastPath || p.fastPath,
+    }));
+    const p = get().plans[e.dropId];
+    // The fast path opens the new Studio in the tab that dropped (principle 3), once.
+    if (!e.undone && e.fastPath && p.own && p.taskIds[0] && before?.state !== "applied") useBoots.setState({ pendingNav: { bootId: p.dropId, url: studioUrl(projectId, p.taskIds[0]) } });
+  });
+  onProjectEvent("drop.failed", (data, projectId) => {
+    const e = data as { dropId?: string; step?: string; errorClass?: string; nodeId?: string } | null;
+    if (!e?.dropId) return;
+    put(e.dropId, projectId, (p) =>
+      e.step === "unpack" && e.nodeId
+        ? { ...p, refused: { ...p.refused, [e.nodeId]: e.errorClass ?? "unreadable" } }
+        : { ...p, state: p.state === "applied" ? p.state : "failed", failed: { step: e.step ?? "plan", errorClass: e.errorClass ?? "error" } },
+    );
+  });
+
+  return {
+    plans: {},
+    load: async (dropId) => {
+      try {
+        const st = await api<DropPlanState>(`/drops/${enc(dropId)}/plan`);
+        fromState(st);
+      } catch {
+        return get().plans[dropId];
+      }
+      return get().plans[dropId];
+    },
+    apply: async (dropId, actions) => {
+      const cur = get().plans[dropId];
+      if (!cur) return;
+      put(dropId, cur.projectId, (p) => ({ ...p, state: "applying" }));
+      try {
+        fromState(await api<DropPlanState>(`/drops/${enc(dropId)}/apply`, { method: "POST", json: actions ? { actions } : {} }));
+      } catch (e) {
+        put(dropId, cur.projectId, (p) => ({ ...p, state: "failed", failed: { step: "apply", errorClass: e instanceof Error ? e.message : String(e) } }));
+        throw e;
+      }
+    },
+    change: async (dropId, actions) => {
+      fromState(await api<DropPlanState>(`/drops/${enc(dropId)}/plan`, { method: "PUT", json: { actions } }));
+    },
+    undo: async (dropId) => {
+      fromState(await api<DropPlanState>(`/drops/${enc(dropId)}/undo`, { method: "POST" }));
+    },
+    markOwn: (dropId) => set((s) => ({ plans: { ...s.plans, [dropId]: { ...(s.plans[dropId] ?? blank(dropId, "")), own: true } } })),
+  };
+});
+
+// ---- Copy ----------------------------------------------------------------------------------
+
+const NOUNS: Record<string, [string, string]> = {
+  image: ["image", "images"],
+  dicom: ["DICOM image", "DICOM images"],
+  "dicom-series": ["DICOM file", "DICOM files"],
+  volume: ["volume", "volumes"],
+  video: ["video", "videos"],
+  waveform: ["recording", "recordings"],
+  slide: ["slide", "slides"],
+  table: ["table", "tables"],
+  document: ["document", "documents"],
+  annotations: ["annotation file", "annotation files"],
+  archive: ["archive", "archives"],
+  mask: ["mask", "masks"],
+  unknown: ["file", "files"],
+  audio: ["audio file", "audio files"],
+};
+export const noun = (kind: string | undefined, n: number) => {
+  const [one, other] = NOUNS[kind ?? "unknown"] ?? NOUNS.unknown!;
+  return `${n} ${n === 1 ? one : other}`;
+};
+
+/** One line per action, in the card's words (no file names: the plan carries none). */
+export function actionLabel(a: DropAction): string {
+  const what = noun(a.kind, a.count ?? a.nodeIds.length);
+  switch (a.type) {
+    case "new_dataset":
+      return `${what} → a new draft dataset${a.name ? ` (“${a.name}”)` : ""}`;
+    case "new_collection":
+      if (a.asks === "labels_table") return `${what}: labels or metadata for these items?`;
+      if (a.asks === "tabular_collection") return `${what} → a table collection in this dataset?`;
+      return `${what} → a new collection${a.name ? ` “${a.name}”` : ""}${a.datasetId ? " in this dataset" : ""}`;
+    case "add_to_collection":
+      return `${what} → added to the matching collection`;
+    case "unpack":
+      return `${what}: unpacked, then sorted like any drop`;
+    case "keep_reference":
+      return `${what}: kept in Files as reference`;
+    case "keep_unsupported":
+      return `${what}: kept in Files, can't use yet`;
+    case "link_existing":
+      return `${what}: already in Files, linked (nothing re-uploaded)`;
+    default:
+      return what;
+  }
+}
+
+export const QUESTION_COPY: Record<string, { question: string; yes: string; no: string; noChange: Partial<DropAction> }> = {
+  labels_table: { question: "Is this a labels table for these images?", yes: "Yes, use it as labels", no: "No, keep it as reference", noChange: { type: "keep_reference" } },
+  tabular_collection: { question: "Add this table to the dataset as its own collection?", yes: "Add it", no: "Keep it in Files", noChange: { type: "keep_reference" } },
+  which_dataset: { question: "Add these to this dataset, or start a separate one?", yes: "Add to this dataset", no: "Start a separate dataset", noChange: { type: "new_dataset", datasetId: null as unknown as undefined } },
+};
+
+export const REFUSED_COPY: Record<string, string> = {
+  too_large: "Not unpacked: larger than the unpack limit",
+  too_many_files: "Not unpacked: more files than the unpack limit",
+  ratio: "Not unpacked: it expands far more than a normal archive",
+  depth: "Not unpacked: archives nested too deep",
+  traversal: "Not unpacked: paths point outside the archive",
+  encrypted: "Not unpacked: it's encrypted",
+  unreadable: "Not unpacked: we couldn't read it",
+  tmp_budget: "Not unpacked: too large to unpack here",
+  symlink: "Not unpacked: it holds links",
+};
+
+/** "Find a plugin" (todo13 M2 item 8): the catalogue's data kinds that open this kind of file. */
+export async function findPlugins(kind: string): Promise<{ id: string; label?: string; module: string; description: string }[]> {
+  const res = await fetch(apiUrl(`/catalog?kind=${enc(kind)}`));
+  if (!res.ok) return [];
+  const cat = (await res.json()) as { contributions?: { id: string; label?: string; module: string; description: string; type: string }[] };
+  return (cat.contributions ?? []).filter((c) => c.type === "dataKinds");
+}

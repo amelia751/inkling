@@ -14,7 +14,7 @@ from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
 from .kernel import service_scope
-from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, pipelines, plugins, projects, service, sources, versioning, worker
+from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +91,8 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(pipelines.router)
     app.include_router(features.router)
     app.include_router(drops.router)
+    app.include_router(organize.router)
+    app.include_router(unpack.router)
 
     @app.get("/api/v1/health")
     def health():

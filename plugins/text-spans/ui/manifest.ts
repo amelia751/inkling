@@ -34,7 +34,7 @@ export default defineModule({
   title: "Text spans",
   description: "Plain-text documents with character-offset span labels (named entities, phrases); JSONL export in the spaCy / doccano shape.",
   contributes: {
-    dataKinds: [{ id: "text", label: "Text", icon: FileIcon, itemNoun: "document", match: { ext: [".txt", ".md"] }, groupItems, description: "One item per UTF-8 text file" }],
+    dataKinds: [{ id: "text", label: "Text", icon: FileIcon, itemNoun: "document", match: { ext: [".txt", ".md"] }, fileKinds: ["document"], groupItems, description: "One item per UTF-8 text file" }],
     renderers: [
       {
         id: "reader",

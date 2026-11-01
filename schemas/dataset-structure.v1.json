@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/DatasetStructure",
+  "$defs": {
+    "DatasetStructure": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "collections": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetStructureCollection"
+          }
+        },
+        "relationships": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetStructureRelationship"
+          }
+        },
+        "annotations": {
+          "maxItems": 200,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetStructureAnnotation"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "collections",
+        "relationships",
+        "annotations"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetStructureCollection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "formats": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "fields": {
+          "maxItems": 500,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetStructureField"
+          }
+        },
+        "suggested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "formats",
+        "fields"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetStructureField": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "integer",
+            "number",
+            "decimal",
+            "text",
+            "category",
+            "id",
+            "date",
+            "boolean",
+            "list",
+            "path",
+            "empty"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "maxLength": 32
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "suggested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetStructureRelationship": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "from": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "cardinality": {
+          "type": "string",
+          "enum": [
+            "1:1",
+            "1:N",
+            "N:1",
+            "N:N"
+          ]
+        },
+        "keys": {
+          "maxItems": 8,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "suggested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "cardinality",
+        "keys"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetStructureAnnotation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "geometry": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "labels": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DatasetStructureLabel"
+          }
+        },
+        "suggested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "collectionId",
+        "geometry",
+        "labels"
+      ],
+      "additionalProperties": false
+    },
+    "DatasetStructureLabel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/dataset-structure/v1"
+}

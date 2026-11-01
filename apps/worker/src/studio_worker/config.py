@@ -19,6 +19,11 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_KMS_KEY           | (none)                                    | the `gcpkms` key version (`projects/…/cryptoKeyVersions/N`) |
 | WORKER_VERIFY_PYTHON     | this interpreter                          | the pinned toolchain `verify_plugin` runs the agent's converter with |
 | WORKER_VERIFY_MEMORY_MB  | 2048                                      | address-space limit of a verify run |
+| WORKER_UNPACK_MAX_BYTES  | 21474836480 (20 GB)                       | todo13: total uncompressed bytes per archive |
+| WORKER_UNPACK_MAX_FILES  | 50000                                     | entries per archive |
+| WORKER_UNPACK_MAX_RATIO  | 100                                       | uncompressed / compressed, per entry and in total (entries under 1 MiB are exempt per entry) |
+| WORKER_UNPACK_MAX_DEPTH  | 2                                         | archives inside archives |
+| WORKER_UNPACK_TMP_BYTES  | 6442450944 (6 GB)                         | scratch under the data dir for the archive itself (the pod's /tmp is 8 GiB) |
 | REPO_ROOT                | derived                                   | where schemas/, registry/, plugins/ are (/app in images) |
 | ENV                      | development                               | shared by every service: `development`, `test` or `production` |
 | LOG_LEVEL / LOG_FORMAT   | INFO / json                               | shared by every service; `LOG_FORMAT=text` for humans |
@@ -115,6 +120,17 @@ class WorkerSettings:
     verify_python: str | None = None
     verify_memory_mb: int = 2048
     resource_classes: list[str] = field(default_factory=lambda: list(DEFAULT_RESOURCE_CLASSES))
+    # Archive unpack (todo13 §7.1), sized to the pod: 4 GiB memory, 8 GiB `/tmp`.
+    unpack: "UnpackLimits" = field(default_factory=lambda: UnpackLimits())
+
+
+@dataclass(frozen=True)
+class UnpackLimits:
+    max_bytes: int = 20 * 1024**3
+    max_files: int = 50_000
+    max_ratio: float = 100.0
+    max_depth: int = 2
+    tmp_bytes: int = 6 * 1024**3
 
 
 def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
@@ -163,6 +179,13 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         verify_python=env("WORKER_VERIFY_PYTHON"),
         verify_memory_mb=num("WORKER_VERIFY_MEMORY_MB", "2048", int),
         resource_classes=list(dict.fromkeys(classes)),
+        unpack=UnpackLimits(
+            max_bytes=num("WORKER_UNPACK_MAX_BYTES", str(20 * 1024**3), int),
+            max_files=num("WORKER_UNPACK_MAX_FILES", "50000", int),
+            max_ratio=num("WORKER_UNPACK_MAX_RATIO", "100"),
+            max_depth=num("WORKER_UNPACK_MAX_DEPTH", "2", int),
+            tmp_bytes=num("WORKER_UNPACK_TMP_BYTES", str(6 * 1024**3), int),
+        ),
     )
     if s.signer not in ("local", "gcpkms"):
         invalid.append(key_name("WORKER_SIGNER"))

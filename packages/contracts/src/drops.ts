@@ -87,7 +87,8 @@ export interface Drop {
   summary: DropSummary;
 }
 
-export interface DropGroup {
+/** A group as the agent's summary shows it (the classifier's full group is `DropGroup` in `drop-plan.ts`). */
+export interface DropSummaryGroup {
   groupId: string;
   kind: string;
   count: number;
@@ -110,7 +111,7 @@ export interface DropSummary {
   byKind: Record<string, number>;
   bytes: number;
   states: Partial<Record<DropFileState, number>>;
-  groups: DropGroup[];
+  groups: DropSummaryGroup[];
   files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
   nextOffset?: number;
 }
@@ -139,25 +140,7 @@ export interface DropFileEvent {
   nodeId: string;
   state: DropFileState;
 }
-export interface DropClassifiedEvent {
-  projectId: string;
-  dropId: string;
-  groups: DropGroup[];
-}
-export interface DropPlannedEvent {
-  projectId: string;
-  dropId: string;
-  /** A `DropPlan` (todo13-organize's contract). */
-  plan: unknown;
-  auto: boolean;
-}
-export interface DropAppliedEvent {
-  projectId: string;
-  dropId: string;
-  datasetId?: string;
-  taskIds: string[];
-  undoUntil: string | null;
-}
+// drop.classified, drop.planned and drop.applied payloads: `drop-plan.ts` (todo13-organize).
 export interface DropFailedEvent {
   projectId: string;
   dropId: string;

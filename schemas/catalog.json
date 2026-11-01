@@ -136,6 +136,10 @@
       "module": "inkling.image2d",
       "description": "Single-frame images, one item per file",
       "label": "2D image",
+      "fileKinds": [
+        "image",
+        "dicom"
+      ],
       "example": {
         "data": {
           "kind": "inkling.image2d.dataKinds.raster"
@@ -148,6 +152,11 @@
       "module": "inkling.volume",
       "description": "Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation",
       "label": "3D volume",
+      "fileKinds": [
+        "dicom-series",
+        "volume",
+        "mask"
+      ],
       "example": {
         "data": {
           "kind": "inkling.volume.dataKinds.volume"
@@ -160,6 +169,9 @@
       "module": "inkling.timeseries",
       "description": "One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)",
       "label": "Waveform",
+      "fileKinds": [
+        "waveform"
+      ],
       "example": {
         "data": {
           "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
@@ -172,6 +184,9 @@
       "module": "inkling.video",
       "description": "One item per video file (or frame archive)",
       "label": "Video",
+      "fileKinds": [
+        "video"
+      ],
       "example": {
         "data": {
           "kind": "inkling.video.dataKinds.video"
@@ -196,6 +211,9 @@
       "module": "inkling.wsi",
       "description": "One item per pyramid (slide); thumbnails are skipped",
       "label": "Whole-slide",
+      "fileKinds": [
+        "slide"
+      ],
       "example": {
         "data": {
           "kind": "inkling.wsi.dataKinds.raster-pyramid"
@@ -208,6 +226,9 @@
       "module": "inkling.text-spans",
       "description": "One item per UTF-8 text file",
       "label": "Text",
+      "fileKinds": [
+        "document"
+      ],
       "example": {
         "data": {
           "kind": "inkling.text-spans.dataKinds.text"

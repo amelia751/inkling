@@ -25,6 +25,7 @@ export default defineModule({
         icon: VolumeIcon,
         itemNoun: "subject",
         match: { ext: [".nii", ".nii.gz", ".dcm"] },
+        fileKinds: ["dicom-series", "volume", "mask"],
         groupItems,
         description: "Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation",
       },

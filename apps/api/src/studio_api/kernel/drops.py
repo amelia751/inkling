@@ -417,12 +417,23 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
         "byKind": by_kind,
         "bytes": total_bytes,
         "states": states,
-        "groups": groups(visible),
+        "groups": classified_groups(db, d.id) or groups(visible),
         "files": files,
     }
     if offset + limit < len(visible):
         out["nextOffset"] = offset + limit
     return out
+
+
+def classified_groups(db, drop_id: str) -> list[dict] | None:
+    """The classifier's groups (todo13-organize, `drop_plans.groups`) once the drop is classified,
+    without node ids (the summary lists files separately)."""
+    from ..models import DropPlanRow
+
+    row = db.get(DropPlanRow, drop_id)
+    if row is None or not row.groups:
+        return None
+    return [{k: v for k, v in g.items() if k != "nodeIds"} for g in row.groups]
 
 
 def groups(visible: list[tuple[UploadFile, SourceNode]]) -> list[dict]:

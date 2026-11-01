@@ -18,5 +18,7 @@ export * from "./canonical";
 export * from "./lockfile";
 export * from "./boundary";
 export * from "./drops";
+export * from "./drop-plan";
+export * from "./dataset-structure";
 /** Pipeline contracts; also importable directly as `@studio/contracts/pipeline`. */
 export * as pipeline from "./pipeline";

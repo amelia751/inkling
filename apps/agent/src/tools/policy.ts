@@ -87,6 +87,7 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | dataset_open_review (dataset_branch/commit/diff: allow, work/agent-* only) | ask |
  * | propose_schema / propose_relationship (a proposal; changes no data)     | ask (the card links to Explore) |
  * | confirm_proposal                                                         | allow: the kernel refuses agents (403) |
+ * | propose_structure (its own work/agent-* branch; the person accepts)      | allow: never the person's draft (todo13 D6, D8) |
  * | list_folder, find_files, propose_reorganization (a card the person applies) | allow: the agent can't write files (fs/ops 403) |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
  * | boot_studio unless the person's own words ask to create one (todo11 D5)  | deny, soft (the model offers a card instead) |

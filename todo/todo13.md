@@ -30,7 +30,8 @@ This file plus `AGENTS.md` is the whole brief.
    3. `docs/datasets.md`, `docs/pipeline.md` (P§ below), `docs/agent.md`, `docs/files-api.md`,
       `docs/deployment-gcp.md` ("What the agent sees");
    4. `todo/todo11.md` Milestones 2–3 (boot, `item.*`) and `todo/todo12.md` §5 (what todo12 owns);
-   5. the files in your workstream's row in §5.
+   5. the files in your workstream's row in §5;
+   6. §7 (config, cloud, rollout): the keys, flags and log lines your workstream owns.
 2. **Set up:** `git worktree add .worktrees/todo13-<name> -b todo13-<name> main`. Work only there;
    never merge, never edit this file (report instead).
 3. **The data boundary holds** (`todo/todo10.md`, "Start here", point 3), and it matters more here
@@ -39,8 +40,10 @@ This file plus `AGENTS.md` is the whole brief.
    gets file IDs, screened names and typed technical facts (§2, D3). The agent's transcript lives in
    `spurby-ai`, so nothing stored there may contain an original file name that failed screening, a
    thumbnail, a URL to bytes or a content-derived value.
-4. **Don't touch todo12's files** (todo12 §5): `apps/pipeline/**`, `packages/contracts/src/pipeline/**`,
-   `kernel/{queue,jobs}.py`, `routes/pipelines.py`, `apps/web/src/studio/core/pipelines/**`. Where
+4. **Don't touch todo12's files** (todo12 §5): `apps/pipeline/**`, `apps/versioning/**`,
+   `packages/contracts/src/pipeline/**`, `kernel/{queue,jobs}.py`, `routes/pipelines.py`,
+   `apps/web/src/studio/core/pipelines/**`, `infra/terraform/**` (except the integrator's
+   `phi/monitoring.tf`, §7.3). Where
    this plan needs the pipeline, it uses todo12's contracts and falls back to today's import flow
    until todo12 Milestone 1 merges (D9).
 5. **Hand back:**
@@ -110,6 +113,26 @@ Files panel); there's no drop on the composer and none on the Studio canvas.
   `VIEWABLE` kinds only. **Collections (todo11 D7) were never built**: one Studio shows one kind.
 - **Nothing links a file to the conversation it was shared in.**
 
+### Boundary, uploads, cloud
+
+- **Agent routes already expose original file names.** `AGENT_ROUTES` (`kernel/agent_scope.py`)
+  allows `fs`, `fs/children`, `search`, `sources/{id}/children`, `source-nodes/{id}`, `assets`,
+  `imports` and `overview`, which return node names and paths. Only `source-nodes/{id}/activity`
+  has an agent view without original names. Those names reach the model and the agent's transcript
+  in `spurby-ai` today, so screening only dropped files (D3) wouldn't be enough (D13).
+- **Uploads** stream through the api: `PUT /uploads/{session}/files/{file}?offset=` in 64 MB chunks
+  with backoff (`stores/uploads.ts`), under the ingress's 200 MB body limit. Resuming works within a
+  page; after a reload the session is lost (the browser no longer has the file handles).
+- **Sensitive Data Protection is already provisioned** in `spurby-phi`: `dlp.googleapis.com` is
+  enabled (`infra/terraform/phi/main.tf`) and on the perimeter's restricted list
+  (`infra/terraform/org/variables.tf`), and the api's service account has `roles/dlp.user`
+  (`phi/iam.tf`). Name screening needs no new Terraform.
+- **Versioning** stores any file in a dataset's tree through the existing commit route
+  (`POST …/datasets/{id}/commits`, agents on `work/agent-*` only). `structure.json` needs no change
+  to `apps/versioning`, which `todo12-versioning` is editing now.
+- **Existing data has no collections**: datasets have files and followed folders; tasks have a
+  `dataset_id` and no collection.
+
 ---
 
 ## 1. Principles
@@ -149,6 +172,10 @@ Files panel); there's no drop on the composer and none on the Studio canvas.
 | D10 | **Navigation.** Sidebar: Overview, **Files** (renamed from Data; Sources live inside it as provenance), **Datasets**, Studio, Review, Activity. Explore stays reachable from Datasets ("Needs attention"). Pipeline runs stay where todo12-web puts them (under Files). |
 | D11 | **Studio canvas accepts drops**, and so does the Studio's chat. Both create a drop in the current conversation; same-kind files join the current collection live (todo11 `item.*`); a different kind gets a plan card ("These are CT series. Add a collection?"). |
 | D12 | **The one-minute budget** is measured from the first drop or send to the first item interactive in a Studio, with a real model (§6), and gated in e2e with the scripted model. |
+| D13 | **Screened names on every agent-facing route.** Every response an agent principal can read that carries a file or folder name or path (all routes in §0 "Boundary") returns the screened name (`agent_name`) and a screened path built from screened segments. Person responses are unchanged. One serializer in the kernel does this; a test walks `AGENT_ROUTES` and fails on any route that returns an unscreened name. Existing nodes are screened by a backfill job. |
+| D14 | **Who may drop.** Dropping is a write: contributors and above (`docs/datasets.md` §12). A viewer's composer shows attach disabled with "Ask a contributor to add files"; the import route refuses viewers (403) as today. Auto-apply (D6) only for the person's own drafts; anything touching a dataset another person owns asks. |
+| D15 | **Lifecycle.** Deleting a conversation removes its message references; its Shared in chat folder stays in Files (renamed "Shared in chat/<conversation> (deleted chat)"). Deleting a File (to Trash, then purge, per `docs/files-api.md`) turns its chips into "Deleted file" in every conversation; the agent's transcript keeps the node ID and screened name only, so nothing to scrub there. Deleting a project deletes everything, as today. |
+| D16 | **Data versions, not just new tables.** Existing datasets get one default collection per detected kind and existing tasks point at the collection holding their items (backfill migration, reversible). The environment and task schemas gain `collectionId` as optional; `pnpm emit:schemas` regenerates `schemas/`. |
 
 ---
 
@@ -258,23 +285,36 @@ here to start". The first drop fills it.
 **`todo13-drops`:**
 
 1. **Composer attachments**: drop, paste, attach button, folder drop; chips with progress; cancel
-   before send; send with text, or drop alone (a drop alone is a message).
+   before send; send with text, or drop alone (a drop alone is a message). Uploads go through the
+   existing `stores/uploads.ts` (64 MB chunks, offset resume), never a second uploader. After a
+   reload, an unfinished drop shows "Upload paused: choose the same files to continue"; reselected
+   files whose hash matches resume from the server's offset, others start a new drop. Limits per
+   drop from §7 (files, bytes); over the limit, the card says so and offers Files' folder upload.
 2. **Import origin**: `POST /api/v1/projects/{id}/imports` accepts
    `origin: {kind: "chat", conversationId, messageId}`; kernel table `drops` (§5) groups the
    sessions of one gesture; nodes land in **Shared in chat/<conversation>**; `Source.kind = chat`.
-3. **Name screening** (D3): on import complete, each name is checked; the result is stored on the
-   node (`agent_name`, `name_flagged`). Sensitive Data Protection through the api in `spurby-phi`
-   (todo10 broker pattern); a regex screen (dates, MRNs, emails, phone numbers, two capitalized
-   words) in dev and tests.
-4. **Protocol**: `SendMessageRequest.drop?: {dropId}`; user message part
+3. **Name screening** (D3, D13): on import complete, each name is checked; the result is stored on
+   the node (`agent_name`, `name_flagged`). Sensitive Data Protection through the api in
+   `spurby-phi` (todo10 broker pattern), batched per drop; a regex screen (dates, MRNs, emails,
+   phone numbers, two capitalized words) in dev and tests, and as the fallback when the API errors
+   (fail closed: flagged). Folder names too. Then:
+   - one agent serializer used by every route in §0 "Boundary" (D13), with the `AGENT_ROUTES` walk
+     test;
+   - a backfill job that screens existing nodes (resumable, rate-limited per §7);
+   - until a node is screened, agents see `file-<n>.<ext>`.
+4. **Viewers and spoofed types** (D14): the composer and canvas drop respect the role; a file whose
+   extension and detected kind disagree (`.png` that's a ZIP) is classified by detected kind and the
+   chip says "Looks like a ZIP" (existing quarantine and detection, surfaced).
+5. **Protocol**: `SendMessageRequest.drop?: {dropId}`; user message part
    `{type: "drop", dropId, files: [{nodeId, agentName, kind?, state}]}`; agent context gets
    `DropSummary` (§5). The agent's store records the message part as is: IDs and screened names.
    `ag-ui-map.ts` gains the mapping (todo11 D4; a `custom` event).
-5. **Agent tools**: `get_drop(dropId)` returns the `DropSummary`, refreshed as inspection proceeds;
+6. **Agent tools**: `get_drop(dropId)` returns the `DropSummary`, refreshed as inspection proceeds;
    `describe_source_node` returns the screened name. Add `GET /api/v1/drops/{id}` to
    `AGENT_ROUTES` and to `docs/deployment-gcp.md`'s agent route list.
-6. **Shared files** view per conversation (D4), and "Shared in chat" provenance in the Files
-   inspector. Removing a file from a chat removes the reference.
+7. **Shared files** view per conversation (D4), and "Shared in chat" provenance in the Files
+   inspector. Removing a file from a chat removes the reference; conversation and File deletion
+   per D15.
 
 **Exit tests (Milestone 1):**
 
@@ -285,7 +325,12 @@ here to start". The first drop fills it.
   store's rows for that conversation contain no `Smith` (assert in `tests/e2e/agent_test.py`);
 - the model's prompt for a run with a drop contains no base64, data URL or signed URL (assert on
   the recorded prompt in the agent's test harness);
-- removing a file from chat leaves it in Files.
+- the `AGENT_ROUTES` walk test (D13): an identifier-like name in a fixture project appears in no
+  agent-principal response from any route;
+- a viewer can't drop (disabled composer; the import route answers 403);
+- a 300 MB file uploads in chunks from the chat; reloading mid-upload and choosing the same file
+  resumes from the server's offset;
+- removing a file from chat leaves it in Files; deleting the File shows "Deleted file" in the chat.
 
 ### Milestone 2: plans, collections, structure, fast boot (`todo13-organize`)
 
@@ -300,23 +345,40 @@ here to start". The first drop fills it.
 4. **Collections (D7)**: `collections` in the dataset definition (kernel) and in `structure.json`
    (versioning); a task targets one collection; `task_document` filters by it; the Studio header
    switcher (`collection-switcher`); `VIEWABLE` filtering per collection, not per task.
+   **Backfill (D16)**: an Alembic migration plus a data job gives every existing dataset one
+   collection per detected kind among its files and sets each task's `collectionId`; `downgrade`
+   drops the column and table without touching files. `collectionId` optional in the environment
+   and task schemas; `pnpm emit:schemas`.
 5. **`DatasetStructure v1`** (D8) in `packages/contracts/src/dataset-structure.ts` (zod) and its
    emitted schema; read/write through `GET/PUT /api/v1/datasets/{id}/structure` (draft only; a
-   published dataset gets a proposal). Agent tool `propose_structure` writes the draft on its own
-   `work/agent-*` branch and returns the diff; the person (or D6's auto-apply on drafts) accepts it.
+   published dataset gets a proposal). The api writes `structure.json` through the existing
+   versioning commit route; no change to `apps/versioning` (if one proves necessary, report it: it
+   goes to `todo12-versioning` through the integrator). A dataset without a versioning repo gets
+   one on its first structure write (existing `DatasetRepo` path). Agent tool `propose_structure`
+   writes the draft on its own `work/agent-*` branch and returns the diff; the person (or D6's
+   auto-apply on drafts) accepts it.
 6. **Fast path**: `resolveIntent` gets `fileKinds` from the first `drop.classified`; on an
    unambiguous match the kernel boots without waiting for the agent. Labels from the request map
    to the annotation definitions in the structure and to the environment's label config with the
    same stable label IDs.
-7. **Archives**: unpack as a worker job (size and count limits, no symlinks, no path traversal,
-   encrypted archives kept as unknown); contents become a child drop.
+7. **Archives**: unpack as a worker job (size, count, ratio and depth limits from §7, no symlinks,
+   no path traversal, encrypted archives kept as unknown); streaming extraction into the BlobStore,
+   never the whole archive in memory or more than the job's `/tmp` budget; contents become a child
+   drop.
+8. **"Find a plugin"**: verify that the catalogue (`/api/catalog`, `dataKinds` contributions) can
+   be searched by detected kind; if not, add a `kind` filter to the catalogue read and use it from
+   the card. No match says "No plugin for this kind yet" and links to `docs/plugins.md`.
 
 **Exit tests (Milestone 2):**
 
-- journeys J1–J8 (§6) pass with the scripted model;
+- journeys J1–J12 (§6) pass with the scripted model;
 - J1's real-model run is measured and reported (target in §6);
 - a second, different drop never reloads or changes the open Studio;
-- every §3.3 row has a classifier test and one e2e case.
+- every §3.3 row has a classifier test and one e2e case;
+- the backfill migration upgrades and downgrades a fixture database with existing datasets and
+  tasks, and every pre-existing Studio still opens on the same items;
+- a zip bomb fixture (high ratio, deep nesting) and a path-traversal fixture are refused with a
+  clear chip; the worker stays within its memory limit.
 
 ### Milestone 3: Datasets tab, Phase 1 of `docs/datasets.md` (`todo13-datasets`)
 
@@ -349,7 +411,10 @@ component tests; every view has loading, empty, error and permission-denied stat
    frame); prioritize the first files of a drop in the upload and the kernel queue (todo12's
    resource classes; a `priority` hint per job).
 3. Copy pass on every card and empty state; screenshots in `docs/screenshots/`.
-4. `docs/ux.md` updated with the journey; `docs/datasets.md` §1 nav table updated to D10.
+4. The docs in §7.5 that aren't already updated by the workstreams.
+5. Monitoring (§7.3): the log lines, the timeline endpoint, the log-based metrics and
+   `infra/terraform/phi/monitoring.tf` (written by the integrator, `plan` only; a person applies).
+6. Rollout (§7.4) in dev and staging; the prod steps are handed to a person.
 
 ---
 
@@ -357,10 +422,11 @@ component tests; every view has loading, empty, error and permission-denied stat
 
 | Branch | Milestone | Owns | Must not touch |
 |---|---|---|---|
-| `todo13-entry` | 1, 4 | Home and Projects pages, `app-layout.tsx` nav and drawer placement, `ComposerEmptyState`, empty states, Studio canvas drop, timeline overlay | agent runtime, kernel, Datasets pages |
-| `todo13-drops` | 1 | composer attachments, `drops` table and import origin, name screening, Shared in chat folder, protocol `drop` part, `get_drop`, Shared files view, Files provenance | classifier, Datasets, todo12's files |
-| `todo13-organize` | 2 | classifier, plan card, apply, collections (kernel, task document, switcher), `DatasetStructure v1`, structure routes, `propose_structure`, fast path, archive unpack job | Home/nav, Datasets pages, todo12's files |
+| `todo13-entry` | 1, 4 | Home and Projects pages, `app-layout.tsx` nav and drawer placement, `ComposerEmptyState`, empty states, Studio canvas drop, timeline overlay and endpoint, `GET /features` and the web flag reader | agent runtime, kernel data model, Datasets pages |
+| `todo13-drops` | 1 | composer attachments, `drops` table and import origin, name screening and the agent serializer on every agent route (D13), the screening backfill, viewer and spoofed-type handling, Shared in chat folder, protocol `drop` part, `get_drop`, Shared files view, Files provenance, lifecycle (D15), drop rate limit, `API_DROP_*` and `API_NAME_SCREEN_*` keys | classifier, Datasets, todo12's files |
+| `todo13-organize` | 2 | classifier, plan card, apply, collections (kernel, task document, switcher), the backfill migration (D16), `DatasetStructure v1`, structure routes, `propose_structure`, fast path, archive unpack job and `WORKER_UNPACK_*` keys, "Find a plugin" | Home/nav, Datasets pages, todo12's files |
 | `todo13-datasets` | 3 | `apps/web/src/studio/core/datasets/**`, its read endpoints (landing summaries, attention) | composer, classifier, pipeline internals |
+| integrator | 4 | merges, journey suite, `monitoring.tf` (`plan` only), configmap and overlay values, §7.5 leftovers, rollout in dev and staging | nothing applied to Google Cloud without the person |
 
 **Order.** `todo13-entry` and `todo13-drops` in parallel; `todo13-organize` after Milestone 1's
 contracts land (can start the classifier and contract immediately); `todo13-datasets` can start with
@@ -424,6 +490,9 @@ Milestone 4. After each merge, run the journey suite (§6).
 | J7 | Drop a file with an identifier-like name | Agent and transcript see the screened name only |
 | J8 | Drop 2,000 small images | First item interactive within the budget; the rest stream |
 | J9 | Remove a file from the chat | Still in Files; Shared files updated |
+| J10 | A viewer opens the chat | Attach disabled with the hint; a forced import call gets 403 |
+| J11 | A project created before todo13 (fixture database), after the migrations | Its datasets show collections; its Studios open on the same items; the agent sees screened names |
+| J12 | All `API_FEATURE_*` flags off | The product behaves as before todo13; no new routes answer |
 
 **Budgets:**
 
@@ -438,7 +507,100 @@ Milestone 4. After each merge, run the journey suite (§6).
 
 ---
 
-## 7. Not now
+## 7. Config, cloud and rollout
+
+### 7.1 Configuration
+
+Names are without the prefix (see "Naming"); each service reads them only in its config module.
+Defaults are for prod; dev and test may lower the limits.
+
+| Key | Service | Default | What |
+|---|---|---|---|
+| `API_DROP_MAX_FILES` | api | 10,000 | files per drop; above it the card points to Files' folder upload |
+| `API_DROP_MAX_BYTES` | api | 50 GB | bytes per drop |
+| `API_NAME_SCREEN_MODE` | api | `dlp` | `dlp` (Sensitive Data Protection), `regex` (dev, test), never `off` outside tests |
+| `API_NAME_SCREEN_BATCH` | api | 500 | names per screening call |
+| `API_NAME_SCREEN_QPS` | api | 5 | screening calls per second per pod (backfill and live share it) |
+| `API_DROP_UNDO_SECONDS` | api | 30 | auto-apply Undo window (D6) |
+| `API_FEATURE_CHAT_DROPS` | api | `false` | composer drop, paste, attach; Shared files |
+| `API_FEATURE_AUTO_APPLY` | api | `false` | D6 auto-apply (off means every plan asks) |
+| `API_FEATURE_FAST_PATH` | api | `false` | boot before the agent (principle 3) |
+| `API_FEATURE_DATASETS_TAB` | api | `false` | Datasets in the sidebar |
+| `WORKER_UNPACK_MAX_BYTES` | worker | 20 GB | total uncompressed bytes per archive |
+| `WORKER_UNPACK_MAX_FILES` | worker | 50,000 | entries per archive |
+| `WORKER_UNPACK_MAX_RATIO` | worker | 100 | uncompressed / compressed, per entry and total |
+| `WORKER_UNPACK_MAX_DEPTH` | worker | 2 | nested archives |
+| `WORKER_UNPACK_TMP_BYTES` | worker | 6 GB | scratch under `/tmp` (the pod's `emptyDir` is 8 GiB, memory limit 4 GiB) |
+
+**Feature flags.** The api already serves `/version`; add `GET /api/v1/features`, built from the
+`API_FEATURE_*` keys, which the web app reads once at start. Each flag gates its UI and its routes
+(a disabled route answers 404). No flag service; flags change by config and rollout.
+
+### 7.2 Cloud
+
+Nothing in todo13 adds a Google Cloud product, API, IAM binding or perimeter change:
+
+- **Sensitive Data Protection** is enabled in `spurby-phi`, in the perimeter, and the api can call it
+  (§0). The call is `projects.locations.content.inspect` in `us-central1`, with the built-in
+  `PERSON_NAME`, `DATE_OF_BIRTH`, `EMAIL_ADDRESS`, `PHONE_NUMBER` and `US_SOCIAL_SECURITY_NUMBER`
+  info types plus a custom regex info type for MRN-like IDs (check the info-type names against
+  the current Sensitive Data Protection list when implementing). Cost: billed per byte
+  inspected; file names are tiny, so a 10,000-file drop is well under a dollar. Report the
+  measured cost per 10,000 names in the hand-back.
+- **Uploads** keep using the api's chunked route under the ingress's 200 MB body limit; no direct
+  browser-to-bucket uploads (they'd need bucket CORS and signed upload URLs, and bypass quarantine).
+- **The worker** keeps its limits (4 GiB memory, 8 GiB `/tmp`); the unpack limits above are sized
+  to them. If unpacking needs more, add a `worker-io` resource class in todo12's model rather than
+  raising every worker pod.
+- **The agent** in `spurby-ai` gets no new route outside the api; `GET /api/v1/drops/{id}` joins
+  `AGENT_ROUTES` and the list in `docs/deployment-gcp.md`.
+- **Quotas:** per-project storage already counts against the BlobStore; add a per-person drop rate
+  limit (20 drops a minute, 429 with a retry hint) in the api.
+
+Deployment changes are config only: new keys in `infra/k8s/base/{api,worker}/configmap.yaml` and the
+phi overlay's values, applied by a person with `kubectl apply` after review (todo12 A7). Agents
+don't apply anything (`AGENTS.md`, todo12 "Start here").
+
+### 7.3 Monitoring
+
+No metrics library exists today. Use structured logs and Cloud Logging log-based metrics (no new
+dependency):
+
+- the api logs one JSON line per `drop.*` transition with `dropId`, `state`, `elapsed_ms` since
+  `drop.received`, `origin`, counts by kind (no names);
+- the browser posts its timeline (§6, Milestone 4) to `POST /api/v1/telemetry/timeline` with the
+  same `dropId` (durations only);
+- log-based metrics: drop-to-first-interactive (p50, p95), drop failures by step, screening errors,
+  unpack refusals, auto-apply undo rate;
+- alerts (Cloud Monitoring, defined in `infra/terraform/phi/monitoring.tf` by the integrator, applied
+  by a person): p95 drop-to-first-interactive over 30 s for 15 min; screening error rate over 5 %;
+  any drop stuck in `inspecting` over 10 min.
+
+### 7.4 Rollout
+
+1. **Dev:** all flags on; journeys J1–J9 green; the D13 walk test green.
+2. **Staging** (synthetic data only): run the screening backfill; turn on `CHAT_DROPS`, then
+   `DATASETS_TAB`, then `FAST_PATH`, then `AUTO_APPLY`, a day apart; watch §7.3.
+3. **Prod:** the backfill migration (D16) and the screening backfill (D13) first, with flags off;
+   check that every existing Studio opens on the same items; then the flags in the same order as
+   staging.
+
+**Rollback:** turn the flag off (UI and routes disappear; drops already made stay as Files). The
+collections migration has a tested `downgrade` (Milestone 2); screening results are additive
+columns and stay. Never roll back by deleting Files.
+
+### 7.5 Docs to update (with the change that needs them)
+
+- `docs/files-api.md`: import `origin`, `drops`, Shared in chat, screened names, the drop limits;
+- `docs/agent.md`: the `drop` message part, `get_drop`, `propose_structure`, what the agent sees;
+- `docs/deployment-gcp.md`: "What the agent sees" (screened names, D13), the agent route list,
+  Sensitive Data Protection's use for names;
+- `docs/datasets.md` §1 (D10 nav) and `docs/ux.md` (the journey);
+- `docs/modules.md` if the environment's `collectionId` changes what a module receives.
+
+---
+
+## 8. Not now
 
 - External connectors as a drop source (todo12 Milestone 3).
 - The Structure graph view and editing beyond Confirm (Datasets Phase 2).
@@ -448,7 +610,7 @@ Milestone 4. After each merge, run the journey suite (§6).
 
 ---
 
-## 8. References
+## 9. References
 
 - `docs/datasets.md`, `docs/pipeline.md`, `docs/ux.md`, `docs/agent.md`, `docs/files-api.md`,
   `docs/deployment-gcp.md`.

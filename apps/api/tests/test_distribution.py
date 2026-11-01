@@ -115,12 +115,16 @@ def test_promotion_tiers_need_a_second_person(client):
     visible = lambda w: client.get(f"/api/v1/plugins/{GEN}", headers=ws(w)).status_code == 200  # noqa: E731
     assert (visible("ws-a"), visible("ws-c"), visible("ws-b")) == (True, False, False)
 
-    # The agent may ask; nobody can approve their own request or their own artifact.
+    # Agent sessions reach only the allow-listed routes (kernel/agent_scope.py): they can't ask
+    # or review. Nobody can approve their own request or their own artifact.
     agent = token(client, "ws-a", ["plugins.read", "plugins.manage", "plugins.author"])
-    p = client.post(f"/api/v1/plugins/{GEN}/promotions", json={"version": "0.1.0", "reason": "useful to the team"}, headers=agent).json()
+    assert client.post(f"/api/v1/plugins/{GEN}/promotions", json={"version": "0.1.0"}, headers=agent).status_code == 403
+    dana = ws("ws-a", **{"X-Dev-Principal": "user:dana"})
+    p = client.post(f"/api/v1/plugins/{GEN}/promotions", json={"version": "0.1.0", "reason": "useful to the team"}, headers=dana).json()
     assert p["from"] == "generated" and p["to"] == "organisation" and p["state"] == "requested"
     review = lambda h, d="approve": client.post(f"/api/v1/plugins/promotions/{p['id']}/review", json={"decision": d}, headers=h)  # noqa: E731
     assert review(agent).status_code == 403
+    assert review(dana).status_code == 403  # the requester
     assert review(ALICE).status_code == 403  # the author
     r = review(BOB)
     assert r.status_code == 200 and r.json()["state"] == "approved"

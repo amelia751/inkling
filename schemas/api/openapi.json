@@ -742,6 +742,385 @@
         "summary": "Audit Log"
       }
     },
+    "/api/v1/boundary/annotations": {
+      "get": {
+        "description": "Geometries and vocabulary labels; free text comes back as placeholders.",
+        "operationId": "filtered_annotations_api_v1_boundary_annotations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "item_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Item Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Label"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Filtered Annotations"
+      }
+    },
+    "/api/v1/boundary/annotations/export": {
+      "post": {
+        "operationId": "export_annotations_api_v1_boundary_annotations_export_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Export Annotations"
+      }
+    },
+    "/api/v1/boundary/builds": {
+      "post": {
+        "description": "Body: the plugin source as a tarball. Our worker rebuilds, hashes and signs it; that\nbundle (not the sandbox's) is what gets registered.",
+        "operationId": "build_plugin_api_v1_boundary_builds_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sandboxDigest",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sandboxdigest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Plugin"
+      }
+    },
+    "/api/v1/boundary/fingerprints": {
+      "post": {
+        "description": "The sample's fingerprint if we have one, else a `fingerprint` job to poll.",
+        "operationId": "get_fingerprint_api_v1_boundary_fingerprints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Fingerprint"
+      }
+    },
+    "/api/v1/boundary/fixtures": {
+      "post": {
+        "operationId": "get_fixtures_api_v1_boundary_fixtures_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Fixtures"
+      }
+    },
+    "/api/v1/boundary/fixtures/{fixture_set_id}/{name}": {
+      "get": {
+        "description": "A synthetic fixture's bytes (made from the fingerprint alone), for the build sandbox.",
+        "operationId": "fixture_api_v1_boundary_fixtures__fixture_set_id___name__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "fixture_set_id",
+            "required": true,
+            "schema": {
+              "title": "Fixture Set Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fixture"
+      }
+    },
+    "/api/v1/boundary/jobs/{job_id}": {
+      "get": {
+        "description": "Job summary (counts, state, error classes) and, for boundary jobs, the typed result.",
+        "operationId": "job_api_v1_boundary_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job"
+      }
+    },
+    "/api/v1/boundary/probes": {
+      "post": {
+        "operationId": "probe_sample_api_v1_boundary_probes_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Probe Sample"
+      }
+    },
+    "/api/v1/boundary/verify": {
+      "post": {
+        "description": "Body: the plugin source as a tarball. Starts `verify_plugin` on the real sample, in the worker.",
+        "operationId": "verify_on_sample_api_v1_boundary_verify_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "sample",
+            "required": true,
+            "schema": {
+              "title": "Sample",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entrypoint",
+            "required": true,
+            "schema": {
+              "title": "Entrypoint",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Verify On Sample"
+      }
+    },
     "/api/v1/commands": {
       "post": {
         "operationId": "command_api_v1_commands_post",
@@ -2797,7 +3176,7 @@
     },
     "/api/v1/plugins/{plugin_id}/promotions": {
       "post": {
-        "description": "Ask for the next tier (generated \u2192 organisation \u2192 curated). Anyone who manages plugins\nmay ask, the agent included; only a second person approves.",
+        "description": "Ask for the next tier (generated \u2192 organisation \u2192 curated). People who manage plugins\nask (agent sessions aren't allow-listed for it, kernel/agent_scope.py); a second person approves.",
         "operationId": "request_promotion_api_v1_plugins__plugin_id__promotions_post",
         "parameters": [
           {
@@ -5723,6 +6102,357 @@
           }
         },
         "summary": "Status"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/bundle": {
+      "put": {
+        "operationId": "boundary_bundle_api_v1_worker_boundary_jobs__job_id__bundle_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workerId",
+            "required": true,
+            "schema": {
+              "title": "Workerid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Bundle"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/complete": {
+      "post": {
+        "operationId": "boundary_complete_api_v1_worker_boundary_jobs__job_id__complete_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Complete"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/fail": {
+      "post": {
+        "operationId": "boundary_fail_api_v1_worker_boundary_jobs__job_id__fail_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Fail"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/fixtures/{name}": {
+      "put": {
+        "operationId": "boundary_fixture_api_v1_worker_boundary_jobs__job_id__fixtures__name__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workerId",
+            "required": true,
+            "schema": {
+              "title": "Workerid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Fixture"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/sample": {
+      "get": {
+        "operationId": "boundary_sample_api_v1_worker_boundary_jobs__job_id__sample_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workerId",
+            "required": true,
+            "schema": {
+              "title": "Workerid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Sample"
+      }
+    },
+    "/api/v1/worker/boundary/jobs/{job_id}/source": {
+      "get": {
+        "operationId": "boundary_source_api_v1_worker_boundary_jobs__job_id__source_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workerId",
+            "required": true,
+            "schema": {
+              "title": "Workerid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boundary Source"
       }
     },
     "/api/v1/worker/claim": {

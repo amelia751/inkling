@@ -1,6 +1,7 @@
 """Content-addressed artifact store and verification (todo10 Phase 3, D4/D5).
 
-Blobs live in the BlobStore's data namespace at `artifacts/sha256/<hex>`: immutable, written
+Blobs live at `artifacts/sha256/<hex>` in `blobstore.artifacts()` (the `INKLING_API_ARTIFACTS_BUCKET`
+bucket when set, else the BlobStore's data namespace): immutable, written
 once, named by their own hash (a CDN can cache them forever). The registry entry is a
 `plugin_artifacts` row. Verification runs on every load, not only at install:
 
@@ -41,7 +42,7 @@ def key(digest: str) -> str:
 
 def put(blobs: dict[str, bytes], media: dict[str, str] | None = None) -> None:
     """Write-once: an existing key is never rewritten (same digest, same bytes)."""
-    store = blobstore.data()
+    store = blobstore.artifacts()
     for d, data in blobs.items():
         if oci.sha256_digest(data) != d:
             raise oci.ArtifactRefused(f"blob {d} doesn't match its digest")
@@ -51,7 +52,7 @@ def put(blobs: dict[str, bytes], media: dict[str, str] | None = None) -> None:
 
 def get(digest: str) -> bytes:
     try:
-        return blobstore.data().read(key(digest))
+        return blobstore.artifacts().read(key(digest))
     except blobstore.BlobNotFound as e:
         raise KeyError(digest) from e
 

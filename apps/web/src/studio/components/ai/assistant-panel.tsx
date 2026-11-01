@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, CloseIcon, MoreIcon, NewChatIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
-import { Badge } from "@studio/ui/ui/badge";
+import { AiIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
@@ -81,18 +80,21 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const setProfile = useAgent((s) => s.setProfile);
   const ready = !!status.data?.configured && consent;
   const profiles = PROFILES.filter((p) => status.data?.profiles.includes(p.id) ?? p.id !== "coder");
+  const [scrolled, setScrolled] = useState(false);
+  const first = thread.find((m) => m.role === "user")?.parts.find((p) => p.type === "text");
+  const title = ready ? (first?.type === "text" ? first.text : "New chat") : `${NAMING.displayName} AI`;
 
   return (
-    <aside className="flex h-full min-w-0 flex-col bg-background" aria-label={`${NAMING.displayName} AI`}>
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-border pr-1.5 pl-3">
+    <aside className="flex h-full min-w-0 flex-col bg-float" aria-label={`${NAMING.displayName} AI`}>
+      <header className={cn("flex shrink-0 items-center gap-2 border-b pt-3 pr-3 pb-2 pl-4", scrolled && ready && thread.length > 0 ? "border-border" : "border-transparent")}>
         <AiIcon className="size-4 shrink-0 text-ai-text" />
-        <h2 className="truncate font-semibold">{NAMING.displayName} AI</h2>
-        {status.data?.model && <Badge theme="clear" className="min-w-0 truncate">{status.data.model}</Badge>}
-        <div className="ml-auto flex shrink-0 items-center">
+        <h2 className="sr-only">{NAMING.displayName} AI</h2>
+        <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
+        <div className="ml-auto flex shrink-0 items-center gap-1 text-hint">
           {ready && thread.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost-secondary" size="icon" onClick={() => reset(project.id)} aria-label="New chat"><NewChatIcon /></Button>
+                <Button variant="ghost-secondary" size="icon-sm" className="text-hint" onClick={() => reset(project.id)} aria-label="New chat"><NewChatIcon /></Button>
               </TooltipTrigger>
               <TooltipContent>New chat</TooltipContent>
             </Tooltip>
@@ -100,9 +102,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
           {consent && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost-secondary" size="icon" aria-label="Assistant options"><MoreIcon /></Button>
+                <Button variant="ghost-secondary" size="icon-sm" className="text-hint" aria-label="Assistant options"><MoreIcon /></Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
+                {status.data?.model && <DropdownMenuLabel className="truncate font-normal text-hint">Model: {status.data.model}</DropdownMenuLabel>}
                 <DropdownMenuLabel>Mode</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={profile} onValueChange={(v) => setProfile(v as ProfileName)}>
                   {profiles.map((p) => (
@@ -120,7 +123,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <Button variant="ghost-secondary" size="icon" onClick={onClose} aria-label="Close assistant"><CloseIcon /></Button>
+          <Button variant="ghost-secondary" size="icon-sm" className="text-hint" onClick={onClose} aria-label="Close assistant"><CloseIcon /></Button>
         </div>
       </header>
 
@@ -131,7 +134,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : !consent ? (
         <Consent provider={status.data.provider} model={status.data.model ?? ""} project={project} studio={!!props.studio} onAccept={() => setConsent(true)} />
       ) : (
-        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} />
+        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} />
       )}
     </aside>
   );
@@ -149,7 +152,8 @@ function Conversation({
   thread,
   running,
   busy,
-}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean }) {
+  onScrolled,
+}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void }) {
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
@@ -198,14 +202,15 @@ function Conversation({
         onScroll={(ev) => {
           const el = ev.currentTarget;
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+          onScrolled(el.scrollTop > 0);
         }}
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="thin-scrollbar min-h-0 flex-1 overflow-y-auto"
         data-testid="agent-log"
       >
         {thread.length === 0 ? (
           <EmptyState title={e.title} body={e.body} prompts={e.prompts} onAsk={ask} />
         ) : (
-          <div className="flex flex-col gap-5 px-3 py-4">
+          <div className="flex min-h-full flex-col justify-end gap-6 px-4 pt-2 pb-2">
             {thread.map((m, i) =>
               m.role === "user" ? (
                 <UserMessage key={m.id} message={m} />
@@ -214,6 +219,7 @@ function Conversation({
                   key={m.id}
                   message={m}
                   streaming={running && i === thread.length - 1}
+                  latest={i === thread.length - 1}
                   projectId={project.id}
                   studio={studio}
                   onRetry={i === thread.length - 1 && !running ? retry : undefined}
@@ -224,25 +230,30 @@ function Conversation({
           </div>
         )}
       </div>
-      <Composer project={project} provider={provider} placeholder={placeholder(profile)} running={running} busy={busy} onSend={ask} studio={!!studio} />
+      <Composer project={project} provider={provider} placeholder={placeholder(profile)} running={running} busy={busy} onSend={ask} studio={!!studio} fresh={thread.length === 0} />
     </>
   );
 }
 
 function EmptyState({ title, body, prompts, onAsk }: { title: string; body: ReactNode; prompts: Prompt[]; onAsk: (t: string) => void }) {
   return (
-    <div className="flex flex-col gap-5 px-3 pt-6 pb-4">
-      <div className="px-1">
-        <span className="mb-3 flex size-8 items-center justify-center rounded-lg bg-ai-tint text-ai-text"><AiIcon className="size-4" /></span>
-        <h3 className="text-body-2 font-semibold">{title}</h3>
-        <p className="mt-1 text-muted-foreground">{body}</p>
+    <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center">
+      <div className="flex flex-col items-center">
+        <span className="echo-star mb-3 flex size-12 items-center justify-center text-ai-text" aria-hidden>
+          <AiIcon className="size-8" />
+        </span>
+        <h3 className="text-body-3 font-semibold">{title}</h3>
+        <p className="mt-1.5 max-w-80 text-muted-foreground">{body}</p>
       </div>
-      <ul className="flex flex-col">
+      <ul className="flex w-full max-w-82 flex-col gap-3">
         {prompts.map(({ icon: I, text }) => (
           <li key={text}>
-            <button onClick={() => onAsk(text)} className="group flex h-9 w-full items-center gap-2.5 rounded-md px-2 text-left hover:bg-generic">
+            <button
+              onClick={() => onAsk(text)}
+              className="press group flex min-h-11 w-full items-center gap-3 rounded-xl bg-background px-4 py-2.5 text-left text-complementary shadow-float-lg hover:bg-float-hover hover:text-foreground"
+            >
               <I className="size-4 shrink-0 text-hint group-hover:text-complementary" />
-              <span className="truncate">{text}</span>
+              <span>{text}</span>
             </button>
           </li>
         ))}
@@ -251,7 +262,7 @@ function EmptyState({ title, body, prompts, onAsk }: { title: string; body: Reac
   );
 }
 
-function Composer({ project, provider, placeholder, running, busy, onSend, studio }: { project: AssistantProject; provider: AgentContextProvider; placeholder: string; running: boolean; busy: boolean; onSend: (t: string) => void; studio: boolean }) {
+function Composer({ project, provider, placeholder, running, busy, onSend, studio, fresh }: { project: AssistantProject; provider: AgentContextProvider; placeholder: string; running: boolean; busy: boolean; onSend: (t: string) => void; studio: boolean; fresh: boolean }) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
   const stop = useAgent((s) => s.stop);
@@ -260,7 +271,7 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
     const el = area.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [text]);
 
   // Something asked the composer to take focus ("Or tell Inkling…" on Overview).
@@ -277,8 +288,14 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
   };
 
   return (
-    <div className="shrink-0 px-3 pt-1 pb-3">
-      <div className="rounded-xl border border-border bg-background transition-colors focus-within:border-border-hover has-[textarea:focus-visible]:outline-2 has-[textarea:focus-visible]:outline-[var(--g-line-focus)] has-[textarea:focus-visible]:-outline-offset-1">
+    <div className="flex shrink-0 flex-col gap-2 px-4 pt-3 pb-3">
+      <div
+        className={cn(
+          "flex min-h-30 cursor-text flex-col rounded-xl border border-border bg-background p-3 transition-colors focus-within:border-brand-heavy",
+          fresh && !text && "echo-ring",
+        )}
+        onClick={(e) => e.target === e.currentTarget && area.current?.focus()}
+      >
         <textarea
           ref={area}
           value={text}
@@ -290,21 +307,21 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
             }
             if (e.key === "Escape" && running) stop();
           }}
-          rows={1}
+          rows={2}
           placeholder={running ? "Add to the current request…" : placeholder}
           aria-label={`Message ${NAMING.displayName} AI`}
-          className="block max-h-40 w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-body outline-none placeholder:text-hint focus-visible:outline-none"
+          className="block max-h-55 min-h-11 w-full flex-1 resize-none bg-transparent text-chat outline-none placeholder:text-hint focus-visible:outline-none"
         />
-        <div className="flex items-center gap-1.5 pr-1.5 pb-1.5 pl-2">
+        <div className="mt-2 flex items-end gap-2">
           <ContextIndicator provider={provider} />
           {running && !text.trim() ? (
-            <Button variant="secondary" size="icon" className="ml-auto rounded-full" onClick={stop} aria-label="Stop generating"><StopIcon /></Button>
+            <Button variant="secondary" size="icon-lg" className="ml-auto" onClick={stop} aria-label="Stop generating"><StopIcon /></Button>
           ) : (
-            <Button size="icon" className="ml-auto rounded-full" onClick={submit} disabled={!text.trim() || busy} aria-label="Send"><SubmitIcon /></Button>
+            <Button variant={text.trim() ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={submit} disabled={!text.trim() || busy} aria-label="Send"><SubmitIcon /></Button>
           )}
         </div>
       </div>
-      <p className="mt-1.5 px-1 text-caption text-hint">
+      <p className="px-1 text-center text-caption text-hint">
         {studio ? "Sees a text summary only, never images. Can be wrong. Changes need your approval or can be undone." : "Sees project metadata only, never file contents. Can be wrong. It proposes; you confirm."}
         {!!project.heldFiles && <span data-testid="agent-held-note"> {project.heldFiles === 1 ? "1 file held for privacy review isn't" : `${project.heldFiles} files held for privacy review aren't`} shared with it.</span>}
       </p>
@@ -325,7 +342,7 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
       <button
         type="button"
         onClick={restore}
-        className="inline-flex h-6 min-w-0 items-center gap-1 rounded-md border border-dashed border-border px-1.5 text-hint hover:text-foreground"
+        className="inline-flex h-8.5 min-w-0 items-center gap-2 rounded-lg border border-dashed border-border px-2 text-hint hover:text-foreground"
         data-testid="agent-context"
         data-dismissed="true"
         aria-label={`Share ${provider.label} again`}
@@ -334,14 +351,15 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
       </button>
     );
   return (
-    <span className={cn("inline-flex h-6 min-w-0 items-center rounded-md bg-generic pl-1.5 text-muted-foreground")} data-testid="agent-context">
+    <span className="inline-flex h-8.5 min-w-0 items-center gap-2 rounded-lg pl-2 text-hint hover:bg-generic" data-testid="agent-context">
+      <ShowIcon className="size-4 shrink-0" />
       <Tooltip>
         <TooltipTrigger asChild>
           <span className="truncate" tabIndex={0}>{provider.label}</span>
         </TooltipTrigger>
         <TooltipContent className="max-w-64">{provider.shares}</TooltipContent>
       </Tooltip>
-      <button type="button" onClick={dismiss} className="flex h-6 w-5 shrink-0 items-center justify-center rounded-r-md text-hint hover:text-foreground" aria-label="Don't share this context">
+      <button type="button" onClick={dismiss} className="flex h-8.5 w-6 shrink-0 items-center justify-center rounded-r-lg text-hint hover:text-foreground" aria-label="Don't share this context">
         <CloseIcon className="size-3" />
       </button>
     </span>
@@ -351,9 +369,9 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
 function Consent({ provider, model, project, studio, onAccept }: { provider: string; model: string; project: AssistantProject; studio: boolean; onAccept: () => void }) {
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-6 pb-4" data-testid="agent-consent">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-ai-tint text-ai-text"><AiIcon className="size-4" /></span>
+      <span className="echo-star flex size-10 items-center justify-center text-ai-text" aria-hidden><AiIcon className="size-7" /></span>
       <div>
-        <h3 className="text-body-2 font-semibold">Turn on {NAMING.displayName} AI</h3>
+        <h3 className="text-body-3 font-semibold">Turn on {NAMING.displayName} AI</h3>
         <p className="mt-1 text-muted-foreground">Answers come from {model} by {provider}. To answer, it receives a text summary of {studio ? "the open dataset" : "the open project"}:</p>
       </div>
       {studio ? (

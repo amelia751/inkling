@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { markKnownGood } from "@/studio/lib/safe-mode";
 import { TaskSwitcher } from "@/studio/components/layout/switchers";
+import { AskButton } from "@/studio/components/ai/ask-button";
 import { useCurrentProject } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { datasetUrl, projectUrl, settingsUrl, taskSetupUrl } from "@/studio/lib/routes";
@@ -125,15 +126,12 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
         )}
         <div className="flex items-center gap-1">
           {showAi && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost-secondary" selected={aiOpen} onClick={toggleAi} aria-pressed={aiOpen} aria-label={`${NAMING.displayName} AI panel`}>
-                  <AiIcon />
-                  <span className="hidden @[760px]:inline">Assistant</span>
-                </Button>
-              </TooltipTrigger>
-              <ActionTooltipContent title={aiOpen ? "Close Assistant" : "Launch Assistant"} />
-            </Tooltip>
+            <AskButton
+              open={aiOpen}
+              onToggle={toggleAi}
+              labelClassName="hidden @[760px]:inline"
+              tooltip={<ActionTooltipContent title={aiOpen ? "Close Assistant" : "Launch Assistant"} />}
+            />
           )}
           <MoreMenu projectId={p} taskId={project.id} datasetId={datasetId} exportInMenu={reviewFirst || readOnly} onShowShortcuts={onShowShortcuts} />
         </div>

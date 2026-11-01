@@ -82,6 +82,16 @@
   --g-tile-3: rgb(140 179 228);
   --g-tile-gradient: linear-gradient(218.56deg, var(--g-tile-1) 8.62%, var(--g-tile-2) 69.4%, var(--g-tile-3) 95.83%);
 
+  /* The assistant's glow (Nebius Echo): lilac → sky → mint, on its toggle, empty state and composer. */
+  --g-echo-1: rgb(179 151 240);
+  --g-echo-2: rgb(149 187 241);
+  --g-echo-3: rgb(154 229 222);
+  --g-echo-wash: 18%;
+  /* Inline code in chat answers (Nebius uses its slate "misc" in dark). */
+  --g-code-inline: rgb(73 87 112);
+  /* Code blocks in chat: a well a shade off the panel (Nebius Echo's #1f2024 in dark). */
+  --g-code-well: rgb(244 245 247);
+
   /* AI provenance (ui.md §3): Nebius lime, never used for anything else. */
   --prov-ai: 70 100% 65%;
   --prov-ai-foreground: 203 86% 14%;
@@ -170,6 +180,10 @@
   --g-tile-3: rgb(103 144 195);
   --g-tile-gradient: linear-gradient(218.56deg, var(--g-tile-1) 8.62%, var(--g-tile-2) 69.4%, var(--g-tile-3) 95.83%);
 
+  --g-echo-wash: 10%;
+  --g-code-inline: var(--g-misc);
+  --g-code-well: rgb(31 32 36);
+
   --g-header: rgb(34 36 41);
 
   --g-ai-tint: rgb(224 255 79 / 0.15);
@@ -200,6 +214,9 @@
   --text-display-1--line-height: 36px;
   --text-code: 12px;
   --text-code--line-height: 18px;
+  /* Chat prose (assistant answers, the composer): one step up from body, as in Nebius Echo. */
+  --text-chat: 14px;
+  --text-chat--line-height: 22px;
   --text-xs: 11px;
   --text-xs--line-height: 16px;
   --text-sm: 13px;
@@ -266,6 +283,8 @@
   --color-veil: var(--g-veil);
 
   --color-misc: var(--g-misc);
+  --color-code-inline: var(--g-code-inline);
+  --color-code-well: var(--g-code-well);
   --color-info: var(--g-info);
   --color-info-tint: var(--g-info-tint);
   --color-positive: var(--g-positive);
@@ -420,6 +439,106 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 2s infinite linear;
+}
+
+/* Nebius Echo's assistant chrome. */
+.echo-pill {
+  background: linear-gradient(
+    225deg,
+    color-mix(in srgb, var(--g-echo-1) var(--g-echo-wash), transparent) 0%,
+    color-mix(in srgb, var(--g-echo-2) var(--g-echo-wash), transparent) 50%,
+    color-mix(in srgb, var(--g-echo-3) var(--g-echo-wash), transparent) 100%
+  );
+}
+
+/* A diagonal glint that sweeps the icon now and then. */
+.echo-glint {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+}
+.echo-glint::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 34%, rgb(255 255 255 / 0.16) 43%, rgb(255 255 255 / 0.86) 50%, rgb(255 255 255 / 0.16) 57%, transparent 66%) 0 0 / 100% 210% no-repeat;
+  opacity: 0;
+  pointer-events: none;
+  animation: echo-glint 8s ease-in-out infinite;
+}
+@keyframes echo-glint {
+  0%,
+  16%,
+  100% {
+    background-position: -16px -16px;
+    opacity: 0;
+  }
+  26% {
+    opacity: 0.75;
+  }
+  44% {
+    background-position: 16px -16px;
+    opacity: 0;
+  }
+}
+
+/* The empty state's star: a soft halo behind it, breathing. */
+.echo-star {
+  position: relative;
+  isolation: isolate;
+}
+.echo-star::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border-radius: 999px;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--g-echo-2) 55%, transparent) 0%,
+    color-mix(in srgb, var(--g-echo-3) 25%, transparent) 46%,
+    transparent 74%
+  );
+  filter: blur(9px);
+  opacity: 0.55;
+}
+.echo-star > svg {
+  animation: echo-breathe 3.8s ease-in-out infinite;
+}
+@keyframes echo-breathe {
+  0%,
+  100% {
+    transform: scale(0.9);
+  }
+  50% {
+    transform: scale(1.14);
+  }
+}
+
+/* The composer before the first message: a slowly drifting gradient ring. */
+.echo-ring {
+  border-color: transparent;
+  background:
+    linear-gradient(var(--g-background), var(--g-background)) padding-box,
+    linear-gradient(90deg, var(--g-echo-1), var(--g-echo-2), var(--g-echo-3), var(--g-echo-2)) border-box;
+  background-size: auto, 260% 100%;
+  animation: echo-ring 5.5s ease-in-out infinite alternate;
+}
+@keyframes echo-ring {
+  from {
+    background-position: 0 0, 0% 50%;
+  }
+  to {
+    background-position: 0 0, 100% 50%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-glint::after,
+  .echo-star > svg,
+  .echo-ring {
+    animation: none;
+  }
 }
 
 @keyframes fadeIn {

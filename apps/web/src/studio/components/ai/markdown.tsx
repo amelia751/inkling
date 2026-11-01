@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import { cn } from "@studio/ui/utils";
+import { CopyButton } from "./copy-button";
 
 /**
  * Small markdown renderer for model output: paragraphs, headings, lists, quotes,
@@ -7,7 +8,7 @@ import { cn } from "@studio/ui/utils";
  * strings), so model text can't inject markup, and tolerates half-streamed input.
  */
 export function Markdown({ text, className }: { text: string; className?: string }) {
-  return <div className={cn("space-y-2 break-words text-body", className)}>{blocks(text)}</div>;
+  return <div className={cn("space-y-3 break-words text-body", className)}>{blocks(text)}</div>;
 }
 
 function blocks(src: string): ReactNode[] {
@@ -29,9 +30,12 @@ function blocks(src: string): ReactNode[] {
       while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
       i++;
       out.push(
-        <pre key={key()} className="overflow-x-auto rounded-lg bg-generic px-3 py-2 font-mono text-code">
-          <code>{body.join("\n")}</code>
-        </pre>,
+        <div key={key()} className="relative">
+          <pre className="rounded-lg bg-code-well py-3 pr-10 pl-3.5 font-mono text-code break-words whitespace-pre-wrap text-complementary">
+            <code>{body.join("\n")}</code>
+          </pre>
+          <CopyButton text={body.join("\n")} label="Copy code" className="absolute top-2 right-2 bg-code-well" />
+        </div>,
       );
       continue;
     }
@@ -39,7 +43,7 @@ function blocks(src: string): ReactNode[] {
     if (heading) {
       const level = heading[1].length;
       out.push(
-        <p key={key()} className={cn("font-semibold", level === 1 ? "text-body-3 mt-1" : level === 2 ? "text-body-2 mt-1" : "text-body")}>
+        <p key={key()} className={cn("font-semibold", level <= 2 ? "text-body-3 not-first:pt-1" : "not-first:pt-0.5")}>
           {inline(heading[2])}
         </p>,
       );
@@ -68,14 +72,14 @@ function blocks(src: string): ReactNode[] {
       const rows: string[][] = [];
       while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(row(lines[i++]));
       out.push(
-        <div key={key()} className="overflow-x-auto">
+        <div key={key()} className="overflow-x-auto rounded-lg border border-border bg-background">
           <table className="w-full border-collapse text-left">
             <thead>
-              <tr className="border-b border-border text-muted-foreground">{head.map((c, j) => <th key={j} className="py-1 pr-3 font-normal">{inline(c)}</th>)}</tr>
+              <tr className="bg-generic">{head.map((c, j) => <th key={j} className="px-3 py-2 font-semibold">{inline(c)}</th>)}</tr>
             </thead>
             <tbody>
               {rows.map((r, k) => (
-                <tr key={k} className="border-b border-border last:border-0">{r.map((c, j) => <td key={j} className="py-1 pr-3 align-top">{inline(c)}</td>)}</tr>
+                <tr key={k} className="border-t border-border">{r.map((c, j) => <td key={j} className="px-3 py-2 align-top">{inline(c)}</td>)}</tr>
               ))}
             </tbody>
           </table>
@@ -124,7 +128,7 @@ function inline(text: string): ReactNode {
   const parts = text.split(INLINE);
   return parts.map((p, i) => {
     if (i % 2 === 0) return <Fragment key={i}>{p}</Fragment>;
-    if (p.startsWith("`")) return <code key={i} className="rounded-xs bg-generic px-1 py-px font-mono text-code">{p.slice(1, -1)}</code>;
+    if (p.startsWith("`")) return <code key={i} className="rounded-xs bg-generic px-1 py-px font-mono text-code text-code-inline">{p.slice(1, -1)}</code>;
     if (p.startsWith("**") || p.startsWith("__")) return <strong key={i} className="font-semibold">{inline(p.slice(2, -2))}</strong>;
     if (p.startsWith("[")) {
       const m = /^\[([^\]]+)\]\(([^)\s]+)\)$/.exec(p)!;

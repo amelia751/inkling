@@ -5,6 +5,7 @@ import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { NAMING } from "@studio/contracts/naming";
 import { AssistantPanel } from "@/studio/components/ai/assistant-panel";
+import { AskButton } from "@/studio/components/ai/ask-button";
 import { CARD_TOOL_NAMES, runCardTool } from "@/studio/lib/agent/card-tools";
 import { currentProvider, useAgentContextStore, type AgentSection } from "@/studio/lib/agent/providers";
 import { ENV_TOOL_NAMES } from "@/studio/lib/agent/session";
@@ -37,17 +38,7 @@ async function runProjectTool(name: string, input: Record<string, unknown>): Pro
 export function AssistantToggle() {
   const open = useShell((s) => s.assistantOpen);
   const toggle = useShell((s) => s.toggleAssistant);
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button variant="ghost-secondary" selected={open} onClick={toggle} aria-pressed={open} aria-label={`${NAMING.displayName} AI panel`} data-testid="assistant-toggle">
-          <AiIcon />
-          <span className="max-sm:hidden">Assistant</span>
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>{open ? "Close Assistant" : "Launch Assistant"}</TooltipContent>
-    </Tooltip>
-  );
+  return <AskButton open={open} onToggle={toggle} labelClassName="max-sm:hidden" testId="assistant-toggle" />;
 }
 
 /**

@@ -110,6 +110,26 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 - Surface failures, uncertainty, and processing cost/limits. Don't claim clinical diagnosis or expert verification.
 - Chat can be hidden without blocking any core manual workflow.
 
+**Look (modelled on Nebius Echo, `components/ai/`).** The panel sits on `float`; code, tables and
+the composer are darker wells (`code-well`, `background`). The header names the chat (its first
+message, "New chat" before that) and gains a bottom rule only once the thread scrolls. The thread
+is anchored to the bottom with 24px between messages:
+
+- **You:** a `generic` bubble, right-aligned, at most 88% wide, with a copy button on hover.
+- **The assistant:** no bubble; markdown in `text-chat` (14/22). While it works, "INKLING AI" in
+  small caps sits over a spinner. Tool calls are a step list ("Read environment · 12 tools"), and
+  each step opens into a "Tool: name" code card.
+- **Under each reply:** copy, regenerate (latest only) and the token count. On older replies these
+  show on hover.
+- **Approvals:** the tool's code card, then a filled warning alert ("Approval required" plus what
+  it will do), then outlined Reject (danger) and Approve (positive). Once decided, the alert and
+  buttons fold into a status line; the code card stays.
+- **Errors:** the same label, the message in italics, and a Retry button.
+- **Composer:** a 120px card with the context chip and a 36px send button; before the first message
+  it has a drifting `--g-echo-*` gradient ring. The disclaimer sits centred under it.
+- **Toggle:** "Ask Inkling", a 32px pill with the same faint gradient. All motion stops under
+  `prefers-reduced-motion`.
+
 ### Bottom status/navigation bar
 
 - Contextual status: slice/frame position, zoom, image orientation or spacing (if available), processing status, pending unsaved edits.

@@ -292,6 +292,9 @@ class UnpackSubscriber:
 
     def _upload(self, sid: str, fid: str, path: Path, s: Scan, e: Entry, offset: int) -> None:
         holder, f = open_entry(path, s, e)
+        if f is None:
+            holder.close()
+            raise OSError("the archive entry can't be read")
         try:
             skipped = 0
             while skipped < offset:  # resume: skip what the kernel already has

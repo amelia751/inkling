@@ -227,7 +227,8 @@ def _fields(kind: str, facts: list[dict]) -> list[dict]:
         add("fact:duration", "Duration", "number", "s")
     if kind == "table":
         for f in facts:
-            t = f.get("table") if isinstance(f.get("table"), dict) else {}
+            raw = f.get("table")
+            t: dict = raw if isinstance(raw, dict) else {}
             for c in (t.get("columns") or [])[:200]:
                 name = str(c.get("name") or "")[:200]
                 if not name:
@@ -302,7 +303,7 @@ def _confirm_structure(db: Session, ctx: RequestContext, p, pr) -> dict:
     if d is None or d.project_id != p.id:
         raise HTTPException(404, "the proposal's dataset is gone")
     s = (pr.payload or {}).get("structure")
-    if validate(s):
+    if not isinstance(s, dict) or validate(s):
         raise HTTPException(422, "the proposed structure isn't valid any more")
     current = get(db, d)
     if pr.payload.get("baseHash") and pr.payload["baseHash"] != current["hash"]:

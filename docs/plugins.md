@@ -441,6 +441,19 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
   workspace's pin in `contributions-loader.tsx`). Every refusal returns its reason and writes a
   `plugins.artifact.refused` audit entry (`where`: stage, inspect, docs, files, browser).
 
+### 9.3 The ladder and converters (todo10 Phases 5–6)
+
+The builder agent adapts the Studio on the lowest rung that works
+(`apps/agent/src/agent/prompts/builder.md`): configuration, then a **converter**, then a
+declarative panel, then a **sandboxed viewer** (`docs/modules.md`, "Sandboxed viewers on MCP
+Apps"). A converter (`packages/contracts/src/converter.ts`, `schemas/converter.v1.json`) is a
+package with `converter.yaml` and a Python function or a WASI module that turns one file into a
+canonical shape (assets an existing data kind reads, a Zarr array or an Arrow table). The
+worker runs it (`apps/worker/src/studio_worker/convert/`, `python -m studio_worker.convert
+<package> <input> <out>`) on a read-only copy of the input, in its own process or under
+wasmtime, with no network, and returns only a fixed-schema `ConversionSummary`. The same WASI
+module runs in Node or the browser through jco (`jco new --wasi-command` + `jco transpile`).
+
 ## 10. Security and multi-tenancy
 
 **Threats:** malicious plugin package, prompt-injected skill instructions, dependency compromise, SSRF, cross-tenant asset access, API-key exfiltration, infinite job loops, surprise API charges, browser-origin compromise and unsafe migrations.

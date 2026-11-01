@@ -1,0 +1,23 @@
+# The same converter as metaimage-py, as a WASI command module (todo10 D3 trial). The .wasm is
+# built from metaimage.c by the test with a pinned toolchain (ziglang); it isn't committed.
+id: inkling.metaimage-to-nifti-wasm
+version: 0.1.0
+title: MetaImage to NIfTI (WebAssembly)
+description: "Reads 2D/3D MetaImage (.mha) volumes with inline uncompressed data and writes NIfTI-1 (.nii)."
+accepts:
+  ext: [".mha"]
+  headerContains: ["ObjectType", "ElementType"]
+produces: assets
+output:
+  mediaType: application/x-nifti
+  ext: .nii
+  dataKind: inkling.volume.dataKinds.volume
+  preset: preset:volume-3d
+runtime:
+  kind: wasm
+  module: metaimage.wasm
+  abi: wasi-p1
+  fuelMillions: 2000
+limits:
+  timeoutS: 60
+  memoryMb: 512

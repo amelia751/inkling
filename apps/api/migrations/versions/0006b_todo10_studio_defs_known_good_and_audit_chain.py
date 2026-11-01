@@ -6,7 +6,7 @@
 - `plugin_audit.prev_hash` / `entry_hash`: a per-workspace hash chain over audit entries.
 
 Revision ID: 0006b
-Revises: 0006
+Revises: 0007 (main merged todo10-artifacts' 0007 after 0006 first)
 Create Date: 2026-10-31 20:00:00.000000
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = '0006b'
-down_revision = '0006'
+down_revision = '0007'
 branch_labels = None
 depends_on = None
 

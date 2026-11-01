@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, 
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { AiIcon, CloseIcon, DoneIcon, FolderIcon, FolderOpenIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { AddDataIcon, AiIcon, ArrowDownIcon, CloseIcon, DoneIcon, FolderIcon, FolderOpenIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
 import { Input } from "@studio/ui/ui/input";
-import { ScrollArea } from "@studio/ui/ui/scroll-area";
 import { FileTree, type FileTreeHandle, type FileTreeNode } from "@studio/ui/ui/file-tree";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { cn } from "@studio/ui/utils";
@@ -19,6 +19,12 @@ import { filesUrl } from "@/studio/lib/routes";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
 import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState } from "@/studio/lib/item-folders";
 import { bundleCount, HOVER_DELAY_MS, ItemHoverCard } from "./item-hover-card";
+import { ItemThumb } from "./item-thumb";
+import { DropOverlay, usePickers } from "@/studio/components/uploads/uploads";
+import { useUploads } from "@/studio/stores/uploads";
+import { kernelEnabled } from "@/extension-host/kernel";
+import { insertRegistered, postVisible } from "@/studio/lib/task-items";
+import type { Picked } from "@/studio/lib/uploads/walk";
 import type { Annotation, StudioItem } from "@studio/contracts/types";
 import { CORE } from "../manifest";
 
@@ -92,6 +98,8 @@ export function FilesPanel({ items, env, project }: PanelProps) {
     [items],
   );
   const suffixes = useMemo(() => disambiguate(viewItems), [viewItems]);
+  // todo11 D8: items dropped here ingest in place; their rows get thumbnails (skeletons first).
+  const thumbs = useMemo(() => items.some((i) => i.assets[0]?.ingest), [items]);
   const mixed = useMemo(() => mixesKinds(items.map((i) => itemKind(i) ?? i.dataKind)), [items]);
 
   const chosen = useItemsView((s) => s.views[taskId]);
@@ -161,11 +169,25 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   };
 
   const noun = itemNoun(env);
+  // Drop files on the rail (or Add): an import into this task, its images are items at once.
+  const qcForDrop = useQueryClient();
+  const canDrop = kernelEnabled() && !!(project as { projectId?: string }).projectId;
+  const drop = (picked: Picked) => {
+    if (!canDrop) return;
+    void useUploads.getState().add(projectId, picked, { taskId, onRegistered: (assets) => insertRegistered(qcForDrop, taskId, assets) });
+  };
+  const pickers = usePickers(drop);
   const header = (
     <div className="flex h-9 shrink-0 items-center gap-1 pl-3 pr-1.5" data-testid="items-header">
       <span className="min-w-0 flex-1 truncate text-sm font-medium" data-testid="items-title">
         {plural(items.length, noun)}
       </span>
+      {canDrop && (
+        <>
+          {pickers.inputs}
+          <IconToggle label={`Add ${pluralWord(2, noun)}`} pressed={false} onClick={pickers.files} testid="items-add" icon={AddDataIcon} />
+        </>
+      )}
       <IconToggle label="Filter" pressed={filterOpen} onClick={() => (filterOpen ? (setFilterOpen(false), setQuery("")) : openFilter())} testid="items-filter-toggle" icon={SearchIcon} />
       <div className="ml-1 flex items-center rounded-md bg-generic p-0.5" role="group" aria-label="View">
         <IconToggle label="Folders" pressed={view === "folders"} onClick={() => setView(taskId, "folders")} testid="items-view-folders" icon={FoldersIcon} />
@@ -182,7 +204,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   const queued = matching.filter((i) => inQueue(stateOf(items[i]), queueFilter));
 
   const hovered = hover ? items[hover.index] : undefined;
-  return (
+  const panel = (
     <div
       className="flex h-full flex-col"
       data-testid="files-panel"
@@ -239,26 +261,27 @@ export function FilesPanel({ items, env, project }: PanelProps) {
               </button>
             ))}
           </div>
-          <ScrollArea className="min-h-0 flex-1 [&>[data-radix-scroll-area-viewport]>div]:!block">
-            <div className="px-1.5 pb-2" role="list">
-              {queued.map((index) => (
-                <QueueRow
-                  key={items[index].id}
-                  item={items[index]}
-                  index={index}
-                  current={index === itemIndex}
-                  state={stateOf(items[index])}
-                  suffix={suffixes[index]}
-                  kindIcon={mixed ? kindIconOf(items[index], env.dataKind.icon) : undefined}
-                  onChoose={choose}
-                  onEnter={enter}
-                  onLeave={leave}
-                  onMenu={openMenu}
-                />
-              ))}
-              {!queued.length && <Empty query={query} filter={queueFilter} total={items.length} noun={noun} />}
-            </div>
-          </ScrollArea>
+          <QueueList
+            taskId={taskId}
+            items={items}
+            queued={queued}
+            render={(index) => (
+              <QueueRow
+                item={items[index]}
+                index={index}
+                current={index === itemIndex}
+                state={stateOf(items[index])}
+                suffix={suffixes[index]}
+                kindIcon={mixed ? kindIconOf(items[index], env.dataKind.icon) : undefined}
+                thumb={thumbs ? <ItemThumb itemId={items[index].id} asset={items[index].assets[0]} /> : undefined}
+                onChoose={choose}
+                onEnter={enter}
+                onLeave={leave}
+                onMenu={openMenu}
+              />
+            )}
+            empty={<Empty query={query} filter={queueFilter} total={items.length} noun={noun} />}
+          />
         </>
       ) : (
         <FoldersView
@@ -302,6 +325,63 @@ export function FilesPanel({ items, env, project }: PanelProps) {
       )}
     </div>
   );
+  return canDrop ? (
+    <DropOverlay onDrop={drop} label={project.title} className="h-full">
+      {panel}
+    </DropOverlay>
+  ) : (
+    panel
+  );
+}
+
+const ROW = 28;
+
+/**
+ * The Queue view's rows, virtualized (TanStack Virtual, keyed by item id): a 10k-item task
+ * renders a screenful. While items stream in and the end isn't on screen, a pill counts the
+ * new ones and jumps there. The ingesting items on screen are posted to the kernel, so the
+ * worker makes their thumbnails first.
+ */
+function QueueList({ taskId, items, queued, render, empty }: { taskId: string; items: StudioItem[]; queued: number[]; render: (index: number) => ReactNode; empty: ReactNode }) {
+  const scroller = useRef<HTMLDivElement>(null);
+  const v = useVirtualizer({ count: queued.length, getScrollElement: () => scroller.current, estimateSize: () => ROW, overscan: 10, getItemKey: (i) => items[queued[i]]?.id ?? i, paddingEnd: 8 });
+  const rows = v.getVirtualItems();
+  const lastShown = rows.at(-1)?.index ?? -1;
+  const atEnd = lastShown >= queued.length - 1;
+  // "N new": items that arrived while the end wasn't on screen.
+  const [seen, setSeen] = useState(queued.length);
+  useEffect(() => {
+    if (atEnd) setSeen(queued.length);
+  }, [atEnd, queued.length]);
+  const fresh = Math.max(0, queued.length - seen);
+  // Visible ingesting items first (a hint; the kernel keeps the latest).
+  const first = rows[0]?.index ?? 0;
+  const visibleIds = useMemo(() => queued.slice(first, lastShown + 1).map((i) => items[i]).filter((it) => it?.assets[0]?.ingest && it.assets[0].ingest.state !== "ready" && it.assets[0].ingest.state !== "failed").map((it) => it.id), [queued, first, lastShown, items]);
+  useEffect(() => postVisible(taskId, visibleIds), [taskId, visibleIds]);
+  return (
+    <div className="relative min-h-0 flex-1">
+      <div ref={scroller} className="h-full overflow-y-auto px-1.5" role="list" data-testid="items-queue">
+        <div style={{ height: v.getTotalSize(), position: "relative" }}>
+          {rows.map((r) => (
+            <div key={r.key} className="absolute inset-x-0" style={{ top: r.start, height: ROW }} data-index={r.index}>
+              {render(queued[r.index])}
+            </div>
+          ))}
+        </div>
+        {!queued.length && empty}
+      </div>
+      {fresh > 0 && !atEnd && (
+        <button
+          type="button"
+          onClick={() => v.scrollToIndex(queued.length - 1, { align: "end" })}
+          className="absolute bottom-2 left-1/2 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full bg-float px-2.5 text-xs shadow-float hover:bg-generic"
+          data-testid="items-new-pill"
+        >
+          <ArrowDownIcon className="size-3" aria-hidden /> {fresh} new
+        </button>
+      )}
+    </div>
+  );
 }
 
 function IconToggle({ label, pressed, onClick, icon: Icon, testid }: { label: string; pressed: boolean; onClick: () => void; icon: IconComponent; testid: string }) {
@@ -341,7 +421,7 @@ interface RowEvents {
   onMenu: (index: number, e: { clientX: number; clientY: number; preventDefault: () => void }) => void;
 }
 
-function QueueRow({ item, index, current, state, suffix, kindIcon, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string } } & RowEvents) {
+function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string }; thumb?: ReactNode } & RowEvents) {
   const s = STATE[state];
   const count = bundleCount(item);
   return (
@@ -360,6 +440,7 @@ function QueueRow({ item, index, current, state, suffix, kindIcon, onChoose, onE
       data-state={state}
     >
       <s.icon className={cn("h-3.5 w-3.5 shrink-0", s.className)} aria-label={s.label} />
+      {thumb}
       {kindIcon && <kindIcon.icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-label={kindIcon.label} data-testid="file-kind" />}
       <span className="min-w-0 truncate" data-testid="file-name">{item.name}</span>
       {suffix && <span className="min-w-0 flex-1 truncate text-xs text-hint" data-testid="file-suffix">{suffix}</span>}

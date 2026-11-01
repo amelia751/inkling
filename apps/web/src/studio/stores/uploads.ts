@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ImportSession, ImportState, UploadFileState } from "@studio/contracts/types";
+import type { ImportSession, ImportState, SeedAsset, UploadFileState } from "@studio/contracts/types";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
@@ -55,7 +55,12 @@ interface UploadsState {
   attestation: Attestation | null;
   setCollapsed: (c: boolean) => void;
   /** Start an import of picked files into a project (optionally into a folder). */
-  add: (projectId: string, picked: Picked, opts?: { targetNodeId?: string; onChanged?: (projectId: string) => void }) => Promise<TraySession | undefined>;
+  /**
+   * Start an import of picked files into a project (optionally into a folder). With `taskId`
+   * (a drop into a Studio, todo11 D8) its images become the task's items at once: the server
+   * answers with them and `onRegistered` gets them before any byte is sent.
+   */
+  add: (projectId: string, picked: Picked, opts?: { targetNodeId?: string; taskId?: string; onRegistered?: (items: SeedAsset[]) => void; onChanged?: (projectId: string) => void }) => Promise<TraySession | undefined>;
   retry: (key: string) => Promise<void>;
   cancel: (key: string) => Promise<void>;
   dismiss: (key: string) => void;
@@ -184,7 +189,8 @@ export const useUploads = create<UploadsState>((set, get) => {
         const shas = await hashFiles(picked.files.map((f) => f.file), (n) => patch(key, { prepared: n }), ctrl.signal);
         const files = picked.files.map((f, i) => ({ clientFileId: `f${i}`, relPath: f.relPath, size: f.file.size, sha256: shas[i] }));
         blobs.set(key, new Map(picked.files.map((f, i) => [`f${i}`, f.file])));
-        const server = await api<ImportSession>(`/projects/${encodeURIComponent(projectId)}/imports`, { method: "POST", json: { attested: true, files, ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}) } });
+        const server = await api<ImportSession & { items?: SeedAsset[] }>(`/projects/${encodeURIComponent(projectId)}/imports`, { method: "POST", json: { attested: true, files, ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}), ...(opts.taskId ? { taskId: opts.taskId } : {}) } });
+        if (server.items) opts.onRegistered?.(server.items);
         patch(key, { importId: server.id });
         absorb(key, server);
         patch(key, { phase: "uploading" });

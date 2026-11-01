@@ -820,8 +820,14 @@ def task_document(db: Session, t: TaskRow) -> dict:
     environment = env or definition.get("environment") or {}
     labels = definition.get("labels") or {}
     items = []
+    from . import ingest
+
+    ingesting = ingest.task_items(db, t.id)
+    theirs = {ti.node_id for ti in ingesting}
     if d is not None:
         for n, ref in dataset_files(db, d, include_hidden=False):
+            if n.id in theirs:
+                continue  # listed below, in drop order, with its ingest state
             kind, facts, flags, asset_id, sha, size = pinned_view(db, n, ref)
             if asset_id is None or (kind or "") not in VIEWABLE or kind is None:
                 continue
@@ -839,6 +845,8 @@ def task_document(db: Session, t: TaskRow) -> dict:
             if n.id in labels:
                 entry["label"] = labels[n.id]
             items.append(entry)
+    # Items dropped into the Studio (todo11 D8): there from `registered` on, after the rest.
+    items += [ingest.entry(ti) for ti in ingesting]
     add_folders(db, items)
     return {
         "id": t.id,

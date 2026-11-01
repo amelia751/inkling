@@ -142,9 +142,15 @@ export class CornerstoneStackEngine {
    * viewport and tool group stay; only the image, its labelmap and the bridge are replaced.
    */
   async setItem(item: StudioItem): Promise<void> {
-    if (this.cancelled || item.id === this.item.id) return;
+    // Same item: a no-op once it has started loading (an item still uploading starts later).
+    if (this.cancelled || (item.id === this.item.id && this.loadSeq > 0)) return;
     this.item = item;
     await this.show(item);
+  }
+
+  /** The item whose image is on screen (or loading), if any has started. */
+  get shownId(): string | null {
+    return this.loadSeq > 0 ? this.item.id : null;
   }
 
   private async show(item: StudioItem): Promise<void> {

@@ -9,9 +9,11 @@
     GET/POST    /api/v1/projects/{id}/datasets/{datasetId}/tasks
     GET         /api/v1/tasks/{id}                   one task
     GET         /api/v1/tasks/{id}/document          a Project-shaped document for the Studio
+    GET         /api/v1/tasks/{id}/items?after=      its items, a page at a time (todo11 D8)
+    POST        /api/v1/tasks/{id}/items/visible     the items on screen: processed first
     GET/PUT     /api/v1/projects/{id}/resume
     GET         /api/v1/projects/{id}/activity
-    GET         /api/v1/projects/{id}/events         SSE: import.updated, source.node.inspected, proposal.*
+    GET         /api/v1/projects/{id}/events         SSE: import.updated, source.node.inspected, proposal.*, item.*
 
 Membership comes from the request context (the principal, or the person an agent acts for),
 never from a body.
@@ -144,6 +146,29 @@ def task_document(task_id: str, ctx: RequestContext = Depends(get_context), db: 
     projects.ensure_seeds_once(db)
     t, _ = projects.require_task(db, ctx, task_id)
     return projects.task_document(db, t)
+
+
+@router.get("/tasks/{task_id}/items")
+def task_items(task_id: str, after: str | None = None, limit: int = 200, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The task document's items, a page at a time (todo11 D8): with `item.*` events, the
+    Studio inserts and upgrades items instead of refetching the document."""
+    from ..kernel import ingest
+
+    projects.ensure_seeds_once(db)
+    t, _ = projects.require_task(db, ctx, task_id)
+    return ingest.page(projects.task_document(db, t)["assets"], after, limit)
+
+
+@router.post("/tasks/{task_id}/items/visible")
+def visible_items(task_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The items on screen: workers process them first (a hint; the latest one wins)."""
+    from ..kernel import ingest
+
+    t, _ = projects.require_task(db, ctx, task_id)
+    ids = body.get("itemIds")
+    if not isinstance(ids, list):
+        raise HTTPException(422, "itemIds must be a list")
+    return {"prioritised": ingest.set_visible(db, t, ids)}
 
 
 # ---- Resume and activity -----------------------------------------------------------------------

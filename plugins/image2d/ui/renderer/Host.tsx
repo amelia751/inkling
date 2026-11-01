@@ -8,7 +8,7 @@ import { StackConfigSchema, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type V
 import { CornerstoneStackEngine } from "./CornerstoneStackEngine";
 import { useHoldToPan } from "./holdToPan";
 import { ns } from "@studio/contracts/naming";
-import { brushSizeOf, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
+import { assetUrl, brushSizeOf, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 const SCOPES = [ns("image2d"), ns("cornerstone"), ns("core")];
 
@@ -31,6 +31,12 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
   const brushThreshold = useHost((s) => toolOption(s, "brush", "threshold", false));
   const activeLabel = useHost((s) => s.activeLabel);
 
+  // todo11 D8: an item dropped into the Studio may still be uploading; its preview (~1600 px,
+  // or its thumbnail) paints first and the full image replaces it in place once decoded.
+  const ingest = item.assets[0]?.ingest;
+  const loadable = !ingest || (ingest.state !== "registered" && ingest.state !== "failed");
+  const previewPath = ingest?.preview ?? ingest?.thumb;
+
   const promptText = useCallback((initial?: string) => new Promise<string | null>((resolve) => setPrompt({ initial, resolve })), []);
 
   // ---------------------------------------------------------------- mount (once: item switches go through engine.setItem)
@@ -47,7 +53,7 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
       onMessage: (text) => useHost.getState().setViewerStatus(text),
     });
     engineRef.current = engine;
-    void engine.mount();
+    if (loadable) void engine.mount(); // else it starts once the original has arrived (below)
     return () => {
       engine.dispose();
       engineRef.current = null;
@@ -57,12 +63,14 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
   }, []);
   // The manifest declares `itemSwap`, so the shell passes the next item instead of remounting.
   useEffect(() => {
-    void engineRef.current?.setItem(item);
+    if (loadable) void engineRef.current?.setItem(item);
     setPrompt(null);
-  }, [item]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id, loadable]);
 
   const engine = engineRef.current;
   const ready = engine?.status === "ready";
+  const fullShown = ready && engine?.shownId === item.id;
 
   // ---------------------------------------------------------------- tools
   const panning = useHoldToPan(ready);
@@ -195,10 +203,36 @@ export default function CornerstoneStackHost({ project, item, config: raw, runti
         )}
         <TextPrompt request={prompt} onDone={() => setPrompt(null)} />
         <Loupe root={containerRef.current} enabled={magnify && ready} />
-        {engine?.status === "loading" && <CanvasNotice loading>Loading image</CanvasNotice>}
-        {engine?.status === "error" && <CanvasNotice>{engine.error}</CanvasNotice>}
-        {!engine && <CanvasNotice loading>Loading image</CanvasNotice>}
+        {previewPath && !fullShown && <Preview key={previewPath} src={assetUrl(previewPath)} itemId={item.id} />}
+        {ingest?.state === "failed" ? (
+          <CanvasNotice>{ingest.error ?? "This image couldn't be uploaded"}</CanvasNotice>
+        ) : !loadable ? (
+          <CanvasNotice loading>Uploading</CanvasNotice>
+        ) : (
+          <>
+            {engine?.status === "loading" && !previewPath && <CanvasNotice loading>Loading image</CanvasNotice>}
+            {engine?.status === "error" && <CanvasNotice>{engine.error}</CanvasNotice>}
+            {!engine && !previewPath && <CanvasNotice loading>Loading image</CanvasNotice>}
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+/** The preview, letterboxed like the viewport's fit, until the full image is on screen. */
+function Preview({ src, itemId }: { src: string; itemId: string }) {
+  const [loaded, setLoaded] = useState(false);
+  return (
+    <img
+      src={src}
+      alt=""
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+      data-testid="image-preview"
+      data-item={itemId}
+      data-loaded={loaded ? "true" : "false"}
+    />
   );
 }

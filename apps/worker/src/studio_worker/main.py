@@ -43,6 +43,7 @@ from .boundary import BoundaryRunner
 from .deid import DeidSubscriber
 from .egress import EgressProxy
 from .inspect import InspectSubscriber
+from .inspect.items import ItemProcessor
 from .schedule import Scheduled
 
 log = logging.getLogger("studio_worker")
@@ -91,6 +92,10 @@ class Worker:
         self.deid = DeidSubscriber(self.http)
         # Built-in subscriber: inspection of uploaded files (`source.uploaded`, todo6 Phase 5).
         self.inspect = InspectSubscriber(self.http, data_dir / "inspect")
+        # Item derivatives (todo11 D8): on their own thread and client in `run_forever`, so a
+        # long inspection or plugin job never holds up the thumbnails a person is waiting for.
+        self.items = ItemProcessor(httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]}))
+        self._items_thread: threading.Thread | None = None
         # Periodic kernel work: `files.empty_trash` (todo7 Phase 4), at most daily in the kernel.
         self.scheduled = Scheduled(self.http)
         # Data-boundary jobs (todo10 Phase 7): fingerprint, fixtures, verify, probe, build.
@@ -258,6 +263,11 @@ class Worker:
         if self.stopping.is_set():
             return False
         self.http.post("/api/v1/worker/events/deliver")
+        if self._items_thread is None:
+            try:
+                self.items.tick()
+            except httpx.HTTPError as e:
+                log.warning("items: %s", type(e).__name__)
         try:
             self.deid.tick()
         except httpx.HTTPError as e:
@@ -285,7 +295,21 @@ class Worker:
         self.run_job(claim)
         return True
 
+    def run_items(self, poll_s: float = 0.2) -> None:
+        """The item loop: claim, process, repeat; a short wait only when nothing is waiting."""
+        while not self.stopping.is_set():
+            try:
+                had = self.items.tick()
+            except httpx.HTTPError as e:
+                log.warning("items: %s", type(e).__name__)
+                had = 0
+            if not had:
+                self.stopping.wait(poll_s)
+
     def run_forever(self, poll_s: float = 1.0, once: bool = False) -> int:
+        if not once and self._items_thread is None:
+            self._items_thread = threading.Thread(target=self.run_items, name="items", daemon=True)
+            self._items_thread.start()
         while not self.stopping.is_set():
             try:
                 had = self.tick()

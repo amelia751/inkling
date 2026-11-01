@@ -95,6 +95,27 @@ const schemaFiles: Plugin = {
   },
 };
 
+/**
+ * The MCP Apps sandbox proxy (public/sandbox-proxy.html, todo10 Phase 5) is served with a CSP
+ * header that blocks every network request; the View's srcdoc frame inherits it. Same value as
+ * nginx/default.conf.template. In dev the Studio loads it from http://sandbox.localhost:<port>,
+ * a separate origin served by this same server (Vite allows *.localhost hosts).
+ */
+export const SANDBOX_PROXY_CSP =
+  "default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'";
+const sandboxProxy: Plugin = {
+  name: "sandbox-proxy-csp",
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      if ((req.url ?? "").split("?")[0] === "/sandbox-proxy.html") {
+        res.setHeader("content-security-policy", SANDBOX_PROXY_CSP);
+        res.setHeader("cache-control", "no-store");
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   // viteCommonjs: dicom-parser only ships a UMD build (Cornerstone3D framework guide).
   plugins: [
@@ -103,6 +124,7 @@ export default defineConfig({
     viteCommonjs(),
     seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir }),
     schemaFiles,
+    sandboxProxy,
     // index.html takes the display name from the naming config.
     { name: "display-name", transformIndexHtml: (html: string) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
   ],

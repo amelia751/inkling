@@ -104,7 +104,8 @@ def provenance(ctx: RequestContext, headers, body: dict) -> Provenance:
     """Who made a change. An agent session is always `agent` and can't name another author;
     a person's session may record that its assistant made the change (`author: agent:…`),
     which only ever narrows trust."""
-    claimed = body.get("provenance") if isinstance(body.get("provenance"), dict) else {}
+    raw = body.get("provenance")
+    claimed: dict = raw if isinstance(raw, dict) else {}
     if ctx.principal.startswith("agent:"):
         run = headers.get(RUN_HEADER) or ""
         run_id = run if RUN_RE.fullmatch(run) else None

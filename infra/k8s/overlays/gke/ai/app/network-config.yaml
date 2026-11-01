@@ -1,0 +1,14 @@
+# Build-time only (not applied): values for `replacements`, from `terraform output`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-config
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  # infra/terraform/ai: data_services_cidr (the agent's Cloud SQL and Memorystore).
+  DATA_SERVICES_CIDR: 10.60.0.0/16
+  # infra/terraform/ai: master_ipv4_cidr (Kubernetes API, for the GKE Sandbox provider).
+  CONTROL_PLANE_CIDR: 172.16.1.0/28
+  # infra/terraform/phi: nat_egress_ip/32 (web's proxy; the only caller of the agent).
+  PHI_EGRESS_CIDR: 203.0.113.20/32

@@ -35,6 +35,7 @@ type Config struct {
 	DatabaseURL   string
 	DefaultBranch string
 
+	ObjectStore     string // "s3" (any S3-compatible store) or "gcs" (Cloud Storage, ADC only)
 	ObjectEndpoint  string // empty means AWS default resolution
 	ObjectRegion    string
 	ObjectPathStyle bool
@@ -144,6 +145,7 @@ func FromEnv(naming Naming, lookup func(string) (string, bool)) (*Config, error)
 	c.DatabaseURL = p.required("DATABASE_URL")
 	c.DefaultBranch = p.str("DEFAULT_BRANCH", "main")
 
+	c.ObjectStore = p.str("OBJECT_STORE", "s3")
 	c.ObjectEndpoint = p.str("OBJECT_ENDPOINT", "")
 	c.ObjectRegion = p.str("OBJECT_REGION", "us-east-1")
 	c.ObjectPathStyle = p.boolean("OBJECT_PATH_STYLE", c.ObjectEndpoint != "")
@@ -265,6 +267,9 @@ func (p *parser) validate(c *Config) {
 		if !bucketRE.MatchString(b) {
 			p.invalid = append(p.invalid, p.key(k))
 		}
+	}
+	if c.ObjectStore != "s3" && c.ObjectStore != "gcs" {
+		p.invalid = append(p.invalid, p.key("OBJECT_STORE"))
 	}
 	if (c.S3AccessKeyID == "") != (c.S3SecretKey == "") {
 		p.invalid = append(p.invalid, p.key("S3_ACCESS_KEY_ID")+"/"+p.key("S3_SECRET_ACCESS_KEY"))

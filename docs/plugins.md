@@ -416,6 +416,49 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
 - Store resulting package artifact in a private immutable registry; never execute a build artifact automatically in production.
 - Expire build environments and delete ephemeral secrets; retain logs/artifacts only under documented policy.
 
+### 9.3 Signed, content-addressed artifacts (todo10 Phase 3)
+
+- **Layout.** One plugin version is one OCI image manifest: config = `plugin.yaml` as JSON,
+  one deterministic tar layer = the package, annotation `<ns>.plugin.tree-digest`. Every blob
+  is stored once, in the BlobStore's data namespace at `artifacts/sha256/<hex>`
+  (`apps/api/src/studio_api/plugins/store.py`, packing in `packages/signing`'s `studio_signing.oci`).
+  The registry entry is a `plugin_artifacts` row.
+- **Two digests.** The *manifest digest* is what's signed. The *tree digest* (sha256 over
+  `<path>\0<sha256>\n`, same as `tools/build-registry.mjs`) is what workspace pins and lockfiles carry.
+- **Signing.** Generated plugins: the `Signer` from `studio_signing` (`sign(digest)`,
+  `verify(digest, signature)`, `key_id`), picked by `INKLING_API_SIGNER`: `local` (Ed25519 key
+  file, dev) or `gcpkms` (Cloud KMS `EC_SIGN_P256_SHA256` key version in
+  `INKLING_API_SIGNER_KMS_KEY`; the key id is a `gcpkms://` URI that cosign also accepts).
+  Each build also gets a DSSE-signed in-toto SLSA provenance attestation recording the agent run,
+  prompt hash, model, checks and sample digests (`POST /api/v1/plugins/artifacts?runId=&promptHash=&model=&sampleDigests=`).
+  Signature and attestation are OCI referrers of the manifest. First-party plugins are signed in
+  CI with cosign keyless (`.github/workflows/sign-plugins.yml`, `tools/pack-plugins.py`).
+- **Verification on every load.** The kernel re-verifies on stage, `GET /plugins/{id}`,
+  `/docs` and `/files`. It checks, from the manifest down: blob hashes, the tree digest against
+  the pin, the signature by a trusted key, that the registry's `plugin.yaml` is the signed one,
+  and the attestation. Curated packages are checked against their registry digest. The browser
+  loads remote plugins by fetch-and-hash (`GET /plugins/{id}/files`, checked against the
+  workspace's pin in `contributions-loader.tsx`). Every refusal returns its reason and writes a
+  `plugins.artifact.refused` audit entry (`where`: stage, inspect, docs, files, browser).
+
+### 9.4 Distribution and promotion (todo10 Phase 8)
+
+- **Export / import.** `GET /api/v1/plugins/{id}/export?version=` returns a tar of an OCI
+  image layout: the manifest tagged `<version>` plus its signature and attestation referrers.
+  `POST /api/v1/plugins/import?tier=` takes one back. It verifies every byte and requires a
+  signature by this installation's key or one in `INKLING_API_SIGNER_TRUSTED_KEYS_FILE`; nothing
+  is stored unless all of it passes, and refusals are audited (`where: import`). Both need
+  `plugins.approve`, so agent tokens can't call them. `tools/oras-plugins.sh` moves layouts
+  through any OCI registry with `oras copy -r`: `export`, `import`, `mirror`, and `save`/`load`
+  for air-gapped sites. `zot` starts a local zot registry.
+- **Promotion tiers.** `generated` (the authoring workspace) → `organisation` (every project of
+  its organisation) → `curated` (every workspace of the installation), one step at a time.
+  `POST /api/v1/plugins/{id}/promotions` asks (`plugins.manage`; the agent may ask).
+  `POST /api/v1/plugins/promotions/{n}/review` decides (`plugins.approve`). The reviewer must be
+  neither the requester nor the artifact's author, and the artifact is re-verified at approval.
+  Requests and decisions are append-only `plugin_promotions` rows plus audit entries. Only the
+  authoring workspace may publish later versions of an id, whatever its tier.
+
 ## 10. Security and multi-tenancy
 
 **Threats:** malicious plugin package, prompt-injected skill instructions, dependency compromise, SSRF, cross-tenant asset access, API-key exfiltration, infinite job loops, surprise API charges, browser-origin compromise and unsafe migrations.

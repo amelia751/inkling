@@ -21,7 +21,9 @@ from ..context import RequestContext
 from ..kernel import audit, events
 from ..models import InstallRequest, PluginCapability, PluginPackage, PluginVersion, WorkspaceEnvironment, WorkspacePlugin, WorkspacePluginConfig, WorkspacePluginHistory
 from ..naming import canonical_id
-from . import artifacts, catalog, digest, policy, resolver
+from studio_signing import oci
+
+from . import catalog, policy, resolver
 
 ACTIVE = "ACTIVATED"
 
@@ -41,7 +43,7 @@ def manifest_of(db: Session, plugin_id: str, version: str) -> dict:
     row = db.get(PluginVersion, (plugin_id, version))
     if row is not None:
         return row.manifest
-    e = catalog.get(plugin_id, version)
+    e = catalog.get(plugin_id, version, db)
     return e.manifest if e and e.version == version else {}
 
 
@@ -68,12 +70,13 @@ def bootstrap(db: Session, ctx: RequestContext) -> None:
     if raw is not None:
         wanted = [canonical_id(p["pluginId"] if isinstance(p, dict) else p) for p in raw.get("plugins", [])]
     boot = RequestContext(ctx.workspace_id, "system:bootstrap", ctx.correlation_id)
-    for e in catalog.entries():
+    for e in catalog.entries(db):
         if e.trust_tier != "first-party" or e.runtime != "browser-bundled":
             continue
         if wanted is not None and e.id not in wanted:
             continue
-        if catalog.get(e.id) is not e:
+        latest = catalog.get(e.id, db=db)
+        if latest is None or (latest.version, latest.artifact_digest) != (e.version, e.artifact_digest):
             continue  # latest version only
         _register_version(db, e)
         _pin(db, boot, e.id, e.version, e.artifact_digest, 0, ACTIVE)
@@ -104,11 +107,14 @@ def current_config(db: Session, workspace_id: str, plugin_id: str) -> dict:
 
 
 def _contributions(e: catalog.Entry) -> dict:
-    d = catalog.package_dir(e)
     rel = (e.manifest.get("ui") or {}).get("contributions")
-    if d and rel and (d / rel).is_file():
-        return json.loads((d / rel).read_text())
-    return {}
+    if not rel:
+        return {}
+    try:
+        files = catalog.load_files(e)
+    except oci.ArtifactRefused:
+        return {}  # stage refuses it with the reason
+    return json.loads(files[rel]) if rel in files else {}
 
 
 def _plan_doc(db: Session, ctx: RequestContext, res: resolver.Resolution, target: str) -> dict:
@@ -141,7 +147,8 @@ def _plan_doc(db: Session, ctx: RequestContext, res: resolver.Resolution, target
                 "uiSurfaces": sorted({a.get("surface") for a in ui.get("toolbarActions", [])} | {p.get("surface") for p in ui.get("panels", [])}),
                 "licenses": e.licenses or {"code": e.manifest.get("license")},
                 # Agent-authored code: the reviewer sees exactly what changed (§9).
-                **({"codeDiff": e.review} if e.trust_tier == "generated" and e.review else {}),
+                **({"codeDiff": e.review} if e.stored and e.review else {}),
+                **({"manifestDigest": e.manifest_digest, "signer": e.signer_id} if e.stored else {}),
             }
         )
     return {"target": target, "install": items, "errors": res.errors, "conflicts": res.conflicts, "risk": risk}
@@ -150,9 +157,9 @@ def _plan_doc(db: Session, ctx: RequestContext, res: resolver.Resolution, target
 def plan(db: Session, ctx: RequestContext, plugin_id: str, version: str | None = None) -> InstallRequest:
     bootstrap(db, ctx)
     pid = canonical_id(plugin_id)
-    res = resolver.resolve(pid, version, {k: v.version for k, v in active(db, ctx.workspace_id).items()})
+    res = resolver.resolve(pid, version, {k: v.version for k, v in active(db, ctx.workspace_id).items()}, db)
     for e in res.install:
-        if not e.visible_to(ctx.workspace_id):
+        if not catalog.visible(db, e, ctx.workspace_id):
             res.errors.append({"code": "not_found", "message": f"{e.id}@{e.version} isn't available in this workspace"})
     doc = _plan_doc(db, ctx, res, pid)
     target = next((e for e in res.install if e.id == pid), None)
@@ -188,21 +195,24 @@ def stage(db: Session, ctx: RequestContext, request_id: str) -> InstallRequest:
     _expect(r, "RESOLVED")
     problems: list[str] = []
     for item in r.plan["install"]:
-        e = catalog.get(item["id"], item["version"])
-        d = catalog.package_dir(e) if e else None
-        if e is None or d is None or not d.is_dir():
+        e = catalog.get(item["id"], item["version"], db)
+        if e is None:
             problems.append(f"{item['id']}@{item['version']}: package not found in the registry store")
             continue
-        got = digest.tree_digest(d)
-        if got != e.artifact_digest:
-            problems.append(f"{e.id}@{e.version}: digest mismatch (registry {e.artifact_digest}, staged {got})")
-        if e.runtime == "python-worker" and not (d / "uv.lock").is_file():
+        if item.get("artifactDigest") and item["artifactDigest"] != e.artifact_digest:
+            problems.append(f"{e.id}@{e.version}: the registry's digest changed since the plan ({item['artifactDigest']} → {e.artifact_digest})")
+        if e.stored and not catalog.visible(db, e, ctx.workspace_id):
+            problems.append(f"{e.id}: generated in another workspace")
+            continue
+        # Digest, signature, signed plugin.yaml and attestation, from the bytes up (todo10 Phase 3).
+        try:
+            files = catalog.load_files(e)
+        except oci.ArtifactRefused as x:
+            problems.append(f"{e.id}@{e.version}: {x}")
+            audit.record(db, ctx, "plugins.artifact.refused", target=f"{e.id}@{e.version}", after={"reason": str(x), "where": "stage", "manifestDigest": e.manifest_digest, "requestId": r.id})
+            continue
+        if e.runtime == "python-worker" and "uv.lock" not in files:
             problems.append(f"{e.id}: python-worker plugins must ship uv.lock")
-        if e.trust_tier == "generated":
-            if not e.visible_to(ctx.workspace_id):
-                problems.append(f"{e.id}: generated in another workspace")
-            elif bad := artifacts.verify(e, got):
-                problems.append(f"{e.id}@{e.version}: {bad}")
     if problems:
         return _reject(db, ctx, r, problems)
     r.state = "STAGED"
@@ -219,7 +229,7 @@ def validate(db: Session, ctx: RequestContext, request_id: str) -> InstallReques
     problems: list[str] = []
     checks: dict = {}
     for item in r.plan["install"]:
-        e = catalog.get(item["id"], item["version"])
+        e = catalog.get(item["id"], item["version"], db)
         assert e is not None
         errs = validate_plugin_manifest(e.manifest)
         checks[e.id] = {"manifest": "ok" if not errs else errs}
@@ -264,7 +274,7 @@ def _pin(db: Session, ctx: RequestContext, plugin_id: str, version: str, artifac
 
 def _activate(db: Session, ctx: RequestContext, r: InstallRequest, optional_grants: list[str]) -> InstallRequest:
     for item in r.plan["install"]:
-        e = catalog.get(item["id"], item["version"])
+        e = catalog.get(item["id"], item["version"], db)
         assert e is not None
         req = policy.requested(e.manifest)
         extra = [p for p in optional_grants if p in req["optional"]] if e.id == r.plugin_id else []

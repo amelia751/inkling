@@ -2,7 +2,9 @@
 
 sha256 over the sorted list of `<posix path>\\0<sha256 of file>\\n` for every file in the
 package, excluding caches and local environments. A file-tree digest rather than a tarball
-hash, so tar metadata (mtimes, owners) can't change it.
+hash, so tar metadata (mtimes, owners) can't change it. The algorithm itself lives in
+`studio_signing.oci.tree_digest` (shared with the worker's build_plugin); this module keeps
+the directory walk.
 """
 
 from __future__ import annotations
@@ -10,7 +12,9 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-EXCLUDE_DIRS = {"node_modules", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".data"}
+from studio_signing import oci
+
+EXCLUDE_DIRS = oci.EXCLUDE_DIRS
 
 
 def package_files(root: Path) -> list[Path]:
@@ -32,9 +36,4 @@ def tree_digest(root: Path) -> str:
 
 def files_digest(files: dict[str, bytes]) -> str:
     """The same digest over an in-memory package (artifact tarballs)."""
-    h = hashlib.sha256()
-    for rel in sorted(files):
-        if any(part in EXCLUDE_DIRS for part in rel.split("/")):
-            continue
-        h.update(f"{rel}\0{hashlib.sha256(files[rel]).hexdigest()}\n".encode())
-    return f"sha256:{h.hexdigest()}"
+    return oci.tree_digest(files)

@@ -69,12 +69,33 @@ export const PanelDecl = z
   .strict();
 export type PanelDecl = z.infer<typeof PanelDecl>;
 
+/**
+ * A viewport renderer on a trusted renderer (todo10 Phase 5, ladder rung 4): in practice
+ * `studio.sandbox-frame.v1` with `config.module`, an ESM viewer that runs in the MCP Apps
+ * sandbox (packages/plugin-ui-sdk/src/viewer.ts). The plugin ships no code into the main origin.
+ */
+export const RendererDecl = z
+  .object({
+    id: LocalId,
+    title: z.string().optional(),
+    description: z.string().optional(),
+    renderer: z.string().regex(/^[a-z][\w-]*(?:\.[\w-]+)*\.v\d+$/, "a versioned trusted renderer name, e.g. studio.sandbox-frame.v1"),
+    /** Full data kind ids it displays; default: the generic one-item-per-file kind. */
+    consumes: z.array(z.string()).optional(),
+    space: z.enum(["image2d", "volume", "time", "text"]).default("image2d"),
+    capabilities: z.array(z.string()).default([]),
+    config: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type RendererDecl = z.infer<typeof RendererDecl>;
+
 export const UiContributions = z
   .object({
     $schema: z.string().optional(),
     $comment: z.string().optional(),
     toolbarActions: z.array(ToolbarAction).default([]),
     panels: z.array(PanelDecl).default([]),
+    renderers: z.array(RendererDecl).default([]),
   })
   .strict()
   .meta({ id: "UiContributions" });

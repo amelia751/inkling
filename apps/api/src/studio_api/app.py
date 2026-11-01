@@ -13,7 +13,7 @@ from studio_observability import RequestContextMiddleware, setup_service
 from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
-from .routes import environments, explore, files, kernel, ops, plugins, projects, sources, versioning, worker
+from .routes import boundary, environments, explore, files, kernel, ops, plugins, projects, sources, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -82,6 +82,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(sources.router)
     app.include_router(files.router)
     app.include_router(explore.router)
+    app.include_router(boundary.router)
 
     @app.get("/api/v1/health")
     def health():

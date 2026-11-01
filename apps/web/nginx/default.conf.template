@@ -58,6 +58,15 @@ server {
     try_files $uri =404;
   }
 
+  # MCP Apps sandbox proxy (todo10 Phase 5): no network for anything it loads. Same CSP as
+  # SANDBOX_PROXY_CSP in vite.config.ts. Point the runtime config's `sandboxOrigin` at a second
+  # host name served by this block, so the proxy is on a separate origin from the Studio.
+  location = /sandbox-proxy.html {
+    add_header Content-Security-Policy "default-src 'none'; script-src 'unsafe-inline' blob:; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'" always;
+    add_header Cache-Control "no-cache" always;
+    try_files /sandbox-proxy.html =404;
+  }
+
   # SPA fallback; index.html is revalidated so a deploy shows up on reload.
   location / {
     add_header Cache-Control "no-cache";

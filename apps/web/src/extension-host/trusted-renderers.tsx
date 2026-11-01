@@ -1,11 +1,12 @@
 import type { ComponentType } from "react";
 import type * as z from "zod";
 import type { DataBinding } from "@studio/contracts/ui-contributions";
-import type { PanelProps } from "@studio/plugin-ui-sdk";
+import type { PanelProps, RendererProps } from "@studio/plugin-ui-sdk";
 import type { Annotation } from "@studio/contracts/types";
 import { DeclarativeConfig, SandboxConfig } from "./agent-panels/manifest";
 import { DeclarativePanel } from "./agent-panels/panels/declarative";
 import { SandboxPanel } from "./agent-panels/panels/sandbox";
+import { SandboxViewport } from "./sandbox/SandboxViewport";
 
 /**
  * Trusted renderers (docs/plugins.md §5.3): precompiled components that declarative
@@ -18,8 +19,15 @@ export interface TrustedRendererProps extends PanelProps {
   binding?: DataBinding;
 }
 
+/** A trusted renderer used as a viewport (`renderers` in contributions.json). */
+export interface TrustedViewportProps extends RendererProps {
+  pluginId?: string;
+}
+
 export interface TrustedRenderer {
   component: ComponentType<TrustedRendererProps>;
+  /** Present when the renderer can also fill a viewport (declarative `renderers`). */
+  viewport?: ComponentType<TrustedViewportProps>;
   /** Validates and defaults the descriptor's `config`. */
   configSchema?: z.ZodType;
   description: string;
@@ -27,7 +35,7 @@ export interface TrustedRenderer {
 
 const registry = new Map<string, TrustedRenderer>([
   ["studio.declarative-panel.v1", { component: DeclarativePanel, configSchema: DeclarativeConfig, description: "Tier 2 JSON blocks (text, stat, list, progress) bound to runtime keys and store selectors" }],
-  ["studio.sandbox-frame.v1", { component: SandboxPanel, configSchema: SandboxConfig, description: "Tier 3 sandboxed iframe (no same origin, no network) that can read annotations and propose ai-suggested ones" }],
+  ["studio.sandbox-frame.v1", { component: SandboxPanel, viewport: SandboxViewport, configSchema: SandboxConfig, description: "Sandboxed MCP Apps View (separate-origin proxy, no same origin, no network): tier-3 HTML or a rung-4 ESM viewer module (`config.module`) that reads the item's assets and proposes ai-suggested annotations" }],
 ]);
 
 export function trustedRenderer(name: string): TrustedRenderer | undefined {

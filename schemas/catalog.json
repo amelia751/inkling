@@ -26,6 +26,12 @@
       "description": "Label spans and point-in-time events on any renderer with a time axis."
     },
     {
+      "id": "inkling.generic",
+      "version": "0.1.0",
+      "title": "Generic files",
+      "description": "One item per file of any format, for sandboxed viewers (studio.sandbox-frame.v1 renderers) of formats the Studio doesn't read."
+    },
+    {
       "id": "inkling.image2d",
       "version": "1.1.0",
       "title": "2D images",
@@ -112,6 +118,18 @@
     }
   ],
   "contributions": [
+    {
+      "id": "inkling.generic.dataKinds.files",
+      "type": "dataKinds",
+      "module": "inkling.generic",
+      "description": "One item per file, any format; shown by a sandboxed viewer renderer",
+      "label": "Files",
+      "example": {
+        "data": {
+          "kind": "inkling.generic.dataKinds.files"
+        }
+      }
+    },
     {
       "id": "inkling.image2d.dataKinds.raster",
       "type": "dataKinds",

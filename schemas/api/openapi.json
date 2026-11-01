@@ -2479,7 +2479,7 @@
     },
     "/api/v1/plugins/artifacts": {
       "post": {
-        "description": "A tarball of a plugin package \u2192 checks, and unless `dryRun`, a signed `generated` registry entry (\u00a79).",
+        "description": "A tarball of a plugin package \u2192 checks, and unless `dryRun`, a signed, content-addressed\n`generated` registry entry with a provenance attestation (\u00a79; todo10 Phase 3). `runId`,\n`promptHash`, `model` and `sampleDigests` go into the attestation.",
         "operationId": "build_artifact_api_v1_plugins_artifacts_post",
         "parameters": [
           {
@@ -2507,6 +2507,70 @@
               "title": "Dryrun",
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "runId",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Runid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "promptHash",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Prompthash"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sampleDigests",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sampledigests"
+            }
           }
         ],
         "responses": {
@@ -2530,6 +2594,139 @@
           }
         },
         "summary": "Build Artifact"
+      }
+    },
+    "/api/v1/plugins/import": {
+      "post": {
+        "description": "A tar of an OCI image layout (`oras copy --to-oci-layout`, or GET \u2026/export) \u2192 verified,\nstored and registered in this workspace at `tier`. A person's action: `plugins.approve`.",
+        "operationId": "import_artifacts_api_v1_plugins_import_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tier",
+            "required": false,
+            "schema": {
+              "default": "generated",
+              "title": "Tier",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Artifacts"
+      }
+    },
+    "/api/v1/plugins/promotions": {
+      "get": {
+        "operationId": "list_promotions_api_v1_plugins_promotions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Promotions"
+      }
+    },
+    "/api/v1/plugins/promotions/{promotion_id}/review": {
+      "post": {
+        "description": "Approve or reject (`{\"decision\": \"approve\" | \"reject\", \"reason\"}`); a second person only.",
+        "operationId": "review_promotion_api_v1_plugins_promotions__promotion_id__review_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promotion_id",
+            "required": true,
+            "schema": {
+              "title": "Promotion Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Review Promotion"
       }
     },
     "/api/v1/plugins/{plugin_id}": {
@@ -2637,6 +2834,167 @@
           }
         },
         "summary": "Docs"
+      }
+    },
+    "/api/v1/plugins/{plugin_id}/export": {
+      "get": {
+        "description": "The stored artifact as a tar of an OCI image layout (manifest tagged `<version>`, plus\nits signature and attestation referrers), ready for `oras copy -r --from-oci-layout`.",
+        "operationId": "export_artifact_api_v1_plugins__plugin_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plugin_id",
+            "required": true,
+            "schema": {
+              "title": "Plugin Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Artifact"
+      }
+    },
+    "/api/v1/plugins/{plugin_id}/files": {
+      "get": {
+        "description": "Fetch-and-hash for the browser (todo10 Phase 3): the sha256 of every file in the package\nand the bytes of the `include`d ones (comma-separated paths; the manifest's\n`ui.contributions` is always included). The browser hashes the bytes,\nchecks them against `hashes`, and recomputes the tree digest from `hashes`; it must equal\nthe digest the workspace pinned. Verified here too, on this load.",
+        "operationId": "package_files_api_v1_plugins__plugin_id__files_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plugin_id",
+            "required": true,
+            "schema": {
+              "title": "Plugin Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Version"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include",
+            "required": false,
+            "schema": {
+              "default": "plugin.yaml",
+              "title": "Include",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Package Files"
+      }
+    },
+    "/api/v1/plugins/{plugin_id}/promotions": {
+      "post": {
+        "description": "Ask for the next tier (generated \u2192 organisation \u2192 curated). Anyone who manages plugins\nmay ask, the agent included; only a second person approves.",
+        "operationId": "request_promotion_api_v1_plugins__plugin_id__promotions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "plugin_id",
+            "required": true,
+            "schema": {
+              "title": "Plugin Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Request Promotion"
       }
     },
     "/api/v1/projects": {
@@ -6621,6 +6979,56 @@
           }
         },
         "summary": "Grant"
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/plugins/load-refused": {
+      "post": {
+        "description": "The browser refused a plugin's bytes (fetch-and-hash mismatch): record it in the audit log.",
+        "operationId": "load_refused_api_v1_workspaces__workspace_id__plugins_load_refused_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "title": "Workspace Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Refused"
       }
     },
     "/api/v1/workspaces/{workspace_id}/plugins/plan": {

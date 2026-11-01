@@ -3,6 +3,7 @@ An environment spec (JSON) picks a data kind, viewports (renderers), tools, pane
 Validate before saving; fix errors using their `path` and `suggestion`.
 
 ## dataKinds
+- `inkling.generic.dataKinds.files` — One item per file, any format; shown by a sandboxed viewer renderer
 - `inkling.image2d.dataKinds.raster` — Single-frame images, one item per file
 - `inkling.volume.dataKinds.volume` — Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation
 - `inkling.timeseries.dataKinds.multichannel-timeseries` — One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)

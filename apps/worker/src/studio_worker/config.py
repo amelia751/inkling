@@ -13,6 +13,11 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_POLL_S            | 1.0                                       | idle wait between claims |
 | WORKER_PLUGINS           | (all)                                     | comma-separated plugin ids this worker runs |
 | WORKER_ID                | <hostname>-<pid>                          | lease owner name |
+| WORKER_SIGNER            | local                                     | how `build_plugin` signs bundles (todo10 Phase 7): `local` (Ed25519 key file, dev) or `gcpkms` |
+| WORKER_SIGNING_KEY_FILE  | dev: the api's <data dir>/plugin-signing.key | the `local` key; must be the api's `API_SIGNER_KEY_FILE` (the kernel verifies with its own signer) |
+| WORKER_KMS_KEY           | (none)                                    | the `gcpkms` key version (`projects/…/cryptoKeyVersions/N`) |
+| WORKER_VERIFY_PYTHON     | this interpreter                          | the pinned toolchain `verify_plugin` runs the agent's converter with |
+| WORKER_VERIFY_MEMORY_MB  | 2048                                      | address-space limit of a verify run |
 | REPO_ROOT                | derived                                   | where schemas/, registry/, plugins/ are (/app in images) |
 | ENV                      | development                               | shared by every service: `development`, `test` or `production` |
 | LOG_LEVEL / LOG_FORMAT   | INFO / json                               | shared by every service; `LOG_FORMAT=text` for humans |
@@ -101,6 +106,11 @@ class WorkerSettings:
     plugins: list[str] | None = None
     worker_id: str = field(default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}")
     git_sha: str = "unknown"
+    signer: str = "local"
+    signing_key_file: Path | None = None
+    kms_key: str | None = None
+    verify_python: str | None = None
+    verify_memory_mb: int = 2048
 
 
 def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
@@ -138,7 +148,17 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         poll_s=num("WORKER_POLL_S", "1.0"),
         plugins=overrides.pop("plugins", None) or plugins,
         git_sha=env("GIT_SHA") or os.environ.get("GIT_SHA") or "unknown",
+        signer=env("WORKER_SIGNER", "local") or "local",
+        # Dev default: the api's own dev key in this checkout, so `pnpm dev` builds verify.
+        signing_key_file=Path(env("WORKER_SIGNING_KEY_FILE") or REPO_ROOT / "apps" / "api" / ".data" / "plugin-signing.key"),
+        kms_key=env("WORKER_KMS_KEY"),
+        verify_python=env("WORKER_VERIFY_PYTHON"),
+        verify_memory_mb=num("WORKER_VERIFY_MEMORY_MB", "2048", int),
     )
+    if s.signer not in ("local", "gcpkms"):
+        invalid.append(key_name("WORKER_SIGNER"))
+    if s.signer == "gcpkms" and not s.kms_key:
+        missing.append(key_name("WORKER_KMS_KEY"))
     if overrides.get("worker_id"):
         s.worker_id = overrides.pop("worker_id")
     elif env("WORKER_ID"):

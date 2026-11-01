@@ -53,18 +53,31 @@ copy production customer data into them. Large customers may later get a dedicat
 ## What the agent sees
 
 The agent works on the Studio's shell, never the data. From `spurby-ai` it may call only these API
-routes in `spurby-phi`, enforced by the agent's token scope in `apps/api`:
+routes in `spurby-phi`. An agent token (principal `agent:*`) gets 403 on every other route, whatever
+its scopes: the allowlist is `AGENT_ROUTES` in `apps/api/src/studio_api/kernel/agent_scope.py`, and a
+test checks each entry exists. Change this list and that file together.
 
-- `get_fingerprint`, `get_fixtures`: scrubbed structure and synthetic files;
-- `verify_on_sample`, `probe_sample`: fixed-schema reports and typed answers, free text dropped or
-  checked;
-- job start and job summary: counts, statuses, error classes;
-- environment and plugin control-plane routes (no item bytes). These include
-  `GET /plugins/{id}/files` (plugin package bytes and hashes), `POST
-  /workspaces/{ws}/plugins/load-refused` (writes one audit row) and `POST
-  /plugins/{id}/promotions` (asks only). Artifact export and import, and promotion review, need
-  `plugins.approve`, which agent tokens never carry;
-- a filtered annotation view: geometries and controlled-vocabulary labels; free text checked first.
+- Data boundary (`/api/v1/boundary/*`, todo10 Phase 7; results are the fixed schemas in
+  `schemas/boundary/`):
+  - `POST fingerprints` (`get_fingerprint`), `POST fixtures`, `GET fixtures/{set}/{name}`
+    (`get_fixtures`: synthetic files made from the fingerprint alone);
+  - `POST verify` (`verify_on_sample`), `POST probes` (`probe_sample`; budgeted, audited);
+  - `POST builds` (`build_plugin_artifact`: our worker rebuilds and signs the source);
+  - `GET jobs/{id}` (job summary: counts, states, error classes; the typed result of boundary jobs);
+  - `GET annotations` (filtered view: geometries and vocabulary labels, free text as placeholders),
+    `POST annotations/export` (a server-side snapshot; the document never passes through the agent).
+- Job start: `POST /api/v1/commands` (answers agents with job summaries; `versioning.checkout` refused).
+- Environment control plane: `GET`/`PATCH /api/environments/{id}`, `GET …/history`,
+  `POST /api/environments/validate`, `GET /api/catalog…`.
+- Plugin control plane: plugin search, detail and docs; workspace state, capabilities, plugins and
+  install requests; `plan`, `stage`, `activate`, `configure`, `disable`, `rollback`;
+  `POST /api/v1/plugins/artifacts` as a dry run only.
+- Dataset versioning on the agent's own `work/agent-*` branch: branches, commits, diff, reviews
+  (approve, merge and release are refused for agents in the kernel). No document, checkout or
+  artifact routes.
+- Project reads with no file contents: project, overview, sources, proposals (read, create),
+  review, search, drive listing, imports, source nodes and their activity; asset metadata
+  (`GET /api/v1/assets`: ids, paths, types, sizes).
 
 Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be
 singled out. The annotator's browser talks to the API in `spurby-phi` directly, never through the

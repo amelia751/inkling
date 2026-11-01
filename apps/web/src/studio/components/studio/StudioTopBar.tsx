@@ -31,6 +31,7 @@ import type { Project } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
 import { BootPill } from "@/studio/components/layout/boot-status";
 import { RequestReview, StaleNotice, useDraftHasChanges, useVersioning, WorkStateChip } from "@/studio/core/versioning";
+import { CollectionSwitcher } from "@/studio/core/collections/CollectionSwitcher";
 
 /**
  * The Studio header (todo8 D1): three zones and at most 7 controls at 1440px (guarded by
@@ -102,6 +103,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
           </Link>
           {!sameTitle && <span className="text-hint" aria-hidden>›</span>}
           <TaskSwitcher projectId={p} taskId={project.id} title={project.title} subtitle={env ? envLabel(env) : undefined} compact={sameTitle} />
+          <CollectionSwitcher projectId={p} taskId={project.id} />
         </nav>
       </div>
 

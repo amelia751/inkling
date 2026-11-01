@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import { DropPlanCards } from "@/studio/core/drops";
 import { useQuery } from "@tanstack/react-query";
 import { AiIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
@@ -232,6 +233,7 @@ function Conversation({
             )}
           </div>
         )}
+        <DropPlanCards projectId={project.id} />
       </div>
       <Composer project={project} provider={provider} placeholder={placeholder(profile)} running={running} busy={busy} onSend={ask} studio={!!studio} fresh={thread.length === 0} />
     </>

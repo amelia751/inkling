@@ -14,7 +14,7 @@ from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
 from .kernel import service_scope
-from .routes import boots, boundary, environments, explore, features, files, kernel, ops, pipelines, plugins, projects, service, sources, versioning, worker
+from .routes import boots, boundary, datasets_views, environments, explore, features, files, kernel, ops, pipelines, plugins, projects, service, sources, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +81,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(worker.router)
     app.include_router(versioning.router)
     app.include_router(projects.router)
+    app.include_router(datasets_views.router)
     app.include_router(boots.router)
     app.include_router(sources.router)
     app.include_router(files.router)

@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session, session_scope
-from ..kernel import dataset_profile, events, overview, projects
+from ..kernel import dataset_profile, datasets_views, events, overview, projects
 from ..models import DatasetRow, PluginEvent, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -122,7 +122,8 @@ def get_dataset(project_id: str, dataset_id: str, ctx: RequestContext = Depends(
 def get_dataset_profile(project_id: str, dataset_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """What the dataset holds and how it is shaped (docs/datasets.md §11.1): collections, fields,
     formats, relationships and issues, from inspection. Counts and technical facts only."""
-    return dataset_profile.build(db, _dataset(db, ctx, project_id, dataset_id))
+    d = _dataset(db, ctx, project_id, dataset_id)
+    return datasets_views.overlay_collections(d, dataset_profile.build(db, d))
 
 
 @router.get("/projects/{project_id}/datasets/{dataset_id}/tasks")

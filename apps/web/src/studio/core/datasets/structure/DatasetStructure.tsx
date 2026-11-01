@@ -13,10 +13,13 @@ import { Skeleton } from "@studio/ui/ui/skeleton";
 import { ErrorView } from "@/studio/app/routes/errors";
 import { KINDS } from "@/studio/lib/file-kinds";
 import { confirmProposal, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
-import { datasetUrl, exploreUrl, sourcesUrl } from "@/studio/lib/routes";
+import { datasetUrl, exploreUrl } from "@/studio/lib/routes";
 import { notify } from "@/studio/lib/files/announce";
 import type { DatasetViewProps } from "../DatasetLayout";
+import { StructureUnavailableError, usePutStructure } from "../api";
+import { useAddData } from "../add-data";
 import { countOf, percent } from "../model";
+import { confirmCollections, structureFromProfile, type DatasetStructure as StructureDraft } from "../structure";
 import { CollectionThumb, DatasetInspector, Facts, InspectorSection, SelectableRow, SuggestedBadge, Workspace } from "../shared";
 
 /**
@@ -24,8 +27,19 @@ import { CollectionThumb, DatasetInspector, Facts, InspectorSection, SelectableR
  * their links, never one node per file. Phase 1 is the list view (the accessible alternative
  * the graph will keep); suggested links can be confirmed, everything else is read-only.
  */
-export function DatasetStructure({ projectId, dataset, profile, canEdit }: DatasetViewProps) {
+export function DatasetStructure({ projectId, dataset, profile, structure, canEdit }: DatasetViewProps) {
   const [params, setParams] = useSearchParams();
+  const addData = useAddData(projectId, dataset);
+  const put = usePutStructure(projectId, dataset.id);
+  /** Confirm collections: write the stored draft (or, with none yet, one drafted from inspection) with them confirmed. */
+  const confirm = (ids: string[]) => {
+    if (!profile.data) return;
+    const base: StructureDraft = structure ?? structureFromProfile(profile.data);
+    put.mutate(confirmCollections(base, ids), {
+      onSuccess: () => notify(ids.length === 1 ? "Collection confirmed" : `${ids.length} collections confirmed`, { tone: "success" }),
+      onError: (e) => notify(e instanceof StructureUnavailableError ? e.message : e instanceof Error ? e.message : String(e), { tone: "error" }),
+    });
+  };
   const [q, setQ] = useState("");
   const selected = params.get("select");
   const select = (id: string | null) =>
@@ -54,10 +68,13 @@ export function DatasetStructure({ projectId, dataset, profile, canEdit }: Datas
           title="No structure yet"
           description="Collections appear once the dataset has files and they've been checked."
           actions={
-            <Button variant="outline" size="lg" asChild>
-              <Link to={sourcesUrl(projectId)}>Open Sources</Link>
-            </Button>
+            canEdit && (
+              <Button variant="outline" size="lg" onClick={() => addData("drop")}>
+                Add data
+              </Button>
+            )
           }
+          data-testid="structure-empty"
         />
       </Card>
     );
@@ -67,8 +84,9 @@ export function DatasetStructure({ projectId, dataset, profile, canEdit }: Datas
   const relationships = p.relationships.filter((r) => !needle || `${name(r.from)} ${name(r.to)} ${r.keys}`.toLowerCase().includes(needle));
   const pickedCollection = p.collections.find((c) => c.id === selected);
   const pickedRelationship = p.relationships.find((r) => r.id === selected);
+  const suggested = p.collections.filter((c) => c.suggested);
   const inspector = pickedCollection ? (
-    <EntityInspector projectId={projectId} datasetId={dataset.id} collection={pickedCollection} profile={p} onClose={() => select(null)} />
+    <EntityInspector projectId={projectId} datasetId={dataset.id} collection={pickedCollection} profile={p} onClose={() => select(null)} onConfirm={canEdit && pickedCollection.suggested ? () => confirm([pickedCollection.id]) : undefined} confirming={put.isPending} />
   ) : pickedRelationship ? (
     <RelationshipInspector projectId={projectId} r={pickedRelationship} from={name(pickedRelationship.from)} to={name(pickedRelationship.to)} canEdit={canEdit} onClose={() => select(null)} />
   ) : null;
@@ -81,7 +99,13 @@ export function DatasetStructure({ projectId, dataset, profile, canEdit }: Datas
         </div>
         <p className="text-sm text-muted-foreground">
           {countOf(p.collections.length, { one: "collection", other: "collections" })} · {countOf(p.relationships.length, { one: "connection", other: "connections" })}
+          {suggested.length > 0 && <> · {countOf(suggested.length, { one: "suggested", other: "suggested" })}</>}
         </p>
+        {canEdit && suggested.length > 0 && (
+          <Button variant="outline" size="sm" className="sm:ml-auto" loading={put.isPending} onClick={() => confirm(suggested.map((c) => c.id))} title="Says these collections are right; inspection keeps their counts up to date" data-testid="confirm-all-collections">
+            Confirm {suggested.length === 1 ? "suggested collection" : `${suggested.length} suggested collections`}
+          </Button>
+        )}
       </div>
       {needle && !collections.length && !relationships.length ? (
         <NoResults what="collections or fields" onClear={() => setQ("")} />
@@ -156,7 +180,7 @@ function coverageText(r: DatasetRelationship): string {
   return ` · ${percent(c.matched / c.rows)} of rows matched`;
 }
 
-function EntityInspector({ projectId, datasetId, collection: c, profile, onClose }: { projectId: string; datasetId: string; collection: DatasetCollection; profile: DatasetProfile; onClose: () => void }) {
+function EntityInspector({ projectId, datasetId, collection: c, profile, onClose, onConfirm, confirming }: { projectId: string; datasetId: string; collection: DatasetCollection; profile: DatasetProfile; onClose: () => void; onConfirm?: () => void; confirming?: boolean }) {
   const links = profile.relationships.filter((r) => r.from === c.id || r.to === c.id);
   const name = (id: string) => profile.collections.find((x) => x.id === id)?.name ?? id;
   const required = c.fields.filter((f) => f.required);
@@ -203,9 +227,19 @@ function EntityInspector({ projectId, datasetId, collection: c, profile, onClose
           <p className="text-muted-foreground">No problems found.</p>
         )}
       </InspectorSection>
-      <Button variant="outline" size="sm" asChild>
-        <Link to={`${datasetUrl(projectId, datasetId, "fields")}?collection=${encodeURIComponent(c.id)}`}>Fields & Formats</Link>
-      </Button>
+      <InspectorSection title="Status" testid="collection-status">
+        <p className={c.suggested ? "text-muted-foreground" : undefined}>{c.suggested ? "Suggested: inferred from the files, not confirmed by anyone yet." : "Confirmed."}</p>
+      </InspectorSection>
+      <div className="flex flex-wrap gap-2">
+        {onConfirm && (
+          <Button size="sm" loading={confirming} onClick={onConfirm} data-testid="confirm-collection">
+            Confirm
+          </Button>
+        )}
+        <Button variant="outline" size="sm" asChild>
+          <Link to={`${datasetUrl(projectId, datasetId, "fields")}?collection=${encodeURIComponent(c.id)}`}>Fields & Formats</Link>
+        </Button>
+      </div>
     </DatasetInspector>
   );
 }

@@ -12,13 +12,15 @@ import { ErrorView } from "@/studio/app/routes/errors";
 import { actorName, actorOf } from "@/studio/app/routes/ActivityPage";
 import { relativeTime } from "@/studio/components/files";
 import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
-import { datasetUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { datasetUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
 import { api as versioning } from "@/studio/core/versioning/api";
 import { versioningEnabled } from "@/studio/core/versioning/session";
 import type { DatasetViewProps } from "./DatasetLayout";
-import { byRisk, countOf, itemShape } from "./model";
+import { useDatasetAttention, usePipelineProblems } from "./api";
+import { useAddData } from "./add-data";
+import { byRisk, countOf, itemShape, pipelineAttention, rankAttention } from "./model";
 import { IssueLine } from "./quality/DatasetQuality";
-import { CollectionThumb, DatasetSection, SuggestedBadge } from "./shared";
+import { AttentionLine, CollectionThumb, DatasetSection, SuggestedBadge } from "./shared";
 
 /**
  * A dataset's home (docs/datasets.md §4): "What is this dataset, and what needs my attention?"
@@ -27,6 +29,7 @@ import { CollectionThumb, DatasetSection, SuggestedBadge } from "./shared";
  */
 export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: DatasetViewProps) {
   const p = profile.data;
+  const addData = useAddData(projectId, d);
   return (
     <div className="flex flex-col gap-8" data-testid="dataset-overview">
       {p?.checking ? (
@@ -40,7 +43,7 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
             <ErrorView variant="section" error={profile.error} what="this dataset's collections" onRetry={() => void profile.refetch()} />
           </Card>
         ) : !p ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-busy data-testid="collections-loading">
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-[104px] rounded-lg" />)}
           </div>
         ) : p.collections.length === 0 ? (
@@ -49,12 +52,15 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
               art="files"
               size="m"
               title="No data in this dataset yet"
-              description="Add files in Sources, then include their folders in this dataset."
+              description={canEdit ? "Drop files here or describe what you need; they're added to this dataset." : "Nothing has been added yet. Ask a contributor to add files."}
               actions={
-                <Button variant="outline" size="lg" asChild>
-                  <Link to={sourcesUrl(projectId)}>Open Sources</Link>
-                </Button>
+                canEdit && (
+                  <Button variant="outline" size="lg" onClick={() => addData("drop")} data-testid="overview-add-data">
+                    Add data
+                  </Button>
+                )
               }
+              data-testid="overview-empty"
             />
           </Card>
         ) : (
@@ -141,8 +147,17 @@ export function TaskList({ projectId, tasks }: { projectId: string; tasks: TaskS
   );
 }
 
+/**
+ * §4 "Needs attention": the dataset's problems by risk (not raw count), then what waits on a
+ * person: suggested structure to confirm, a drop plan to decide, a pipeline run to look at.
+ * "No problems found" speaks for the files; waiting decisions are listed apart.
+ */
 function NeedsAttention({ projectId, datasetId, profile }: { projectId: string; datasetId: string; profile?: DatasetProfile }) {
+  const attention = useDatasetAttention(projectId, datasetId);
+  const pipeline = usePipelineProblems(projectId);
   const top = profile ? byRisk(profile.issues).slice(0, 4) : [];
+  // Issues already come from the profile; the attention read adds decisions and structure.
+  const waiting = rankAttention([...(attention.data ?? { items: [] }).items.filter((i) => i.kind === "plan" || i.id.includes(":structure.")), ...pipelineAttention(pipeline.data, datasetId)]);
   return (
     <DatasetSection id="attention-heading" title="Needs attention" link={profile?.issues.length ? { to: datasetUrl(projectId, datasetId, "quality"), label: "All issues" } : undefined} testid="dataset-attention">
       {!profile ? (
@@ -159,6 +174,11 @@ function NeedsAttention({ projectId, datasetId, profile }: { projectId: string; 
               <ChevronRightIcon className="size-4 shrink-0 text-hint" />
             </Link>
           ))}
+        </Card>
+      )}
+      {waiting.length > 0 && (
+        <Card className="mt-3 divide-y divide-border overflow-hidden" data-testid="dataset-waiting">
+          {waiting.slice(0, 4).map((i) => <AttentionLine key={i.id} projectId={projectId} item={i} />)}
         </Card>
       )}
     </DatasetSection>

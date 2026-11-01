@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router";
 import type { DatasetCollection } from "@studio/contracts/types";
-import { CloseIcon } from "@studio/ui/icons";
+import { AiIcon, ChevronRightIcon, CloseIcon, ErrorIcon, PrivacyIcon, QueueIcon, RelationshipIcon, WarningIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
@@ -9,6 +9,8 @@ import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import { usePreview } from "@/studio/components/sources/queries";
+import { targetUrl } from "@/studio/lib/routes";
+import type { DatasetAttentionItem } from "./api";
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { useViewport } from "@/studio/lib/use-media-query";
 
@@ -136,5 +138,43 @@ export function SelectableRow({ selected, onSelect, children, className, ...rest
     >
       {children}
     </button>
+  );
+}
+
+const ATTENTION_ICON = { malformed: WarningIcon, pipeline: QueueIcon, plan: AiIcon, suggestion: RelationshipIcon } as const;
+const KIND_WORD = { malformed: "Files", pipeline: "Pipeline", plan: "Plan waiting", suggestion: "To confirm" } as const;
+
+/**
+ * One thing that needs a person (§2.1 "Needs attention"): what, how much it matters in words
+ * (never colour alone), and where to go. Keyboard: a link per row.
+ */
+export function AttentionLine({ projectId, item: i, showDataset = false }: { projectId: string; item: DatasetAttentionItem; showDataset?: boolean }) {
+  const Icon = i.blocking ? PrivacyIcon : i.severity === "high" ? ErrorIcon : ATTENTION_ICON[i.kind];
+  return (
+    <Link to={targetUrl(projectId, i.action.target)} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-generic" data-testid="attention-item" data-kind={i.kind} data-severity={i.severity}>
+      <Icon className={cn("size-4 shrink-0", i.blocking || i.severity === "high" ? "text-warning" : i.kind === "plan" ? "text-ai-text" : "text-hint")} aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium">{i.title}</span>
+        <span className="block truncate text-muted-foreground">
+          {showDataset && i.datasetTitle && <>{i.datasetTitle} · </>}
+          {i.detail}
+        </span>
+      </span>
+      <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">{KIND_WORD[i.kind]}</span>
+      {i.blocking && <Badge theme="danger" size="xs">Blocks release</Badge>}
+      <ChevronRightIcon className="size-4 shrink-0 text-hint" aria-hidden />
+    </Link>
+  );
+}
+
+/** "View only": a viewer browses, never changes (§12.2). Says so once, near the actions. */
+export function ReadOnlyBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge theme="unknown" tabIndex={0} data-testid="read-only">View only</Badge>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64">You can browse this dataset. Ask a contributor to add data or change its structure.</TooltipContent>
+    </Tooltip>
   );
 }

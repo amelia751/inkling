@@ -1,4 +1,7 @@
-import type { DatasetCollection, DatasetIssue, DatasetIssueCategory, DatasetProfile, DatasetSummary, DetectedKind } from "@studio/contracts/types";
+import type { AttentionItem, DatasetCollection, DatasetIssue, DatasetIssueCategory, DatasetProfile, DatasetSummary, DetectedKind } from "@studio/contracts/types";
+import type { Commit } from "@/studio/core/versioning/api";
+import type { PipelineRun, PipelineRunSummary } from "@/studio/core/pipelines/contract";
+import type { DatasetAttentionItem, DatasetLandingSummary } from "./api";
 
 /**
  * Plain-language reading of a dataset profile (docs/datasets.md §3: `MRI volumes` before
@@ -11,14 +14,17 @@ export function countOf(n: number, unit: { one: string; other: string }): string
 }
 
 /** "1 series · 120 images · 1 table": what is counted, at each collection's own level (§2.1). */
-export function contentSummary(profile: Pick<DatasetProfile, "collections">, max = 3): string {
+type Counted = { collections: Pick<DatasetCollection, "count" | "unit">[] };
+type Kinded = { collections: Pick<DatasetCollection, "kind">[] };
+
+export function contentSummary(profile: Counted, max = 3): string {
   const parts = profile.collections.slice(0, max).map((c) => countOf(c.count, c.unit));
   const rest = profile.collections.length - max;
   return [...parts, ...(rest > 0 ? [`${rest} more`] : [])].join(" · ");
 }
 
 /** "DICOM series · Images · Tables" */
-export function collectionNames(profile: Pick<DatasetProfile, "collections">): string {
+export function collectionNames(profile: { collections: Pick<DatasetCollection, "name">[] }): string {
   return profile.collections.map((c) => c.name).join(" · ");
 }
 
@@ -47,7 +53,7 @@ const FAMILY: Partial<Record<DetectedKind, Modality>> = {
   waveform: "timeseries",
 };
 
-export function modalitiesOf(profile: Pick<DatasetProfile, "collections"> | undefined): Modality[] {
+export function modalitiesOf(profile: Kinded | undefined): Modality[] {
   return [...new Set((profile?.collections ?? []).map((c) => FAMILY[c.kind]).filter((m): m is Modality => !!m))];
 }
 
@@ -59,10 +65,11 @@ export const STATUS_THEME: Record<DatasetStatus, "info" | "warning" | "unknown" 
  * One word for where a dataset stands. Files still being checked first (the numbers will
  * change), then anything blocking or high-severity, then a Studio still in draft.
  */
-export function datasetStatus(d: Pick<DatasetSummary, "tasks">, profile: Pick<DatasetProfile, "checking" | "issues"> | undefined): DatasetStatus | undefined {
+export function datasetStatus(d: Pick<DatasetSummary, "tasks">, profile: Pick<DatasetProfile, "checking" | "issues"> | Pick<DatasetLandingSummary, "checking" | "issues"> | undefined): DatasetStatus | undefined {
   if (!profile) return undefined;
   if (profile.checking > 0) return "processing";
-  if (profile.issues.some((i) => i.blocking || i.severity === "high")) return "needs-attention";
+  const serious = Array.isArray(profile.issues) ? profile.issues.some((i) => i.blocking || i.severity === "high") : profile.issues.blocking + profile.issues.high > 0;
+  if (serious) return "needs-attention";
   if (!d.tasks.length || d.tasks.some((t) => t.state === "draft")) return "draft";
   return "ready";
 }
@@ -129,4 +136,92 @@ export function swatch(color: string | undefined, index: number): string {
   if (color && /^chart-[1-5]$/.test(color)) return `hsl(var(--${color}))`;
   if (color) return color;
   return `hsl(var(--chart-${(index % 5) + 1}))`;
+}
+
+// ---- Landing (todo13 Milestone 3) --------------------------------------------------------------
+
+/** The landing summary built from a full profile, for servers without `dataset-summaries`. */
+export function summaryFromProfile(datasetId: string, p: DatasetProfile): DatasetLandingSummary {
+  const max = 8;
+  return {
+    datasetId,
+    files: p.files,
+    checking: p.checking,
+    collections: p.collections.slice(0, max).map(({ id, name, kind, count, unit, files, suggested, issues, previewNodeId }) => ({ id, name, kind, count, unit, files, suggested, issues, previewNodeId })),
+    moreCollections: Math.max(0, p.collections.length - max),
+    relationships: p.relationships.length,
+    issues: { count: p.issues.length, items: p.issues.reduce((n, i) => n + i.count, 0), blocking: p.issues.filter((i) => i.blocking).length, high: p.issues.filter((i) => i.severity === "high").length },
+    suggestions: p.collections.filter((c) => c.suggested).length + p.relationships.filter((r) => r.status === "suggested").length,
+    snapshot: p.snapshot,
+    lastChangedAt: null,
+  };
+}
+
+/** The review queue's dataset rows as attention rows, for servers without `dataset-attention`. */
+export function attentionFromQueue(items: AttentionItem[]): DatasetAttentionItem[] {
+  return items
+    .filter((i) => i.datasetId)
+    .map((i) => ({
+      id: `queue:${i.id}`,
+      kind: i.type === "privacy" || i.type === "quality" || i.type === "import" ? "malformed" : "suggestion",
+      datasetId: i.datasetId ?? null,
+      severity: i.severity,
+      blocking: i.type === "privacy",
+      title: i.title,
+      detail: i.detail,
+      count: 1,
+      action: { label: "Open", target: i.target },
+      at: i.at,
+    }));
+}
+
+const runTitle = (r: PipelineRunSummary) => r.definition_name || r.definition_id;
+
+/**
+ * Pipeline runs that need a person, as attention rows (todo12's validation). For one dataset,
+ * only runs whose candidate belongs to it; without a dataset, every problem run of the project.
+ */
+export function pipelineAttention(problems: { runs: PipelineRunSummary[]; details: PipelineRun[] } | undefined, datasetId?: string): DatasetAttentionItem[] {
+  if (!problems) return [];
+  const detail = new Map(problems.details.map((d) => [d.run_id, d]));
+  const runs = datasetId ? problems.runs.filter((r) => detail.get(r.run_id)?.candidate?.dataset_id === datasetId) : problems.runs;
+  return runs.map((r) => {
+    const held = (r.item_counts?.quarantined ?? 0) + (r.item_counts?.rejected ?? 0);
+    const base = { id: `pipeline:${r.run_id}`, kind: "pipeline" as const, datasetId: detail.get(r.run_id)?.candidate?.dataset_id ?? null, count: Math.max(1, held), at: r.finished_at ?? r.started_at ?? r.created_at, action: { label: "Open run", target: { section: "pipelines" as const, runId: r.run_id } } };
+    if (r.state === "failed") return { ...base, severity: "high" as const, blocking: false, title: `${runTitle(r)} run failed`, detail: r.error?.message ?? "A step failed; files it didn't reach weren't processed." };
+    if (r.state === "awaiting_review") return { ...base, severity: "medium" as const, blocking: false, title: `${runTitle(r)} run is waiting for review`, detail: held ? `${held.toLocaleString()} ${held === 1 ? "file was" : "files were"} held back by validation.` : "Its output becomes part of the dataset once someone approves it." };
+    return { ...base, severity: "medium" as const, blocking: false, title: `${held.toLocaleString()} ${held === 1 ? "file" : "files"} held back by pipeline validation`, detail: `In the ${runTitle(r)} run. Quarantined files stay in Files and can be retried.` };
+  });
+}
+
+/** Riskiest first: blocking, severity, then a waiting decision before a suggestion. */
+export function rankAttention(items: DatasetAttentionItem[]): DatasetAttentionItem[] {
+  const sev = { high: 0, medium: 1, low: 2 } as const;
+  const kind = { malformed: 0, pipeline: 1, plan: 2, suggestion: 3 } as const;
+  return [...items].sort((a, b) => Number(b.blocking) - Number(a.blocking) || sev[a.severity] - sev[b.severity] || kind[a.kind] - kind[b.kind] || b.count - a.count);
+}
+
+// ---- History (§9.2) ----------------------------------------------------------------------------
+
+/**
+ * A commit in words (§9.2: "Added 24 reviewed MRI studies", never a hash). The author's message
+ * when there is one; otherwise what the operation did.
+ */
+export function historyTitle(c: Pick<Commit, "message" | "operation" | "annotation_count" | "sample_count">): string {
+  const msg = (c.message ?? "").trim().split("\n")[0];
+  if (c.operation === "init") return msg && !/^init/i.test(msg) ? msg : "Started keeping versions of this dataset";
+  if (c.operation === "merge") return msg && !/^merge\b/i.test(msg) ? `Approved: ${msg}` : "Approved changes reached main";
+  if (c.operation === "revert") return "Restored an earlier version";
+  if (msg) return msg.charAt(0).toUpperCase() + msg.slice(1);
+  if (c.annotation_count !== undefined) return `Saved ${countOf(c.annotation_count, { one: "annotation", other: "annotations" })}`;
+  return "Saved changes";
+}
+
+/** `user:ada` → "ada", `agent:run_1` → "Assistant", `service:pipeline` → "Pipeline". */
+export function authorName(id: string | undefined): string {
+  if (!id) return "Someone";
+  const [kind, rest] = id.includes(":") ? [id.slice(0, id.indexOf(":")), id.slice(id.indexOf(":") + 1)] : ["user", id];
+  if (kind === "agent") return "Assistant";
+  if (kind === "service" || kind === "worker") return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : "System";
+  return rest || id;
 }

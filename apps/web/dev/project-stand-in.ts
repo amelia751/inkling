@@ -12,6 +12,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * 501 `{ error: "needs the API" }`: adding data needs the full stack (docs/running.md).
  *
  *   GET  /api/v1/projects[/:id[/overview|/sources|/datasets[/:d[/profile]]|/search|/imports|/proposals|/review|/activity|/resume]]
+ *   GET  /api/v1/projects/:id/dataset-summaries, /dataset-attention?datasetId= (routes/datasets_views.py)
+ *   GET  /api/v1/datasets/:d/structure               → 404 (no structure draft; todo13-organize stores one)
  *   PUT  /api/v1/projects/:id/resume
  *   GET  /api/v1/sources/:id/children?node=&cursor=
  *   GET  /api/v1/source-nodes/:id[/preview]
@@ -431,6 +433,44 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     return { datasetId: p.id, snapshot: { kind: "draft", label: "Working draft", readOnly: false }, files: files.length, checking: 0, collections, relationships: [], issues: [] };
   }
 
+  /** `GET …/dataset-summaries` (kernel/datasets_views.py `summary`), from the profile above. */
+  function landingSummary(p: SeedProject) {
+    const prof = profile(p);
+    return {
+      datasetId: p.id,
+      files: prof.files,
+      checking: 0,
+      collections: prof.collections.slice(0, 8).map(({ id, name, kind, count, unit, files, suggested, issues, previewNodeId }) => ({ id, name, kind, count, unit, files, suggested, issues, previewNodeId })),
+      moreCollections: Math.max(0, prof.collections.length - 8),
+      relationships: 0,
+      issues: { count: 0, items: 0, blocking: 0, high: 0 },
+      suggestions: prof.collections.filter((c) => c.suggested).length,
+      snapshot: prof.snapshot,
+      lastChangedAt: createdAt(),
+    };
+  }
+
+  /** `GET …/dataset-attention`: a vetted sample has no problems; its inferred collections wait for a person to confirm them. */
+  function datasetAttention(p: SeedProject) {
+    const pending = profile(p).collections.filter((c) => c.suggested);
+    if (!pending.length) return { items: [], total: 0, byKind: {} };
+    const n = pending.length;
+    const item = {
+      id: `${p.id}:structure.suggested@1`,
+      kind: "suggestion",
+      datasetId: p.id,
+      datasetTitle: p.title,
+      severity: "low",
+      blocking: false,
+      title: `${n} suggested ${n === 1 ? "collection" : "collections"} to confirm`,
+      detail: `${pending.map((c) => c.name).slice(0, 3).join(", ")}: inferred from the files. Nothing relies on ${n === 1 ? "it" : "them"} until someone confirms.`,
+      count: n,
+      action: { label: "Review structure", target: { section: "datasets", datasetId: p.id, tab: "structure" } },
+      at: null,
+    };
+    return { items: [item], total: 1, byKind: { suggestion: 1 } };
+  }
+
   function review(p: SeedProject) {
     const pending = annotationsOf(p.id).annotations.filter((a) => (a.provenance === "ai-suggested" || a.provenance === "imported") && (a.attributes?.review_status ?? "pending") === "pending");
     return pending.length ? [{ id: `annotations:${p.id}`, type: "annotations", severity: "low", title: `${pending.length} ${pending.length === 1 ? "annotation" : "annotations"} to review`, detail: p.title, target: { section: "studio", taskId: p.id }, datasetId: p.id, at: annotationsOf(p.id).savedAt ?? null }] : [];
@@ -495,6 +535,12 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         return send(200, { sources: [{ id: p.id, projectId: p.id, title: nodes.get(root)!.name, kind: "seed", status: "ready", rootNodeId: root, fileCount: nodes.get(root)!.descendants, createdBy: SEED_PRINCIPAL, createdAt: createdAt(), usedInDatasets: [p.id] }] });
       }
       if (sub === "datasets" && subId === p.id && subSub === "update-versions" && parts[5] === "preview") return send(200, { files: [] });
+      if (sub === "dataset-summaries") return send(200, { datasets: [landingSummary(p)] });
+      if (sub === "dataset-attention") {
+        const only = url.searchParams.get("datasetId");
+        if (only && only !== p.id) return notFound();
+        return send(200, datasetAttention(p));
+      }
       if (sub === "datasets") {
         if (!subId) return send(200, { datasets: [dataset(p)] });
         if (subId !== p.id) return notFound();
@@ -557,6 +603,8 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       }
       return notFound();
     }
+    // No structure drafts without the kernel (todo13-organize stores them in versioning).
+    if (head === "datasets" && id && sub === "structure") return notFound();
     if (head === "sources" && id && sub === "children") {
       const p = project(id);
       if (!p) return notFound();

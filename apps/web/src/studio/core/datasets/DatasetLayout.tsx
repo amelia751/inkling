@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, NavLink, useNavigate, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { DatasetProfile, DatasetSummary } from "@studio/contracts/types";
@@ -15,14 +15,18 @@ import { FollowedFoldersBanner, NewerVersionsBanner } from "@/studio/components/
 import { fetchUpdateVersionsPreview, useAddFollowed, useUpdateVersions } from "@/studio/lib/files/api";
 import { notify } from "@/studio/lib/files/announce";
 import { NeedsApiError, useDataset, useProjectSummary } from "@/studio/lib/projects-api";
-import { datasetUrl, projectUrl, sourcesUrl, type DatasetTab } from "@/studio/lib/routes";
+import { datasetUrl, projectUrl, type DatasetTab } from "@/studio/lib/routes";
+import { useAgentContext } from "@/studio/lib/agent/providers";
 import { canEditTaskSetup } from "@/studio/lib/task-setup";
 import { useShell } from "@/studio/stores/shell";
 import { api as versioning } from "@/studio/core/versioning/api";
 import { versioningEnabled } from "@/studio/core/versioning/session";
 import { ErrorView } from "@/studio/app/routes/errors";
 import { ExportPage } from "@/studio/app/routes/ExportPage";
-import { useDatasetProfile } from "./api";
+import { useDatasetView, type ProfileQuery } from "./api";
+import { datasetContext, rememberDataset, useAddData } from "./add-data";
+import type { DatasetStructure as StructureDraft } from "./structure";
+import { ReadOnlyBadge } from "./shared";
 import { datasetStatus, STATUS_LABEL, STATUS_THEME } from "./model";
 import { DatasetOverview } from "./DatasetOverview";
 import { DatasetStructure } from "./structure/DatasetStructure";
@@ -44,7 +48,10 @@ const TABS: { tab: Exclude<DatasetTab, "publish">; label: string }[] = [
 export interface DatasetViewProps {
   projectId: string;
   dataset: DatasetSummary;
-  profile: ReturnType<typeof useDatasetProfile>;
+  /** The working draft's profile, as its structure describes it (`useDatasetView`). */
+  profile: ProfileQuery;
+  /** The stored structure draft: `null` when the dataset has none yet (or the server can't store one). */
+  structure?: StructureDraft | null;
   /** Contributors propose changes and publish; viewers browse (§12.2). */
   canEdit: boolean;
 }
@@ -53,10 +60,15 @@ export interface DatasetViewProps {
 export function DatasetLayout({ tab }: { tab: DatasetTab }) {
   const { projectId = "", datasetId = "" } = useParams();
   const ds = useDataset(projectId, datasetId);
-  const profile = useDatasetProfile(projectId, datasetId);
+  const { structure, ...profile } = useDatasetView(projectId, datasetId);
   const summary = useProjectSummary(projectId);
   const canEdit = canEditTaskSetup(summary.data);
   const d = ds.data;
+  // The assistant works on this dataset while it's open (a drop from here lands in it).
+  useAgentContext(useMemo(() => (d ? datasetContext(projectId, d, profile.data) : null), [projectId, d, profile.data]));
+  useEffect(() => {
+    if (d) rememberDataset(projectId, d.id);
+  }, [projectId, d]);
   if (ds.error)
     return (
       <AppLayout>
@@ -83,7 +95,7 @@ export function DatasetLayout({ tab }: { tab: DatasetTab }) {
           ))}
         </nav>
         {d && <DatasetBanners projectId={projectId} dataset={d} />}
-        {!d ? <ViewSkeleton /> : <DatasetView tab={tab} projectId={projectId} dataset={d} profile={profile} canEdit={canEdit} />}
+        {!d ? <ViewSkeleton /> : <DatasetView tab={tab} projectId={projectId} dataset={d} profile={profile} structure={structure} canEdit={canEdit} />}
       </div>
     </AppLayout>
   );
@@ -123,6 +135,7 @@ function ViewSkeleton() {
 
 function DatasetHeader({ projectId, dataset: d, profile, canEdit }: { projectId: string; dataset?: DatasetSummary; profile?: DatasetProfile; canEdit: boolean }) {
   const setAssistant = useShell((s) => s.setAssistant);
+  const addData = useAddData(projectId, d);
   const status = d ? datasetStatus(d, profile) : undefined;
   if (!d)
     return (
@@ -138,14 +151,17 @@ function DatasetHeader({ projectId, dataset: d, profile, canEdit }: { projectId:
           <h1 className="text-header-2 font-semibold" data-testid="dataset-title">{d.title}</h1>
           {status && <Badge theme={STATUS_THEME[status]} data-testid="dataset-status">{STATUS_LABEL[status]}</Badge>}
           {d.definition.seed && <Badge theme="unknown">Sample</Badge>}
+          {!canEdit && <ReadOnlyBadge />}
         </div>
         {d.description && <p className="mt-1 text-sm text-muted-foreground">{d.description}</p>}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-2 sm:shrink-0">
         <SnapshotPicker projectId={projectId} dataset={d} profile={profile} />
-        <Button variant="outline" size="lg" asChild>
-          <Link to={sourcesUrl(projectId)} data-testid="dataset-add-data"><AddDataIcon /> Add data</Link>
-        </Button>
+        {canEdit && (
+          <Button variant="outline" size="lg" onClick={() => addData("drop")} title="Drop files or describe what to add; they go to this dataset" data-testid="dataset-add-data">
+            <AddDataIcon /> Add data
+          </Button>
+        )}
         {canEdit && (
           <Button variant="outline" size="lg" onClick={() => setAssistant(true, true)} title="Describe the change; nothing is applied until you confirm it" data-testid="propose-change">
             <AiIcon className="text-ai-text" /> Propose change
@@ -171,7 +187,7 @@ function SnapshotPicker({ projectId, dataset: d, profile }: { projectId: string;
   const [open, setOpen] = useState(false);
   const on = useQuery({ queryKey: ["versioning", d.id, "enabled"], queryFn: () => versioningEnabled(d.id), staleTime: Infinity });
   const releases = useQuery({ queryKey: ["versioning", d.id, "releases"], queryFn: () => versioning.releases(d.id, d.id), enabled: open && !!on.data });
-  const history = () => navigate(datasetUrl(projectId, d.id, "versions"));
+  const history = (ref: string) => navigate(`${datasetUrl(projectId, d.id, "versions")}?ref=${encodeURIComponent(ref)}`);
   const label = profile?.snapshot.label ?? "Working draft";
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
@@ -192,14 +208,14 @@ function SnapshotPicker({ projectId, dataset: d, profile }: { projectId: string;
         <DropdownMenuSeparator />
         {on.data ? (
           <>
-            <DropdownMenuItem className="items-start pl-8" onSelect={history} data-testid="snapshot-main">
+            <DropdownMenuItem className="items-start pl-8" onSelect={() => history("main")} data-testid="snapshot-main">
               <span className="flex flex-col">
                 <span>main</span>
-                <span className="text-xs text-muted-foreground">Latest approved, opens in History</span>
+                <span className="text-xs text-muted-foreground">Latest approved, read-only, opens in History</span>
               </span>
             </DropdownMenuItem>
             {(releases.data?.items ?? []).slice(0, 5).map((r) => (
-              <DropdownMenuItem key={r.tag} className="pl-8" onSelect={history}>
+              <DropdownMenuItem key={r.tag} className="pl-8" onSelect={() => history(`release:${r.tag}`)} data-testid="snapshot-release">
                 <TagIcon /> Release {r.tag} <span className="ml-auto text-xs text-muted-foreground">Read-only</span>
               </DropdownMenuItem>
             ))}

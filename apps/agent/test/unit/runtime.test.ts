@@ -30,6 +30,36 @@ describe("event projection (recorded pi stream)", () => {
     expect(out.find((e) => e.type === "tool-result")).toMatchObject({ ok: true, summary: "hi" });
   });
 
+  it("streams boot_studio arguments as the start / args / end triple (string fragments), and nothing else", () => {
+    const p = new Projector("scripted:replay");
+    const call = (name: string, id: string) => ({ type: "toolCall", id, name, arguments: {} });
+    const upd = (a: any) => p.project({ type: "message_update", assistantMessageEvent: a } as unknown as AgentSessionEvent);
+    const boot = { content: [{ type: "text", text: "" }, call("boot_studio", "tc_1")] };
+    const bash = { content: [call("bash", "tc_2")] };
+    const out = [
+      ...upd({ type: "toolcall_start", contentIndex: 0, partial: bash }),
+      ...upd({ type: "toolcall_delta", contentIndex: 0, delta: '{"command":"ls"}', partial: bash }),
+      ...upd({ type: "toolcall_end", contentIndex: 0, toolCall: bash.content[0], partial: bash }),
+      ...upd({ type: "toolcall_start", contentIndex: 1, partial: boot }),
+      ...upd({ type: "toolcall_delta", contentIndex: 1, delta: '{"preset":"pre', partial: boot }),
+      ...upd({ type: "toolcall_delta", contentIndex: 1, delta: 'set:image-2d"}', partial: boot }),
+      ...upd({ type: "toolcall_end", contentIndex: 1, toolCall: boot.content[1], partial: boot }),
+    ];
+    expect(out).toEqual([
+      { type: "tool-call-start", id: "tc_1", name: "boot_studio" },
+      { type: "tool-call-args", id: "tc_1", delta: '{"preset":"pre' },
+      { type: "tool-call-args", id: "tc_1", delta: 'set:image-2d"}' },
+      { type: "tool-call-end", id: "tc_1" },
+    ]);
+    // A provider that names the call only at its first delta still gets the triple.
+    const late = { content: [{ type: "toolCall", id: "tc_3", arguments: {} }] as any[] };
+    const p2 = new Projector("scripted:replay");
+    const upd2 = (a: any) => p2.project({ type: "message_update", assistantMessageEvent: a } as unknown as AgentSessionEvent);
+    expect(upd2({ type: "toolcall_start", contentIndex: 0, partial: late })).toEqual([]);
+    late.content[0].name = "boot_studio";
+    expect(upd2({ type: "toolcall_delta", contentIndex: 0, delta: "{}", partial: late }).map((e) => e.type)).toEqual(["tool-call-start", "tool-call-args"]);
+  });
+
   it("never projects credential-shaped tool arguments", () => {
     const result = project().find((e) => e.type === "tool-result") as Extract<AgentEventBody, { type: "tool-result" }>;
     expect(JSON.stringify(result.input)).not.toContain("sk-live");

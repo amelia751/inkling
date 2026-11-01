@@ -3,8 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Wire types between the Studio (apps/web) and the agent service (apps/agent). Types only.",
+  "description": "Wire types between the Studio (apps/web) and the agent service (apps/agent), plus the AG-UI 1.0 mapping table (data, todo11 D4).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ag-ui-map": "./src/ag-ui-map.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
   }
 }

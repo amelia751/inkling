@@ -17,10 +17,11 @@ const RES = NAMING.resourcePrefix;
  *   GET   /api/catalog/schema           → environment JSON Schema with registered-id enums
  *   GET   /api/catalog/capabilities     → capabilities of active plugins (plugin.yaml)
  *   GET   /api/catalog/plugins/:id      → one plugin's manifest and declarative UI
- *   POST  /api/environments/validate    → resolve a spec; structured errors
+ *   POST  /api/environments/validate    → the API's checks (environment-core) + the resolver; {ok:false, errors}
  *   GET   /api/environments/:projectId  → saved environment edits ({ environment: null } if none)
  *   PUT   /api/environments/:projectId  → replace (validated); { revision, environment, author }
- *   PATCH /api/environments/:projectId  → RFC 6902 JSON Patch (validated); { revision?, patch, author }
+ *   PATCH /api/environments/:projectId  → RFC 6902 JSON Patch (validated); { revision, patch, author }
+ *                                         `revision` is required (422 without it, 409 when stale), as in the API
  *   GET   /api/environments/:projectId/history → every saved revision with author and time
  *   GET   /api/v1/workspaces/:id/state → active plugins: seed-data/<id>/workspace.json, else every
  *                                         bundled plugin (the kernel serves this when it runs)
@@ -186,9 +187,11 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
   const parts = (req.url ?? "").split("?")[0].split("/").filter(Boolean);
   try {
     const m = await api();
+    // Same answer as the API's (todo11 D2): environment-core's shape and reference checks, then
+    // the resolver's; `{ok: false, errors: [{path, code, message}]}` with 422.
     if (parts[0] === "validate" && req.method === "POST") {
-      const r = m.validate(await readBody(req));
-      return sendJson(res, r.ok ? 200 : 422, r);
+      const r = m.validateWrite({ environment: await readBody(req) });
+      return sendJson(res, r.ok ? 200 : 422, r.ok ? r : { ok: false, errors: r.errors });
     }
     const id = parts[0] ?? "";
     if (!/^[a-z0-9-]+$/.test(id)) return sendJson(res, 400, { error: "bad project id" });
@@ -224,24 +227,21 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
     };
     const body = (await readBody(req)) as { revision?: number; environment?: unknown; patch?: unknown; author?: string; provenance?: { kind?: string; runId?: string; promptHash?: string } } | undefined;
     if (!body) return sendJson(res, 400, { error: "missing body" });
+    if (req.method !== "PUT" && req.method !== "PATCH") return sendJson(res, 405, { error: "method not allowed" });
     const cur = current();
-    // Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
-    if (body.revision !== undefined && body.revision !== cur.revision) return sendJson(res, 409, { error: "revision conflict", current: cur });
+    // The API's rules (todo11 D2, routes/environments.py): a required integer `revision`
+    // (0 for a first save), 409 when stale, then environment-core's checks and the resolver's.
+    if (typeof body.revision !== "number" || !Number.isInteger(body.revision))
+      return sendJson(res, 422, { ok: false, errors: [{ path: "/revision", code: "schema", message: "send the revision you edited (revision: <int>, 0 for a first save); a stale one is a 409" }] });
+    if (body.revision !== cur.revision) return sendJson(res, 409, { error: "revision conflict", current: cur });
     const author = body.author ?? "local-expert";
 
-    if (req.method === "PUT") {
-      const r = m.validate(body.environment);
-      if (!r.ok) return sendJson(res, 422, r);
-      return sendJson(res, 200, await save(body.environment, author));
-    }
-    if (req.method === "PATCH") {
-      const base = cur.environment ?? manifestEnvironment(seedRoot, id, m);
-      if (!base) return sendJson(res, 404, { error: `no project "${id}"` });
-      const r = m.patch(base as never, body.patch as never);
-      if (!r.ok) return sendJson(res, 422, r);
-      return sendJson(res, 200, await save(r.spec, author));
-    }
-    return sendJson(res, 405, { error: "method not allowed" });
+    const base = (cur.environment ?? manifestEnvironment(seedRoot, id, m)) as Record<string, unknown> | null;
+    if (req.method === "PATCH" && !base) return sendJson(res, 404, { error: `no project "${id}"` });
+    const r = req.method === "PUT" ? m.validateWrite({ environment: body.environment }) : m.validateWrite({ base, patch: body.patch as never });
+    if (!r.ok) return sendJson(res, r.status ?? 422, { ok: false, errors: r.errors });
+    // Store what was sent (PUT) or patched, never the `extends`-merged form.
+    return sendJson(res, 200, await save(r.spec, author));
   } catch (e) {
     return sendJson(res, 400, { error: e instanceof Error ? e.message : String(e) });
   }

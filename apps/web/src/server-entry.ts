@@ -20,6 +20,7 @@ import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError } from "@/extension-host/resolve";
+import { checkWrite, type CheckResult, type EnvError as CoreError, type JsonPatchOperation as CoreOperation } from "@studio/environment-core";
 
 export const catalog = () => describeCatalog(registry);
 export { listCapabilities } from "@/extension-host/agent";
@@ -37,6 +38,36 @@ export const prompt = () => catalogPrompt(registry);
 export const schema = () => environmentJsonSchema(registry);
 
 type Validated = { ok: true; spec: EnvironmentSpec; resolved: EnvironmentSpec } | { ok: false; errors: EnvError[] };
+
+let shapeSchemaCache: { key: string; schema: object } | undefined;
+/** The generated environment schema, one object per distinct registry state (environment-core caches its validator by identity). */
+function coreSchema(): object {
+  const live = schema();
+  const key = JSON.stringify(live);
+  if (shapeSchemaCache?.key !== key) shapeSchemaCache = { key, schema: live };
+  return shapeSchemaCache.schema;
+}
+
+/**
+ * The API's write checks (todo11 D2, `@studio/environment-core`, the same rules as
+ * kernel/environment_policy.py): JSON Patch, shape and references against the generated schema,
+ * with every plugin the dev registry knows counted as installed. The dev server has no tokens, so
+ * the caller is a person. `status` is the HTTP status the API would answer with.
+ */
+export function checkEnvironmentWrite(input: { base?: Record<string, unknown> | null; patch?: CoreOperation[]; environment?: unknown }): CheckResult {
+  return checkWrite({ schema: coreSchema(), installed: PLUGIN_PACKAGES.packages.map((p) => p.manifest.id), principal: "person", ...input });
+}
+
+/**
+ * `POST /api/environments/validate` and dev-server writes: the API's checks first (same errors,
+ * `{path, code, message}`), then the Studio's resolver on top (`extends` merge, overrides, module
+ * requirements). Returns `{ok:false, errors}` like the API.
+ */
+export function validateWrite(input: { base?: Record<string, unknown> | null; patch?: CoreOperation[]; environment?: unknown }): (Validated & { status?: undefined }) | { ok: false; status: 403 | 422; errors: (EnvError | CoreError)[] } {
+  const core = checkEnvironmentWrite(input);
+  if (!core.ok) return { ok: false, status: core.status === 200 ? 422 : core.status, errors: core.errors };
+  return validate(core.environment);
+}
 
 /** Validate a spec; on success also returns `resolved`, the spec with `extends` merged in. */
 export function validate(spec: unknown): Validated {

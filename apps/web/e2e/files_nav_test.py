@@ -74,7 +74,7 @@ def main() -> int:
         page.on("pageerror", lambda e: errors.append(str(e)))
 
         # ---- Sort: server-side, folders first on every page ----------------------------------
-        page.goto(f"{base}/projects/pathology-wsi/files")
+        page.goto(f"{base}/projects/pathology-wsi/sources")
         page.wait_for_selector("[data-testid=listing-row], [data-testid=listing-tile]", timeout=20000)
         bad = []
         for proj in ("2d-xray", "3d-brain-mri", "pathology-wsi", "4d-cardiac", "ecg-waveform"):
@@ -108,7 +108,7 @@ def main() -> int:
         page.get_by_test_id("tree-sort-name").click()
 
         # ---- Tree filter: narrows the loaded tree, Esc and ✕ clear it -----------------------
-        page.goto(f"{base}/projects/2d-xray/files")
+        page.goto(f"{base}/projects/2d-xray/sources")
         page.wait_for_selector("[role=treeitem]:has-text('pneumonia')", timeout=20000)
         filt = page.get_by_test_id("tree-filter")
         check("the two fields say which is which", filt.get_attribute("placeholder") == "Filter folders shown" and page.get_by_test_id("sources-search").get_attribute("placeholder") == "Search all files")

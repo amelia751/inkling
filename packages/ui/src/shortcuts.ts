@@ -8,8 +8,8 @@ import { formatCombo } from "./keys";
  */
 export { comboParts, formatCombo, parseCombo, type ParsedCombo } from "./keys";
 
-export type ShortcutGroup = "Edit" | "Navigate" | "Labels" | "Drawing" | "View" | "Playback" | "Data" | "Help";
-export const GROUP_ORDER: ShortcutGroup[] = ["Edit", "Navigate", "Labels", "Drawing", "View", "Playback", "Data", "Help"];
+export type ShortcutGroup = "Edit" | "Navigate" | "Labels" | "Drawing" | "View" | "Playback" | "Sources" | "Help";
+export const GROUP_ORDER: ShortcutGroup[] = ["Edit", "Navigate", "Labels", "Drawing", "View", "Playback", "Sources", "Help"];
 
 /** A command id; bare names mean Studio core commands (`undo` → `<namespace>.core.commands.undo`). */
 export type ShortcutId = string;

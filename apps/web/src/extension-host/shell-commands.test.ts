@@ -28,7 +28,7 @@ describe("shell commands", () => {
       const def = registry.get("commands", c)!;
       expect(def, c).toBeDefined();
       expect(def.keys?.length, c).toBeGreaterThan(0);
-      expect(when(def.when, { section: "files" })).toBe(true);
+      expect(when(def.when, { section: "sources" })).toBe(true);
       expect(when(def.when, { section: "overview" })).toBe(false);
       expect(when(def.when, { section: "studio" })).toBe(false);
     }
@@ -37,7 +37,7 @@ describe("shell commands", () => {
   it("undo, redo and select all are the shared Edit commands, active on the Data page", () => {
     for (const name of ["undo", "redo", "selectAll"]) {
       const def = registry.get("commands", coreCommand(name))!;
-      expect(when(def.when, { section: "files" })).toBe(true);
+      expect(when(def.when, { section: "sources" })).toBe(true);
     }
   });
 });

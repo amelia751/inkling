@@ -570,6 +570,115 @@ export interface DatasetSummary {
   staleness?: { newerVersions: number; newFilesInFollowed: number; followedFolderNames: string[] };
 }
 
+// ---- Dataset profile (docs/datasets.md §11.1, Phase 1) ------------------------------------------
+
+/**
+ * `GET /v1/projects/:p/datasets/:d/profile`: what a dataset holds and how it is shaped, read from
+ * the inspection of the files it pins. Never a cell value, a DICOM identifier or a file path:
+ * counts, kinds, formats, column names and types, and kernel-written flag reasons only.
+ */
+export interface DatasetProfile {
+  datasetId: string;
+  /** The snapshot these numbers describe. Phase 1 reads the working draft (the pinned files). */
+  snapshot: { kind: "draft" | "main" | "release"; label: string; readOnly: boolean };
+  /** Pinned files that still exist. */
+  files: number;
+  /** Files the worker hasn't inspected yet ("Checking"). */
+  checking: number;
+  collections: DatasetCollection[];
+  relationships: DatasetRelationship[];
+  issues: DatasetIssue[];
+}
+
+/**
+ * One logical collection. Phase 1 infers them from detected kinds (one per kind), so every
+ * collection is `suggested` until a person confirms the dataset's structure (todo13 D8).
+ */
+export interface DatasetCollection {
+  /** Stable for the dataset: `kind:<detected kind>`. */
+  id: string;
+  name: string;
+  kind: DetectedKind;
+  /** Logical items, counted at the level `unit` names (a DICOM series, not its files). */
+  count: number;
+  unit: { one: string; other: string };
+  /** Files backing those items. */
+  files: number;
+  formats: { label: string; count: number }[];
+  /** Shape facts, each a distribution ("Image size": 512×512 × 80). `missing`: items without it. */
+  facts: DatasetFact[];
+  fields: DatasetField[];
+  /** A representative file for a preview (the first ready, unflagged one), or null. */
+  previewNodeId: string | null;
+  suggested: boolean;
+  /** Items with at least one issue. */
+  issues: number;
+}
+
+export interface DatasetFact {
+  key: string;
+  label: string;
+  /** Most common first; at most 6. */
+  values: { value: string; count: number }[];
+  /** Distinct values beyond the first 6. */
+  more: number;
+  missing: number;
+}
+
+/** A field of a collection: a table's column, or a technical property every item carries. */
+export interface DatasetField {
+  /** Stable within the collection: `col:<name>` or `fact:<key>`. */
+  id: string;
+  name: string;
+  type: "integer" | "number" | "decimal" | "text" | "category" | "id" | "date" | "boolean" | "empty" | "list" | string;
+  unit?: string;
+  required: boolean;
+  /** Share of items (or rows) where it is filled, 0–1. */
+  filled: number;
+  /** A unique key in every table that has it. */
+  key?: boolean;
+  description?: string;
+  source: "inspection" | "structure";
+  suggested?: boolean;
+}
+
+export interface DatasetRelationship {
+  id: string;
+  /** Collection ids. */
+  from: string;
+  to: string;
+  /** "Each row of the table describes one image". */
+  label: string;
+  cardinality: "1:1" | "1:N" | "N:1" | "N:N";
+  /** "patient_id → folder name". */
+  keys: string;
+  status: "suggested" | "confirmed";
+  coverage?: { rows: number; matched: number; unmatched: number; ambiguous: number };
+  strength?: ProposalStrength;
+  proposalId?: string;
+}
+
+export type DatasetIssueCategory = "privacy" | "unreadable" | "duplicate" | "quality" | "identity" | "checking";
+
+export interface DatasetIssue {
+  /** Stable: `<ruleId>:<collection>`. */
+  id: string;
+  category: DatasetIssueCategory;
+  severity: "high" | "medium" | "low";
+  /** Blocks a release under the project's policy. Separate from severity (§8). */
+  blocking: boolean;
+  title: string;
+  detail: string;
+  /** Affected items. */
+  count: number;
+  /** Rule id and version, e.g. `inspection.privacy@1`. */
+  ruleId: string;
+  collectionId?: string;
+  /** The first affected files (ids only, at most 50). */
+  nodeIds: string[];
+  action: { label: string; target: ProjectTarget };
+}
+
 /** Where an attention row (or an activity entry) resolves. */
 export interface ProjectTarget {
   section: "overview" | "sources" | "explore" | "datasets" | "studio" | "review" | "activity" | "settings";

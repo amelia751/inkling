@@ -32,7 +32,7 @@ export function setActiveCommands(commands: ResolvedCommand[], context: () => Wh
 
 /**
  * What the shell knows outside any environment (todo6 Phase 2): the project section shown
- * (`section == files`). The Studio's own context wins for the keys it shares.
+ * (`section == sources`). The Studio's own context wins for the keys it shares.
  */
 let shellContext: WhenContext = {};
 

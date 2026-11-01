@@ -333,7 +333,7 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
 }
 
 /**
- * What the assistant can see ("Data › MRI/patient_002"), above the composer. Removing it
+ * What the assistant can see ("Sources › MRI/patient_002"), above the composer. Removing it
  * stops sending the selection until the context changes; the "+" brings it back.
  */
 export function ContextIndicator({ provider }: { provider: AgentContextProvider }) {

@@ -30,7 +30,7 @@ REDIRECTS = {
     "/projects/2d-xray": "/projects/2d-xray/overview",
 }
 
-SECTIONS = ["Overview", "Data", "Studio", "Review", "Activity", "Settings"]
+SECTIONS = ["Overview", "Sources", "Datasets", "Studio", "Review", "Activity", "Settings"]
 
 
 def main() -> int:
@@ -54,13 +54,13 @@ def main() -> int:
         nav = page.locator("[data-testid=project-sidebar]")
         for label in SECTIONS:
             check(f"sidebar has {label}", nav.get_by_role("link", name=label, exact=True).count() == 1)
-        nav.get_by_role("link", name="Data", exact=True).click()
-        page.wait_for_url("**/projects/2d-xray/files")
-        check("sidebar navigates", page.url.endswith("/files"))
+        nav.get_by_role("link", name="Sources", exact=True).click()
+        page.wait_for_url("**/projects/2d-xray/sources")
+        check("sidebar navigates", page.url.endswith("/sources"))
         # The URL changes before the router's transition renders the new page: wait for it.
-        crumb = page.locator("[data-testid=breadcrumb] [aria-current=page]", has_text="Data")
+        crumb = page.locator("[data-testid=breadcrumb] [aria-current=page]", has_text="Sources")
         crumb.wait_for(timeout=5000)
-        check("breadcrumb names the section", crumb.inner_text() == "Data")
+        check("breadcrumb names the section", crumb.inner_text() == "Sources")
 
         # The toggle command collapses the sidebar to a 48px rail with labelled icons.
         page.mouse.click(700, 500)
@@ -69,7 +69,7 @@ def main() -> int:
         rail.wait_for(timeout=5000)
         width = rail.bounding_box()["width"]
         check("toggle collapses to a rail", round(width) == 48, f"{width}px")
-        check("rail marks the active section", rail.locator("[aria-current=page]").get_attribute("aria-label") == "Data")
+        check("rail marks the active section", rail.locator("[aria-current=page]").get_attribute("aria-label") == "Sources")
         rail.get_by_role("link", name="Review").hover()
         page.wait_for_timeout(1200)
         check("rail icons have tooltips", page.get_by_role("tooltip").filter(has_text="Review").count() >= 1)
@@ -83,14 +83,14 @@ def main() -> int:
         page.keyboard.press("Escape")
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switch-project-ecg-waveform]").click()
-        page.wait_for_url("**/projects/ecg-waveform/files")
-        check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/files"))
+        page.wait_for_url("**/projects/ecg-waveform/sources")
+        check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/sources"))
         # Create project from anywhere: the switcher's "New project" opens it as a dialog.
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switcher-new-project]").click()
         dialog = page.locator("[data-testid=new-project-dialog]")
         dialog.wait_for(timeout=5000)
-        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/files"))
+        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/sources"))
         dialog.get_by_role("button", name="Cancel").click()
         dialog.wait_for(state="detached", timeout=5000)
 
@@ -124,7 +124,7 @@ def main() -> int:
         p = phone.new_page()
         p.goto(f"{base}/projects/2d-xray/overview")
         p.locator("[data-testid=nav-toggle]").click()
-        check("phone nav is a drawer", p.get_by_role("dialog").get_by_role("link", name="Data").count() == 1)
+        check("phone nav is a drawer", p.get_by_role("dialog").get_by_role("link", name="Sources").count() == 1)
         p.goto(f"{base}/projects/2d-xray/studio/2d-xray")
         p.wait_for_selector("[data-testid=small-screen-notice]", timeout=30000)
         check("phone Studio says a larger screen works best", "larger screen" in p.locator("[data-testid=small-screen-notice]").inner_text())

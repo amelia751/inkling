@@ -91,11 +91,11 @@ import { PlanPanel } from "./files/plan-panel";
  * ("Files", D1) whose folders are yours: make, rename, move, copy, trash and undo, with the
  * bytes of every upload immutable. Three panes: the tree, the listing of the folder shown and
  * the inspector of the selection. Drive's moves (selection bar, drag anywhere, New ▾), Finder's
- * keys (core commands with `when: section == files`), every change optimistic and journaled.
+ * keys (core commands with `when: section == sources`), every change optimistic and journaled.
  *
- * URL: `/projects/:p/files/:nodeId?` names a folder (listed), a file (its folder listed, the
+ * URL: `/projects/:p/sources/:nodeId?` names a folder (listed), a file (its folder listed, the
  * file selected) or a numbered run (`seq:…`); node ids only, never names (paths may hold
- * identifiers). `/files/trash` is the Trash. `?import=` shows an import's summary, `?status=`
+ * identifiers). `/sources/trash` is the Trash. `?import=` shows an import's summary, `?status=`
  * filters by status, `?plan=` opens an assistant's reorganization plan (its ops stay in the tab).
  * The search text stays out of the URL for the same reason. `data-testid`s keep their todo6
  * `sources-*` names (a regression contract).

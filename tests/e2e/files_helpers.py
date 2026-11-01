@@ -96,7 +96,7 @@ def new_project(page, base: str, title: str, folder: Path, *, inspected: bool = 
     """A scratch project with `folder` uploaded; returns (project id, the folder's node id).
     `inspected=False` returns once the bytes are in (the worker may still be inspecting)."""
     pid = api(page, "/projects", "POST", {"title": title})["json"]["id"]
-    page.goto(f"{base}/projects/{pid}/files")
+    page.goto(f"{base}/projects/{pid}/sources")
     page.wait_for_selector("[data-testid=drop-zone]", timeout=20000)
     page.locator("[data-testid=pick-folder]").first.set_input_files(str(folder))
     dlg = page.locator("[data-testid=attestation]")
@@ -125,7 +125,7 @@ def child(page, pid: str, parent: str, name: str) -> dict | None:
 
 
 def open_folder(page, base: str, pid: str, node: str) -> None:
-    page.goto(f"{base}/projects/{pid}/files/{node}")
+    page.goto(f"{base}/projects/{pid}/sources/{node}")
     page.wait_for_selector("[data-testid=sources-listing]", timeout=20000)
     page.wait_for_function("!document.querySelector('[data-testid=sources-listing]')?.getAttribute('aria-busy')", timeout=20000)
     page.wait_for_timeout(500)

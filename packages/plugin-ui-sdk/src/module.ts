@@ -72,7 +72,7 @@ export interface ToolContribution extends ContributionBase {
   optionsSchema?: z.ZodObject;
 }
 
-export type CommandGroup = "Edit" | "Navigate" | "Labels" | "Drawing" | "View" | "Playback" | "Data" | "Help";
+export type CommandGroup = "Edit" | "Navigate" | "Labels" | "Drawing" | "View" | "Playback" | "Sources" | "Help";
 
 /** A named action with default keybindings. Handlers register at runtime with `useCommands`. */
 export interface CommandContribution extends ContributionBase {

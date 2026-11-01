@@ -85,7 +85,7 @@ export function actorName(who: ActivityActor): string {
 }
 
 /** For entries without `who` (older servers, the seed stand-in). */
-function actorOf(actor: string | null, onBehalfOf?: string | null): ActivityActor {
+export function actorOf(actor: string | null, onBehalfOf?: string | null): ActivityActor {
   const [kind, name] = (actor ?? "").includes(":") ? (actor ?? "").split(":", 2) : ["user", actor ?? "someone"];
   const person = onBehalfOf?.split(":").at(-1) ?? null;
   if (kind === "agent") return { kind: "assistant", name: "Assistant", onBehalfOf: person };

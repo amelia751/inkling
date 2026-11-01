@@ -7,7 +7,7 @@
 - Queue → To do → N walks only the to-do items;
 - duplicate names show their distinguishing folder (an injected project with nested folders,
   which also opens in Folders by default because its items span several folders);
-- the row menu's Show in Data opens Data with the file revealed, and Data's "In tasks" opens
+- the row menu's Show in Sources opens Sources with the file revealed, and Sources' "In tasks" opens
   the Studio back on that item;
 - in the 2D sample (classification, blind by default), no item row, hover card or status text
   says "Pneumonia" or "Normal";
@@ -194,7 +194,7 @@ def main() -> int:
                 name = target.locator("[data-testid=file-name]").inner_text()
                 target.click(button="right")
                 page.click("[data-testid=show-in-data]")
-                wait_for(lambda: "/projects/3d-brain-mri/files/" in page.url, "Data opens")
+                wait_for(lambda: "/projects/3d-brain-mri/sources/" in page.url, "Sources opens")
                 page.wait_for_selector("[data-testid=inspector] h2", timeout=15000)
                 wait_for(lambda: page.locator("[data-testid=inspector] h2").inner_text().startswith(name), "the file is revealed")
                 check("selected in the listing", page.locator("[data-testid=listing-row][aria-selected=true]").count() >= 1)
@@ -235,7 +235,7 @@ def main() -> int:
         res.run("folders render for the 3D sample (and the view is remembered)", folders_3d)
         res.run("Queue → To do → N walks only to-do items", queue_todo_next)
         res.run("duplicate names show suffixes; path filter; hover card", duplicates)
-        res.run("Show in Data reveals the file; In tasks opens it again", show_in_data)
+        res.run("Show in Sources reveals the file; In tasks opens it again", show_in_data)
         res.run("2D sample: blind by default (no Pneumonia / Normal)", blind_2d)
         browser.close()
     print(f"\n{'FAILED: ' + ', '.join(res.failed) if res.failed else 'all passed'}")

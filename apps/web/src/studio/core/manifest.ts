@@ -9,7 +9,7 @@ export const CORE = ns("core");
 export const coreCommand = (name: string) => `${CORE}.commands.${name}`;
 
 /** The Data page's commands (`section` is the route segment the shell sets). */
-const FILES = "section == files";
+const FILES = "section == sources";
 
 const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -18,7 +18,7 @@ const DIGITS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
  * renderer that declares e.g. `drafting` or `playback` gets the same keys and sheet entries.
  */
 const commands: CommandContribution[] = [
-  { id: "undo", keys: ["mod+z"], label: "Undo", group: "Edit", description: "Undo the last change (an annotation in the Studio; a file operation in Data)" },
+  { id: "undo", keys: ["mod+z"], label: "Undo", group: "Edit", description: "Undo the last change (an annotation in the Studio; a file operation in Sources)" },
   { id: "redo", keys: ["shift+mod+z", "mod+y"], label: "Redo", group: "Edit", description: "Redo the last undone change" },
   { id: "deleteSelection", keys: ["Backspace", "Delete"], label: "Delete selected annotations", group: "Edit", description: "Delete the selected, unlocked annotations" },
   { id: "deselect", keys: ["Escape"], label: "Clear selection", group: "Edit", description: "Clear the selection" },
@@ -34,25 +34,25 @@ const commands: CommandContribution[] = [
   // `section` is the shell's page (`setShellContext`); environments always resolve with
   // `section == studio`, so the Data keys never claim Space or Enter in the Studio.
   { id: "toggleNavigation", keys: ["mod+b"], label: "Show or hide the project navigation", group: "Navigate", description: "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)" },
-  // The project's drive (todo7 D11: the route, so the section, is `files`; the nav says "Data").
-  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Data", when: FILES, description: "Preview the selected file large; arrows step through its folder" },
-  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Data", when: FILES, description: "Open the selected folder, or show the selected file's details" },
-  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Data", when: FILES, description: "Show the folder that contains the current one" },
-  { id: "focusSearch", keys: ["mod+f"], label: "Search in data", group: "Data", when: FILES, description: "Search file names across the project's files" },
+  // The project's drive (the route, so the section, is `sources`; the nav says "Sources").
+  { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Sources", when: FILES, description: "Preview the selected file large; arrows step through its folder" },
+  { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Sources", when: FILES, description: "Open the selected folder, or show the selected file's details" },
+  { id: "parentFolder", keys: ["mod+ArrowUp"], label: "Go to the enclosing folder", group: "Sources", when: FILES, description: "Show the folder that contains the current one" },
+  { id: "focusSearch", keys: ["mod+f"], label: "Search in sources", group: "Sources", when: FILES, description: "Search file names across the project's files" },
   // File operations (todo7 §2 Keyboard). Undo, redo and select all reuse the shared Edit
   // commands above (same keys); the Files page binds its own handlers to them.
-  { id: "newFolder", keys: ["shift+mod+n"], label: "New folder", group: "Data", when: FILES, description: "Make a folder in the folder shown, and name it" },
-  { id: "rename", keys: ["F2"], label: "Rename", group: "Data", when: FILES, description: "Rename the selected file or folder" },
-  { id: "cut", keys: ["mod+x"], label: "Cut", group: "Data", when: FILES, description: "Mark the selection to be moved by Paste" },
-  { id: "copy", keys: ["mod+c"], label: "Copy", group: "Data", when: FILES, description: "Mark the selection to be copied by Paste (copies share the same bytes)" },
-  { id: "paste", keys: ["mod+v"], label: "Paste", group: "Data", when: FILES, description: "Move or copy what was cut or copied into the focused or shown folder" },
-  { id: "duplicate", keys: ["mod+d"], label: "Duplicate", group: "Data", when: FILES, description: "Make a copy next to the original, named “name (copy)”" },
-  { id: "moveToTrash", keys: IS_MAC ? ["mod+Backspace"] : ["Delete"], label: "Move to Trash", group: "Data", when: FILES, description: "Move the selection to Trash (undo brings it back)" },
-  { id: "clearSelection", keys: ["Escape"], label: "Clear selection", group: "Data", when: FILES, description: "Deselect every file and folder" },
-  { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Data", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
-  { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Data", when: FILES, description: "Show or hide the inspector (Info)" },
+  { id: "newFolder", keys: ["shift+mod+n"], label: "New folder", group: "Sources", when: FILES, description: "Make a folder in the folder shown, and name it" },
+  { id: "rename", keys: ["F2"], label: "Rename", group: "Sources", when: FILES, description: "Rename the selected file or folder" },
+  { id: "cut", keys: ["mod+x"], label: "Cut", group: "Sources", when: FILES, description: "Mark the selection to be moved by Paste" },
+  { id: "copy", keys: ["mod+c"], label: "Copy", group: "Sources", when: FILES, description: "Mark the selection to be copied by Paste (copies share the same bytes)" },
+  { id: "paste", keys: ["mod+v"], label: "Paste", group: "Sources", when: FILES, description: "Move or copy what was cut or copied into the focused or shown folder" },
+  { id: "duplicate", keys: ["mod+d"], label: "Duplicate", group: "Sources", when: FILES, description: "Make a copy next to the original, named “name (copy)”" },
+  { id: "moveToTrash", keys: IS_MAC ? ["mod+Backspace"] : ["Delete"], label: "Move to Trash", group: "Sources", when: FILES, description: "Move the selection to Trash (undo brings it back)" },
+  { id: "clearSelection", keys: ["Escape"], label: "Clear selection", group: "Sources", when: FILES, description: "Deselect every file and folder" },
+  { id: "expandAllBelow", keys: ["alt+ArrowRight"], label: "Expand all below", group: "Sources", when: FILES, description: "Open the focused folder and every folder in it (up to 2,000 rows)" },
+  { id: "toggleInspector", keys: ["mod+i"], label: "Show or hide details", group: "Sources", when: FILES, description: "Show or hide the inspector (Info)" },
   { id: "filterItems", keys: ["mod+f"], label: "Filter items", group: "Navigate", when: "section == studio", description: "Filter the Items panel by name (while the panel has focus)" },
-  { id: "contextMenu", keys: ["shift+F10", "ContextMenu"], label: "Open the context menu", group: "Data", when: FILES, description: "Open the menu of the focused file or folder, as a right-click does" },
+  { id: "contextMenu", keys: ["shift+F10", "ContextMenu"], label: "Open the context menu", group: "Sources", when: FILES, description: "Open the menu of the focused file or folder, as a right-click does" },
   { id: "toggleSidePanel", keys: ["shift+mod+b"], label: "Show or hide items and labels", group: "Navigate", description: "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again" },
   { id: "toggleAssistant", keys: ["mod+j"], label: `Show or hide ${NAMING.displayName} AI`, group: "Help", description: "Open or close the assistant, in any project section" },
 

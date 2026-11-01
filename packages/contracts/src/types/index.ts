@@ -524,6 +524,9 @@ export interface TaskSummary {
   annotationCount: number;
   annotatedItems: number;
   createdAt: string | null;
+  /** todo11 D1: a boot creates a draft; only a person publishes it. */
+  state?: "draft" | "published";
+  bootId?: string | null;
 }
 
 export interface DatasetSummary {
@@ -583,7 +586,8 @@ export interface DataCard {
 export interface ProjectOverview {
   project: ProjectSummary;
   resume?: ResumeState;
-  tasks: { id: string; title: string; kind: string; datasetId: string }[];
+  /** `state`: a boot's draft until a person publishes it (todo11 D1). */
+  tasks: { id: string; title: string; kind: string; datasetId: string; state?: "draft" | "published" }[];
   data?: DataCard[];
   attention?: AttentionItem[];
   attentionTotal?: number;

@@ -36,6 +36,7 @@ import { useShell } from "@/studio/stores/shell";
 import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
 import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
+import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { cn } from "@studio/ui/utils";
 
 /**
@@ -133,6 +134,7 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
           {error && <p className="mt-1 text-sm text-danger" role="alert">{error}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          <NewStudioButton projectId={project.id} />
           {project.sample && <Badge theme="info">Sample</Badge>}
           <Badge theme="unknown" data-testid="visibility">
             {project.visibility === "private" && <LockIcon />}

@@ -1,0 +1,46 @@
+{
+  "scripts": [
+    {
+      "when": "create a chest x-ray studio",
+      "turns": [
+        {
+          "text": "Setting up a chest X-ray Studio.",
+          "toolCalls": [
+            {
+              "name": "boot_studio",
+              "arguments": {
+                "preset": "preset:image-2d",
+                "name": "Chest X-ray Studio",
+                "patch": [
+                  {
+                    "op": "add",
+                    "path": "/labels",
+                    "value": [
+                      {
+                        "name": "finding",
+                        "control": "Choices",
+                        "classes": [{ "id": "Normal" }, { "id": "Pneumonia" }, { "id": "Effusion" }, { "id": "Cardiomegaly" }, { "id": "Pneumothorax" }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        { "text": "Your chest X-ray Studio is ready with five classification labels." }
+      ]
+    },
+    {
+      "when": "could we make",
+      "turns": [
+        { "toolCalls": [{ "name": "offer_studio", "arguments": { "preset": "preset:image-2d", "title": "X-ray Studio", "reason": "Your files are chest radiographs." } }] },
+        { "text": "Click Create when you want it." }
+      ]
+    },
+    {
+      "when": "pneumothorax",
+      "turns": [{ "text": "Pneumothorax is air in the pleural space, which collapses part of the lung." }]
+    }
+  ]
+}

@@ -219,7 +219,7 @@ def overview(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     if resume:
         out["resume"] = resume
     tasks = list(db.scalars(select(TaskRow).where(TaskRow.project_id == p.id).order_by(TaskRow.created_at)))
-    out["tasks"] = [{"id": t.id, "title": t.title, "kind": t.kind, "datasetId": t.dataset_id} for t in tasks]
+    out["tasks"] = [{"id": t.id, "title": t.title, "kind": t.kind, "datasetId": t.dataset_id, "state": t.state or "published"} for t in tasks]
     cards = data_cards(db, p)
     if cards:
         out["data"] = cards

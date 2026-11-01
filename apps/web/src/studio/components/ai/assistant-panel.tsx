@@ -23,6 +23,7 @@ import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
+import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import type { StudioCardContext } from "./cards";
 
 /**
@@ -173,6 +174,8 @@ function Conversation({
     const t = text.trim();
     if (!t || busy) return;
     pinned.current = true;
+    // `/studio <words>` boots from the preset table in the browser; no model turn (todo11 D5).
+    if (STUDIO_COMMAND.test(t)) return runStudioCommand(project.id, t);
     const shared = !dismissed;
     void send(project.id, t, {
       ...sessionTools(profile),

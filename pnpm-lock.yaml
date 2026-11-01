@@ -325,6 +325,9 @@ importers:
       '@studio/renderers':
         specifier: workspace:*
         version: link:../../packages/renderers
+      '@studio/studio-tools':
+        specifier: workspace:*
+        version: link:../../packages/studio-tools
       '@studio/ui':
         specifier: workspace:*
         version: link:../../packages/ui

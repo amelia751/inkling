@@ -15,6 +15,16 @@ import { fetchEnvironment, saveEnvironment, type ChangeProvenance } from "./api"
  */
 const revisions = new Map<string, number>();
 
+/** The revision this tab last saw for a task (its own saves and live updates), if any. */
+export function knownRevision(taskId: string): number | undefined {
+  return revisions.get(taskId);
+}
+
+/** Record a revision that arrived from elsewhere (a live update), so the next save isn't stale. */
+export function noteRevision(taskId: string, revision: number): void {
+  if (revision > (revisions.get(taskId) ?? -1)) revisions.set(taskId, revision);
+}
+
 export async function persistEnvironment(projectId: string, env: ResolvedEnv, author: string, provenance?: ChangeProvenance): Promise<void> {
   if (!revisions.has(projectId)) revisions.set(projectId, (await fetchEnvironment(projectId).catch(() => ({ revision: 0 }))).revision);
   const saved = await saveEnvironment(projectId, { revision: revisions.get(projectId)!, environment: env.source, author, ...(provenance ? { provenance } : {}) });

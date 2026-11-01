@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ChevronDownIcon, CloseIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, RetryIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
@@ -15,6 +15,7 @@ import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/ag
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import { exploreUrl } from "@/studio/lib/routes";
 import { AgentCardView, type StudioCardContext } from "./cards";
+import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
 import { Markdown } from "./markdown";
 
@@ -48,11 +49,11 @@ function Meta() {
 }
 
 /** Waiting for the reply: the label over a spinner. */
-function Pending() {
+function Pending({ queued = false }: { queued?: boolean }) {
   return (
-    <div className="self-start py-1" role="status" aria-label={`${NAMING.displayName} AI is working`}>
+    <div className="self-start py-1" role="status" aria-label={queued ? `${NAMING.displayName} AI is queued` : `${NAMING.displayName} AI is working`}>
       <Meta />
-      <Spinner size="s" />
+      {queued ? <p className="text-hint">Queued</p> : <Spinner size="s" />}
     </div>
   );
 }
@@ -95,14 +96,25 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
   const groups = groupParts(message.parts);
   // The message exists from the moment you send, before the run starts streaming into it.
   const waiting = latest && message.parts.length === 0 && !message.error && !message.stopped && !message.usage;
-  const idle = waiting || (streaming && message.parts[message.parts.length - 1]?.type === "card");
+  const lastType = message.parts[message.parts.length - 1]?.type;
+  const idle = waiting || (streaming && (lastType === "card" || lastType === "boot"));
   const text = textOf(message);
 
   return (
     <div className="group/message flex flex-col gap-3">
       {groups.map((g, i) => {
-        if (g.kind === "tools") return <ToolSteps key={i} parts={g.parts} live={streaming} />;
+        if (g.kind === "tools")
+          return (
+            <Fragment key={i}>
+              <ToolSteps parts={g.parts} live={streaming} />
+              {g.parts.map((t) => {
+                const offer = studioOffer(t);
+                return offer && <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
+              })}
+            </Fragment>
+          );
         const p = g.part;
+        if (p.type === "boot") return <BootCard key={i} bootId={p.id} />;
         if (p.type === "text") return <Markdown key={i} text={p.text} className="text-chat" />;
         if (p.type === "reasoning") return <Reasoning key={i} text={p.text} live={streaming && i === groups.length - 1} />;
         if (p.type === "approval")
@@ -137,7 +149,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
           {SANDBOX_TEXT[message.sandbox] ?? message.sandbox}
         </p>
       )}
-      {idle && <Pending />}
+      {idle && <Pending queued={message.runStatus === "queued"} />}
       {message.error && (
         <div className="self-start" role="alert">
           <Meta />
@@ -177,6 +189,13 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
       )}
     </div>
   );
+}
+
+/** An `offer_studio` call that finished: its arguments are the offer (todo11 D5), rendered as a Create button. */
+function studioOffer(t: Extract<MessagePart, { type: "tool" }>): { preset: string; title: string; reason?: string } | null {
+  if (t.name !== "offer_studio" || t.status !== "done" || !t.input || typeof t.input !== "object") return null;
+  const o = t.input as { preset?: unknown; title?: unknown; reason?: unknown };
+  return typeof o.preset === "string" && typeof o.title === "string" ? { preset: o.preset, title: o.title, ...(typeof o.reason === "string" ? { reason: o.reason } : {}) } : null;
 }
 
 type Group = { kind: "tools"; parts: Extract<MessagePart, { type: "tool" }>[] } | { kind: "part"; part: Exclude<MessagePart, { type: "tool" }> };

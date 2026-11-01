@@ -440,6 +440,15 @@
   -webkit-text-fill-color: transparent;
   animation: shimmer 2s infinite linear;
 }
+/* Static under reduced motion (the boot card's header, "Thinking…"): plain secondary text. */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-text {
+    animation: none;
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: var(--g-text-secondary);
+  }
+}
 
 /* Nebius Echo's assistant chrome. */
 .echo-pill {

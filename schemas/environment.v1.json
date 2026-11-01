@@ -112,6 +112,10 @@
           ],
           "additionalProperties": false
         },
+        "collectionId": {
+          "description": "The dataset collection this Studio works on (todo13 D7); the task's own collection wins when they differ",
+          "type": "string"
+        },
         "labels": {
           "type": "array",
           "items": {

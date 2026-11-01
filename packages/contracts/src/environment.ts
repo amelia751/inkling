@@ -87,6 +87,7 @@ export const EnvironmentSpecSchema = z
     task: z.string().optional().describe("Free-form task name shown on dataset cards (classification, segmentation…)"),
     modules: z.record(z.string(), z.string()).optional().describe("Module id → semver range"),
     data: z.object({ kind: z.string().describe("Data kind contribution id") }).optional(),
+    collectionId: z.string().optional().describe("The dataset collection this Studio works on (todo13 D7); the task's own collection wins when they differ"),
     labels: z.array(LabelGroupSchema).optional(),
     viewports: z.array(ViewportSpecSchema).optional(),
     tools: z.array(z.string()).optional().describe("Tool contribution ids in toolbar order"),

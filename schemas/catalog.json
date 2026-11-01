@@ -2096,7 +2096,7 @@
       "id": "inkling.core.commands.undo",
       "type": "commands",
       "module": "inkling.core",
-      "description": "Undo the last change (an annotation in the Studio; a file operation in Data)",
+      "description": "Undo the last change (an annotation in the Studio; a file operation in Sources)",
       "label": "Undo",
       "keys": [
         "mod+z"
@@ -2388,7 +2388,7 @@
       "module": "inkling.core",
       "description": "Preview the selected file large; arrows step through its folder",
       "label": "Quick Look",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "space"
       ],
@@ -2409,7 +2409,7 @@
       "module": "inkling.core",
       "description": "Open the selected folder, or show the selected file's details",
       "label": "Open folder or details",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "Enter"
       ],
@@ -2430,7 +2430,7 @@
       "module": "inkling.core",
       "description": "Show the folder that contains the current one",
       "label": "Go to the enclosing folder",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+ArrowUp"
       ],
@@ -2450,8 +2450,8 @@
       "type": "commands",
       "module": "inkling.core",
       "description": "Search file names across the project's files",
-      "label": "Search in data",
-      "when": "section == files",
+      "label": "Search in sources",
+      "when": "section == sources",
       "keys": [
         "mod+f"
       ],
@@ -2472,7 +2472,7 @@
       "module": "inkling.core",
       "description": "Make a folder in the folder shown, and name it",
       "label": "New folder",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "shift+mod+n"
       ],
@@ -2493,7 +2493,7 @@
       "module": "inkling.core",
       "description": "Rename the selected file or folder",
       "label": "Rename",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "F2"
       ],
@@ -2514,7 +2514,7 @@
       "module": "inkling.core",
       "description": "Mark the selection to be moved by Paste",
       "label": "Cut",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+x"
       ],
@@ -2535,7 +2535,7 @@
       "module": "inkling.core",
       "description": "Mark the selection to be copied by Paste (copies share the same bytes)",
       "label": "Copy",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+c"
       ],
@@ -2556,7 +2556,7 @@
       "module": "inkling.core",
       "description": "Move or copy what was cut or copied into the focused or shown folder",
       "label": "Paste",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+v"
       ],
@@ -2577,7 +2577,7 @@
       "module": "inkling.core",
       "description": "Make a copy next to the original, named “name (copy)”",
       "label": "Duplicate",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+d"
       ],
@@ -2598,7 +2598,7 @@
       "module": "inkling.core",
       "description": "Move the selection to Trash (undo brings it back)",
       "label": "Move to Trash",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+Backspace"
       ],
@@ -2619,7 +2619,7 @@
       "module": "inkling.core",
       "description": "Deselect every file and folder",
       "label": "Clear selection",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "Escape"
       ],
@@ -2640,7 +2640,7 @@
       "module": "inkling.core",
       "description": "Open the focused folder and every folder in it (up to 2,000 rows)",
       "label": "Expand all below",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "alt+ArrowRight"
       ],
@@ -2661,7 +2661,7 @@
       "module": "inkling.core",
       "description": "Show or hide the inspector (Info)",
       "label": "Show or hide details",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "mod+i"
       ],
@@ -2703,7 +2703,7 @@
       "module": "inkling.core",
       "description": "Open the menu of the focused file or folder, as a right-click does",
       "label": "Open the context menu",
-      "when": "section == files",
+      "when": "section == sources",
       "keys": [
         "shift+F10",
         "ContextMenu"

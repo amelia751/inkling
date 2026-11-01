@@ -11,7 +11,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * `resumeDir` (seed-data/.resume/, a temp folder in e2e runs). Every other write answers
  * 501 `{ error: "needs the API" }`: adding data needs the full stack (docs/running.md).
  *
- *   GET  /api/v1/projects[/:id[/overview|/sources|/datasets[/:d]|/search|/imports|/proposals|/review|/activity|/resume]]
+ *   GET  /api/v1/projects[/:id[/overview|/sources|/datasets[/:d[/profile]]|/search|/imports|/proposals|/review|/activity|/resume]]
  *   PUT  /api/v1/projects/:id/resume
  *   GET  /api/v1/sources/:id/children?node=&cursor=
  *   GET  /api/v1/source-nodes/:id[/preview]
@@ -378,6 +378,56 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     return { id: p.id, projectId: p.id, title: p.title, description: "", definition: { nodeIds: [roots.get(p.id)], seed: true }, fileCount: files, tasks: [task(p)], createdFromProposalId: null, createdBy: SEED_PRINCIPAL, createdAt: createdAt() };
   }
 
+  /**
+   * `GET …/datasets/:d/profile` (kernel/dataset_profile.py), from the manifest: one collection per
+   * kind, formats from extensions, the size, rate and slide facts the manifest carries. Seeds are
+   * vetted, so there are no issues and no relationship proposals.
+   */
+  function profile(p: SeedProject) {
+    const { nodes } = load();
+    const files = [...nodes.values()].filter((n) => n.sourceId === p.id && !n.isDir);
+    const groups = new Map<string, Node[]>();
+    for (const n of files) groups.set(n.detectedKind ?? "unknown", [...(groups.get(n.detectedKind ?? "unknown") ?? []), n]);
+    const NAMES: Record<string, [string, string, string]> = {
+      image: ["Images", "image", "images"], dicom: ["DICOM images", "image", "images"], volume: ["3D volumes", "volume", "volumes"], mask: ["Masks", "mask", "masks"],
+      video: ["Videos", "video", "videos"], waveform: ["Waveforms", "recording", "recordings"], slide: ["Whole-slide images", "slide", "slides"], table: ["Tables", "table", "tables"],
+      document: ["Documents", "document", "documents"], archive: ["Archives", "archive", "archives"], unknown: ["Files we can't read yet", "file", "files"],
+    };
+    const ORDER = ["dicom", "volume", "image", "video", "slide", "waveform", "mask", "table", "document", "archive", "unknown"];
+    const rank = (kind: string) => (ORDER.includes(kind) ? ORDER.indexOf(kind) : ORDER.length);
+    const tally = (values: (string | null)[]) => {
+      const c = new Map<string, number>();
+      for (const v of values) if (v) c.set(v, (c.get(v) ?? 0) + 1);
+      const ranked = [...c.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+      return { values: ranked.slice(0, 6).map(([value, count]) => ({ value, count })), more: Math.max(0, ranked.length - 6), missing: values.filter((v) => !v).length };
+    };
+    const num = (v: unknown) => (typeof v === "number" ? v : null);
+    const collections = [...groups.entries()]
+      .sort((a, b) => rank(a[0]) - rank(b[0]))
+      .map(([kind, ns]) => {
+        const [name, one, other] = NAMES[kind] ?? NAMES.unknown;
+        const facts: { key: string; label: string; values: { value: string; count: number }[]; more: number; missing: number }[] = [];
+        const add = (key: string, label: string, values: (string | null)[]) => {
+          if (values.some(Boolean)) facts.push({ key, label, ...tally(values) });
+        };
+        add("size", kind === "video" ? "Frame size" : "Image size", ns.map((n) => (num(n.facts.width) && num(n.facts.height) ? `${n.facts.width} × ${n.facts.height} px` : null)));
+        add("fps", "Frame rate", ns.map((n) => (num(n.facts.fps) ? `${n.facts.fps} fps` : null)));
+        add("mpp", "Microns per pixel", ns.map((n) => (num(n.facts.mpp) ? String(n.facts.mpp) : null)));
+        add("magnification", "Magnification", ns.map((n) => (num(n.facts.magnification) ? `${n.facts.magnification}×` : null)));
+        const durations = ns.map((n) => num(n.facts.duration)).filter((d): d is number => d !== null);
+        if (durations.length) {
+          const s = (v: number) => (v < 60 ? `${Math.round(v * 10) / 10} s` : `${Math.floor(v / 60)} min ${String(Math.round(v % 60)).padStart(2, "0")} s`);
+          const [lo, hi] = [Math.min(...durations), Math.max(...durations)];
+          facts.push({ key: "duration", label: "Duration", values: [{ value: lo === hi ? s(lo) : `${s(lo)} – ${s(hi)}`, count: durations.length }], more: 0, missing: ns.length - durations.length });
+        }
+        const UNITS: Record<string, [string, string?]> = { size: ["text", "px"], fps: ["decimal", "fps"], mpp: ["decimal", "µm/px"], magnification: ["decimal", "×"], duration: ["decimal", "s"] };
+        const fields = facts.map((f) => ({ id: `fact:${f.key}`, name: f.label, type: UNITS[f.key][0], ...(UNITS[f.key][1] ? { unit: UNITS[f.key][1] } : {}), required: f.missing === 0, filled: (ns.length - f.missing) / ns.length, source: "inspection" }));
+        const formats = tally(ns.map((n) => extension(n.name).replace(/^\./, "").toUpperCase() || null));
+        return { id: `kind:${kind}`, name, kind, count: ns.length, unit: { one, other }, files: ns.length, formats: formats.values.map((v) => ({ label: v.value, count: v.count })), facts, fields, previewNodeId: ns[0]?.id ?? null, suggested: true, issues: 0 };
+      });
+    return { datasetId: p.id, snapshot: { kind: "draft", label: "Working draft", readOnly: false }, files: files.length, checking: 0, collections, relationships: [], issues: [] };
+  }
+
   function review(p: SeedProject) {
     const pending = annotationsOf(p.id).annotations.filter((a) => (a.provenance === "ai-suggested" || a.provenance === "imported") && (a.attributes?.review_status ?? "pending") === "pending");
     return pending.length ? [{ id: `annotations:${p.id}`, type: "annotations", severity: "low", title: `${pending.length} ${pending.length === 1 ? "annotation" : "annotations"} to review`, detail: p.title, target: { section: "studio", taskId: p.id }, datasetId: p.id, at: annotationsOf(p.id).savedAt ?? null }] : [];
@@ -438,6 +488,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       if (sub === "datasets") {
         if (!subId) return send(200, { datasets: [dataset(p)] });
         if (subId !== p.id) return notFound();
+        if (subSub === "profile") return send(200, profile(p));
         return subSub === "tasks" ? send(200, { tasks: [task(p)] }) : send(200, dataset(p));
       }
       if (sub === "search") {

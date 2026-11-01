@@ -22,8 +22,8 @@ export function LegacyRedirect({ to }: { to: (id: string, params: Readonly<Param
   return <Navigate to={to(params.datasetId ?? "", params)} replace />;
 }
 
-/** `/projects/:p/sources/*` → `/projects/:p/files/*` (todo7 D11), same node id, query and hash. */
-export function SourcesRedirect() {
+/** `/projects/:p/files/*` → `/projects/:p/sources/*`, same node id, query and hash. */
+export function FilesRedirect() {
   const { pathname, search, hash } = useLocation();
   return <Navigate to={filesRedirect(pathname, search) + hash} replace />;
 }
@@ -110,7 +110,7 @@ export function SectionFrame({ title, description, children }: { title: string; 
         <PageHeading title={title} description={description} />
         {children ?? (
           <p className="text-sm text-muted-foreground">
-            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Data</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
+            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Sources</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
           </p>
         )}
       </div>

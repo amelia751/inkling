@@ -62,7 +62,7 @@ def main() -> int:
         check("after a reload the tree footer counts 1 item in Trash", bool(wait(lambda: count.inner_text().strip() == "1", 10)), count.inner_text() if count.count() else "no trash count")
         page.get_by_test_id("tree-footer").get_by_text("Trash", exact=True).first.click()
         page.wait_for_selector("[data-testid=trash-view]", timeout=10000)
-        check("the Trash view has its own address", page.url.rstrip("/").endswith(f"/projects/{pid}/files/trash"), page.url)
+        check("the Trash view has its own address", page.url.rstrip("/").endswith(f"/projects/{pid}/sources/trash"), page.url)
         trow = page.locator("[data-testid=trash-row]").filter(has_text="big")
         check("the Trash lists the folder (not its 500 files)", bool(wait(lambda: page.locator("[data-testid=trash-row]").count() == 1 and trow.count() == 1, 10)), str(page.locator("[data-testid=trash-row]").all_inner_texts()))
         check("with where it was", "study" in trow.inner_text(), trow.inner_text())
@@ -122,7 +122,7 @@ def main() -> int:
         api(page, f"/source-nodes/{a['id']}/versions/1/restore", "POST")
         versions = api(page, f"/source-nodes/{a['id']}/versions")["json"]["versions"]
         check("a.png has three versions", [v["version"] for v in versions] == [3, 2, 1], str([v["version"] for v in versions]))
-        page.goto(f"{base}/projects/{pid}/files/trash")
+        page.goto(f"{base}/projects/{pid}/sources/trash")
         page.wait_for_selector("[data-testid=trash-row]", timeout=10000)
         page.get_by_test_id("trash-empty-button").click()
         kept = page.get_by_test_id("trash-kept-bytes")

@@ -1,7 +1,7 @@
 """Datasets, Review, Activity and Settings in seed mode (todo6 Phase 8).
 
-- Datasets lists the sample's dataset and task; Open Studio opens the task; the dataset's tabs
-  are Tasks · Versions · Publish & export (the old export page, with its formats); New dataset
+- Datasets lists the sample's dataset and task; Open Studio opens the task; a dataset opens on its
+  Overview, History hosts the versions page and Publish the old export page (with its formats); New dataset
   has the folder picker (breadcrumb + flat list) and a preset picker, and says it needs the API.
 - Review: empty for a seed; an annotation suggestion (written to the e2e copy of the annotations)
   shows as a row that opens the task's Studio, and the same row is Overview's attention; the
@@ -58,14 +58,14 @@ def main() -> int:
 
             page.goto(f"{base}/projects/{P}/datasets/{P}")
             page.wait_for_selector("[data-testid=dataset-tasks]", timeout=10000)
-            check("dataset detail: Tasks tab", page.locator("[data-testid=dataset-detail]").get_attribute("data-tab") == "tasks")
-            page.get_by_role("link", name="Versions", exact=True).click()
+            check("dataset detail: opens on Overview", page.locator("[data-testid=dataset-detail]").get_attribute("data-tab") == "overview")
+            page.get_by_role("link", name="History", exact=True).click()
             page.wait_for_url(f"**/datasets/{P}/versions", timeout=10000)
             page.get_by_test_id("versioning-off").or_(page.get_by_text("Every save is a commit")).first.wait_for(timeout=10000)
-            check("dataset detail: Versions tab hosts the versions page", page.locator("[data-testid=dataset-detail][data-tab=versions]").count() == 1)
-            page.get_by_role("link", name="Publish & export").click()
+            check("dataset detail: History hosts the versions page", page.locator("[data-testid=dataset-detail][data-tab=versions]").count() == 1)
+            page.get_by_test_id("dataset-publish").click()
             page.wait_for_selector("text=Standard formats", timeout=20000)
-            check("dataset detail: Publish & export hosts the export page", page.get_by_role("button", name="Download").count() >= 1)
+            check("dataset detail: Publish hosts the export page", page.get_by_role("button", name="Download").count() >= 1)
             check("one shell around the tab (no nested layout)", page.locator("header").count() == 1, str(page.locator("header").count()))
 
             page.goto(f"{base}/projects/{P}/datasets")

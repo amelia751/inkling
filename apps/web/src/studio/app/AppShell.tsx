@@ -4,7 +4,7 @@ import { useNoSwipeBack } from "@/studio/lib/use-no-swipe-back";
 import { DatasetStudioPage } from "./routes/DatasetStudioPage";
 import { StudioHostProvider } from "@/extension-host/host";
 import { ReviewPage } from "./routes/ReviewPage";
-import { DatasetDetailPage, DatasetsPage } from "./routes/DatasetsPage";
+import { DatasetLayout, DatasetsPage } from "@/studio/core/datasets";
 import { ProjectReviewPage } from "./routes/ProjectReviewPage";
 import { ActivityPage } from "./routes/ActivityPage";
 import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
@@ -15,7 +15,7 @@ import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
 import { FilesPage } from "./routes/FilesPage";
-import { LEGACY, LegacyRedirect, SectionFrame, SourcesRedirect, StudioEntry } from "./routes/project-pages";
+import { LEGACY, LegacyRedirect, SectionFrame, FilesRedirect, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
 import { MembersPage } from "./routes/settings/MembersPage";
 import { ApiKeysPage, AuditLogPage, OrgProjectsPage, OrgSettingsPage, SecurityPage } from "./routes/settings/OrgPages";
@@ -38,16 +38,21 @@ const routes = [
   { path: "/projects/new", element: <NewProjectPage /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
-  // todo7 D11: the drive is "files"; `/sources/*` redirects keeping the node id and query.
-  { path: "/projects/:projectId/files/trash", element: <FilesPage trash /> },
-  { path: "/projects/:projectId/files/:nodeId?", element: <FilesPage /> },
-  { path: "/projects/:projectId/sources/*", element: <SourcesRedirect /> },
+  // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.
+  { path: "/projects/:projectId/sources/trash", element: <FilesPage trash /> },
+  { path: "/projects/:projectId/sources/:nodeId?", element: <FilesPage /> },
+  { path: "/projects/:projectId/files/*", element: <FilesRedirect /> },
   { path: "/projects/:projectId/explore/:tab?", element: <ExplorePage /> },
   { path: "/projects/:projectId/datasets", element: <DatasetsPage /> },
-  { path: "/projects/:projectId/datasets/:datasetId", element: <DatasetDetailPage tab="tasks" /> },
-  { path: "/projects/:projectId/datasets/:datasetId/versions", element: <DatasetDetailPage tab="versions" /> },
+  // docs/datasets.md §2.2: Overview · Structure · Fields & Formats · Annotations · Quality · History.
+  { path: "/projects/:projectId/datasets/:datasetId", element: <DatasetLayout tab="overview" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/structure", element: <DatasetLayout tab="structure" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/fields", element: <DatasetLayout tab="fields" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/annotations", element: <DatasetLayout tab="annotations" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/quality", element: <DatasetLayout tab="quality" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/versions", element: <DatasetLayout tab="versions" /> },
   { path: "/projects/:projectId/datasets/:datasetId/versions/reviews/:reviewId", element: <VersionReviewPage /> },
-  { path: "/projects/:projectId/datasets/:datasetId/publish", element: <DatasetDetailPage tab="publish" /> },
+  { path: "/projects/:projectId/datasets/:datasetId/publish", element: <DatasetLayout tab="publish" /> },
   { path: "/projects/:projectId/studio", element: <StudioEntry /> },
   { path: "/projects/:projectId/studio/:taskId", element: studio },
   { path: "/projects/:projectId/tasks/:taskId/setup", element: <TaskSetupPage /> },

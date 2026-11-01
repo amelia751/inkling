@@ -107,7 +107,7 @@ export const NEEDS_FULL_STACK = "Needs the full stack";
 export const SAMPLE_LOCKED = "Sample data can't be changed. Copy it to make your own";
 const ROOT_FIXED = "The project's top folder stays where it is";
 
-/** Core command names (declared in the core manifest with `when: section == files`). */
+/** Core command names (declared in the core manifest with `when: section == sources`). */
 export const FILES_COMMANDS = {
   open: "openItem",
   quickLook: "quickLook",

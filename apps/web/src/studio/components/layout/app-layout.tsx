@@ -6,6 +6,7 @@ import {
   ArrowLeftIcon,
   BillingIcon,
   ChevronDownIcon,
+  DatasetsIcon,
   HomeIcon,
   OrganizationIcon,
   OverviewIcon,
@@ -53,14 +54,16 @@ interface Section {
 }
 
 /**
- * docs/ux.md §2: the project sidebar, in this order; Settings is pinned at the bottom. Explore and
- * Datasets are off the sidebar for now. Their pages stay: Explore opens from the Overview card,
- * attention rows and Review; a dataset's Versions and Publish & export from the Studio's top bar.
+ * docs/ux.md §2: the project sidebar, in this order; Settings is pinned at the bottom. Explore is
+ * off the sidebar: it opens from the Overview card, attention rows, Review and a dataset's
+ * Structure. Datasets is on it (docs/datasets.md §1).
  */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
-  // todo7 D11: the route is `files`; the visible label stays "Data" (the drive's root is "Files").
-  { section: "files", label: "Data", icon: SourcesIcon },
+  // The route and label are "Sources" (the drive's root folder is "Files").
+  { section: "sources", label: "Sources", icon: SourcesIcon },
+  // docs/datasets.md §1: Datasets explains, Sources stores, the Studio works.
+  { section: "datasets", label: "Datasets", icon: DatasetsIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
   { section: "activity", label: "Activity", icon: ActivityIcon },
@@ -124,7 +127,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
   const { pathname } = useLocation();
   useEffect(() => setDrawerOpen(false), [pathname]);
   const project = useCurrentProject(dataset);
-  // `when` clauses outside an environment read the page (`section == files`); the Studio
+  // `when` clauses outside an environment read the page (`section == sources`); the Studio
   // resolves its own context (section == studio) on top.
   const section = useSection();
   const shellSection = studio ? "studio" : (section ?? (project ? "overview" : "home"));

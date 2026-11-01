@@ -413,7 +413,7 @@ function ReorgPlanCard({ card, state, setState, projectId }: CardProps & { card:
   const footer =
     state === "applied" ? (
       <>
-        <span className="mr-auto flex h-6 items-center gap-1 text-muted-foreground"><CheckIcon className="size-3.5" />Applied{batchId ? "" : " · undo with ⌘Z in Data"}</span>
+        <span className="mr-auto flex h-6 items-center gap-1 text-muted-foreground"><CheckIcon className="size-3.5" />Applied{batchId ? "" : " · undo with ⌘Z in Sources"}</span>
         {batchId && (
           <Button variant="outline" size="sm" onClick={undo} disabled={busy !== null} data-testid="agent-reorg-undo">
             <UndoIcon />

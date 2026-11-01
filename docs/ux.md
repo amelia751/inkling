@@ -204,9 +204,9 @@ Match current Inkling dark theme: restrained near-black surfaces, subtle borders
 
 The Overview is deliberately not a replacement for these detailed screens. It only routes users to them.
 
-## 6. Data: Files and messy-data ingestion
+## 6. Sources: Files and messy-data ingestion
 
-The **Data** section (nav label) holds the project's **Files**: one drive per project, a real file
+The **Sources** section (nav label and route, `/projects/:p/sources`) holds the project's **Files**: one drive per project, a real file
 system built on the kiwifs tree (todo7). Two things stay true: the **bytes** of every upload are
 immutable, and nothing a dataset or version depends on changes silently. Names and folders are
 the user's: every change is journaled, undoable and restorable, and the original filename,

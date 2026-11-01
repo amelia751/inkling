@@ -81,7 +81,7 @@ def main() -> int:
         page.goto(f"{base}/projects/2d-xray/overview")
         page.wait_for_selector("[data-testid=data-card]", timeout=20000)
         href = page.locator("[data-testid=data-card]").first.get_attribute("href") or ""
-        check("data cards link to Data (todo7 D11: /files)", "/projects/2d-xray/files/" in href, href)
+        check("data cards link to Sources", "/projects/2d-xray/sources/" in href, href)
         check("attention is empty for seeds", page.locator("[data-testid=all-caught-up]").inner_text() == "You're all caught up.")
 
         # Every number on the page came from an API response (never a placeholder 0).

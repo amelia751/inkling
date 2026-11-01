@@ -69,7 +69,7 @@ const ITEM = "item:";
  * tree, compaction and numbered runs, folder progress) and is the default when the items span
  * more than one folder; **Queue** is the flat work order with status chips. The view is
  * remembered per task in this browser. Duplicate names get their shortest distinguishing
- * folder, dimmed; a hover card tells the rest; the row menu has Show in Data. A blind task
+ * folder, dimmed; a hover card tells the rest; the row menu has Show in Sources. A blind task
  * (D8) never shows the labels that came with the files.
  */
 export function FilesPanel({ items, env, project }: PanelProps) {
@@ -122,7 +122,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   // ⌘F inside the panel (the key comes from the core command, never from here).
   const panelKeys = useCommands({ filterItems: () => openFilter() }, { scope: CORE, enabled: focused });
 
-  // A rename or move in Data changes folders and names: refetch the task document (todo7 fs.changed).
+  // A rename or move in Sources changes folders and names: refetch the task document (todo7 fs.changed).
   const qc = useQueryClient();
   useEffect(
     () =>
@@ -318,7 +318,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
               }}
               data-testid="show-in-data"
             >
-              <FolderOpenIcon aria-hidden /> Show in Data
+              <FolderOpenIcon aria-hidden /> Show in Sources
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

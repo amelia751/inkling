@@ -1,86 +1,43 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { AddDataIcon, LicenseIcon, LockIcon, ProjectsIcon } from "@studio/ui/icons";
 import { AppLayout } from "@/studio/components/layout/app-layout";
-import { DropOverlay } from "@/studio/components/uploads/uploads";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
-import { Textarea } from "@studio/ui/ui/textarea";
 import { useProjectList } from "@/studio/lib/projects-api";
-import { EXAMPLE_GOALS, type NewProjectState } from "@/studio/components/projects/new-project";
 import { newProjectUrl, projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
-import { fromDataTransfer, hasFiles } from "@/studio/lib/uploads/walk";
+import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { cn } from "@studio/ui/utils";
 
 /**
- * Home (todo6 Phase 3.1, docs/ux.md §3): "What are you working on?", one primary action, a
- * natural-language field and the recent projects with a single Resume action each. No metrics.
+ * Home (todo6 Phase 3.1, todo13 D1 and §3.1): "What are you working on?" as the composer. A
+ * send or a drop (anywhere on the page) starts a project, or adds to the last one, and opens
+ * it with the assistant. Below it, the recent projects with a single Resume action each. No
+ * metrics. `/projects/new` stays for people who want the form.
  */
 export function HomePage() {
   const { data: projects, isLoading, error } = useProjectList();
-  const navigate = useNavigate();
-  const [goal, setGoal] = useState("");
-  const start = (state: NewProjectState) => navigate(newProjectUrl(), { state });
   const recent = (projects ?? []).slice(0, 6);
   const empty = !isLoading && !error && recent.length === 0;
 
   return (
     <AppLayout>
-      <DropOverlay label="a new project" onDrop={(picked) => start({ goal, picked })} className="min-h-full">
-        <div className="mx-auto w-full max-w-6xl px-4 py-8 md:px-6 md:py-10">
-          <div className="flex flex-wrap items-end justify-between gap-4">
-            <h1 className="text-display-1 font-semibold">What are you working on?</h1>
-            <Button size="lg" onClick={() => start({ goal })} data-testid="new-project">
-              <AddDataIcon /> New project
+      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 py-8 md:px-6 md:py-10">
+        <HomeComposer
+          projects={projects}
+          className="flex-1"
+          actions={
+            <Button variant="ghost-secondary" size="lg" asChild>
+              <Link to={newProjectUrl()} data-testid="new-project">
+                <AddDataIcon /> New project with a form
+              </Link>
             </Button>
-          </div>
-
-          <form
-            className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-start"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (goal.trim()) start({ goal: goal.trim() });
-            }}
-            onDragOver={(e) => hasFiles(e.dataTransfer) && e.preventDefault()}
-            onDrop={async (e) => {
-              if (!hasFiles(e.dataTransfer)) return;
-              e.preventDefault();
-              e.stopPropagation();
-              start({ goal, picked: await fromDataTransfer(e.dataTransfer) });
-            }}
-          >
-            <Textarea
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey && goal.trim()) {
-                  e.preventDefault();
-                  start({ goal: goal.trim() });
-                }
-              }}
-              rows={2}
-              placeholder="Describe what you want to build, or drop files here"
-              aria-label="Describe what you want to build"
-              className="min-h-[60px] flex-1 resize-none text-body-2"
-              data-testid="goal"
-            />
-            <Button type="submit" size="xl" variant="outline" disabled={!goal.trim()}>Start</Button>
-          </form>
-          {(empty || !goal) && (
-            <div className="mt-3 flex flex-wrap gap-2" aria-label="Examples">
-              {EXAMPLE_GOALS.map((g) => (
-                <button key={g} type="button" onClick={() => setGoal(g)} className="rounded-full border border-border px-3 py-1 text-sm text-muted-foreground hover:bg-generic hover:text-foreground" data-testid="goal-example">
-                  {g}
-                </button>
-              ))}
-            </div>
-          )}
-
+          }
+        >
           {!empty && (
-            <section className="mt-10" aria-labelledby="recent-heading">
+            <section className="mt-6" aria-labelledby="recent-heading">
               <div className="mb-3 flex items-baseline justify-between gap-4">
                 <h2 id="recent-heading" className="text-body-2 font-semibold">Recent projects</h2>
                 <Link to={projectsUrl()} className="text-sm text-brand hover:underline">All projects</Link>
@@ -94,13 +51,8 @@ export function HomePage() {
               </div>
             </section>
           )}
-          {empty && (
-            <p className="mt-10 text-sm text-muted-foreground">
-              No projects yet. Drop a folder anywhere on this page to start one with your data.
-            </p>
-          )}
-        </div>
-      </DropOverlay>
+        </HomeComposer>
+      </div>
     </AppLayout>
   );
 }

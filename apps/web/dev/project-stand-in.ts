@@ -25,6 +25,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *   GET  /api/v1/projects/:id/pipeline-runs           → { runs: [] } (samples are never uploaded, so never run)
  *   GET  /api/v1/source-nodes/:id/{versions,activity,download}
  *   Every write (fs/ops, undo, star, zip, versions…) answers 501, like the rest.
+ *   GET  /api/v1/features                             → every todo13 flag on (dev, §7.4)
+ *   POST /api/v1/telemetry/timeline                   → 204 (accepted, not stored)
  */
 interface SeedAsset {
   path: string;
@@ -459,6 +461,13 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
       fs.mkdirSync(resumeDir, { recursive: true });
       fs.writeFileSync(resumeFile(p.id), JSON.stringify(saved));
       return send(200, { resume: saved });
+    }
+    // todo13 §7.1: dev runs with every flag on (the api's development default); the timeline
+    // post is accepted and dropped (the api logs it).
+    if (head === "features" && !id && req.method === "GET") return send(200, { chatDrops: true, autoApply: true, fastPath: true, datasetsTab: true });
+    if (head === "telemetry" && id === "timeline" && req.method === "POST") {
+      res.statusCode = 204;
+      return res.end();
     }
     if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see docs/running.md" });
 

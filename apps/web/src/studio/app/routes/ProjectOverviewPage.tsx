@@ -18,6 +18,7 @@ import {
   WarningIcon,
   type IconComponent,
 } from "@studio/ui/icons";
+import { ProjectEmptyState } from "@/studio/app/entry/empty-states";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { DropOverlay, DropZone, useAddData, usePickers } from "@/studio/components/uploads/uploads";
 import { Badge } from "@studio/ui/ui/badge";
@@ -64,7 +65,7 @@ export function ProjectOverviewPage() {
             <>
               <ProjectHeader project={o.project} />
               {o.empty ? (
-                <EmptyProject projectId={projectId} title={o.project.title} />
+                <ProjectEmptyState projectId={projectId} title={o.project.title} />
               ) : (
                 <div className="flex flex-col gap-8">
                   <ImportResult overview={o} />
@@ -385,20 +386,5 @@ function AttentionQueue({ projectId, items, total }: { projectId: string; items:
   );
 }
 
-// ---- A brand-new project -----------------------------------------------------------------------
-
-function EmptyProject({ projectId, title }: { projectId: string; title: string }) {
-  const addData = useAddData(projectId);
-  const setAssistant = useShell((s) => s.setAssistant);
-  return (
-    <div className="flex flex-col gap-4" data-testid="empty-project">
-      <p className="text-body-3">Let's start with your data.</p>
-      <DropZone onPick={(p) => void addData(p)} title={`Drop files or folders for ${title}`} hint="DICOM folders, images, videos, tables, documents. Originals are kept exactly as they are." className="py-14" />
-      <button type="button" onClick={() => setAssistant(true, true)} className="self-start text-sm text-muted-foreground hover:text-foreground" data-testid="tell-assistant">
-        <AiIcon className="mr-1.5 inline size-3.5 text-ai-text" />
-        Or tell {NAMING.displayName} what you're trying to create…
-      </button>
-    </div>
-  );
-}
+// ---- A brand-new project: todo13 §3.1, `ProjectEmptyState` (app/entry/empty-states.tsx) ----
 

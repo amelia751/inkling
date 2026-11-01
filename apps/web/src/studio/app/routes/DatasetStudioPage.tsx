@@ -39,6 +39,7 @@ import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
+import { CanvasDropTarget, CanvasEmptyState } from "@/studio/app/entry/empty-states";
 import { useLiveEnvironment } from "@/studio/lib/live-environment";
 import { ShellTransition } from "@/studio/lib/view-transition";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
@@ -307,6 +308,8 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
   const toggleAi = useStudio((s) => s.toggleAi);
   const leftOpen = useShell((s) => s.studioLeft);
   const save = useAutosave(projectId);
+  // `projectId` here is the task (seed ids line up); the route names the project files go to.
+  const routeProjectId = useParams().projectId ?? projectId;
   const viewport = useViewport();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Picking a file in the phone drawer should reveal the canvas.
@@ -353,21 +356,24 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       <CanvasToolbar env={env} project={project} items={items} item={item} />
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {item ? (
-          env.viewports.length === 1 ? (
-            <ViewportHost key={remountsOnItemSwitch(main) ? item.id : main.name} env={env} viewport={main} project={project} item={item} />
-          ) : (
-            // Several viewports (e.g. a video next to its sensor trace) share the item and
-            // stay in sync through runtime values such as `playhead`.
-            <div className="flex h-full min-h-0 divide-x divide-border">
-              {env.viewports.map((vp) => (
-                <div key={vp.name} className="min-w-0 flex-1" data-viewport={vp.name}>
-                  <ViewportHost key={remountsOnItemSwitch(vp) ? `${item.id}:${vp.name}` : vp.name} env={env} viewport={vp} project={project} item={item} />
-                </div>
-              ))}
-            </div>
-          )
+          <CanvasDropTarget projectId={routeProjectId} taskId={projectId}>
+            {env.viewports.length === 1 ? (
+              <ViewportHost key={remountsOnItemSwitch(main) ? item.id : main.name} env={env} viewport={main} project={project} item={item} />
+            ) : (
+              // Several viewports (e.g. a video next to its sensor trace) share the item and
+              // stay in sync through runtime values such as `playhead`.
+              <div className="flex h-full min-h-0 divide-x divide-border">
+                {env.viewports.map((vp) => (
+                  <div key={vp.name} className="min-w-0 flex-1" data-viewport={vp.name}>
+                    <ViewportHost key={remountsOnItemSwitch(vp) ? `${item.id}:${vp.name}` : vp.name} env={env} viewport={vp} project={project} item={item} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </CanvasDropTarget>
         ) : (
-          <FullPageMessage kind="dataset" title="Nothing to annotate" body="This project has no items for its data kind." />
+          // todo13 D11: an empty canvas is a drop target, not a dead end.
+          <CanvasEmptyState projectId={routeProjectId} taskId={projectId} />
         )}
       </main>
       {bottom}

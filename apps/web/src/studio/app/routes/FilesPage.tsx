@@ -16,7 +16,8 @@ import { cn } from "@studio/ui/utils";
 import { useCommands } from "@/extension-host/commands";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { sourceNodeContext, useAgentContext } from "@/studio/lib/agent/providers";
-import { DropZone, useAddData, usePickers } from "@/studio/components/uploads/uploads";
+import { useAddData, usePickers } from "@/studio/components/uploads/uploads";
+import { FilesEmptyState } from "@/studio/app/entry/empty-states";
 import { ImportsList, ImportSummary } from "@/studio/components/sources/imports";
 import { Inspector } from "@/studio/components/sources/inspector";
 import { Listing, sortItems, type ListingHandle, type Sort, type SortKey } from "@/studio/components/sources/listing";
@@ -1431,7 +1432,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                   />
                 ) : nothing ? (
                   <div className="p-6">
-                    <DropZone onPick={(p) => void addData(p)} title="Add the files you have" hint="Drop a folder here, as it is: DICOM exports, spreadsheets, videos, PDFs. Originals are kept exactly as they arrive." />
+                    <FilesEmptyState projectId={projectId} disabledReason={!writable ? NEEDS_FULL_STACK : null} />
                   </div>
                 ) : anchorMissing ? (
                   <div className="p-6 text-sm text-muted-foreground" data-testid="node-missing">

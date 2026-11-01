@@ -11,11 +11,12 @@ import { currentProvider, useAgentContextStore, type AgentSection } from "@/stud
 import { ENV_TOOL_NAMES } from "@/studio/lib/agent/session";
 import { useOverview, useProjectSummary } from "@/studio/lib/projects-api";
 import { useViewport } from "@/studio/lib/use-media-query";
+import { useFeature } from "@/studio/lib/features";
 import type { ClientToolOutcome } from "@/studio/stores/agent";
 import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/shell";
 
 const SECTIONS = new Set<AgentSection>(["overview", "sources", "explore", "datasets", "studio", "review", "activity", "settings"]);
-/** The old `files` route is the same section as `sources` (nav label "Sources"). */
+/** The old `files` route is the same section as `sources` (nav label "Files", todo13 D10). */
 /** `tasks` (Task setup, todo8 D7) belongs with Datasets: a task is work on a dataset. */
 const ALIASES: Record<string, AgentSection> = { files: "sources", tasks: "datasets" };
 export const agentSection = (s: string | undefined): AgentSection => (s && ALIASES[s]) || (s && SECTIONS.has(s as AgentSection) ? (s as AgentSection) : "overview");
@@ -107,6 +108,8 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
   const ref = { id: project.id, title: summary?.title ?? project.title, restricted: !!summary?.restricted };
   const registered = useAgentContextStore((s) => s.provider);
   const provider = currentProvider(registered, section, ref);
+  // todo13 §3.1 "Chat, new conversation": with chat drops on, the empty chat says files go here too.
+  const drops = useFeature("chatDrops");
   return (
     <AssistantPanel
       project={{ ...ref, restricted: ref.restricted, heldFiles: held }}
@@ -123,7 +126,9 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
             }
           : {
               title: "How can I help with this project?",
-              body: `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
+              body: drops
+                ? `Drop files, paste a screenshot, or tell me what you're making. I can also tell you what's in ${ref.title} and what needs your attention; you confirm what I propose.`
+                : `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
               prompts: [
                 { icon: SourcesIcon, text: "What did I import?" },
                 { icon: WarningIcon, text: "What needs my attention?" },

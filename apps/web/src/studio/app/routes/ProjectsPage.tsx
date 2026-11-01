@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
+import { NoResults } from "@studio/ui/ui/empty-state";
 import { Link, useLocation, useNavigate } from "react-router";
 import { AddDataIcon, SearchIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
@@ -10,6 +10,7 @@ import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { newProjectUrl } from "@/studio/lib/routes";
 import { ProjectCard, ProjectCardSkeleton } from "./HomePage";
+import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 
 /** All projects (`/projects`): search and sort, in the same cards as Home. */
 export function ProjectsPage() {
@@ -51,16 +52,8 @@ export function ProjectsPage() {
           (q.trim() ? (
             <NoResults what="projects" onClear={() => setQ("")} />
           ) : (
-            <EmptyState
-              art="folder"
-              title="No projects yet"
-              description="A project holds your files, the datasets you build from them and the annotation work on them."
-              actions={
-                <Button variant="outline" size="lg" asChild>
-                  <Link to={newProjectUrl()}>Create project</Link>
-                </Button>
-              }
-            />
+            // todo13 §3.1: the same composer as Home, not a second, different empty state.
+            <HomeComposer projects={data} surface="projects" className="mt-2" />
           ))}
       </div>
     </AppLayout>

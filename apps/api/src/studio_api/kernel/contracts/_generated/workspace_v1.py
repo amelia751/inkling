@@ -183,6 +183,12 @@ class EnvironmentSpec(BaseModel):
         dict[str, str] | None, Field(description='Module id → semver range')
     ] = None
     data: Data | None = None
+    collectionId: Annotated[
+        str | None,
+        Field(
+            description="The dataset collection this Studio works on (todo13 D7); the task's own collection wins when they differ"
+        ),
+    ] = None
     labels: list[LabelGroup] | None = None
     viewports: list[Viewport] | None = None
     tools: Annotated[

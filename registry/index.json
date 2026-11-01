@@ -200,7 +200,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:6818b6fd5234c0cc1c4bd157f00ae19873836a2e82b3850141611f7def83fbf5",
+      "artifactDigest": "sha256:2067ca4a3efeb7fa7b3999f4c1fdea709df378227226f8de1a3810533796466f",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -443,7 +443,7 @@
       "version": "0.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:fd043a820931e8744d15f60acd3fe27aa0611bb434b17e17112894b9b58f2583",
+      "artifactDigest": "sha256:87a4bce6966f55c8cfc0a707587336f61201a3357afb7c46b0efb02a69619ea7",
       "path": "plugins/text-spans",
       "capabilities": [
         "text.annotate"
@@ -505,7 +505,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:5add823f8fed3cb4ec323b4153c1a1802102a245e2b6198a0315808e14d06691",
+      "artifactDigest": "sha256:09f4a385bf1381fd5a6d03d8ee15f4af51f301a10ffc875af471ab204c407eb1",
       "path": "plugins/timeseries",
       "capabilities": [
         "signal.view",
@@ -578,7 +578,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:39bbfa704721f2a3f4df8b676338dcf7e9325ccc72cb8966a9001e2fc5c60ec4",
+      "artifactDigest": "sha256:3906b9d44502357fd80c801762cf26a706ba2fa52f8a94fa56d372d9b48c802f",
       "path": "plugins/video",
       "capabilities": [
         "video.view",
@@ -652,7 +652,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:b0a8d0ddd021ca15cbefb6990972583aec693e21e5099c28faaf7148052cfe33",
+      "artifactDigest": "sha256:5801ab2e38b6d360d2dc41bf92676c83df52cc15d273482b5b574093a4ecb01a",
       "path": "plugins/volume",
       "capabilities": [
         "volume.view",
@@ -725,7 +725,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:0532068eacd1b7aefb39ac2e614c6abd3080229af4e9e938183468c4621d2916",
+      "artifactDigest": "sha256:da99789ca1acdf38dee528cbd8171988de33cbdf1f11889d287ec794bf707c12",
       "path": "plugins/wsi",
       "capabilities": [
         "pyramid.view",

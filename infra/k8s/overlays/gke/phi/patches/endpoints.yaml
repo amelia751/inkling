@@ -39,5 +39,6 @@ data:
   INKLING_VERSIONING_OBJECT_BUCKET: spurby-phi-versioning-objects
   INKLING_VERSIONING_MANIFEST_BUCKET: spurby-phi-versioning-manifests
   INKLING_VERSIONING_REDIS_URL: rediss://10.30.0.3:6378/2
+  INKLING_VERSIONING_REDIS_CA_FILE: /etc/redis-ca/ca.crt
 # Database URLs carry credentials, so they are in the Secrets; the host is sql_private_ip
 # (database `studio`, sslmode=require).

@@ -57,6 +57,24 @@ patches:
       - op: replace
         path: /spec/template/spec/automountServiceAccountToken
         value: true
+  # Memorystore serves TLS with its own CA (ConfigMap redis-ca, from `terraform output redis_ca`).
+  - target:
+      kind: Deployment
+      name: agent
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value:
+          name: redis-ca
+          configMap:
+            name: redis-ca
+            optional: true
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value:
+          name: redis-ca
+          mountPath: /etc/redis-ca
+          readOnly: true
   - target:
       kind: HorizontalPodAutoscaler
       name: agent

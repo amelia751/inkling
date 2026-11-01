@@ -119,6 +119,7 @@ Not shared across replicas yet: artifact files (`/v1/artifacts/:id` is dev-only;
 | `INKLING_AGENT_AUTO_MIGRATE` | `false` | apply the schema at startup (dev/compose) |
 | `INKLING_AGENT_EVENT_BUS` | `memory` | `memory` (one process) or `redis` |
 | `INKLING_AGENT_REDIS_URL` | – | Redis URL; required with `INKLING_AGENT_EVENT_BUS=redis` |
+| `INKLING_AGENT_REDIS_CA_FILE` | – | PEM CA for a `rediss://` server with a private CA (Memorystore) |
 | `INKLING_AGENT_RUN_STREAM_MAXLEN` | `5000` | approximate events kept per run stream |
 | `INKLING_AGENT_RUN_STREAM_TTL_S` | `86400` | run stream lifetime after its last event |
 | `INKLING_AGENT_RUN_LEASE_S` | `30` | heartbeat age after which a run counts as interrupted |

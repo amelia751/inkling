@@ -50,6 +50,7 @@ type Config struct {
 
 	EventBus      string // "log" or "redis"
 	RedisURL      string
+	RedisCAFile   string
 	EventSubject  string // subject prefix, e.g. "versioning"
 	DiffRulesDir  string // optional plugin-declared diff rules (V13)
 	PurgeEnabled  bool   // V9: gated until the retention ADR is signed off
@@ -160,6 +161,7 @@ func FromEnv(naming Naming, lookup func(string) (string, bool)) (*Config, error)
 
 	c.EventBus = p.str("EVENT_BUS", "log")
 	c.RedisURL = p.str("REDIS_URL", "")
+	c.RedisCAFile = p.str("REDIS_CA_FILE", "")
 	c.EventSubject = p.str("EVENT_SUBJECT_PREFIX", "versioning")
 	c.DiffRulesDir = p.str("DIFF_RULES_DIR", "")
 	c.PurgeEnabled = p.boolean("PURGE_ENABLED", false)

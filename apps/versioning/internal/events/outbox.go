@@ -4,8 +4,10 @@ package events
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -35,11 +37,23 @@ type RedisStreams struct {
 	MaxLen int64
 }
 
-// NewRedisStreams connects from a redis:// URL.
-func NewRedisStreams(url string) (*RedisStreams, error) {
+// NewRedisStreams connects from a redis:// or rediss:// URL. caFile, when set, is the PEM CA that
+// signs a rediss:// server's certificate (Memorystore uses its own CA).
+func NewRedisStreams(url, caFile string) (*RedisStreams, error) {
 	opt, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, fmt.Errorf("redis url: %w", err)
+	}
+	if caFile != "" && opt.TLSConfig != nil {
+		pem, err := os.ReadFile(caFile)
+		if err != nil {
+			return nil, fmt.Errorf("redis ca: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("redis ca: no certificate in %s", caFile)
+		}
+		opt.TLSConfig.RootCAs = pool
 	}
 	return &RedisStreams{Client: redis.NewClient(opt), MaxLen: 1_000_000}, nil
 }

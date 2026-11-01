@@ -17,6 +17,7 @@ data:
   INKLING_WEB_URL: https://agent-api.example.com
   # Memorystore (output redis_host); the URL with the AUTH string is in agent-secrets.
   INKLING_AGENT_REDIS_URL: rediss://10.60.0.3:6378/1
+  INKLING_AGENT_REDIS_CA_FILE: /etc/redis-ca/ca.crt
   # D9 trial: Daytona stays the provider until the GKE Sandbox provider (todo10-boundary's
   # SandboxProvider) lands; then `gke` with the settings in ../README.md.
   INKLING_AGENT_SANDBOX: daytona

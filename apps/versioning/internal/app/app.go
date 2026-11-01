@@ -80,7 +80,7 @@ func Build(ctx context.Context, cfg *config.Config, log *slog.Logger, o Options)
 	if pub == nil {
 		switch cfg.EventBus {
 		case "redis":
-			if pub, err = events.NewRedisStreams(cfg.RedisURL); err != nil {
+			if pub, err = events.NewRedisStreams(cfg.RedisURL, cfg.RedisCAFile); err != nil {
 				return nil, err
 			}
 		default:

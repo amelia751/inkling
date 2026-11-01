@@ -12,6 +12,8 @@ export interface RedisBusOptions {
   ttlS: number;
   /** XREAD BLOCK timeout; an `idle` item is yielded each time it passes. */
   blockMs?: number;
+  /** CA (PEM) for a `rediss://` server whose certificate isn't signed by a public root. */
+  tlsCa?: string;
   log?: (msg: string) => void;
 }
 
@@ -33,7 +35,8 @@ export class RedisRunEventBus implements RunEventBus {
     url: string,
     private readonly opts: RedisBusOptions,
   ) {
-    this.cmd = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 2, enableOfflineQueue: true });
+    const tls = opts.tlsCa && url.startsWith("rediss://") ? { tls: { ca: opts.tlsCa } } : {};
+    this.cmd = new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 2, enableOfflineQueue: true, ...tls });
     this.cmd.on("error", (err) => opts.log?.(`redis error: ${err.message}`));
   }
 

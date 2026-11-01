@@ -127,6 +127,8 @@ const schema = z.object({
   /** How run events reach SSE readers on any replica (bus/). */
   AGENT_EVENT_BUS: z.enum(["memory", "redis"]).default("memory"),
   AGENT_REDIS_URL: optional,
+  /** PEM file of the CA that signs Redis's TLS certificate, for a `rediss://` URL served by a private CA (Memorystore). */
+  AGENT_REDIS_CA_FILE: optional,
   AGENT_RUN_STREAM_MAXLEN: int(5000),
   AGENT_RUN_STREAM_TTL_S: int(24 * 60 * 60),
   /** A run whose replica hasn't heartbeated for this long is marked interrupted on the next read. */
@@ -187,7 +189,7 @@ export interface Config {
   studioFiles: { catalog: string | undefined; intents: string | undefined };
   logLevel: Env["LOG_LEVEL"];
   store: { kind: Env["AGENT_STORE"]; databaseUrl: string | undefined; schema: string; autoMigrate: boolean };
-  bus: { kind: Env["AGENT_EVENT_BUS"]; redisUrl: string | undefined; streamMaxLen: number; streamTtlS: number };
+  bus: { kind: Env["AGENT_EVENT_BUS"]; redisUrl: string | undefined; redisCaFile: string | undefined; streamMaxLen: number; streamTtlS: number };
   cluster: { replicaId: string; leaseS: number; heartbeatS: number; inboxPollMs: number };
   shutdownGraceS: number;
   sweeperEnabled: boolean;
@@ -299,7 +301,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       studioFiles: { catalog: e.AGENT_CATALOG_FILE, intents: e.AGENT_INTENTS_FILE },
       logLevel: e.LOG_LEVEL,
       store: { kind: e.AGENT_STORE, databaseUrl: e.AGENT_DATABASE_URL, schema: e.AGENT_DATABASE_SCHEMA, autoMigrate: e.AGENT_AUTO_MIGRATE },
-      bus: { kind: e.AGENT_EVENT_BUS, redisUrl: e.AGENT_REDIS_URL, streamMaxLen: Math.max(100, e.AGENT_RUN_STREAM_MAXLEN), streamTtlS: e.AGENT_RUN_STREAM_TTL_S },
+      bus: { kind: e.AGENT_EVENT_BUS, redisUrl: e.AGENT_REDIS_URL, redisCaFile: e.AGENT_REDIS_CA_FILE, streamMaxLen: Math.max(100, e.AGENT_RUN_STREAM_MAXLEN), streamTtlS: e.AGENT_RUN_STREAM_TTL_S },
       cluster: {
         // Unique per process: a restarted container keeps its HOSTNAME but must not own the old runs.
         replicaId: e.AGENT_REPLICA_ID ?? `${e.HOSTNAME || "agent"}-${randomBytes(3).toString("hex")}`,

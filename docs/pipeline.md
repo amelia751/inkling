@@ -1,4 +1,4 @@
-# Inkling Pipeline Platform — Architecture and Implementation Specification
+# Pipeline Platform — Architecture and Implementation Specification
 
 **Status:** Proposed architecture, not implemented. Validate the engine and contracts with the
 Stage 0 spike (§19) before building on them.
@@ -33,7 +33,7 @@ VPC Service Controls perimeter (`docs/deployment-gcp.md`).
    `apps/pipeline/internal/engine/`: no server to run, workflow state in a database on our existing
    Cloud SQL instance, so it stays inside the perimeter under our encryption keys. Only one engine
    runs; the adapter exists so a switch (§5.5) is a replacement, not a rewrite. The engine is not a
-   lineage catalog, schema registry, data transform engine, or GPU scheduler; Inkling supplies those.
+   lineage catalog, schema registry, data transform engine, or GPU scheduler; we supply those.
 3. **Versions:** `apps/versioning` owns dataset commits, branches, Git objects, semantic merges,
    review requests, and release pointers; pipeline consumes that service's APIs. Do not create
    another branch-head authority in the pipeline database.
@@ -93,7 +93,7 @@ include a schema version and pipeline revision.
 ### 1.2 Layout
 
 ```text
-inkling/
+<repo>/
 ├── apps/
 │   ├── web/
 │   │   └── src/studio/core/pipelines/   # editor, run history, lineage, reviews (UI only)
@@ -111,7 +111,7 @@ inkling/
 │       │   ├── triggers/main.go         # Pub/Sub + outbox consumers, schedules (if split out)
 │       │   └── reconcile/main.go        # orphan/inconsistent-run reconciliation
 │       ├── internal/
-│       │   ├── config/                  # INKLING_PIPELINE_* only
+│       │   ├── config/                  # <prefix>PIPELINE_* only (prefix from schemas/naming.json)
 │       │   ├── server/                  # HTTP transport + service auth
 │       │   ├── domain/                  # definitions, runs, steps, artifacts, lineage
 │       │   ├── compiler/                # graph validation, topological sort, plan
@@ -187,7 +187,7 @@ flowchart LR
 
 | Piece | Google service | Notes |
 |---|---|---|
-| `apps/pipeline` | GKE Autopilot Deployment in the `spurby-phi` cluster | Workload Identity; no service-account keys; config from `INKLING_PIPELINE_*` |
+| `apps/pipeline` | GKE Autopilot Deployment in the `spurby-phi` cluster | No Google identity until connectors need Pub/Sub (then Workload Identity); no service-account keys; config from `<prefix>PIPELINE_*` |
 | Engine state (DBOS) | Database `pipeline_engine` on the existing `studio` Cloud SQL instance | CMEK and private IP already; split to its own instance only if load requires |
 | Pipeline tables | `pipeline` schema in database `studio` | Same pattern as the `versioning` schema |
 | Bucket notifications | Pub/Sub topic + **pull** subscription in `spurby-phi` | Push subscriptions are restricted inside a perimeter |
@@ -212,7 +212,7 @@ anywhere except the API, not "no internet but Google is fine".
 | `worker` (CPU and GPU) | `api:8000` only | No. Blobs, Healthcare API, signing and everything else go through the API |
 | `api` | Cloud SQL and Memorystore (private services range), `versioning:8090`, `restricted.googleapis.com:443`, the GKE metadata server | Yes (Workload Identity): Storage, KMS, Healthcare API, Sensitive Data Protection |
 | `versioning` | Cloud SQL, `restricted.googleapis.com:443`, metadata server | Yes: Storage |
-| `pipeline` (new) | `api:8000`, `versioning:8090`, Cloud SQL, `restricted.googleapis.com:443` for Pub/Sub and bucket listing, metadata server | Yes: Pub/Sub subscriber, Storage object viewer on the ingest buckets. No Healthcare, KMS or Storage write |
+| `pipeline` (new) | `api:8000`, `versioning:8090`, Cloud SQL; from Stage 3, `restricted.googleapis.com:443` for Pub/Sub and bucket listing, and the metadata server | None until Stage 3; then Pub/Sub subscriber and Storage object viewer on connector buckets. Never Healthcare, KMS or Storage write |
 
 Adding `pipeline` means: a new NetworkPolicy in `components/network-policies` (ingress from `api`
 only, the egress above); adding it to the `google-apis` policy in `overlays/gke/phi/network.yaml`;
@@ -261,7 +261,7 @@ state, logs or event payloads.
 
 ## 4. Pipeline graph and compiler
 
-Represent pipelines with an **Inkling-owned declarative graph** so that the UI, agent, and API can
+Represent pipelines with an **platform-owned declarative graph** so that the UI, agent, and API can
 author the same definition. The engine is an executor backend, not the public definition format.
 
 ```yaml
@@ -299,7 +299,7 @@ outputs:
   candidate_dataset: "${steps.propose.outputs.commit_id}"
 ```
 
-The YAML is a **proposed Inkling DSL** with a JSON Schema generated from `packages/contracts` (the
+The YAML is a **proposed pipeline DSL** with a JSON Schema generated from `packages/contracts` (the
 API validates; the web and agent get the same schema). `apiVersion` uses `NS` from
 `packages/contracts/src/naming.ts`, never a literal. For MVP, favor simple, explicit references over
 arbitrary executable expressions.
@@ -910,7 +910,7 @@ session features it breaks (`LISTEN`, session advisory locks, `SET`); connect th
   NetworkPolicy whose only egress is `api:8000` (§2.1). Anything a worker needs from Google (blobs,
   Healthcare API, signing) is brokered by the API. Never mix workspaces' data in one mutable
   workspace.
-- Secrets come from Secret Manager as `INKLING_*` env vars; never in pipeline YAML, Git commits,
+- Secrets come from Secret Manager as env vars with the naming config's prefix; never in pipeline YAML, Git commits,
   engine state, artifacts or logs.
 - PHI identification, encryption in transit/at rest, restricted previews, retention controls and
   documented deletion requests. Do not claim HIPAA compliance by technology selection; the Google
@@ -1095,10 +1095,10 @@ Settled, pending Stage 0 where noted:
 - go-git: https://github.com/go-git/go-git
 - Apache Iceberg: https://iceberg.apache.org/
 - Dagster: https://docs.dagster.io/
-- Inkling: `versioning.md`, `agent.md`, `plugins.md`, `deployment-gcp.md`, `todo/todo10.md`,
+- This repo: `versioning.md`, `agent.md`, `plugins.md`, `deployment-gcp.md`, `todo/todo10.md`,
   `todo/todo11.md`.
 
 **Implementation note:** Examples, policies, folder paths and event schemas in this document are
-proposed Inkling conventions, not shipped functionality. Pin specific, tested dependency versions.
+proposed conventions, not shipped functionality. Pin specific, tested dependency versions.
 New workflow implementations and migrations must be tested for recovery compatibility with
 in-flight runs.

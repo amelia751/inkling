@@ -1,0 +1,13 @@
+{
+  "name": "@studio/pipeline",
+  "private": true,
+  "scripts": {
+    "dev": "go run ./cmd/server",
+    "build": "go build -o dist/ ./cmd/...",
+    "test": "go test -race -timeout=40m ./...",
+    "test:chaos": "go test -tags=chaos -count=1 -timeout=90m -v ./tests/chaos/...",
+    "lint": "golangci-lint run",
+    "typecheck": "go vet ./...",
+    "generate": "go generate ./..."
+  }
+}

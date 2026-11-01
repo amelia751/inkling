@@ -218,6 +218,20 @@ services:
       s3-init: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
 
+  # apps/pipeline (todo12): DBOS engine executor + kernel event consumer. Internal only
+  # (called by api); :8095 inside the network. Its database and role come from postgres/init.sql.
+  pipeline:
+    <<: *app
+    image: studio-pipeline:${TAG:-dev}
+    build: { <<: *build, dockerfile: apps/pipeline/Dockerfile }
+    env_file:
+      - env/pipeline.env
+      - { path: ../../secrets/pipeline.env, required: false }
+    stop_grace_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+      api: { condition: service_healthy }
+
   # One entry point, same paths as the Ingress: /api/agent → web, /api and /seed → api, / → web.
   router:
     <<: *app

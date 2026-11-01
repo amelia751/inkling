@@ -186,7 +186,7 @@ This file plus `AGENTS.md` is the whole brief.
 | D1 | Server-side boot | **Approved** | A boot is an API operation that creates **draft** tasks; only a person publishes them. |
 | D2 | Shared TypeScript environment core | **Approved, changed** | `packages/environment-core` shares the resolver logic for clients. **The API validates authoritatively** (below). |
 | D3 | Project SSE events | **Approved** | Reuse the existing project event stream, with its revision tracking and `Last-Event-ID` replay. |
-| D4 | AG-UI protocol v2 | **Deferred** | Keep the working run protocol. Boot progress travels on project events. Add an AG-UI adapter when an integration needs it. |
+| D4 | AG-UI protocol v2 | **Deferred, with guardrails** | Keep the working run protocol. Boot progress travels on project events. Three rules (below) keep the run protocol AG-UI-compatible, so a later switch is a mechanical rename. Add an AG-UI adapter when an integration needs it. |
 | D5 | Speculative preset boot | **Modified** | Deterministic presets, triggered only by explicit creation intent. No model classifier in the critical path. |
 | D6 | Presence and follow-agent | **Simplified** | The tab that asked navigates itself; everything else gets deep links. No presence infrastructure now. |
 | D7 | Mixed files create multiple tasks | **Modified** | Group files into compatible collections and **let the user choose** how they become tasks. |
@@ -216,6 +216,56 @@ including the browser, the agent, a future MCP server and raw HTTP:
    TypeScript core and the API. If they disagree, the build fails. If resolve-level rules (`extends`
    merge, overrides) ever need server enforcement beyond this, add a small Node validation service
    rather than duplicating the resolver.
+
+### D4 in detail: staying AG-UI-compatible without migrating
+
+AG-UI 1.0 covers only the agent's **run** stream (`packages/agent-protocol`, `GET /v1/runs/:id/events`).
+The project event stream (`environment.updated`, `boot.*`, `item.*`) is ours and isn't governed by it.
+Three rules, owned by `todo11-boot`:
+
+1. **New run events follow AG-UI's shape and meaning.**
+   - Any event added to `packages/agent-protocol` from now on must match an AG-UI 1.0 event's
+     semantics, with an AG-UI-style name.
+   - First case: streaming `boot_studio` arguments (Milestone 2) uses the start / args-delta / end
+     triple. The args are **string fragments** the consumer concatenates (AG-UI `TOOL_CALL_ARGS`),
+     never pre-parsed partial objects.
+   - Events with no AG-UI equivalent go under one `custom` envelope `{name, value}`, as AG-UI's
+     `CUSTOM` does, rather than as new top-level types.
+2. **A mapping table and a test that enforces it.** `packages/agent-protocol/src/ag-ui-map.ts`
+   exports the table below as data. A unit test asserts:
+   - every event type in the protocol union has an entry;
+   - every target name exists in the AG-UI 1.0 schema, which is vendored as a fixture from
+     https://docs.ag-ui.com/spec/1.0/schema.
+
+   Adding an event without a mapping fails the build.
+3. **`reduce()` stays the only consumer.** The web app reads run events only through `reduce()` in
+   `apps/web/src/studio/stores/agent.ts`. Components read the reduced message parts, never raw
+   events. A lint or grep check in the web tests fails if another file imports the event types for
+   anything other than typing.
+
+Current mapping (verify names against the vendored schema when writing the test):
+
+| Our event | AG-UI 1.0 |
+|---|---|
+| `start` | `RUN_STARTED` |
+| `text` | `TEXT_MESSAGE_CONTENT` (`TEXT_MESSAGE_START`/`END` are implied at message boundaries) |
+| `reasoning` | `REASONING_MESSAGE_CONTENT` (`REASONING_*`) |
+| `tool-call` | `TOOL_CALL_START` |
+| *(new)* tool args delta | `TOOL_CALL_ARGS` |
+| `tool-result` | `TOOL_CALL_END` + `TOOL_CALL_RESULT` |
+| `tool-progress` | `ACTIVITY_DELTA` |
+| `status` | `ACTIVITY_SNAPSHOT` |
+| `error` | `RUN_ERROR` |
+| `done` | `RUN_FINISHED` (or `RUN_ERROR` when the status is failed) |
+| `run-status` | `CUSTOM` `run-status` |
+| `usage` | `CUSTOM` `usage` |
+| `client-tool` | `CUSTOM` `client-tool` |
+| `approval`, `approval-resolved` | `CUSTOM` `approval`, `approval-resolved` |
+| `sandbox` | `CUSTOM` `sandbox` |
+| `artifact` | `CUSTOM` `artifact` |
+
+When an integration needs real AG-UI, add `GET /v1/runs/:id/events?format=ag-ui`. It translates
+with this table on the server; the web app keeps using `reduce()`.
 
 ### D5 in detail: what counts as creation intent
 
@@ -323,7 +373,9 @@ A user can create a Studio from chat without opening the Studio first.
    - the card tool for "Create X-ray Studio?" offers;
    - a `boot` profile prompt (explicit intent only, small patches);
    - replace the injected 30 KB catalogue with a compact preset index plus `search_catalog`;
-   - give the system prompt and tool list a stable order for prompt caching.
+   - give the system prompt and tool list a stable order for prompt caching;
+   - the D4 guardrails: `ag-ui-map.ts` and its test; streamed `boot_studio` args, if pi exposes them,
+     as the start / args-delta / end triple; new non-AG-UI events under the `custom` envelope.
 
 **Client (`todo11-live`):**
 
@@ -347,6 +399,8 @@ A user can create a Studio from chat without opening the Studio first.
     - API tests: an agent token can't publish, can't add an uninstalled module, and a stale
       `revision` gets 409;
     - conformance fixtures pass on both sides;
+    - the AG-UI mapping test passes, and adding an unmapped event type fails it;
+    - no web file other than the agent store consumes raw run events;
     - "explain pneumothorax" boots nothing;
     - input tokens per boot are down at least 70% against today, measured from `usage` events.
 
@@ -406,7 +460,8 @@ Write a todo12 for this when it starts.
 
 ## 5. Not now
 
-- **AG-UI migration of the run protocol** (D4: an adapter later, if needed).
+- **AG-UI migration of the run protocol** (D4: the guardrails keep it compatible; an adapter comes
+  later, if needed).
 - **A model-based intent classifier in the critical path** (D5).
 - **Tab presence infrastructure** (D6).
 - **Automatically creating multiple tasks from a mixed drop without asking** (D7).
@@ -423,7 +478,7 @@ Write a todo12 for this when it starts.
 | Branch | Milestone | Owns | Must not touch |
 |---|---|---|---|
 | `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
-| `todo11-boot` | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
+| `todo11-boot` | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
 | `todo11-live` | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
 | `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 
@@ -444,6 +499,9 @@ after Milestone 2's events land.
   `202 {bootId, taskIds}`; 403 outside the agent scope, 409 on stale revision, 422 on validation
   errors (same error shape as environment `PATCH`).
 - `packages/studio-tools` exports the four tool schemas and the HTTP client.
+- **Run events:** every type in `packages/agent-protocol` has an entry in `ag-ui-map.ts`. New types
+  follow AG-UI semantics or use the `custom` envelope (D4). `todo11-live` reads them only through
+  `reduce()`.
 
 **Rules** (as todo10 §11):
 - branch slug in Alembic filenames;

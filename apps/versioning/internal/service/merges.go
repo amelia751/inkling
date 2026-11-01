@@ -190,6 +190,9 @@ func (s *Service) MergeReview(ctx context.Context, p *authn.Principal, repoID, r
 		if r, err = s.reviewRow(ctx, q, repoID, reviewID, true); err != nil {
 			return err
 		}
+		if !authz.PipelineBranchAllowed(p, r.SourceBranch) {
+			return errf(http.StatusForbidden, "forbidden", "the pipeline service may only merge reviews from pipeline/* branches")
+		}
 		if r.Status != StReady {
 			return errf(http.StatusConflict, "not_ready", "review is %s, not READY", r.Status)
 		}
@@ -214,6 +217,19 @@ func (s *Service) MergeReview(ctx context.Context, p *authn.Principal, repoID, r
 		allPassed := true
 		for _, m := range MandatoryChecks {
 			allPassed = allPassed && passed[m]
+		}
+		if p.IsPipeline() {
+			cur := make([]authz.Approval, 0, len(apps))
+			for _, a := range apps {
+				cur = append(cur, authz.Approval{ReviewerID: a.ReviewerID, SourceOID: a.ApprovedSourceOid, TargetOID: deref(a.ApprovedTargetOid)})
+			}
+			if !authz.PipelineMergeAllowed(p, r.SourceOid, deref(r.CheckedTargetOid), cur) {
+				if n > 0 {
+					return &Error{Status: http.StatusConflict, Code: "stale_head", CurrentHead: deref(r.CheckedTargetOid),
+						Detail: "the approval predates the current target head; the review needs a fresh approval"}
+				}
+				return errf(http.StatusConflict, "not_ready", "the pipeline service merges only approved reviews")
+			}
 		}
 		if !MergeAllowed(r.Status, n, int(r.RequiredApprovals), allPassed) {
 			return errf(http.StatusConflict, "not_ready", "%d of %d required approvals on the current source; mandatory checks passed: %v",

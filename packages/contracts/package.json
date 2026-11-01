@@ -6,6 +6,7 @@
   "description": "Canonical types and schemas shared by the web app, the kernel and plugins",
   "exports": {
     ".": "./src/index.ts",
+    "./pipeline": "./src/pipeline/index.ts",
     "./*": "./src/*.ts"
   },
   "dependencies": {

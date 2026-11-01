@@ -14,6 +14,7 @@ import { UiContributions } from "@studio/contracts/ui-contributions";
 import { WorkspaceState } from "@studio/contracts/workspace";
 import { PluginsLock } from "@studio/contracts/lockfile";
 import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
+import { PIPELINE_SCHEMAS, pipelineDocuments } from "@studio/contracts/pipeline";
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
@@ -107,6 +108,9 @@ export function contractSchemas(): Record<string, unknown> {
     "versioning/annotation-revision.schema.json": annotationRevisionJsonSchema(),
     // The data boundary's fixed-schema reports (todo10 Phase 7); the kernel validates worker output against them.
     ...Object.fromEntries(Object.entries(BOUNDARY_SCHEMAS).map(([name, s]) => [`boundary/${name}`, js(s, `boundary/${name.replace(/\.json$/, "")}`)])),
+    // Pipeline contracts (todo12 Milestone 1), read by apps/pipeline (Go), plus its generated documents.
+    ...Object.fromEntries(Object.entries(PIPELINE_SCHEMAS).map(([path, s]) => [path, js(s, path.replace(/\.json$/, ""))])),
+    ...pipelineDocuments(),
   };
 }
 

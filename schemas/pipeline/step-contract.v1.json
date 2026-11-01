@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PipelineStepContract",
+  "$defs": {
+    "PipelineStepContract": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "builtin",
+            "kernel_job"
+          ]
+        },
+        "job_kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{0,63}$"
+        },
+        "plugin": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PipelinePortSpec"
+          }
+        },
+        "outputs": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PipelinePortSpec"
+          }
+        },
+        "resource_class": {
+          "default": "cpu",
+          "type": "string",
+          "enum": [
+            "cpu",
+            "memory",
+            "gpu"
+          ]
+        },
+        "partitionable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "deterministic": {
+          "default": false,
+          "type": "boolean"
+        },
+        "default_timeout_seconds": {
+          "default": 1800,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "runtime",
+        "description",
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "PipelinePortSpec": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "upload_session",
+            "item_set",
+            "artifact_set",
+            "report",
+            "dataset_commit",
+            "candidate_commit"
+          ]
+        },
+        "required": {
+          "default": true,
+          "type": "boolean"
+        },
+        "modalities": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+          }
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/pipeline/step-contract.v1"
+}

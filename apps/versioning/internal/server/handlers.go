@@ -386,7 +386,8 @@ func reviewOut(v *service.ReviewView) api.Review {
 		RequiredApprovals: int(r.RequiredApprovals), MergeOid: r.MergeOid, Version: r.Version, CreatedAt: r.CreatedAt,
 		UpdatedAt: r.UpdatedAt, Approvals: []api.ReviewApproval{}, Checks: []api.ReviewCheck{}, Conflicts: []api.MergeConflict{}}
 	for _, a := range v.Approvals {
-		out.Approvals = append(out.Approvals, api.ReviewApproval{ReviewerId: a.ReviewerID, ApprovedSourceOid: a.ApprovedSourceOid, CreatedAt: a.CreatedAt})
+		out.Approvals = append(out.Approvals, api.ReviewApproval{Id: uid(a.ID), ReviewerId: a.ReviewerID, ApprovedSourceOid: a.ApprovedSourceOid,
+			ApprovedTargetOid: a.ApprovedTargetOid, CandidateDigest: a.CandidateDigest, CreatedAt: a.CreatedAt})
 	}
 	for _, c := range v.Checks {
 		out.Checks = append(out.Checks, api.ReviewCheck{Name: c.Name, Mandatory: c.Mandatory, Outcome: api.ReviewCheckOutcome(c.Outcome),
@@ -458,7 +459,8 @@ func (h *Handlers) PublishReview(ctx context.Context, req api.PublishReviewReque
 
 // ApproveReview approves the current source oid.
 func (h *Handlers) ApproveReview(ctx context.Context, req api.ApproveReviewRequestObject) (api.ApproveReviewResponseObject, error) {
-	v, err := h.Svc.Approve(ctx, principal(ctx), req.RepoId.String(), req.ReviewId.String(), req.Body.SourceOid)
+	v, err := h.Svc.Approve(ctx, principal(ctx), req.RepoId.String(), req.ReviewId.String(), req.Body.SourceOid,
+		deref(req.Body.CandidateDigest))
 	if err != nil {
 		return nil, err
 	}

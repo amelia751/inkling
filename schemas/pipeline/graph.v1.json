@@ -1,0 +1,431 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PipelineGraph",
+  "$defs": {
+    "PipelineGraph": {
+      "type": "object",
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "const": "inkling.dev/v1"
+        },
+        "kind": {
+          "type": "string",
+          "const": "Pipeline"
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,62}$"
+            },
+            "description": {
+              "type": "string",
+              "maxLength": 1000
+            },
+            "labels": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{0,62}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 128
+              }
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false
+        },
+        "inputs": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/PipelineInput"
+          }
+        },
+        "trigger": {
+          "$ref": "#/$defs/PipelineTrigger"
+        },
+        "steps": {
+          "minItems": 1,
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PipelineStep"
+          }
+        },
+        "outputs": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\$\\{inputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+              },
+              {
+                "type": "string",
+                "pattern": "^\\$\\{steps\\.[a-z][a-z0-9_-]{0,62}\\.outputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+              }
+            ]
+          }
+        },
+        "policy": {
+          "$ref": "#/$defs/PipelinePolicy"
+        },
+        "limits": {
+          "$ref": "#/$defs/PipelineLimits"
+        }
+      },
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "steps"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineInput": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "upload_session",
+            "dataset",
+            "artifact_set"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "selector": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "branch": {
+              "type": "string",
+              "maxLength": 255
+            }
+          },
+          "additionalProperties": false
+        },
+        "pin_at_run_start": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineTrigger": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "upload.completed",
+            "dataset.commit",
+            "schedule"
+          ]
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 255
+        },
+        "cron": {
+          "type": "string",
+          "pattern": "^[0-9*,/ -]{9,64}$"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineStep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+        },
+        "uses": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+@[0-9]{1,4}$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "needs": {
+          "default": [],
+          "maxItems": 64,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+          }
+        },
+        "inputs": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^\\$\\{inputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+              },
+              {
+                "type": "string",
+                "pattern": "^\\$\\{steps\\.[a-z][a-z0-9_-]{0,62}\\.outputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+              }
+            ]
+          }
+        },
+        "with": {
+          "default": {},
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        "execution": {
+          "type": "object",
+          "properties": {
+            "class": {
+              "type": "string",
+              "enum": [
+                "builtin",
+                "trusted-python",
+                "gpu"
+              ]
+            },
+            "timeout_seconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 86400
+            },
+            "max_attempts": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            }
+          },
+          "additionalProperties": false
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "class": {
+              "type": "string",
+              "enum": [
+                "cpu",
+                "memory",
+                "gpu"
+              ]
+            },
+            "gpu": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8
+            },
+            "memory_gb": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 512
+            }
+          },
+          "additionalProperties": false
+        },
+        "fan_out": {
+          "type": "object",
+          "properties": {
+            "over": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^\\$\\{inputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^\\$\\{steps\\.[a-z][a-z0-9_-]{0,62}\\.outputs\\.[a-z][a-z0-9_]{0,62}\\}$"
+                }
+              ]
+            },
+            "batch_size": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "max_partitions": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "over",
+            "batch_size",
+            "max_partitions"
+          ],
+          "additionalProperties": false
+        },
+        "optional": {
+          "default": false,
+          "type": "boolean"
+        },
+        "on_failure": {
+          "default": "fail",
+          "type": "string",
+          "enum": [
+            "fail",
+            "skip",
+            "quarantine"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "uses"
+      ],
+      "additionalProperties": false
+    },
+    "__schema0": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4096
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "maxItems": 256,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/__schema0"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/__schema0"
+          }
+        }
+      ]
+    },
+    "PipelinePolicy": {
+      "type": "object",
+      "properties": {
+        "review": {
+          "default": "required",
+          "type": "string",
+          "enum": [
+            "required",
+            "auto"
+          ]
+        },
+        "partial_success": {
+          "default": {
+            "allowed": false,
+            "min_success_ratio": 1
+          },
+          "type": "object",
+          "properties": {
+            "allowed": {
+              "default": false,
+              "type": "boolean"
+            },
+            "min_success_ratio": {
+              "default": 1,
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "deadline_seconds": {
+          "default": 86400,
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "compatibility": {
+          "default": "compatible",
+          "type": "string",
+          "enum": [
+            "strict",
+            "compatible",
+            "adaptive"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "PipelineLimits": {
+      "type": "object",
+      "properties": {
+        "max_steps": {
+          "default": 64,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "max_partitions_per_step": {
+          "default": 1000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "max_total_partitions": {
+          "default": 10000,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/pipeline/graph.v1"
+}

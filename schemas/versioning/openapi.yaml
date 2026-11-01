@@ -786,6 +786,9 @@ components:
       required: [source_oid]
       properties:
         source_oid: {$ref: "#/components/schemas/CommitOID"}
+        candidate_digest:
+          $ref: "#/components/schemas/ContentHash"
+          description: "Digest of the pipeline candidate's output manifest the reviewer saw (todo12); the approval is bound to it."
     CommentRequest:
       type: object
       required: [body]
@@ -844,10 +847,13 @@ components:
         details: {type: object, additionalProperties: true}
     ReviewApproval:
       type: object
-      required: [reviewer_id, approved_source_oid, created_at]
+      required: [id, reviewer_id, approved_source_oid, created_at]
       properties:
+        id: {type: string, format: uuid, description: "Stable per (reviewer, source, target); the pipeline's PublishWorkflow id."}
         reviewer_id: {type: string}
         approved_source_oid: {type: string}
+        approved_target_oid: {type: string, description: The target head the review was checked against when approved.}
+        candidate_digest: {type: string}
         created_at: {type: string, format: date-time}
     MergeConflict:
       type: object

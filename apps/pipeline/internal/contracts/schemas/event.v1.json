@@ -1,0 +1,986 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PipelineEvent",
+  "$defs": {
+    "PipelineEvent": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.run.started"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "definition_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "definition_revision": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "plan_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "definition_id",
+                "definition_revision",
+                "plan_digest"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.run.completed"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "running",
+                    "awaiting_review",
+                    "publishing",
+                    "published",
+                    "rejected",
+                    "failed",
+                    "cancelled"
+                  ]
+                },
+                "output_manifest_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                "candidate_commit": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+                },
+                "merge_commit": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "state"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.run.failed"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "error_class": {
+                  "type": "string",
+                  "enum": [
+                    "transient",
+                    "rate_limited",
+                    "worker_crash",
+                    "invalid_input",
+                    "schema_incompatible",
+                    "user_code_error",
+                    "policy_denied",
+                    "resource_exceeded",
+                    "permanent_dependency",
+                    "approval_timeout",
+                    "cancelled",
+                    "deadline_exceeded"
+                  ]
+                },
+                "code": {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                "step_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "error_class",
+                "code"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.run.paused"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "awaiting_review",
+                    "stale_head",
+                    "policy"
+                  ]
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.step.started"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "step_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+                },
+                "partition_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,6}$"
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "job_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "step_id"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.step.completed"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "step_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+                },
+                "partition_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,6}$"
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "items_out": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "items_quarantined": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "step_id"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.step.failed"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "step_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+                },
+                "partition_id": {
+                  "type": "string",
+                  "pattern": "^[0-9]{1,6}$"
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "error_class": {
+                  "type": "string",
+                  "enum": [
+                    "transient",
+                    "rate_limited",
+                    "worker_crash",
+                    "invalid_input",
+                    "schema_incompatible",
+                    "user_code_error",
+                    "policy_denied",
+                    "resource_exceeded",
+                    "permanent_dependency",
+                    "approval_timeout",
+                    "cancelled",
+                    "deadline_exceeded"
+                  ]
+                },
+                "code": {
+                  "type": "string",
+                  "maxLength": 64
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "step_id",
+                "error_class",
+                "code"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "pipeline.output.staged"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "step_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+                },
+                "manifest": {
+                  "$ref": "#/$defs/PipelineArtifactRef"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "step_id",
+                "manifest"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "dataset.candidate.created"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "repo_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "branch": {
+                  "type": "string",
+                  "maxLength": 255
+                },
+                "candidate_commit": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+                },
+                "output_manifest_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "repo_id",
+                "branch",
+                "candidate_commit",
+                "output_manifest_digest"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "review.requested"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "repo_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "review_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "candidate_commit": {
+                  "type": "string",
+                  "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+                },
+                "candidate_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "repo_id",
+                "review_id",
+                "candidate_commit",
+                "candidate_digest"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "event_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "workspace_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+            },
+            "type": {
+              "type": "string",
+              "const": "review.approved"
+            },
+            "source": {
+              "type": "string",
+              "const": "pipeline"
+            },
+            "correlation_id": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 16
+            },
+            "idempotency_key": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/#@-]{0,254}$"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "project_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "run_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "review_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+                },
+                "candidate_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "project_id",
+                "run_id",
+                "review_id",
+                "approval_id",
+                "candidate_digest"
+              ],
+              "additionalProperties": false
+            },
+            "payload_ref": {
+              "type": "string",
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "event_id",
+            "workspace_id",
+            "type",
+            "source",
+            "depth",
+            "idempotency_key",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PipelineArtifactRef": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/=-]{0,511}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9.+-]+\\/[a-z0-9.+-]+$"
+        }
+      },
+      "required": [
+        "key",
+        "digest",
+        "size",
+        "media_type"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/pipeline/event.v1"
+}

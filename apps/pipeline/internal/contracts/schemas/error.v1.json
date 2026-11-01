@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/PipelineErrorEnvelope",
+  "$defs": {
+    "PipelineErrorEnvelope": {
+      "type": "object",
+      "properties": {
+        "class": {
+          "type": "string",
+          "enum": [
+            "transient",
+            "rate_limited",
+            "worker_crash",
+            "invalid_input",
+            "schema_incompatible",
+            "user_code_error",
+            "policy_denied",
+            "resource_exceeded",
+            "permanent_dependency",
+            "approval_timeout",
+            "cancelled",
+            "deadline_exceeded"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.]{0,63}$"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "step_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,62}$"
+        },
+        "partition_id": {
+          "type": "string",
+          "pattern": "^[0-9]{1,6}$"
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "job_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        }
+      },
+      "required": [
+        "class",
+        "code",
+        "message",
+        "retryable"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "inkling://schema/pipeline/error.v1"
+}

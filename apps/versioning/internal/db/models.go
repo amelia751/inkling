@@ -248,6 +248,9 @@ type VersioningReviewApproval struct {
 	ReviewerID        string
 	ApprovedSourceOid string
 	CreatedAt         time.Time
+	ID                string
+	CandidateDigest   *string
+	ApprovedTargetOid *string
 }
 
 type VersioningReviewCheck struct {

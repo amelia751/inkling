@@ -130,9 +130,16 @@ func (q *Queries) GetReviewForUpdate(ctx context.Context, arg GetReviewForUpdate
 	return i, err
 }
 
-const insertApproval = `-- name: InsertApproval :exec
-INSERT INTO versioning.review_approvals (tenant_id, review_id, reviewer_id, approved_source_oid)
-VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING
+const insertApproval = `-- name: InsertApproval :one
+INSERT INTO versioning.review_approvals AS a (tenant_id, review_id, reviewer_id, approved_source_oid, id, candidate_digest, approved_target_oid)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7)
+ON CONFLICT (review_id, reviewer_id, approved_source_oid) DO UPDATE SET
+  id = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN EXCLUDED.id ELSE a.id END,
+  candidate_digest = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN EXCLUDED.candidate_digest ELSE a.candidate_digest END,
+  created_at = CASE WHEN a.approved_target_oid IS DISTINCT FROM EXCLUDED.approved_target_oid THEN now() ELSE a.created_at END,
+  approved_target_oid = EXCLUDED.approved_target_oid
+RETURNING tenant_id, review_id, reviewer_id, approved_source_oid, created_at, id, candidate_digest, approved_target_oid
 `
 
 type InsertApprovalParams struct {
@@ -140,16 +147,35 @@ type InsertApprovalParams struct {
 	ReviewID          string
 	ReviewerID        string
 	ApprovedSourceOid string
+	ID                string
+	CandidateDigest   *string
+	ApprovedTargetOid *string
 }
 
-func (q *Queries) InsertApproval(ctx context.Context, arg InsertApprovalParams) error {
-	_, err := q.db.Exec(ctx, insertApproval,
+// A repeat for the same (reviewer, source, target) returns the stored approval unchanged; after
+// the target moved it becomes a new approval (new id, digest and target).
+func (q *Queries) InsertApproval(ctx context.Context, arg InsertApprovalParams) (VersioningReviewApproval, error) {
+	row := q.db.QueryRow(ctx, insertApproval,
 		arg.TenantID,
 		arg.ReviewID,
 		arg.ReviewerID,
 		arg.ApprovedSourceOid,
+		arg.ID,
+		arg.CandidateDigest,
+		arg.ApprovedTargetOid,
 	)
-	return err
+	var i VersioningReviewApproval
+	err := row.Scan(
+		&i.TenantID,
+		&i.ReviewID,
+		&i.ReviewerID,
+		&i.ApprovedSourceOid,
+		&i.CreatedAt,
+		&i.ID,
+		&i.CandidateDigest,
+		&i.ApprovedTargetOid,
+	)
+	return i, err
 }
 
 const insertComment = `-- name: InsertComment :one
@@ -284,7 +310,7 @@ func (q *Queries) InsertReview(ctx context.Context, arg InsertReviewParams) (Ver
 }
 
 const listApprovals = `-- name: ListApprovals :many
-SELECT tenant_id, review_id, reviewer_id, approved_source_oid, created_at FROM versioning.review_approvals WHERE review_id = $1 ORDER BY created_at
+SELECT tenant_id, review_id, reviewer_id, approved_source_oid, created_at, id, candidate_digest, approved_target_oid FROM versioning.review_approvals WHERE review_id = $1 ORDER BY created_at
 `
 
 func (q *Queries) ListApprovals(ctx context.Context, reviewID string) ([]VersioningReviewApproval, error) {
@@ -302,6 +328,9 @@ func (q *Queries) ListApprovals(ctx context.Context, reviewID string) ([]Version
 			&i.ReviewerID,
 			&i.ApprovedSourceOid,
 			&i.CreatedAt,
+			&i.ID,
+			&i.CandidateDigest,
+			&i.ApprovedTargetOid,
 		); err != nil {
 			return nil, err
 		}

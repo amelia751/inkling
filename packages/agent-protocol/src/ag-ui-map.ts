@@ -79,3 +79,16 @@ export const AG_UI_MAP = {
   artifact: { targets: ["CUSTOM"], customName: "artifact" },
   custom: { targets: ["CUSTOM"], note: "name and value pass through" },
 } as const satisfies Record<AgentEventBody["type"], AgUiMapping>;
+
+/**
+ * Names carried in the `custom` envelope (AG-UI CUSTOM `name`), with what `value` holds. A new
+ * custom event gets a row here.
+ */
+export const CUSTOM_EVENT_NAMES = {
+  /**
+   * todo13 D2/D3: the user message's drop, as the agent stored it: a `DropMessagePart`
+   * (`{type: "drop", dropId, files: [{nodeId, agentName, kind?, state}]}`), ids and screened
+   * names only. Emitted once, at the start of the run that the message started or steered.
+   */
+  drop: { value: "DropMessagePart" },
+} as const satisfies Record<string, { value: string }>;

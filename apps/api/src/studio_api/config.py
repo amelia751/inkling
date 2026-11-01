@@ -42,6 +42,14 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
+| API_DROP_MAX_FILES        | 10000                            | files per drop; above it the card points to Files' folder upload |
+| API_DROP_MAX_BYTES        | 53687091200 (50 GB)              | bytes per drop |
+| API_DROP_RATE_PER_MINUTE  | 20                               | drops a person may start per minute (429 with Retry-After above it) |
+| API_NAME_SCREEN_MODE      | dlp (production), regex (development, test) | how file and folder names are screened before an agent sees them: `dlp` (Sensitive Data Protection), `regex`, `off` (tests only; refused in production) |
+| API_NAME_SCREEN_BATCH     | 500                              | names per screening call |
+| API_NAME_SCREEN_QPS       | 5                                | screening calls per second per pod (backfill and live share it) |
+| API_NAME_SCREEN_PROJECT   | (GCS_PROJECT, else the credentials' project) | the Google Cloud project billed for Sensitive Data Protection calls |
+| API_NAME_SCREEN_LOCATION  | us-central1                      | Sensitive Data Protection location |
 | API_SIGNER                | local                            | who signs generated plugin artifacts (todo10 Phase 3): `local` (Ed25519 key file) or `gcpkms` |
 | API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
 | API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
@@ -166,6 +174,20 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    # ---- Chat drops (todo13-drops, §7.1) ----
+    drop_max_files: int = 10_000
+    drop_max_bytes: int = 50 * 1024**3
+    drop_rate_per_minute: int = 20
+    # None: `dlp` in production, `regex` elsewhere. `off` is for tests only.
+    name_screen_mode: Literal["dlp", "regex", "off"] | None = None
+    name_screen_batch: int = 500
+    name_screen_qps: float = 5.0
+    name_screen_project: str | None = None
+    name_screen_location: str = "us-central1"
+
+    @property
+    def screen_mode(self) -> str:
+        return self.name_screen_mode or ("dlp" if self.env == "production" else "regex")
     # Plugin artifact signing (todo10 Phase 3, packages/signing).
     signer: Literal["local", "gcpkms"] = "local"
     signer_key_file: Path | None = None
@@ -235,6 +257,15 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    # Chat drops (todo13-drops)
+    "drop_max_files": "API_DROP_MAX_FILES",
+    "drop_max_bytes": "API_DROP_MAX_BYTES",
+    "drop_rate_per_minute": "API_DROP_RATE_PER_MINUTE",
+    "name_screen_mode": "API_NAME_SCREEN_MODE",
+    "name_screen_batch": "API_NAME_SCREEN_BATCH",
+    "name_screen_qps": "API_NAME_SCREEN_QPS",
+    "name_screen_project": "API_NAME_SCREEN_PROJECT",
+    "name_screen_location": "API_NAME_SCREEN_LOCATION",
     "signer": "API_SIGNER",
     "signer_key_file": "API_SIGNER_KEY_FILE",
     "signer_kms_key": "API_SIGNER_KMS_KEY",
@@ -312,6 +343,10 @@ def load_settings(**overrides) -> Settings:
             missing.append(key_name("redis_url"))
     if values.get("blob_store") == "gcs" and not values.get("gcs_bucket"):
         missing.append(key_name("gcs_bucket"))
+    invalid_early: list[str] = []
+    if (production or values.get("env") == "production") and values.get("name_screen_mode") == "off":
+        # Names reach the agent's transcript in another project: never unscreened in production.
+        invalid_early.append(key_name("name_screen_mode"))
     if not values.get("secret_key") and not production:
         # Dev fallback: a stable per-checkout key so signed URLs survive restarts.
         data_dir.mkdir(parents=True, exist_ok=True)
@@ -321,12 +356,12 @@ def load_settings(**overrides) -> Settings:
         values["secret_key"] = key_file.read_text().strip()
     values.setdefault("database_url", f"sqlite:///{data_dir / 'api.db'}")
     values.setdefault("secret_key", "")
-    invalid: list[str] = []
+    invalid: list[str] = list(invalid_early)
     try:
         s = Settings(**values)
     except ValidationError as e:
         # Only the field names: pydantic's own message would include the offending value.
-        invalid = sorted({key_name(str(err["loc"][0])) for err in e.errors() if err.get("loc")})
+        invalid = sorted({*invalid, *(key_name(str(err["loc"][0])) for err in e.errors() if err.get("loc"))})
     if missing or invalid:
         raise SettingsError(sorted(set(missing)), invalid)
     return s

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 
-from sqlalchemy import text
 
 from studio_api import db as kdb
 from studio_api.models import DatasetRow
@@ -83,13 +82,14 @@ def test_attention_for_one_dataset_and_project_scoping(client):
     assert client.get("/api/v1/projects/nope/dataset-summaries").status_code == 404
 
 
-def test_waiting_drop_plans_are_read_once_the_drops_table_exists(client):
+def test_waiting_drop_plans_are_listed(client):
     p, ds = _mixed(client)
-    # Before todo13-drops: no table, no error, no plan rows.
+    # No drops yet: no plan rows.
     assert all(i["kind"] != "plan" for i in client.get(f"/api/v1/projects/{p}/dataset-attention").json()["items"])
     with kdb.session_scope() as s:
-        s.execute(text("CREATE TABLE drops (id VARCHAR(64) PRIMARY KEY, project_id VARCHAR(128), origin VARCHAR(16), conversation_id VARCHAR(64), message_id VARCHAR(64), task_id VARCHAR(128), dataset_id VARCHAR(128), created_by VARCHAR(256), created_at TIMESTAMP, state VARCHAR(16))"))
-        s.execute(text("INSERT INTO drops (id, project_id, origin, dataset_id, created_by, state) VALUES ('drp1', :p, 'chat', :d, 'user:x', 'planned'), ('drp2', :p, 'chat', :d, 'user:x', 'applied')"), {"p": p, "d": ds["id"]})
+        from studio_api.models import Drop
+
+        s.add_all([Drop(id="drp1", project_id=p, origin="chat", dataset_id=ds["id"], created_by="user:x", state="planned"), Drop(id="drp2", project_id=p, origin="chat", dataset_id=ds["id"], created_by="user:x", state="applied")])
     body = client.get(f"/api/v1/projects/{p}/dataset-attention").json()
     [plan] = [i for i in body["items"] if i["kind"] == "plan"]
     assert plan["id"] == "drop:drp1" and plan["datasetId"] == ds["id"] and plan["action"]["target"]["dropId"] == "drp1"

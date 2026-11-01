@@ -161,3 +161,23 @@ def test_0010_adds_classes_limits_leases_and_the_feed_order_and_downgrades(tmp_p
         assert c.execute(sa.text("SELECT count(*) FROM plugin_jobs")).scalar() == 1
     command.upgrade(cfg, "head")
     db.reset_engine()
+
+
+def test_0011_adds_drops_and_screened_names_and_downgrades(tmp_path):
+    """todo13-drops: additive only; downgrade drops the table and columns, files untouched."""
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0011")
+    insp = sa.inspect(db.engine())
+    assert "drops" in insp.get_table_names()
+    assert {"agent_name", "name_flagged"} <= {c["name"] for c in insp.get_columns("source_nodes")}
+    assert "drop_id" in {c["name"] for c in insp.get_columns("import_sessions")}
+    command.downgrade(cfg, "0010")
+    insp = sa.inspect(db.engine())
+    assert "drops" not in insp.get_table_names()
+    assert "agent_name" not in {c["name"] for c in insp.get_columns("source_nodes")}
+    assert "drop_id" not in {c["name"] for c in insp.get_columns("import_sessions")}
+    command.upgrade(cfg, "head")

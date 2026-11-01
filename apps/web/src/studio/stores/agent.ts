@@ -4,6 +4,7 @@ import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
+import { api } from "@/studio/lib/projects-api";
 import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
@@ -20,7 +21,9 @@ export type MessagePart =
   | { type: "artifact"; id: string; name: string; bytes: number }
   | { type: "status"; text: string }
   /** A Studio boot (todo11): the card reads its progress from the boots store (project `boot.*` events). */
-  | { type: "boot"; id: string };
+  | { type: "boot"; id: string }
+  /** todo13: files dropped with a user message; `id` is the drop's id (`core/drops` renders its card). */
+  | { type: "drop"; id: string };
 
 export interface ChatMessage {
   id: string;
@@ -62,6 +65,12 @@ export interface SendOptions {
   /** The Studio's dataset snapshot; other sections have none (the project tools look things up). */
   snapshot?: AgentContext;
   context: string;
+  /** todo13: a drop sent with (or as) this message. */
+  drop?: { dropId: string };
+  /** The user message's id, when the composer already gave it to the drop. */
+  messageId?: string;
+  /** Awaited before the service is asked (a drop's files registering with the kernel). */
+  beforeSend?: () => Promise<void>;
 }
 
 interface ActiveRun {
@@ -81,6 +90,10 @@ interface AgentState {
   sessions: Record<string, { sessionId: string; profile: ProfileName }>;
   /** Notes for the model's next turn, e.g. that the expert undid a change. */
   notes: Record<string, string[]>;
+  /** todo13: the conversation per project (its id names the `Shared in chat` folder's drops). */
+  conversations: Record<string, { id: string; title?: string }>;
+  /** The project's current conversation, made on first use. */
+  conversation: (projectId: string) => { id: string; title?: string };
   /** The run being followed; persisted so a reload reattaches with `after=lastSeq`. */
   active: ActiveRun | null;
   /** The expert agreed to share this dataset's text context with the model provider. */
@@ -295,6 +308,7 @@ export const useAgent = create<AgentState>()(
         threads: {},
         sessions: {},
         notes: {},
+        conversations: {},
         active: null,
         consent: false,
         profile: "environment-designer",
@@ -304,18 +318,31 @@ export const useAgent = create<AgentState>()(
         setHost: (h) => {
           host = h;
         },
+        conversation: (projectId) => {
+          const cur = get().conversations[projectId];
+          if (cur) return cur;
+          const fresh = { id: `conv-${crypto.randomUUID()}` };
+          set((s) => ({ conversations: { ...s.conversations, [projectId]: fresh } }));
+          return fresh;
+        },
         send: async (projectId, text, opts) => {
           const state = get();
           if (state.running && state.running !== projectId) return;
           const steering = state.running === projectId && state.active;
-          const user: ChatMessage = { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text }] };
+          const parts: MessagePart[] = [...(opts.drop ? [{ type: "drop" as const, id: opts.drop.dropId }] : []), ...(text ? [{ type: "text" as const, text }] : [])];
+          const user: ChatMessage = { id: opts.messageId ?? crypto.randomUUID(), role: "user", parts };
+          if (text && !get().conversations[projectId]?.title) {
+            const conv = get().conversation(projectId);
+            set((s) => ({ conversations: { ...s.conversations, [projectId]: { ...conv, title: text.slice(0, 80) } } }));
+          }
           const assistant: ChatMessage = { id: crypto.randomUUID(), role: "assistant", parts: [] };
           set((s) => ({ threads: { ...s.threads, [projectId]: [...(s.threads[projectId] ?? []), user, assistant] } }));
           const notes = get().notes[projectId] ?? [];
           const context = [opts.context, ...notes].join("\n");
           try {
             let sessionId = await ensureSession(projectId, opts);
-            const req = { text, context, snapshot: opts.snapshot, kernelToken: await kernelToken(projectId, opts.profile) };
+            await opts.beforeSend?.();
+            const req = { text, context, snapshot: opts.snapshot, kernelToken: await kernelToken(projectId, opts.profile), ...(opts.drop ? { drop: opts.drop } : {}) };
             const res = await sendMessage(sessionId, req).catch(async (err) => {
               // The service restarted without this session: start a fresh one (history stays on screen).
               if (!(err instanceof AgentHttpError) || err.status !== 404) throw err;
@@ -353,10 +380,16 @@ export const useAgent = create<AgentState>()(
           if (get().running === projectId) get().stop();
           const session = get().sessions[projectId];
           if (session) void deleteSession(session.sessionId).catch(() => {});
+          // todo13 D15: a conversation that shared files is gone; its folder stays in Files, renamed.
+          const conv = get().conversations[projectId];
+          if (conv && (get().threads[projectId] ?? []).some((m) => m.parts.some((p) => p.type === "drop")))
+            void api(`/projects/${encodeURIComponent(projectId)}/conversations/${encodeURIComponent(conv.id)}/deleted`, { method: "POST" }).catch(() => {});
           set((s) => {
             const sessions = { ...s.sessions };
             delete sessions[projectId];
-            return { sessions, threads: { ...s.threads, [projectId]: [] }, notes: { ...s.notes, [projectId]: [] } };
+            const conversations = { ...s.conversations };
+            delete conversations[projectId];
+            return { sessions, conversations, threads: { ...s.threads, [projectId]: [] }, notes: { ...s.notes, [projectId]: [] } };
           });
         },
         addNote: (projectId, note) => set((s) => ({ notes: { ...s.notes, [projectId]: [...(s.notes[projectId] ?? []), note] } })),
@@ -395,7 +428,7 @@ export const useAgent = create<AgentState>()(
       version: 2,
       // v1 threads were for the old stateless loop; their shape is compatible, sessions start fresh.
       migrate: (persisted) => ({ ...(persisted as object), sessions: {}, notes: {}, active: null }) as never,
-      partialize: (s) => ({ consent: s.consent, threads: s.threads, sessions: s.sessions, notes: s.notes, active: s.active, profile: s.profile }),
+      partialize: (s) => ({ consent: s.consent, threads: s.threads, sessions: s.sessions, notes: s.notes, active: s.active, profile: s.profile, conversations: s.conversations }),
     },
   ),
 );

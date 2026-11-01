@@ -33,11 +33,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import struct
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.request
 import zlib
 from pathlib import Path
@@ -375,9 +377,86 @@ def t_files_reorganize(browser, port):
         ctx.close()
 
 
+SMITH = "Smith_John_1962-04-03.dcm"
+DATA_DIR: list[str] = []
+
+
+def kernel_call(method: str, path: str, body=None, raw: bytes | None = None, headers: dict | None = None):
+    h = {"Content-Type": "application/json" if raw is None else "application/octet-stream", **(headers or {})}
+    data = raw if raw is not None else (json.dumps(body).encode() if body is not None else None)
+    req = urllib.request.Request(f"{KERNEL}/api/v1{path}", data=data, method=method, headers=h)
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            text = r.read()
+            return r.status, (json.loads(text) if text else None)
+    except urllib.error.HTTPError as e:
+        return e.code, e.read().decode()[:300]
+
+
+def agent_call(method: str, path: str, body=None):
+    req = urllib.request.Request(f"http://127.0.0.1:{AGENT_PORT}{path}", data=json.dumps(body).encode() if body is not None else None, method=method, headers={"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.status, json.loads(r.read() or b"null")
+
+
+def run_events(run_id: str, timeout: float = 60.0) -> list[dict]:
+    req = urllib.request.Request(f"http://127.0.0.1:{AGENT_PORT}/v1/runs/{run_id}/events", headers={"Authorization": f"Bearer {TOKEN}", "Accept": "text/event-stream"})
+    out: list[dict] = []
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        for line in r:
+            line = line.decode().strip()
+            if line.startswith("data:"):
+                e = json.loads(line[5:].strip())
+                out.append(e)
+                if e.get("type") == "done":
+                    break
+    return out
+
+
+def t_drop_screening(browser, port):
+    """todo13-drops: a file named like a person reaches the agent screened (`dicom-0001.dcm`), and
+    the agent store's rows for that conversation hold no `Smith`; the prompt carries no base64,
+    data URL or signed URL. Kernel and agent HTTP only (the browser parts are in
+    apps/web/e2e/chat_drop_test.py)."""
+    if not KERNEL:
+        print(f"SKIP drop screening: set {P}E2E_API_URL to a running kernel", flush=True)
+        return
+    status, proj = kernel_call("POST", "/projects", {"title": f"Drop screening {int(time.time())}"})
+    pid = proj["id"]
+    status, drop = kernel_call("POST", f"/projects/{pid}/drops", {"origin": "chat", "conversationId": "conv-e2e", "conversationTitle": "Screening", "files": 2})
+    if status == 404:
+        print(f"SKIP drop screening: chat drops are off ({P}API_FEATURE_CHAT_DROPS)", flush=True)
+        return
+    files = {SMITH: b"DICM" + bytes(128), "chest_01.png": tiny_png(3)}
+    body = {"attested": True, "files": [{"clientFileId": f"f{i}", "relPath": n, "size": len(d), "sha256": hashlib.sha256(d).hexdigest()} for i, (n, d) in enumerate(files.items())], "origin": {"kind": "chat", "conversationId": "conv-e2e", "dropId": drop["id"]}}
+    _, sess = kernel_call("POST", f"/projects/{pid}/imports", body)
+    for f in sess["files"]:
+        if f.get("uploadUrl"):
+            kernel_call("PUT", f["uploadUrl"].removeprefix("/api/v1"), raw=files[f["relPath"]])
+    kernel_call("POST", f"/imports/{sess['id']}/complete")
+    _, tok = kernel_call("POST", "/sessions", {"agent": "assistant", "profile": "assistant", "scopes": ["proposals.write"], "ttlSeconds": 600}, headers={"X-Workspace-Id": pid})
+    _, s = agent_call("POST", "/v1/sessions", {"projectId": pid, "profile": "assistant", "clientTools": [], "kernelToken": tok["token"]})
+    _, m = agent_call("POST", f"/v1/sessions/{s['sessionId']}/messages", {"text": "", "drop": {"dropId": drop["id"]}, "kernelToken": tok["token"]})
+    events = run_events(m["runId"])
+    part = next((e for e in events if e.get("type") == "custom" and e.get("name") == "drop"), None)
+    names = sorted(f["agentName"] for f in (part or {}).get("value", {}).get("files", []))
+    check("drop screening: the agent sees the screened name", names == ["chest_01.png", "dicom-0001.dcm"], str(names))
+    check("drop screening: the run finished", events[-1].get("type") == "done" and events[-1].get("status") == "completed", str(events[-1:]))
+    stored = []
+    for root, _dirs, fnames in os.walk(DATA_DIR[0]):
+        for n in fnames:
+            if s["sessionId"] in n or n.endswith((".jsonl", ".json")):
+                stored.append(Path(root, n).read_text(errors="replace"))
+    text = "\n".join(stored)
+    check("drop screening: the agent store holds the drop", "dicom-0001.dcm" in text and drop["id"] in text, f"{len(text)} bytes")
+    check("drop screening: no Smith anywhere in the agent store", "Smith" not in text and "SMITH" not in text)
+    check("drop screening: no base64, data URL or signed URL in the prompt", not re.search(r"base64|data:image|X-Goog-Signature|X-Amz-Signature|https?://[^\s\"]*/(sources|quarantine)/", text))
+
+
 def main() -> int:
     args = parse_args()
     data_dir = tempfile.mkdtemp(prefix="inkling-agent-e2e-")
+    DATA_DIR.append(data_dir)
     if KERNEL:
         os.environ[f"{P}API_URL"] = KERNEL  # the agent the test starts calls this API
     agent = start_agent(data_dir)
@@ -388,7 +467,7 @@ def main() -> int:
             return 1
         with sync_playwright() as pw:
             browser = launch(pw, args.browser, args.headed)
-            for fn in (t_environment_edit, t_approval_and_reattach, t_card, t_project_assistant, t_files_reorganize):
+            for fn in (t_environment_edit, t_approval_and_reattach, t_card, t_project_assistant, t_files_reorganize, t_drop_screening):
                 try:
                     fn(browser, args.port)
                 except Exception as e:  # noqa: BLE001 — report and keep going

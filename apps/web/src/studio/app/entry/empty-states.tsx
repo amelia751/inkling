@@ -4,6 +4,7 @@ import { AiIcon } from "@studio/ui/icons";
 import { ComposerEmptyState, type ComposerFiles } from "@studio/ui/ui/composer-empty-state";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
+import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useShell } from "@/studio/stores/shell";
 import { useStudio } from "@/studio/stores/studio";
 import { pickedFrom, useDropFiles, type DropOrigin } from "./drop-adapter";
@@ -18,6 +19,15 @@ import { usePendingAsks } from "./pending-ask";
 
 /** Adding files needs the api (the seed stand-in is read-only). */
 const NEEDS_API = "Adding files needs the full stack: see docs/running.md";
+/** Dropping is a write (D14): viewers see why they can't. */
+const VIEWER = "Ask a contributor to add files";
+
+/** Why files can't be added here, or undefined when they can. */
+function useFilesBlocked(projectId: string): string | undefined {
+  const role = useProjectSummary(projectId).data?.role;
+  if (!kernelEnabled()) return NEEDS_API;
+  return role === "viewer" ? VIEWER : undefined;
+}
 
 /** Files dropped or picked on an entry surface go to the project through the drop adapter. */
 function useEntryFiles(projectId: string, origin: DropOrigin, surface: TimelineOrigin, taskId?: string) {
@@ -46,7 +56,7 @@ function useAskInDrawer(projectId: string) {
 export function ProjectEmptyState({ projectId, title }: { projectId: string; title: string }) {
   const onFiles = useEntryFiles(projectId, "files", "overview");
   const ask = useAskInDrawer(projectId);
-  const writable = kernelEnabled();
+  const blocked = useFilesBlocked(projectId);
   return (
     <div className="flex flex-col gap-2" data-testid="empty-project">
       <ComposerEmptyState
@@ -57,7 +67,7 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
         placeholder="“Outline the liver in these CT series”, or drop files here"
         onSend={(t) => ask(t)}
         onFiles={(f) => void onFiles(f)}
-        filesDisabledReason={writable ? undefined : NEEDS_API}
+        filesDisabledReason={blocked}
         dropLabel={`Drop to add these files to ${title}`}
         footnote="DICOM folders, images, videos, tables, documents. Originals are kept exactly as they are."
         dropTestId="drop-zone"
@@ -96,14 +106,14 @@ export function FilesEmptyState({ projectId, disabledReason }: { projectId: stri
 export function DatasetsEmptyState({ projectId, actions }: { projectId: string; actions?: ReactNode }) {
   const onFiles = useEntryFiles(projectId, "files", "datasets");
   const ask = useAskInDrawer(projectId);
-  const writable = kernelEnabled();
+  const blocked = useFilesBlocked(projectId);
   return (
     <ComposerEmptyState
       variant="page"
       title="No datasets yet"
       description="Your datasets will appear here once you add data. Drop files, or describe what you need."
       onFiles={(f) => void onFiles(f)}
-      filesDisabledReason={writable ? undefined : NEEDS_API}
+      filesDisabledReason={blocked}
       onAsk={() => ask()}
       filesLabel="Drop files"
       actions={actions}
@@ -116,7 +126,7 @@ export function DatasetsEmptyState({ projectId, actions }: { projectId: string; 
 export function StudioEntryEmptyState({ projectId }: { projectId: string }) {
   const onFiles = useEntryFiles(projectId, "studio", "studio");
   const ask = useAskInDrawer(projectId);
-  const writable = kernelEnabled();
+  const blocked = useFilesBlocked(projectId);
   return (
     <ComposerEmptyState
       variant="page"
@@ -126,7 +136,7 @@ export function StudioEntryEmptyState({ projectId }: { projectId: string }) {
       placeholder="“Classify chest X-rays into five labels”, or drop files here"
       onSend={(t) => ask(t)}
       onFiles={(f) => void onFiles(f)}
-      filesDisabledReason={writable ? undefined : NEEDS_API}
+      filesDisabledReason={blocked}
       dropLabel="Drop to start a Studio with these files"
       testId="studio-empty"
       inputTestId="studio-empty-input"
@@ -142,7 +152,7 @@ export function CanvasEmptyState({ projectId, taskId }: { projectId: string; tas
   const onFiles = useEntryFiles(projectId, "studio", "canvas", taskId);
   const toggleAi = useStudio((s) => s.toggleAi);
   const aiOpen = useStudio((s) => s.aiOpen);
-  const writable = kernelEnabled();
+  const blocked = useFilesBlocked(projectId);
   return (
     <div className="flex h-full items-center justify-center overflow-auto">
       <ComposerEmptyState
@@ -150,7 +160,7 @@ export function CanvasEmptyState({ projectId, taskId }: { projectId: string; tas
         title="Nothing here yet"
         description="Drop files here to start, or ask the assistant."
         onFiles={(f) => void onFiles(f)}
-        filesDisabledReason={writable ? undefined : NEEDS_API}
+        filesDisabledReason={blocked}
         onAsk={aiOpen ? undefined : toggleAi}
         askLabel="Open the chat"
         filesLabel="Add files"
@@ -168,7 +178,8 @@ export function CanvasEmptyState({ projectId, taskId }: { projectId: string; tas
 export function CanvasDropTarget({ projectId, taskId, children }: { projectId: string; taskId: string; children: ReactNode }) {
   const onFiles = useEntryFiles(projectId, "studio", "canvas", taskId);
   const [over, setOver] = useState(false);
-  const writable = kernelEnabled();
+  const blocked = useFilesBlocked(projectId);
+  const writable = !blocked;
   const isFiles = (dt: DataTransfer | null) => !!dt && [...dt.types].includes("Files");
   return (
     <div

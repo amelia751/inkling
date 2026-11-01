@@ -5,15 +5,17 @@ import { insertRegistered } from "@/studio/lib/task-items";
 import { markTimeline, startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
 import { fromDataTransfer, fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
+import { feature } from "@/studio/lib/features";
+import { startDrop } from "@/studio/core/drops/start";
+import { useDrops } from "@/studio/core/drops/store";
 
 /**
  * The entry surfaces' one way to hand files over (todo13 Milestone 1, `todo13-entry`): Home,
  * the empty states and the Studio canvas call `dropFiles`, never the uploader directly.
  *
- * Today it falls back to the existing import flow (`stores/uploads.ts`: attestation, hashing,
- * 64 MB chunks, the tray). When `todo13-drops` lands, this file is the one place rewired to
- * its `startDrop({projectId, conversationId?, taskId?, origin, files})`: the origin and
- * conversation are already carried here for that.
+ * With `chatDrops` on, every gesture is a drop (`core/drops` `startDrop`: a `drops` row, the
+ * import's `origin`, the same uploader underneath). With it off, the existing import flow
+ * (`stores/uploads.ts`: attestation, hashing, 64 MB chunks, the tray), as before todo13.
  */
 export type DropOrigin = "home" | "chat" | "files" | "studio";
 
@@ -48,6 +50,11 @@ export function dropFiles(req: DropRequest): Promise<void> {
   if (!req.picked.files.length) return Promise.resolve();
   if (!req.timelineStarted) startTimeline(req.surface ?? req.origin);
   markTimeline("upload-start");
+  if (feature("chatDrops")) {
+    const id = startDrop(req);
+    watchDrop(id);
+    return Promise.resolve();
+  }
   const done = useUploads.getState().add(req.projectId, req.picked, {
     targetNodeId: req.targetNodeId,
     taskId: req.taskId,
@@ -58,6 +65,21 @@ export function dropFiles(req: DropRequest): Promise<void> {
   const key = useUploads.getState().sessions[0]?.key;
   if (key) watchUpload(key);
   return done.then(() => undefined);
+}
+
+/** The drop's first upload session, once `startDrop` has created it, feeds the timeline. */
+function watchDrop(dropId: string): void {
+  const first = () => useDrops.getState().drops[dropId]?.uploadKeys[0];
+  const key = first();
+  if (key) return watchUpload(key);
+  const stop = useDrops.subscribe(() => {
+    const d = useDrops.getState().drops[dropId];
+    const k = d?.uploadKeys[0];
+    if (k || !d || d.error) {
+      stop();
+      if (k) watchUpload(k);
+    }
+  });
 }
 
 /** Timeline steps from the tray session: the first file's bytes in, then all of them. */

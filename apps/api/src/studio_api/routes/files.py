@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import assets, audit, fs, imports, projects, tree, zipstream
+from ..kernel import assets, audit, fs, imports, name_screen, projects, tree, zipstream
 from ..models import Asset, DatasetRow, NodeVersion, ProjectRow, SourceNode
 from ..streaming import blob_response
 
@@ -90,9 +90,12 @@ def _raced(fn, *args):
     """Two people naming things in one folder at once: the unique (parent, lower(name)) index
     stops the second; it gets a 409 to retry, and the transaction rolls back whole."""
     try:
-        return fn(*args)
+        out = fn(*args)
     except IntegrityError:
         raise HTTPException(409, "Someone else just changed this folder. Reload and try again") from None
+    # todo13 D13: new and renamed names are screened before an agent can read them.
+    name_screen.screen_pending(args[0], args[2].id)
+    return out
 
 
 @router.post("/projects/{project_id}/fs/ops")

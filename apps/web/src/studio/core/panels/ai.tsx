@@ -77,7 +77,8 @@ export function AiPanel({ project, items, item }: PanelProps) {
   const toggleAi = useStudio((s) => s.toggleAi);
   const selected = useStudio((s) => s.selectedIds.length);
   // One conversation per project: the route's project (a seed's task shares its id).
-  const projectId = useParams().projectId ?? project.id;
+  const params = useParams();
+  const projectId = params.projectId ?? project.id;
   const held = useOverview(projectId).data?.attention?.filter((a) => a.type === "privacy").length ?? 0;
   const status = useQuery({ queryKey: ["agent-status"], queryFn: fetchAgentStatus, staleTime: 60_000, retry: false });
   const author = `agent:${status.data?.model ?? "model"}`;
@@ -120,6 +121,7 @@ export function AiPanel({ project, items, item }: PanelProps) {
       runTool={runTool}
       onClose={toggleAi}
       studio={{ project, items }}
+      taskId={params.taskId}
       onUndo={(m, p) => void undo(m, p)}
       bareSnapshot={() => bareSnapshot(project)}
       placeholder={(profile) => (profile === "assistant" ? `Ask about ${project.title}…` : `Ask ${NAMING.displayName} to change this environment…`)}

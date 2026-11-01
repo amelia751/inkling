@@ -74,6 +74,44 @@ entry names and URLs. Renaming or moving re-runs the path-name check from the wo
 (copied in-process for names); a flag raised only by the name clears with audit `privacy.cleared`
 reason "renamed".
 
+## Drops and chat files (todo13-drops)
+
+A **drop** is one gesture of files dropped, pasted or attached (chat, Home, Files, a Studio
+canvas): table `drops` (`origin`, `conversation_id`, `message_id`, `task_id`, `state`), and every
+import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.py`,
+`routes/drops.py`; contract `packages/contracts/src/drops.ts`. Behind `API_FEATURE_CHAT_DROPS`
+(404 when off).
+
+- `POST /v1/projects/:id/drops` `{origin, id?, conversationId?, conversationTitle?, messageId?,
+  taskId?, files?, bytes?}`: people only (viewers and agents 403); `API_DROP_MAX_FILES` /
+  `API_DROP_MAX_BYTES` per drop (413, pointing to Files' folder upload); 20 drops a minute per
+  person (`API_DROP_RATE_PER_MINUTE`, 429 with `Retry-After`). A client `id` (`drp-…`) makes a
+  retry return the same drop.
+- `POST /v1/projects/:id/imports` takes `origin: {kind, conversationId?, messageId?, dropId?}`
+  (or `dropId`). A chat drop lands in **Shared in chat/<conversation>** (made on first use, one
+  subfolder per conversation) with `Source.kind = chat`; the drop's totals stay within the limits.
+- `GET /v1/drops/:id`: a person gets the drop with one entry per file (`state`: uploading,
+  checking, ready, kept, failed, duplicate "Already in Files", removed, deleted; `looksLike` when
+  the extension and the detected kind disagree, "Looks like a ZIP"); an agent gets the
+  `DropSummary` (screened names, technical facts, 50 files a page with `?offset=`).
+- `GET /v1/projects/:id/drops?conversationId=`: a conversation's Shared files, newest first.
+- `DELETE /v1/drops/:id/files/:nodeId`: takes a file out of the chat; the File stays (D4).
+- `POST /v1/projects/:id/conversations/:cid/deleted`: the chat is gone; its folder stays in Files,
+  renamed "<conversation> (deleted chat)" (a journaled rename). Moving a File to Trash shows
+  "Deleted file" on its chips.
+- Events on the project stream: `drop.received {dropId, origin, count}`, `drop.file {dropId,
+  nodeId, state}`, `drop.failed {dropId, step, errorClass}`; `drop.classified|planned|applied`
+  come from the classifier. Each transition logs one JSON line (`dropId`, `state`, `elapsed_ms`,
+  `origin`, counts; no names).
+- `GET /v1/source-nodes/:id` `provenance.drop`: "Shared in chat · <conversation> · <date>".
+
+**Screened names (D13).** Each node has `agent_name` / `name_flagged`: what an agent sees for its
+name (`docs/deployment-gcp.md`, "What the agent sees"). Set on import completion and after
+namespace edits, reset by a rename, backfilled by the worker's `files.screen_names` (about once a
+minute, resumable) or `python -m studio_api.kernel.name_screen backfill [--project P]`. Keys:
+`API_NAME_SCREEN_MODE` (`dlp` in production, `regex` in dev and tests), `API_NAME_SCREEN_BATCH`,
+`API_NAME_SCREEN_QPS`, `API_NAME_SCREEN_PROJECT`, `API_NAME_SCREEN_LOCATION`.
+
 ## As implemented (backend notes)
 
 `apps/api/src/studio_api/routes/files.py` and `kernel/fs.py`. Small additions to the shapes above:

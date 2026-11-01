@@ -1,6 +1,22 @@
 {
   "scripts": [
     {
+      "when": "<drop id=",
+      "turns": [
+        {
+          "toolCalls": [
+            {
+              "name": "list_import_issues",
+              "arguments": {}
+            }
+          ]
+        },
+        {
+          "text": "Got your files. They're in Files, under Shared in chat."
+        }
+      ]
+    },
+    {
       "when": "mitosis",
       "turns": [
         {
@@ -153,7 +169,7 @@
               "arguments": {
                 "section": "sources",
                 "nodeId": "{{last.sources.0.rootNodeId}}",
-                "label": "Data › 2d-xray"
+                "label": "Data \u203a 2d-xray"
               }
             }
           ]
@@ -211,7 +227,7 @@
               "arguments": {
                 "section": "explore",
                 "tab": "relationships",
-                "label": "Explore › Relationships"
+                "label": "Explore \u203a Relationships"
               }
             }
           ]
@@ -240,7 +256,7 @@
             {
               "name": "propose_reorganization",
               "arguments": {
-                "title": "Group by patient: 6 scans → patient_001, patient_002",
+                "title": "Group by patient: 6 scans \u2192 patient_001, patient_002",
                 "ops": [
                   {
                     "kind": "mkdir",

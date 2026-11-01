@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile
-from . import assets, audit, events, explore, imports, projects
+from . import assets, audit, drops, events, explore, imports, projects
 
 INSPECTOR = "worker:inspect"
 KINDS = {"image", "dicom", "volume", "video", "waveform", "slide", "table", "document", "mask", "annotations", "archive", "unknown"}
@@ -175,5 +175,7 @@ def report(db: Session, import_id: str, body: dict) -> dict:
     audit.record(db, ctx, "import.inspected", target=s.id, after={"files": len(updated), "proposals": [pr.id for pr in created], "state": s.state})
     if updated:
         events.publish(db, ctx, "source.node.inspected", {"projectId": p.id, "nodeIds": updated[:1000]}, source="kernel")
+    if s.drop_id:
+        drops.session_inspected(db, ctx, s, list(nodes))
     events.publish(db, ctx, "import.updated", {"projectId": p.id, "importId": s.id, "state": s.state}, source="kernel")
     return {"state": s.state, "inspected": len(updated), "proposals": [pr.id for pr in created]}

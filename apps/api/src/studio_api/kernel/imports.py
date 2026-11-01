@@ -39,7 +39,7 @@ from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Source, SourceNode, TaskItem, UploadFile, now
-from . import assets, audit, events, fs, ingest, projects, tree
+from . import assets, audit, drops, events, fs, ingest, projects, tree
 from .kinds import is_junk
 
 CHUNK_BYTES = 64 * 1024 * 1024
@@ -80,6 +80,7 @@ def session_dict(db: Session, s: ImportSession, files: bool = False) -> dict:
         "startedAt": projects.iso(s.started_at),
         "finishedAt": projects.iso(s.finished_at),
         "error": s.error,
+        "dropId": s.drop_id,
     }
     if files:
         order = {"failed": 0, "rejected": 1, "pending": 2, "uploaded": 3, "skipped_duplicate": 4}
@@ -134,10 +135,17 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
     if len(wanted) > limits.upload_max_session_files:
         raise HTTPException(413, f"Too many files: the limit is {limits.upload_max_session_files:,} per import")
 
+    # todo13: a drop (chat, Home, Studio canvas) groups the sessions of one gesture; a chat
+    # drop lands in `Shared in chat/<conversation>`.
+    drop = drops.for_import(db, ctx, p, body)
     # Resume: the same file list after a reload (or a dropped connection) gets its session back.
     task = ingest.require_task_for_drop(db, p.id, body["taskId"]) if body.get("taskId") is not None else None
     resumed = _resumable(db, ctx, p, wanted)
+    if resumed is not None and drop is not None and resumed.drop_id not in (None, drop.id):
+        resumed = None  # the same files, but another drop: a new session for this one
     if resumed is not None:
+        if drop is not None and resumed.drop_id is None:
+            drops.session_started(db, ctx, drop, resumed)
         out = session_dict(db, resumed, files=True)
         if task is not None:
             # A resumed drop into a Studio: its items are already there (and on the stream).
@@ -146,6 +154,10 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
 
     drive = fs.ensure_drive(db, p)
     target = body.get("targetNodeId")
+    if drop is not None and not target:
+        landing_folder = drops.landing_folder(db, p, drop)
+        target = landing_folder.id if landing_folder is not None else None
+    source_kind = "chat" if drop is not None and drop.origin == "chat" else "upload"
     node = None
     if target:
         node = db.get(SourceNode, str(target))
@@ -200,7 +212,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         source = db.get(Source, node.source_id) if node.source_id else None
         if source is None:
             # A folder made in Files: the import is its own provenance, landing there.
-            source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind="upload", created_by=projects.person(ctx), status="uploading", root_node_id=node.id)
+            source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind=source_kind, created_by=projects.person(ctx), status="uploading", root_node_id=node.id)
             db.add(source)
             db.flush()
         landing = node.id
@@ -210,7 +222,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         assert source is not None
         landing = source.root_node_id
     else:
-        source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind="upload", created_by=projects.person(ctx), status="uploading")
+        source = Source(id=projects.new_id("src"), project_id=p.id, title=title, kind=source_kind, created_by=projects.person(ctx), status="uploading")
         source.root_node_id = tree.new_node_id()
         db.add(source)
         db.flush()
@@ -225,7 +237,9 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
     for fid, rel, size, sha, state, reason in plan:
         db.add(UploadFile(session_id=s.id, client_file_id=fid, rel_path=rel, size=size, sha256=sha, received=size if state == "uploaded" else 0, state=state, reason=reason))
     db.flush()
-    audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": len(wanted), "skippedSystemFiles": skipped_junk, "attested": True})
+    if drop is not None:
+        drops.session_started(db, ctx, drop, s)
+    audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": len(wanted), "skippedSystemFiles": skipped_junk, "attested": True, **({"dropId": drop.id} if drop is not None else {})})
     # Dropped into a Studio (todo11 D8): its images are items from now on, before any byte.
     registered = ingest.register(db, s, task) if task is not None else None
     _publish(db, ctx, s)
@@ -487,6 +501,8 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
         ingest.link_to_dataset(db, s)
     if ids:
         events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
+    if s.drop_id:
+        drops.session_completed(db, ctx, s, ids)
     _publish(db, ctx, s)
     return session_dict(db, s, files=True)
 
@@ -588,6 +604,8 @@ def cancel(db: Session, ctx: RequestContext, s: ImportSession) -> dict:
         if source is not None and source.status == "uploading" and not db.scalar(select(SourceNode.id).where(SourceNode.source_id == source.id, SourceNode.is_dir.is_(False)).limit(1)):
             source.status = "ready"
         db.flush()
+        if s.drop_id:
+            drops.session_cancelled(db, ctx, s)
         audit.record(db, ctx.for_scope(s.project_id, None), "import.cancelled", target=s.id)
         _publish(db, ctx, s)
     return session_dict(db, s, files=True)

@@ -18,6 +18,7 @@ import { AgentCardView, type StudioCardContext } from "./cards";
 import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
 import { Markdown } from "./markdown";
+import { DropCard } from "@/studio/core/drops";
 
 const PAST: Record<string, string> = {
   Reading: "Read",
@@ -58,13 +59,24 @@ function Pending({ queued = false }: { queued?: boolean }) {
   );
 }
 
-export function UserMessage({ message }: { message: ChatMessage }) {
+export function UserMessage({ message, projectId, canEdit = true }: { message: ChatMessage; projectId?: string; canEdit?: boolean }) {
   const text = textOf(message);
+  const drops = message.parts.filter((p): p is Extract<MessagePart, { type: "drop" }> => p.type === "drop");
   return (
-    <div className="group relative max-w-[88%] self-end rounded-xl bg-generic p-3 text-chat/5 break-words whitespace-pre-wrap">
-      {text}
-      <CopyButton text={text} label="Copy message" className="absolute top-2.5 right-2.5 bg-float-hover opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />
-    </div>
+    <>
+      {projectId &&
+        drops.map((d) => (
+          <div key={d.id} className="w-full max-w-[88%] self-end" data-testid="user-drop">
+            <DropCard dropId={d.id} projectId={projectId} canEdit={canEdit} />
+          </div>
+        ))}
+      {text && (
+        <div className="group relative max-w-[88%] self-end rounded-xl bg-generic p-3 text-chat/5 break-words whitespace-pre-wrap">
+          {text}
+          <CopyButton text={text} label="Copy message" className="absolute top-2.5 right-2.5 bg-float-hover opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />
+        </div>
+      )}
+    </>
   );
 }
 
@@ -133,6 +145,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
             </a>
           );
         if (p.type === "status") return <p key={i} className="text-hint">{p.text}</p>;
+        if (p.type === "drop") return null; // shown on the user message
         return (
           <AgentCardView
             key={i}

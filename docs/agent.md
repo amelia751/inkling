@@ -234,6 +234,21 @@ zod-validated settings; fails closed in production. Model allowlist, budgets, co
 
 Not enabled. If added, they are versioned with the service, loaded from an explicit path (never discovered from the host), and treated as instructions only: permissions stay in the tool layer.
 
+### 7.4.1 Drops on messages (todo13-drops)
+
+Files the person drops, pastes or attaches in the chat are uploaded by the browser to Files (the
+normal import route, `origin: chat`); the message carries only `SendMessageRequest.drop =
+{dropId}` (a drop alone is a message: `text` may then be empty). The service reads the drop's
+`DropSummary` from the kernel as the agent (`GET /api/v1/drops/:id`: counts by kind and state,
+groups, and per file a node id, a screened name such as `dicom-0001.dcm`, its kind and technical
+facts), keeps only those fields (`tools/drops.ts` `safeSummary`: no base64, data or signed URLs,
+whatever the kernel sent), and puts it before the user's text as a `<drop id="…">` block. It
+emits the stored part `{type: "drop", dropId, files: [{nodeId, agentName, kind?, state}]}` as a
+`custom` event named `drop` (AG-UI CUSTOM, `CUSTOM_EVENT_NAMES` in `ag-ui-map.ts`). The
+transcript therefore holds ids and screened names only. `get_drop(dropId, offset?)` reads the
+summary again as inspection proceeds. Tests: `test/unit/drops.test.ts` (the recorded prompt and
+store), `tests/e2e/agent_test.py` `t_drop_screening`.
+
 ### 7.5 The data boundary (todo10 §6, Phase 7)
 
 Real samples never reach a sandbox or the model. `tools/boundary.ts` gives the builder (and, for

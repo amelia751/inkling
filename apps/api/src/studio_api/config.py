@@ -14,6 +14,7 @@ that are missing or invalid, never their values.
 | API_CREATE_TABLES         | 1 (dev) / 0 (production)         | create tables at startup; production runs the Alembic migrate Job |
 | API_SECRET_KEY            | dev: generated per checkout      | signs URLs, encrypts secrets; required in production |
 | API_WORKER_TOKEN          | dev: derived from the secret key | shared token workers authenticate with; required in production |
+| API_PIPELINE_TOKEN        | dev: `dev-only-pipeline-token`; production: unset = off | the token the pipeline service presents (`Authorization: Bearer`), principal `service:pipeline` (todo12 §4 M0 item 5) |
 | API_DATA_DIR              | apps/api/.data                   | dev-only local data (SQLite file, local derived blobs) |
 | API_SEED_ROOT             | <repo>/seed-data                 | the local BlobStore root for seed assets |
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
@@ -131,6 +132,7 @@ class Settings(BaseModel):
     create_tables: bool = True
     repo_root: Path = REPO_ROOT
     worker_token: str | None = None
+    pipeline_token: str | None = None
     redis_url: str | None = None
     blob_store: Literal["local", "s3", "gcs"] = "local"
     s3_endpoint: str | None = None
@@ -178,6 +180,7 @@ _KEYS: dict[str, str] = {
     "create_tables": "API_CREATE_TABLES",
     "secret_key": "API_SECRET_KEY",
     "worker_token": "API_WORKER_TOKEN",
+    "pipeline_token": "API_PIPELINE_TOKEN",
     "data_dir": "API_DATA_DIR",
     "seed_root": "API_SEED_ROOT",
     "dev_trust_headers": "API_DEV_TRUST_HEADERS",

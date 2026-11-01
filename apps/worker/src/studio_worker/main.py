@@ -11,6 +11,12 @@ a timeout, a minimal environment and an egress allowlist proxy) → forward prog
 report the result or the error to the kernel, which validates and commits it. A plugin
 crash, hang or bad output fails only its own job (§14 #6).
 
+Leases (todo12 §4 M0): the worker claims only its `WORKER_RESOURCE_CLASSES` and heartbeats
+every running job (`heartbeat.py`), which keeps a short lease alive. When a heartbeat gets a
+409 (cancelled, or the lease went to another worker) the worker kills the job's process group
+(SIGTERM, then SIGKILL after `KILL_GRACE_S`) and reports nothing: every report carries the
+attempt number and the kernel refuses stale ones.
+
 Stateless and scalable: all job state is the kernel's; the worker keeps only scratch under
 `WORKER_DATA_DIR` (/tmp in containers). SIGTERM stops claiming at once, lets the current
 job finish within `WORKER_SHUTDOWN_GRACE_S`, else hands it back to the queue, then exits.
@@ -42,6 +48,7 @@ from .config import env  # noqa: F401 — kept for callers that read namespaced 
 from .boundary import BoundaryRunner
 from .deid import DeidSubscriber
 from .egress import EgressProxy
+from .heartbeat import Heartbeat
 from .inspect import InspectSubscriber
 from .inspect.items import ItemProcessor
 from .schedule import Scheduled
@@ -49,6 +56,27 @@ from .schedule import Scheduled
 log = logging.getLogger("studio_worker")
 NAMING = config.naming()
 SERVICE = "worker"
+HEARTBEAT_S = 2.0  # with KILL_GRACE_S, a cancelled job's processes are gone within 5 s
+KILL_GRACE_S = 1.0
+
+
+def kill_group(pid: int, grace_s: float = KILL_GRACE_S) -> None:
+    """SIGTERM the process group led by `pid`, then SIGKILL whatever is left after `grace_s`."""
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        return
+    deadline = time.monotonic() + grace_s
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.05)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
 
 
 def service_version() -> str:
@@ -75,7 +103,7 @@ def build_env(uv: str, plugin_path: Path, venv: Path) -> None:
 
 
 class Worker:
-    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048):
+    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S):
         self.kernel = kernel.rstrip("/")
         self.http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
         self.data_dir = data_dir
@@ -85,6 +113,8 @@ class Worker:
         self.plugins = plugins
         self.uv = uv
         self.shutdown_grace_s = shutdown_grace_s
+        self.resource_classes = resource_classes or list(config.DEFAULT_RESOURCE_CLASSES)
+        self.heartbeat_s = heartbeat_s
         self.stopping = threading.Event()
         self._stop_at: float | None = None
         self.busy = False
@@ -137,14 +167,18 @@ class Worker:
             finally:
                 self.busy = False
 
+    def heartbeat(self, job: dict, on_lost=None) -> Heartbeat:
+        return Heartbeat(self.http, job["jobId"], self.worker_id, job.get("attempts"), interval_s=self.heartbeat_s, on_lost=on_lost)
+
     def _run_job(self, claim: dict) -> None:
         job, plugin = claim["job"], claim["plugin"]
         job_id = job["jobId"]
+        self._attempt = job.get("attempts")
         log.info("job claimed", extra={"job_id": job_id, "plugin": plugin["id"], "tool": job["tool"], "attempt": job.get("attempts")})
         try:
             python = self.ensure_env(Path(plugin["path"]), plugin["id"], plugin["version"], plugin.get("artifactDigest") or "")
         except Exception as e:  # noqa: BLE001
-            return self.fail(job_id, f"environment: {e}", recoverable=True)
+            return self.fail(job_id, f"environment: {e}", recoverable=True, error_class="transient")
         allowed = set(plugin.get("egress") or []) | {urlsplit(self.kernel).hostname or "127.0.0.1"}
         timeout = int(job.get("timeoutSeconds") or 180)
         payload = {
@@ -188,59 +222,83 @@ class Worker:
                             pass  # not enforceable on this OS (macOS); production uses cgroups
 
             proc = subprocess.Popen([str(python), "-m", "studio_plugin_sdk.runner"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=child_env, cwd=str(self.data_dir), preexec_fn=limits, text=True)
-            stderr: list[str] = []
-            threading.Thread(target=lambda: stderr.extend(proc.stderr), daemon=True).start()  # type: ignore[arg-type]
-            proc.stdin.write(json.dumps(payload))  # type: ignore[union-attr]
-            proc.stdin.close()  # type: ignore[union-attr]
-            outcome: dict | None = None
-            deadline = time.monotonic() + timeout
-
-            def reader() -> None:
-                nonlocal outcome
-                for line in proc.stdout:  # type: ignore[union-attr]
-                    try:
-                        msg = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    if msg.get("type") == "progress":
-                        self.progress(job_id, msg.get("progress", 0), msg.get("message"))
-                    elif msg.get("type") in ("result", "error"):
-                        outcome = msg
-
-            t = threading.Thread(target=reader, daemon=True)
-            t.start()
-            while proc.poll() is None and time.monotonic() < deadline and not self._past_grace():
-                time.sleep(0.05)
-            if proc.poll() is None:
-                os.killpg(proc.pid, signal.SIGKILL)
-                proc.wait()
-                if self._past_grace():
-                    return self.release(job_id)
-                return self.fail(job_id, f"timed out after {timeout}s", recoverable=True)
-            t.join(timeout=5)
+            hb = self.heartbeat(job, on_lost=lambda _reason: kill_group(proc.pid)).__enter__()
+            try:
+                outcome = self._supervise(proc, payload, job_id, timeout, hb)
+            finally:
+                hb.__exit__(None, None, None)
             if proxy.denied:
                 log.warning("denied egress", extra={"job_id": job_id, "plugin": plugin["id"], "hosts": sorted(set(proxy.denied))})
+        if outcome == "lost":
+            return  # cancelled or re-leased: the kernel no longer takes reports for this attempt
+        if outcome == "released":
+            return self.release(job_id)
+        if outcome == "timeout":
+            return self.fail(job_id, f"timed out after {timeout}s", recoverable=True, error_class="resource_exceeded")
         if outcome is None:
-            tail = "".join(stderr[-20:])[-1500:]
-            return self.fail(job_id, f"plugin process exited with {proc.returncode} without a result{': ' + tail if tail else ''}", recoverable=True)
+            tail = "".join(self._stderr[-20:])[-1500:]
+            return self.fail(job_id, f"plugin process exited with {proc.returncode} without a result{': ' + tail if tail else ''}", recoverable=True, error_class="worker_crash")
         if outcome["type"] == "error":
-            return self.fail(job_id, outcome["error"], recoverable=bool(outcome.get("recoverable", True)))
+            return self.fail(job_id, outcome["error"], recoverable=bool(outcome.get("recoverable", True)), error_class="user_code_error")
         self.complete(job_id, outcome.get("result"), outcome.get("costUsd"))
+
+    def _supervise(self, proc: subprocess.Popen, payload: dict, job_id: str, timeout: int, hb: Heartbeat):
+        """Run the plugin process to its end. → its result/error message, None (no outcome),
+        or "lost" / "released" / "timeout" (the process group was killed)."""
+        stderr: list[str] = []
+        self._stderr = stderr
+        threading.Thread(target=lambda: stderr.extend(proc.stderr), daemon=True).start()  # type: ignore[arg-type]
+        proc.stdin.write(json.dumps(payload))  # type: ignore[union-attr]
+        proc.stdin.close()  # type: ignore[union-attr]
+        outcome: dict | None = None
+        deadline = time.monotonic() + timeout
+
+        def reader() -> None:
+            nonlocal outcome
+            for line in proc.stdout:  # type: ignore[union-attr]
+                try:
+                    msg = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if msg.get("type") == "progress":
+                    hb.report(msg.get("progress", 0), msg.get("message"))
+                elif msg.get("type") in ("result", "error"):
+                    outcome = msg
+
+        t = threading.Thread(target=reader, daemon=True)
+        t.start()
+        while proc.poll() is None and time.monotonic() < deadline and not self._past_grace() and not hb.lost.is_set():
+            time.sleep(0.05)
+        if hb.lost.is_set():
+            kill_group(proc.pid)  # on_lost already did; the leader may have been reaped first
+            proc.wait()
+            return "lost"
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+            return "released" if self._past_grace() else "timeout"
+        # The leader exited; anything it left behind in its group goes too.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            pass
+        t.join(timeout=5)
+        return "lost" if hb.lost.is_set() else outcome
 
     # ---- Kernel calls --------------------------------------------------------------------
 
-    def progress(self, job_id: str, value: float, message: str | None) -> None:
-        try:
-            self.http.post(f"/api/v1/worker/jobs/{job_id}/progress", json={"workerId": self.worker_id, "progress": value, "message": message})
-        except httpx.HTTPError:
-            pass
+    _attempt: int | None = None
+    _stderr: list[str] = []
+
+    def _body(self, **extra) -> dict:
+        return {"workerId": self.worker_id, **({"attempt": self._attempt} if self._attempt is not None else {}), **extra}
 
     def complete(self, job_id: str, result, cost) -> None:
-        r = self.http.post(f"/api/v1/worker/jobs/{job_id}/complete", json={"workerId": self.worker_id, "result": result, "costUsd": cost})
+        r = self.http.post(f"/api/v1/worker/jobs/{job_id}/complete", json=self._body(result=result, costUsd=cost))
         self._reported(r, job_id, "job done")
 
-    def fail(self, job_id: str, error: str, recoverable: bool) -> None:
-        r = self.http.post(f"/api/v1/worker/jobs/{job_id}/fail", json={"workerId": self.worker_id, "error": error, "recoverable": recoverable})
+    def fail(self, job_id: str, error: str, recoverable: bool, error_class: str | None = None) -> None:
+        r = self.http.post(f"/api/v1/worker/jobs/{job_id}/fail", json=self._body(error=error, recoverable=recoverable, errorClass=error_class))
         self._reported(r, job_id, "job failed", recoverable=recoverable)
 
     @staticmethod
@@ -253,7 +311,7 @@ class Worker:
     def release(self, job_id: str) -> None:
         """Out of grace time: give the job back so another replica runs it now."""
         try:
-            self.http.post(f"/api/v1/worker/jobs/{job_id}/release", json={"workerId": self.worker_id})
+            self.http.post(f"/api/v1/worker/jobs/{job_id}/release", json=self._body())
             log.warning("job handed back: shutdown grace period over", extra={"job_id": job_id})
         except httpx.HTTPError:
             log.warning("couldn't hand the job back; its lease will expire", extra={"job_id": job_id})
@@ -280,7 +338,7 @@ class Worker:
             self.scheduled.tick()
         except httpx.HTTPError as e:
             log.warning("scheduled jobs: %s", type(e).__name__)
-        r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins})
+        r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins, "resourceClasses": self.resource_classes, "heartbeat": True})
         r.raise_for_status()
         claim = r.json()
         if not claim.get("job"):
@@ -288,12 +346,40 @@ class Worker:
         if claim.get("builtin") == "boundary":
             self.busy = True
             try:
-                self.boundary.run(claim)
+                with self.heartbeat(claim["job"]):  # keeps the lease; its reports are fenced by the kernel
+                    self.boundary.run(claim)
+            finally:
+                self.busy = False
+            return True
+        if claim.get("builtin") == "service":
+            self.busy = True
+            try:
+                self.run_service_job(claim["job"])
             finally:
                 self.busy = False
             return True
         self.run_job(claim)
         return True
+
+    def run_service_job(self, job: dict) -> None:
+        """A kernel job a service enqueued (apps/api kernel/service_jobs.py). `noop` hands its
+        input ref back as the result ref, after waiting if the ref is `sleep:<seconds>`."""
+        job_id = job["jobId"]
+        self._attempt = job.get("attempts")
+        if job.get("tool") != "noop":
+            return self.fail(job_id, f"unknown kernel job kind {job.get('tool')!r}", recoverable=False, error_class="invalid_input")
+        ref = str((job.get("input") or {}).get("inputRef") or "")
+        wait = 0.0
+        if ref.startswith("sleep:"):
+            try:
+                wait = min(float(ref[6:]), float(job.get("timeoutSeconds") or 600))
+            except ValueError:
+                return self.fail(job_id, "bad sleep ref", recoverable=False, error_class="invalid_input")
+        with self.heartbeat(job) as hb:
+            if hb.lost.wait(wait):
+                return
+        if not hb.lost.is_set():
+            self.complete(job_id, {"result_ref": ref}, None)
 
     def run_items(self, poll_s: float = 0.2) -> None:
         """The item loop: claim, process, repeat; a short wait only when nothing is waiting."""
@@ -388,13 +474,13 @@ def main(argv: list[str] | None = None) -> int:
     if a.prepare_envs:
         return prepare_envs(config.REPO_ROOT, s.envs_dir, a.plugins)
     (s.data_dir / "home").mkdir(parents=True, exist_ok=True)
-    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb)
+    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:
         probe = health.KernelProbe(s.kernel_url)
         health.serve(s.health_port, version={"service": SERVICE, "version": service_version(), "gitSha": s.git_sha}, ready=lambda: (not w.stopping.is_set() and probe(), {"kernel": "ok" if probe() else "unreachable", "stopping": w.stopping.is_set()}))
-    log.info("worker started", extra={"kernel": s.kernel_url, "worker_id": s.worker_id, "plugins": s.plugins, "envs_dir": str(s.envs_dir)})
+    log.info("worker started", extra={"kernel": s.kernel_url, "worker_id": s.worker_id, "plugins": s.plugins, "resource_classes": s.resource_classes, "envs_dir": str(s.envs_dir)})
     return w.run_forever(a.poll if a.poll is not None else s.poll_s, once=a.once)
 
 

@@ -128,3 +128,36 @@ def test_0006_backfills_revision_hashes_and_parents(tmp_path):
         ("t2", 1, h[1], NULL_CONTENT_HASH, "person"),
     ]
     command.downgrade(cfg, "0005")
+
+
+def test_0010_adds_classes_limits_leases_and_the_feed_order_and_downgrades(tmp_path):
+    """todo12-kernel: existing jobs become `cpu`, existing events get a feed position; the
+    downgrade drops it all again."""
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0009")
+    t = "2026-11-01 10:00:00"
+    with db.engine().begin() as c:
+        c.execute(sa.text("INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', :t)"), {"t": t})
+        c.execute(sa.text("INSERT INTO plugin_jobs (job_id, workspace_id, plugin_id, version, tool, input, state, progress, recoverable, estimated_cost_usd, cost_usd, correlation_id, principal, attempts, max_attempts, timeout_s, created_at, updated_at) VALUES ('j', 'w', 'p', '1', 't', '{}', 'queued', 0, 1, 0, 0, 'c', 'user:a', 0, 3, 60, :t, :t)"), {"t": t})
+        c.execute(sa.text("INSERT INTO plugin_events (event_id, workspace_id, type, payload, source, correlation_id, depth, delivered, attempts, created_at) VALUES ('e', 'w', 'job.succeeded', '{}', 's', 'c', 0, 0, 0, :t)"), {"t": t})
+    command.upgrade(cfg, "0010")
+    with db.engine().begin() as c:
+        assert c.execute(sa.text("SELECT resource_class, error_class FROM plugin_jobs")).one() == ("cpu", None)
+        c.execute(sa.text("INSERT INTO workspace_resource_limits (workspace_id, resource_class, max_running, updated_at) VALUES ('*', 'gpu', 2, :t)"), {"t": t})
+        c.execute(sa.text("INSERT INTO resource_leases (job_id, workspace_id, resource_class, worker_id, attempt, acquired_at, expires_at) VALUES ('j', 'w', 'gpu', 'g', 1, :t, :t)"), {"t": t})
+        names = set(sa.inspect(c).get_table_names())
+        assert {"workspace_resource_limits", "resource_leases"} <= names
+        assert "feed_seq" in {col["name"] for col in sa.inspect(c).get_columns("plugin_events")}
+    command.downgrade(cfg, "0009")
+    with db.engine().begin() as c:
+        names = set(sa.inspect(c).get_table_names())
+        assert not {"workspace_resource_limits", "resource_leases"} & names
+        assert "resource_class" not in {col["name"] for col in sa.inspect(c).get_columns("plugin_jobs")}
+        assert "feed_seq" not in {col["name"] for col in sa.inspect(c).get_columns("plugin_events")}
+        assert c.execute(sa.text("SELECT count(*) FROM plugin_jobs")).scalar() == 1
+    command.upgrade(cfg, "head")
+    db.reset_engine()

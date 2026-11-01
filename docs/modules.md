@@ -119,6 +119,22 @@ the old namespace goes into `legacyNamespaces` so those documents still resolve,
 A tool's local name (`box`, `brush`) is what the store holds (`useStudio().tool`) and what
 renderers switch on; the resolver guarantees names are unique within an environment.
 
+### How modules load (todo11 Milestone 1)
+
+The Studio paints its chrome as soon as the environment resolves; it never waits for every
+module. Each viewport and panel loads its own module behind a skeleton shaped like it
+(`ModuleSlot`), and shows its own error card (with "Try again" and "Start in safe mode") if the
+module fails to load or the component throws, so the rest of the Studio keeps working. Modules
+load in priority order: the viewer's, then visible panels', then the rest when idle
+(`studio/lib/boot-priority.ts`). A live environment change loads only the modules it adds.
+
+A renderer that can show another item without remounting declares the `itemSwap` capability:
+the shell then passes the new `item` prop instead of keying the renderer by item id (the
+`image2d` renderers do; their engines swap the image and keep the viewport). Renderers call
+`markFirstFrame()` from the SDK when the first item is on screen; with the `bootTimeline` flag
+(or `?boot-timeline`) the Studio shows the boot timeline, and `apps/web/e2e/boot_test.py`
+prints it per preset and checks the boot budgets.
+
 ### Which tools the toolbar shows (todo8 D4)
 
 **Rule 1: only usable tools.** The resolver keeps a tool in `env.tools` only when some label

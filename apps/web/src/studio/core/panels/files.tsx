@@ -10,6 +10,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from "@studio/ui/utils";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useCommands } from "@/extension-host/commands";
+import { markAfterPaint } from "@/extension-host/boot-timing";
 import { useStudio } from "@/studio/stores/studio";
 import { readView, useItemsView, type ItemsView } from "@/studio/stores/items-view";
 import { itemKind, KINDS } from "@/studio/lib/file-kinds";
@@ -78,6 +79,11 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   const showLabel = showSourceLabels(env);
   const showPath = showFilePaths(env);
   const blind = !showLabel;
+  // Boot timeline (todo11 Milestone 1): the items rail has rows on screen.
+  const hasItems = items.length > 0;
+  useEffect(() => {
+    if (hasItems) markAfterPaint("items-painted");
+  }, [hasItems]);
 
   // Items without a Data folder (the seed stand-in without the API) fall back to `group` as
   // their heading, but never to the source label (D8).

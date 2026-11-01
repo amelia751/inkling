@@ -4,9 +4,9 @@ import { runtimeConfig } from "./runtime-config";
  * Feature flags for experimental surfaces (docs/modules.md, safety tiers). Read once at
  * startup from the runtime config (`/config.json` `flags`, or `VITE_<envPrefix>FLAGS` in dev; see
  * runtime-config.ts) or `localStorage["<resourcePrefix>.flags"]` (per browser, a comma-separated
- * list such as `agentPanels`).
+ * list such as `agentPanels`; `bootTimeline` shows the Studio boot timeline overlay).
  */
-export type Flag = "agentPanels";
+export type Flag = "agentPanels" | "bootTimeline";
 
 function read(): Set<string> {
   const out = new Set<string>();

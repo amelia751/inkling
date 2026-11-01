@@ -40,7 +40,7 @@ export default defineModule({
         id: "cornerstone-stack",
         consumes: [RASTER],
         space: "image2d",
-        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan", "overlayOpacity"],
+        capabilities: ["cornerstone", "windowLevel", "zoom", "rotate", "holdToPan", "overlayOpacity", "itemSwap"],
         configSchema: StackConfigSchema,
         description: "Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config",
         example: { viewports: [{ name: "main", renderer: STACK, config: { windowLevel: false, colormap: false } }], panels: { "viewport-bar": [`${IMAGE2D}.panels.viewControls`] } },
@@ -49,7 +49,7 @@ export default defineModule({
         id: "canvas-raster",
         consumes: [RASTER],
         space: "image2d",
-        capabilities: ["zoom", "pan", "holdToPan", "drafting", "vertexUndo"],
+        capabilities: ["zoom", "pan", "holdToPan", "drafting", "vertexUndo", "itemSwap"],
         description: "Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools",
         example: {
           viewports: [{ name: "main", renderer: CANVAS }],

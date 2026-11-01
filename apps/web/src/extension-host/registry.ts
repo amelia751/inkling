@@ -1,5 +1,6 @@
 import type { Registered } from "@studio/plugin-ui-sdk/resolved";
 import { canonicalId } from "@studio/contracts/naming";
+import { markBoot } from "./boot-timing";
 import {
   CONTRIBUTION_TYPES,
   type ContributionOf,
@@ -54,6 +55,8 @@ export class Registry {
       for (const [id, c] of this.byId) if (c.module === m.id) this.byId.delete(id);
       this.modules.delete(m.id);
       this.impls.delete(m.id);
+      this.loaded.delete(m.id);
+      this.failures.delete(m.id);
     }
     const added: Registered<ContributionType>[] = [];
     for (const type of CONTRIBUTION_TYPES) {
@@ -245,9 +248,65 @@ export class Registry {
   }
 
   private loaded = new Map<string, ModuleImpl>();
-  /** Like loadModule, but also records the result for peekImpl. */
-  async preload(moduleId: string): Promise<void> {
-    this.loaded.set(moduleId, await this.loadModule(moduleId));
+  private loads = new Map<string, Promise<void>>();
+  private failures = new Map<string, Error>();
+  /** Like loadModule, but also records the result for peekImpl (and failures for moduleState). */
+  preload(moduleId: string): Promise<void> {
+    if (this.loaded.has(moduleId)) return Promise.resolve();
+    let p = this.loads.get(moduleId);
+    if (!p) {
+      this.failures.delete(moduleId);
+      p = this.loadModule(moduleId).then(
+        (impl) => {
+          this.loads.delete(moduleId);
+          this.loaded.set(moduleId, impl);
+          markBoot(`module:${moduleId}`);
+          this.notify();
+        },
+        (e: unknown) => {
+          this.loads.delete(moduleId);
+          this.failures.set(moduleId, e instanceof Error ? e : new Error(String(e)));
+          markBoot(`module-failed:${moduleId}`);
+          this.notify();
+          throw e;
+        },
+      );
+      this.loads.set(moduleId, p);
+      this.notify();
+    }
+    return p;
+  }
+
+  /** Start loading a module without waiting (a failure is kept for `moduleState`, never thrown). */
+  ensure(moduleId: string): void {
+    if (this.loaded.has(moduleId) || this.loads.has(moduleId) || this.failures.has(moduleId)) return;
+    this.preload(moduleId).catch(() => undefined);
+  }
+
+  /** Where a module's implementation is: not asked for yet, loading, loaded or failed. */
+  moduleState(moduleId: string): { status: "idle" | "loading" | "ready" | "failed"; error?: Error } {
+    if (this.loaded.has(moduleId)) return { status: "ready" };
+    if (this.loads.has(moduleId)) return { status: "loading" };
+    const error = this.failures.get(moduleId);
+    return error ? { status: "failed", error } : { status: "idle" };
+  }
+
+  /** Whether a module's implementation is already loaded (peekImpl answers synchronously). */
+  isLoaded(moduleId: string): boolean {
+    return this.loaded.has(moduleId);
+  }
+
+  /** The module a contribution id belongs to. */
+  moduleOf(id: string): string | undefined {
+    return this.byId.get(canonicalId(id))?.module;
+  }
+
+  /** Forget a failed load so the next `ensure` retries it. */
+  retry(moduleId: string): void {
+    if (this.failures.delete(moduleId)) this.ensure(moduleId);
+  }
+
+  private notify() {
     this.version++;
     this.listeners.forEach((l) => l());
   }

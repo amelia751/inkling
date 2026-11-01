@@ -13,7 +13,7 @@ import { cellsFor, gridClass, mprConfig, type Cell, type Layout } from "../confi
 import { initialSource, referenceAsset, volumeSources } from "../dataKind";
 import { MprEngine, type EngineContext, type WandMode } from "./MprEngine";
 import { ViewBar } from "./ViewBar";
-import { brushSizeOf, execute, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
+import { brushSizeOf, execute, markFirstFrame, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 /**
  * React host of the MPR renderer: owns the UI state (sequence, layout, view toggles), mounts
@@ -29,6 +29,9 @@ export function MprRenderer({ project, item, config, runtime }: RendererProps) {
   const [layout, setLayout] = useState<Layout>(cfg.layout);
   const [single, setSingle] = useState<Plane>(cfg.plane);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  useEffect(() => {
+    if (status === "ready") markFirstFrame({ renderer: "cornerstone-mpr", itemId: item.id });
+  }, [status, item.id]);
   const [viewReady, setViewReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRef, setShowRef] = useState(true);

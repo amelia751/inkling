@@ -14,15 +14,14 @@ import { releaseFocusAfterPointer } from "@studio/renderers/viewport-chrome/bar"
 import type { StackConfig, WandMode } from "../view";
 import { imageConverter } from "./convert";
 import { NAMING, RES } from "@studio/contracts/naming";
-import { assetUrl, useHost } from "@studio/plugin-ui-sdk";
+import { assetUrl, markFirstFrame, useHost } from "@studio/plugin-ui-sdk";
 
 const { SegmentationRepresentations } = tools.Enums;
 let mountSeq = 0;
 
+/** Per-item state: the image on screen, its labelmap and the bridge to the store. Replaced on `setItem`. */
 interface Session {
-  engine: RenderingEngine;
-  viewportId: string;
-  toolGroupId: string;
+  itemId: string;
   segmentationId: string;
   labelmapImageId: string;
   imageId: string;
@@ -33,6 +32,13 @@ interface Session {
   components: number;
   modality: string;
   unit: string;
+}
+
+/** Per-engine state: the enabled viewport, its tool group and DOM listeners. Lives until `dispose`. */
+interface Stage {
+  engine: RenderingEngine;
+  viewportId: string;
+  toolGroupId: string;
   cleanup: () => void;
 }
 
@@ -72,14 +78,23 @@ export class CornerstoneStackEngine {
   colormap = "Grayscale";
   linear = true;
   private session: Session | null = null;
+  private stage: Stage | null = null;
   private cancelled = false;
   private tool = "select";
   private panning = false;
   private frame = 0;
+  /** The item shown (or loading); `setItem` with the same id is a no-op. */
+  private item: StudioItem;
+  /** Bumped per item load, so a slow load never lands after a newer one. */
+  private loadSeq = 0;
+  /** One per engine instance; tests check that item switches keep it (todo11 Milestone 1). */
+  readonly seq: number;
   private readonly ids: { viewport: string; toolGroup: string; segmentation: string };
 
   constructor(private readonly o: EngineOptions) {
     const seq = ++mountSeq;
+    this.seq = seq;
+    this.item = o.item;
     this.ids = { viewport: `ink2d-vp-${seq}`, toolGroup: `ink2d-tg-${seq}`, segmentation: `ink2d-seg-${seq}` };
   }
 
@@ -92,7 +107,7 @@ export class CornerstoneStackEngine {
   };
 
   viewport(): Types.IStackViewport | undefined {
-    const s = this.session;
+    const s = this.stage;
     return s ? (s.engine.getViewport(s.viewportId) as Types.IStackViewport | undefined) : undefined;
   }
 
@@ -119,10 +134,30 @@ export class CornerstoneStackEngine {
   // ---------------------------------------------------------------- lifecycle
 
   async mount(): Promise<void> {
+    await this.show(this.item);
+  }
+
+  /**
+   * Show another item in the same viewport (todo11 Milestone 1 §4): the rendering engine,
+   * viewport and tool group stay; only the image, its labelmap and the bridge are replaced.
+   */
+  async setItem(item: StudioItem): Promise<void> {
+    if (this.cancelled || item.id === this.item.id) return;
+    this.item = item;
+    await this.show(item);
+  }
+
+  private async show(item: StudioItem): Promise<void> {
+    const seq = ++this.loadSeq;
+    this.dropSession();
+    this.status = "loading";
+    this.error = null;
+    this.readout = null;
+    this.o.onChange();
     try {
-      await this.load();
+      await this.load(item, seq);
     } catch (e) {
-      if (this.cancelled) return;
+      if (this.cancelled || seq !== this.loadSeq) return;
       console.error(e);
       this.error = (e as Error).message || "This image could not be decoded.";
       this.status = "error";
@@ -130,19 +165,15 @@ export class CornerstoneStackEngine {
     }
   }
 
-  private async load() {
-    const { element, host, project, item } = this.o;
-    const ids = this.ids;
-    const asset = item.assets[0];
-    if (!asset) return;
-    await ensureCornerstone();
-    const isDicom = /\.dcm$/i.test(asset.path);
-    if (isDicom) await ensureDicom();
-    const url = absoluteUrl(assetUrl(asset.path));
-    const imageId = isDicom ? (await loadDicomSeries([asset.path]))[0] : webImageId(url);
-    const image = await imageLoader.loadAndCacheImage(imageId);
-    if (this.cancelled) return;
+  private stale(seq: number) {
+    return this.cancelled || seq !== this.loadSeq;
+  }
 
+  /** Enable the viewport, its tool group and the DOM listeners: once per engine. */
+  private ensureStage(): Stage {
+    if (this.stage) return this.stage;
+    const { element, host } = this.o;
+    const ids = this.ids;
     const engine = getRenderingEngine();
     engine.enableElement({
       viewportId: ids.viewport,
@@ -150,82 +181,22 @@ export class CornerstoneStackEngine {
       element,
       defaultOptions: { background: [0, 0, 0] as Types.Point3 },
     });
-    const vp = engine.getViewport(ids.viewport) as Types.IStackViewport;
-    await vp.setStack([imageId]);
-    if (this.cancelled) {
-      engine.disableElement(ids.viewport);
-      return;
-    }
-    // Image pixel → client (page) coordinates, for tests that click on known pixels.
-    const v2c = (x: number, y: number) => {
-      const r = element.getBoundingClientRect();
-      const c = vp.worldToCanvas(csUtils.imageToWorldCoords(imageId, [x, y]) as Types.Point3);
-      return [r.left + c[0], r.top + c[1]];
-    };
-    const pixels = image.getPixelData();
-    const components = image.numberOfComponents || (image.color ? 3 : 1);
-    const modality = isDicom ? (modalityOf(imageId) ?? "OT") : "OT";
-    const spacing = isDicom ? pixelSpacingOf(imageId) : null;
-    const unit = spacing ? "mm" : "px";
-    if (components === 1 && !isDicom) setVoi(vp, fullRange(pixels));
-    vp.render();
-
     const tg = createToolGroup({ id: ids.toolGroup, mode: "2d", promptText: this.o.promptText });
     tg.addViewport(ids.viewport, engine.id);
+    const vp = () => engine.getViewport(ids.viewport) as Types.IStackViewport;
 
-    // Labelmap for brush / eraser / wand masks.
-    const [labelmap] = imageLoader.createAndCacheDerivedLabelmapImages([imageId]);
-    tools.segmentation.addSegmentations([
-      {
-        segmentationId: ids.segmentation,
-        representation: { type: SegmentationRepresentations.Labelmap, data: { imageIds: [labelmap.imageId] } },
-        config: {
-          label: `${NAMING.displayName} mask`,
-          segments: Object.fromEntries(labelNames(project.labels).map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
-        },
-      },
-    ]);
-    const vm = () => (cache.getImage(labelmap.imageId) ?? labelmap).voxelManager as Types.IVoxelManager<number>;
-    const access: LabelmapAccess = {
-      segmentationId: ids.segmentation,
-      dims: [image.columns, image.rows],
-      // Pixel area in mm² when calibrated, so 2D masks report a physical area.
-      voxelMm3: spacing ? spacing[0] * spacing[1] : 0,
-      read: () => vm().getScalarData(),
-      write: (next) => {
-        const m = vm();
-        const cur = m.getScalarData();
-        for (let i = 0; i < next.length; i++) if (cur[i] !== next[i]) m.setAtIndex(i, next[i]);
-        tools.segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(ids.segmentation);
-      },
-      intensity: () => (components === 1 ? pixels : null),
-    };
-
-    const bridge = new CornerstoneBridge({
-      project,
-      itemId: item.id,
-      converter: imageConverter(imageId, () => engine.getViewport(ids.viewport), unit),
-      owns: () => true,
-      labelmap: access,
-      viewportIds: () => [ids.viewport],
-      accepts: (ann) => ann.metadata?.referencedImageId === imageId,
-    });
-    tools.segmentation.addLabelmapRepresentationToViewport(ids.viewport, [
-      { segmentationId: ids.segmentation, config: { colorLUTOrIndex: bridge.colorLUT() } },
-    ]);
-    tools.segmentation.activeSegmentation.setActiveSegmentation(ids.viewport, ids.segmentation);
-    bridge.start();
-
-    const onMouseUp = () => bridge.flushModified();
+    const onMouseUp = () => this.session?.bridge.flushModified();
     const onMove = (evt: MouseEvent) => {
+      const s = this.session;
+      if (!s) return;
       const rect = element.getBoundingClientRect();
-      const world = vp.canvasToWorld([evt.clientX - rect.left, evt.clientY - rect.top]);
-      const [ix, iy] = csUtils.worldToImageCoords(imageId, world) as [number, number];
+      const world = vp().canvasToWorld([evt.clientX - rect.left, evt.clientY - rect.top]);
+      const [ix, iy] = csUtils.worldToImageCoords(s.imageId, world) as [number, number];
       const x = Math.floor(ix), y = Math.floor(iy);
-      if (x < 0 || y < 0 || x >= image.columns || y >= image.rows) this.readout = null;
+      if (x < 0 || y < 0 || x >= s.width || y >= s.height) this.readout = null;
       else {
-        const o = (y * image.columns + x) * components;
-        const value = components === 1 ? String(pixels[o]) : `${pixels[o]}, ${pixels[o + 1]}, ${pixels[o + 2]}`;
+        const o = (y * s.width + x) * s.components;
+        const value = s.components === 1 ? String(s.pixels[o]) : `${s.pixels[o]}, ${s.pixels[o + 1]}, ${s.pixels[o + 2]}`;
         this.readout = { x, y, value };
       }
       this.changed();
@@ -238,7 +209,7 @@ export class CornerstoneStackEngine {
     const onToggle = (e: MouseEvent) => {
       if (e.button !== 0 || !(e.metaKey || e.ctrlKey)) return;
       const r = element.getBoundingClientRect();
-      if (bridge.toggleAt(element, [e.clientX - r.left, e.clientY - r.top])) {
+      if (this.session?.bridge.toggleAt(element, [e.clientX - r.left, e.clientY - r.top])) {
         e.stopPropagation();
         e.preventDefault();
       }
@@ -258,20 +229,10 @@ export class CornerstoneStackEngine {
     });
     ro.observe(element);
 
-    this.session = {
+    this.stage = {
       engine,
       viewportId: ids.viewport,
       toolGroupId: ids.toolGroup,
-      segmentationId: ids.segmentation,
-      labelmapImageId: labelmap.imageId,
-      imageId,
-      bridge,
-      width: image.columns,
-      height: image.rows,
-      pixels,
-      components,
-      modality,
-      unit,
       cleanup: () => {
         ro.disconnect();
         unfocus();
@@ -283,43 +244,146 @@ export class CornerstoneStackEngine {
         for (const e of viewEvents) element.removeEventListener(e, this.changed);
       },
     };
+    return this.stage;
+  }
+
+  private async load(item: StudioItem, seq: number) {
+    const { element, project } = this.o;
+    const asset = item.assets[0];
+    if (!asset) return;
+    await ensureCornerstone();
+    const isDicom = /\.dcm$/i.test(asset.path);
+    if (isDicom) await ensureDicom();
+    const url = absoluteUrl(assetUrl(asset.path));
+    const imageId = isDicom ? (await loadDicomSeries([asset.path]))[0] : webImageId(url);
+    const image = await imageLoader.loadAndCacheImage(imageId);
+    if (this.stale(seq)) return;
+
+    const stage = this.ensureStage();
+    const { engine } = stage;
+    const viewportId = stage.viewportId;
+    const vp = engine.getViewport(viewportId) as Types.IStackViewport;
+    await vp.setStack([imageId]);
+    if (this.stale(seq)) return;
+    // A new item starts from the default view, as a fresh viewport would.
+    vp.resetProperties();
+    this.colormap = "Grayscale";
+    this.linear = true;
+    // Image pixel → client (page) coordinates, for tests that click on known pixels.
+    const v2c = (x: number, y: number) => {
+      const r = element.getBoundingClientRect();
+      const c = vp.worldToCanvas(csUtils.imageToWorldCoords(imageId, [x, y]) as Types.Point3);
+      return [r.left + c[0], r.top + c[1]];
+    };
+    const pixels = image.getPixelData();
+    const components = image.numberOfComponents || (image.color ? 3 : 1);
+    const modality = isDicom ? (modalityOf(imageId) ?? "OT") : "OT";
+    const spacing = isDicom ? pixelSpacingOf(imageId) : null;
+    const unit = spacing ? "mm" : "px";
+    if (components === 1 && !isDicom) setVoi(vp, fullRange(pixels));
+    element.addEventListener(CoreEnums.Events.IMAGE_RENDERED, () => markFirstFrame({ renderer: "cornerstone-stack", itemId: item.id }), { once: true });
+    vp.render();
+
+    // Labelmap for brush / eraser / wand masks (one segmentation per item load).
+    const segmentationId = `${this.ids.segmentation}-${seq}`;
+    const [labelmap] = imageLoader.createAndCacheDerivedLabelmapImages([imageId]);
+    tools.segmentation.addSegmentations([
+      {
+        segmentationId,
+        representation: { type: SegmentationRepresentations.Labelmap, data: { imageIds: [labelmap.imageId] } },
+        config: {
+          label: `${NAMING.displayName} mask`,
+          segments: Object.fromEntries(labelNames(project.labels).map((l, i) => [i + 1, { label: l, segmentIndex: i + 1 }])),
+        },
+      },
+    ]);
+    const vm = () => (cache.getImage(labelmap.imageId) ?? labelmap).voxelManager as Types.IVoxelManager<number>;
+    const access: LabelmapAccess = {
+      segmentationId,
+      dims: [image.columns, image.rows],
+      // Pixel area in mm² when calibrated, so 2D masks report a physical area.
+      voxelMm3: spacing ? spacing[0] * spacing[1] : 0,
+      read: () => vm().getScalarData(),
+      write: (next) => {
+        const m = vm();
+        const cur = m.getScalarData();
+        for (let i = 0; i < next.length; i++) if (cur[i] !== next[i]) m.setAtIndex(i, next[i]);
+        tools.segmentation.triggerSegmentationEvents.triggerSegmentationDataModified(segmentationId);
+      },
+      intensity: () => (components === 1 ? pixels : null),
+    };
+
+    const bridge = new CornerstoneBridge({
+      project,
+      itemId: item.id,
+      converter: imageConverter(imageId, () => engine.getViewport(viewportId), unit),
+      owns: () => true,
+      labelmap: access,
+      viewportIds: () => [viewportId],
+      accepts: (ann) => ann.metadata?.referencedImageId === imageId,
+    });
+    tools.segmentation.addLabelmapRepresentationToViewport(viewportId, [{ segmentationId, config: { colorLUTOrIndex: bridge.colorLUT() } }]);
+    tools.segmentation.activeSegmentation.setActiveSegmentation(viewportId, segmentationId);
+    bridge.start();
+
+    this.session = {
+      itemId: item.id,
+      segmentationId,
+      labelmapImageId: labelmap.imageId,
+      imageId,
+      bridge,
+      width: image.columns,
+      height: image.rows,
+      pixels,
+      components,
+      modality,
+      unit,
+    };
     this.status = "ready";
     this.o.onChange();
     exposeForTests(`__${RES}2d`, {
-      viewport: () => engine.getViewport(ids.viewport),
+      engine: this.seq,
+      itemId: item.id,
+      viewport: () => engine.getViewport(viewportId),
       imageId,
       props: () => {
-        const v = engine.getViewport(ids.viewport) as Types.IStackViewport;
+        const v = engine.getViewport(viewportId) as Types.IStackViewport;
         const p = v.getProperties();
         const cam = v.getCamera();
         return { voi: p.voiRange, invert: p.invert, colormap: (p.colormap as { name?: string } | undefined)?.name, interpolation: p.interpolationType, flipH: cam.flipHorizontal, flipV: cam.flipVertical, rotation: v.getViewPresentation({ rotation: true }).rotation, zoom: v.getZoom(), focal: cam.focalPoint, pan: v.getPan() };
       },
       canvasOf: (x: number, y: number) => v2c(x, y),
-      toolOptions: () => JSON.parse(JSON.stringify((tools.ToolGroupManager.getToolGroup(ids.toolGroup) as unknown as { toolOptions: unknown })?.toolOptions ?? {})),
+      toolOptions: () => JSON.parse(JSON.stringify((tools.ToolGroupManager.getToolGroup(this.ids.toolGroup) as unknown as { toolOptions: unknown })?.toolOptions ?? {})),
       csAnnotations: () =>
         tools.annotation.state.getAllAnnotations().map((a) => ({ uid: a.annotationUID, tool: a.metadata?.toolName, ref: a.metadata?.referencedImageId, label: a.data.label })),
     });
   }
 
-  dispose(): void {
-    this.cancelled = true;
-    if (this.frame) cancelAnimationFrame(this.frame);
+  /** Tear down the current item (bridge, labelmap); the viewport and tool group stay. */
+  private dropSession(): void {
     exposeForTests(`__${RES}2d`, null);
     const s = this.session;
     this.session = null;
-    if (s) {
-      s.cleanup();
-      s.bridge.dispose();
-      try {
-        tools.segmentation.removeSegmentation(s.segmentationId);
-      } catch {
-        /* already gone */
-      }
-      tools.ToolGroupManager.destroyToolGroup(s.toolGroupId);
-      s.engine.disableElement(s.viewportId);
-      cache.removeImageLoadObject(s.labelmapImageId, { force: true });
-    } else {
-      tools.ToolGroupManager.destroyToolGroup(this.ids.toolGroup);
+    if (!s) return;
+    s.bridge.dispose();
+    try {
+      tools.segmentation.removeSegmentation(s.segmentationId);
+    } catch {
+      /* already gone */
+    }
+    cache.removeImageLoadObject(s.labelmapImageId, { force: true });
+  }
+
+  dispose(): void {
+    this.cancelled = true;
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.dropSession();
+    const st = this.stage;
+    this.stage = null;
+    tools.ToolGroupManager.destroyToolGroup(this.ids.toolGroup);
+    if (st) {
+      st.cleanup();
+      st.engine.disableElement(st.viewportId);
     }
   }
 
@@ -329,7 +393,7 @@ export class CornerstoneStackEngine {
   bindTool(tool: string, panning: boolean): void {
     this.tool = tool;
     this.panning = panning;
-    const s = this.session;
+    const s = this.stage;
     if (!s) return;
     const tg = tools.ToolGroupManager.getToolGroup(s.toolGroupId);
     if (!tg) return;
@@ -339,7 +403,7 @@ export class CornerstoneStackEngine {
 
   /** Brush size follows zoom; VOI drives the threshold range. */
   applyBrush(size: number, threshold: boolean): void {
-    const s = this.session;
+    const s = this.stage;
     if (!s) return;
     const tg = tools.ToolGroupManager.getToolGroup(s.toolGroupId);
     const vp = this.viewport();

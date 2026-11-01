@@ -11,7 +11,7 @@ import { WSI, type WsiConfig } from "../manifest";
 import { INITIAL_UI, WsiController, type UiState } from "./controller";
 import { NEUTRAL_ADJUST, type Adjustments } from "./wand";
 import { ns } from "@studio/contracts/naming";
-import { execute, useCommands, useHost } from "@studio/plugin-ui-sdk";
+import { execute, markFirstFrame, useCommands, useHost } from "@studio/plugin-ui-sdk";
 
 const MAGNIFICATIONS = [1.25, 5, 10, 20, 40];
 const fmtMag = (m: number) => (m < 10 ? m.toFixed(1) : String(Math.round(m)));
@@ -30,6 +30,9 @@ export function OsdRenderer({ project, item, config, runtime }: RendererProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const ctrlRef = useRef<WsiController | null>(null);
   const [ui, setUi] = useState<UiState>(INITIAL_UI);
+  useEffect(() => {
+    if (ui.ready) markFirstFrame({ renderer: "osd", itemId: item.id });
+  }, [ui.ready, item.id]);
   const adjust = useRuntime<Adjustments>(item.id, "adjust") ?? NEUTRAL_ADJUST;
   const gammaId = `gamma-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const labels = labelNames(project.labels);

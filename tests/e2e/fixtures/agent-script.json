@@ -169,7 +169,7 @@
               "arguments": {
                 "section": "sources",
                 "nodeId": "{{last.sources.0.rootNodeId}}",
-                "label": "Data \u203a 2d-xray"
+                "label": "Files \u203a 2d-xray"
               }
             }
           ]

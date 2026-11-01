@@ -9,7 +9,7 @@ making complicated data feel simple.
 
 **Status (2026-10-31).** Plan amended after review.
 
-- **Milestone 1 can start now.** In progress on `todo11-shell`.
+- **Milestone 1: done and merged** (cold image-2d first frame is still over budget; see the M1 notes).
 - **Milestone 2** starts after Milestone 1's measurements land. **Server side (`todo11-boot`) done
   early, in parallel, and merged** (it touches nothing in Milestone 1's files; the D4 guardrails item
   is still open). Its client side (`todo11-live`) has not started. See the ✅ notes in Milestone 2.
@@ -340,6 +340,36 @@ The native Studio, opened by hand, should feel instant. Nothing here involves ag
    - a deliberately broken panel module leaves the viewport working;
    - item switching in `image2d` keeps one engine instance;
    - every existing e2e passes, with the same `data-testid`s.
+7. ✅ **Done, merged** (started by the `todo11-shell` agent; finished on `todo11-shell-finish`).
+   - **Built:**
+     - **Instrumentation:** boot marks (`extension-host/boot-timing.ts`), a dev overlay
+       (`BootTimelineOverlay`) and `apps/web/e2e/boot_test.py`, which prints the timeline per
+       preset and gates the budgets.
+     - **Boot gate:** gone. Each slot loads its own module (`ModuleSlot.tsx`) behind a
+       layout-matched skeleton, with a failure card that offers Retry or Start in safe mode.
+     - **Priority loading** (`boot-priority.ts`): the viewer's module first, then visible panels,
+       then the rest when idle. Warm-up starts from the spec, and from the viewer this task used
+       last time.
+     - **image2d:** item switches go through `itemSwap` + `setItem`, so the engine isn't
+       remounted.
+     - **Live apply:** `environment-edits.ts` preloads only new modules, inside
+       `startTransition`.
+     - **Viewers mount one frame after the shell paints.** OpenSeadragon's WebGL probe took 4 s
+       under headless GL and held up the warm shell.
+   - **Checks:** web typecheck and 554 unit tests pass, plus boundaries, names, icons and
+     schemas.
+   - **`boot_test.py` exits:**
+     - ✅ Item switch keeps one engine instance.
+     - ✅ A broken panel leaves the viewer working.
+     - ✅ Warm shell is 110–380 ms for every preset.
+     - ⚠️ **Cold numbers are noisy on this machine.** One run had cold shell at 0.9–2.4 s for
+       every preset; a later run, with four agents' dev servers running at once, had video, ecg
+       and pathology at 4–5 s.
+     - ⚠️ **image-2d cold first frame is 3.4–3.7 s**, over the 3 s budget (Cornerstone init).
+   - ⏳ **Not done:**
+     - Today's "before" numbers weren't recorded separately.
+     - Re-measure on a quiet machine.
+     - Run the full e2e suite (only `boot_test.py` was run here).
 
 ### Milestone 2: server-side boot and live updates (`todo11-boot`, `todo11-live`)
 
@@ -644,8 +674,8 @@ Two kinds, kept separate.
 
 | Moment | Target | Today |
 |---|---|---|
-| Studio route to shell painted (warm / cold) | < 1.5 s / < 3 s | TBD (Milestone 1 step 1) |
-| Route to first viewport frame, `image-2d` cold | < 3 s | ~20–45 s implied by e2e waits; to measure |
+| Studio route to shell painted (warm / cold) | < 1.5 s / < 3 s | after M1: warm 0.1–0.4 s; cold 0.9–2.4 s (quiet run), 4–5 s under load |
+| Route to first viewport frame, `image-2d` cold | < 3 s | ~20–45 s implied by e2e waits before; 3.4–3.7 s after M1 (over budget) |
 | Explicit request to boot card visible | < 300 ms after the `boot_studio` call starts | n/a |
 | Boot start to shell painted on the draft | < 2 s | n/a |
 | Explicit request to usable preset (scripted model) | < 20 s | n/a |

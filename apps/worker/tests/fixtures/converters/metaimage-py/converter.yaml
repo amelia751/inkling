@@ -1,0 +1,21 @@
+# A rung-2 converter (todo10 Phase 6): MetaImage (.mha, data inline) → NIfTI (.nii.gz), which the
+# Studio's volume viewer already shows. Written as an agent would; run by studio_worker.convert.
+id: inkling.metaimage-to-nifti
+version: 0.1.0
+title: MetaImage to NIfTI
+description: "Reads 2D/3D MetaImage (.mha) volumes with inline, optionally zlib-compressed data and writes NIfTI-1 (.nii.gz)."
+accepts:
+  ext: [".mha"]
+  headerContains: ["ObjectType", "ElementType"]
+produces: assets
+output:
+  mediaType: application/x-nifti
+  ext: .nii.gz
+  dataKind: inkling.volume.dataKinds.volume
+  preset: preset:volume-3d
+runtime:
+  kind: python
+  entrypoint: metaimage:convert
+limits:
+  timeoutS: 60
+  memoryMb: 2048

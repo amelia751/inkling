@@ -1,7 +1,10 @@
+//go:build chaos
+
 package chaos_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,9 +25,15 @@ func TestDeployWithPendingWork(t *testing.T) {
 	studio := pool(t, newDB(t), 10)
 	exec(t, studio, toyDDL)
 	engineDB := newDB(t)
-	k := testenv.Kernel(t, kernelfake.Options{Workers: 4, ClaimInterval: 20 * time.Millisecond, LongPoll: 2 * time.Second,
-		Work: func(kernelfake.Job) kernelfake.Outcome {
-			return kernelfake.Outcome{Duration: 120 * time.Millisecond, ResultRef: "blob://r"}
+	// Runs a_012 and later can't finish validation until A is retired, so A always leaves
+	// work behind (mid-step and still queued) however fast or slow the machine is.
+	held := make(chan struct{})
+	k := testenv.Kernel(t, kernelfake.Options{Workers: 40, ClaimInterval: 20 * time.Millisecond, LongPoll: 2 * time.Second, // > the held jobs (≤ 24 in flight)
+		Work: func(j kernelfake.Job) kernelfake.Outcome {
+			if j.Kind == "validate" && strings.HasPrefix(j.IdempotencyKey, "a_") && j.IdempotencyKey >= "a_012" {
+				<-held
+			}
+			return kernelfake.Outcome{Duration: 50 * time.Millisecond, ResultRef: "blob://r"}
 		}})
 	y := &toy{db: studio, k: testenv.Client(k), pollAfter: 2 * time.Second}
 
@@ -79,6 +88,7 @@ func TestDeployWithPendingWork(t *testing.T) {
 	ca.Stop()
 	_ = a.Shutdown(5 * time.Second)
 	retiredAt := time.Now()
+	close(held)
 	rep, err := engine.Drain(ctx, b, "wf-A", "wf-B", nil)
 	if err != nil {
 		t.Fatal(err)

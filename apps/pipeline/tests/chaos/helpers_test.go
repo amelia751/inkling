@@ -1,3 +1,5 @@
+//go:build chaos
+
 // Package chaos holds the Milestone 0 decisive tests (docs/pipeline.md §19 Stage 0,
 // todo12 §4 item 6, gates in todo12 §7), against the real DBOS engine, a real Postgres and
 // the in-process fake kernel (internal/kernel/kernelfake) with both fairness gates:

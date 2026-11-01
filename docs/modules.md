@@ -256,6 +256,44 @@ claude mcp add inkling -- pnpm --dir /abs/path/to/inkling mcp
    create, plain attribute values, bounded size) and land as `ai-suggested`, author
    `agent:sandbox`, so the expert reviews them like any AI suggestion. Never in the main bundle.
 
+### Sandboxed viewers on MCP Apps (todo10 Phase 5)
+
+`studio.sandbox-frame.v1` (tier 3 above, and ladder rung 4) runs every View behind an
+[MCP Apps](https://github.com/modelcontextprotocol/ext-apps) **sandbox proxy**
+(`apps/web/public/sandbox-proxy.html`): an iframe on a separate origin (runtime config
+`sandboxOrigin`; in dev `http://sandbox.localhost:<port>`, served by the same Vite server) with
+`sandbox="allow-scripts"` only and a CSP header without network (`SANDBOX_PROXY_CSP` in
+`vite.config.ts`, same value in nginx). The proxy loads the View into its own srcdoc frame
+(`allow-scripts`, inherits that CSP) and relays JSON-RPC. The Studio side
+(`extension-host/sandbox/bridge-host.ts`) answers `ui/initialize`, sends the item as
+`ui/notifications/tool-result`, and handles the View's `tools/call` with the viewer tools
+(`viewer-tools.ts`): `viewer_read_asset` (the current item's assets only),
+`viewer_get_runtime` / `viewer_publish_runtime` (`viewer.*` keys only),
+`viewer_list_annotations`, `viewer_propose_annotations` (vetted typed geometries, stored
+`ai-suggested`). Links, chat messages and downloads are refused.
+
+A **rung-4 viewer** is one ESM module with anywidget's shape (`packages/plugin-ui-sdk/src/viewer.ts`):
+
+```js
+export default { async render({ model, el, signal, host }) {
+  const bytes = await host.readAsset(model.get("item").assets[0].path);
+  // draw into el; host.annotations.propose([{ label, geometry: { type: "class" } }])
+} };
+```
+
+A declarative plugin ships it in `ui/contributions.json` as a viewport renderer, so no code
+reaches the main origin and the kernel signs it like any generated plugin:
+
+```json
+{ "renderers": [{ "id": "ply", "renderer": "studio.sandbox-frame.v1", "config": { "title": "PLY", "module": "export default { render() {} }" } }] }
+```
+
+It consumes `<namespace>.generic.dataKinds.files` (one item per file, any format) unless it names
+other data kinds. `apps/mcp` serves the same viewers as MCP Apps UI resources, so they render in
+Claude, ChatGPT or any MCP Apps host (`apps/mcp/README.md`). Tests: `apps/web/e2e/plugin_isolation_test.py`
+(isolation), `tests/e2e/viewer_test.py` (install, approval, render), `tests/e2e/mcp_apps_host_test.py`
+(outside the Studio).
+
 Enable the flag per browser with `localStorage.setItem("inkling.flags", "agentPanels")`, or for
 a build with `VITE_INKLING_FLAGS=agentPanels`. Without it the experimental module isn't
 registered, so environments can't reference its panels.

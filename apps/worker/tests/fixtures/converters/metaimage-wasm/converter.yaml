@@ -1,5 +1,7 @@
-# The same converter as metaimage-py, as a WASI command module (todo10 D3 trial). The .wasm is
-# built from metaimage.c by the test with a pinned toolchain (ziglang); it isn't committed.
+# The same converter as metaimage-py, as a WASI command module (todo10 D3 trial). metaimage.wasm
+# is built from metaimage.c with a pinned toolchain (ziglang 0.17.0:
+# `python -m ziglang cc --target=wasm32-wasi -O2 -s metaimage.c -o metaimage.wasm`); the test
+# rebuilds it when ziglang is installed. In production the worker's build_plugin job rebuilds it.
 id: inkling.metaimage-to-nifti-wasm
 version: 0.1.0
 title: MetaImage to NIfTI (WebAssembly)

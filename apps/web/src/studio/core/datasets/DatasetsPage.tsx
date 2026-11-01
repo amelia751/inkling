@@ -5,7 +5,7 @@ import { AiIcon, ArrowRightIcon, DatasetsIcon, GridViewIcon, InfoIcon, ListViewI
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
-import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
+import { NoResults } from "@studio/ui/ui/empty-state";
 import { Input } from "@studio/ui/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";

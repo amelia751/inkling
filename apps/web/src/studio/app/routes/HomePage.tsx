@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import { AddDataIcon, LicenseIcon, LockIcon, ProjectsIcon } from "@studio/ui/icons";
+import { LicenseIcon, LockIcon, ProjectsIcon } from "@studio/ui/icons";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
@@ -31,7 +31,7 @@ export function HomePage() {
           actions={
             <Button variant="ghost-secondary" size="lg" asChild>
               <Link to={newProjectUrl()} data-testid="new-project">
-                <AddDataIcon /> New project with a form
+                Or create a project with a form
               </Link>
             </Button>
           }

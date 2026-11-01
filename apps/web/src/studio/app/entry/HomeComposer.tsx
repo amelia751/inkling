@@ -81,6 +81,8 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
     <>
       <ComposerEmptyState
         variant="hero"
+        // §3.1: with nothing yet, one centered composer; with projects, it heads the page.
+        align={projects && !projects.length ? "center" : "start"}
         composer
         title="What are you working on?"
         description={<>Drop files here, or describe it: “Label 200 chest X-rays as normal or pneumonia.”</>}

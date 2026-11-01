@@ -52,7 +52,7 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
       <ComposerEmptyState
         variant="page"
         composer
-        title={`Let's start ${title}`}
+        title="Let's start with your data"
         description="Start by dropping files, or describe what you want to make."
         placeholder="“Outline the liver in these CT series”, or drop files here"
         onSend={(t) => ask(t)}

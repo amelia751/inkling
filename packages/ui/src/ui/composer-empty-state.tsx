@@ -22,6 +22,8 @@ export interface ComposerEmptyStateProps {
    * Studio's empty viewer.
    */
   variant?: "hero" | "page" | "panel" | "canvas"
+  /** `hero` only: `center` puts the title and composer in the middle (Home with no projects). */
+  align?: "start" | "center"
   /**
    * Show the text composer (a message to the assistant). Without it the state offers the
    * two composer actions as buttons: drop or add files, and ask the assistant.
@@ -86,6 +88,7 @@ function ComposerEmptyState({
   title,
   description,
   variant = "page",
+  align = "start",
   composer = false,
   placeholder = "Describe what you're making, or drop files here",
   value,
@@ -113,6 +116,8 @@ function ComposerEmptyState({
   pickFolderTestId = "pick-folder",
 }: ComposerEmptyStateProps) {
   const v = VARIANTS[variant]
+  // Every variant but a start-aligned hero centres its column.
+  const centered = variant !== "hero" || align === "center"
   const [own, setOwn] = React.useState("")
   const text = value ?? own
   const setText = (t: string) => (onValueChange ? onValueChange(t) : setOwn(t))
@@ -174,9 +179,10 @@ function ComposerEmptyState({
 
   return (
     <div
-      className={cn("relative flex w-full flex-col", v.root, className)}
+      className={cn("relative flex w-full flex-col", v.root, variant === "hero" && align === "center" && "items-center justify-center text-center", className)}
       data-testid={testId}
       data-variant={variant}
+      data-align={variant === "hero" ? align : undefined}
       onDragEnter={(e) => {
         if (!canFiles || !hasFiles(e.dataTransfer)) return
         depth.current++
@@ -201,13 +207,13 @@ function ComposerEmptyState({
       }}
     >
       {inputs}
-      <div className={cn("flex w-full flex-col gap-1.5", variant !== "hero" && "items-center", variant === "hero" ? v.width : "mx-auto", variant !== "hero" && v.width)}>
+      <div className={cn("flex w-full flex-col gap-1.5", v.width, centered && "mx-auto items-center")}>
         <h2 className={v.title}>{title}</h2>
         {description && <div className={cn(v.desc, "max-w-prose")}>{description}</div>}
       </div>
 
       {composer ? (
-        <div className={cn("flex w-full flex-col gap-2", v.width, variant !== "hero" && "mx-auto")}>
+        <div className={cn("flex w-full flex-col gap-2", v.width, centered && "mx-auto")}>
           <div
             className={cn(
               "flex cursor-text flex-col rounded-xl border bg-background p-3 text-left transition-colors focus-within:border-brand-heavy",
@@ -251,7 +257,7 @@ function ComposerEmptyState({
           </div>
           {error && <p className="px-1 text-sm text-danger" role="alert">{error}</p>}
           {examples && examples.length > 0 && (
-            <div className={cn("flex flex-wrap gap-2", variant !== "hero" && "justify-center")} aria-label="Examples">
+            <div className={cn("flex flex-wrap gap-2", centered && "justify-center")} aria-label="Examples">
               <span className="py-1 text-sm text-hint">Examples:</span>
               {examples.map((g) => (
                 <button
@@ -266,8 +272,8 @@ function ComposerEmptyState({
               ))}
             </div>
           )}
-          {actions && <div className={cn("flex flex-wrap items-center gap-2", variant !== "hero" && "justify-center")}>{actions}</div>}
-          {footnote && <p className="px-1 text-caption text-hint">{footnote}</p>}
+          {actions && <div className={cn("flex flex-wrap items-center gap-2", centered && "justify-center")}>{actions}</div>}
+          {footnote && <p className={cn("px-1 text-caption text-hint", centered && "text-center")}>{footnote}</p>}
         </div>
       ) : (
         <div

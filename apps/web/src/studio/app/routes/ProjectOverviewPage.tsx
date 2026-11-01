@@ -19,8 +19,10 @@ import {
   type IconComponent,
 } from "@studio/ui/icons";
 import { ProjectEmptyState } from "@/studio/app/entry/empty-states";
+import { useDropFiles } from "@/studio/app/entry/drop-adapter";
+import type { Picked } from "@/studio/lib/uploads/walk";
 import { AppLayout } from "@/studio/components/layout/app-layout";
-import { DropOverlay, DropZone, useAddData, usePickers } from "@/studio/components/uploads/uploads";
+import { DropOverlay, usePickers } from "@/studio/components/uploads/uploads";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
@@ -33,10 +35,8 @@ import { seedUrl } from "@/studio/lib/api";
 import { api, fetchPreview, fetchProposals, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
-import { useShell } from "@/studio/stores/shell";
 import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
 import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
-import { NAMING } from "@studio/contracts/naming";
 import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { cn } from "@studio/ui/utils";
 
@@ -50,7 +50,9 @@ export function ProjectOverviewPage() {
   const overview = useOverview(projectId);
   // What the assistant sees here (todo6 Phase 6): the project summary.
   useAgentContext(useMemo(() => (overview.data ? overviewContext(overview.data) : null), [overview.data]));
-  const addData = useAddData(projectId);
+  // todo13: drops on Overview go through the entry drop adapter (one way in).
+  const dropFiles = useDropFiles();
+  const addData = (picked: Picked) => dropFiles({ projectId, picked, origin: "files", surface: "overview" });
   const o = overview.data;
 
   return (

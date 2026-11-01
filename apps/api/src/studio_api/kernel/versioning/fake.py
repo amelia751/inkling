@@ -25,7 +25,7 @@ from ..canonical import canonicalize
 from .auth import decode_unverified
 from .client import VersioningProblem, problem
 
-STUDIO_PATH = re.compile(r"^(plugins\.lock\.json|tasks/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/(environment\.json|README\.md))$")
+STUDIO_PATH = re.compile(r"^(plugins\.lock\.json|structure\.json|tasks/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/(environment\.json|README\.md))$")
 
 
 def _now() -> str:

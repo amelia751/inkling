@@ -4,6 +4,8 @@ different drop never changes the open Studio; dataset structure drafts and propo
 
 from __future__ import annotations
 
+import json
+
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -414,6 +416,32 @@ def test_structure_draft_writes_validate_and_detect_stale_bases(client):
     ok = client.put(f"/api/v1/datasets/{d}/structure", json={"structure": STRUCT, "baseHash": empty["hash"]})
     assert ok.status_code == 200 and ok.json()["structure"] == STRUCT
     assert client.put(f"/api/v1/datasets/{d}/structure", json={"structure": STRUCT, "baseHash": empty["hash"]}).status_code == 409
+
+
+def test_the_draft_structure_travels_in_the_studio_definition(client):
+    """todo13 D8: the draft is committed as `.studio/structure.json` next to the tasks' files
+    (a Studio commit replaces the whole tree, so nothing else may be dropped)."""
+    from studio_api.kernel.versioning import client as vclient, service
+    from studio_api.kernel.versioning.fake import FakeVersioning
+
+    f = FakeVersioning()
+    vclient.set_client(f)
+    service.clear_cache()
+    try:
+        p = _project(client)
+        d = _draft_dataset(client, p)
+        r = client.put(f"/api/v1/datasets/{d}/structure", json={"structure": STRUCT})
+        assert r.status_code == 200, r.text
+        assert client.get(f"/api/v1/datasets/{d}/structure").json()["storedIn"] == "versioning"
+        trees = [t for t in f.studio_trees.values() if "structure.json" in t]
+        assert trees, "no Studio commit carried structure.json"
+        tree = trees[-1]
+        assert json.loads(tree["structure.json"]) == STRUCT
+        # The rest of the live definition rides along (same source as every Studio commit).
+        assert "plugins.lock.json" in tree
+    finally:
+        vclient.set_client(None)
+        service.clear_cache()
 
 
 def test_propose_structure_writes_the_agents_branch_and_returns_the_diff(client):

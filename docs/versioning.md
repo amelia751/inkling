@@ -487,9 +487,15 @@ documents, a commit's tree may carry a `.studio/` subtree:
   plugins.lock.json                 {lockfileVersion: 1, plugins: [{id, version, digest, signer, permissions, configRevision}]}
   tasks/<taskId>/environment.json   the task's environment spec
   tasks/<taskId>/README.md          intent and notes (PUT /api/environments/{taskId}/readme)
+  structure.json                    the dataset's draft structure (DatasetStructure v1, todo13 D8)
 ```
 
-- **Canonical JSON.** Both JSON files are RFC 8785 canonical bytes; apps/versioning refuses any
+`structure.json` is part of the live definition (`studio_defs.studio_files`): every Studio
+commit carries the dataset's draft structure, and a draft structure write commits it to the
+writer's work branch. A Studio commit replaces the whole `.studio/` tree, so it is never sent on
+its own. Restoring a definition (`restore_definition`) leaves the kernel's structure untouched.
+
+- **Canonical JSON.** The JSON files are RFC 8785 canonical bytes; apps/versioning refuses any
   other (`not_canonical`). `sha256:` of those bytes is the content hash everywhere: kernel
   (`kernel/canonical.py`), browser (`packages/contracts/src/canonical.ts`), and the shared vectors in
   `packages/contracts/test-vectors/canonical.json`. The lockfile schema is

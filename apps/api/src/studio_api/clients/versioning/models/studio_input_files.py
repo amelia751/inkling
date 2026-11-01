@@ -20,7 +20,7 @@ T = TypeVar("T", bound="StudioInputFiles")
 
 @_attrs_define
 class StudioInputFiles:
-    """ plugins.lock.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file text
+    """ plugins.lock.json, structure.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file text
 
      """
 

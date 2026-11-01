@@ -140,6 +140,8 @@ def revision_meta(r: WorkspaceEnvironmentRevision) -> dict:
 # ---- The `.studio/` tree (todo10 §3.2, Phase 2) -----------------------------------------------
 
 LOCK_PATH = "plugins.lock.json"
+# The dataset's structure (DatasetStructure v1, todo13 D8): the draft, kept by the kernel.
+STRUCTURE_PATH = "structure.json"
 TASK_PATH = re.compile(r"^tasks/([A-Za-z0-9][A-Za-z0-9._-]{0,127})/(environment\.json|README\.md)$")
 README_MAX = 64 * 1024
 
@@ -207,12 +209,23 @@ def studio_files(db: Session, ctx: RequestContext, dataset_id: str | None = None
         notes = readme(db, ctx.workspace_id, t)
         if notes:
             files[readme_path(t)] = notes
+    if dataset_id:
+        from ..models import DatasetStructureRow
+
+        draft = db.get(DatasetStructureRow, (dataset_id, "draft"))
+        if draft is not None and draft.structure:
+            files[STRUCTURE_PATH] = canonicalize(draft.structure)
     return files
 
 
 def parse_files(files: dict[str, str]) -> dict:
-    """`.studio/` files → `{lockfile, lockfileHash, tasks: {id: {environment, contentHash, readme}}}`."""
+    """`.studio/` files → `{lockfile, lockfileHash, tasks: {id: {environment, contentHash, readme}}, structure?}`."""
     out: dict = {"lockfile": None, "tasks": {}}
+    if STRUCTURE_PATH in files:
+        try:
+            out["structure"] = json.loads(files[STRUCTURE_PATH])
+        except ValueError:
+            out["structure"] = None
     if LOCK_PATH in files:
         try:
             out["lockfile"] = json.loads(files[LOCK_PATH])

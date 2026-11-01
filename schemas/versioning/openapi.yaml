@@ -668,7 +668,7 @@ components:
         files:
           type: object
           maxProperties: 512
-          description: "plugins.lock.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file text"
+          description: "plugins.lock.json, structure.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file text"
           additionalProperties: {type: string, maxLength: 1048576}
     Studio:
       type: object

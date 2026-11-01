@@ -27,8 +27,8 @@ class StudioInput:
     files must be RFC 8785 canonical.
 
         Attributes:
-            files (StudioInputFiles): plugins.lock.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file
-                text
+            files (StudioInputFiles): plugins.lock.json, structure.json, tasks/<taskId>/environment.json,
+                tasks/<taskId>/README.md → file text
      """
 
     files: StudioInputFiles

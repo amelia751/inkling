@@ -7,17 +7,18 @@ branch (`propose_structure`); the person accepts it into the draft (or, with
 A published dataset's draft isn't edited in place: a write becomes a `structure` proposal a
 person confirms.
 
-Where it's stored: the kernel keeps every branch (`dataset_structures`). apps/versioning's commit
-route accepts only `.studio/` paths today (`plugins.lock.json`, `tasks/*/…`), so
-`structure.json` can't be committed to a dataset's tree yet; once todo12-versioning admits the
-path, `VERSIONING_ACCEPTS_STRUCTURE` turns on the mirror: every draft write is also committed to
-the dataset's work branch (a dataset without a repo gets one on its first write). Reported in the
-todo13-organize hand-back.
+Where it's stored: the kernel keeps every branch (`dataset_structures`), and the draft travels
+with the dataset's Studio definition as `.studio/structure.json` (`studio_defs.studio_files`):
+every Studio commit carries it, and a draft write is committed to the writer's work branch
+right away when versioning is configured (a dataset without a repo gets one on its first write).
+apps/versioning admits the path; a Studio commit replaces the whole `.studio/` tree, which is why
+the structure is part of the live definition rather than committed on its own.
 """
 
 from __future__ import annotations
 
 import json
+import logging
 import re
 from functools import cache
 from pathlib import Path
@@ -34,10 +35,12 @@ from ..models import DatasetCollectionRow, DatasetRow, DatasetStructureRow, now
 from . import audit, drop_flags, projects
 from .canonical import content_hash
 
+log = logging.getLogger(__name__)
+
 DRAFT = "draft"
 STRUCTURE_PATH = "structure.json"
-# Flip when apps/versioning admits `structure.json` in a commit's tree (todo12-versioning).
-VERSIONING_ACCEPTS_STRUCTURE = False
+# apps/versioning admits `.studio/structure.json` (internal/service/studio.go `studioPathRE`).
+VERSIONING_ACCEPTS_STRUCTURE = True
 FIELD_TYPES = {"integer", "number", "decimal", "text", "category", "id", "date", "boolean", "list", "path", "empty"}
 
 
@@ -87,7 +90,7 @@ def _row(db: Session, dataset_id: str, branch: str) -> DatasetStructureRow | Non
 def get(db: Session, d: DatasetRow, branch: str = DRAFT) -> dict:
     r = _row(db, d.id, branch)
     s = r.structure if r is not None else empty()
-    return {"datasetId": d.id, "branch": branch, "structure": s, "hash": hash_of(s), "updatedBy": r.updated_by if r else None, "updatedAt": projects.iso(r.updated_at) if r else None, "storedIn": "versioning" if VERSIONING_ACCEPTS_STRUCTURE else "kernel"}
+    return {"datasetId": d.id, "branch": branch, "structure": s, "hash": hash_of(s), "updatedBy": r.updated_by if r else None, "updatedAt": projects.iso(r.updated_at) if r else None, "storedIn": "versioning" if _mirrored() else "kernel"}
 
 
 def _write(db: Session, ctx: RequestContext, d: DatasetRow, branch: str, s: dict) -> DatasetStructureRow:
@@ -103,14 +106,31 @@ def _write(db: Session, ctx: RequestContext, d: DatasetRow, branch: str, s: dict
     return r
 
 
-def _mirror(db: Session, ctx: RequestContext, d: DatasetRow, s: dict) -> None:  # pragma: no cover - waits for versioning
-    """Commit `structure.json` onto the dataset's work branch (a repo is made on first write)."""
-    from .canonical import canonicalize
+def _mirrored() -> bool:
+    from .versioning.client import configured
+
+    return VERSIONING_ACCEPTS_STRUCTURE and configured()
+
+
+def _mirror(db: Session, ctx: RequestContext, d: DatasetRow, s: dict) -> None:
+    """Commit the Studio definition, which now carries `structure.json`, onto the writer's work
+    branch (a repo is made on first write). Best effort: the kernel's row is the draft of record;
+    a versioning error is logged and audited by the service, never fails the write."""
+    if not _mirrored():
+        return
     from .versioning import service as vservice
 
-    vservice.run(db, ctx, "dataset.create", d.id, {"name": d.title})
-    files = {STRUCTURE_PATH: canonicalize(s)}
-    vservice.run(db, ctx, "studio.commit", d.id, {"message": "Dataset structure", "files": files})
+    try:
+        with db.begin_nested():
+            status, out = vservice.run(db, ctx, "dataset.create", d.id, {"name": d.title})
+            if status >= 400:
+                log.warning("structure mirror: no repo", extra={"datasetId": d.id, "status": status, "code": out.get("code")})
+                return
+            status, out = vservice.run(db, ctx, "studio.commit", d.id, {"message": "Dataset structure", "reason": "structure"})
+            if status >= 400:
+                log.warning("structure mirror: commit refused", extra={"datasetId": d.id, "status": status, "code": out.get("code")})
+    except Exception:  # noqa: BLE001 — versioning down must not lose the person's draft
+        log.exception("structure mirror failed", extra={"datasetId": d.id})
 
 
 def agent_branch(ctx: RequestContext, d: DatasetRow) -> str:

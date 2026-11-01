@@ -21,6 +21,7 @@ import (
 //	plugins.lock.json                  exact plugin versions, pinned by digest
 //	tasks/<taskId>/environment.json    each task's environment spec
 //	tasks/<taskId>/README.md           intent and notes
+//	structure.json                     the dataset's structure (DatasetStructure v1, todo13 D8)
 //
 // JSON files are stored in RFC 8785 canonical form (the API refuses any other
 // bytes), so equal definitions are equal blobs and the tree id names the
@@ -29,7 +30,7 @@ import (
 // merge takes the side that changed it (the source when both did: that is
 // the change the reviewers approved).
 
-var studioPathRE = regexp.MustCompile(`^(plugins\.lock\.json|tasks/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/(environment\.json|README\.md))$`)
+var studioPathRE = regexp.MustCompile(`^(plugins\.lock\.json|structure\.json|tasks/[A-Za-z0-9][A-Za-z0-9._-]{0,127}/(environment\.json|README\.md))$`)
 
 const (
 	maxStudioFiles     = 512
@@ -52,7 +53,7 @@ func validateStudio(in *StudioInput) (map[string][]byte, error) {
 	out, total := make(map[string][]byte, len(in.Files)), 0
 	for path, text := range in.Files {
 		if !studioPathRE.MatchString(path) || strings.Contains(path, "..") {
-			return nil, errf(http.StatusBadRequest, "bad_request", "%q isn't a .studio path (plugins.lock.json, tasks/<id>/environment.json, tasks/<id>/README.md)", path)
+			return nil, errf(http.StatusBadRequest, "bad_request", "%q isn't a .studio path (plugins.lock.json, structure.json, tasks/<id>/environment.json, tasks/<id>/README.md)", path)
 		}
 		if len(text) > maxStudioFileBytes {
 			return nil, errf(http.StatusRequestEntityTooLarge, "too_large", "%s is over %d bytes", path, maxStudioFileBytes)

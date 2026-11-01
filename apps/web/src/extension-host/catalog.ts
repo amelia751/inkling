@@ -27,6 +27,8 @@ export interface CatalogEntry {
   hotkey?: string;
   keys?: string[];
   geometries?: string[] | "*";
+  /** dataKinds: the detected file kinds it opens (todo13 "Find a plugin"). */
+  fileKinds?: string[];
 }
 
 export interface Catalog {
@@ -73,7 +75,7 @@ function defaultExample(c: Registered<ContributionType>): unknown {
 function entry(c: Registered<ContributionType>): CatalogEntry {
   const any = c as Registered<ContributionType> & Record<string, unknown>;
   const out: CatalogEntry = { id: c.id, type: c.kind, module: c.module, description: c.description };
-  const copy = ["label", "consumes", "creates", "accepts", "space", "capabilities", "when", "slot", "hotkey", "keys", "geometries", "example"] as const;
+  const copy = ["label", "consumes", "creates", "accepts", "space", "capabilities", "when", "slot", "hotkey", "keys", "geometries", "example", "fileKinds"] as const;
   for (const k of copy) if (any[k] !== undefined) (out as unknown as Record<string, unknown>)[k] = any[k];
   if (c.kind === "presets") out.example = (c as Registered<"presets">).spec;
   out.example ??= defaultExample(c);
@@ -89,6 +91,17 @@ export function describeCatalog(registry: Registry): Catalog {
     modules: registry.listModules().map((m) => ({ id: m.id, version: m.version, title: m.title, description: m.description, requires: m.requires })),
     contributions: CONTRIBUTION_TYPES.flatMap((t) => registry.list(t).map(entry)),
   };
+}
+
+/**
+ * The catalogue narrowed to the data kinds that open files of a detected kind (`?kind=` on the
+ * catalogue read; todo13 "Find a plugin"). An empty `contributions` means no plugin yet.
+ */
+export function catalogForKind(catalog: Catalog, kind: string): Catalog {
+  const k = kind.trim().toLowerCase();
+  const contributions = catalog.contributions.filter((c) => c.type === "dataKinds" && (c.fileKinds ?? []).includes(k));
+  const modules = new Set(contributions.map((c) => c.module));
+  return { version: 1, modules: catalog.modules.filter((m) => modules.has(m.id)), contributions };
 }
 
 /** Compact markdown for the assistant's system prompt. */

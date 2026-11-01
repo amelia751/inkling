@@ -33,7 +33,7 @@ export default defineModule({
   requires: [ns("cornerstone")],
   contributes: {
     dataKinds: [
-      { id: "raster", label: "2D image", icon: ImageIcon, itemNoun: "image", match: { ext: [".png", ".jpg", ".jpeg", ".webp", ".dcm"] }, groupItems, description: "Single-frame images, one item per file" },
+      { id: "raster", label: "2D image", icon: ImageIcon, itemNoun: "image", match: { ext: [".png", ".jpg", ".jpeg", ".webp", ".dcm"] }, fileKinds: ["image", "dicom"], groupItems, description: "Single-frame images, one item per file" },
     ],
     renderers: [
       {

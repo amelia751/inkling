@@ -43,6 +43,7 @@ export default defineModule({
         icon: WaveformIcon,
         itemNoun: "recording",
         match: { ext: [".json", ".hea", ".dat", ".csv"] },
+        fileKinds: ["waveform"],
         groupItems,
         description: "One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)",
       },

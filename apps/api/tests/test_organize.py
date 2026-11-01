@@ -479,3 +479,17 @@ def test_a_refused_archive_is_flagged_and_reported(client):
 @pytest.mark.parametrize("route", ["/api/v1/drops/x/plan", "/api/v1/datasets/x/structure"])
 def test_unknown_ids_are_404(client, route):
     assert client.get(route).status_code == 404
+
+
+# ---- "Find a plugin": the catalogue read filters by detected kind --------------------------------
+
+
+def test_catalogue_searches_data_kinds_by_detected_kind(client):
+    img = client.get("/api/catalog", params={"kind": "image"}).json()
+    assert [c["type"] for c in img["contributions"]] == ["dataKinds"] and any(c["id"].endswith("image2d.dataKinds.raster") for c in img["contributions"])
+    assert {m["id"] for m in img["modules"]} == {c["module"] for c in img["contributions"]}
+    series = client.get("/api/catalog", params={"kind": "dicom-series"}).json()["contributions"]
+    assert any(c["id"].endswith("volume.dataKinds.volume") for c in series)
+    # Audio: no plugin yet (the card says so and links to docs/plugins.md).
+    assert client.get("/api/catalog", params={"kind": "audio"}).json()["contributions"] == []
+    assert len(client.get("/api/catalog").json()["contributions"]) > 50  # unfiltered as before

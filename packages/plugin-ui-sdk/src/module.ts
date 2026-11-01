@@ -32,6 +32,12 @@ export interface DataKindContribution extends ContributionBase {
   /** Singular noun for one item ("slide", "recording"). */
   itemNoun: string;
   match?: { ext?: string[] };
+  /**
+   * Detected file kinds (the kernel's inspection: `image`, `dicom`, `dicom-series`, `volume`,
+   * `video`, `waveform`, `slide`, `document`, `table`, …) this data kind opens. The catalogue's
+   * `kind` filter (todo13 "Find a plugin") searches by it.
+   */
+  fileKinds?: string[];
   groupItems: (project: Project) => StudioItem[];
 }
 

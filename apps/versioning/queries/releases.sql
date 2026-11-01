@@ -1,6 +1,6 @@
 -- name: InsertRelease :one
-INSERT INTO versioning.dataset_releases (tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, retention_policy, retain_until, attestations)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO versioning.dataset_releases (tenant_id, repo_id, tag, commit_oid, manifest_root, created_by, retention_policy, retain_until, attestations, studio_tree)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetRelease :one

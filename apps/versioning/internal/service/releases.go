@@ -49,8 +49,14 @@ func (s *Service) CreateRelease(ctx context.Context, p *authn.Principal, repoID,
 		if err != nil {
 			return nil, err
 		}
+		// todo10 Phase 2: the release pins the Studio definition (`.studio/`) of its commit.
+		studio, err := s.studioOf(ctx, p.TenantID, repoID, commit)
+		if err != nil {
+			return nil, err
+		}
 		r, err := q.InsertRelease(ctx, db.InsertReleaseParams{TenantID: p.TenantID, RepoID: repoID, Tag: tag, CommitOid: commit,
-			ManifestRoot: c.ManifestRoot, CreatedBy: p.Actor.ID, RetentionPolicy: policy, RetainUntil: retainUntil, Attestations: att})
+			ManifestRoot: c.ManifestRoot, CreatedBy: p.Actor.ID, RetentionPolicy: policy, RetainUntil: retainUntil, Attestations: att,
+			StudioTree: strOrNil(studio)})
 		if err != nil {
 			return nil, err
 		}
@@ -58,7 +64,7 @@ func (s *Service) CreateRelease(ctx context.Context, p *authn.Principal, repoID,
 			Name: "refs/tags/" + tag, Target: commit}); err != nil {
 			return nil, err
 		}
-		if err := s.audit(ctx, q, p, repoID, "release.published", tag, commit, map[string]string{"manifest_root": c.ManifestRoot}); err != nil {
+		if err := s.audit(ctx, q, p, repoID, "release.published", tag, commit, map[string]string{"manifest_root": c.ManifestRoot, "studio_tree": studio}); err != nil {
 			return nil, err
 		}
 		return &r, s.emit(ctx, q, p, repoID, EvReleasePublished, tag,

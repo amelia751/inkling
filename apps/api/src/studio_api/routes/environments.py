@@ -8,6 +8,7 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     PATCH        /api/environments/{projectId}         → RFC 6902 patch of the saved (else manifest) environment
     GET          /api/environments/{projectId}/history → every saved revision (hashes, provenance)
     GET          /api/environments/{projectId}/lockfile → the workspace's plugins.lock.json + its hash
+    PUT          /api/environments/{projectId}/readme → the task's .studio README (intent and notes)
     POST         /api/environments/validate            → 501: dev server only
     GET          /api/catalog[/…]                      → 501: dev server only
 
@@ -27,8 +28,6 @@ from datetime import UTC, datetime
 import jsonpatch
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from sqlalchemy import update
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .. import blobstore
@@ -36,7 +35,7 @@ from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
 from ..kernel import projects, studio_defs
 from ..kernel.canonical import content_hash
-from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision, now
+from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision
 from ..streaming import blob_response
 
 router = APIRouter()
@@ -156,6 +155,23 @@ def environment_history(project_id: str, ctx: RequestContext = Depends(get_conte
     return [_revision(r) for r in rows]
 
 
+@router.put("/api/environments/{project_id}/readme")
+async def put_readme(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The task's `.studio/tasks/<id>/README.md`: intent and notes (todo10 §3.2)."""
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    try:
+        body = await _body(request) or {}
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    if not isinstance(body.get("text"), str):
+        return _json(422, {"error": "text must be a string"})
+    prov = studio_defs.provenance(ctx, request.headers, body)
+    studio_defs.set_readme(db, c, c.task, body["text"], prov.author)
+    return {"readme": studio_defs.readme(db, c.workspace_id, c.task), "author": prov.author}
+
+
 @router.get("/api/environments/{project_id}/lockfile")
 def environment_lockfile(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """The workspace's `plugins.lock.json` (todo10 §3.2): its ACTIVATED pins by digest."""
@@ -236,29 +252,6 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
 
 
 def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, prov: studio_defs.Provenance, parent: str) -> dict | None:
-    """Store revision `seen + 1` only if nobody else saved since (conditional UPDATE / unique
-    INSERT), and append it to the history with its hashes and provenance. None on a lost race."""
-    at = now()
-    rev = seen + 1
-    author = prov.author
-    try:
-        if row is None:
-            db.add(WorkspaceEnvironment(workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at))
-        else:
-            res = db.execute(
-                update(WorkspaceEnvironment)
-                .where(WorkspaceEnvironment.workspace_id == ctx.workspace_id, WorkspaceEnvironment.task_id == ctx.task, WorkspaceEnvironment.revision == seen)
-                .values(revision=rev, environment=environment, author=author, saved_at=at)
-                .execution_options(synchronize_session=False)
-            )
-            if res.rowcount != 1:  # type: ignore[attr-defined]
-                return None
-        hist = WorkspaceEnvironmentRevision(
-            workspace_id=ctx.workspace_id, task_id=ctx.task, revision=rev, environment=environment, author=author, saved_at=at,
-            content_hash=content_hash(environment), parent_hash=parent, author_kind=prov.kind, agent_run_id=prov.run_id, prompt_hash=prov.prompt_hash,
-        )
-        db.add(hist)
-        db.flush()
-    except IntegrityError:
-        return None
-    return _revision(hist)
+    """Store revision `seen + 1` (studio_defs.save_revision); None on a lost race."""
+    hist = studio_defs.save_revision(db, ctx, row, seen, environment, prov, parent)
+    return _revision(hist) if hist is not None else None

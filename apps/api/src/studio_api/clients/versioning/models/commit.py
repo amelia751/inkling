@@ -38,6 +38,7 @@ class Commit:
             sample_count (int | Unset):
             annotation_count (int | Unset):
             on_behalf_of (str | Unset):
+            studio_tree (str | Unset): Git tree id of the commit's .studio/ subtree (todo10 §3.2)
      """
 
     oid: str
@@ -51,6 +52,7 @@ class Commit:
     sample_count: int | Unset = UNSET
     annotation_count: int | Unset = UNSET
     on_behalf_of: str | Unset = UNSET
+    studio_tree: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -82,6 +84,8 @@ class Commit:
 
         on_behalf_of = self.on_behalf_of
 
+        studio_tree = self.studio_tree
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -102,6 +106,8 @@ class Commit:
             field_dict["annotation_count"] = annotation_count
         if on_behalf_of is not UNSET:
             field_dict["on_behalf_of"] = on_behalf_of
+        if studio_tree is not UNSET:
+            field_dict["studio_tree"] = studio_tree
 
         return field_dict
 
@@ -139,6 +145,8 @@ class Commit:
 
         on_behalf_of = d.pop("on_behalf_of", UNSET)
 
+        studio_tree = d.pop("studio_tree", UNSET)
+
         commit = cls(
             oid=oid,
             parents=parents,
@@ -151,6 +159,7 @@ class Commit:
             sample_count=sample_count,
             annotation_count=annotation_count,
             on_behalf_of=on_behalf_of,
+            studio_tree=studio_tree,
         )
 
 

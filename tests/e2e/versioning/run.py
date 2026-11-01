@@ -20,9 +20,10 @@ import chaos_test  # noqa: E402
 import flow_a_test  # noqa: E402
 import flow_b_test  # noqa: E402
 import flow_c_test  # noqa: E402
+import flow_studio_test  # noqa: E402
 from stack import running  # noqa: E402
 
-FLOWS = {"a": flow_a_test.run, "b": flow_b_test.run, "c": flow_c_test.run, "chaos": chaos_test.run}
+FLOWS = {"a": flow_a_test.run, "b": flow_b_test.run, "c": flow_c_test.run, "s": flow_studio_test.run, "chaos": chaos_test.run}
 
 
 def main() -> int:

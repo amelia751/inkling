@@ -282,6 +282,13 @@ func (s *Service) completeMerge(ctx context.Context, p *authn.Principal, repo db
 		message = "Merge review " + r.ID
 	}
 	snap := s.snapshot(repo.ID, repo.PolicyID, w, p, "merge", "", []string{target, r.SourceOid}, r.ID)
+	var trees [3]string
+	for i, c := range []string{pl.base, target, r.SourceOid} {
+		if trees[i], err = s.studioOf(ctx, p.TenantID, repo.ID, c); err != nil {
+			return nil, err
+		}
+	}
+	snap.Studio.OID = mergeStudio(trees[0], trees[1], trees[2])
 	oid, err := s.Git.Open(ctx, p.TenantID, repo.ID).WriteCommit(snap, []string{target, r.SourceOid}, p.Actor.ID, message, s.Now())
 	if err != nil {
 		return nil, err
@@ -291,7 +298,7 @@ func (s *Service) completeMerge(ctx context.Context, p *authn.Principal, repo db
 	}
 	mctx := context.WithValue(ctx, mergingReviewKey{}, r.ID)
 	_, err = s.advance(mctx, p, advanceArgs{repoID: repo.ID, branch: r.TargetBranch, expected: target, newOID: oid,
-		root: w.RootHash, parents: []string{target, r.SourceOid}, message: message, event: "review.merge_commit",
+		root: w.RootHash, studio: snap.Studio.OID, parents: []string{target, r.SourceOid}, message: message, event: "review.merge_commit",
 		idem: &k, allowProtected: true,
 		extra: func(q *db.Queries, _ pgx.Tx, _ int64) error {
 			cur, err := s.reviewRow(ctx, q, repo.ID, r.ID, true)

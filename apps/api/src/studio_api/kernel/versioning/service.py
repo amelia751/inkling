@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from ...context import RequestContext
 from ...models import AnnotationDocumentRow, DatasetRepo, VersionedAnnotationPayload
 from ...naming import canonical_id, ns
-from .. import audit, events
+from .. import audit, events, studio_defs
 from . import auth, studio
 from .auth import ADMIN, APPROVE, CHECKOUT, CHECKS, MERGE, READ, RELEASE, REVIEW, WRITE
 from .client import VersioningProblem, client, problem
@@ -68,6 +68,9 @@ OPS: dict[str, Op] = {
     "release": Op("versioning.release", (READ, RELEASE), agent=False),
     "releases": Op("versioning.read", (READ,)),
     "checkout": Op("versioning.checkout", (READ, CHECKOUT)),
+    # todo10 Phase 2: the Studio definition (`.studio/`) at a ref, and committing the live one.
+    "studio": Op("versioning.read", (READ,)),
+    "studio.commit": Op("versioning.write", (READ, WRITE, CHECKOUT), agent_branch=True),
 }
 
 # Kernel commands (POST /api/v1/commands, so the agent and MCP get them through the gateway):
@@ -470,6 +473,74 @@ def op_revert(c: Call, body: dict) -> tuple[int, dict]:
     req = {"branch": branch, "expected_head": expected, "target_oid": str(body["target_oid"]), "message": str(body.get("message") or f"Revert to {str(body['target_oid'])[:10]}"), "idempotency_key": _idem(c, body, branch, expected, body["target_oid"])}
     res = client().revert(c.token(), c.repo_id, req)
     c.audit_after = {"branch": branch, "target_oid": req["target_oid"], "commit_oid": res.get("commit_oid")}
+    # Restoring an old version restores its Studio setup (todo10 Phase 2): when a person reverts
+    # their own work branch (the one their Studio runs), the live environments and plugin pins
+    # follow the version's `.studio/` tree.
+    if body.get("restore_studio", True) and not auth.is_agent(c.ctx) and branch == work_branch(c.ctx, c.dataset_id):
+        files = _studio_at(c, res["commit_oid"])["files"]
+        if files:
+            res["restoredStudio"] = studio_defs.restore_definition(c.db, c.ctx, files, f"revert to {req['target_oid'][:10]}")
+            c.audit_after["restoredStudio"] = True
+    _announce_checks(c, branch=branch)
+    return 201, res
+
+
+# ---- Studio definitions (todo10 §3.2, Phase 2) ------------------------------------------------
+
+
+def _studio_at(c: Call, ref: str) -> dict:
+    return client().get_studio(auth.mint(c.ctx, [READ]), c.repo_id, ref)
+
+
+def _studio_summary(s: dict) -> dict:
+    """What a `.studio/` tree pins, in a few hashes (and one fingerprint over them)."""
+    p = studio_defs.parse_files(s.get("files") or {})
+    out = {"tasks": {t: d.get("contentHash") for t, d in sorted(p["tasks"].items()) if d.get("contentHash")}}
+    if s.get("studio_tree"):
+        out["tree"] = s["studio_tree"]
+    if p.get("lockfileHash"):
+        out["lockfileHash"] = p["lockfileHash"]
+    out["fingerprint"] = studio_defs.content_hash({"lockfileHash": out.get("lockfileHash"), "tasks": out["tasks"]})
+    return out
+
+
+def _commit_studio(c: Call, branch: str, message: str) -> dict | None:
+    """Commit the live Studio definition onto `branch` (same manifest as its head) unless the
+    branch already carries exactly it. None when unchanged."""
+    _agent_branch(c, branch)
+    token = auth.mint(c.ctx, [READ, WRITE, CHECKOUT])
+    b = _branch(c, branch)
+    if b is None:
+        b = client().create_branch(token, c.repo_id, {"name": branch, "from": "main"}, _key("work", c.repo_id, branch))
+    files = studio_defs.studio_files(c.db, c.ctx, c.dataset_id)
+    if client().get_studio(token, c.repo_id, b["commit_oid"]).get("files") == files:
+        return None
+    head = client().get_commit(token, c.repo_id, b["commit_oid"])
+    req = {"branch": branch, "expected_head": b["commit_oid"], "manifest_root": head["manifest_root"], "message": message[:2000], "tool": "studio", "studio": {"files": files},
+           "idempotency_key": _key("studio", c.repo_id, branch, b["commit_oid"], studio_defs.content_hash(files))}
+    res = client().create_commit(token, c.repo_id, req)
+    return {**res, "studio": _studio_summary({"files": files, "studio_tree": res.get("studio_tree")})}
+
+
+def op_studio(c: Call, body: dict) -> tuple[int, dict]:
+    """The Studio setup at a ref (branch, oid or `tag:<release>`), parsed; with `current`, also
+    the live one, so the Versions page can diff them."""
+    s = _studio_at(c, str(body.get("ref") or work_branch(c.ctx, c.dataset_id)))
+    out = {"commitOid": s["commit_oid"], "studioTree": s.get("studio_tree"), **studio_defs.parse_files(s.get("files") or {}), "summary": _studio_summary(s)}
+    if body.get("current"):
+        live = studio_defs.studio_files(c.db, c.ctx, c.dataset_id)
+        out["current"] = {**studio_defs.parse_files(live), "summary": _studio_summary({"files": live})}
+    return 200, out
+
+
+def op_studio_commit(c: Call, body: dict) -> tuple[int, dict]:
+    """Commit the live Studio setup (todo10 §3.2 moments: Task setup saved, an agent change
+    approved) onto the caller's work branch, or `branch`."""
+    branch = str(body.get("branch") or work_branch(c.ctx, c.dataset_id))
+    res = _commit_studio(c, branch, str(body.get("message") or f"Studio setup: {str(body.get('reason') or 'saved')[:200]}"))
+    c.audit_after = {"branch": branch, "reason": body.get("reason"), "commit_oid": (res or {}).get("commit_oid"), "unchanged": res is None}
+    if res is None:
+        return 200, {"branch": branch, "unchanged": True}
     _announce_checks(c, branch=branch)
     return 201, res
 
@@ -502,6 +573,11 @@ def op_document(c: Call, body: dict) -> tuple[int, dict]:
 def op_review_open(c: Call, body: dict) -> tuple[int, dict]:
     source = str(body.get("source_branch") or work_branch(c.ctx, c.dataset_id))
     target = str(body.get("target_branch") or "main")
+    # todo10 §3.2: a person's Studio setup travels to main (and so into releases) with the
+    # review. An agent's never rides along unasked: its changes reach the setup only once a
+    # person approves them (studio.commit).
+    if source == work_branch(c.ctx, c.dataset_id) and body.get("studio", True) and not auth.is_agent(c.ctx):
+        _commit_studio(c, source, "Studio setup for review")
     req: dict[str, Any] = {"title": str(body.get("title") or f"Changes from {source}")[:300], "source_branch": source, "target_branch": target}
     if body.get("description"):
         req["description"] = str(body["description"])[:20000]
@@ -581,7 +657,15 @@ def op_release(c: Call, body: dict) -> tuple[int, dict]:
     oid = body.get("commit_oid") or _resolve(c, str(body.get("ref") or "main"))
     req = {"tag": tag, "commit_oid": oid, **({"retention_policy": body["retention_policy"]} if body.get("retention_policy") else {})}
     r = client().create_release(c.token(), c.repo_id, req, _key("release", c.repo_id, tag, oid))
-    c.audit_after = {"tag": tag, "commit_oid": oid}
+    # The release pins the Studio setup of its commit (todo10 §3.2): say what it pinned, and
+    # whether that is what the Studio runs now.
+    pinned = _studio_at(c, oid)
+    r["studio"] = _studio_summary(pinned)
+    if not pinned["files"]:
+        r["studioWarning"] = "this commit carries no Studio setup; request a review from the Studio first so main has one"
+    elif _studio_summary({"files": studio_defs.studio_files(c.db, c.ctx, c.dataset_id)})["fingerprint"] != r["studio"]["fingerprint"]:
+        r["studioWarning"] = "the Studio has changed since this commit; the release pins the setup at the commit"
+    c.audit_after = {"tag": tag, "commit_oid": oid, "studio_tree": pinned.get("studio_tree"), "lockfileHash": r["studio"].get("lockfileHash")}
     return 201, r
 
 
@@ -621,11 +705,13 @@ HANDLERS: dict[str, Callable[[Call, dict], tuple[int, dict]]] = {
     "release": op_release,
     "releases": op_releases,
     "checkout": op_checkout,
+    "studio": op_studio,
+    "studio.commit": op_studio_commit,
 }
 assert set(HANDLERS) == set(OPS)
 
 # Audited reads would flood the log; writes and checkouts (data leaves) are always audited.
-_UNAUDITED = {"dataset.get", "branches", "commits", "commit.get", "diff", "reviews", "review.get", "releases"}
+_UNAUDITED = {"dataset.get", "branches", "commits", "commit.get", "diff", "reviews", "review.get", "releases", "studio"}
 
 
 def _agent_branch(c: Call, branch: str) -> None:

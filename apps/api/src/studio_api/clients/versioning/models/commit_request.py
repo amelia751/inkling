@@ -11,6 +11,8 @@ from ..types import UNSET, Unset
 from ..types import UNSET, Unset
 from typing import cast
 
+if TYPE_CHECKING:
+  from ..models.studio_input import StudioInput
 
 
 
@@ -31,6 +33,8 @@ class CommitRequest:
             idempotency_key (str):
             tool (str | Unset):
             inputs (list[str] | Unset):
+            studio (StudioInput | Unset): Replaces the commit's whole `.studio/` tree (empty `files` removes it); omitted,
+                the commit keeps its parent's. JSON files must be RFC 8785 canonical.
      """
 
     branch: str
@@ -40,6 +44,7 @@ class CommitRequest:
     idempotency_key: str
     tool: str | Unset = UNSET
     inputs: list[str] | Unset = UNSET
+    studio: StudioInput | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -47,6 +52,7 @@ class CommitRequest:
 
 
     def to_dict(self) -> dict[str, Any]:
+        from ..models.studio_input import StudioInput
         branch = self.branch
 
         expected_head = self.expected_head
@@ -65,6 +71,10 @@ class CommitRequest:
 
 
 
+        studio: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.studio, Unset):
+            studio = self.studio.to_dict()
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -79,6 +89,8 @@ class CommitRequest:
             field_dict["tool"] = tool
         if inputs is not UNSET:
             field_dict["inputs"] = inputs
+        if studio is not UNSET:
+            field_dict["studio"] = studio
 
         return field_dict
 
@@ -86,6 +98,7 @@ class CommitRequest:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+        from ..models.studio_input import StudioInput
         d = dict(src_dict)
         branch = d.pop("branch")
 
@@ -102,6 +115,16 @@ class CommitRequest:
         inputs = cast(list[str], d.pop("inputs", UNSET))
 
 
+        _studio = d.pop("studio", UNSET)
+        studio: StudioInput | Unset
+        if isinstance(_studio,  Unset):
+            studio = UNSET
+        else:
+            studio = StudioInput.from_dict(_studio)
+
+
+
+
         commit_request = cls(
             branch=branch,
             expected_head=expected_head,
@@ -110,6 +133,7 @@ class CommitRequest:
             idempotency_key=idempotency_key,
             tool=tool,
             inputs=inputs,
+            studio=studio,
         )
 
 

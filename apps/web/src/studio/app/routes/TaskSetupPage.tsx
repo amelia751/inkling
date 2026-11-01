@@ -39,6 +39,7 @@ import {
 import { useShell } from "@/studio/stores/shell";
 import { LOCAL_AUTHOR, useStudio } from "@/studio/stores/studio";
 import { useEnvironment, useTaskDocument } from "./DatasetStudioPage";
+import { commitStudioSetup } from "@/studio/core/versioning";
 
 /**
  * Task setup (todo8 D7): what used to be the Studio's "Environment settings" dialog, as a page
@@ -168,6 +169,8 @@ function SetupEditor({ env, task, projectId, canEdit }: { env: ResolvedEnv; task
       const r = await patchEnvironment(task.id, diffSpecs(env.source, next), LOCAL_AUTHOR);
       if ("errors" in r) return setErrors(r.errors);
       remember(r.env);
+      // With versioning on, the saved setup is also committed to this person's work branch.
+      void commitStudioSetup(task.id, "Task setup saved");
       toast("Task setup changed", {
         id: "task-setup-saved",
         duration: 10_000,

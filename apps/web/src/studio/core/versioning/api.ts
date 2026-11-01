@@ -1,4 +1,6 @@
 import type { Annotation, AnnotationDocument } from "@studio/contracts/types";
+import type { EnvironmentSpec } from "@studio/contracts/environment";
+import type { PluginsLock } from "@studio/contracts/lockfile";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { apiUrl } from "@/extension-host/runtime-config";
 
@@ -48,6 +50,8 @@ export interface Commit {
   created_at: string;
   sample_count?: number;
   annotation_count?: number;
+  /** Git tree id of the commit's `.studio/` (todo10 §3.2). */
+  studio_tree?: string;
 }
 
 export interface CommitResult {
@@ -123,6 +127,35 @@ export interface Release {
   created_by: string;
   created_at: string;
   retention_policy: string;
+  /** The Studio setup the release pins (todo10 Phase 2). */
+  studio_tree?: string;
+  studio?: StudioSummary;
+  studioWarning?: string;
+}
+
+/** What a `.studio/` tree pins, in hashes. */
+export interface StudioSummary {
+  tree?: string;
+  lockfileHash?: string;
+  tasks: Record<string, string>;
+  fingerprint: string;
+}
+
+export interface StudioTask {
+  environment?: EnvironmentSpec | null;
+  contentHash?: string;
+  readme?: string;
+}
+
+/** The Studio setup (lockfile, environments, READMEs) at a ref; `current` is the live one. */
+export interface StudioSetup {
+  commitOid: string;
+  studioTree?: string;
+  lockfile: PluginsLock | null;
+  lockfileHash?: string;
+  tasks: Record<string, StudioTask>;
+  summary: StudioSummary;
+  current?: { lockfile: PluginsLock | null; lockfileHash?: string; tasks: Record<string, StudioTask>; summary: StudioSummary };
 }
 
 export interface Resolution {
@@ -187,4 +220,6 @@ export const api = {
   merge: (w: string, id: string, rid: string) => call<Review>(w, "POST", `${ds(id)}/reviews/${rid}/merge`, {}),
   releases: (w: string, id: string) => call<{ items: Release[] }>(w, "GET", `${ds(id)}/releases`),
   release: (w: string, id: string, tag: string, ref: string) => call<Release>(w, "POST", `${ds(id)}/releases`, { tag, ref }),
+  studio: (w: string, id: string, ref: string, current = false) => call<StudioSetup>(w, "GET", `${ds(id)}/studio?ref=${encodeURIComponent(ref)}${current ? "&current=true" : ""}`),
+  commitStudio: (w: string, id: string, reason: string) => call<(CommitResult & { studio: StudioSummary }) | { unchanged: true; branch: string }>(w, "POST", `${ds(id)}/studio/commits`, { reason }),
 };

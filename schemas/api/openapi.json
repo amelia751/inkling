@@ -344,6 +344,44 @@
         "summary": "Environment Lockfile"
       }
     },
+    "/api/environments/{project_id}/readme": {
+      "put": {
+        "description": "The task's `.studio/tasks/<id>/README.md`: intent and notes (todo10 \u00a73.2).",
+        "operationId": "put_readme_api_environments__project_id__readme_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Readme"
+      }
+    },
     "/api/v1/annotations": {
       "get": {
         "operationId": "list_annotations_api_v1_annotations_get",
@@ -2257,6 +2295,120 @@
           }
         },
         "summary": "Resolve"
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/studio": {
+      "get": {
+        "description": "The Studio setup (`.studio/`: lockfile, environments, READMEs) at a branch, oid or `tag:<release>`.",
+        "operationId": "studio_setup_api_v1_datasets__dataset_id__studio_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ref"
+            }
+          },
+          {
+            "in": "query",
+            "name": "current",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Current",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Studio Setup"
+      }
+    },
+    "/api/v1/datasets/{dataset_id}/studio/commits": {
+      "post": {
+        "description": "Commit the live Studio setup onto the caller's work branch (Task setup saved, an agent change approved).",
+        "operationId": "commit_studio_setup_api_v1_datasets__dataset_id__studio_commits_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset_id",
+            "required": true,
+            "schema": {
+              "title": "Dataset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Commit Studio Setup"
       }
     },
     "/api/v1/events": {

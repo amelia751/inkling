@@ -21,6 +21,15 @@ from studio_worker.unpack import Refused, UnpackSubscriber, safe_path, scan
 from .conftest import png
 from .test_inspection import upload
 
+@pytest.fixture(autouse=True)
+def _flags_off():
+    from studio_api.kernel import drop_flags
+
+    drop_flags.OVERRIDES.update(auto_apply=False, fast_path=False)
+    yield
+    drop_flags.OVERRIDES.clear()
+
+
 LIMITS = UnpackLimits(max_bytes=200 << 20, max_files=100, max_ratio=100, max_depth=2, tmp_bytes=50 << 20)
 
 

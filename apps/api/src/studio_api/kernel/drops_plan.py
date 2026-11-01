@@ -53,7 +53,7 @@ from ..models import (
     WorkspaceEnvironmentRevision,
     now,
 )
-from . import audit, collections, drops_classify as dc, events, intents, projects, structure, tree
+from . import audit, collections, drop_flags, drops_classify as dc, events, intents, projects, structure, tree
 from .kinds import kind_from_extension
 
 log = logging.getLogger("studio_api.drops")
@@ -201,7 +201,7 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     sctx = _service_ctx(project_id, "kernel:drops")
     events.publish(db, sctx, "drop.classified", {"dropId": drop_id, "groups": [g.as_dict(with_nodes=False) for g in groups]}, source="kernel")
     fast = _fast_path_preset(groups, cctx, plan)
-    auto = bool(fast) or (settings().feature_auto_apply and dc.safe_to_auto_apply(plan))
+    auto = bool(fast) or (drop_flags.enabled("auto_apply") and dc.safe_to_auto_apply(plan))
     row.auto = auto
     events.publish(db, sctx, "drop.planned", {"dropId": drop_id, "plan": plan, "auto": auto}, source="kernel")
     _log(row, "planned", auto=auto)
@@ -221,7 +221,7 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
 def _fast_path_preset(groups: list[dc.Group], cctx: dc.Context, plan: dict) -> str | None:
     """Principle 3: a drop that makes a new dataset whose kinds (and request) pick exactly one
     preset boots now, without the agent. Only plans that touch nothing but new drafts."""
-    if not settings().feature_fast_path or cctx.dataset is not None or not dc.safe_to_auto_apply(plan):
+    if not drop_flags.enabled("fast_path") or cctx.dataset is not None or not dc.safe_to_auto_apply(plan):
         return None
     if not any(g.action == "new_dataset" and g.kind in dc.VIEWABLE for g in groups):
         return None
@@ -498,6 +498,10 @@ def undo(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
         if c is not None:
             db.delete(c)
     db.flush()
+    for dsid in {*(a.get("refs") or {}), *(a.get("datasets") or [])}:
+        d = db.get(DatasetRow, dsid)
+        if d is not None:
+            collections.sync_definition(db, d)
     for dsid in a.get("datasets") or []:
         d = db.get(DatasetRow, dsid)
         if d is not None and not db.scalar(select(TaskRow.id).where(TaskRow.dataset_id == dsid).limit(1)):

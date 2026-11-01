@@ -46,8 +46,25 @@ def create(db: Session, ctx: RequestContext, d: DatasetRow, kind: str, name: str
     c = DatasetCollectionRow(id=new_id(), dataset_id=d.id, project_id=d.project_id, name=(name or NAMES.get(kind, kind.capitalize()))[:256], kind=kind[:32], shape=dict(shape or {}), suggested=suggested, created_by=projects.person(ctx))
     db.add(c)
     db.flush()
+    sync_definition(db, d)
     audit.record(db, ctx.for_scope(d.project_id, None), "dataset.collection_created", target=d.id, after={"collectionId": c.id, "kind": c.kind})
     return c
+
+
+def sync_definition(db: Session, d: DatasetRow) -> None:
+    """Mirror the collections into `definition.collections` (`[{id, name, kind, suggested}]`), the
+    shape the Datasets views read (`kernel/datasets_views.py` `defined_collections`)."""
+    rows = of_dataset(db, d.id)
+    want = [{"id": c.id, "name": c.name, "kind": c.kind, "suggested": bool(c.suggested)} for c in rows]
+    definition = dict(d.definition or {})
+    if definition.get("collections") == want or (not want and "collections" not in definition):
+        return
+    if want:
+        definition["collections"] = want
+    else:
+        definition.pop("collections", None)
+    d.definition = definition
+    db.flush()
 
 
 def _ref_kinds(db: Session, d: DatasetRow) -> list[tuple[dict, str | None]]:
@@ -83,6 +100,7 @@ def ensure(db: Session, ctx: RequestContext | None, d: DatasetRow) -> list[Datas
         if kind and kind not in covered and ref.get("collectionId") not in explicit and kind not in missing:
             missing.append(kind)
     if not missing:
+        sync_definition(db, d)
         return have
     actor = ctx or _system_ctx(d.project_id)
     for k in sorted(missing, key=lambda x: ORDER.index(x) if x in ORDER else len(ORDER)):

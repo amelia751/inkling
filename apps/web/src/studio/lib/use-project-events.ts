@@ -46,7 +46,7 @@ export const FORWARDED = [
   "dataset.candidate.created",
   "review.requested",
   "review.approved",
-  // todo13 drops (contracts §5): the plan card and the open Studio's live refresh.
+  // todo13 §5 drop events (the drops workstream emits them; the drop timeline reads them).
   "drop.received",
   "drop.file",
   "drop.classified",

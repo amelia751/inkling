@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..context import RequestContext
 from ..models import DatasetCollectionRow, DatasetRow, DatasetStructureRow, now
-from . import audit, projects
+from . import audit, drop_flags, projects
 from .canonical import content_hash
 
 DRAFT = "draft"
@@ -157,7 +157,7 @@ def put(db: Session, ctx: RequestContext, d: DatasetRow, s: Any, base_hash: str 
         draft = get(db, d)["structure"]
         audit.record(db, ctx.for_scope(d.project_id, None), "dataset.structure.proposed", target=d.id, after={"branch": branch, "changes": len(diff(draft, s))})
         out = {**get(db, d, branch), "diff": diff(draft, s)}
-        if settings().feature_auto_apply and projects.is_draft_dataset(db, d) and d.created_by == projects.person(ctx):
+        if drop_flags.enabled("auto_apply") and projects.is_draft_dataset(db, d) and d.created_by == projects.person(ctx):
             # D6: the agent drafts structure on the person's own draft dataset; accepted for them.
             _write(db, ctx, d, DRAFT, s)
             out["accepted"] = True

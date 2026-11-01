@@ -45,8 +45,21 @@ def _pngs(n: int, folder="films") -> dict[str, bytes]:
     return {f"{folder}/img{i:03d}.png": png(8 + i, 8) for i in range(n)}
 
 
+@pytest.fixture(autouse=True)
+def _flags_off():
+    """Pin the flags (on by default in dev and test once todo13-entry's features merge)."""
+    from studio_api.kernel import drop_flags
+
+    drop_flags.OVERRIDES.update(auto_apply=False, fast_path=False)
+    yield
+    drop_flags.OVERRIDES.clear()
+
+
 def _flags(make_client, **kw):
-    return make_client(**kw)
+    from studio_api.kernel import drop_flags
+
+    drop_flags.OVERRIDES.update(kw)
+    return make_client()
 
 
 # ---- Classification and the person's Apply / Undo --------------------------------------------
@@ -132,7 +145,7 @@ def test_change_before_apply_moves_a_group_and_never_adds_files(client):
 
 
 def test_auto_apply_on_own_drafts_with_the_flag(make_client):
-    client = make_client(feature_auto_apply=True)
+    client = _flags(make_client, auto_apply=True)
     p = _project(client)
     files = _pngs(2)
     _drop(client, p, files, "drp_auto", {n.split("/")[-1]: "image" for n in files})
@@ -145,7 +158,7 @@ def test_auto_apply_on_own_drafts_with_the_flag(make_client):
 
 
 def test_fast_path_boots_without_the_agent_and_maps_request_labels(make_client):
-    client = make_client(feature_fast_path=True)
+    client = _flags(make_client, fast_path=True)
     p = _project(client)
     files = _pngs(3)
     _drop(client, p, files, "drp_fast", {n.split("/")[-1]: "image" for n in files}, request="Label these chest X-rays as normal or pneumonia")
@@ -164,7 +177,7 @@ def test_fast_path_boots_without_the_agent_and_maps_request_labels(make_client):
 
 
 def test_fast_path_waits_on_an_ambiguous_drop(make_client):
-    client = make_client(feature_fast_path=True)
+    client = _flags(make_client, fast_path=True)
     p = _project(client)
     files = {**_pngs(1), "clips/a.mp4": b"\x00\x00\x00\x18ftypmp42"}
     _drop(client, p, files, "drp_amb", {"img000.png": "image", "a.mp4": "video"})
@@ -172,7 +185,7 @@ def test_fast_path_waits_on_an_ambiguous_drop(make_client):
 
 
 def test_a_second_different_drop_adds_a_collection_and_never_changes_the_open_studio(make_client):
-    client = make_client(feature_auto_apply=True)
+    client = _flags(make_client, auto_apply=True)
     p = _project(client)
     files = _pngs(2)
     _drop(client, p, files, "drp_j1", {n.split("/")[-1]: "image" for n in files})
@@ -493,3 +506,11 @@ def test_catalogue_searches_data_kinds_by_detected_kind(client):
     # Audio: no plugin yet (the card says so and links to docs/plugins.md).
     assert client.get("/api/catalog", params={"kind": "audio"}).json()["contributions"] == []
     assert len(client.get("/api/catalog").json()["contributions"]) > 50  # unfiltered as before
+
+
+def test_collections_are_mirrored_in_the_definition_for_the_datasets_views(client):
+    p = _project(client)
+    _drop(client, p, _pngs(2), "drp_mirror", {"img000.png": "image", "img001.png": "image"})
+    st = client.post("/api/v1/drops/drp_mirror/apply", json={}).json()
+    d = client.get(f"/api/v1/projects/{p}/datasets/{st['datasetId']}").json()["definition"]
+    assert d["collections"] == [{"id": st["collectionIds"][0], "name": "Images", "kind": "image", "suggested": True}]

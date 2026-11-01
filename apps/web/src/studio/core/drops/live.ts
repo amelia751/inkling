@@ -14,6 +14,8 @@ export function useLiveDropItems(taskId: string | undefined) {
     return onProjectEvent("drop.applied", (data) => {
       const e = data as { taskIds?: string[]; undone?: boolean } | null;
       if (e?.taskIds?.includes(taskId)) void qc.invalidateQueries({ queryKey: ["tasks", taskId, "document"] });
+      // A new collection in this dataset shows in the header's switcher (the Studio itself stays).
+      void qc.invalidateQueries({ queryKey: ["datasets"] });
     });
   }, [taskId, qc]);
 }

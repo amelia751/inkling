@@ -145,6 +145,10 @@ def backfill(conn) -> None:
                 {"id": cid, "d": ds_id, "p": project_id, "n": NAMES.get(k, k), "k": k, "s": "{}", "sg": True, "by": "system:backfill", "at": at},
             )
             made[k] = cid
+        if made and not definition.get("seed"):
+            # Mirrored where the Datasets views read collections (definition.collections).
+            definition["collections"] = [{"id": cid, "name": NAMES.get(k, k), "kind": k, "suggested": True} for k, cid in made.items()]
+            conn.execute(sa.text("UPDATE datasets SET definition = :f WHERE id = :d"), {"f": json.dumps(definition), "d": ds_id})
         viewable = [cid for k, cid in made.items() if k in VIEWABLE]
         if len(viewable) == 1 and not definition.get("seed"):
             conn.execute(sa.text("UPDATE tasks SET collection_id = :c WHERE dataset_id = :d AND collection_id IS NULL"), {"c": viewable[0], "d": ds_id})

@@ -405,6 +405,7 @@ def move_known_good(db: Session, ctx: RequestContext, task_id: str, revision: in
     if revision != current:
         raise HTTPException(409, {"message": "only the current setup can become known good", "current": current})
     if revision > 0:
+        assert row is not None  # revision > 0 is the row's current revision
         rev = db.scalar(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == ctx.workspace_id, WorkspaceEnvironmentRevision.task_id == task_id, WorkspaceEnvironmentRevision.revision == revision))
         env, kind = (rev.environment, rev.author_kind) if rev is not None else (row.environment, "person")
     else:

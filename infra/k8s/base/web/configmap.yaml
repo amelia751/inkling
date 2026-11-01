@@ -1,6 +1,9 @@
 # Non-secret settings for web. `config.json` is what the SPA fetches at startup (mounted at
 # /etc/studio/config.json). The nginx template's env (INKLING_AGENT_URL) is set in the
 # Deployment; the agent bearer token comes from web-secrets (INKLING_AGENT_TOKEN).
+# `sandboxOrigin`: origin serving /sandbox-proxy.html for sandboxed viewers (todo10 Phase 5).
+# Empty means this origin (the inner viewer frame is still opaque); set a separate host in
+# staging and prod, e.g. https://sandbox.<studio host>, routed to the same web Service.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,5 +14,6 @@ data:
       "apiBase": "/api",
       "agentBase": "/api/agent",
       "kernel": true,
+      "sandboxOrigin": "",
       "flags": []
     }

@@ -495,7 +495,7 @@ def _studio_at(c: Call, ref: str) -> dict:
 def _studio_summary(s: dict) -> dict:
     """What a `.studio/` tree pins, in a few hashes (and one fingerprint over them)."""
     p = studio_defs.parse_files(s.get("files") or {})
-    out = {"tasks": {t: d.get("contentHash") for t, d in sorted(p["tasks"].items()) if d.get("contentHash")}}
+    out: dict[str, Any] = {"tasks": {t: d.get("contentHash") for t, d in sorted(p["tasks"].items()) if d.get("contentHash")}}
     if s.get("studio_tree"):
         out["tree"] = s["studio_tree"]
     if p.get("lockfileHash"):

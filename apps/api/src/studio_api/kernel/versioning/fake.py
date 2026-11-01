@@ -307,7 +307,7 @@ class FakeVersioning:
                 raise problem(422, "validation_failed", "manifest root is not registered for this repository")
             if b["commit_oid"] != body["expected_head"]:
                 raise VersioningProblem(409, {"title": "stale head", "code": "stale_head", "detail": "the branch moved", "current_head": b["commit_oid"], "head_generation": b["generation"]})
-            studio = self._studio_tree((body["studio"] or {}).get("files")) if body.get("studio") is not None else self._studio(r, body["expected_head"])
+            studio = self._studio_tree((body["studio"] or {}).get("files") or {}) if body.get("studio") is not None else self._studio(r, body["expected_head"])
             oid = self._commit_obj(r, body["manifest_root"], [body["expected_head"]], c["actor"], body.get("message", ""), "commit", studio)
             nb = self._advance(r, body["branch"], body["expected_head"], oid)
             out = {"commit_oid": oid, "branch": body["branch"], "head_generation": nb["generation"], "manifest_root": body["manifest_root"], **({"studio_tree": studio} if studio else {}), "request_id": c.get("request_id", "")}

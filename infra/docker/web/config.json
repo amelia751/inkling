@@ -2,5 +2,6 @@
   "apiBase": "/api",
   "agentBase": "/api/agent",
   "kernel": true,
+  "sandboxOrigin": "",
   "flags": []
 }

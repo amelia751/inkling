@@ -70,7 +70,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:ed6cb7fdfa5bae2e6c36eed04bd322549aaa5c057afcce140111970040ff4772",
+      "artifactDigest": "sha256:47f4743a36a84b21e3b4c02f3060f86d031c6dc5f5bb2533271a43af5995d045",
       "path": "plugins/cine",
       "capabilities": [
         "cine.view",
@@ -200,7 +200,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:6f34885d6ec44ef5722a236a3146e163676cc5a9a16fbe94bfb62af88dfa03f6",
+      "artifactDigest": "sha256:6818b6fd5234c0cc1c4bd157f00ae19873836a2e82b3850141611f7def83fbf5",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -443,7 +443,7 @@
       "version": "0.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:c3dc9dd87a17a96cef7bbd48a1eb986db3ccfcc1c81e56ef3a241fac281fa085",
+      "artifactDigest": "sha256:fd043a820931e8744d15f60acd3fe27aa0611bb434b17e17112894b9b58f2583",
       "path": "plugins/text-spans",
       "capabilities": [
         "text.annotate"
@@ -505,7 +505,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:59b34ee172e3f358320775a62848562bf90ac7a250f7712199f8a089bd6ba897",
+      "artifactDigest": "sha256:5add823f8fed3cb4ec323b4153c1a1802102a245e2b6198a0315808e14d06691",
       "path": "plugins/timeseries",
       "capabilities": [
         "signal.view",
@@ -578,7 +578,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:3561159ffeca5fa84b1a755a7e06b55c34a222896f65faebf206d414051967a5",
+      "artifactDigest": "sha256:39bbfa704721f2a3f4df8b676338dcf7e9325ccc72cb8966a9001e2fc5c60ec4",
       "path": "plugins/video",
       "capabilities": [
         "video.view",
@@ -652,7 +652,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:cb7c25943dba2debfa8162d3414bbeb37db015e1862dc87691ba65a5f3e44ae0",
+      "artifactDigest": "sha256:b0a8d0ddd021ca15cbefb6990972583aec693e21e5099c28faaf7148052cfe33",
       "path": "plugins/volume",
       "capabilities": [
         "volume.view",
@@ -725,7 +725,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:8550cc48ed61fad7ac5119cc102a439231066d52c60434ad3b1143e78a3d16a1",
+      "artifactDigest": "sha256:0532068eacd1b7aefb39ac2e614c6abd3080229af4e9e938183468c4621d2916",
       "path": "plugins/wsi",
       "capabilities": [
         "pyramid.view",
@@ -817,7 +817,7 @@
         "id": "inkling.core",
         "name": "Studio core",
         "version": "1.0.0",
-        "description": "Files, labels, review and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
+        "description": "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
         "runtime": {
           "kind": "browser-bundled"
         }

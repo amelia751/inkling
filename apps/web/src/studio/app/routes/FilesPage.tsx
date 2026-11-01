@@ -46,7 +46,7 @@ import {
 } from "@/studio/components/files";
 import { fetchNode, projectKeys, useProjectSummary } from "@/studio/lib/projects-api";
 import { KINDS, nodeIcon, nodeKind } from "@/studio/lib/file-kinds";
-import { exploreUrl, filesUrl, studioUrl, trashUrl } from "@/studio/lib/routes";
+import { exploreUrl, filesUrl, pipelinesUrl, studioUrl, trashUrl } from "@/studio/lib/routes";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fromDataTransfer, hasFiles } from "@/studio/lib/uploads/walk";
 import { defaultView, useSourcesPrefs } from "@/studio/stores/sources";
@@ -1355,6 +1355,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
                     onOpenImports={imports.data?.length ? () => setShowImports((v) => !v) : undefined}
                     importsCount={imports.data?.length}
                     importsActive={showImports && !!imports.data?.length}
+                    onOpenPipelines={writable ? () => navigate(pipelinesUrl(projectId)) : undefined}
                     dropAttrs={(n) => fsDropTargetProps(n.id, n.name, { spring: false })}
                     dropHighlightId={dragTarget}
                   />

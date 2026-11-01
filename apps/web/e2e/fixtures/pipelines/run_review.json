@@ -1,0 +1,197 @@
+{
+  "run_id": "run_review",
+  "workspace_id": "e2e-pipelines",
+  "project_id": "e2e-pipelines",
+  "definition_id": "ingest",
+  "definition_name": "Ingest",
+  "definition_revision": "sha256:9f2c4e1ab07d33aa",
+  "state": "awaiting_review",
+  "trigger": {
+    "kind": "upload",
+    "import_id": "imp_run_review",
+    "actor": "user:ana"
+  },
+  "created_at": "2026-11-01T09:12:00Z",
+  "started_at": "2026-11-01T09:12:01Z",
+  "finished_at": "2026-11-01T09:13:07Z",
+  "item_counts": {
+    "proposed": 8,
+    "quarantined": 1,
+    "rejected": 1
+  },
+  "steps": [
+    {
+      "step_id": "inspect",
+      "label": "Inspect",
+      "plugin": "plugin.inspect@1.2.0",
+      "state": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:12:01Z",
+      "finished_at": "2026-11-01T09:12:20Z",
+      "items_in": 10,
+      "items_out": 9
+    },
+    {
+      "step_id": "validate",
+      "label": "Validate",
+      "plugin": "plugin.validate@0.4.1",
+      "state": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:12:20Z",
+      "finished_at": "2026-11-01T09:12:31Z",
+      "items_in": 9,
+      "items_out": 8
+    },
+    {
+      "step_id": "derive",
+      "label": "Thumbnails and previews",
+      "plugin": "plugin.derivatives@2.0.0",
+      "state": "succeeded",
+      "attempts": 2,
+      "max_attempts": 3,
+      "started_at": "2026-11-01T09:12:31Z",
+      "finished_at": "2026-11-01T09:13:02Z",
+      "items_in": 8,
+      "items_out": 8
+    },
+    {
+      "step_id": "propose",
+      "label": "Propose version",
+      "state": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:13:02Z",
+      "finished_at": "2026-11-01T09:13:07Z"
+    }
+  ],
+  "items": [
+    {
+      "item_id": "it_1",
+      "rel_path": "study/scan_001.dcm",
+      "node_id": "node_1",
+      "size": 2048,
+      "kind": "DICOM",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_2",
+      "rel_path": "study/scan_002.dcm",
+      "node_id": "node_2",
+      "size": 4096,
+      "kind": "DICOM",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_3",
+      "rel_path": "study/scan_003.dcm",
+      "node_id": "node_3",
+      "size": 6144,
+      "kind": "DICOM",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_4",
+      "rel_path": "study/film_01.png",
+      "node_id": "node_4",
+      "size": 8192,
+      "kind": "Image",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_5",
+      "rel_path": "study/film_02.png",
+      "node_id": "node_5",
+      "size": 10240,
+      "kind": "Image",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_6",
+      "rel_path": "study/echo_01.mp4",
+      "node_id": "node_6",
+      "size": 12288,
+      "kind": "Video",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_7",
+      "rel_path": "study/labels.csv",
+      "node_id": "node_7",
+      "size": 14336,
+      "kind": "Table",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_8",
+      "rel_path": "study/protocol.pdf",
+      "node_id": "node_8",
+      "size": 16384,
+      "kind": "Document",
+      "state": "proposed",
+      "step_id": "propose"
+    },
+    {
+      "item_id": "it_9",
+      "rel_path": "study/broken.dcm",
+      "size": 512,
+      "kind": "DICOM",
+      "state": "quarantined",
+      "step_id": "validate",
+      "reason": "Not a valid DICOM file: no DICM preamble",
+      "diagnostics": [
+        {
+          "code": "dicom.preamble",
+          "message": "No DICM preamble at byte 128",
+          "severity": "error",
+          "step_id": "validate"
+        },
+        {
+          "code": "dicom.size",
+          "message": "File is shorter than a DICOM header",
+          "severity": "warning",
+          "step_id": "validate"
+        }
+      ],
+      "retryable": true
+    },
+    {
+      "item_id": "it_10",
+      "rel_path": "study/export.zip",
+      "size": 4096,
+      "kind": "Archive",
+      "state": "rejected",
+      "step_id": "inspect",
+      "reason": "Encrypted archive: archives with passwords aren't opened",
+      "diagnostics": [
+        {
+          "code": "archive.encrypted",
+          "message": "Encrypted archive",
+          "severity": "error",
+          "step_id": "inspect"
+        }
+      ]
+    }
+  ],
+  "candidate": {
+    "dataset_id": "ds_study",
+    "branch": "pipeline/run_review",
+    "commit": "4be1c0ffee5a7d9e01234567",
+    "output_manifest_digest": "sha256:5a1e0d00c0ffee11",
+    "created_at": "2026-11-01T09:13:07Z",
+    "item_count": 8
+  },
+  "review": {
+    "review_id": "rv_42",
+    "status": "OPEN",
+    "can_approve": true
+  },
+  "resolved_step_versions": {
+    "inspect": "plugin.inspect@1.2.0"
+  }
+}

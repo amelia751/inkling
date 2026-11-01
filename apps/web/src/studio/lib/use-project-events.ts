@@ -15,8 +15,11 @@ import { apiUrl } from "@/extension-host/runtime-config";
 type ProjectEventListener = (data: unknown, projectId: string) => void;
 const listeners = new Map<string, Set<ProjectEventListener>>();
 
-/** Event types forwarded to `onProjectEvent` subscribers (todo7: `fs.changed`; todo11: environments, boots and `item.*`). */
-const FORWARDED = [
+/**
+ * Event types forwarded to `onProjectEvent` subscribers (todo7: `fs.changed`; todo11: environments,
+ * boots and `item.*`; todo12: pipeline runs, candidates and their reviews, `core/pipelines/contract.ts`).
+ */
+export const FORWARDED = [
   "fs.changed",
   "import.updated",
   "source.node.inspected",
@@ -32,6 +35,17 @@ const FORWARDED = [
   "item.preview_ready",
   "item.ready",
   "item.failed",
+  "pipeline.run.started",
+  "pipeline.run.completed",
+  "pipeline.run.failed",
+  "pipeline.run.paused",
+  "pipeline.step.started",
+  "pipeline.step.completed",
+  "pipeline.step.failed",
+  "pipeline.output.staged",
+  "dataset.candidate.created",
+  "review.requested",
+  "review.approved",
 ];
 
 /**

@@ -104,8 +104,11 @@ def _measure(path: Path, rel: str) -> dict:
         if rel.lower().endswith((".nii", ".nii.gz")):
             import nibabel as nib
             import numpy as np
+            from nibabel.spatialimages import SpatialImage
 
             img = nib.load(str(path))
+            if not isinstance(img, SpatialImage):
+                raise TypeError("not a spatial image")
             arr = np.asanyarray(img.dataobj)
             out["dims"] = [int(x) for x in img.shape]
             out["dtype"] = str(arr.dtype) if str(arr.dtype) in ("uint8", "int8", "int16", "uint16", "int32", "uint32", "int64", "uint64", "float32", "float64") else None

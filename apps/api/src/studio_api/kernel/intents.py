@@ -36,7 +36,11 @@ def _table_at(path: str) -> dict:
 
 
 def table() -> dict:
-    return _table_at(str(Path(settings().registry_dir) / "intents.json"))
+    """The registry's table (`<registry>/intents.json`, else the checkout's); empty if neither."""
+    for root in (Path(settings().registry_dir), Path(settings().repo_root) / "registry"):
+        if (root / "intents.json").is_file():
+            return _table_at(str(root / "intents.json"))
+    return {"version": 1, "intents": []}
 
 
 @lru_cache(maxsize=2048)

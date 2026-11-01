@@ -51,6 +51,7 @@ from .egress import EgressProxy
 from .heartbeat import Heartbeat
 from .inspect import InspectSubscriber
 from .inspect.items import ItemProcessor
+from .unpack import UnpackSubscriber
 from .schedule import Scheduled
 
 log = logging.getLogger("studio_worker")
@@ -103,7 +104,7 @@ def build_env(uv: str, plugin_path: Path, venv: Path) -> None:
 
 
 class Worker:
-    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S):
+    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S, unpack_limits: config.UnpackLimits | None = None):
         self.kernel = kernel.rstrip("/")
         self.http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
         self.data_dir = data_dir
@@ -122,6 +123,8 @@ class Worker:
         self.deid = DeidSubscriber(self.http)
         # Built-in subscriber: inspection of uploaded files (`source.uploaded`, todo6 Phase 5).
         self.inspect = InspectSubscriber(self.http, data_dir / "inspect")
+        # Built-in subscriber: archive unpack for drop plans (`archive.unpack.requested`, todo13 M2).
+        self.unpack = UnpackSubscriber(self.http, data_dir / "unpack", unpack_limits)
         # Item derivatives (todo11 D8): on their own thread and client in `run_forever`, so a
         # long inspection or plugin job never holds up the thumbnails a person is waiting for.
         self.items = ItemProcessor(httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]}))
@@ -335,6 +338,10 @@ class Worker:
         except httpx.HTTPError as e:
             log.warning("inspection: %s", type(e).__name__)
         try:
+            self.unpack.tick()
+        except httpx.HTTPError as e:
+            log.warning("unpack: %s", type(e).__name__)
+        try:
             self.scheduled.tick()
         except httpx.HTTPError as e:
             log.warning("scheduled jobs: %s", type(e).__name__)
@@ -474,7 +481,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.prepare_envs:
         return prepare_envs(config.REPO_ROOT, s.envs_dir, a.plugins)
     (s.data_dir / "home").mkdir(parents=True, exist_ok=True)
-    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes)
+    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes, unpack_limits=s.unpack)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:

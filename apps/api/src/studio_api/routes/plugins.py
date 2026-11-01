@@ -130,8 +130,8 @@ def export_artifact(plugin_id: str, version: str, ctx: RequestContext = Depends(
 
 @router.post("/plugins/{plugin_id}/promotions")
 def request_promotion(plugin_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    """Ask for the next tier (generated → organisation → curated). Anyone who manages plugins
-    may ask, the agent included; only a second person approves."""
+    """Ask for the next tier (generated → organisation → curated). People who manage plugins
+    ask (agent sessions aren't allow-listed for it, kernel/agent_scope.py); a second person approves."""
     _need(ctx, "plugins.manage")
     return distribution.promotion_dict(distribution.request_promotion(db, ctx, plugin_id, str(body["version"]), str(body.get("reason") or "")))
 

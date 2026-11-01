@@ -36,6 +36,8 @@ class Release:
             retention_policy (str):
             attestations (list[ReleaseAttestationsItem]):
             retain_until (datetime.datetime | Unset):
+            studio_tree (str | Unset): The released commit's .studio/ tree id: the Studio definition its labels were made
+                with
      """
 
     tag: str
@@ -46,6 +48,7 @@ class Release:
     retention_policy: str
     attestations: list[ReleaseAttestationsItem]
     retain_until: datetime.datetime | Unset = UNSET
+    studio_tree: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -77,6 +80,8 @@ class Release:
         if not isinstance(self.retain_until, Unset):
             retain_until = self.retain_until.isoformat()
 
+        studio_tree = self.studio_tree
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -91,6 +96,8 @@ class Release:
         })
         if retain_until is not UNSET:
             field_dict["retain_until"] = retain_until
+        if studio_tree is not UNSET:
+            field_dict["studio_tree"] = studio_tree
 
         return field_dict
 
@@ -135,6 +142,8 @@ class Release:
 
 
 
+        studio_tree = d.pop("studio_tree", UNSET)
+
         release = cls(
             tag=tag,
             commit_oid=commit_oid,
@@ -144,6 +153,7 @@ class Release:
             retention_policy=retention_policy,
             attestations=attestations,
             retain_until=retain_until,
+            studio_tree=studio_tree,
         )
 
 

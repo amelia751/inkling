@@ -477,6 +477,44 @@ Go endpoints: `/healthz` verifies process liveness, `/readyz` verifies DB/object
 - go-git release history: https://github.com/go-git/go-git/releases
 - Git conditional reference-update semantics (reference design, **not** a claim of automatic Go API support): https://git-scm.com/docs/git-update-ref
 
+## 21. Studio definitions (`.studio/`, todo10 Phases 1–2)
+
+A dataset version records the Studio that produced its labels. Besides the four pointer
+documents, a commit's tree may carry a `.studio/` subtree:
+
+```text
+.studio/
+  plugins.lock.json                 {lockfileVersion: 1, plugins: [{id, version, digest, signer, permissions, configRevision}]}
+  tasks/<taskId>/environment.json   the task's environment spec
+  tasks/<taskId>/README.md          intent and notes (PUT /api/environments/{taskId}/readme)
+```
+
+- **Canonical JSON.** Both JSON files are RFC 8785 canonical bytes; apps/versioning refuses any
+  other (`not_canonical`). `sha256:` of those bytes is the content hash everywhere: kernel
+  (`kernel/canonical.py`), browser (`packages/contracts/src/canonical.ts`), and the shared vectors in
+  `packages/contracts/test-vectors/canonical.json`. The lockfile schema is
+  `packages/contracts/src/lockfile.ts` (`schemas/plugins-lock.v1.json`); the kernel generates it
+  from `workspace_plugins` (ACTIVATED pins with a digest; granted permissions).
+- **Commits.** `POST /internal/v1/repos/{id}/commits` with `studio: {files}` replaces the tree (empty
+  `files` removes it); without `studio` a commit keeps its parent's tree, so annotation saves never
+  drop it. A revert restores the target's tree. A merge takes the side that changed it from the
+  merge base (the source when both did: the change the reviewers approved). GC marks the subtree.
+- **Reads and releases.** `GET /internal/v1/repos/{id}/studio?ref=` (branch, oid or `tag:<release>`)
+  returns the files; commits and releases carry `studio_tree` (the subtree's git tree id), and
+  `dataset_releases.studio_tree` (migration `00002`) pins it per release.
+- **When the kernel commits it** (`kernel/versioning/service.py`): Task setup saved and an agent
+  change approved (`POST /api/v1/datasets/{id}/studio/commits`, onto the caller's work branch,
+  only when it changed), and on "Request review" from the Studio (so it reaches `main`, and so every
+  release, with the review). A release reports what it pinned (`studio`) and warns when the commit
+  carries none or differs from what the Studio runs now. The Postgres revision table stays the
+  per-keystroke undo journal; every row has `content_hash`, `parent_hash`, `author_kind` and, for
+  agent changes, `agent_run_id` and `prompt_hash` (migration `0006`).
+- **Restoring a version.** A person reverting their own work branch gets the version's Studio
+  setup back: environments as new revisions, plugin pins re-pinned to the locked version, digest
+  and config (a version the catalogue lost, or whose digest changed, is refused, not loaded).
+- **Versions › Studio setup** shows the setup at a branch or release and a jsondiffpatch diff
+  against what the Studio runs now. The e2e flow is `tests/e2e/versioning/flow_studio_test.py`.
+
 ---
 
 **Architecture invariant:** Git commits describe **which immutable dataset artifacts and annotation revisions belong to a snapshot**; object storage holds the bytes; PostgreSQL controls authoritative refs and review policy; only authorized Inkling services may publish changes. Pipelines and agents produce proposals through this boundary, never silently mutate a published dataset.

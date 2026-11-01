@@ -14,6 +14,7 @@ import { studioUrl, versionReviewUrl } from "@/studio/lib/routes";
 import { useStudio } from "@/studio/stores/studio";
 import { api, type Review, type ReviewStatus } from "./api";
 import { useVersioning, versioningEnabled } from "./session";
+import { StudioSetupTab } from "./StudioSetupTab";
 
 export const short = (oid?: string) => (oid ? oid.slice(0, 10) : "—");
 const when = (iso: string) => new Date(iso).toLocaleString();
@@ -58,10 +59,12 @@ export function VersionsPage() {
               <TabsTrigger value="history">History</TabsTrigger>
               <TabsTrigger value="reviews">Reviews</TabsTrigger>
               <TabsTrigger value="releases">Releases</TabsTrigger>
+              <TabsTrigger value="studio" data-testid="studio-setup-tab">Studio setup</TabsTrigger>
             </TabsList>
             <TabsContent value="history"><History datasetId={datasetId} /></TabsContent>
             <TabsContent value="reviews"><Reviews datasetId={datasetId} projectId={projectId} /></TabsContent>
             <TabsContent value="releases"><Releases datasetId={datasetId} /></TabsContent>
+            <TabsContent value="studio"><StudioSetupTab datasetId={datasetId} /></TabsContent>
           </Tabs>
         </PageContainer>
       </AppLayout>
@@ -151,9 +154,10 @@ function Releases({ datasetId }: { datasetId: string }) {
   const [error, setError] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: () => api.release(datasetId, datasetId, tag.trim(), "main"),
-    onSuccess: () => {
+    onSuccess: (r) => {
       setTag("");
-      setError(null);
+      // The release pins its commit's Studio setup; say so when that isn't what runs now.
+      setError(r.studioWarning ?? null);
       void qc.invalidateQueries({ queryKey: ["versioning", datasetId, "releases"] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
@@ -171,6 +175,7 @@ function Releases({ datasetId }: { datasetId: string }) {
             <TagIcon className="size-4 text-muted-foreground" />
             <span className="font-medium">{r.tag}</span>
             <code className="font-mono text-xs text-muted-foreground">{short(r.commit_oid)}</code>
+            {r.studio_tree && <code className="font-mono text-xs text-muted-foreground" title="Studio setup this release pins" data-testid="release-studio">studio {short(r.studio_tree)}</code>}
             <span className="flex-1 text-muted-foreground">{r.created_by} · {when(r.created_at)}</span>
             <Badge theme="clear">{r.retention_policy}</Badge>
           </div>

@@ -8,6 +8,7 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
+from ..types import UNSET, Unset
 
 
 
@@ -27,6 +28,7 @@ class CommitResult:
             head_generation (int):
             manifest_root (str):
             request_id (str):
+            studio_tree (str | Unset): Git tree id of the commit's .studio/ subtree
      """
 
     commit_oid: str
@@ -34,6 +36,7 @@ class CommitResult:
     head_generation: int
     manifest_root: str
     request_id: str
+    studio_tree: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -51,6 +54,8 @@ class CommitResult:
 
         request_id = self.request_id
 
+        studio_tree = self.studio_tree
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -61,6 +66,8 @@ class CommitResult:
             "manifest_root": manifest_root,
             "request_id": request_id,
         })
+        if studio_tree is not UNSET:
+            field_dict["studio_tree"] = studio_tree
 
         return field_dict
 
@@ -79,12 +86,15 @@ class CommitResult:
 
         request_id = d.pop("request_id")
 
+        studio_tree = d.pop("studio_tree", UNSET)
+
         commit_result = cls(
             commit_oid=commit_oid,
             branch=branch,
             head_generation=head_generation,
             manifest_root=manifest_root,
             request_id=request_id,
+            studio_tree=studio_tree,
         )
 
 

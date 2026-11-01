@@ -71,7 +71,10 @@ test checks each entry exists. Change this list and that file together.
   `POST /api/environments/validate`, `GET /api/catalog…`.
 - Plugin control plane: plugin search, detail and docs; workspace state, capabilities, plugins and
   install requests; `plan`, `stage`, `activate`, `configure`, `disable`, `rollback`;
-  `POST /api/v1/plugins/artifacts` as a dry run only.
+  `POST /api/v1/plugins/artifacts` as a dry run only. The plugin artifact routes
+  (`/plugins/{id}/files`, `…/export`, `/plugins/import`, promotions, `…/plugins/load-refused`)
+  aren't on the allowlist; export, import and promotion review also need `plugins.approve`,
+  which agent tokens never carry.
 - Dataset versioning on the agent's own `work/agent-*` branch: branches, commits, diff, reviews
   (approve, merge and release are refused for agents in the kernel). No document, checkout or
   artifact routes.

@@ -151,3 +151,18 @@ def list_releases(dataset_id: str, ctx: RequestContext = Depends(get_context), d
 @router.post("/datasets/{dataset_id}/checkouts")
 def checkout(dataset_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     return _run(db, ctx, "checkout", dataset_id, body)
+
+
+# ---- Studio definitions (todo10 §3.2, Phase 2) -----------------------------------------------
+
+
+@router.get("/datasets/{dataset_id}/studio")
+def studio_setup(dataset_id: str, ref: str | None = None, current: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The Studio setup (`.studio/`: lockfile, environments, READMEs) at a branch, oid or `tag:<release>`."""
+    return _run(db, ctx, "studio", dataset_id, {"ref": ref, "current": current})
+
+
+@router.post("/datasets/{dataset_id}/studio/commits")
+def commit_studio_setup(dataset_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """Commit the live Studio setup onto the caller's work branch (Task setup saved, an agent change approved)."""
+    return _run(db, ctx, "studio.commit", dataset_id, body)

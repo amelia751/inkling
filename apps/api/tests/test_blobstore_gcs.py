@@ -168,3 +168,30 @@ def test_real_gcs_store():
     assert bucket
     st = blobstore.GCSBlobStore(bucket, f"t-{uuid.uuid4().hex[:8]}")
     check_store(st)
+
+
+def test_artifacts_go_to_their_own_bucket(monkeypatch, tmp_path):
+    """INKLING_API_ARTIFACTS_BUCKET: content-addressed bundles land in the retention-locked bucket."""
+    from studio_api import config
+
+    built: list[str] = []
+
+    class Client:
+        def bucket(self, name):
+            built.append(name)
+            return FakeClient().bucket(name)
+
+    import google.cloud.storage as gstorage
+
+    monkeypatch.setattr(gstorage, "Client", lambda project=None: Client())
+    s = config.load_settings(blob_store="gcs", gcs_bucket="objects", artifacts_bucket="artifacts", data_dir=tmp_path, secret_key="k")
+    config.set_settings(s)
+    blobstore.reset()
+    try:
+        assert isinstance(blobstore.artifacts(), blobstore.GCSBlobStore) and built[-1] == "artifacts" and blobstore.artifacts().prefix == ""
+        blobstore.data()
+        assert built[-1] == "objects"
+        config.set_settings(config.load_settings(blob_store="gcs", gcs_bucket="objects", data_dir=tmp_path, secret_key="k"))
+        assert blobstore.artifacts() is blobstore.data()
+    finally:
+        blobstore.reset()

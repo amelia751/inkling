@@ -27,10 +27,15 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 NAMING = json.loads((REPO / "schemas" / "naming.json").read_text())
 P = NAMING["envPrefix"]
-PG = "postgres://postgres:postgres@127.0.0.1:56432/studio?sslmode=disable"
-S3 = "http://127.0.0.1:59900"
+# <envPrefix>E2E_PORT_BASE=N moves the whole stack to N (api), N+1 (versioning), N+2 (Postgres),
+# N+3 (object store) under its own compose project, so parallel worktrees don't collide.
+_BASE = int(os.environ.get(f"{P}E2E_PORT_BASE") or 0)
+API_PORT, VERSIONING_PORT, PG_PORT, S3_PORT = (_BASE, _BASE + 1, _BASE + 2, _BASE + 3) if _BASE else (58800, 58890, 56432, 59900)
+COMPOSE_PROJECT = f"versioning-e2e-{_BASE}" if _BASE else "versioning-e2e"
+COMPOSE_ENV = {"E2E_PG_PORT": str(PG_PORT), "E2E_S3_PORT": str(S3_PORT)}
+PG = f"postgres://postgres:postgres@127.0.0.1:{PG_PORT}/studio?sslmode=disable"
+S3 = f"http://127.0.0.1:{S3_PORT}"
 S3_KEY, S3_SECRET = "e2eaccess", "e2esecret-123"
-VERSIONING_PORT, API_PORT = 58890, 58800
 WORKER_TOKEN = "e2e-worker-token-0123456789"
 
 
@@ -96,9 +101,9 @@ class Stack:
         self.procs.append((name, subprocess.Popen(cmd, env={**os.environ, **env}, cwd=cwd, stdout=out, stderr=subprocess.STDOUT)))
 
     def up(self) -> "Stack":
-        compose = ["docker", "compose", "-f", str(HERE / "compose.yaml")]
+        compose = ["docker", "compose", "-p", COMPOSE_PROJECT, "-f", str(HERE / "compose.yaml")]
         log("docker compose up (postgres, object store)")
-        subprocess.run([*compose, "up", "-d", "--wait"], check=True)
+        subprocess.run([*compose, "up", "-d", "--wait"], check=True, env={**os.environ, **COMPOSE_ENV})
         bin_dir = self.dir / "bin"
         log("building apps/versioning")
         subprocess.run(["go", "build", "-o", str(bin_dir) + "/", "./cmd/server", "./cmd/migrate"], cwd=REPO / "apps" / "versioning", check=True)
@@ -138,7 +143,7 @@ class Stack:
             except subprocess.TimeoutExpired:
                 p.kill()
         if not self.keep:
-            subprocess.run(["docker", "compose", "-f", str(HERE / "compose.yaml"), "down", "-v"], check=False, capture_output=True)
+            subprocess.run(["docker", "compose", "-p", COMPOSE_PROJECT, "-f", str(HERE / "compose.yaml"), "down", "-v"], check=False, capture_output=True, env={**os.environ, **COMPOSE_ENV})
 
     def tail(self, name: str, n: int = 40) -> str:
         f = self.dir / f"{name}.log"

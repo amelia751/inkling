@@ -15,11 +15,13 @@ import NAMING from "../../schemas/naming.json";
 const env = (key: string): string | undefined => process.env[`${NAMING.envPrefix}${key}`] || undefined;
 
 // <envPrefix>API_URL: proxy /api to the API (apps/api) instead of the dev seed server, and
-// tell the SPA (define below) that the kernel serves commands, jobs and assets. Catalogue,
-// environments and the assistant stay here: they run the TS registry.
+// tell the SPA (define below) that the kernel serves commands, jobs and assets. The catalogue,
+// environment validation and the assistant stay here: they run the TS registry. Saved
+// environments go to the kernel, as in production, so revisions, last-known-good and rollback
+// (todo10) are one store.
 const kernelUrl = env("API_URL");
 const kernel = !!kernelUrl;
-const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments)(\/|$|\?)/;
+const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments\/validate)(\/|$|\?)/;
 
 // <envPrefix>E2E=1: a frozen dev server for Playwright runs (see `server` below). It keeps
 // annotations in a fresh temp copy of e2e/fixtures/annotations/, so no test reads or writes the

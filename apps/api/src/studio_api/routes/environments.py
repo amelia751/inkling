@@ -9,6 +9,11 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     GET          /api/environments/{projectId}/history → every saved revision (hashes, provenance)
     GET          /api/environments/{projectId}/lockfile → the workspace's plugins.lock.json + its hash
     PUT          /api/environments/{projectId}/readme → the task's .studio README (intent and notes)
+    GET          /api/environments/{projectId}/last-known-good → the setup safe mode boots (404: none yet)
+    PUT          /api/environments/{projectId}/last-known-good → a person marks the current setup known good
+    POST         /api/environments/{projectId}/checks → the Studio booted it cleanly (may move last-known-good)
+    POST         /api/environments/{projectId}/rollback → restore last-known-good (environment + pins), one transaction
+    GET          /api/environments/{projectId}/audit → the workspace's hash-chained audit verifies
     POST         /api/environments/validate            → 501: dev server only
     GET          /api/catalog[/…]                      → 501: dev server only
 
@@ -170,6 +175,105 @@ async def put_readme(project_id: str, request: Request, ctx: RequestContext = De
     prov = studio_defs.provenance(ctx, request.headers, body)
     studio_defs.set_readme(db, c, c.task, body["text"], prov.author)
     return {"readme": studio_defs.readme(db, c.workspace_id, c.task), "author": prov.author}
+
+
+# ---- todo10 Phase 4: last-known-good, safe mode, rollback ------------------------------------
+# Writes are a person's: an agent session gets 403 (the model can't move the baseline it
+# would be rolled back to). Nothing here calls a model or the versioning service.
+
+
+def _person(ctx: RequestContext) -> JSONResponse | None:
+    if ctx.principal.startswith("agent:"):
+        return _json(403, {"error": "only a person can do this (todo10 §3.4)"})
+    return None
+
+
+@router.get("/api/environments/{project_id}/last-known-good")
+def get_known_good(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    k = studio_defs.known_good(db, c.workspace_id, c.task)
+    return studio_defs.known_good_doc(k) if k is not None else _json(404, {"error": "no last-known-good setup yet"})
+
+
+@router.put("/api/environments/{project_id}/last-known-good")
+async def put_known_good(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    if (denied := _person(ctx)) is not None:
+        return denied
+    try:
+        body = await _body(request) or {}
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    ensure_workspace(db, c.workspace_id)
+    row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task))
+    rev = body.get("revision", row.revision if row is not None else 0)
+    if not isinstance(rev, int):
+        return _json(422, {"error": "revision must be an integer"})
+    out = studio_defs.move_known_good(db, c, c.task, rev, studio_defs.PERSON)
+    # A person approving the setup (an agent's change included) is a moment to commit it (§3.2).
+    out["committed"] = _commit_studio(db, c, "known good")
+    return out
+
+
+@router.post("/api/environments/{project_id}/checks")
+async def boot_checks(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The Studio resolved this revision and loaded every module (`ok`): passing checks may move
+    last-known-good, never to an agent's change or to plugins that widen permissions."""
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    if (denied := _person(ctx)) is not None:
+        return denied
+    try:
+        body = await _body(request) or {}
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    if body.get("ok") is not True or not isinstance(body.get("revision"), int):
+        return _json(422, {"error": "send {revision, contentHash, ok: true} after a clean boot"})
+    ensure_workspace(db, c.workspace_id)
+    current = studio_defs.effective_environment(db, c.workspace_id, c.task)
+    if body.get("contentHash") and body["contentHash"] != content_hash(current):
+        return {"moved": False, "reason": "the Studio booted another setup than the current one"}
+    try:
+        return studio_defs.move_known_good(db, c, c.task, body["revision"], studio_defs.CHECKS)
+    except HTTPException as e:
+        return {"moved": False, "reason": e.detail if isinstance(e.detail, str) else e.detail.get("message")}
+
+
+@router.post("/api/environments/{project_id}/rollback")
+def rollback_environment(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    if (denied := _person(ctx)) is not None:
+        return denied
+    ensure_workspace(db, c.workspace_id)
+    return studio_defs.rollback(db, c, c.task)
+
+
+@router.get("/api/environments/{project_id}/audit")
+def audit_chain(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    from ..kernel import audit
+
+    c = _project(project_id, ctx, db)
+    if isinstance(c, JSONResponse):
+        return c
+    return {**audit.verify_chain(db, c.workspace_id), "entries": audit.entries(db, c, limit=50, action=None)}
+
+
+def _commit_studio(db: Session, c: RequestContext, reason: str) -> bool:
+    """Best effort: commit the setup to the person's work branch when the task's dataset is versioned."""
+    from ..kernel.versioning import client as vclient, service as vservice
+    from ..models import DatasetRepo
+
+    if not vclient.configured() or db.get(DatasetRepo, (c.workspace_id, c.task)) is None:
+        return False
+    status, _ = vservice.run(db, c, "studio.commit", c.task, {"reason": reason})
+    return status in (200, 201)
 
 
 @router.get("/api/environments/{project_id}/lockfile")

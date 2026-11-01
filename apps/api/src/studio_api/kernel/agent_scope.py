@@ -48,6 +48,14 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("PATCH", "/api/environments/{project_id}"),
         ("GET", "/api/environments/{project_id}/history"),
         ("POST", "/api/environments/validate"),
+        # Studio definitions (todo10 Phases 1, 2, 4): reads and notes. Moving last-known-good,
+        # boot checks and rollback stay person-only; studio commits only onto work/agent-*.
+        ("GET", "/api/environments/{project_id}/lockfile"),
+        ("GET", "/api/environments/{project_id}/last-known-good"),
+        ("GET", "/api/environments/{project_id}/audit"),
+        ("PUT", "/api/environments/{project_id}/readme"),
+        ("GET", f"{P}/datasets/{{dataset_id}}/studio"),
+        ("POST", f"{P}/datasets/{{dataset_id}}/studio/commits"),
         ("GET", "/api/catalog"),
         ("GET", "/api/catalog/{rest:path}"),
         # Plugin control plane

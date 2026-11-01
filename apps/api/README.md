@@ -32,7 +32,7 @@ Then run the web app against it: `INKLING_API_URL=http://127.0.0.1:8000 pnpm dev
 | Built-in subscriptions (the worker's de-identification check) | `kernel/events.py`, `routes/worker.py` | `/api/v1/worker/subscriptions/{claim,ack}`, `/api/v1/worker/versioning/run` |
 
 | Service conventions: liveness, readiness (DB, Redis, BlobStore), version | `routes/ops.py` | `/healthz`, `/readyz`, `/version` (no auth, no access log) |
-| Seed files and saved environments for the SPA in production (shapes of `apps/web/dev/seed-server.ts`) | `routes/environments.py` | `/seed/*`, `/api/environments/:id[/history]`; `POST /api/environments/validate` and `/api/catalog*` answer 501 (dev server only: they need the TypeScript registry, so the kernel stores environments without server-side validation) |
+| Seed files and saved environments for the SPA (in production, and in dev whenever the kernel runs; shapes of `apps/web/dev/seed-server.ts`) | `routes/environments.py` | `/seed/*`, `/api/environments/:id[/history]`; todo10: `…/lockfile`, `…/readme`, `…/last-known-good`, `…/checks`, `…/rollback`, `…/audit` (`kernel/studio_defs.py`, docs/versioning.md §21); `POST /api/environments/validate` and `/api/catalog*` answer 501 (dev server only: they need the TypeScript registry, so the kernel stores environments without server-side validation) |
 
 ## Stateless deployment (todo/done/todo3.md E.2)
 

@@ -515,6 +515,32 @@ documents, a commit's tree may carry a `.studio/` subtree:
 - **Versions › Studio setup** shows the setup at a branch or release and a jsondiffpatch diff
   against what the Studio runs now. The e2e flow is `tests/e2e/versioning/flow_studio_test.py`.
 
+### Safe mode and rollback (todo10 Phase 4)
+
+- **`last-known-good`** is a per-task ref in the kernel (`studio_known_good`, migration `0006b`):
+  an environment revision plus the lockfile at the time it was marked. A person moves it (Studio ⋯
+  › "Mark setup as known good", `PUT /api/environments/{id}/last-known-good`; with versioning on
+  this is also a moment the setup is committed). Passing checks move it too: the Studio reports
+  a clean start (`POST …/checks`, after it has run 5 s without crashing), and the kernel accepts it
+  only for a person's revision whose plugins add nothing over the current baseline (no new plugin,
+  permission or signer). Agent sessions get 403 on every write here. It lives in the kernel, not in
+  apps/versioning, so recovery never depends on another service.
+- **Safe mode** (`?safe`, or "Start in safe mode" on the environment-error, module-failure and crash
+  screens; ⋯ › "Restart in safe mode") boots the last-known-good environment with only the
+  first-party plugins its lockfile names that this build bundles; no remote plugin is fetched.
+  Without a known-good setup it boots the task's manifest environment. Nothing is written.
+- **Rollback** (`POST /api/environments/{id}/rollback`, "Restore this setup" in the safe-mode banner)
+  restores last-known-good in the request's one transaction: the environment as a new revision (its
+  parent is the broken one; nothing is rewritten), plugin pins re-pinned or disabled to match the
+  lockfile, extra grants revoked. A locked version the catalogue no longer has, or whose digest
+  changed, is refused rather than loaded.
+- **Hash-chained audit.** Every kernel audit entry (`plugin_audit`) now carries `prev_hash` and
+  `entry_hash` (RFC 8785 of its fields plus the previous hash), chained per workspace under a
+  transaction-scoped lock; `GET /api/environments/{id}/audit` verifies the chain. Rollbacks,
+  known-good moves, installs and plugin loads are all in it.
+- The exit test is `tests/e2e/safe_mode_test.py` (a plugin that breaks the Studio, recovery through
+  safe mode and rollback in under a minute, no request to the agent service).
+
 ---
 
 **Architecture invariant:** Git commits describe **which immutable dataset artifacts and annotation revisions belong to a snapshot**; object storage holds the bytes; PostgreSQL controls authoritative refs and review policy; only authorized Inkling services may publish changes. Pipelines and agents produce proposals through this boundary, never silently mutate a published dataset.

@@ -69,6 +69,10 @@ test checks each entry exists. Change this list and that file together.
 - Job start: `POST /api/v1/commands` (answers agents with job summaries; `versioning.checkout` refused).
 - Environment control plane: `GET`/`PATCH /api/environments/{id}`, `GET …/history`,
   `POST /api/environments/validate`, `GET /api/catalog…`.
+- Studio definitions (todo10 Phases 1, 2, 4): `GET /api/environments/{id}/lockfile`,
+  `…/last-known-good`, `…/audit`, `PUT …/readme` (notes), `GET /api/v1/datasets/{id}/studio` and
+  `POST …/studio/commits` (only onto `work/agent-*`). Moving last-known-good, boot checks and
+  rollback refuse agent tokens.
 - Plugin control plane: plugin search, detail and docs; workspace state, capabilities, plugins and
   install requests; `plan`, `stage`, `activate`, `configure`, `disable`, `rollback`;
   `POST /api/v1/plugins/artifacts` as a dry run only. Not on the list: the artifact routes (`/plugins/{id}/files`, `…/export`, `/plugins/import`,

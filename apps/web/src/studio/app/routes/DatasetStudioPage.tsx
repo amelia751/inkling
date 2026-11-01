@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useLocation, useParams } from "react-router";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
+import { Link, useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
@@ -18,8 +18,11 @@ import { setActiveCommands, SHELL_PRIORITY, useCommands, useHotkeys } from "@/ex
 import { labelClasses, regionLabelNames } from "@studio/contracts/environment";
 import { digitOf, matches } from "@studio/ui/keys";
 import { registry } from "@/extension-host/registry";
-import { applyWorkspace, fetchWorkspaceState, loadRemotePlugins } from "@/extension-host/workspace";
-import { prepareAssetUrls } from "@/extension-host/kernel";
+import { applySafeWorkspace, applyWorkspace, fetchWorkspaceState, loadRemotePlugins } from "@/extension-host/workspace";
+import { kernelEnabled, prepareAssetUrls } from "@/extension-host/kernel";
+import { Button, buttonVariants } from "@studio/ui/ui/button";
+import { ErrorState } from "@studio/ui/ui/error-state";
+import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, type KnownGood } from "@/studio/lib/safe-mode";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
@@ -46,13 +49,17 @@ export type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[
  * Resolve the project's environment (its saved edits, else the manifest's) and load the
  * implementations of every module it uses, so renderers and panels mount synchronously.
  */
-export function useEnvironment(project: Project | undefined): Boot {
-  const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project, staleTime: Infinity });
+export function useEnvironment(project: Project | undefined, { safe = false }: { safe?: boolean } = {}): Boot {
+  const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project && !safe, staleTime: Infinity });
+  // Safe mode (todo10 §3.4): the task's last-known-good setup instead of its saved one.
+  const known = useQuery({ queryKey: ["known-good", project?.id], queryFn: () => fetchKnownGood(project!.id).catch(() => null), enabled: !!project && safe, staleTime: 0 });
   // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
+  // Safe mode never loads a remote (non-first-party) plugin, and boots even if the state route fails.
   const workspace = useQuery({
-    queryKey: ["workspace", project?.id],
+    queryKey: ["workspace", project?.id, safe ? "safe" : "normal"],
     queryFn: async () => {
       await prepareAssetUrls(project!.id);
+      if (safe) return fetchWorkspaceState(project!.id).catch(() => null);
       const state = await fetchWorkspaceState(project!.id);
       await loadRemotePlugins(state);
       return state;
@@ -63,16 +70,17 @@ export function useEnvironment(project: Project | undefined): Boot {
   const [boot, setBoot] = useState<Boot>({ status: "loading" });
   const [applied, setApplied] = useState(false);
   useEffect(() => {
-    if (workspace.isLoading || workspace.error) return;
-    applyWorkspace(workspace.data ?? null);
+    if (workspace.isLoading || workspace.error || (safe && known.isLoading)) return;
+    if (safe) applySafeWorkspace(workspace.data ?? null, known.data?.lockfile ?? null);
+    else applyWorkspace(workspace.data ?? null);
     setApplied(true);
-  }, [workspace.isLoading, workspace.error, workspace.data]);
+  }, [workspace.isLoading, workspace.error, workspace.data, safe, known.isLoading, known.data]);
   // Re-resolve when plugins are enabled or disabled (e.g. enabling one this environment needs).
   const activation = useSyncExternalStore((l) => registry.subscribe(l), () => registry.activationVersion);
   useEffect(() => {
     if (workspace.error) return setBoot({ status: "failed", message: String(workspace.error) });
-    if (!project || saved.isLoading || !applied) return;
-    const spec = saved.data?.environment ?? project.environment;
+    if (!project || (safe ? known.isLoading : saved.isLoading) || !applied) return;
+    const spec = safe ? (known.data?.environment ?? project.environment) : (saved.data?.environment ?? project.environment);
     const r = resolveEnvironment(spec, registry);
     if (r.errors) return setBoot({ status: "errors", errors: r.errors });
     let live = true;
@@ -82,7 +90,7 @@ export function useEnvironment(project: Project | undefined): Boot {
     return () => {
       live = false;
     };
-  }, [project, saved.isLoading, saved.data, applied, activation, workspace.error]);
+  }, [project, saved.isLoading, saved.data, applied, activation, workspace.error, safe, known.isLoading, known.data]);
   return boot;
 }
 
@@ -121,7 +129,9 @@ function StudioPage() {
   // With dataset versioning on (the kernel reports it configured), this is the user's work
   // branch; otherwise the plain document, exactly as before.
   const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => loadDocument(datasetId, () => fetchAnnotations(datasetId)), enabled: !!project, staleTime: Infinity });
-  const boot = useEnvironment(project);
+  const location = useLocation();
+  const safe = isSafeMode(location.search);
+  const boot = useEnvironment(project, { safe });
   const projectId = useStudio((s) => s.projectId);
   const load = useStudio((s) => s.load);
   const setEnv = useStudio((s) => s.setEnv);
@@ -137,14 +147,99 @@ function StudioPage() {
   if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio" loading />;
   if (error || !project) return <FullPageMessage kind="not-found" title="Task not found" body={`No task “${datasetId}” in this project. Seeds need pnpm seeds, then a reload.`} />;
   if (saved.error) return <FullPageMessage kind="error" title="Couldn't load annotations" body={String(saved.error)} />;
-  if (boot.status === "errors") return <EnvErrors errors={boot.errors} />;
-  if (boot.status === "failed") return <FullPageMessage kind="error" title="Couldn't load this environment's modules" body={boot.message} />;
+  if (boot.status === "errors") return <EnvErrors errors={boot.errors} safe={safe} />;
+  if (boot.status === "failed") return <BrokenStudio title="Couldn't load this environment's modules" message={boot.message} safe={safe} />;
   if (boot.status === "loading" || projectId !== project.id) return <FullPageMessage title="Opening Studio" loading />;
-  return <Studio key={project.id} projectId={project.id} />;
+  return (
+    <StudioBoundary safe={safe}>
+      {safe && <SafeModeBanner taskId={project.id} />}
+      <Studio key={project.id} projectId={project.id} safe={safe} />
+    </StudioBoundary>
+  );
+}
+
+/** The current Studio URL in (or out of) safe mode. A full page load: the registry starts clean. */
+function safeHref(on: boolean): string {
+  const u = new URL(window.location.href);
+  if (on) u.searchParams.set("safe", "");
+  else u.searchParams.delete("safe");
+  return u.pathname + u.search + u.hash;
+}
+
+/** "Start in safe mode" on every screen a broken setup can leave a person on (todo10 §3.4). */
+function SafeModeButton() {
+  return (
+    <a href={safeHref(true)} className={buttonVariants({ size: "lg" })} data-testid="start-safe-mode">
+      Start in safe mode
+    </a>
+  );
+}
+
+function BrokenStudio({ title, message, safe }: { title: string; message: string; safe: boolean }) {
+  return (
+    <ErrorState
+      variant="page"
+      kind="error"
+      title={title}
+      description={safe ? `${message} (already in safe mode: only first-party plugins and the last known good setup.)` : `${message} Safe mode starts the last known good setup with only first-party plugins; nothing is changed until you restore it.`}
+      actions={
+        <>
+          {!safe && <SafeModeButton />}
+          <Link to="/projects" className={buttonVariants({ variant: "outline", size: "lg" })}>Back to projects</Link>
+        </>
+      }
+    />
+  );
+}
+
+/** A renderer or panel that throws while rendering shows the way out instead of a blank page. */
+class StudioBoundary extends Component<{ safe: boolean; children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[studio] crashed", error, info.componentStack);
+  }
+  render() {
+    if (this.state.error) return <div className="flex min-h-0 flex-1 flex-col" data-testid="studio-crashed"><BrokenStudio title="The Studio stopped working" message={this.state.error.message} safe={this.props.safe} /></div>;
+    return this.props.children;
+  }
+}
+
+/** Safe mode: what's running, and the two ways out (restore it for real, or leave). */
+function SafeModeBanner({ taskId }: { taskId: string }) {
+  const known = useQuery({ queryKey: ["known-good", taskId], queryFn: () => fetchKnownGood(taskId).catch(() => null), staleTime: 0 });
+  const [state, setState] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null });
+  const k: KnownGood | null | undefined = known.data;
+  const restore = async () => {
+    setState({ busy: true, error: null });
+    try {
+      await rollback(taskId);
+      window.location.assign(safeHref(false));
+    } catch (e) {
+      setState({ busy: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-warning-tint px-3 py-2 text-sm" role="status" data-testid="safe-mode-banner">
+      <span className="min-w-0 flex-1">
+        <strong>Safe mode.</strong> Only first-party plugins are on, running{" "}
+        {k ? <>the last known good setup (revision {k.revision}, marked by {k.movedBy.replace(/^user:/, "")}{k.movedBecause === "checks" ? " after a clean start" : ""})</> : <>this task's original setup</>}. Nothing has changed yet.
+        {state.error && <span className="ml-2 text-danger">{state.error}</span>}
+      </span>
+      {k && kernelEnabled() && (
+        <Button size="sm" onClick={() => void restore()} disabled={state.busy} data-testid="safe-mode-rollback" title="Make the last known good setup (environment and plugins) the current one again">
+          Restore this setup
+        </Button>
+      )}
+      <a href={safeHref(false)} className={buttonVariants({ size: "sm", variant: "outline" })} data-testid="safe-mode-exit">Leave safe mode</a>
+    </div>
+  );
 }
 
 /** Resolver errors, with the JSON Pointer of each problem so the spec can be fixed. */
-function EnvErrors({ errors }: { errors: EnvError[] }) {
+function EnvErrors({ errors, safe }: { errors: EnvError[]; safe: boolean }) {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
       <h1 className="text-body-2 font-semibold">This environment doesn't resolve</h1>
@@ -156,11 +251,36 @@ function EnvErrors({ errors }: { errors: EnvError[] }) {
           </li>
         ))}
       </ul>
+      {!safe && (
+        <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground">
+          <SafeModeButton />
+          Starts the last known good setup with only first-party plugins.
+        </div>
+      )}
     </div>
   );
 }
 
-function Studio({ projectId }: { projectId: string }) {
+/** Seconds a Studio must run without crashing before its setup counts as a clean start. */
+const CLEAN_BOOT_MS = 5000;
+
+/**
+ * Passing checks (todo10 §3.4): a setup that resolved, loaded every module and rendered for a
+ * few seconds may become last-known-good. The kernel decides: never an agent's change, never
+ * plugins that widen permissions. Not in safe mode, not without the kernel.
+ */
+function useCleanBootReport(projectId: string, safe: boolean) {
+  const env = useQuery({ queryKey: ["environment", projectId], queryFn: () => fetchEnvironment(projectId).catch(() => null), staleTime: Infinity, enabled: !safe });
+  const doc = env.data;
+  useEffect(() => {
+    if (safe || !kernelEnabled() || env.isLoading) return;
+    const t = setTimeout(() => void reportCleanBoot(projectId, doc?.revision ?? 0, doc?.contentHash), CLEAN_BOOT_MS);
+    return () => clearTimeout(t);
+  }, [projectId, safe, env.isLoading, doc?.revision, doc?.contentHash]);
+}
+
+function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean }) {
+  useCleanBootReport(projectId, safe);
   const { data: project } = useTaskDocument(projectId);
   const env = useStudio((s) => s.env)!;
   const items = useMemo(() => (project ? studioItems(project, env) : []), [project, env]);

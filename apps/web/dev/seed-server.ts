@@ -81,7 +81,9 @@ export function seedServer(seedRoot: string, { kernel = false, annotationsDir = 
 
       const api = () => server.ssrLoadModule("/src/server-entry.ts") as Promise<ServerApi>;
       server.middlewares.use("/api/catalog", (req, res) => handleCatalog(req, res, api));
-      server.middlewares.use("/api/environments", (req, res) => handleEnvironments(req, res, api, environmentsDir, seedRoot));
+      // With the kernel, saved environments live there (vite.config.ts proxies them); only
+      // validation, which needs the TS registry, stays here.
+      server.middlewares.use("/api/environments", (req, res, next) => (kernel && !(req.url ?? "").startsWith("/validate") ? next() : handleEnvironments(req, res, api, environmentsDir, seedRoot)));
       if (!kernel) server.middlewares.use("/api/v1/workspaces", async (req, res, next) => {
         const m = /^\/([a-z0-9-]+)\/state$/.exec((req.url ?? "").split("?")[0]);
         if (!m || req.method !== "GET") return next();
@@ -194,6 +196,8 @@ async function handleEnvironments(req: IncomingMessage, res: ServerResponse, api
     const historyFile = path.join(dir, `${id}.history.jsonl`);
     const current = (): EnvDoc => (fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : { revision: 0, environment: null });
 
+    // Last-known-good, rollback, lockfile, notes (todo10) need the kernel; never treat them as the environment.
+    if (parts[1] && parts[1] !== "history") return sendJson(res, 404, { error: `/api/environments/:id/${parts[1]} needs the kernel (<envPrefix>API_URL)` });
     if (parts[1] === "history" && req.method === "GET") {
       const lines = fs.existsSync(historyFile) ? fs.readFileSync(historyFile, "utf8").trim().split("\n").filter(Boolean) : [];
       return sendJson(res, 200, lines.map((l) => JSON.parse(l)));

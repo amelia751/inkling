@@ -80,3 +80,7 @@ patches:
       - op: add
         path: /metadata/annotations/nginx.ingress.kubernetes.io~1denylist-source-range
         value: AGENT_EGRESS_CIDR
+      # People don't sign in yet (the api trusts dev headers), so only these addresses reach it.
+      - op: add
+        path: /metadata/annotations/nginx.ingress.kubernetes.io~1whitelist-source-range
+        value: STUDIO_ALLOW_CIDRS

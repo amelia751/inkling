@@ -20,6 +20,10 @@ replacements:
         fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/denylist-source-range]
       - select: { kind: Ingress, name: agent-api }
         fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/whitelist-source-range]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.STUDIO_ALLOW_CIDRS }
+    targets:
+      - select: { kind: Ingress, name: studio }
+        fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/whitelist-source-range]
   - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_INGRESS_CIDR }
     targets:
       - select: { kind: NetworkPolicy, name: web-to-agent }

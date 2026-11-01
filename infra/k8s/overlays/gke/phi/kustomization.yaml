@@ -33,23 +33,23 @@ configMapGenerator:
 images:
   - name: studio-web
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-web
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:a098199a12bd194648636da5afaf6863bbc99a63d0224aaa59b641160468ea25
   - name: studio-api
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-api
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:00f87b5ad068bae5d6024fd8b2f4e87b5b1986ba66b8e9da78f7fe191fe1f664
   - name: studio-worker
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-worker
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:15537367fffdb65fcfc4a63e4e39ffd4d94df0e58f9334460fcc7d6bb65f78c8
   - name: studio-versioning
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-versioning
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:5636c6fc6ea823275cbc6474429bee96e906065c93d583d1f869bf7056d9c45e
   - name: studio-pipeline
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-pipeline
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:067ea601e1d0af8be6e608cd18624adfe884365b3e6fbe39a5c1cec1d26fb062
   # db-bootstrap's psql, mirrored (crane copy postgres:17 …/images/postgres:17, then pin).
   - name: postgres
     newName: us-central1-docker.pkg.dev/spurby-phi/images/postgres
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
 
 # Patches: patches/ (a Component, so they apply before values/).
 

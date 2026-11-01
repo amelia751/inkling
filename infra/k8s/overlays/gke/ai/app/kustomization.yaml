@@ -15,7 +15,7 @@ resources:
 images:
   - name: studio-agent
     newName: us-central1-docker.pkg.dev/spurby-ai/images/studio-agent
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+    digest: sha256:728e6d0dac5e9dfb8f60232e26dfc967ba11dcec1f63d9b3641e394db09af9a0
 
 components:
   - patches

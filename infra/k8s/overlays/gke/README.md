@@ -51,7 +51,7 @@ for s in phi data ai; do terraform -chdir=infra/terraform/$s output -json > /tmp
 
 | File | Keys |
 |---|---|
-| `live/phi/local.env` | `DATA_SERVICES_CIDR`, `REDIS_HOST`, `OBJECTS_BUCKET`, `VERSIONING_OBJECTS_BUCKET`, `VERSIONING_MANIFESTS_BUCKET`, `PLUGIN_SIGNING_KEY`, `API_SERVICE_ACCOUNT`, `VERSIONING_SERVICE_ACCOUNT`, `PIPELINE_SERVICE_ACCOUNT` and `PIPELINE_CONNECTOR_SUBSCRIPTION` (Milestone 3) from phi; `AGENT_EGRESS_CIDR`, `AGENT_INGRESS_CIDR` from ai; `STUDIO_HOST`, `AGENT_API_HOST`, `AGENT_URL` |
+| `live/phi/local.env` | `DATA_SERVICES_CIDR`, `REDIS_HOST`, `OBJECTS_BUCKET`, `VERSIONING_OBJECTS_BUCKET`, `VERSIONING_MANIFESTS_BUCKET`, `PLUGIN_SIGNING_KEY`, `API_SERVICE_ACCOUNT`, `VERSIONING_SERVICE_ACCOUNT`, `PIPELINE_SERVICE_ACCOUNT` and `PIPELINE_CONNECTOR_SUBSCRIPTION` (Milestone 3) from phi; `AGENT_EGRESS_CIDR`, `AGENT_INGRESS_CIDR` from ai; `STUDIO_HOST`, `AGENT_API_HOST`, `AGENT_URL`; `STUDIO_ALLOW_CIDRS` (the operators' addresses, until people sign in) |
 | `live/ai/local.env` | `DATA_SERVICES_CIDR`, `CONTROL_PLANE_CIDR`, `REDIS_HOST`, `AGENT_SERVICE_ACCOUNT` from ai; `PHI_EGRESS_CIDR` from phi; `AGENT_HOST`, `AGENT_API_URL` |
 
 Image digests are not in `local.env`: CI pushes to each project's `images` registry and bumps the

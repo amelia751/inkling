@@ -309,7 +309,7 @@ def _boot_id(drop_id: str, group_id: str) -> str:
 def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, c: DatasetCollectionRow, preset: str, name: str, patch: list | None) -> list[str]:
     from . import boots
 
-    body: dict = {"bootId": _boot_id(drop_id[:20], c.id), "preset": preset, "collectionId": c.id, "name": f"{name} Studio"}
+    body: dict = {"bootId": _boot_id(drop_id[:20], c.id), "preset": preset, "collectionId": c.id, "name": f"{name} Studio", "dropId": drop_id}
     if patch:
         body["patch"] = patch
     status, out = boots.boot(db, ctx, p, body, {})

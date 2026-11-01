@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ComposerFiles } from "@studio/ui/ui/composer-empty-state";
 import type { SeedAsset } from "@studio/contracts/types";
 import { insertRegistered } from "@/studio/lib/task-items";
-import { markTimeline, startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
+import { markTimeline, setTimelineDrop, startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
 import { fromDataTransfer, fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
 import { feature } from "@/studio/lib/features";
@@ -58,6 +58,8 @@ export function dropFiles(req: DropRequest): Promise<void> {
   markTimeline("upload-start");
   if (feature("chatDrops")) {
     const id = startDrop(req);
+    // The project stream may open after `drop.received` (Home navigates first): name it here.
+    setTimelineDrop(id);
     watchDrop(id);
     return Promise.resolve();
   }

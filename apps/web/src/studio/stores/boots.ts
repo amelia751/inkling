@@ -4,6 +4,7 @@ import { onProjectEvent } from "@/studio/lib/use-project-events";
 import { api } from "@/studio/lib/projects-api";
 import { fetchEnvironment, saveEnvironment } from "@/studio/lib/api";
 import { studioUrl } from "@/studio/lib/routes";
+import { useDrops } from "@/studio/core/drops/store";
 import { useAgent } from "./agent";
 
 /**
@@ -80,7 +81,20 @@ export function bootRows(b: BootView): BootStep[] {
 export const bootSeconds = (b: BootView) => (b.ms !== undefined ? b.ms / 1000 : b.finishedAt ? (b.finishedAt - b.seenAt) / 1000 : 0);
 export const formatSeconds = (s: number) => (s < 1 ? s.toFixed(2) : s < 10 ? s.toFixed(1) : Math.round(s).toString());
 
-type Started = { bootId: string; taskIds?: string[]; preset?: string; initiator?: BootView["initiator"] };
+type Started = { bootId: string; taskIds?: string[]; preset?: string; initiator?: BootView["initiator"] & { dropId?: string } };
+
+/**
+ * A fast-path boot (todo13 §3.2 step 3) from a drop this tab made on Home or in a project's
+ * chat: this tab lands in the Studio. Not a drop made in a Studio (that Studio stays open, J4),
+ * not while a Studio is open, and not for an old drop.
+ */
+function droppedHere(dropId: string | undefined): boolean {
+  if (!dropId) return false;
+  const d = useDrops.getState().drops[dropId];
+  if (!d || d.taskId || (d.origin !== "home" && d.origin !== "chat")) return false;
+  if (Date.now() - d.createdAt > 10 * 60_000) return false;
+  return typeof window === "undefined" || !/\/studio\/[^/]+/.test(window.location.pathname);
+}
 type Step = { bootId: string; step: string; state?: string; label: string; artefact?: string };
 type Ready = { bootId: string; taskIds?: string[]; ms?: number };
 type Failed = { bootId: string; step?: string; message?: string };
@@ -105,7 +119,8 @@ export const useBoots = create<BootsState>()((set, get) => {
     const before = get().boots[e.bootId];
     // The run streaming in this tab started it: its card goes under that message, and this tab opens the Studio.
     const mine = !!(e.initiator?.kind === "agent" && e.initiator.runId && useAgent.getState().attachBoot(e.initiator.runId, e.bootId));
-    put(e.bootId, projectId, (b) => ({ ...b, taskIds: e.taskIds ?? b.taskIds, preset: e.preset ?? b.preset, initiator: e.initiator ?? b.initiator, own: b.own || mine }));
+    const dropped = droppedHere(e.initiator?.dropId);
+    put(e.bootId, projectId, (b) => ({ ...b, taskIds: e.taskIds ?? b.taskIds, preset: e.preset ?? b.preset, initiator: e.initiator ?? b.initiator, own: b.own || mine || dropped }));
     const b = get().boots[e.bootId];
     if (b.own && !before?.taskIds.length) navigateTo(b);
   });

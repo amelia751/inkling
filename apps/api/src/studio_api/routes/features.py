@@ -2,6 +2,7 @@
 
     GET  /api/v1/features            → {chatDrops, autoApply, fastPath, datasetsTab} (no auth: flags aren't secret)
     POST /api/v1/telemetry/timeline  {dropId?, origin, steps: {step: ms}, outcome?} → 204
+                                     (404 while every todo13 flag is off, §6 J12)
 
 The timeline carries durations only: step names from a fixed shape and milliseconds since the
 first gesture. No file names, no paths, no counts of anything content-derived. The api logs one
@@ -60,7 +61,7 @@ def _validate(body: dict) -> dict:
     return {"dropId": drop_id, "origin": origin, "outcome": outcome, "steps": clean}
 
 
-@router.post("/telemetry/timeline", status_code=204)
+@router.post("/telemetry/timeline", status_code=204, dependencies=[Depends(features.require_any())])
 def post_timeline(body: dict = Body(...), ctx: RequestContext = Depends(get_context)):
     t = _validate(body)
     steps = t["steps"]

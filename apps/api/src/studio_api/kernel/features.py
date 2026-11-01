@@ -45,3 +45,18 @@ def require(flag: Flag):
             raise HTTPException(404, "Not Found")
 
     return dep
+
+
+def require_any(*flags: Flag):
+    """404 unless at least one of `flags` is on: for todo13 routes several features share
+    (collections, structure), so with every flag off none of them answers (§6 J12)."""
+    for f in flags:
+        if f not in FLAGS:
+            raise ValueError(f"unknown feature flag {f!r}")
+    names = flags or tuple(FLAGS)  # type: ignore[assignment]
+
+    def dep() -> None:
+        if not any(enabled(f) for f in names):
+            raise HTTPException(404, "Not Found")
+
+    return dep

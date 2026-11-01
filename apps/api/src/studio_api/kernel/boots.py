@@ -24,6 +24,9 @@ from ..context import RequestContext
 from ..models import Boot, DatasetRow, ProjectRow, SourceNode, TaskRow, WorkspaceEnvironment, now
 from . import audit, environment_policy, events, projects, studio_defs, tree
 
+# A drop id (kernel/drops.py ID_RE, plus unpack and follow-up suffixes).
+DROP_RE = re.compile(r"^drp[-_][A-Za-z0-9_-]{1,80}$")
+
 BOOT_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 MAX_NODES = 10_000
 
@@ -135,6 +138,10 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
     initiator = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
+    # todo13 fast path: the drop that booted it, so the tab that dropped opens the Studio (§3.2).
+    drop_id = body.get("dropId")
+    if isinstance(drop_id, str) and DROP_RE.fullmatch(drop_id):
+        initiator["dropId"] = drop_id
     b = Boot(id=boot_id, project_id=p.id, preset=preset, state="running", task_ids=[], steps=[], initiator=initiator, principal=ctx.principal, on_behalf_of=projects.person(ctx), request_hash=rh)
     db.add(b)
 

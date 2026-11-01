@@ -6,6 +6,9 @@ probes, builds, job summaries, filtered annotations), environment and plugin con
 routes, and project reads that never return item bytes or free text from files. Everything
 else (asset bytes, signed URLs, the raw annotation document, raw job results, file downloads)
 answers 403. Adding a route here means updating the list in docs/deployment-gcp.md.
+
+Every JSON answer an agent gets carries screened file and folder names only (todo13 D13): the
+app's `agent_names` middleware runs it through `kernel/agent_view.py`.
 """
 
 from __future__ import annotations
@@ -97,6 +100,8 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/source-nodes/{{node_id}}/activity"),  # agent view: no original names
         ("GET", f"{P}/proposals/{{proposal_id}}"),
         ("POST", f"{P}/proposals/{{proposal_id}}/confirm"),  # the kernel refuses agents (403) itself
+        # Drops (todo13 D3): the agent's view is a DropSummary (ids, screened names, kinds, facts)
+        ("GET", f"{P}/drops/{{drop_id}}"),
     }
 )
 

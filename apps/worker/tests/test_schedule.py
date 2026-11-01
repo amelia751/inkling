@@ -12,6 +12,8 @@ def test_asks_once_per_interval_and_reports_what_ran():
     answers = iter([{"ran": True, "result": {"purged": 3}}, {"ran": False}])
 
     def handler(request: httpx.Request) -> httpx.Response:
+        if not request.url.path.endswith("files.empty_trash"):
+            return httpx.Response(200, json={"ran": False})
         calls.append(request.url.path)
         return httpx.Response(200, json=next(answers))
 
@@ -27,3 +29,19 @@ def test_asks_once_per_interval_and_reports_what_ran():
 def test_an_older_kernel_without_the_route_is_ignored():
     s = Scheduled(httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404)), base_url="http://kernel"))
     assert s.tick() == []
+
+
+def test_name_screening_backfill_is_asked_every_minute():
+    """todo13 D13: `files.screen_names` runs a slice of the backfill about once a minute."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path.rsplit("/", 1)[-1])
+        return httpx.Response(200, json={"ran": request.url.path.endswith("files.screen_names")})
+
+    now = [0.0]
+    s = Scheduled(httpx.Client(transport=httpx.MockTransport(handler), base_url="http://kernel"), interval_s=3600, clock=lambda: now[0])
+    assert s.tick() == ["files.screen_names"]
+    now[0] = 61
+    assert s.tick() == ["files.screen_names"]
+    assert calls == ["files.empty_trash", "files.screen_names", "files.screen_names"]

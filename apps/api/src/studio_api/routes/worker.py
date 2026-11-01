@@ -273,6 +273,18 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
     return {"ran": True, "period": period, "result": result}
 
 
+@router.post("/scheduled/files.screen_names", dependencies=[Depends(_auth)])
+def screen_names_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    """todo13 D13: the name-screening backfill, a slice at a time (every worker asks about once a
+    minute; each call works at most `budgetS` seconds, paced by API_NAME_SCREEN_QPS). Resumable:
+    it always takes what is still unscreened. Concurrent calls only share the work."""
+    from ..kernel import name_screen
+
+    budget = body.get("budgetS")
+    result = name_screen.backfill(db, max_batches=None, budget_s=float(budget) if isinstance(budget, (int, float)) and budget > 0 else 20.0)
+    return {"ran": result["screened"] > 0, "result": result}
+
+
 # ---- Data-boundary jobs (todo10 Phase 7) ------------------------------------------------------
 # The worker reads a boundary job's sample (fingerprint, verify, probe only) or the agent's source
 # (verify, build), uploads fixtures or our rebuilt bundle, and reports a fixed-schema result that

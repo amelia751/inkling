@@ -278,6 +278,8 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "lastActivityAt": iso(last_activity(db, p)),
         "resume": resume_dict(db, _resume_row(db, p.id, person(ctx))),
         "attested": db.scalar(select(ImportSession.id).where(ImportSession.project_id == p.id, ImportSession.attested_by == person(ctx)).limit(1)) is not None,
+        # todo13 D14: viewers can't drop; the composer reads this to disable attach.
+        "role": role_in(db, p.org_id, person(ctx)) if person(ctx).startswith("user:") else None,
     }
     if p.seed and (raw := seed_entry(p.id)):
         out["license"] = raw.get("license")
@@ -479,7 +481,16 @@ def describe_node(db: Session, n: SourceNode, ctx: RequestContext | None = None)
         "addedBy": (session.created_by if session else src.created_by if src else None),
         "addedAt": iso(n.created_at),
         "sha256": n.sha256,
+        "sourceKind": src.kind if src else None,
     }
+    if session is not None and session.drop_id:
+        # todo13 D4: "Shared in chat · <conversation> · <date>".
+        from ..models import Drop
+
+        d = db.get(Drop, session.drop_id)
+        if d is not None:
+            folder = db.get(SourceNode, d.folder_node_id) if d.folder_node_id else None
+            out["provenance"]["drop"] = {"dropId": d.id, "origin": d.origin, "conversationId": d.conversation_id, "conversationTitle": (d.declared or {}).get("conversationTitle") or (folder.name if folder else None), "conversationDeleted": bool((d.declared or {}).get("conversationDeleted")), "sharedAt": iso(d.created_at), "removedFromChat": n.id in (d.removed or [])}
     if n.trashed_at is not None:
         parent_ok = len(chain.ids) >= 2 and not any(t is not None for t in chain.trashed[:-1])
         out["trash"] = {"trashedAt": iso(n.trashed_at), "trashedBy": n.trashed_by or "", "originalParentId": n.parent_id, "originalLocation": (chain.folder or tree.ROOT_NAME) if parent_ok else None}

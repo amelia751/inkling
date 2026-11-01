@@ -1,4 +1,5 @@
-"""Periodic kernel work the worker triggers (todo7 Phase 4): `files.empty_trash`.
+"""Periodic kernel work the worker triggers (todo7 Phase 4): `files.empty_trash`, and
+(todo13 D13) `files.screen_names`, the name-screening backfill, about once a minute.
 
 Every worker asks the kernel at most once an hour; the kernel runs the job at most once a day
 across every worker and replica (a `scheduled_runs` row per day), purging what has been in the
@@ -15,7 +16,9 @@ import httpx
 
 log = logging.getLogger("studio_worker.schedule")
 
-JOBS = ("files.empty_trash",)
+JOBS = ("files.empty_trash", "files.screen_names")
+# Seconds between asks per job (default: the scheduler's interval).
+INTERVALS = {"files.screen_names": 60.0}
 
 
 class Scheduled:
@@ -32,7 +35,7 @@ class Scheduled:
         for job in JOBS:
             if now < self._next.get(job, 0.0):
                 continue
-            self._next[job] = now + self.interval_s
+            self._next[job] = now + min(self.interval_s, INTERVALS.get(job, self.interval_s))
             r = self.http.post(f"/api/v1/worker/scheduled/{job}", json={})
             if r.status_code == 404:
                 continue  # an older kernel without the job

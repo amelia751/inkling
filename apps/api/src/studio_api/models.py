@@ -603,6 +603,11 @@ class SourceNode(Base):
     trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     import_session_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # Name screening (todo13 D3, D13; kernel/name_screen.py): the name an agent sees. None until
+    # the current name was screened (agents then see `file-<n>.<ext>`); a flagged name becomes
+    # `<kind>-<nnnn>.<ext>`, a clean one is the name itself. Reset by every rename.
+    agent_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    name_flagged: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
 # Names are unique per folder, case-insensitively, among nodes not in Trash (D10).
@@ -722,6 +727,34 @@ class ImportSession(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # todo13: the drop (one gesture) this session belongs to, if any.
+    drop_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+
+
+class Drop(Base):
+    """One drop gesture (todo13 §5 "Drop"): files dropped, pasted or attached in a chat, on Home,
+    in Files or on a Studio canvas. Its import sessions carry `drop_id`; chat drops land in
+    `Shared in chat/<conversation>` (`folder_node_id`). `removed` lists the node ids taken out of
+    the chat (the reference only: the Files stay, D4)."""
+
+    __tablename__ = "drops"
+    __table_args__ = (Index("ix_drops_conversation", "project_id", "conversation_id"), Index("ix_drops_rate", "created_by", "created_at"))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    origin: Mapped[str] = mapped_column(String(16))  # chat | files | studio | home
+    conversation_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    dataset_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    folder_node_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # uploading | inspecting | classified | planned | applied | failed
+    state: Mapped[str] = mapped_column(String(16), default="uploading")
+    # What the browser announced (files, bytes) before hashing, for the card and the limits.
+    declared: Mapped[dict] = mapped_column(JSON, default=dict)
+    removed: Mapped[list] = mapped_column(JSON, default=list)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class UploadFile(Base):

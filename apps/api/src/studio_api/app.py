@@ -14,7 +14,7 @@ from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
 from .kernel import service_scope
-from .routes import boots, boundary, environments, explore, files, kernel, ops, pipelines, plugins, projects, service, sources, versioning, worker
+from .routes import boots, boundary, drops, environments, explore, files, kernel, ops, pipelines, plugins, projects, service, sources, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -88,6 +88,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(boundary.router)
     app.include_router(service.router)
     app.include_router(pipelines.router)
+    app.include_router(drops.router)
 
     @app.get("/api/v1/health")
     def health():
@@ -104,6 +105,28 @@ def create_app(*, init_db: bool = True) -> FastAPI:
         if cid is not None:
             resp.headers["X-Correlation-Id"] = cid.correlation_id
         return resp
+
+    @app.middleware("http")
+    async def agent_names(request: Request, call_next):
+        """todo13 D13: an agent principal reads screened names only (kernel/agent_view.py)."""
+        resp = await call_next(request)
+        ctx = getattr(request.state, "ctx", None)
+        if ctx is None or not ctx.principal.startswith("agent:") or not resp.headers.get("content-type", "").startswith("application/json"):
+            return resp
+        from starlette.responses import Response
+
+        from .kernel import agent_view
+
+        body = b"".join([chunk async for chunk in resp.body_iterator])  # type: ignore[attr-defined]
+        route = request.scope.get("route")
+        try:
+            with session_scope() as db:
+                body = agent_view.scrub_json_bytes(db, ctx.workspace_id, body, route_path=getattr(route, "path", None))
+        except Exception:  # noqa: BLE001 — fail closed: an agent never gets an unscreened body
+            log.exception("agent name screening failed")
+            return JSONResponse({"detail": "this response couldn't be screened for the agent"}, status_code=503)
+        headers = {k: v for k, v in resp.headers.items() if k.lower() not in ("content-length",)}
+        return Response(body, status_code=resp.status_code, headers=headers, media_type="application/json")
 
     # Outermost: request id (X-Request-Id, or the older X-Correlation-Id) and traceparent for
     # everything below, JSON access log without the probes.

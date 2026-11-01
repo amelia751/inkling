@@ -11,8 +11,7 @@ making complicated data feel simple.
 
 - **Milestone 1: done and merged** (cold image-2d first frame is still over budget; see the M1 notes).
 - **Milestone 2** starts after Milestone 1's measurements land. **Server side (`todo11-boot`) done
-  early, in parallel, and merged** (it touches nothing in Milestone 1's files; the D4 guardrails item
-  is still open). Its client side (`todo11-live`) has not started. See the ✅ notes in Milestone 2.
+  early, in parallel, and merged** (it touches nothing in Milestone 1's files); the D4 guardrails are merged too. Its client side (`todo11-live`) has not started. See the ✅ notes in Milestone 2.
 - **Milestone 3** follows.
 - **Milestone 4** (external agents) is deliberately later and only outlined.
 
@@ -390,8 +389,15 @@ A user can create a Studio from chat without opening the Studio first.
      - `fixtures/cases.json` has 28 cases; the bundled presets validate.
    - ⏳ **Not yet:**
      - Moving the resolver itself (`extends` merge, overrides) into the package.
-     - Switching `apps/web` and the Vite seed server (`dev/seed-server.ts`) over to it. Both are
-       under `apps/web`, next to Milestone 1's files, so they wait for `todo11-shell` to merge.
+     - Switching `apps/web` itself (the extension host) over to it.
+   - ✅ **Vite seed server switched (`todo11-protocol`).** `dev/seed-server.ts` and
+     `server-entry.ts` now behave like the API:
+     - `checkWrite` runs first, then the resolver on top;
+     - `revision` is required (422 missing, 409 stale);
+     - errors use the API's shape;
+     - PATCH is plain RFC 6902, as in the API.
+
+     The dev server has no tokens, so the agent-scope 403 never applies there.
      - `boundaries` already allows extension-host and shell to import it.
 2. **API enforcement (D2):**
    - required `revision` on writes, 409 on stale;
@@ -498,7 +504,18 @@ A user can create a Studio from chat without opening the Studio first.
        globs `registry/presets/*.json` as presets.
      - **Env vars:** `INKLING_AGENT_CATALOG_FILE` and `INKLING_AGENT_INTENTS_FILE`.
      - **Dockerfile:** it now copies `registry/intents.json`.
-     - ⏳ **D4 guardrails** (added on `main` after this work started): not done yet.
+     - ✅ **D4 guardrails, done (`todo11-protocol`, merged).**
+       - **Mapping table:** `packages/agent-protocol/src/ag-ui-map.ts` (`AG_UI_MAP`) is checked
+         with `satisfies`, so an unmapped event fails `tsc`.
+       - **Schema test:** the AG-UI 1.0 schema is vendored as
+         `fixtures/ag-ui-1.0.schema.json`; it matches `@ag-ui/core@1.0.3`. 6 tests.
+       - **Streamed args:** `boot_studio` arguments stream as `tool-call-start`,
+         `tool-call-args` (raw JSON string fragments) and `tool-call-end`, from pi's
+         `toolcall_*` events. A provider that puts the args inside the start event gets no
+         fragments.
+       - **Custom envelope:** `custom {name, value}`.
+       - **Rule 3:** `apps/web/src/run-events.test.ts` checks that only `stores/agent.ts` and
+         `lib/agent/client.ts` touch run events, and that every protocol import is `import type`.
 
 **Client (`todo11-live`):**
 
@@ -629,7 +646,7 @@ Write a todo12 for this when it starts.
 | Branch | Milestone | Owns | Must not touch |
 |---|---|---|---|
 | `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
-| `todo11-boot` ✅ (merged; D4 guardrails pending) | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
+| `todo11-boot` ✅ (merged, D4 guardrails included) | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
 | `todo11-live` | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
 | `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 

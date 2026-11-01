@@ -159,30 +159,40 @@ agent.
    - `spurby-phi` only: CMEK required for Cloud Storage and Cloud SQL, public access prevention, no
      external IPs on VMs (GKE nodes). `spurby-data` keeps these off so it can serve public data.
 3. [~] VPC Service Controls perimeter around `spurby-phi` (`perimeter.tf`), in **dry-run**. No
-   Google-API ingress for `spurby-ai` (the agent uses our API over HTTPS). Written, not applied: an
-   ingress rule for operators (`admin_identities`, the deploy identity first, so Terraform's state
-   and kubectl still work once enforced) and the one-way release egress rule to `spurby-data`
-   (`release_egress`). Watch dry-run violations (`python3 tests/gcp/perimeter_test.py --expect
-   dry-run --check-log`), then enforce before customer data and rerun it with `--expect enforced`.
-4. [ ] State bucket key (todo12 A1): `gs://spurby-phi-tfstate` gets a default CMEK key from a
-   small hand-made key ring `tfstate` in location `us` (the phi stack's ring is regional and
-   doesn't exist before its first apply). Commands: todo12 A1. Until then every stack's
-   `terraform init` fails writing its lock (`412 … CMEK is required`).
-5. [~] Infrastructure inside each project, written and planned, not applied: one Terraform stack
-   per project (`infra/terraform/{phi,ai,data}`, each with a README), and the Kubernetes overlays
-   `infra/k8s/overlays/gke/{phi,ai}`. Apply order: `phi`, `data`, `ai` (todo12 A3).
-6. [ ] Cluster add-ons (ingress-nginx, cert-manager, External Secrets, KEDA; mirrored images),
-   namespace `studio`, ConfigMap `redis-ca` (`infra/k8s/overlays/gke/README.md`).
-7. [ ] Databases: set the `postgres` password, fill `db-bootstrap-secrets` and run the suspended
-   `db-bootstrap` Job (roles `api_app` and `pipeline_app` with their connection limits, schema
-   `pipeline`, owner of `pipeline_engine`; `infra/k8s/base/jobs/db-bootstrap.sql`), then
-   versioning's `migrate bootstrap`. Then fill the `<app>-secrets` in Secret Manager
-   (`pipeline-secrets` and `pipeline-versioning-jwt` from pipeline Milestone 1).
-8. [ ] Images: CI through Workload Identity Federation (`ci.tf`; plus a perimeter ingress rule for
-   `ci-images`), or a person under impersonation; digests into the overlays.
-9. [ ] Render with real values (`infra/k8s/overlays/gke/live/{phi,ai}`, from git-ignored
-   `local.env` files filled from `terraform output`), validate, apply; DNS.
-10. [ ] Smoke test on synthetic data, then enforce the perimeter (step 3) before any customer data.
+   Google-API ingress for `spurby-ai` (the agent uses our API over HTTPS). Applied: the operator
+   ingress rule for the deploy identity. Not yet: the one-way release egress rule to `spurby-data`
+   (`release_egress`). `python3 tests/gcp/perimeter_test.py --expect dry-run --check-log` passes
+   (2026-11-01: every probe from `spurby-ai` logged as a would-be refusal). Three groups of
+   dry-run violations must be fixed before enforcing, or enforcement breaks them:
+   - `ci-images` pushing to Artifact Registry from GitHub (needs an ingress rule for that identity);
+   - `gke-nodes` pulling images with no caller network (most likely Autopilot's image streaming;
+     confirm with the troubleshooting token in the log entry, then add the rule it needs);
+   - the operators' own kubectl and gcloud calls (`admin_identities` must list the people, not
+     only the deploy identity).
+   Then watch a week of dry-run, enforce, and rerun the test with `--expect enforced`.
+4. [x] State bucket key (todo12 A1): `gs://spurby-phi-tfstate` has a default CMEK key from key
+   ring `tfstate` in location `us`.
+5. [x] Infrastructure: `infra/terraform/{phi,data,ai}` applied (2026-11-01), in that order.
+6. [x] Cluster add-ons on both clusters (ingress-nginx, cert-manager with leader election in its
+   own namespace, External Secrets; KEDA on phi; images mirrored to phi's registry), namespace
+   `studio`, ConfigMap `redis-ca`. Not yet: the agent-sandbox controller on ai (the agent uses
+   Daytona until the GKE Sandbox provider lands), so `SandboxTemplate` and `SandboxWarmPool` are
+   left out of the ai apply.
+7. [x] Databases and secrets: `postgres` password set, every `<app>-secrets` filled in Secret
+   Manager (never in files), `db-bootstrap` run (it also creates the versioning roles and schema),
+   all migrate Jobs complete. Disable the `db-bootstrap-secrets` version once nothing reruns it.
+8. [~] Images: CI pushes to phi's registry by digest. The agent image is still built by hand and
+   pushed to `spurby-ai`'s registry (CI has no federation there yet).
+9. [x] Rendered from `live/{phi,ai}`, validated (kubeconform), applied. Hosts are sslip.io names
+   on the two ingress addresses until real DNS exists. The Studio host admits only
+   `STUDIO_ALLOW_CIDRS`: people don't sign in yet and the api trusts dev headers.
+10. [~] Smoke test (2026-11-01): every service's `/healthz`, `/readyz` and `/version` pass; web →
+    agent → api works across the projects; outside callers get 403 on both agent hosts; a
+    synthetic upload lands in Cloud Storage. **Blocked:** the worker (GKE Sandbox) can't get a
+    node, because the regional SSD quota (250 GB, Autopilot boot disks of 100 GB each) is used up
+    and automatic increases were denied. A person must request the increase in the console
+    (IAM & Admin → Quotas, `SSD_TOTAL_GB` in us-central1, 500 GB). Until then imports stop at
+    `inspecting`.
 
 Steps 1–3 come before any customer data arrives; the pipeline's Milestone 3 (Pub/Sub,
 `pipeline_connectors_enabled`) and Milestone 4 (GPU, `gpu_workers_enabled` and the L4 quota) each
@@ -195,7 +205,7 @@ switch on only when that milestone ships.
   `org`) until it has a default KMS key. Give it one, in location `us` (the bucket's), by hand,
   before any Terraform apply: key ring `tfstate`, key `state` (90-day rotation), the Cloud Storage
   service agent as its encrypter/decrypter, then `gcloud storage buckets update
-  gs://spurby-phi-tfstate --default-encryption-key=…` (setup order step 4). Not done yet.
+  gs://spurby-phi-tfstate --default-encryption-key=…` (setup order step 4). Done 2026-11-01.
 - `spurby-ai` is outside the organization, so the deploy identity needs a role there, granted by
   the project's owner (`infra/terraform/ai/README.md`).
 

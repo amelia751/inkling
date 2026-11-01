@@ -15,13 +15,16 @@ the pipeline design. This plan joins them into one experience.
 drops e2e passes 27/27 on a full local stack; the dev rollout runs on a local kind cluster with
 all four flags on. Still open, all needing a person:
 
-- **Google Cloud rollout** (`docs/deployment-gcp.md`, "Rolling out drops"): blocked on todo12
-  Part A, since the phi stack isn't created yet; then staging and prod per the runbook.
+- **Google Cloud rollout** (`docs/deployment-gcp.md`, "Rolling out drops"): the stack is deployed
+  (2026-11-01) with migrations 0011 and 0012 applied on a fresh database, so there is nothing to
+  backfill yet. All four flags are still off: drops need the worker, which waits for the SSD
+  quota increase (todo12 A8). Then turn the flags on one per day, in the runbook's order.
 - **Screening cost per 10,000 names**: measured during the prod backfill (runbook, prod step 3).
   Estimate until then: 10,000 names of about 40 bytes is about 0.4 MB inspected, inside the
   monthly free tier and a fraction of a cent above it.
-- **Real-model timing** (§6, J1 and J2, three runs each): needs model access (Vertex AI in
-  `spurby-ai`, or a dev key in `secrets/agent.env`).
+- **Real-model timing** (§6, J1 and J2, three runs each): the deployed agent is configured for
+  Gemini on Vertex AI in `spurby-ai` (`/api/agent/status`); run once the worker is up, since J1
+  starts with a drop.
 
 Design inputs: `docs/pipeline.md`, `docs/datasets.md` (Datasets UI spec), `docs/ux.md`.
 

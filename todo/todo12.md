@@ -11,8 +11,11 @@
 Part B's Milestone 0 runs locally and doesn't wait for Part A. Milestone 1 ships to Google Cloud on
 top of Part A.
 
-**Status (2026-11-01).** Plan written; nothing started. The design is `docs/pipeline.md` (merged
-ebf7ed5). Only the org layer is applied on Google Cloud.
+**Status (2026-11-01, night).** Part B Milestones 0–1 merged. Part A: A0–A7 done (all three
+stacks applied, add-ons, secrets, db-bootstrap, both overlays applied with sslip.io hosts); A8
+passes except the worker, which waits for an SSD quota increase only a person can request; A9
+(enforcement) waits for the dry-run findings and a week of logs. Where each step stands:
+`docs/deployment-gcp.md`, "Setup order".
 
 **Naming.** The product name appears only in `packages/contracts/src/naming.ts`. This file never
 uses it. Env vars are written **without their prefix**: `PIPELINE_DATABASE_URL` means

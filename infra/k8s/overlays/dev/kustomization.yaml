@@ -20,6 +20,8 @@ images:
     newTag: dev
   - name: studio-versioning
     newTag: dev
+  - name: studio-pipeline
+    newTag: dev
 
 # DEV-ONLY PLACEHOLDERS, NOT SECRETS. Every value below is a fixed local-cluster credential
 # (`dev-only-…`) for the in-cluster deps. Staging/prod create `<app>-secrets` out of band
@@ -42,6 +44,7 @@ secretGenerator:
       - INKLING_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@postgres:5432/studio
       - INKLING_API_SECRET_KEY=dev-only-api-secret-key-not-for-production-0000
       - INKLING_API_WORKER_TOKEN=dev-only-worker-token
+      - INKLING_API_PIPELINE_TOKEN=dev-only-pipeline-token
       - AWS_ACCESS_KEY_ID=dev-only-s3-access
       - AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
   - name: worker-secrets
@@ -62,10 +65,21 @@ secretGenerator:
       - INKLING_VERSIONING_ADMIN_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/studio?sslmode=disable
       - INKLING_VERSIONING_OWNER_PASSWORD=dev-only-owner-pw
       - INKLING_VERSIONING_APP_PASSWORD=dev-only-app-pw
+  - name: pipeline-secrets
+    literals:
+      - INKLING_PIPELINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/studio?sslmode=disable&search_path=pipeline
+      - INKLING_PIPELINE_ENGINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/pipeline_engine?sslmode=disable
+      - INKLING_PIPELINE_API_TOKEN=dev-only-pipeline-token
+  # Read by the db-bootstrap Job's psql (not an app setting, so no env prefix).
+  - name: db-bootstrap-secrets
+    literals:
+      - ADMIN_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/postgres?sslmode=disable
+      - API_APP_PASSWORD=dev-only-api-app-pw
+      - PIPELINE_APP_PASSWORD=dev-only-pipeline-pw
 
-# The api → versioning JWT key pair (Secret `api-versioning-jwt`, ConfigMap `versioning-jwks`)
-# isn't generated here, so no private key is ever committed: `pnpm k8s:dev-keys` creates both
-# in the namespace (once; pods wait for them).
+# The service-JWT key pairs (Secrets `api-versioning-jwt` and `pipeline-versioning-jwt`,
+# ConfigMaps `versioning-jwks` and `api-jwks`) aren't generated here, so no private key is ever
+# committed: `pnpm k8s:dev-keys` creates them in the namespace (once; pods wait for them).
 
 patches:
   # One replica each: drop the HPAs (Deployments without `replicas` then run one).
@@ -84,6 +98,29 @@ patches:
       - op: replace
         path: /spec/replicas
         value: 1
+  # The dev Postgres has no DBA: run db-bootstrap (api_app, pipeline_app, schema `pipeline`) on
+  # apply. pipeline-migrate retries until it has finished.
+  - target:
+      kind: Job
+      name: db-bootstrap
+    patch: |-
+      - op: replace
+        path: /spec/suspend
+        value: false
+  - target:
+      kind: Job
+      name: pipeline-migrate
+    patch: |-
+      - op: replace
+        path: /spec/backoffLimit
+        value: 8
+  - target:
+      kind: ConfigMap
+      name: pipeline-config
+    patch: |-
+      - op: replace
+        path: /data/INKLING_ENV
+        value: development
   # Worker: at most two, still scaled from zero by KEDA.
   - target:
       kind: ScaledObject

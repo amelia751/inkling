@@ -1,4 +1,4 @@
-# Migration Jobs reach Postgres only; the sweeper reaches the Daytona API (and its store).
+# Migration Jobs and db-bootstrap reach Postgres only; the sweeper reaches the Daytona API (and its store).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -8,7 +8,7 @@ spec:
     matchExpressions:
       - key: app.kubernetes.io/name
         operator: In
-        values: [api-migrate, versioning-migrate, agent-migrate]
+        values: [api-migrate, versioning-migrate, pipeline-migrate, agent-migrate, db-bootstrap]
   policyTypes: [Egress]
   egress:
     - to:

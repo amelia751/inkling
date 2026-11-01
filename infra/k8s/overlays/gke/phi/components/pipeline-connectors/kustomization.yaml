@@ -1,0 +1,41 @@
+# Milestone 3 (todo12 A10; docs/pipeline.md §14): the pipeline consumes Cloud Storage
+# notifications from a Pub/Sub pull subscription and lists connector buckets to reconcile. Turn
+# on only after `terraform apply -var pipeline_connectors_enabled=true` in infra/terraform/phi
+# (service account studio-pipeline, topic, subscription, notifications): add
+# `components/pipeline-connectors` to ../../kustomization.yaml, before `values`.
+#
+# What it changes:
+#   - ServiceAccount pipeline: Workload Identity as studio-pipeline (PIPELINE_SERVICE_ACCOUNT);
+#   - ConfigMap pipeline-connectors-config (PIPELINE_CONNECTOR_SUBSCRIPTION), read by the pod;
+#   - NetworkPolicy google-apis: the pipeline joins api and versioning on
+#     restricted.googleapis.com and the metadata server. Nothing else opens.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - configmap.yaml
+patches:
+  - target:
+      kind: ServiceAccount
+      name: pipeline
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          iam.gke.io/gcp-service-account: PIPELINE_SERVICE_ACCOUNT
+  # Before pipeline-secrets, which stays last so a Secret key still wins.
+  - target:
+      kind: Deployment
+      name: pipeline
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/1
+        value:
+          configMapRef:
+            name: pipeline-connectors-config
+  - target:
+      kind: NetworkPolicy
+      name: google-apis
+    patch: |-
+      - op: add
+        path: /spec/podSelector/matchExpressions/0/values/-
+        value: pipeline

@@ -1,0 +1,3 @@
+# Real environment values (terraform outputs): never committed. Templates: ../phi/local.env.example,
+# ../ai/app/local.env.example.
+*/local.env

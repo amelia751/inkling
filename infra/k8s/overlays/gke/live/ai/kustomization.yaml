@@ -1,0 +1,20 @@
+# gke/ai with this environment's real values (todo12 A7):
+#   cp infra/k8s/overlays/gke/ai/app/local.env.example infra/k8s/overlays/gke/live/ai/local.env
+#   kubectl kustomize infra/k8s/overlays/gke/live/ai > /tmp/ai.yaml
+# local.env is git-ignored; a key missing from it fails the render.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../ai/app
+  - ../../ai/sandboxes
+configMapGenerator:
+  - name: gke-values
+    namespace: studio
+    behavior: replace
+    envs: [local.env]
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        config.kubernetes.io/local-config: "true"
+components:
+  - ../../ai/app/values

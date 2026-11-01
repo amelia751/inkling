@@ -1,0 +1,66 @@
+# The gke/ai/app changes to base, as a Component so they apply before values/ (a
+# kustomization's own patches run after its components and would overwrite replaced values).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+patches:
+  # Only the agent's own Jobs run here.
+  - patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: api-migrate
+  - patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: versioning-migrate
+  - patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: pipeline-migrate
+  - patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: db-bootstrap
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: db-bootstrap
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: db-bootstrap-sql
+  - path: agent-config.yaml
+  - patch: |-
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: agent
+        annotations:
+          iam.gke.io/gcp-service-account: studio-agent@spurby-ai.iam.gserviceaccount.com
+  # The GKE Sandbox provider (D9) drives agent-sandbox through the Kubernetes API with this
+  # service account's token (RBAC: ../sandboxes/rbac.yaml). Daytona doesn't need it.
+  - target:
+      kind: Deployment
+      name: agent
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/automountServiceAccountToken
+        value: true
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: agent
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2

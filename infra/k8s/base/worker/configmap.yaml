@@ -10,6 +10,9 @@ data:
   INKLING_WORKER_ENVS_DIR: /app/.plugin-envs
   INKLING_WORKER_BUILD_ENVS: "0"
   INKLING_WORKER_SHUTDOWN_GRACE_S: "270"
+  # Kernel job classes this Deployment claims (todo12 §6). GPU jobs go to worker-gpu
+  # (overlays/gke/phi/components/gpu-worker, Milestone 4).
+  INKLING_WORKER_RESOURCE_CLASSES: cpu,memory
   # Read by KEDA (ScaledObject addressFromEnv), not by the worker: the Redis holding the job
   # queue, as KEDA's operator (in its own namespace) resolves it. Overlays set the FQDN.
   KEDA_REDIS_ADDRESS: redis:6379

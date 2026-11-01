@@ -1,0 +1,35 @@
+# The worker's policy for worker-gpu: nothing calls it; its only egress is api:8000. And the
+# api admits it (NetworkPolicies add up, so the base api policy stays as is).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-gpu
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: worker-gpu
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-from-worker-gpu
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: worker-gpu
+      ports:
+        - port: 8000

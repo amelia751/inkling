@@ -5,14 +5,22 @@ Google Cloud (todo10 Phase 9, `docs/deployment-gcp.md`). Two clusters, one per p
 
 | Overlay | Cluster | Runs |
 |---|---|---|
-| `phi/` | `studio` in `spurby-phi` (inside the perimeter) | web, api, worker (GKE Sandbox), versioning, their Jobs |
+| `phi/` | `studio` in `spurby-phi` (inside the perimeter) | web, api, worker (GKE Sandbox), versioning, pipeline, their Jobs, db-bootstrap (suspended) |
 | `ai/app/` | `agent` in `spurby-ai` | agent, agent-migrate, agent-sweeper |
 | `ai/sandboxes/` | `agent` in `spurby-ai` | build sandboxes (agent-sandbox on GKE Sandbox), no network at all |
 
 ```sh
-kubectl kustomize infra/k8s/overlays/gke/phi
+kubectl kustomize infra/k8s/overlays/gke/phi        # placeholders: always renders (review, CI)
 kubectl kustomize infra/k8s/overlays/gke/ai
+kubectl kustomize infra/k8s/overlays/gke/live/phi   # real values from live/phi/local.env
+kubectl kustomize infra/k8s/overlays/gke/live/ai    # real values from live/ai/local.env
 ```
+
+Layout of each overlay: `patches/` (a Component with every change to base), `values/` (a
+Component with the replacements from ConfigMap `gke-values`), `local.env.example` (the
+placeholder values `gke-values` is generated from). `live/<overlay>` takes the rendered overlay,
+regenerates `gke-values` from its git-ignored `local.env` and runs `values/` again, which
+overwrites every placeholder. A key missing from `local.env` fails the render.
 
 ## How the two talk
 
@@ -30,17 +38,33 @@ Over HTTPS between fixed addresses, nothing else:
 Both ingress-nginx controllers need `controller.service.externalTrafficPolicy=Local` (so source
 ranges see client addresses) and `controller.service.loadBalancerIP=<terraform output ingress_ip>`.
 
-## Placeholders to replace from `terraform output`
+## Values from `terraform output`
 
-| Where | Value |
+Not secret, but per environment, so they live in git-ignored files (todo12 A7):
+
+```sh
+cp infra/k8s/overlays/gke/phi/local.env.example    infra/k8s/overlays/gke/live/phi/local.env
+cp infra/k8s/overlays/gke/ai/app/local.env.example infra/k8s/overlays/gke/live/ai/local.env
+for s in phi data ai; do terraform -chdir=infra/terraform/$s output -json > /tmp/tf-$s.json; done
+# fill each local.env (every key's comment names its output), then render live/phi and live/ai
+```
+
+| File | Keys |
 |---|---|
-| `phi/network-config.yaml` | `DATA_SERVICES_CIDR` (phi `data_services_cidr`), `AGENT_EGRESS_CIDR` (ai `nat_egress_ip`/32), `AGENT_INGRESS_CIDR` (ai `ingress_ip`/32) |
-| `phi/endpoints.yaml` | Redis host (phi `redis_host`), bucket names (`buckets`), `INKLING_API_SIGNER_KMS_KEY` (`plugin_signing_key`) |
-| `phi/workload-identity.yaml` | phi `service_accounts` |
-| `ai/app/network-config.yaml` | `DATA_SERVICES_CIDR` (ai), `CONTROL_PLANE_CIDR` (ai `master_ipv4_cidr`), `PHI_EGRESS_CIDR` (phi `nat_egress_ip`/32) |
-| `ai/app/agent-config.yaml` | Redis host (ai `redis_host`) |
-| hosts | `studio.example.com`, `agent-api.example.com` (phi), `agent.example.com` (ai) |
-| images | digests (CI pushes to each project's `images` registry) |
+| `live/phi/local.env` | `DATA_SERVICES_CIDR`, `REDIS_HOST`, `OBJECTS_BUCKET`, `VERSIONING_OBJECTS_BUCKET`, `VERSIONING_MANIFESTS_BUCKET`, `PLUGIN_SIGNING_KEY`, `API_SERVICE_ACCOUNT`, `VERSIONING_SERVICE_ACCOUNT`, `PIPELINE_SERVICE_ACCOUNT` and `PIPELINE_CONNECTOR_SUBSCRIPTION` (Milestone 3) from phi; `AGENT_EGRESS_CIDR`, `AGENT_INGRESS_CIDR` from ai; `STUDIO_HOST`, `AGENT_API_HOST`, `AGENT_URL` |
+| `live/ai/local.env` | `DATA_SERVICES_CIDR`, `CONTROL_PLANE_CIDR`, `REDIS_HOST`, `AGENT_SERVICE_ACCOUNT` from ai; `PHI_EGRESS_CIDR` from phi; `AGENT_HOST`, `AGENT_API_URL` |
+
+Image digests are not in `local.env`: CI pushes to each project's `images` registry and bumps the
+`images:` digests in `phi/kustomization.yaml` and `ai/app/kustomization.yaml` (GitOps). The
+`postgres` image (db-bootstrap) is mirrored by hand, like the add-ons below.
+
+## Pipeline milestones (todo12 A10)
+
+| Milestone | Where | Turn on |
+|---|---|---|
+| 1 | in base: `base/pipeline/`, `base/jobs/pipeline-migrate.yaml`, `components/network-policies/pipeline.yaml`; here: ExternalSecrets `pipeline-secrets`, `pipeline-versioning-jwt` | always on (pods wait for their Secrets) |
+| 3 | `phi/components/pipeline-connectors`: Workload Identity for the pipeline, its Pub/Sub settings, `pipeline` in the `google-apis` policy | apply phi with `pipeline_connectors_enabled=true`, then add the component to `phi/kustomization.yaml` before `values` |
+| 4 | `phi/components/gpu-worker`: `worker-gpu` on L4 + gVisor + Spot, its ScaledObject, PDB and policies | L4 quota granted (`gpu_workers_enabled=true` files the request; a person's step), then add the component |
 
 ## Installed once per cluster (Helm, not in this repo)
 
@@ -55,6 +79,9 @@ ranges see client addresses) and `controller.service.loadBalancerIP=<terraform o
   release you pin.
 - ConfigMap `redis-ca` (key `ca.crt`, from `terraform output -raw redis_ca`) in namespace
   `studio` of each cluster.
+- The service-JWT keys: `node tools/versioning-keys.mjs --gcp-project spurby-phi --namespace
+  studio --context <phi>` (private keys to Secret Manager, ConfigMaps `versioning-jwks` and
+  `api-jwks` to the cluster; `infra/k8s/README.md`).
 
 Images pulled from outside Google (ingress-nginx, cert-manager, ESO, KEDA, agent-sandbox) should
 be mirrored into the project's Artifact Registry; phi nodes otherwise pull through Cloud NAT.

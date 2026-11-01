@@ -1,5 +1,6 @@
-# api: reached by the ingress controller, the agent and the worker; talks to the data
-# services and the versioning service. No internet egress.
+# api: reached by the ingress controller, the agent, the worker and the pipeline; talks to the
+# data services, versioning and the pipeline's private API. No internet egress. Redis is 6379
+# plain or 6378 with TLS (Memorystore's in-transit encryption).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -20,6 +21,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: worker
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipeline
       ports:
         - port: 8000
   egress:
@@ -28,6 +32,7 @@ spec:
             cidr: 10.255.0.0/16 # managed data services (overlay patches this)
       ports:
         - port: 5432
+        - port: 6378
         - port: 6379
         - port: 443
     - to:
@@ -36,3 +41,9 @@ spec:
               app.kubernetes.io/name: versioning
       ports:
         - port: 8090
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: pipeline
+      ports:
+        - port: 8095

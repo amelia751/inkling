@@ -29,6 +29,9 @@ images:
   - name: studio-versioning
     newName: ghcr.io/amelia751/studio-versioning
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  - name: studio-pipeline
+    newName: ghcr.io/amelia751/studio-pipeline
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 patches:
   # Managed endpoints (non-secret parts; credentials and full URLs with passwords go in the
@@ -121,6 +124,10 @@ replacements:
       - select:
           kind: NetworkPolicy
           name: migrations
+        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
+      - select:
+          kind: NetworkPolicy
+          name: pipeline
         fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
       - select:
           kind: NetworkPolicy

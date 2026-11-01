@@ -12,4 +12,5 @@ resources:
   - agent.yaml
   - worker.yaml
   - versioning.yaml
+  - pipeline.yaml
   - jobs.yaml

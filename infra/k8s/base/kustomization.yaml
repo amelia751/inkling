@@ -14,5 +14,6 @@ resources:
   - agent
   - worker
   - versioning
+  - pipeline
   - jobs
   - ingress.yaml

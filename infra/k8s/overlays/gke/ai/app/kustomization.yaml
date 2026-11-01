@@ -1,3 +1,6 @@
+# gke/ai/app: the agent and its Jobs in spurby-ai. Environment-specific values come from
+# ConfigMap gke-values (placeholders from local.env.example here; real ones from
+# ../../live/ai). Changes to base are in patches/, replacements in values/.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: studio
@@ -8,81 +11,20 @@ resources:
   - external-secrets.yaml
   - ingress.yaml
   - network.yaml
-  - network-config.yaml
 
 images:
   - name: studio-agent
     newName: us-central1-docker.pkg.dev/spurby-ai/images/studio-agent
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 
-patches:
-  # Only the agent's own Jobs run here.
-  - patch: |-
-      $patch: delete
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: api-migrate
-  - patch: |-
-      $patch: delete
-      apiVersion: batch/v1
-      kind: Job
-      metadata:
-        name: versioning-migrate
-  - path: agent-config.yaml
-  - patch: |-
-      apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: agent
-        annotations:
-          iam.gke.io/gcp-service-account: studio-agent@spurby-ai.iam.gserviceaccount.com
-  # The GKE Sandbox provider (D9) drives agent-sandbox through the Kubernetes API with this
-  # service account's token (RBAC: ../sandboxes/rbac.yaml). Daytona doesn't need it.
-  - target:
-      kind: Deployment
-      name: agent
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/automountServiceAccountToken
-        value: true
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: agent
-    patch: |-
-      - op: replace
-        path: /spec/minReplicas
-        value: 2
+components:
+  - patches
+  - values   # keep last
 
-replacements:
-  - source:
-      kind: ConfigMap
-      name: network-config
-      fieldPath: data.DATA_SERVICES_CIDR
-    targets:
-      - select:
-          kind: NetworkPolicy
-          name: agent
-        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
-      - select:
-          kind: NetworkPolicy
-          name: agent-jobs
-        fieldPaths: [spec.egress.0.to.0.ipBlock.cidr]
-  - source:
-      kind: ConfigMap
-      name: network-config
-      fieldPath: data.CONTROL_PLANE_CIDR
-    targets:
-      - select:
-          kind: NetworkPolicy
-          name: agent
-        fieldPaths: [spec.egress.1.to.0.ipBlock.cidr]
-  - source:
-      kind: ConfigMap
-      name: network-config
-      fieldPath: data.PHI_EGRESS_CIDR
-    targets:
-      - select:
-          kind: Ingress
-          name: agent
-        fieldPaths: [metadata.annotations.nginx\.ingress\.kubernetes\.io/whitelist-source-range]
+configMapGenerator:
+  - name: gke-values
+    envs: [local.env.example]
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        config.kubernetes.io/local-config: "true"

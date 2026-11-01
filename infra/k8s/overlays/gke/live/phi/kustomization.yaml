@@ -1,0 +1,21 @@
+# gke/phi with this environment's real values (todo12 A7):
+#   cp infra/k8s/overlays/gke/phi/local.env.example infra/k8s/overlays/gke/live/phi/local.env
+#   # fill it from `terraform output` (comments in the file say which output)
+#   kubectl kustomize infra/k8s/overlays/gke/live/phi > /tmp/phi.yaml
+# local.env is git-ignored. Re-running ../../phi/values on the rendered overlay overwrites every
+# placeholder; a key missing from local.env fails the render instead of shipping a placeholder.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../phi
+configMapGenerator:
+  - name: gke-values
+    namespace: studio
+    behavior: replace
+    envs: [local.env]
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        config.kubernetes.io/local-config: "true"
+components:
+  - ../../phi/values

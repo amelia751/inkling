@@ -46,6 +46,14 @@ BAD_TOOLS = textwrap.dedent('''
         def garbage(ctx, req):
             return {"instances": [{"instance_id": "x", "mask": {"encoding": "rle", "size": [2, 2], "counts": [1]}}], "provider": "p", "model": "m"}
 
+        @tools.tool("spawn")
+        def spawn(ctx, req):
+            # A grandchild in the job's process group, then a long wait: cancel must kill both.
+            import os, subprocess
+            child = subprocess.Popen(["sleep", "600"])
+            ctx.jobs.progress(0.1, f"pids:{os.getpid()},{child.pid}")
+            time.sleep(600)
+
         @tools.tool("phone_home")
         def phone_home(ctx, req):
             r = httpx.get(req["url"], timeout=10)
@@ -98,7 +106,7 @@ def stack(tmp_path_factory):
     from .canary import write_canary_samples
 
     canary_assets = write_canary_samples(seed / "bnd")
-    projects = [{"id": w, "title": w, "assets": [{"path": "img/a.png"}]} for w in ("ws", "iso", "egress")]
+    projects = [{"id": w, "title": w, "assets": [{"path": "img/a.png"}]} for w in ("ws", "iso", "egress", "slow")]
     projects.append({"id": "bnd", "title": "bnd", "assets": [{"path": f"bnd/{n}"} for n in canary_assets]})
     (seed / "manifest.json").write_text(json.dumps({"projects": projects}))
     bad = make_bad_plugin(root)
@@ -110,6 +118,8 @@ def stack(tmp_path_factory):
         "permissions": {"required": ["assets.read"], "optional": []},
     }
     (bad / "plugin.yaml").write_text(yaml.safe_dump(bad_manifest))
+    # The same package with a long timeout, for cancel and lease-loss tests (todo12 M0).
+    slow_manifest = {**bad_manifest, "id": "test.slow", "name": "slow", "capabilities": [], "runtime": {**bad_manifest["runtime"], "maxExecutionSeconds": 120}}
     seg_dir = REPO / "plugins" / "segmentation"
     seg_manifest = yaml.safe_load((seg_dir / "plugin.yaml").read_text())
     reg = root / "registry"
@@ -117,6 +127,7 @@ def stack(tmp_path_factory):
     (reg / "index.json").write_text(json.dumps({"plugins": [
         {"id": seg_manifest["id"], "version": seg_manifest["version"], "publisher": "first-party", "trustTier": "first-party", "artifactDigest": tree_digest(seg_dir), "path": str(seg_dir), "manifest": seg_manifest},
         {"id": "test.bad", "version": "1.0.0", "publisher": "acme", "trustTier": "vetted", "artifactDigest": tree_digest(bad), "path": str(bad), "manifest": bad_manifest},
+        {"id": "test.slow", "version": "1.0.0", "publisher": "acme", "trustTier": "vetted", "artifactDigest": tree_digest(bad), "path": str(bad), "manifest": slow_manifest},
     ]}))
     build_key = root / "build-signing.key"
     s = config.load_settings(database_url=f"sqlite:///{root / 'api.db'}", seed_root=seed, data_dir=root / "data", secret_key="worker-test-key", registry_dir=reg, signer_key_file=build_key)

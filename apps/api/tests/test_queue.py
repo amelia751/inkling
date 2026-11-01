@@ -68,7 +68,7 @@ def test_an_expired_lease_is_claimed_again_and_commits_once(registry_client):
     claim2, done = run_worker_once(c, mask_result(), worker="w2")
     assert claim2["job"]["jobId"] == job_id and claim2["job"]["attempts"] == 2 and done["state"] == "succeeded"
     late = c.post(f"/api/v1/worker/jobs/{job_id}/complete", json={"workerId": "dead-worker", "result": mask_result()}, headers=worker_headers())
-    assert late.status_code == 404
+    assert late.status_code == 409  # fenced: the lease moved to attempt 2
     assert len(c.get("/api/annotations/ws-a", headers=ws("ws-a")).json()["annotations"]) == 1
 
 

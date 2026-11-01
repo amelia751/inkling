@@ -225,14 +225,16 @@ def finish(db: Session, job: PluginJob, raw_result: Any, cost_usd: float | None 
         job.state, job.recoverable = "failed", True
         job.error = f"invalid {job.capability or 'tool'} output from {job.plugin_id}: {e}"[:4000]
         audit.record(db, ctx, "jobs.invalid_output", target=job.job_id, after={"error": job.error})
-        events.publish(db, ctx, "job.failed", {"jobId": job.job_id, "pluginId": job.plugin_id}, source=job.plugin_id, idempotency_key=f"job.failed:{job.job_id}")
+        jobs.settle(db, job, "user_code_error")
         return job
     job.state, job.progress, job.result = "succeeded", 1.0, {**result, "annotationIds": ids}
-    if job.plugin_id != BUILTIN:
+    from . import service_jobs
+
+    if job.plugin_id not in (BUILTIN, service_jobs.PLUGIN):
         for p in policy.requested(installer.manifest_of(db, job.plugin_id, job.version))["required"]:
             policy.record_use(db, job.workspace_id, job.plugin_id, job.version, p, job.job_id)
     audit.record(db, ctx, "jobs.succeeded", target=job.job_id, after={"annotationIds": ids, "costUsd": job.cost_usd})
-    events.publish(db, ctx, "job.succeeded", {"jobId": job.job_id, "pluginId": job.plugin_id}, source=job.plugin_id, idempotency_key=f"job.succeeded:{job.job_id}")
+    jobs.settle(db, job)
     if ids:
         events.publish(db, ctx, "annotations.committed", {"jobId": job.job_id, "annotationIds": ids}, source=job.plugin_id, idempotency_key=f"annotations.committed:{job.job_id}")
     return job

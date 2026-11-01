@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import DDL, JSON, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -336,8 +336,40 @@ class PluginJob(Base):
     traceparent: Mapped[str | None] = mapped_column(String(64), nullable=True)
     # The task whose document the job's annotations land in (todo6 D3); None = the workspace's own.
     task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # todo12 §4 M0 item 3: which worker pool may claim it (`cpu`, `memory`, `gpu`).
+    resource_class: Mapped[str] = mapped_column(String(16), default="cpu", server_default="cpu")
+    # Why a failed or cancelled job ended (docs/pipeline.md §12 classes, plus `cancelled`).
+    error_class: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class WorkspaceResourceLimit(Base):
+    """The kernel fairness gate (todo12 E4): at most `max_running` jobs of a resource class run
+    at once for a workspace. Workspace `*` is the default for workspaces without their own
+    row; no row at all means no cap."""
+
+    __tablename__ = "workspace_resource_limits"
+    workspace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    resource_class: Mapped[str] = mapped_column(String(16), primary_key=True)
+    max_running: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class ResourceLease(Base):
+    """A scarce-resource slot (`gpu`, `memory`) held by one attempt of a job: taken in the
+    claim transaction, renewed by the heartbeat, deleted on any terminal state, ignored once
+    expired or once the job moved to another attempt (and then swept)."""
+
+    __tablename__ = "resource_leases"
+    __table_args__ = (Index("ix_resource_leases_slot", "workspace_id", "resource_class", "expires_at"),)
+    job_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String(128))
+    resource_class: Mapped[str] = mapped_column(String(16))
+    worker_id: Mapped[str] = mapped_column(String(128))
+    attempt: Mapped[int] = mapped_column(Integer)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class PluginEvent(Base):
@@ -357,6 +389,16 @@ class PluginEvent(Base):
     delivered: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # The service event feed's order (todo12 §4 M0 item 6). Postgres fills it with the
+    # writing transaction's id (`pg_current_xact_id()`), and the feed only reads rows below
+    # the oldest running transaction, so a slow commit can never be skipped. SQLite (dev,
+    # one writer) leaves it NULL and the feed orders by rowid.
+    feed_seq: Mapped[int | None] = mapped_column(BigInteger, nullable=True, server_default=FetchedValue())
+
+
+Index("ix_plugin_events_feed", PluginEvent.feed_seq, PluginEvent.event_id)
+FEED_SEQ_DEFAULT = "(pg_current_xact_id()::text::bigint)"
+event.listen(PluginEvent.__table__, "after_create", DDL(f"ALTER TABLE plugin_events ALTER COLUMN feed_seq SET DEFAULT {FEED_SEQ_DEFAULT}").execute_if(dialect="postgresql"))
 
 
 class PluginAudit(Base):

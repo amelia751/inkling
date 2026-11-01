@@ -6,14 +6,15 @@ import logging
 import threading
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from studio_observability import RequestContextMiddleware, setup_service
 
 from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
-from .routes import boots, boundary, environments, explore, files, kernel, ops, plugins, projects, sources, versioning, worker
+from .kernel import service_scope
+from .routes import boots, boundary, environments, explore, files, kernel, ops, plugins, projects, service, sources, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -67,7 +68,8 @@ def _seed_projects() -> None:
 
 
 def create_app(*, init_db: bool = True) -> FastAPI:
-    app = FastAPI(title=f"{naming()['displayName']} kernel", version=ops.service_version(), lifespan=lifespan)
+    # A service principal's token reaches only its own routes (kernel/service_scope.py).
+    app = FastAPI(title=f"{naming()['displayName']} kernel", version=ops.service_version(), lifespan=lifespan, dependencies=[Depends(service_scope.guard)])
     if init_db and settings().create_tables:
         create_all()
     if init_db:
@@ -84,6 +86,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(files.router)
     app.include_router(explore.router)
     app.include_router(boundary.router)
+    app.include_router(service.router)
 
     @app.get("/api/v1/health")
     def health():

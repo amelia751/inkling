@@ -12,6 +12,7 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_SHUTDOWN_GRACE_S  | 270                                       | after SIGTERM, how long the current job may keep running before it's handed back |
 | WORKER_POLL_S            | 1.0                                       | idle wait between claims |
 | WORKER_PLUGINS           | (all)                                     | comma-separated plugin ids this worker runs |
+| WORKER_RESOURCE_CLASSES  | cpu,memory                                | job resource classes this worker claims (`cpu`, `memory`, `gpu`): `cpu,memory` for the CPU Deployment, `gpu` for `worker-gpu` |
 | WORKER_ID                | <hostname>-<pid>                          | lease owner name |
 | WORKER_SIGNER            | local                                     | how `build_plugin` signs bundles (todo10 Phase 7): `local` (Ed25519 key file, dev) or `gcpkms` |
 | WORKER_SIGNING_KEY_FILE  | dev: the api's <data dir>/plugin-signing.key | the `local` key; must be the api's `API_SIGNER_KEY_FILE` (the kernel verifies with its own signer) |
@@ -41,6 +42,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 DEV_WORKER_TOKEN = "dev-only-worker-token"
+RESOURCE_CLASSES = ("cpu", "memory", "gpu")
+DEFAULT_RESOURCE_CLASSES = ("cpu", "memory")
 
 
 def _find_repo_root() -> Path:
@@ -111,6 +114,7 @@ class WorkerSettings:
     kms_key: str | None = None
     verify_python: str | None = None
     verify_memory_mb: int = 2048
+    resource_classes: list[str] = field(default_factory=lambda: list(DEFAULT_RESOURCE_CLASSES))
 
 
 def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
@@ -137,6 +141,10 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
     if build not in ("0", "1", "true", "false"):
         invalid.append(key_name("WORKER_BUILD_ENVS"))
     plugins = [p.strip() for p in (env("WORKER_PLUGINS") or "").split(",") if p.strip()] or None
+    classes = [c.strip() for c in (env("WORKER_RESOURCE_CLASSES") or ",".join(DEFAULT_RESOURCE_CLASSES)).split(",") if c.strip()]
+    if not classes or any(c not in RESOURCE_CLASSES for c in classes):
+        invalid.append(key_name("WORKER_RESOURCE_CLASSES"))
+        classes = list(DEFAULT_RESOURCE_CLASSES)
     s = WorkerSettings(
         kernel_url=kernel_url,
         token=token or "",
@@ -154,6 +162,7 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         kms_key=env("WORKER_KMS_KEY"),
         verify_python=env("WORKER_VERIFY_PYTHON"),
         verify_memory_mb=num("WORKER_VERIFY_MEMORY_MB", "2048", int),
+        resource_classes=list(dict.fromkeys(classes)),
     )
     if s.signer not in ("local", "gcpkms"):
         invalid.append(key_name("WORKER_SIGNER"))

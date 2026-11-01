@@ -39,13 +39,25 @@ def _auth(x_worker_token: str = Header(default="")) -> None:
         raise HTTPException(401, "bad worker token")
 
 
+def _attempt(body: dict) -> int | None:
+    """The fencing token: the attempt number the claim returned (`job.attempts`)."""
+    a = body.get("attempt")
+    return a if isinstance(a, int) and not isinstance(a, bool) else None
+
+
 @router.post("/claim", dependencies=[Depends(_auth)])
 def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
-    j = jobs.claim(db, str(body.get("workerId") or "worker"), body.get("plugins"))
+    """`resourceClasses`: the pools this worker runs (default cpu, memory); `heartbeat: true`
+    means it renews the lease through the progress call, so it gets the short lease."""
+    classes = body.get("resourceClasses")
+    j = jobs.claim(db, str(body.get("workerId") or "worker"), body.get("plugins"), [str(c) for c in classes] if isinstance(classes, list) else None, bool(body.get("heartbeat")))
     if j is None:
         return {"job": None}
-    from ..kernel import boundary
+    from ..kernel import boundary, service_jobs
 
+    if j.plugin_id == service_jobs.PLUGIN:
+        # A kernel job a service enqueued (todo12 §5): the worker runs it itself.
+        return {"job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "service"}
     if j.plugin_id == boundary.PLUGIN:
         # A data-boundary job (todo10 Phase 7): the worker runs it itself; no plugin, no session token.
         return {"job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "boundary"}
@@ -74,13 +86,14 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
 
 @router.post("/jobs/{job_id}/progress", dependencies=[Depends(_auth)])
 def progress(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
-    j = jobs.progress(db, job_id, str(body.get("workerId")), float(body.get("progress") or 0), body.get("message"))
-    return {"state": j.state}
+    """The heartbeat. 409 means stop: the lease was lost or the job was cancelled."""
+    j = jobs.progress(db, job_id, str(body.get("workerId")), float(body.get("progress") or 0), body.get("message"), _attempt(body))
+    return {"state": j.state, "leaseUntil": j.lease_until.isoformat() if j.lease_until else None}
 
 
 @router.post("/jobs/{job_id}/complete", dependencies=[Depends(_auth)])
 def complete(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
-    j = jobs._owned(db, job_id, str(body.get("workerId")))
+    j = jobs._owned(db, job_id, str(body.get("workerId")), _attempt(body))
     from ..kernel import boundary
 
     if j.plugin_id == boundary.PLUGIN:
@@ -91,14 +104,14 @@ def complete(job_id: str, body: dict = Body(...), db: Session = Depends(get_sess
 
 @router.post("/jobs/{job_id}/fail", dependencies=[Depends(_auth)])
 def fail(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
-    j = jobs.fail(db, job_id, str(body.get("workerId")), str(body.get("error") or "failed"), bool(body.get("recoverable", True)))
+    j = jobs.fail(db, job_id, str(body.get("workerId")), str(body.get("error") or "failed"), bool(body.get("recoverable", True)), _attempt(body), body.get("errorClass"))
     return jobs.job_dict(j)
 
 
 @router.post("/jobs/{job_id}/release", dependencies=[Depends(_auth)])
 def release(job_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
     """A worker that is shutting down (SIGTERM) hands its job back to the queue."""
-    j = jobs.release(db, job_id, str(body.get("workerId")))
+    j = jobs.release(db, job_id, str(body.get("workerId")), _attempt(body))
     return jobs.job_dict(j)
 
 

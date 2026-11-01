@@ -453,7 +453,7 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
   for air-gapped sites. `zot` starts a local zot registry.
 - **Promotion tiers.** `generated` (the authoring workspace) → `organisation` (every project of
   its organisation) → `curated` (every workspace of the installation), one step at a time.
-  `POST /api/v1/plugins/{id}/promotions` asks (`plugins.manage`; the agent may ask).
+  `POST /api/v1/plugins/{id}/promotions` asks (`plugins.manage`, a person).
   `POST /api/v1/plugins/promotions/{n}/review` decides (`plugins.approve`). The reviewer must be
   neither the requester nor the artifact's author, and the artifact is re-verified at approval.
   Requests and decisions are append-only `plugin_promotions` rows plus audit entries. Only the

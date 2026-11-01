@@ -85,6 +85,10 @@ patches:
         path: /spec/triggers/0/authenticationRef
         value:
           name: worker-queue-redis
+      - op: add
+        path: /spec/triggers/1/authenticationRef
+        value:
+          name: worker-queue-redis
   - target:
       kind: Ingress
       name: studio

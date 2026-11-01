@@ -2,7 +2,7 @@
 # de-identified releases from spurby-phi (docs/deployment-gcp.md). No customer data except what
 # arrives through the release path. Normal controls; no CMEK requirement.
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.9"
   required_providers {
     google = {
       source  = "hashicorp/google"

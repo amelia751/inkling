@@ -6,7 +6,7 @@
 #
 # The deploy identity needs a role on this project first (README.md).
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.9"
   required_providers {
     google = {
       source  = "hashicorp/google"

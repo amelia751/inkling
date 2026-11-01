@@ -1,7 +1,7 @@
 # spurby-phi: everything that touches customer data (docs/deployment-gcp.md). Inside the VPC
 # Service Controls perimeter (infra/terraform/org/perimeter.tf). Plan/apply: README.md.
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.9"
   required_providers {
     google = {
       source  = "hashicorp/google"

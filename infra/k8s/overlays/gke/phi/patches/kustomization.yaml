@@ -51,7 +51,14 @@ patches:
         path: /spec/triggers/0/metadata/enableTLS
         value: "true"
       - op: add
+        path: /spec/triggers/1/metadata/enableTLS
+        value: "true"
+      - op: add
         path: /spec/triggers/0/authenticationRef
+        value:
+          name: worker-queue-redis
+      - op: add
+        path: /spec/triggers/1/authenticationRef
         value:
           name: worker-queue-redis
   # The Studio's host. spurby-ai's egress address is refused here: the agent uses agent-api only.

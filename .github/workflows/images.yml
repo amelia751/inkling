@@ -51,7 +51,7 @@ jobs:
           pkgs=$(pnpm exec turbo ls --filter="...[$base]" --output=json 2>/dev/null | sed -n '/^{/,$p' | jq -r '.packages.items[].name')
           files=$(git diff --name-only "$base" HEAD)
           apps=""
-          for app in web api agent worker versioning mcp; do
+          for app in web api agent worker versioning pipeline mcp; do
             hit=false
             [ "$ALL" = "true" ] && hit=true
             echo "$pkgs" | grep -qx "@studio/$app" && hit=true
@@ -93,10 +93,40 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # Artifact Registry in the phi project, through Workload Identity Federation (no keys).
+      # Off until the repo variables GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_CI_SERVICE_ACCOUNT and
+      # GCP_IMAGES_REGISTRY (us-central1-docker.pkg.dev/<project>/images) are set from the
+      # phi stack's ci_* outputs. The provider admits only this repository's main branch, and
+      # the service account may write to that one repository; the agent image lives in the ai
+      # project, so it stays on ghcr until that project has its own federation.
+      - id: ar
+        env:
+          REGISTRY: ${{ vars.GCP_IMAGES_REGISTRY }}
+          APP: ${{ matrix.app }}
+        run: |
+          if [ -n "$REGISTRY" ] && [ "$APP" != "agent" ]; then
+            echo "image=$REGISTRY/studio-$APP" >> "$GITHUB_OUTPUT"
+            echo "host=${REGISTRY%%/*}" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.ar.outputs.image != ''
+        id: gcp
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+          token_format: access_token
+      - if: steps.ar.outputs.image != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.ar.outputs.host }}
+          username: oauth2accesstoken
+          password: ${{ steps.gcp.outputs.access_token }}
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/studio-${{ matrix.app }}
+          images: |
+            ghcr.io/${{ github.repository_owner }}/studio-${{ matrix.app }}
+            ${{ steps.ar.outputs.image }}
           tags: |
             type=sha,prefix=sha-,format=short
       - id: push

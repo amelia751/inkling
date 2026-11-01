@@ -20,3 +20,11 @@ spec:
         listName: inkling:jobs:ready
         listLength: "5"
         activationListLength: "0"
+    # Memory-class jobs (WORKER_RESOURCE_CLASSES=cpu,memory) have their own ready list.
+    - type: redis
+      metadata:
+        addressFromEnv: KEDA_REDIS_ADDRESS
+        databaseIndex: "0"
+        listName: inkling:jobs:ready:memory
+        listLength: "5"
+        activationListLength: "0"

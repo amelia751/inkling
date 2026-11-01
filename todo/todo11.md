@@ -12,7 +12,7 @@ making complicated data feel simple.
 - **Milestone 1: done and merged** (cold image-2d first frame is still over budget; see the M1 notes).
 - **Milestone 2** starts after Milestone 1's measurements land. **Server side (`todo11-boot`) done
   early, in parallel, and merged** (it touches nothing in Milestone 1's files); the D4 guardrails are merged too. Its client side (`todo11-live`) is done and merged too. See the ✅ notes in Milestone 2.
-- **Milestone 3** follows.
+- **Milestone 3** follows. **Slice A (images) is done and merged** (collections are still open); Slices B–D haven't started.
 - **Milestone 4** (external agents) is deliberately later and only outlined.
 
 Decisions are settled in §2 (approved, modified, simplified or deferred). Agents: start at "Start here
@@ -641,6 +641,45 @@ Time to first useful interaction matters here. Completing the whole ingest does 
    - one engine instance across 20 switches;
    - background completion time recorded, not gated.
 
+6. ✅ **Slice A done (`todo11-ingest`, merged), except item 4 (collections).**
+   - **Item 1, item lifecycle:**
+     - `POST /projects/:id/imports` with a `taskId` registers every image as an item before any
+       bytes are sent.
+     - Upload completion sets an item to `uploaded`. The worker's items processor then emits
+       `probed`, `thumb_ready` (ThumbHash and a 256 px WebP), `preview_ready` (about 1600 px) and
+       `ready`, or `failed`.
+     - The processor claims items by priority with a lease (SKIP LOCKED on Postgres). The
+       client's visible-items hint is stored in `task_items.priority`, not in process memory.
+     - Derivatives go to the BlobStore.
+     - The new routes are off the agent allowlist, and events carry ids only.
+     - Migration `0009_todo11_ingest_task_items`.
+   - **Item 2, items rail:**
+     - `GET /api/v1/tasks/:id/items?after=` and `POST …/items/visible`.
+     - `item.*` events patch the cached task document once per frame.
+     - The Queue view is virtualised with TanStack Virtual: aspect-ratio skeletons, then the
+       ThumbHash, then the WebP, plus a "N new" pill.
+     - The Folders view still has no thumbnails.
+   - **Item 3, image2d:** the preview shows first, then the full image replaces it in place with
+     no remount. An item still uploading loads once its bytes arrive.
+   - **Item 5, exit e2e:** `tests/e2e/ingest_images_test.py` uses 200 synthetic images (67 MB).
+     It passed 12/12 on merged `main`; the first run timed out on an item switch, so it's flaky
+     on a cold stack.
+     - registered → skeleton: 32–51 ms;
+     - thumb_ready → first thumbnail: 130–311 ms (p95 across rows 486–641 ms, not gated);
+     - first item viewable at about 2 s with 182 of 200 still processing;
+     - one engine instance across 20 switches;
+     - preview before full on 8/8 large images;
+     - 0 full page loads.
+
+     Background, recorded only: all 200 ready in 47–55 s, about 1.2 MB/s, mostly the browser
+     hashing every file before registering.
+   - ⏳ **Open:**
+     - Item 4, collections (D7).
+     - Thumbnails in the Folders view.
+     - Per-format `uploaded`→`ready` timing and a worker queue-depth metric.
+     - Registering before hashing finishes.
+     - Item-row contention on Postgres with several replicas (untested).
+
 **Slice B: DICOM.** Series grouping, rendered thumbnails, Cornerstone3D staged HTJ2K retrieval when
 served by DICOMweb (Google's Healthcare API in `spurby-phi`), an image load pool with priorities
 (Interaction > Thumbnail > Prefetch), and no remount in the MPR viewer. Its own exit tests.
@@ -689,7 +728,7 @@ Write a todo12 for this when it starts.
 | `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
 | `todo11-boot` ✅ (merged, D4 guardrails included) | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
 | `todo11-live` ✅ (merged) | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
-| `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
+| `todo11-ingest` ✅ Slice A (merged) | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 
 Milestone 1 runs alone first. `todo11-boot` and `todo11-live` run in parallel once Milestone 1 merges
 (`todo11-live` can begin against the event contract immediately). `todo11-ingest` starts with Slice A
@@ -738,8 +777,8 @@ Two kinds, kept separate.
 | Boot start to shell painted on the draft | < 2 s | n/a |
 | Explicit request to usable preset (scripted model) | < 20 s | n/a |
 | Agent setup complete (real model) | < 60 s | n/a |
-| Item `registered` to skeleton; `thumb_ready` to thumbnail | < 300 ms; < 500 ms | n/a |
-| First item viewable while a batch is still uploading | yes | no |
+| Item `registered` to skeleton; `thumb_ready` to thumbnail | < 300 ms; < 500 ms | 32–51 ms; 130–311 ms (Slice A) |
+| First item viewable while a batch is still uploading | yes | yes: ~2 s, with 182/200 still processing |
 
 **Background ingest** (tracked, reported, **not** gates):
 

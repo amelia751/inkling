@@ -60,6 +60,24 @@ def _log(d: Drop, event: str, **extra) -> None:
     log.info(event, extra={"event": event, "dropId": d.id, "state": d.state, "origin": d.origin, "elapsed_ms": elapsed, **extra})
 
 
+STUCK_AFTER = timedelta(minutes=10)
+
+
+def log_stuck(db: Session, at: datetime | None = None) -> int:
+    """`drop.stuck` for every drop still `inspecting` 10 minutes after its last change (§7.3's
+    alert). Run by the api's housekeeping about once a minute on every replica: a stuck drop
+    logs once per pass, which the "any in 5 minutes" alert tolerates. Drops older than a day
+    are left out (they're failures to look at, not pages)."""
+    at = at or now()
+    n = 0
+    for d in db.scalars(select(Drop).where(Drop.state == "inspecting", Drop.updated_at < at - STUCK_AFTER, Drop.updated_at > at - timedelta(days=1)).limit(200)):
+        stuck = int((at - _aware(d.updated_at)).total_seconds() * 1000)
+        elapsed = int((at - _aware(d.created_at)).total_seconds() * 1000) if d.created_at else stuck
+        log.warning("drop.stuck", extra={"event": "drop.stuck", "dropId": d.id, "state": d.state, "origin": d.origin, "elapsed_ms": elapsed, "stuck_ms": stuck})
+        n += 1
+    return n
+
+
 def _aware(t: datetime) -> datetime:
     return t if t.tzinfo else t.replace(tzinfo=UTC)
 

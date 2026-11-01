@@ -340,3 +340,64 @@ def test_deleting_a_conversation_keeps_its_folder_renamed(client):
         folder = db.get(SourceNode, db.get(Drop, drop["id"]).folder_node_id)
         assert folder.name == "Knee MRI (deleted chat)" and folder.trashed_at is None
         assert db.get(Drop, drop["id"]).message_id is None
+
+
+# ---- Integration (todo13 Milestone 4) ------------------------------------------------------
+
+
+def test_a_home_drop_in_a_conversation_lands_in_shared_in_chat(client):
+    """D1 + D2: Home's drop is delivered into the new project's conversation."""
+    pid = _project(client)
+    d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "home", "conversationId": "conv-h", "messageId": "msg-h", "files": 1, "bytes": 10})
+    assert d.status_code == 201, d.text
+    files = {"a.png": png(9, 9)}
+    s = client.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": _files(files), "origin": {"kind": "home", "conversationId": "conv-h", "messageId": "msg-h", "dropId": d.json()["id"]}})
+    assert s.status_code == 201, s.text
+    root = client.get(f"/api/v1/projects/{pid}/fs").json()["rootNodeId"]
+    top = client.get(f"/api/v1/projects/{pid}/fs/children?node={root}").json()["items"]
+    assert any((i.get("displayPath") or i["name"]).startswith("Shared in chat") for i in top), top
+    with kdb.session_scope() as db:
+        assert {s.kind for s in db.scalars(select(Source).where(Source.project_id == pid))} == {"chat"}
+
+
+def _json_lines(caplog, prefix: str = "drop.") -> list[dict]:
+    return [{"msg": r.getMessage(), **{k: v for k, v in r.__dict__.items() if k in ("event", "dropId", "state", "elapsed_ms", "origin", "byKind", "step", "errorClass", "auto", "stuck_ms")}} for r in caplog.records if r.getMessage().startswith(prefix)]
+
+
+def test_every_drop_transition_logs_one_line_without_names(client, caplog):
+    """§7.3: one JSON line per drop.* transition, with dropId, state, elapsed since received,
+    origin and counts by kind; never a file name."""
+    caplog.set_level("INFO")
+    pid = _project(client)
+    files = {SMITH: b"DICM" + b"\0" * 40, "xray_01.png": png(8, 8)}
+    drop, imp = _drop(client, pid, files)
+    _report(client, imp, {SMITH: "dicom", "xray_01.png": "image"})
+    lines = _json_lines(caplog)
+    names = [x["msg"] for x in lines if x.get("dropId") == drop["id"]]
+    for step in ("drop.received", "drop.uploaded", "drop.inspected", "drop.classified", "drop.planned"):
+        assert step in names, names
+    assert all(x.get("event") == x["msg"] and x.get("elapsed_ms") is not None for x in lines if x.get("dropId") == drop["id"])
+    classified = next(x for x in lines if x["msg"] == "drop.classified")
+    assert sum(classified["byKind"].values()) == 2 and classified["origin"] == "chat"
+    text = "\n".join(r.getMessage() + json.dumps({k: str(v) for k, v in r.__dict__.items()}) for r in caplog.records if r.name.startswith("studio_api.drops"))
+    assert "Smith" not in text and "xray_01" not in text
+
+
+def test_a_drop_stuck_inspecting_is_logged(client, caplog):
+    from datetime import timedelta
+
+    from studio_api.kernel import drops
+    from studio_api.models import now
+
+    caplog.set_level("INFO")
+    pid = _project(client)
+    drop, _ = _drop(client, pid, {"a.png": png(8, 8)})
+    with kdb.session_scope() as db:
+        assert drops.log_stuck(db) == 0
+        row = db.get(Drop, drop["id"])
+        assert row is not None and row.state == "inspecting"
+        row.updated_at = now() - timedelta(minutes=11)
+    with kdb.session_scope() as db:
+        assert drops.log_stuck(db) == 1
+    stuck = [x for x in _json_lines(caplog) if x["msg"] == "drop.stuck"]
+    assert stuck and stuck[0]["dropId"] == drop["id"] and stuck[0]["stuck_ms"] >= 600_000

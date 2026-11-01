@@ -161,8 +161,11 @@ def screen(names: list[str]) -> list[bool]:
         try:
             dlp = _dlp_flags(part)
         except Exception as e:  # noqa: BLE001 — fail closed: every name in the batch is flagged
-            log.warning("name screening failed; batch flagged", extra={"error": type(e).__name__, "names": len(part)})
+            # The screening-errors metric (§7.3) counts these against `name_screen.batch` lines.
+            log.warning("name_screen.error", extra={"event": "name_screen.error", "error": type(e).__name__, "names": len(part)})
             dlp = [True] * len(part)
+        else:
+            log.info("name_screen.batch", extra={"event": "name_screen.batch", "names": len(part), "flagged": sum(dlp)})
         out += [a or b for a, b in zip(dlp, rx[i : i + batch], strict=True)]
     return out
 

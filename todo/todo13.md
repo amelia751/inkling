@@ -10,9 +10,20 @@ they drop something completely different, and that's handled just as calmly.
 Everything is already half there: uploads, inspection, the boot route, live items, versioning and
 the pipeline design. This plan joins them into one experience.
 
-**Status (2026-11-01).** Plan written; nothing started. todo12 is in flight: `todo12-deploy` is
-merged; `todo12-engine`, `-kernel`, `-pipeline` and `-web` are in worktrees. Design inputs:
-`docs/pipeline.md`, `docs/datasets.md` (Datasets UI spec), `docs/ux.md`.
+**Status (2026-11-01, evening).** Code complete and merged: `todo13-entry`, `-drops`, `-organize`,
+`-datasets` and Milestone 4 (`todo13-polish`). Journeys J1–J12 pass with the scripted model; the
+drops e2e passes 27/27 on a full local stack; the dev rollout runs on a local kind cluster with
+all four flags on. Still open, all needing a person:
+
+- **Google Cloud rollout** (`docs/deployment-gcp.md`, "Rolling out drops"): blocked on todo12
+  Part A, since the phi stack isn't created yet; then staging and prod per the runbook.
+- **Screening cost per 10,000 names**: measured during the prod backfill (runbook, prod step 3).
+  Estimate until then: 10,000 names of about 40 bytes is about 0.4 MB inspected, inside the
+  monthly free tier and a fraction of a cent above it.
+- **Real-model timing** (§6, J1 and J2, three runs each): needs model access (Vertex AI in
+  `spurby-ai`, or a dev key in `secrets/agent.env`).
+
+Design inputs: `docs/pipeline.md`, `docs/datasets.md` (Datasets UI spec), `docs/ux.md`.
 
 **Naming.** As in todo12: the product name appears only in `packages/contracts/src/naming.ts`.
 UI copy that needs it uses `NAMING.displayName`; env vars are written here without their prefix.

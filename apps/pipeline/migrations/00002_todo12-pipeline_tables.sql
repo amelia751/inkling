@@ -9,7 +9,17 @@
 -- migration creates it.
 
 -- +goose Up
-CREATE SCHEMA IF NOT EXISTS pipeline;
+-- Postgres checks CREATE on the database before IF NOT EXISTS, and pipeline_app has none where
+-- db-bootstrap made the schema for it: create it only when it's really missing.
+-- +goose StatementBegin
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'pipeline') THEN
+        CREATE SCHEMA pipeline;
+    END IF;
+END
+$$;
+-- +goose StatementEnd
 
 CREATE TABLE pipeline.pipeline_definitions (
     workspace_id     text        NOT NULL,

@@ -114,6 +114,14 @@ patches:
       - op: replace
         path: /spec/backoffLimit
         value: 8
+  # The agent runs with sandboxes off in dev: no Daytona sandboxes to sweep, and no key.
+  - target:
+      kind: CronJob
+      name: agent-sweeper
+    patch: |-
+      - op: add
+        path: /spec/suspend
+        value: true
   - target:
       kind: ConfigMap
       name: pipeline-config

@@ -53,9 +53,17 @@ func run() error {
 	if os.Args[1] == "status" {
 		return goose.StatusContext(ctx, db, ".")
 	}
-	// The version table lives in the schema it versions.
-	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS pipeline"); err != nil {
+	// The version table lives in the schema it versions. The db-bootstrap Job creates it, owned
+	// by pipeline_app, which has no CREATE on the database: Postgres checks that privilege before
+	// IF NOT EXISTS, so only create the schema when it's really missing (local dev, tests).
+	var exists bool
+	if err := db.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'pipeline')").Scan(&exists); err != nil {
 		return fmt.Errorf("schema: %w", err)
+	}
+	if !exists {
+		if _, err := db.ExecContext(ctx, "CREATE SCHEMA pipeline"); err != nil {
+			return fmt.Errorf("schema: %w", err)
+		}
 	}
 	if err := goose.UpContext(ctx, db, "."); err != nil {
 		return err

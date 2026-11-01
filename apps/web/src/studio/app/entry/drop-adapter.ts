@@ -70,7 +70,9 @@ function watchUpload(key: string): void {
       markTimeline("upload-done");
       stop();
     }
-    if (session.phase === "failed" || session.phase === "cancelled") stop();
+    // Not on "failed": `absorb` passes through it for a moment before "uploading" (and Retry
+    // resumes a failed session); a dismissed session ends the watch above.
+    if (session.phase === "cancelled") stop();
   });
 }
 

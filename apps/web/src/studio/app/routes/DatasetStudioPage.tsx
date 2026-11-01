@@ -34,6 +34,7 @@ import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/
 import { rememberTool } from "@/studio/stores/tool-prefs";
 import { nextTodoIndex } from "@/studio/lib/items";
 import { studioItems } from "@/studio/lib/item-folders";
+import { useTaskItems } from "@/studio/lib/task-items";
 import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -292,6 +293,7 @@ function useCleanBootReport(projectId: string, safe: boolean) {
 function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean }) {
   useCleanBootReport(projectId, safe);
   const { data: project } = useTaskDocument(projectId);
+  useTaskItems(projectId); // todo11 D8: item.* events upgrade the document's items in place
   const env = useStudio((s) => s.env)!;
   const items = useMemo(() => (project ? studioItems(project, env) : []), [project, env]);
   const itemIndex = useStudio((s) => s.itemIndex);

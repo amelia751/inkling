@@ -38,8 +38,8 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
-from ..models import Asset, ImportSession, ProjectRow, Source, SourceNode, UploadFile, now
-from . import assets, audit, events, fs, projects, tree
+from ..models import Asset, ImportSession, ProjectRow, Source, SourceNode, TaskItem, UploadFile, now
+from . import assets, audit, events, fs, ingest, projects, tree
 from .kinds import is_junk
 
 CHUNK_BYTES = 64 * 1024 * 1024
@@ -135,9 +135,14 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         raise HTTPException(413, f"Too many files: the limit is {limits.upload_max_session_files:,} per import")
 
     # Resume: the same file list after a reload (or a dropped connection) gets its session back.
+    task = ingest.require_task_for_drop(db, p.id, body["taskId"]) if body.get("taskId") is not None else None
     resumed = _resumable(db, ctx, p, wanted)
     if resumed is not None:
-        return session_dict(db, resumed, files=True)
+        out = session_dict(db, resumed, files=True)
+        if task is not None:
+            # A resumed drop into a Studio: its items are already there (and on the stream).
+            out["items"] = [ingest.entry(ti) for ti in db.scalars(select(TaskItem).where(TaskItem.session_id == resumed.id).order_by(TaskItem.id))]
+        return out
 
     drive = fs.ensure_drive(db, p)
     target = body.get("targetNodeId")
@@ -214,15 +219,20 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         db.flush()
         tree.bump(db, drive.id, 0, 0, children=1)
         landing = source.root_node_id
-    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
+    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing, **({"taskId": task.id} if task is not None else {})}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
     db.add(s)
     db.flush()
     for fid, rel, size, sha, state, reason in plan:
         db.add(UploadFile(session_id=s.id, client_file_id=fid, rel_path=rel, size=size, sha256=sha, received=size if state == "uploaded" else 0, state=state, reason=reason))
     db.flush()
     audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": len(wanted), "skippedSystemFiles": skipped_junk, "attested": True})
+    # Dropped into a Studio (todo11 D8): its images are items from now on, before any byte.
+    registered = ingest.register(db, s, task) if task is not None else None
     _publish(db, ctx, s)
-    return session_dict(db, s, files=True)
+    out = session_dict(db, s, files=True)
+    if registered is not None:
+        out["items"] = registered
+    return out
 
 
 def _human(n: int) -> str:
@@ -336,21 +346,33 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
         _put_file(store, _quarantine(sid, fid, offset), tmp.name)
     finally:
         os.unlink(tmp.name)
-    outcome = _assemble(store, sid, fid, size, sha, upload_key(pid, sha, rel)) if offset + n == size else None
+    outcome = await asyncio.to_thread(_assemble, store, sid, fid, size, sha, upload_key(pid, sha, rel)) if offset + n == size else None
+    def finish() -> dict:
+        f = db.get(UploadFile, (sid, fid))
+        if f is None:
+            raise HTTPException(404, "no such file in this import")
+        if f.state == "pending" and f.received == offset:  # else a retry of this chunk got there first
+            f.received = offset + n
+            if outcome is not None:
+                f.state, f.reason = outcome[0], outcome[1]
+                if outcome[0] != "uploaded":
+                    f.received = 0
+                s2 = db.get(ImportSession, sid)
+                if s2 is not None and (s2.totals or {}).get("taskId"):
+                    if outcome[0] == "uploaded":
+                        ingest.uploaded(db, s2, f)
+                    else:
+                        ingest.upload_failed(db, s2, f, outcome[1])
+        out = {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
+        db.commit()
+        return out
+
     for attempt in range(6):
         try:
-            f = db.get(UploadFile, (sid, fid))
-            if f is None:
-                raise HTTPException(404, "no such file in this import")
-            if f.state == "pending" and f.received == offset:  # else a retry of this chunk got there first
-                f.received = offset + n
-                if outcome is not None:
-                    f.state, f.reason = outcome[0], outcome[1]
-                    if outcome[0] != "uploaded":
-                        f.received = 0
-            out = {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
-            db.commit()
-            return out
+            # Off the event loop: on SQLite a write waiting for the lock would otherwise stall
+            # every other request, including the one holding the lock (todo11: the worker
+            # reports items while uploads are still arriving).
+            return await asyncio.to_thread(finish)
         except OperationalError as e:  # SQLite only: another writer won the race; try again
             db.rollback()
             if attempt == 5 or "locked" not in str(e):
@@ -401,9 +423,13 @@ def _assemble(store: blobstore.BlobStore, session_id: str, file_id: str, size: i
 
 
 def retry(db: Session, ctx: RequestContext, s: ImportSession, file_ids: list[str] | None = None) -> dict:
+    again = []
     for f in db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state == "failed")):
         if file_ids is None or f.client_file_id in file_ids:
             f.state, f.reason, f.received = "pending", None, 0
+            again.append(f.client_file_id)
+    if again and (s.totals or {}).get("taskId"):
+        ingest.retried(db, s, again)
     if s.state not in OPEN_STATES:
         s.state = "uploading"
     db.flush()
@@ -457,6 +483,8 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     db.flush()
     scoped = ctx.for_scope(p.id, None)
     audit.record(db, scoped, "import.completed", target=s.id, after={"files": len(ids), "incomplete": bool(pending)})
+    if (s.totals or {}).get("taskId"):
+        ingest.link_to_dataset(db, s)
     if ids:
         events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
     _publish(db, ctx, s)
@@ -554,6 +582,8 @@ def cancel(db: Session, ctx: RequestContext, s: ImportSession) -> dict:
         s.state, s.finished_at = "cancelled", now()
         for f in db.scalars(select(UploadFile).where(UploadFile.session_id == s.id, UploadFile.state == "pending")):
             f.state, f.reason = "failed", "Cancelled"
+            if (s.totals or {}).get("taskId"):
+                ingest.upload_failed(db, s, f, "Cancelled")
         source = db.get(Source, s.source_id) if s.source_id else None
         if source is not None and source.status == "uploading" and not db.scalar(select(SourceNode.id).where(SourceNode.source_id == source.id, SourceNode.is_dir.is_(False)).limit(1)):
             source.status = "ready"

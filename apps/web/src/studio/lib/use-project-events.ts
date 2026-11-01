@@ -10,8 +10,8 @@ import { apiUrl } from "@/extension-host/runtime-config";
 type ProjectEventListener = (data: unknown, projectId: string) => void;
 const listeners = new Map<string, Set<ProjectEventListener>>();
 
-/** Event types forwarded to `onProjectEvent` subscribers (todo7: `fs.changed`). */
-const FORWARDED = ["fs.changed", "import.updated", "source.node.inspected"];
+/** Event types forwarded to `onProjectEvent` subscribers (todo7: `fs.changed`; todo11 D8: `item.*`). */
+const FORWARDED = ["fs.changed", "import.updated", "source.node.inspected", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed"];
 
 /**
  * Listen to one event type on the page's project stream (opened by `useProjectEvents`, one

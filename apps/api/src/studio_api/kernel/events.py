@@ -45,11 +45,20 @@ EVENT_TYPES = {
     "boot.step",
     "boot.ready",
     "boot.failed",
+    # Item lifecycle (todo11 D8): files dropped into a Studio, as they register, upload and
+    # the worker makes their derivatives (kernel/ingest.py).
+    "item.registered",
+    "item.uploaded",
+    "item.probed",
+    "item.thumb_ready",
+    "item.preview_ready",
+    "item.ready",
+    "item.failed",
 }
 
 # Kernel-published project updates: never rate limited (an import of 10k files is one
 # session, but its progress events must not starve plugin events or each other).
-PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed"}
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed"}
 
 
 def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:

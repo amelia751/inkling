@@ -784,3 +784,33 @@ class ProjectResume(Base):
     placement: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     tool: Mapped[str | None] = mapped_column(String(128), nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class TaskItem(Base):
+    """An item of a task as it ingests (todo11 D8): one row per file dropped into a Studio,
+    from `registered` (the file list arrived) through `uploaded`, `probed`, `thumb_ready`,
+    `preview_ready` to `ready` (or `failed`). `id` is the cursor order; `item_id` is the item's
+    stable id (the content-addressed storage path the bytes land at). `priority` is the latest
+    "these are on screen" hint (ms since the epoch), so workers serve visible items first."""
+
+    __tablename__ = "task_items"
+    __table_args__ = (UniqueConstraint("task_id", "item_id"), Index("ix_task_items_claim", "state", "priority"))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    task_id: Mapped[str] = mapped_column(String(128), index=True)
+    project_id: Mapped[str] = mapped_column(String(128), index=True)
+    session_id: Mapped[str] = mapped_column(String(64))
+    client_file_id: Mapped[str] = mapped_column(String(128))
+    item_id: Mapped[str] = mapped_column(String(2048))
+    node_id: Mapped[str] = mapped_column(String(64))
+    name: Mapped[str] = mapped_column(String(1024))
+    rel_path: Mapped[str] = mapped_column(String(2048))
+    kind: Mapped[str] = mapped_column(String(32))
+    size: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), default=0)
+    sha256: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(16))
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    priority: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), default=0)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

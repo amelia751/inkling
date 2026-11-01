@@ -7,6 +7,7 @@ one broker use token per provider secret; the plugin process gets nothing else.
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import uuid
 
@@ -190,6 +191,42 @@ def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends
     from ..kernel import inspection
 
     return inspection.report(db, import_id, body)
+
+
+# ---- Item derivatives (todo11 D8): the worker's built-in `items` processor claims uploaded
+# items (visible first), reads their bytes, stores a thumbnail and a preview, and reports stages.
+
+
+@router.post("/items/claim", dependencies=[Depends(_auth)])
+def claim_items(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    from ..kernel import ingest
+
+    return {"items": ingest.claim(db, int(body.get("limit") or 4))}
+
+
+@router.get("/items/{item_id}/content", dependencies=[Depends(_auth)])
+def item_content(item_id: int, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import assets, ingest
+    from ..streaming import blob_response
+
+    key = ingest.content_key(ingest.require_item(db, item_id))
+    return blob_response(assets.store_of(key), key, "application/octet-stream", request)
+
+
+@router.put("/items/{item_id}/derived/{role}", dependencies=[Depends(_auth)])
+async def item_derived(item_id: int, role: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import ingest
+
+    data = await request.body()
+    # Off the event loop: a SQLite write waiting for the lock must not stall other requests.
+    return await asyncio.to_thread(lambda: ingest.put_derived(db, ingest.require_item(db, item_id), role, data, request.headers.get("Content-Type", "")))
+
+
+@router.post("/items/{item_id}/report", dependencies=[Depends(_auth)])
+def item_report(item_id: int, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import ingest
+
+    return ingest.report(db, ingest.require_item(db, item_id), body)
 
 
 # ---- Scheduled kernel work (todo7 Phase 4) ---------------------------------------------------

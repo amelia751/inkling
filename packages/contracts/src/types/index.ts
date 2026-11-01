@@ -29,6 +29,32 @@ export interface SeedAsset {
   nodeId?: string;
   /** todo8 D3: the node's current Data folder below the task's common folder (task documents). */
   folder?: string[];
+  /** todo11 D8: an item dropped into a Studio, while (and after) it ingests. */
+  ingest?: AssetIngest;
+}
+
+/** Item lifecycle (todo11 §6): `item.<state>` events on the project stream move an item along. */
+export type IngestState = "registered" | "uploaded" | "probed" | "thumb_ready" | "preview_ready" | "ready" | "failed";
+
+export interface AssetIngest {
+  state: IngestState;
+  /** Cursor order of the item in its task (`GET /v1/tasks/:id/items`). */
+  seq?: number;
+  /** Asset paths of the 256 px WebP thumbnail and the ~1600 px preview (sign with `assetUrl`). */
+  thumb?: string;
+  preview?: string;
+  /** Base64 ThumbHash: a blurred placeholder with the image's aspect ratio. */
+  thumbhash?: string;
+  error?: string;
+}
+
+/** `item.*` event payload (todo11 §6 contracts). */
+export interface ItemEvent {
+  taskId?: string;
+  itemId: string;
+  nodeId: string;
+  kind: string;
+  meta?: { at?: number; name?: string; bytes?: number; seq?: number; width?: number; height?: number; format?: string; thumb?: string; thumbhash?: string; preview?: string; error?: string; reason?: string };
 }
 
 export interface Project {

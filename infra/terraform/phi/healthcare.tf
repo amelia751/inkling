@@ -1,13 +1,14 @@
 # Cloud Healthcare API for DICOM de-identification during fingerprinting (todo10 §6.1 step 1,
 # Phase 9 item 4). The api brokers the calls (the worker has no Google identity); Sensitive Data
 # Protection needs only the API and roles/dlp.user (iam.tf).
+#
+# Google-managed encryption, not CMEK: the Healthcare API can't de-identify CMEK-encrypted
+# resources and doesn't support CMEK inside a VPC Service Controls perimeter. A dataset's key
+# can't be changed after creation.
 resource "google_healthcare_dataset" "studio" {
-  name     = "studio"
-  location = var.region
-  encryption_spec {
-    kms_key_name = google_kms_crypto_key.cmek["healthcare"].id
-  }
-  depends_on = [google_project_service.this, google_kms_crypto_key_iam_member.cmek]
+  name       = "studio"
+  location   = var.region
+  depends_on = [google_project_service.this]
 }
 
 # Instances are imported here, de-identified into `fingerprint-deid`, read back, then deleted.

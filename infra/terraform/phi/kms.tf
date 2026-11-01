@@ -7,7 +7,7 @@ resource "google_kms_key_ring" "studio" {
 }
 
 locals {
-  cmek = toset(["storage", "sql", "redis", "gke", "secrets", "registry", "healthcare"])
+  cmek = toset(["storage", "sql", "redis", "gke", "secrets", "registry"])
 }
 
 resource "google_kms_crypto_key" "cmek" {
@@ -45,13 +45,12 @@ resource "google_kms_crypto_key" "plugin_signing" {
 # Who may use each CMEK key: the Google service agent of the service that encrypts with it.
 locals {
   cmek_users = {
-    storage    = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
-    sql        = "serviceAccount:${google_project_service_identity.agent["sqladmin.googleapis.com"].email}"
-    redis      = "serviceAccount:${google_project_service_identity.agent["redis.googleapis.com"].email}"
-    gke        = "serviceAccount:service-${local.number}@container-engine-robot.iam.gserviceaccount.com"
-    secrets    = "serviceAccount:${google_project_service_identity.agent["secretmanager.googleapis.com"].email}"
-    registry   = "serviceAccount:${google_project_service_identity.agent["artifactregistry.googleapis.com"].email}"
-    healthcare = "serviceAccount:${google_project_service_identity.agent["healthcare.googleapis.com"].email}"
+    storage  = "serviceAccount:${data.google_storage_project_service_account.gcs.email_address}"
+    sql      = "serviceAccount:${google_project_service_identity.agent["sqladmin.googleapis.com"].email}"
+    redis    = "serviceAccount:${google_project_service_identity.agent["redis.googleapis.com"].email}"
+    gke      = "serviceAccount:service-${local.number}@container-engine-robot.iam.gserviceaccount.com"
+    secrets  = "serviceAccount:${google_project_service_identity.agent["secretmanager.googleapis.com"].email}"
+    registry = "serviceAccount:${google_project_service_identity.agent["artifactregistry.googleapis.com"].email}"
   }
 }
 

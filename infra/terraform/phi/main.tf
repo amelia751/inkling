@@ -76,7 +76,6 @@ resource "google_project_service_identity" "agent" {
   provider = google-beta
   for_each = toset([
     "artifactregistry.googleapis.com",
-    "healthcare.googleapis.com",
     "redis.googleapis.com",
     "secretmanager.googleapis.com",
     "sqladmin.googleapis.com",

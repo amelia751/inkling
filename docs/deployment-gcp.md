@@ -111,6 +111,7 @@ agent.
 | Postgres | Cloud SQL for PostgreSQL 17, private IP, CMEK |
 | `BlobStore`, plugin artifacts | Cloud Storage; retention lock on the artifacts bucket |
 | Bundle delivery | Cloud CDN in front of the artifacts bucket |
+| DICOM de-identification | Healthcare API dataset with Google-managed encryption, the one exception to CMEK: the API can't de-identify CMEK-encrypted resources or use CMEK inside a perimeter |
 | Platform signing key | Cloud KMS asymmetric key, HSM protection (cosign `gcpkms://…`) |
 | First-party CI signing | GitHub OIDC through Workload Identity Federation |
 | Container images, OCI artifacts | Artifact Registry; Binary Authorization |

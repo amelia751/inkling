@@ -310,7 +310,7 @@ def test_a_spoofed_type_is_classified_by_what_it_is(client):
     drop, imp = _drop(client, pid, {"photo.png": buf.getvalue()})
     _report(client, imp, {"photo.png": "archive"})
     f = client.get(f"/api/v1/drops/{drop['id']}").json()["files"][0]
-    assert f["kind"] == "archive" and f["looksLike"] == "ZIP" and f["state"] == "kept"
+    assert f["kind"] == "archive" and f["looksLike"] == "a ZIP" and f["state"] == "kept"
 
 
 # ---- Lifecycle (D4, D15) ------------------------------------------------------------------------

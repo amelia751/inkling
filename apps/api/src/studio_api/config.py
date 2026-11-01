@@ -42,19 +42,6 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
-| API_SIGNER                | local                            | who signs generated plugin artifacts (todo10 Phase 3): `local` (Ed25519 key file) or `gcpkms` |
-| API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
-| API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
-| API_SIGNER_TRUSTED_KEYS_FILE | (none)                        | JSON `{keyId: PEM}` of other installations' public keys accepted on artifact import |
-| API_ARTIFACTS_BUCKET      | (none: the data area)            | `s3`/`gcs`: separate bucket for content-addressed plugin artifacts (`artifacts/sha256/*`, retention-locked) |
-| API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
-| API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
-
-Chat drops (todo13 §7.1, workstream `todo13-drops`):
-
-| Key (without prefix)      | Default                          | Meaning |
-|---------------------------|----------------------------------|---------|
-| API_FEATURE_CHAT_DROPS    | off in production, on in development and test | composer drop, paste, attach; Shared files; the `/drops` routes answer 404 when off |
 | API_DROP_MAX_FILES        | 10000                            | files per drop; above it the card points to Files' folder upload |
 | API_DROP_MAX_BYTES        | 53687091200 (50 GB)              | bytes per drop |
 | API_DROP_RATE_PER_MINUTE  | 20                               | drops a person may start per minute (429 with Retry-After above it) |
@@ -63,6 +50,24 @@ Chat drops (todo13 §7.1, workstream `todo13-drops`):
 | API_NAME_SCREEN_QPS       | 5                                | screening calls per second per pod (backfill and live share it) |
 | API_NAME_SCREEN_PROJECT   | (GCS_PROJECT, else the credentials' project) | the Google Cloud project billed for Sensitive Data Protection calls |
 | API_NAME_SCREEN_LOCATION  | us-central1                      | Sensitive Data Protection location |
+| API_SIGNER                | local                            | who signs generated plugin artifacts (todo10 Phase 3): `local` (Ed25519 key file) or `gcpkms` |
+| API_SIGNER_KEY_FILE       | dev: <data dir>/plugin-signing.key | the local signer's Ed25519 PEM; production with `local` refuses to sign without it |
+| API_SIGNER_KMS_KEY        | (none)                           | `gcpkms`: a key version, `projects/…/cryptoKeys/…/cryptoKeyVersions/N` (EC_SIGN_P256_SHA256) |
+| API_SIGNER_TRUSTED_KEYS_FILE | (none)                        | JSON `{keyId: PEM}` of other installations' public keys accepted on artifact import |
+| API_ARTIFACTS_BUCKET      | (none: the data area)            | `s3`/`gcs`: separate bucket for content-addressed plugin artifacts (`artifacts/sha256/*`, retention-locked) |
+| API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
+| API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
+
+Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
+gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
+in production, on in development and test (todo13 §7.4: dev runs with every flag on).
+
+| Key (without prefix)      | Default (prod / dev)             | Meaning |
+|---------------------------|----------------------------------|---------|
+| API_FEATURE_CHAT_DROPS    | false / true                     | composer drop, paste and attach; the Shared files view |
+| API_FEATURE_AUTO_APPLY    | false / true                     | drop plans that only touch the person's drafts apply on their own (off: every plan asks) |
+| API_FEATURE_FAST_PATH     | false / true                     | boot a Studio from a drop before the agent answers |
+| API_FEATURE_DATASETS_TAB  | false / true                     | Datasets in the project sidebar |
 
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
@@ -169,19 +174,7 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
-    # Plugin artifact signing (todo10 Phase 3, packages/signing).
-    signer: Literal["local", "gcpkms"] = "local"
-    signer_key_file: Path | None = None
-    signer_kms_key: str | None = None
-    signer_trusted_keys_file: Path | None = None
-    artifacts_bucket: str | None = None
-    # The data boundary (todo10 Phase 7): probe budget and free-text check. Worker-built
-    # bundles are verified with `signer` above (the worker signs with the same key).
-    boundary_probe_budget: int = 64
-    text_check: Literal["dev"] = "dev"
     # ---- Chat drops (todo13-drops, §7.1) ----
-    # None: on outside production (dev and tests), off in production until the rollout turns it on.
-    feature_chat_drops: bool | None = None
     drop_max_files: int = 10_000
     drop_max_bytes: int = 50 * 1024**3
     drop_rate_per_minute: int = 20
@@ -193,12 +186,29 @@ class Settings(BaseModel):
     name_screen_location: str = "us-central1"
 
     @property
-    def chat_drops(self) -> bool:
-        return self.feature_chat_drops if self.feature_chat_drops is not None else self.env != "production"
-
-    @property
     def screen_mode(self) -> str:
         return self.name_screen_mode or ("dlp" if self.env == "production" else "regex")
+    # Plugin artifact signing (todo10 Phase 3, packages/signing).
+    signer: Literal["local", "gcpkms"] = "local"
+    signer_key_file: Path | None = None
+    signer_kms_key: str | None = None
+    signer_trusted_keys_file: Path | None = None
+    artifacts_bucket: str | None = None
+    # The data boundary (todo10 Phase 7): probe budget and free-text check. Worker-built
+    # bundles are verified with `signer` above (the worker signs with the same key).
+    boundary_probe_budget: int = 64
+    text_check: Literal["dev"] = "dev"
+
+    # ---- Feature flags (todo13 §7.1): None = the default for `env` (off in production). ----
+    feature_chat_drops: bool | None = None
+    feature_auto_apply: bool | None = None
+    feature_fast_path: bool | None = None
+    feature_datasets_tab: bool | None = None
+
+    def feature(self, name: str) -> bool:
+        """A todo13 flag by short name (`chat_drops`, `auto_apply`, `fast_path`, `datasets_tab`)."""
+        v = getattr(self, f"feature_{name}")
+        return (not self.production) if v is None else bool(v)
 
     @property
     def production(self) -> bool:
@@ -247,15 +257,7 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
-    "signer": "API_SIGNER",
-    "signer_key_file": "API_SIGNER_KEY_FILE",
-    "signer_kms_key": "API_SIGNER_KMS_KEY",
-    "signer_trusted_keys_file": "API_SIGNER_TRUSTED_KEYS_FILE",
-    "artifacts_bucket": "API_ARTIFACTS_BUCKET",
-    "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
-    "text_check": "API_TEXT_CHECK",
     # Chat drops (todo13-drops)
-    "feature_chat_drops": "API_FEATURE_CHAT_DROPS",
     "drop_max_files": "API_DROP_MAX_FILES",
     "drop_max_bytes": "API_DROP_MAX_BYTES",
     "drop_rate_per_minute": "API_DROP_RATE_PER_MINUTE",
@@ -264,6 +266,18 @@ _KEYS: dict[str, str] = {
     "name_screen_qps": "API_NAME_SCREEN_QPS",
     "name_screen_project": "API_NAME_SCREEN_PROJECT",
     "name_screen_location": "API_NAME_SCREEN_LOCATION",
+    "signer": "API_SIGNER",
+    "signer_key_file": "API_SIGNER_KEY_FILE",
+    "signer_kms_key": "API_SIGNER_KMS_KEY",
+    "signer_trusted_keys_file": "API_SIGNER_TRUSTED_KEYS_FILE",
+    "artifacts_bucket": "API_ARTIFACTS_BUCKET",
+    "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
+    "text_check": "API_TEXT_CHECK",
+    # Feature flags (todo13 §7.1).
+    "feature_chat_drops": "API_FEATURE_CHAT_DROPS",
+    "feature_auto_apply": "API_FEATURE_AUTO_APPLY",
+    "feature_fast_path": "API_FEATURE_FAST_PATH",
+    "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

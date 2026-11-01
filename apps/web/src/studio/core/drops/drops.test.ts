@@ -41,13 +41,13 @@ describe("drop chips", () => {
   it("follows the kernel once it knows the files, with live progress and its states", () => {
     const server = drop([
       { relPath: "a.png", name: "a.png", size: 100, state: "uploading", received: 0 },
-      { relPath: "b.dcm", name: "b.dcm", size: 50, state: "kept", nodeId: "nod-b", kind: "archive", looksLike: "ZIP" },
+      { relPath: "b.dcm", name: "b.dcm", size: 50, state: "kept", nodeId: "nod-b", kind: "archive", looksLike: "a ZIP" },
       { relPath: "c.png", name: "c.png", size: 5, state: "duplicate", reason: "Already in Files" },
     ]);
     const tray = { phase: "uploading", files: [{ clientFileId: "f0", relPath: "a.png", size: 100, received: 25, state: "pending" as const, reason: null }] };
     const chips = chipsOf(local, server, [tray]);
     expect(chips[0]).toMatchObject({ state: "uploading", progress: 0.25, preview: "blob:a" });
-    expect(chips[1]).toMatchObject({ state: "kept", looksLike: "ZIP", nodeId: "nod-b" });
+    expect(chips[1]).toMatchObject({ state: "kept", looksLike: "a ZIP", nodeId: "nod-b" });
     expect(chips[2]).toMatchObject({ state: "duplicate", reason: "Already in Files" });
   });
 });

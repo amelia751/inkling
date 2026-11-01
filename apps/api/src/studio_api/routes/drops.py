@@ -17,9 +17,9 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import drops, projects
+from ..kernel import drops, features, projects
 
-router = APIRouter(prefix="/api/v1", dependencies=[Depends(drops.require_enabled)])
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(features.require("chat_drops"))])
 
 
 @router.post("/projects/{project_id}/drops", status_code=201)

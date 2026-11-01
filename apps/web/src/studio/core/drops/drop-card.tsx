@@ -144,11 +144,14 @@ function summaryState(chips: Chip[]): string {
 function DropChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
   const Icon = kindIcon(chip.kind ?? guessKind(chip.name));
   const gone = chip.state === "deleted" || chip.state === "removed";
+  const [broken, setBroken] = useState(false);
+  // A local preview only for what really is an image (a `.png` that's a ZIP gets its kind's icon).
+  const preview = chip.preview && !gone && !broken && !chip.looksLike && (!chip.kind || chip.kind === "image") ? chip.preview : undefined;
   const text = chip.state === "uploading" && chip.progress !== undefined ? `${Math.round(chip.progress * 100)}%` : chip.state === "failed" && chip.reason ? chip.reason : STATE_TEXT[chip.state];
   return (
     <li className={cn("group relative flex min-w-0 items-center gap-2 rounded-lg bg-generic p-1.5 pr-2", gone && "opacity-60")} data-testid="drop-chip" data-state={chip.state} data-node-id={chip.nodeId ?? undefined}>
       <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background text-hint">
-        {chip.preview && !gone ? <img src={chip.preview} alt="" className="size-full object-cover" /> : <Icon className="size-4" />}
+        {preview ? <img src={preview} alt="" className="size-full object-cover" onError={() => setBroken(true)} /> : <Icon className="size-4" />}
         {chip.state === "uploading" && chip.progress !== undefined && (
           <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" style={{ width: `${Math.round(chip.progress * 100)}%` }} aria-hidden />
         )}

@@ -90,6 +90,26 @@ test checks each entry exists. Change this list and that file together.
 - Project reads with no file contents: project, overview, sources, proposals (read, create),
   review, search, drive listing, imports, source nodes and their activity; asset metadata
   (`GET /api/v1/assets`: ids, paths, types, sizes).
+- Drops (todo13 D3): `GET /api/v1/drops/{id}` answers an agent with the drop's `DropSummary`
+  only: counts by kind and state, groups, and per file its node id, its screened name and
+  technical facts (dimensions, frames, duration, modality, column names and types, pages). The
+  agent tool is `get_drop`; the same summary rides on the user's message as a `<drop>` block.
+
+**Screened names (todo13 D13).** Every JSON answer to an agent token goes through one serializer
+(the API's `agent_names` middleware, `kernel/agent_view.py`): file and folder names that are
+flagged, or not yet screened, are replaced wherever they appear (names, paths, sequence rows,
+reasons, proposal text) by the node's `agent_name` (`dicom-0001.dcm`, `folder-0002`; unscreened:
+`file-<n>.<ext>`), with a regex net over name-like fields on the file routes. People's answers are
+unchanged. Names are screened on import, after namespace edits and by a backfill
+(`files.screen_names`, `python -m studio_api.kernel.name_screen backfill`). In `spurby-phi` the
+screen is Sensitive Data Protection (`projects.locations.content.inspect` in `us-central1`, names
+only, batched by `API_NAME_SCREEN_BATCH`, paced by `API_NAME_SCREEN_QPS`; `PERSON_NAME`,
+`FIRST_NAME`, `LAST_NAME`, `DATE_OF_BIRTH`, `EMAIL_ADDRESS`, `PHONE_NUMBER`,
+`US_SOCIAL_SECURITY_NUMBER` and a custom MRN-like regex), ORed with the in-process regex screen;
+an API error flags the whole batch (fail closed). No new API, IAM binding or perimeter change:
+`dlp.googleapis.com` and `roles/dlp.user` are already there. `API_NAME_SCREEN_MODE=off` is
+refused in production. Test: `apps/api/tests/test_drops.py` walks `AGENT_ROUTES` with an
+identifier-like fixture name.
 
 Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be
 singled out. The annotator's browser talks to the API in `spurby-phi` directly, never through the

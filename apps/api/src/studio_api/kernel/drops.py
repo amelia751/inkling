@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..context import RequestContext
 from ..models import Drop, ImportSession, ProjectRow, SourceNode, UploadFile, now
-from . import events, fs, name_screen, projects, tree
+from . import events, features, fs, name_screen, projects, tree
 from .kinds import VIEWABLE, kind_from_extension
 
 log = logging.getLogger("studio_api.drops")
@@ -46,10 +46,11 @@ KEPT_KINDS = {"document", "table", "archive", "annotations", "unknown"}
 
 
 def enabled() -> bool:
-    return settings().chat_drops
+    return features.enabled("chat_drops")
 
 
 def require_enabled() -> None:
+    """Inside kernel code paths (an import with a drop origin); routes use `features.require`."""
     if not enabled():
         raise HTTPException(404, "Not Found")
 
@@ -310,7 +311,7 @@ def _looks_like(name: str, detected: str | None) -> str | None:
     by_ext = kind_from_extension(name)
     if by_ext == "unknown" or by_ext == detected or {by_ext, detected} <= {"dicom", "dicom-series"} or {by_ext, detected} <= {"volume", "mask"}:
         return None
-    return {"archive": "ZIP", "image": "an image", "dicom": "DICOM", "video": "a video", "table": "a table", "document": "a document", "volume": "a volume", "waveform": "a waveform", "slide": "a slide"}.get(detected, detected)
+    return {"archive": "a ZIP", "image": "an image", "dicom": "DICOM", "video": "a video", "table": "a table", "document": "a document", "volume": "a volume", "waveform": "a waveform", "slide": "a slide"}.get(detected, detected)
 
 
 def _rows(db: Session, d: Drop) -> list[tuple[ImportSession, UploadFile, SourceNode | None]]:

@@ -227,7 +227,9 @@ function AttestationDialog() {
 }
 
 function UploadTray() {
-  const sessions = useUploads((s) => s.sessions);
+  const all = useUploads((s) => s.sessions);
+  // Chat drops show their progress on their card (todo13), not here.
+  const sessions = all.filter((s) => !s.quiet);
   const collapsed = useUploads((s) => s.collapsed);
   const setCollapsed = useUploads((s) => s.setCollapsed);
   if (!sessions.length) return null;

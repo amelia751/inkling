@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
 import type { Drop, DropFileState } from "@studio/contracts/drops";
-import { api, ApiError } from "@/studio/lib/projects-api";
+import { runtimeConfig } from "@/extension-host/runtime-config";
+import { ApiError } from "@/studio/lib/projects-api";
 import { onProjectEvent, useProjectEvents } from "@/studio/lib/use-project-events";
 import { useUploads, type TrayFile } from "@/studio/stores/uploads";
 import { dropsApi } from "./api";
@@ -17,23 +18,17 @@ export const dropKeys = {
 const SETTLED: DropFileState[] = ["ready", "kept", "failed", "duplicate", "removed", "deleted"];
 
 /**
- * Whether chat drops are on (`API_FEATURE_CHAT_DROPS`): `GET /api/v1/features` (`chatDrops`) when
- * the api serves it, else whether the drop routes answer (they 404 when the flag is off).
+ * Whether chat drops are on (`API_FEATURE_CHAT_DROPS`): the drop routes answer 404 when it's off.
+ * Without the kernel (the seed server) they're off. After todo13-entry merges this becomes
+ * `useFeature("chatDrops")` (`lib/features.ts`, `GET /api/v1/features`).
  */
 export function useChatDropsEnabled(projectId: string | undefined) {
   return useQuery({
     queryKey: dropKeys.enabled(projectId ?? ""),
-    enabled: !!projectId,
+    enabled: !!projectId && runtimeConfig().kernel,
     staleTime: 5 * 60_000,
     retry: false,
     queryFn: async () => {
-      try {
-        const f = await api<Record<string, unknown>>("/features");
-        const v = f.chatDrops ?? (f.features as Record<string, unknown> | undefined)?.chatDrops;
-        if (typeof v === "boolean") return v;
-      } catch {
-        // No features route yet: ask the drop routes themselves.
-      }
       try {
         await dropsApi.list(projectId!, "probe");
         return true;
@@ -56,10 +51,11 @@ export function useDropEvents(projectId: string | undefined) {
       void qc.invalidateQueries({ queryKey: ["drops", "list", projectId] });
     };
     const offs = ["drop.received", "drop.file", "drop.failed", "drop.classified", "drop.planned", "drop.applied"].map((t) => onProjectEvent(t, refresh));
-    const offImport = onProjectEvent("import.updated", () => void qc.invalidateQueries({ queryKey: ["drops"] }));
+    // Imports progress, and Files changes (a dropped File moved to Trash shows "Deleted file").
+    const others = ["import.updated", "fs.changed"].map((t) => onProjectEvent(t, () => void qc.invalidateQueries({ queryKey: ["drops"] })));
     return () => {
       offs.forEach((off) => off());
-      offImport();
+      others.forEach((off) => off());
     };
   }, [projectId, qc]);
 }

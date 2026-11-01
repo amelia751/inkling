@@ -34,6 +34,8 @@ export interface TraySession {
   importId?: string;
   /** todo13: the drop this upload belongs to. */
   dropId?: string;
+  /** Not listed in the tray: its drop card shows the progress (chat drops). */
+  quiet?: boolean;
   title: string;
   phase: TrayPhase;
   total: number;
@@ -75,6 +77,8 @@ interface UploadsState {
       drop?: { dropId: string; origin: DropOrigin };
       /** The tray entry's key, as soon as it exists (a drop card follows its progress). */
       onStarted?: (key: string) => void;
+      /** Keep it out of the tray (a drop card shows its progress). */
+      quiet?: boolean;
     },
   ) => Promise<TraySession | undefined>;
   retry: (key: string) => Promise<void>;
@@ -191,8 +195,8 @@ export const useUploads = create<UploadsState>((set, get) => {
       const key = `upload-${++seq}`;
       const top = new Set(picked.files.map((f) => f.relPath.split("/")[0]));
       const title = top.size === 1 && picked.files[0].relPath.includes("/") ? [...top][0] : `${picked.files.length} ${picked.files.length === 1 ? "file" : "files"}`;
-      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [], dropId: opts.drop?.dropId };
-      set((st) => ({ sessions: [entry, ...st.sessions], collapsed: false }));
+      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [], dropId: opts.drop?.dropId, quiet: opts.quiet };
+      set((st) => ({ sessions: [entry, ...st.sessions], collapsed: opts.quiet ? st.collapsed : false }));
       if (opts.onChanged) listeners.set(key, opts.onChanged);
       opts.onStarted?.(key);
       if (!(await attest(projectId, picked.files.length))) {

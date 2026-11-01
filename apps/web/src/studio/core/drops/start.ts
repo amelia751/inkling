@@ -1,4 +1,5 @@
 import type { DropOriginKind } from "@studio/contracts/drops";
+import type { SeedAsset } from "@studio/contracts/types";
 import { ApiError } from "@/studio/lib/projects-api";
 import { fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
@@ -11,12 +12,23 @@ import { useDrops, type LocalDrop } from "./store";
  * card and the message can show it before a byte moves; then, in the background: the kernel's
  * drop (`POST /drops`, the limits and the rate limit), and the bytes through the one uploader
  * (`stores/uploads.ts`: hashing, 64 MB chunks, offset resume) with `origin` and `dropId`.
- * More files before the message is sent join the same drop (`dropId`).
+ * More files before the message is sent join the same drop (`dropId`). Takes entry's
+ * `DropRequest` (`app/entry/drop-adapter.ts`) as is: `picked`, `origin`, `conversationId?`,
+ * `taskId?`, `targetNodeId?`, `onRegistered?`, `onChanged?`.
  */
 export interface StartDropOptions {
   projectId: string;
   origin: DropOriginKind;
-  files: Picked | File[];
+  /** The files (or, as entry's `DropRequest` names them, `picked`). */
+  files?: Picked | File[];
+  picked?: Picked;
+  /** A folder of the drive to land in (Files); chat drops land in `Shared in chat`. */
+  targetNodeId?: string;
+  /** Accepted for `DropRequest` compatibility; the adapter keeps the timeline. */
+  surface?: string;
+  timelineStarted?: boolean;
+  onRegistered?: (items: SeedAsset[]) => void;
+  onChanged?: (projectId: string) => void;
   conversationId?: string;
   /** Names the conversation's `Shared in chat` folder. */
   conversationTitle?: string;
@@ -42,7 +54,8 @@ export function pastedFiles(list: FileList | File[]): File[] {
 }
 
 export function startDrop(o: StartDropOptions): string {
-  const picked: Picked = Array.isArray(o.files) ? fromFileList(o.files) : o.files;
+  const given = o.picked ?? o.files ?? { files: [], skipped: 0 };
+  const picked: Picked = Array.isArray(given) ? fromFileList(given) : given;
   const id = o.dropId ?? newDropId();
   const files = picked.files.map((f) => ({ relPath: f.relPath, size: f.file.size, ...(IMAGE.test(f.relPath) && f.file.size < 50 * 1024 * 1024 ? { preview: URL.createObjectURL(f.file) } : {}) }));
   const store = useDrops.getState();
@@ -58,7 +71,12 @@ async function run(id: string, o: StartDropOptions, picked: Picked) {
   const origin = { kind: o.origin, ...(o.conversationId ? { conversationId: o.conversationId } : {}), ...(o.messageId ? { messageId: o.messageId } : {}), ...(o.conversationTitle ? { conversationTitle: o.conversationTitle } : {}) };
   const session = await useUploads.getState().add(o.projectId, picked, {
     taskId: o.taskId,
+    targetNodeId: o.targetNodeId,
+    onRegistered: o.onRegistered,
+    onChanged: o.onChanged,
     drop: { dropId: id, origin },
+    // A chat drop's card shows its progress; other surfaces keep the tray.
+    quiet: o.origin === "chat",
     onStarted: (key) => useDrops.getState().patch(id, (d) => ({ uploadKeys: [...d.uploadKeys, key] })),
   });
   if (session?.phase === "failed" && session.error) useDrops.getState().patch(id, { error: session.error, overLimit: /at most|limit/i.test(session.error) });

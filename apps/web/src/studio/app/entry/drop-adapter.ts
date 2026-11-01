@@ -28,6 +28,12 @@ export interface DropRequest {
   surface?: TimelineOrigin;
   /** The conversation the files are shared in (the drawer's thread), when there is one. */
   conversationId?: string;
+  /** Names the conversation's `Shared in chat` folder. */
+  conversationTitle?: string;
+  /** The chat message that will carry the drop (Home's drop, delivered into the conversation). */
+  messageId?: string;
+  /** The drop's id, when the caller needs it before the upload starts (to queue its message). */
+  dropId?: string;
   /** A drop into a Studio: same-kind files become its items at once (todo11 D8, D11). */
   taskId?: string;
   /** A folder of the drive to land in (Files). */

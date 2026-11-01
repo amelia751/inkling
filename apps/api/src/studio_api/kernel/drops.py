@@ -188,9 +188,16 @@ def for_import(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> D
     return d
 
 
+def shared_in_chat(d: Drop) -> bool:
+    """A drop shared in a conversation: the composer's, and Home's (D1 delivers it into the new
+    project's conversation). Both land in `Shared in chat` and are `Source.kind = chat`."""
+    return d.origin in ("chat", "home") and bool(d.conversation_id)
+
+
 def landing_folder(db: Session, p: ProjectRow, d: Drop) -> SourceNode | None:
-    """`Shared in chat/<conversation>` for a chat drop (made on first use); None otherwise."""
-    if d.origin != "chat" or not d.conversation_id:
+    """`Shared in chat/<conversation>` for a drop shared in a conversation (made on first use);
+    None otherwise."""
+    if not shared_in_chat(d):
         return None
     if d.folder_node_id:
         n = db.get(SourceNode, d.folder_node_id)

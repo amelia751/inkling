@@ -75,8 +75,10 @@ async function run(id: string, o: StartDropOptions, picked: Picked) {
     onRegistered: o.onRegistered,
     onChanged: o.onChanged,
     drop: { dropId: id, origin },
-    // A chat drop's card shows its progress; other surfaces keep the tray.
-    quiet: o.origin === "chat",
+    // A drop shared in a conversation (the composer's, or Home's delivered into the new
+    // project's chat) shows its progress on its card; other surfaces keep the tray, which
+    // would otherwise sit over the drawer's composer.
+    quiet: o.origin === "chat" || (o.origin === "home" && !!o.conversationId),
     onStarted: (key) => useDrops.getState().patch(id, (d) => ({ uploadKeys: [...d.uploadKeys, key] })),
   });
   if (session?.phase === "failed" && session.error) useDrops.getState().patch(id, { error: session.error, overLimit: /at most|limit/i.test(session.error) });

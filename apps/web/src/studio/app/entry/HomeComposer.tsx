@@ -11,6 +11,9 @@ import { projectUrl } from "@/studio/lib/routes";
 import { markTimeline, startTimeline } from "@/studio/lib/drop-timeline";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { useShell } from "@/studio/stores/shell";
+import { useAgent } from "@/studio/stores/agent";
+import { feature } from "@/studio/lib/features";
+import { newDropId } from "@/studio/core/drops/api";
 import { useDropFiles, pickedFrom } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
 import { createProject, projectTitle } from "./start-project";
@@ -40,12 +43,26 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
   // Samples are read-only demos: never the default target for new files.
   const last = projects?.find((p) => !p.sample);
 
-  /** Deliver the gesture into a project: open it with the drawer, then the message or the files. */
+  /**
+   * Deliver the gesture into a project: open it with the drawer, then the message or the files.
+   * With chat drops on, a drop is shared in the project's conversation (D1, D2): it starts now
+   * (upload, Shared in chat, the plan and the fast path don't wait for the assistant), and the
+   * drawer sends the message carrying it once the conversation is ready.
+   */
   const deliver = (projectId: string, g: Gesture) => {
     setAssistant(true, g.kind === "send");
-    if (g.kind === "send" || g.text.trim()) queue(projectId, g.text.trim());
-    navigate(projectUrl(projectId));
-    if (g.kind === "drop") void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true });
+    const text = g.text.trim();
+    if (g.kind === "drop" && feature("chatDrops")) {
+      const conv = useAgent.getState().conversation(projectId);
+      const pending = { dropId: newDropId(), messageId: crypto.randomUUID() };
+      queue(projectId, text, pending);
+      navigate(projectUrl(projectId));
+      void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true, conversationId: conv.id, conversationTitle: conv.title ?? (text.slice(0, 80) || undefined), ...pending });
+    } else {
+      if (g.kind === "send" || text) queue(projectId, text);
+      navigate(projectUrl(projectId));
+      if (g.kind === "drop") void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true });
+    }
     setText("");
   };
 

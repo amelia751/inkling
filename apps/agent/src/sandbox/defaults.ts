@@ -16,16 +16,18 @@ export interface SandboxOwner {
   profile: string;
   /** Extra labels, e.g. `{ test: "live" }`. Values must never contain PHI. */
   labels?: Record<string, string>;
-  /** Restricted projects get no egress at all. */
   restricted?: boolean;
-  /** Narrower egress than the org default (plugin builds: the package index only). */
-  egressAllow?: string[];
-  /** Extra env vars (plugin builds: fake credentials, so code that reads them fails safely). */
-  envVars?: Record<string, string>;
 }
 
-/** Plugin-build sandboxes (todo2 Phase 9) may reach the Python package index and nothing else. */
-export const PACKAGE_INDEX_HOSTS = ["pypi.org", "files.pythonhosted.org"];
+export class SandboxNetworkError extends Error {
+  override name = "SandboxNetworkError";
+  constructor() {
+    super(
+      "This sandbox provider can't block the sandbox's network here (Daytona tier 1–2), and sandboxes run with no network (todo10 Phase 7). " +
+        "Use a Daytona org on tier 3+, or AGENT_SANDBOX=local / gke. The tool was NOT run.",
+    );
+  }
+}
 
 const slug = (s: string) =>
   s
@@ -64,30 +66,35 @@ export const DEFAULT_EGRESS: EgressPolicy = {
   allowDomains: ["pypi.org", "files.pythonhosted.org", "github.com", "objects.githubusercontent.com"],
 };
 
+/**
+ * Create parameters for every provider (todo10 Phase 7.8): no network on every tier, no secrets
+ * or session data in the environment, a short life for build sandboxes. A provider that can't
+ * cut the network fails the create, unless `AGENT_SANDBOX_NETWORK=org-default` (never in
+ * production) accepts the org's default policy.
+ */
 export function createParams(
   config: Config,
   who: SandboxOwner,
-  opts: { snapshot?: string; egress?: EgressPolicy } = {},
+  opts: { snapshot?: string; egress?: EgressPolicy; canBlockNetwork?: boolean } = {},
 ): CreateSandboxFromSnapshotParams {
   const s = config.sandbox;
+  const build = who.labels?.purpose === "plugin-build";
+  const ttl = build ? Math.min(s.ttlMin || s.buildTtlMin, s.buildTtlMin) : s.ttlMin;
   const params: CreateSandboxFromSnapshotParams = {
     name: sandboxName(config.env, who.sessionId),
     labels: sandboxLabels(config.env, who),
     language: "python",
     public: false,
-    autoStopInterval: s.autoStopMin,
+    autoStopInterval: build ? Math.min(s.autoStopMin, 15) : s.autoStopMin,
     autoArchiveInterval: s.autoArchiveMin,
-    autoDeleteInterval: s.autoDeleteMin,
-    envVars: { ...who.envVars, [`${NAMING.envPrefix}SESSION`]: who.sessionId, PYTHONUNBUFFERED: "1", MPLBACKEND: "Agg" },
+    autoDeleteInterval: build ? Math.min(s.autoDeleteMin, s.buildTtlMin) : s.autoDeleteMin,
+    // Fixed, non-secret values only: nothing from the host, the user or the session.
+    envVars: { PYTHONUNBUFFERED: "1", MPLBACKEND: "Agg" },
   };
-  if (s.ttlMin > 0) params.ttlMinutes = s.ttlMin;
+  if (ttl > 0) params.ttlMinutes = ttl;
   if (opts.snapshot) params.snapshot = opts.snapshot;
-  const egress = opts.egress ?? DEFAULT_EGRESS;
-  if (egress.canOverride) {
-    if (who.restricted) params.networkBlockAll = true;
-    else params.domainAllowList = (who.egressAllow ?? egress.allowDomains).slice(0, 100).join(",");
-  }
-  // Without override rights (tier 1–2) Daytona rejects any network setting, so a plugin-build
-  // sandbox keeps the org default there; it has no bash, only file tools and run_plugin_checks.
+  const canBlock = opts.canBlockNetwork ?? (opts.egress ?? DEFAULT_EGRESS).canOverride;
+  if (canBlock) params.networkBlockAll = true;
+  else if (s.network !== "org-default") throw new SandboxNetworkError();
   return params;
 }

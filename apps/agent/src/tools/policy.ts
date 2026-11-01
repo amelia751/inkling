@@ -37,6 +37,15 @@ export const PLUGIN_INTENT_RE =
 export const INTENT_GATED = new Set(["stage_plugin", "create_plugin_sandbox", "build_plugin_artifact"]);
 const PATH_TOOLS = new Set(["read", "write", "edit", "ls", "find", "grep"]);
 
+/**
+ * todo10 Phase 7: no tool may put sample or item bytes into a sandbox. The old upload tool is
+ * gone; these names are refused outright in case anything (an extension, a client tool spec)
+ * tries to bring one back. Fixtures reach the sandbox only through get_fixtures.
+ */
+export const SAMPLE_UPLOAD_TOOLS = new Set(["upload_dataset_sample", "upload_sample", "copy_sample", "upload_item", "download_item"]);
+/** Kernel and seed routes that serve real bytes; sandbox commands must not name them. */
+const SAMPLE_URL_RE = /\/api\/v1\/(assets|worker)\/|\/seed\/|\/api\/annotations\/|\/source-nodes\/[^/\s]+\/(download|versions)/;
+
 /** A tool path resolved against `root`, or undefined if it escapes it. */
 export function confined(root: string, path: unknown): string | undefined {
   const p = typeof path === "string" && path ? path : ".";
@@ -61,7 +70,8 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | dataset / environment / plugin reads, patch_environment (undoable)      | allow |
  * | bash / run_python                                                        | allow within budgets |
  * | network-ish commands (curl, wget, pip install, npm i, …)                 | ask unless egress is contained |
- * | upload_dataset_sample on a restricted project                            | ask |
+ * | anything that would copy dataset or sample bytes into a sandbox          | deny (todo10 Phase 7) |
+ * | get_fingerprint, get_fixtures, verify_on_sample, probe_sample            | allow: fixed-schema results; the kernel budgets probes |
  * | export_artifact over 50 MB                                               | ask |
  * | run_command (Studio commands can change annotations)                     | ask |
  * | stage_plugin, create_plugin_sandbox, build_plugin_artifact               | deny unless the user asked for a plugin change in this run |
@@ -87,6 +97,9 @@ export function decide(
   if (s.spendUsd >= b.maxSpendUsd) return { kind: "deny", reason: `spend budget ($${b.maxSpendUsd}) exhausted` };
 
   const str = (k: string) => (typeof call.input[k] === "string" ? (call.input[k] as string) : "");
+  if (SAMPLE_UPLOAD_TOOLS.has(call.toolName)) return { kind: "deny", reason: "Real samples never enter a sandbox. Use get_fingerprint, get_fixtures (synthetic files), verify_on_sample and probe_sample." };
+  if ((call.toolName === "bash" || call.toolName === "run_python") && SAMPLE_URL_RE.test(str("command") + str("code")))
+    return { kind: "deny", reason: "Sandbox code can't fetch item bytes from the Studio or the kernel; work from fingerprints and fixtures." };
   if (s.pathRoot && PATH_TOOLS.has(call.toolName) && !confined(s.pathRoot, call.input.path))
     return { kind: "deny", reason: `${call.toolName} may only touch files under ${s.pathRoot}` };
   if (INTENT_GATED.has(call.toolName) && !PLUGIN_INTENT_RE.test(s.userText))
@@ -148,8 +161,6 @@ export function decide(
     case "run_command":
       // Studio commands can create or change annotations (e.g. detectBeats); the expert confirms each one.
       return { kind: "ask", summary: `Run the Studio command ${str("id") || "(unnamed)"}` };
-    case "upload_dataset_sample":
-      return s.restricted ? { kind: "ask", summary: "Copy restricted dataset files into the sandbox" } : { kind: "allow" };
     default:
       return { kind: "allow" };
   }

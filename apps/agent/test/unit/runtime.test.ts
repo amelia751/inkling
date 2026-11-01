@@ -158,8 +158,10 @@ describe("policy (agent.md §10.1)", () => {
     expect(d("bash", { command: "pip install foo" }, { egressContained: true, restricted: true })).toBe("ask");
   });
   it("restricted uploads, big exports and Studio commands ask", () => {
-    expect(d("upload_dataset_sample", {}, { restricted: false })).toBe("allow");
-    expect(d("upload_dataset_sample", {}, { restricted: true })).toBe("ask");
+    // todo10 Phase 7: sample bytes never go into a sandbox, restricted or not.
+    expect(d("upload_dataset_sample", {}, { restricted: false })).toBe("deny");
+    expect(d("bash", { command: "curl http://web/seed/demo/a.dcm -o a.dcm" }, { restricted: false })).toBe("deny");
+    expect(d("verify_on_sample", { sample: "a", entrypoint: "m:f" }, { restricted: true })).toBe("allow");
     expect(d("export_artifact", { path: "a" }, {}, EXPORT_APPROVAL_BYTES)).toBe("allow");
     expect(d("export_artifact", { path: "a" }, {}, EXPORT_APPROVAL_BYTES + 1)).toBe("ask");
     expect(d("run_command", { id: "x" })).toBe("ask");

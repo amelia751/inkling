@@ -20,11 +20,11 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT
 WORKDIR /app
 COPY --from=manifests /out/ ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-workspace --package studio-api
+    uv sync --frozen --no-dev --no-install-workspace --package studio-api --extra gcpkms
 COPY packages packages
 COPY apps/api apps/api
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --package studio-api
+    uv sync --frozen --no-dev --package studio-api --extra gcpkms
 
 # ---- Runtime -------------------------------------------------------------------------------
 FROM ${PYTHON_IMAGE}

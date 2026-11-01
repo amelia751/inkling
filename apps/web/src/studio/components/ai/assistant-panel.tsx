@@ -25,6 +25,7 @@ import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import type { StudioCardContext } from "./cards";
+import { usePendingAsk } from "@/studio/app/entry/pending-ask";
 
 /**
  * The assistant (docs/ux.md §9), shared by its two hosts (todo6 Phase 6): the Studio's right
@@ -184,6 +185,8 @@ function Conversation({
       context: shared ? provider.turnContext() : `Project: ${project.title} (${project.id})\nThe user removed the section context: nothing about their current selection is shared.`,
     });
   };
+  // A message typed on Home before this project existed (todo13 D1) is sent once, here.
+  usePendingAsk(project.id, ask);
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
@@ -240,7 +243,7 @@ function Conversation({
 
 function EmptyState({ title, body, prompts, onAsk }: { title: string; body: ReactNode; prompts: Prompt[]; onAsk: (t: string) => void }) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center">
+    <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center" data-testid="agent-empty">
       <div className="flex flex-col items-center">
         <span className="echo-star mb-3 flex size-12 items-center justify-center text-ai-text" aria-hidden>
           <AiIcon className="size-8" />

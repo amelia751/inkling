@@ -91,6 +91,17 @@ Screen elements:
 
 Avoid making users define labels, JSON schemas, medical modality or export formats before they've supplied data.
 
+**One way in (todo13).** Home *is* the composer: a send or a drop (anywhere on the page, or a
+pasted screenshot) creates the project through the person's API, named from the goal or from
+what the files are (“12 images”, never a file name), and opens it with the assistant drawer,
+the message delivered or the files uploading. With projects already, it asks first: add to the
+last project, or start a new one. Projects with none shows the same composer; `/projects/new`
+keeps the form. Every empty surface (Overview, Files, Datasets, the Studio entry, the empty
+Studio canvas) is the same `ComposerEmptyState` (`@studio/ui`): what will appear there, plus
+drop files and ask the assistant. The Studio canvas takes drops at any time; files join the
+open Studio. `?timeline=1` shows the drop timeline (gesture → first interactive item), which is
+also posted, as durations only, to `POST /api/v1/telemetry/timeline`.
+
 ## 4. Redesigned Project Overview — the project home
 
 ### Intent
@@ -206,7 +217,7 @@ The Overview is deliberately not a replacement for these detailed screens. It on
 
 ## 6. Sources: Files and messy-data ingestion
 
-The **Sources** section (nav label and route, `/projects/:p/sources`) holds the project's **Files**: one drive per project, a real file
+The **Files** section (nav label **Files** since todo13 D10; the route stays `/projects/:p/sources`, and sources live inside it as provenance) holds the project's **Files**: one drive per project, a real file
 system built on the kiwifs tree (todo7). Two things stay true: the **bytes** of every upload are
 immutable, and nothing a dataset or version depends on changes silently. Names and folders are
 the user's: every change is journaled, undoable and restorable, and the original filename,

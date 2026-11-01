@@ -38,6 +38,8 @@ import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, type 
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
+import { useFeature, type Features } from "@/studio/lib/features";
+import { TimelineOverlay } from "@/studio/components/layout/timeline-overlay";
 
 /** Below this width the project sidebar starts as its icon rail (Gravity AsideHeader compact). */
 const FULL_NAV_MIN = 1280;
@@ -54,20 +56,26 @@ interface Section {
 }
 
 /**
- * docs/ux.md §2: the project sidebar, in this order; Settings is pinned at the bottom. Explore is
- * off the sidebar: it opens from the Overview card, attention rows, Review and a dataset's
- * Structure. Datasets is on it (docs/datasets.md §1).
+ * docs/ux.md §2, todo13 D10: the project sidebar, in this order; Settings is pinned at the
+ * bottom. Explore is off the sidebar: it opens from the Overview card, attention rows, Review,
+ * a dataset's Structure and Datasets' "Needs attention".
  */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
-  // The route and label are "Sources" (the drive's root folder is "Files").
-  { section: "sources", label: "Sources", icon: SourcesIcon },
-  // docs/datasets.md §1: Datasets explains, Sources stores, the Studio works.
+  // todo13 D10: the drive is "Files" in every label; the route (and so the section, the
+  // `when` context and the testids) stays `sources`. Sources live inside it as provenance.
+  { section: "sources", label: "Files", icon: SourcesIcon },
+  // docs/datasets.md §1: Datasets explains, Files stores, the Studio works.
   { section: "datasets", label: "Datasets", icon: DatasetsIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
   { section: "activity", label: "Activity", icon: ActivityIcon },
 ];
+
+/** The sections the sidebar shows: Datasets only with `API_FEATURE_DATASETS_TAB` (todo13 §7.1). */
+export function visibleSections(features: Pick<Features, "datasetsTab">): Section[] {
+  return PROJECT_SECTIONS.filter((s) => s.section !== "datasets" || features.datasetsTab);
+}
 const SETTINGS: Section = { section: "settings", label: "Settings", icon: ProjectSettingsIcon };
 
 /** The project a route is in: `/projects/:projectId/…` (title from the API, else the id). */
@@ -161,6 +169,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
         <BootNavigator />
         <UploadLayer />
         <NewProjectDialog />
+        <TimelineOverlay />
       </div>
     );
   }
@@ -185,6 +194,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
       <BootNavigator />
       <UploadLayer />
       <NewProjectDialog />
+      <TimelineOverlay />
       {!desktop && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
           <SheetContent side="left" title="Navigation" className="flex w-[min(284px,88vw)] flex-col p-6 pr-4">
@@ -241,6 +251,7 @@ export function PageHeading({ title, description, actions }: { title: ReactNode;
 
 function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
   const recent = useShell((s) => s.recent);
+  const sections = visibleSections({ datasetsTab: useFeature("datasetsTab") });
   if (!project) {
     return (
       <nav className={cn("flex flex-col", rail ? "items-center gap-1" : "gap-5")} aria-label="Workspace">
@@ -285,7 +296,7 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
         </div>
       )}
       <ul className={cn(rail && "flex flex-col items-center gap-1")}>
-        {PROJECT_SECTIONS.map((s) => (
+        {sections.map((s) => (
           <NavItem key={s.section} to={projectUrl(project.id, s.section)} icon={s.icon} label={s.label} rail={rail} />
         ))}
       </ul>

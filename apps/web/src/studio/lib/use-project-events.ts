@@ -46,6 +46,13 @@ export const FORWARDED = [
   "dataset.candidate.created",
   "review.requested",
   "review.approved",
+  // todo13 §5 drop events (the drops workstream emits them; the drop timeline reads them).
+  "drop.received",
+  "drop.file",
+  "drop.classified",
+  "drop.planned",
+  "drop.applied",
+  "drop.failed",
 ];
 
 /**

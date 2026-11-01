@@ -158,6 +158,7 @@ export { default as InfoIcon } from "@gravity-ui/icons/CircleInfo";
 export { default as AiIcon } from "@gravity-ui/icons/Sparkles";
 export { default as SubmitIcon } from "@gravity-ui/icons/ArrowUp";
 export { default as StopIcon } from "@gravity-ui/icons/StopFill";
+export { default as AttachIcon } from "@gravity-ui/icons/Paperclip";
 export { default as NewChatIcon } from "@gravity-ui/icons/CommentPlus";
 export { default as ToolIcon } from "@gravity-ui/icons/Wrench";
 export { default as DocumentIcon } from "@gravity-ui/icons/FileText";

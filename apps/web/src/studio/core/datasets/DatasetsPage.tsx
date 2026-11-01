@@ -5,7 +5,7 @@ import { AiIcon, ArrowRightIcon, DatasetsIcon, GridViewIcon, InfoIcon, ListViewI
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
-import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
+import { NoResults } from "@studio/ui/ui/empty-state";
 import { Input } from "@studio/ui/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
@@ -22,6 +22,7 @@ import { useDatasetProfiles } from "./api";
 import { contentSummary, countOf, datasetStatus, MODALITIES, modalitiesOf, STATUS_LABEL, STATUS_THEME, type DatasetStatus, type Modality } from "./model";
 import { TaskList } from "./DatasetOverview";
 import { NewDatasetDialog } from "./NewDatasetDialog";
+import { DatasetsEmptyState } from "@/studio/app/entry/empty-states";
 
 type View = "cards" | "list";
 
@@ -84,24 +85,10 @@ export function DatasetsPage() {
         ) : datasets.isLoading ? (
           <LandingSkeleton />
         ) : list.length === 0 ? (
-          <EmptyState
-            art="dataset"
-            title="No datasets yet"
-            description={
-              <>
-                Your datasets will appear here once you create one from your sources.
-                <span className="mt-2 block text-hint">For example: 200 chest X-rays and a table of diagnoses, labelled normal or pneumonia.</span>
-              </>
-            }
-            actions={
-              <>
-                <Button variant="outline" size="lg" onClick={() => setCreating(true)}>Create dataset</Button>
-                <Button variant="ghost-secondary" size="lg" asChild>
-                  <Link to={sourcesUrl(projectId)}>Explore sources</Link>
-                </Button>
-              </>
-            }
-            data-testid="datasets-empty"
+          // todo13 §3.1: the one empty state (drop files, ask), Create dataset beside them.
+          <DatasetsEmptyState
+            projectId={projectId}
+            actions={<Button variant="outline" size="lg" onClick={() => setCreating(true)}>Create dataset</Button>}
           />
         ) : (
           <div className="flex flex-col gap-8">

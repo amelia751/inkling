@@ -50,6 +50,17 @@ that are missing or invalid, never their values.
 | API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
 
+Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
+gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
+in production, on in development and test (todo13 §7.4: dev runs with every flag on).
+
+| Key (without prefix)      | Default (prod / dev)             | Meaning |
+|---------------------------|----------------------------------|---------|
+| API_FEATURE_CHAT_DROPS    | false / true                     | composer drop, paste and attach; the Shared files view |
+| API_FEATURE_AUTO_APPLY    | false / true                     | drop plans that only touch the person's drafts apply on their own (off: every plan asks) |
+| API_FEATURE_FAST_PATH     | false / true                     | boot a Studio from a drop before the agent answers |
+| API_FEATURE_DATASETS_TAB  | false / true                     | Datasets in the project sidebar |
+
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
 (Workload Identity on GKE; `gcloud auth application-default login` locally), never a key file. `NAMING_FILE` (unprefixed: the prefix is read from it) is
@@ -166,6 +177,17 @@ class Settings(BaseModel):
     boundary_probe_budget: int = 64
     text_check: Literal["dev"] = "dev"
 
+    # ---- Feature flags (todo13 §7.1): None = the default for `env` (off in production). ----
+    feature_chat_drops: bool | None = None
+    feature_auto_apply: bool | None = None
+    feature_fast_path: bool | None = None
+    feature_datasets_tab: bool | None = None
+
+    def feature(self, name: str) -> bool:
+        """A todo13 flag by short name (`chat_drops`, `auto_apply`, `fast_path`, `datasets_tab`)."""
+        v = getattr(self, f"feature_{name}")
+        return (not self.production) if v is None else bool(v)
+
     @property
     def production(self) -> bool:
         return self.env == "production"
@@ -220,6 +242,11 @@ _KEYS: dict[str, str] = {
     "artifacts_bucket": "API_ARTIFACTS_BUCKET",
     "boundary_probe_budget": "API_BOUNDARY_PROBE_BUDGET",
     "text_check": "API_TEXT_CHECK",
+    # Feature flags (todo13 §7.1).
+    "feature_chat_drops": "API_FEATURE_CHAT_DROPS",
+    "feature_auto_apply": "API_FEATURE_AUTO_APPLY",
+    "feature_fast_path": "API_FEATURE_FAST_PATH",
+    "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

@@ -6,6 +6,7 @@ import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Card } from "@studio/ui/ui/card";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
+import { StudioEntryEmptyState } from "@/studio/app/entry/empty-states";
 import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { api, projectKeys, useOverview } from "@/studio/lib/projects-api";
@@ -39,7 +40,7 @@ export const LEGACY = {
 
 /**
  * "Studio" in the project nav: the last-used task (resume), the only task, a picker when
- * there are several, or Datasets with a hint when there is none yet.
+ * there are several, or "No Studio yet" with the composer when there is none (todo13 §3.1).
  */
 export function StudioEntry() {
   const { projectId = "" } = useParams();
@@ -47,7 +48,15 @@ export function StudioEntry() {
   const o = overview.data;
   if (o?.resume) return <Navigate to={studioUrl(projectId, o.resume.taskId)} state={{ resume: true }} replace />;
   if (o && o.tasks.length === 1) return <Navigate to={studioUrl(projectId, o.tasks[0].id)} replace />;
-  if (o && o.tasks.length === 0) return <Navigate to={`${projectUrl(projectId, "datasets")}?hint=no-task`} replace />;
+  // todo13 §3.1: no Studio yet says so here, with the composer, instead of sending people away.
+  if (o && o.tasks.length === 0)
+    return (
+      <AppLayout>
+        <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
+          <StudioEntryEmptyState projectId={projectId} />
+        </div>
+      </AppLayout>
+    );
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
@@ -110,7 +119,7 @@ export function SectionFrame({ title, description, children }: { title: string; 
         <PageHeading title={title} description={description} />
         {children ?? (
           <p className="text-sm text-muted-foreground">
-            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Sources</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
+            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Files</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
           </p>
         )}
       </div>

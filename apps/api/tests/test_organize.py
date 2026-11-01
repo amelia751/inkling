@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from studio_api import db as kdb
 from studio_api.kernel import drops_plan, pipeline_client
-from studio_api.models import DatasetCollectionRow, DatasetRepo, DatasetRow, DropPlanRow, ImportSession, PluginEvent, TaskRow
+from studio_api.models import DatasetCollectionRow, DatasetRepo, DropPlanRow, ImportSession, PluginEvent, TaskRow
 
 from .conftest import png, worker_headers
 from .test_explore import _report

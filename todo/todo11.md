@@ -11,7 +11,7 @@ making complicated data feel simple.
 
 - **Milestone 1: done and merged** (cold image-2d first frame is still over budget; see the M1 notes).
 - **Milestone 2** starts after Milestone 1's measurements land. **Server side (`todo11-boot`) done
-  early, in parallel, and merged** (it touches nothing in Milestone 1's files); the D4 guardrails are merged too. Its client side (`todo11-live`) has not started. See the ✅ notes in Milestone 2.
+  early, in parallel, and merged** (it touches nothing in Milestone 1's files); the D4 guardrails are merged too. Its client side (`todo11-live`) is done and merged too. See the ✅ notes in Milestone 2.
 - **Milestone 3** follows.
 - **Milestone 4** (external agents) is deliberately later and only outlined.
 
@@ -531,6 +531,47 @@ A user can create a Studio from chat without opening the Studio first.
    `boot-card`, `boot-step`, `boot-pill`.
 10. **Entry points:** a **New Studio** button and a `/studio <words>` command, both on the same boot
     route. Handle `run-status` in the agent reducer.
+    - ✅ **Items 7–10 done (`todo11-live`, merged).**
+      - **Item 7, live updates:**
+        - One shared project event stream per project. It survives in-app navigation for
+          about 3 s and resumes with `?after=`.
+        - `environment.updated` with a patch for the next revision is applied through
+          `installEnvironment`: only new modules load, inside `startTransition`, and nothing goes
+          on the local undo stack.
+        - A gap or a missing patch makes the tab refetch; its own writes and replays are ignored.
+        - The environment query's `staleTime` is now 30 s instead of `Infinity`.
+        - `<ViewTransition>` isn't in React 19.2 stable yet. `ShellTransition` renders through
+          until it ships; route changes use the router's `viewTransition` instead.
+      - **Item 8, navigation:**
+        - The tab that started the boot navigates itself. It's matched by `initiator.runId`
+          against every run the tab streamed, finished ones included, or by its own `bootId`.
+        - Other tabs get a toast, the card's "Open Studio", and "Draft · Publish" in the
+          Studio list.
+      - **Item 9, card and pill:**
+        - A boots store fed by `boot.*` drives `boot-card`, `boot-step` and `boot-pill`.
+        - The header is a polite status line, static under reduced motion.
+        - Stop keeps what's built; the finished card says "Studio ready · N s · Undo · Publish".
+        - The `offer_studio` card's Create calls the boot route with one bootId per offer.
+      - **Item 10, entry points:** a New Studio popover and `/studio <words>` in chat (no model
+        turn), both through `resolveIntent` over `registry/intents.json`. `run-status` is handled
+        in `reduce()`.
+      - **API:** overview tasks carry `state`.
+    - **Exit status:**
+      - ✅ `tests/e2e/live_boot_test.py`: 23/23, re-run on merged `main`. The Overview-drawer
+        request navigates with no full page load; the shell paints 0.2–0.5 s after the
+        navigation; the 5 labels show; `boot.ready` arrives in about 1.3 s; a curl `PATCH`
+        reaches the open tab in 40–150 ms with no reload; "explain pneumothorax" boots nothing.
+      - ✅ Existing e2e: `agent_test` 39/39, `environments` 25/25, `task_setup` 25/25,
+        `studio_layout` 13/13, `studio_items` all pass. `studio_toolbar` is 12/16, and the same
+        4 checks fail on main before this branch.
+      - ⚠️ **Tokens: −41%, not −70%.** The web still sends the `list_modules` and
+        `describe_contribution` client tools.
+    - **Open:**
+      - Boots run synchronously on the server, so Stop has no server-side cancel.
+      - Undo writes back the preset, which also discards later edits by the person.
+      - The offer card reads its offer from the tool call's arguments (tool results don't carry
+        output).
+      - View transitions on live updates wait for React to ship `<ViewTransition>`.
 11. **Exit:**
     - an e2e with a scripted model: "Create a chest X-ray Studio with five classification labels"
       typed in the Overview drawer (no Studio open) navigates without a full page load, paints the
@@ -647,7 +688,7 @@ Write a todo12 for this when it starts.
 |---|---|---|---|
 | `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
 | `todo11-boot` ✅ (merged, D4 guardrails included) | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, `packages/agent-protocol` additions + `ag-ui-map.ts` (D4), agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
-| `todo11-live` | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
+| `todo11-live` ✅ (merged) | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
 | `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 
 Milestone 1 runs alone first. `todo11-boot` and `todo11-live` run in parallel once Milestone 1 merges

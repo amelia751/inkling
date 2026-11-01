@@ -419,3 +419,49 @@ def test_a_table_dropped_into_a_dataset_is_checked_against_its_file_names(client
     assert sorted(listing["knownNames"]) == ["cxr_1.png", "cxr_2.png"]
     # An import without a table doesn't carry them.
     assert "knownNames" not in client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()
+
+
+def test_a_drops_first_files_are_classified_and_inspected_first(client):
+    """todo13 M4 item 2: the uploader's `priority: first` session is claimed for inspection
+    ahead of older work and classified without waiting for the rest of the drop; the rest get
+    a follow-up plan that joins what the first files started."""
+    from studio_api.kernel import events
+    from studio_api.models import DropPlanRow
+
+    pid = _project(client)
+    # Older, unrelated work waiting for inspection.
+    _drop(client, pid, {"older.png": png(30, 30)}, conv="conv-old")
+    d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "home", "conversationId": "conv-p", "files": 6, "bytes": 600}).json()
+    head = {f"h{i}.png": png(10 + i, 10) for i in range(3)}
+    rest = {f"r{i}.png": png(20 + i, 10) for i in range(3)}
+
+    def session(files, priority=None):
+        origin = {"kind": "home", "conversationId": "conv-p", "dropId": d["id"], **({"priority": priority} if priority else {})}
+        s = client.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": _files(files), "origin": origin}).json()
+        for f in s["files"]:
+            client.put(f["uploadUrl"], content=files[f["relPath"]])
+        return s
+
+    s1 = session(head, "first")
+    s2 = session(rest)
+    client.post(f"/api/v1/imports/{s1['id']}/complete")
+    with kdb.session_scope() as db:
+        claimed = events.claim_for(db, "inspect", ["source.uploaded"], 1)
+        assert claimed[0].payload["importId"] == s1["id"] and claimed[0].payload.get("priority") == "first"
+    # The first part is classified while the rest is still uploading.
+    _report(client, client.get(f"/api/v1/imports/{s1['id']}").json(), {n: "image" for n in head})
+    with kdb.session_scope() as db:
+        row = db.get(DropPlanRow, d["id"])
+        assert row is not None and row.context["sessionIds"] == [s1["id"]]
+        assert sum(g["count"] for g in row.groups) == 3
+    client.post(f"/api/v1/imports/{s2['id']}/complete")
+    _report(client, client.get(f"/api/v1/imports/{s2['id']}").json(), {n: "image" for n in rest})
+    with kdb.session_scope() as db:
+        follow = [r for r in db.scalars(select(DropPlanRow).where(DropPlanRow.project_id == pid)) if r.drop_id.startswith(d["id"] + "-")]
+        assert len(follow) == 1 and sum(g["count"] for g in follow[0].groups) == 3, [(r.drop_id, r.groups) for r in follow]
+        # The rest joins the first files' dataset and Studio (no second dataset).
+        assert [a["type"] for a in follow[0].plan["actions"]] == ["add_to_collection"]
+        from studio_api.models import TaskRow
+
+        tasks = [t.id for t in db.scalars(select(TaskRow).where(TaskRow.project_id == pid))]
+    assert len(tasks) == 1 and len(client.get(f"/api/v1/tasks/{tasks[0]}/document").json()["assets"]) == 6

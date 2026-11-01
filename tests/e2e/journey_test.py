@@ -17,6 +17,9 @@ project the way the product did before todo13 (an upload, a dataset, a Studio), 
 database goes down to 0010 (before todo13) and back up through 0011/0012; then the API starts
 again with the flags on and the rest of the journeys run on that upgraded database.
 
+The uploader sends a big drop's first images as their own session (`priority: "first"`), so the
+J8 steps are the first part's; the rest streams in after (todo13 M4 item 2).
+
 Budgets gated here (§6): drop → drop card < 300 ms; drop → first file inspected < 3 s; J1 drop
 → first item interactive < 15 s (fast path); J4 second drop → plan card < 5 s after its first
 group is classified. The attestation dialog is a person's click: the timings report it apart
@@ -675,7 +678,7 @@ class Suite:
         human = max(0, steps.get("attested", 0) - steps.get("upload-start", 0))
         fi = steps.get("first-interactive")
         timing("J8 2,000 images: drop → first item interactive", fi, "< 15 s", f"incl. {human} ms attestation click")
-        for a, b, label in (("attested", "hashed", "hash 2,000 files"), ("hashed", "import-created", "register the import"), ("import-created", "first-file-uploaded", "first file's bytes"), ("first-file-uploaded", "upload-done", "the rest of the bytes"), ("upload-done", "server:source.node.inspected", "inspection"), ("server:source.node.inspected", "server:boot.ready", "classify, plan, boot"), ("server:boot.ready", "first-interactive", "Studio first frame")):
+        for a, b, label in (("attested", "hashed", "hash the first part"), ("hashed", "import-created", "register the first part"), ("import-created", "upload-done", "upload the first part"), ("upload-done", "server:source.node.inspected", "inspect the first part"), ("server:source.node.inspected", "server:boot.ready", "classify, plan, boot"), ("server:boot.ready", "first-interactive", "Studio first frame")):
             if a in steps and b in steps:
                 timing(f"J8 step: {label}", steps[b] - steps[a], "", f"{a} → {b}")
         check("J8 budget: first item interactive < 15 s (attestation click excluded)", fi is not None and fi - human < 15000, f"{fi} ms − {human} ms")

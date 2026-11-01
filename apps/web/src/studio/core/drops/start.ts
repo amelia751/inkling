@@ -1,4 +1,4 @@
-import type { DropOriginKind } from "@studio/contracts/drops";
+import type { DropOrigin, DropOriginKind } from "@studio/contracts/drops";
 import type { SeedAsset } from "@studio/contracts/types";
 import { ApiError } from "@/studio/lib/projects-api";
 import { fromFileList, type Picked } from "@/studio/lib/uploads/walk";
@@ -59,16 +59,70 @@ export function startDrop(o: StartDropOptions): string {
   const id = o.dropId ?? newDropId();
   const files = picked.files.map((f) => ({ relPath: f.relPath, size: f.file.size, ...(IMAGE.test(f.relPath) && f.file.size < 50 * 1024 * 1024 ? { preview: URL.createObjectURL(f.file) } : {}) }));
   const store = useDrops.getState();
+  const joining = !!store.drops[id];
   if (store.drops[id]) store.patch(id, (d) => ({ files: [...d.files.filter((x) => !files.some((f) => f.relPath === x.relPath)), ...files], error: undefined, overLimit: undefined }));
   else store.put({ id, projectId: o.projectId, origin: o.origin, conversationId: o.conversationId, taskId: o.taskId, files, uploadKeys: [], createdAt: Date.now() });
-  void run(id, o, picked);
+  void run(id, o, picked, joining);
   return id;
 }
 
-async function run(id: string, o: StartDropOptions, picked: Picked) {
+/** Drops bigger than this send their first images ahead, as their own session. */
+export const SPLIT_ABOVE = 48;
+export const FIRST_FILES = 12;
+
+/**
+ * A big drop's first part (todo13 M4 item 2): its first few images, in the order dropped, go
+ * up as their own import session with `priority: "first"`, so they're inspected and the fast
+ * path opens a Studio while the rest uploads. Only plain images (a DICOM series stays whole).
+ */
+export function splitFirst(picked: Picked): [Picked, Picked] | null {
+  if (picked.files.length <= SPLIT_ABOVE) return null;
+  const first = picked.files.filter((f) => IMAGE.test(f.relPath)).slice(0, FIRST_FILES);
+  if (first.length < 4) return null;
+  const head = new Set(first);
+  return [
+    { files: first, skipped: 0 },
+    { files: picked.files.filter((f) => !head.has(f)), skipped: picked.skipped },
+  ];
+}
+
+async function run(id: string, o: StartDropOptions, picked: Picked, joining: boolean) {
   const ok = await ensureCreated(id, o, picked);
   if (!ok || !picked.files.length) return;
   const origin = { kind: o.origin, ...(o.conversationId ? { conversationId: o.conversationId } : {}), ...(o.messageId ? { messageId: o.messageId } : {}), ...(o.conversationTitle ? { conversationTitle: o.conversationTitle } : {}) };
+  // Files added to a drop already under way (more before send, a resume) go as they are.
+  const parts = joining ? null : splitFirst(picked);
+  if (parts) {
+    // The first files' bytes go up first; the rest start once those are in (not inspected).
+    const head = send(id, o, parts[0], { ...origin, priority: "first" as const });
+    if ((await uploaded(id)) === "cancelled") return;
+    await Promise.all([head, send(id, o, parts[1], origin)]);
+    return;
+  }
+  await send(id, o, picked, origin);
+}
+
+/** Resolves when the drop's (only) session has its bytes in: checking, done, failed or cancelled. */
+function uploaded(dropId: string): Promise<string> {
+  const phase = () => {
+    const x = useUploads.getState().sessions.find((x) => x.dropId === dropId);
+    // `failed` without an error is the moment between registering and uploading (`absorb`).
+    return x?.phase === "failed" && !x.error ? "uploading" : x?.phase;
+  };
+  const over = (p: string | undefined) => p === "checking" || p === "done" || p === "failed" || p === "cancelled";
+  if (over(phase())) return Promise.resolve(phase()!);
+  return new Promise((resolve) => {
+    const stop = useUploads.subscribe(() => {
+      const p = phase();
+      if (over(p)) {
+        stop();
+        resolve(p!);
+      }
+    });
+  });
+}
+
+async function send(id: string, o: StartDropOptions, picked: Picked, origin: DropOrigin) {
   const session = await useUploads.getState().add(o.projectId, picked, {
     taskId: o.taskId,
     targetNodeId: o.targetNodeId,
@@ -82,6 +136,7 @@ async function run(id: string, o: StartDropOptions, picked: Picked) {
     onStarted: (key) => useDrops.getState().patch(id, (d) => ({ uploadKeys: [...d.uploadKeys, key] })),
   });
   if (session?.phase === "failed" && session.error) useDrops.getState().patch(id, { error: session.error, overLimit: /at most|limit/i.test(session.error) });
+  return session;
 }
 
 function ensureCreated(id: string, o: StartDropOptions, picked: Picked): Promise<boolean> {

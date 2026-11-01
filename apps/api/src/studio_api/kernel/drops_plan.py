@@ -194,8 +194,14 @@ def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
     if not drop_id:
         return None
     sessions = sessions_of(db, s.project_id, drop_id)
-    if any(x.state in ("uploading", "inspecting") for x in sessions):
-        return None
+    busy = [x for x in sessions if x.state in ("uploading", "inspecting")]
+    if busy:
+        # todo13 M4: a drop's first files (the uploader's `priority: first` session) are
+        # classified, and may boot a Studio, without waiting for the rest; the rest get a
+        # follow-up plan when they're inspected.
+        if (s.totals or {}).get("priority") != "first" or db.get(DropPlanRow, drop_id) is not None:
+            return None
+        sessions = [x for x in sessions if x not in busy]
     try:
         with db.begin_nested():
             return classify_drop(db, s.project_id, drop_id, sessions)
@@ -217,9 +223,21 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     if not files:
         return None
     row = db.get(DropPlanRow, drop_id)
+    parent_fast = False
     if row is not None and row.state in ("applied", "applying"):
-        # New files of a drop that was already applied (a late session): a follow-up plan.
-        drop_id = f"{drop_id}-{len(sessions)}"
+        # New files of a drop that was already applied (a late session): a follow-up plan for
+        # the sessions the first plan didn't cover.
+        covered = set((row.context or {}).get("sessionIds") or [])
+        parent_fast = bool(row.fast_path)
+        # The rest belongs where the first plan put the files: its dataset (never a second one).
+        parent_ds = (row.context or {}).get("datasetId") or next(iter((row.applied or {}).get("datasets") or []), None)
+        if parent_ds and not ctx_info.get("datasetId"):
+            ctx_info["datasetId"] = parent_ds
+        sessions = [x for x in sessions if x.id not in covered] or sessions
+        files = gather(db, project_id, sessions)
+        if not files:
+            return row
+        drop_id = f"{drop_id}-{len(covered) + len(sessions)}"
         row = db.get(DropPlanRow, drop_id)
         if row is not None and row.state != "planned":
             return row
@@ -240,7 +258,8 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     events.publish(db, sctx, "drop.classified", {"dropId": drop_id, "groups": [g.as_dict(with_nodes=False) for g in groups]}, source="kernel")
     _log(row, "classified", groups=len(groups))
     fast = _fast_path_preset(groups, cctx, plan)
-    auto = bool(fast) or (drop_flags.enabled("auto_apply") and dc.safe_to_auto_apply(plan))
+    # The rest of a fast-path drop joins what its first files started, as the fast path did.
+    auto = bool(fast) or ((drop_flags.enabled("auto_apply") or (parent_fast and drop_flags.enabled("fast_path"))) and dc.safe_to_auto_apply(plan))
     row.auto = auto
     events.publish(db, sctx, "drop.planned", {"dropId": drop_id, "plan": plan, "auto": auto}, source="kernel")
     _log(row, "planned", auto=auto)

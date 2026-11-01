@@ -53,7 +53,7 @@ def require_any(*flags: Flag):
     for f in flags:
         if f not in FLAGS:
             raise ValueError(f"unknown feature flag {f!r}")
-    names = flags or tuple(FLAGS)  # type: ignore[assignment]
+    names: tuple[Flag, ...] = flags or ("chat_drops", "auto_apply", "fast_path", "datasets_tab")
 
     def dep() -> None:
         if not any(enabled(f) for f in names):

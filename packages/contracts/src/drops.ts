@@ -25,6 +25,12 @@ export interface DropOrigin {
   /** Names the `Shared in chat` subfolder the first time a conversation shares files. */
   conversationTitle?: string;
   dropId?: string;
+  /**
+   * `"first"`: this session holds a big drop's first files (todo13 M4). The kernel inspects it
+   * ahead of older work and classifies it without waiting for the rest of the drop, so the
+   * fast path can open a Studio while the rest uploads; the rest gets a follow-up plan.
+   */
+  priority?: "first";
 }
 
 /** What `POST /projects/:id/drops` takes. `id` (`drp-…`) makes a retry return the same drop. */

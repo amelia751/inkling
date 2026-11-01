@@ -333,12 +333,15 @@ class Worker:
             self.deid.tick()
         except httpx.HTTPError as e:
             log.warning("review checks: %s", type(e).__name__)
+        # Inspections and unpacks done this tick count as work: the loop goes again at once
+        # instead of idling a poll interval between a big drop's batches (todo13 M4).
+        did = 0
         try:
-            self.inspect.tick()
+            did += self.inspect.tick() or 0
         except httpx.HTTPError as e:
             log.warning("inspection: %s", type(e).__name__)
         try:
-            self.unpack.tick()
+            did += int(bool(self.unpack.tick()))
         except httpx.HTTPError as e:
             log.warning("unpack: %s", type(e).__name__)
         try:
@@ -349,7 +352,7 @@ class Worker:
         r.raise_for_status()
         claim = r.json()
         if not claim.get("job"):
-            return False
+            return did > 0
         if claim.get("builtin") == "boundary":
             self.busy = True
             try:

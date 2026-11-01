@@ -137,7 +137,7 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
 
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
-    initiator = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
+    initiator: dict[str, str | bool] = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
     # todo13 fast path: the drop that booted it, so the tab that dropped opens the Studio (§3.2).
     drop_id = body.get("dropId")
     if isinstance(drop_id, str) and DROP_RE.fullmatch(drop_id):

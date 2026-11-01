@@ -92,12 +92,13 @@ def main() -> int:
         check("a collection opens its inspector from the keyboard", "Images" in page.get_by_test_id("dataset-inspector").inner_text())
         check("the selection is in the URL", "select=kind%3Aimage" in page.url or "select=kind:image" in page.url, page.url)
         page.get_by_test_id("inspector-close").click()
+        page.get_by_test_id("dataset-inspector").wait_for(state="detached", timeout=5000)
         check("the inspector closes", page.get_by_test_id("dataset-inspector").count() == 0)
         page.get_by_test_id("structure-search").fill("zzz")
         check("a search with no match says so", page.get_by_test_id("no-results").count() == 1)
 
         # ---- Fields & Formats ----
-        page.get_by_role("link", name="Fields & Formats").click()
+        page.get_by_test_id("dataset-tabs").get_by_role("link", name="Fields & Formats").click()
         page.wait_for_url(f"**/datasets/{P}/fields", timeout=10000)
         page.get_by_test_id("collection-shape").wait_for(timeout=10000)
         check("format is shown apart from fields", page.get_by_test_id("collection-format").count() == 1)

@@ -41,7 +41,7 @@ export function DatasetsPage() {
   const addData = useAddData(projectId);
   // One request for every card; a server without it (null) falls back to a profile per dataset.
   const summaries = useDatasetSummaries(projectId);
-  const fallback = summaries.data === null;
+  const fallback = summaries.data === null || !!summaries.error;
   const profiles = useDatasetProfiles(projectId, fallback ? list.map((d) => d.id) : [], fallback);
   const profileOf = (id: string): DatasetLandingSummary | undefined => {
     if (!fallback) return summaries.data?.datasets.find((s) => s.datasetId === id);

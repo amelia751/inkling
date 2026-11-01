@@ -136,6 +136,27 @@ patches:
       - op: replace
         path: /data/KEDA_REDIS_ADDRESS
         value: redis.studio-dev.svc.cluster.local:6379
+  # todo13 (§7.4 "Dev"): every drop flag on; names screened by the regex screen (no Sensitive
+  # Data Protection on a local cluster).
+  - target:
+      kind: ConfigMap
+      name: api-config
+    patch: |-
+      - op: replace
+        path: /data/INKLING_API_FEATURE_CHAT_DROPS
+        value: "true"
+      - op: replace
+        path: /data/INKLING_API_FEATURE_DATASETS_TAB
+        value: "true"
+      - op: replace
+        path: /data/INKLING_API_FEATURE_FAST_PATH
+        value: "true"
+      - op: replace
+        path: /data/INKLING_API_FEATURE_AUTO_APPLY
+        value: "true"
+      - op: replace
+        path: /data/INKLING_API_NAME_SCREEN_MODE
+        value: regex
   # No model or Daytona key needed: scripted model, sandboxes off (both refused in production).
   - target:
       kind: ConfigMap

@@ -1,5 +1,8 @@
-# KEDA: scale the worker on the kernel's Redis ready list (apps/api JOB_QUEUE=redis), down to
-# zero when idle. One replica per `listLength` queued jobs, up to maxReplicaCount.
+# KEDA: scale the worker on the kernel's Redis ready list (apps/api JOB_QUEUE=redis). One replica
+# per `listLength` queued jobs, up to maxReplicaCount. Never below one: besides jobs, the worker
+# runs the event subscriptions (file inspection, archive unpack, item probes) and the scheduled
+# tasks (name screening, housekeeping), none of which put anything on these lists, so at zero an
+# upload would stay "checking" forever. (The GPU worker only runs jobs and still scales to zero.)
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -7,7 +10,7 @@ metadata:
 spec:
   scaleTargetRef:
     name: worker
-  minReplicaCount: 0
+  minReplicaCount: 1
   maxReplicaCount: 10
   pollingInterval: 10
   # Wait this long after the list empties before scaling to zero.

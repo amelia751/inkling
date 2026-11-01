@@ -245,7 +245,7 @@ manifest and KEDA as above.
 
 Notes:
 
-- The dev overlay runs one replica of each app (HPAs removed), the worker from zero via KEDA,
+- The dev overlay runs one replica of each app (HPAs removed), one worker scaled up by KEDA,
   the agent scripted with sandboxes off, and fixed `dev-only-…` Secrets from a
   `secretGenerator`. For real model/Daytona keys, replace the agent's Secret after applying
   (the next `apply -k` restores the placeholders):

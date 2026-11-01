@@ -455,10 +455,17 @@ def prepare_envs(repo_root: Path, envs_dir: Path, only: list[str] | None, uv: st
 
 
 def make_signer(s: config.WorkerSettings):
-    """The platform key `build_plugin` signs with (studio_signing; KMS in production)."""
+    """The platform key `build_plugin` signs with (studio_signing; KMS in production), or None
+    when it can't be set up here (a read-only root with no key file, no KMS identity): the worker
+    still inspects, unpacks and runs every other job, and a build reports "the worker has no
+    signing key configured" instead of the whole pod crash-looping."""
     from studio_signing import make_signer as make
 
-    return make(s.signer, key_file=s.signing_key_file, kms_key=s.kms_key)
+    try:
+        return make(s.signer, key_file=s.signing_key_file, kms_key=s.kms_key)
+    except Exception as e:  # noqa: BLE001 — any setup failure means "no signer", logged once
+        log.warning("no plugin signing key: builds will fail until one is configured", extra={"signer": s.signer, "error": type(e).__name__})
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:

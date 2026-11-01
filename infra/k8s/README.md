@@ -101,7 +101,7 @@ kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-m
 | web | HPA, CPU 70 % | 2–6 | 2–4 | 3–10 | Static files and the agent proxy; cheap. |
 | api | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Stateless (Postgres, S3, Redis). |
 | agent | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Scale-down stabilization 600 s and 1 pod/min, so long SSE runs aren't cut often; `terminationGracePeriodSeconds: 120` with `INKLING_AGENT_SHUTDOWN_GRACE_S=100`. |
-| worker | KEDA `redis` scaler on list `inkling:jobs:ready` | 0–10, 1 pod per 5 queued jobs | 0–6 | 0–30 | `pollingInterval` 10 s, `cooldownPeriod` 300 s before scaling to zero; grace 300 s. |
+| worker | KEDA `redis` scaler on list `inkling:jobs:ready` | 1–10, 1 pod per 5 queued jobs | 1–6 | 1–30 | `pollingInterval` 10 s, `cooldownPeriod` 300 s before scaling back to one; grace 300 s. Never zero: the event subscriptions (inspection, unpack, item probes) and scheduled tasks put nothing on the job lists. |
 | versioning | fixed replicas | 2 | 2 | 3 | River jobs run in-process; add an HPA when load needs it. |
 | pipeline | HPA, CPU 70 % | 2–4 | 2–4 | 2–4 | The maximum is the connection budget: pods × `INKLING_PIPELINE_DB_POOL_MAX` (4) must stay under `pipeline_app`'s `CONNECTION LIMIT` (20). DBOS resumes a lost pod's workflows on another replica. |
 | worker-gpu (gke, Milestone 4) | KEDA on `inkling:jobs:ready:gpu` | — | — | 0–4 | `overlays/gke/phi/components/gpu-worker`; bounded by the L4 quota. |
@@ -111,8 +111,8 @@ Where to change them: `minReplicas`/`maxReplicas`/`averageUtilization` in `base/
 `base/worker/scaledobject.yaml`, requests/limits in each `deployment.yaml`. The HPAs use CPU
 only; requests are what utilization is measured against, so keep them realistic.
 
-PodDisruptionBudgets are `minAvailable: 1` except the worker (`maxUnavailable: 1`: it scales
-to zero, and one busy pod must not block node drains forever).
+PodDisruptionBudgets are `minAvailable: 1` except the worker (`maxUnavailable: 1`: one busy
+pod must not block node drains forever).
 
 ## Adding an app
 

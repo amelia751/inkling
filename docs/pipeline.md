@@ -174,14 +174,14 @@ flowchart LR
   agent -. "code only" .-> sbx
   api <--> pipe
   pipe -- "enqueue / await job" --> api
-  api --> worker
-  pipe --> gpu
+  worker -- "claim, report" --> api
+  gpu -- "claim GPU-class jobs" --> api
   pipe -- "candidate, CAS publish" --> ver
   api --> sql
   pipe --> sql
   ver --> sql
   gcs -- "object notifications" --> ps --> pipe
-  worker --> hc
+  api -- "brokers DICOM de-id" --> hc
   ver -- "the only egress" --> rel
 ```
 
@@ -192,12 +192,32 @@ flowchart LR
 | Pipeline tables | `pipeline` schema in database `studio` | Same pattern as the `versioning` schema |
 | Bucket notifications | Pub/Sub topic + **pull** subscription in `spurby-phi` | Push subscriptions are restricted inside a perimeter |
 | Trusted Python steps | `apps/worker` on the gVisor node pool | Unchanged |
-| GPU steps | Autopilot Accelerator compute class, L4, `runtimeClassName: gvisor`, Spot for retryable steps | gVisor GPU support is GA for T4, L4, A100, H100; request regional GPU quota early |
-| DICOM | Healthcare API dataset with Google-managed encryption | CMEK can't be used for de-identification or inside a perimeter (`healthcare.tf`) |
+| GPU steps | A second `apps/worker` Deployment on the Autopilot Accelerator compute class (L4, `runtimeClassName: gvisor`, Spot for retryable steps), claiming only GPU-class kernel jobs | gVisor GPU support is GA for T4, L4, A100, H100; request regional GPU quota early |
+| DICOM | Healthcare API dataset with Google-managed encryption, called by `apps/api` | CMEK can't be used for de-identification or inside a perimeter (`healthcare.tf`) |
 | De-identified release | Egress rule `release_egress` from `spurby-phi` to `spurby-data` | Written in `perimeter.tf`, not applied |
 
 Not used: Cloud Composer, Dataflow, Eventarc (blocks internal HTTP targets in a perimeter),
 Temporal, self-hosted or Cloud (§5.1).
+
+### 2.1 Network paths
+
+The `phi` overlay starts from default-deny for every pod, plus DNS to `kube-system`
+(`infra/k8s/components/network-policies`). Google APIs resolve to `restricted.googleapis.com`
+(`199.36.153.4/30`, the VPC Service Controls VIP; `infra/terraform/phi/network.tf`), so even an
+allowed call can only reach services the perimeter admits. "No egress" for workers means no route
+anywhere except the API, not "no internet but Google is fine".
+
+| Pod | May reach | Has a Google identity |
+|---|---|---|
+| `worker` (CPU and GPU) | `api:8000` only | No. Blobs, Healthcare API, signing and everything else go through the API |
+| `api` | Cloud SQL and Memorystore (private services range), `versioning:8090`, `restricted.googleapis.com:443`, the GKE metadata server | Yes (Workload Identity): Storage, KMS, Healthcare API, Sensitive Data Protection |
+| `versioning` | Cloud SQL, `restricted.googleapis.com:443`, metadata server | Yes: Storage |
+| `pipeline` (new) | `api:8000`, `versioning:8090`, Cloud SQL, `restricted.googleapis.com:443` for Pub/Sub and bucket listing, metadata server | Yes: Pub/Sub subscriber, Storage object viewer on the ingest buckets. No Healthcare, KMS or Storage write |
+
+Adding `pipeline` means: a new NetworkPolicy in `components/network-policies` (ingress from `api`
+only, the egress above); adding it to the `google-apis` policy in `overlays/gke/phi/network.yaml`;
+`pipeline` as an egress peer in the `api` policy and an ingress peer in the `versioning` and `api`
+policies. Nothing reaches `pipeline` from `spurby-ai`.
 
 ## 3. Conceptual data model
 
@@ -301,7 +321,8 @@ behavior must be explicit.
 
 ### 5.1 Choice: DBOS only
 
-The pipeline's hard requirement is that nothing about a run leaves `spurby-phi`. DBOS Transact Go
+DBOS is the **selected engine pending Stage 0 validation** (§19), not yet a proven production
+foundation. The pipeline's hard requirement is that nothing about a run leaves `spurby-phi`. DBOS Transact Go
 (v1.0 July 2026, v1.8 October 2026) is a library, not a server: workflow state lives in a database
 on our Cloud SQL instance, inside the perimeter, under our keys, with nothing new to operate. It
 also matches what we already have: Postgres as the source of truth, idempotency keys, an outbox.
@@ -338,11 +359,28 @@ image processing faster.
 
 Workflows are replayed or recovered from checkpoints. Never run random/unversioned nondeterministic
 logic, external HTTP requests, shell commands, mutable DB queries, clock calls, or agent-generated
-code directly in workflow functions; do them in steps, whose results are recorded. Pin workflow code
-to an application version and roll out incompatible changes so in-flight runs finish on the version
-that started them (DBOS recovers a workflow only on its own `ApplicationVersion`; keep the previous
-version's pods until its workflows drain, or fork stranded ones onto the new version). Validate the
+code directly in workflow functions; do them in steps, whose results are recorded. Validate the
 installed SDK API before implementation.
+
+**Workflow lifetime and deploys.** DBOS recovers a workflow only on the application version that
+started it, so a workflow must never outlive the deployments we're willing to keep running:
+
+- **No workflow waits for a human.** Review state lives in Postgres (versioning reviews and the
+  `pipeline_runs` row), not in a sleeping workflow. A run workflow stages outputs, creates the
+  candidate commit and review request, records `awaiting_review`, and ends. An approval, recorded by
+  `apps/api` and bound to the candidate's digest, starts a short `PublishWorkflow` on whatever
+  version is current. A review that takes three months costs nothing and strands nothing.
+- **Bounded lifetime.** Run workflows have a hard deadline (initially 24 hours, set per definition
+  within a platform maximum). Anything longer is a coordinator that checkpoints progress to the
+  `pipeline` schema and starts a fresh workflow per chunk (backfills, connector syncs).
+- **Version identity.** Set `ApplicationVersion` explicitly to the digest of the workflow package,
+  so deploys that only change steps, the API surface or config don't strand runs. Verify in Stage 0
+  that DBOS honours this the way we expect.
+- **Drain policy.** On a workflow-code change, the previous version's pods keep running until its
+  workflows finish or the drain deadline passes (lifetime maximum plus a margin). Workflows still
+  running at the deadline are forked onto the new version from their last completed step when the
+  plan is compatible, otherwise cancelled and rerun from their pinned inputs; immutable outputs and
+  the step cache make a rerun cheap. Both outcomes are recorded on the run.
 
 A typical `PipelineWorkflow`:
 
@@ -352,11 +390,17 @@ START
   → Reserve workspace resource budget (step)
   → Execute bounded ready-step batches (steps / child workflows)
   → Record results + validation
-  → Wait for reviewer message when required (Recv)
   → Stage and validate immutable output manifest
   → Propose candidate commit through versioning API
-  → Publish only when policy explicitly authorizes
+  → If review is required: open review, record awaiting_review, release budget, END
+  → Otherwise publish when policy explicitly authorizes
   → Finalize lineage + release budget
+END
+
+PublishWorkflow (started by an approval)
+  → Check the approval is bound to the candidate's digest and still current
+  → CAS publish through versioning; on a stale head, open a rebase review
+  → Finalize lineage
 END
 ```
 
@@ -373,10 +417,13 @@ long-lived coordinators periodically. No one step per image in a 10M-image job.
   job with idempotency key `run_id/step_id/partition_id`, then waits for the job's terminal event.
   The kernel owns retries for that job (`max_attempts`); the engine step that waits has engine
   retries off. One retry owner per unit of work.
-- **GPU runner:** its own resource class and pool; a GPU job is a kernel job with a GPU resource
-  class (new), or a Kubernetes Job launched by a step, decided in Stage 4.
-- **Workflow messages:** approvals and cancels are validated and recorded by `apps/api` first, then
-  delivered to the workflow with an idempotency key (§13).
+- **GPU work** is a kernel job with a GPU resource class (new), claimed only by the GPU worker
+  Deployment (§2). Admission and leases stay in one place, the kernel (§11).
+- **Workflow messages:** cancels and other in-run messages are validated and recorded by `apps/api`
+  first, then delivered with an idempotency key. Approvals start a `PublishWorkflow` instead (§5.2).
+- **Idempotent starts** use workflow IDs and our own idempotency keys, not DBOS queue
+  deduplication IDs: DBOS documents that deduplication IDs and partition keys can't be combined, and
+  we partition by workspace. Test the exact combination we use in Stage 0.
 
 ### 5.4 Example Go pseudo-implementation
 
@@ -386,9 +433,9 @@ func PipelineWorkflow(ctx engine.Context, req RunRequest) error {
     plan, err := engine.Step(ctx, "load-plan", func() (ExecutionPlan, error) { return loadPlan(req.PlanID) })
     if err != nil { return err }
     // Determine ready nodes from the frozen plan; enqueue bounded kernel jobs; await results.
-    // Await an approval message for reviewer-gated nodes.
     // Stage immutable outputs; ask versioning to create a candidate.
-    // Publish only through an authorized API with CAS on the expected branch head.
+    // Review required: open the review, record awaiting_review, return (PublishWorkflow continues).
+    // Otherwise publish through an authorized API with CAS on the expected branch head.
     return nil
 }
 ```
@@ -403,10 +450,12 @@ fairness, idempotent start) run against the implementation in CI.
 Switch to **self-hosted Temporal inside `spurby-phi`** only when one of these is measured, not
 guessed:
 
-- partitioned queues miss the fairness target with one workspace fanning out 10k tasks (test 12);
-- engine database load degrades the API or versioning on the shared Cloud SQL instance, even after
-  moving `pipeline_engine` to its own instance;
-- recovery across deploys or version changes fails the conformance tests;
+- fairness misses its target with one workspace fanning out 10k tasks, after kernel admission
+  (§11) is in place (test 12);
+- engine database load breaches the §16 thresholds even after moving `pipeline_engine` to its own
+  instance;
+- recovery across deploys or version changes fails the conformance tests, under the lifetime and
+  drain policy of §5.2;
 - we need tooling the Studio run view can't reasonably provide.
 
 The switch is a second implementation of the adapter passing the same conformance tests, run for new
@@ -660,9 +709,18 @@ Protect the shared pool from a workspace that fans out 10k tasks:
   concurrency, storage and budget estimates.
 - Resource classes: CPU, memory-heavy, GPU, external API; separate queues/limits. GPU is its own
   Autopilot pool (L4, gVisor, Spot for retryable steps).
-- Per-workspace fairness: DBOS partitioned queues keyed by `workspace_id` cap how many steps each
-  workspace has in flight, so it can't flood the kernel job queue (which claims oldest first);
-  worker concurrency alone is insufficient.
+- Per-workspace fairness happens at **two gates**, because DBOS only sees pipeline steps while the
+  kernel queue also serves imports, inspection, derivatives, boundary jobs and plugin tools:
+  1. **Pipeline gate:** DBOS partitioned queues keyed by `workspace_id` cap how many steps each
+     workspace has in flight. This limits one workspace; it doesn't guarantee fairness downstream.
+  2. **Kernel gate:** the kernel's claim (today oldest-first) skips jobs whose workspace is at its
+     running cap for that resource class, for every job source, not just pipelines. GPU and
+     memory-heavy jobs also need a row in `resource_leases` (Postgres, acquired atomically in the
+     claim transaction, renewed by the heartbeat, released on any terminal state, reconciled when
+     expired). With the Redis queue, the claim still checks the Postgres caps and leases; Redis is
+     only the wake-up list.
+
+  Worker concurrency alone is insufficient; test 12 measures the combined result.
 - Global provider rate limits (Healthcare API, Sensitive Data Protection quotas) and per-workspace
   budgets.
 - Bounded fan-out and partition tasks; release permits on completion/failure/cancel.
@@ -672,8 +730,8 @@ Protect the shared pool from a workspace that fans out 10k tasks:
   outages.
 - Distinguish waiting-for-human (no compute slot) from active execution.
 
-Store admission and permit state in Postgres with atomic acquisition; document behavior on crashes;
-renew leases and reconcile expired permits.
+Admission and lease state live in Postgres (`workspace_resource_limits`, `resource_leases`), never
+only in DBOS or Redis; document behavior on crashes; renew leases and reconcile expired ones.
 
 ## 12. Errors, retries, timeouts, cancellation, and recovery
 
@@ -702,10 +760,10 @@ one is fully validated.
 
 ## 13. Human approvals, reviews and agent-generated pipelines
 
-A pipeline may wait indefinitely for feedback without occupying a worker slot. Approvals are
-validated and recorded in `apps/api` / versioning first, then delivered to the workflow
-idempotently (`Send` with an idempotency key). Bind approvals to content
-digest / commit / run generation and revoke when content changes.
+A pipeline may wait indefinitely for feedback without occupying a worker slot or a running
+workflow (§5.2). Approvals are validated and recorded in `apps/api` / versioning, then start a
+`PublishWorkflow` with the approval ID as its workflow ID, so a repeated approval can't publish
+twice. Bind approvals to content digest / commit / run generation and revoke when content changes.
 
 **Agent-authored step** (the todo10 ladder; `docs/agent.md`, `todo/todo10.md` §6):
 
@@ -804,9 +862,22 @@ Pipeline tables in the `pipeline` schema of database `studio` (goose migrations 
 `source_cursors`, `trigger_subscriptions`, `schema_impact_reports`, `migration_plans`, `backfills`,
 `workspace_resource_limits`, `resource_leases`, `pipeline_outbox`, `pipeline_inbox_dedupe`.
 
-Engine state (DBOS system tables) lives in its own database `pipeline_engine` on the same instance,
-so its write load and migrations stay separate; move it to its own instance only if measurements
-call for it.
+Engine state (DBOS system tables) lives in its own database `pipeline_engine` on the same instance.
+That separates migrations and permissions, **not** CPU, I/O, memory or connections, which every
+database on the instance shares. So the shared instance comes with explicit limits:
+
+- **Connection budget:** each service gets a fixed pool size and its own database role with a
+  connection limit (`ALTER ROLE … CONNECTION LIMIT`); the pipeline's pools (engine plus `pipeline`
+  schema) start at no more than 20% of `max_connections`.
+- **Move `pipeline_engine` to its own instance** when, sustained over a day or under the Stage 0
+  load test, any of these hold (initial values, revised with Stage 0 data):
+  - API or versioning p95 transaction latency rises more than 10% with pipelines running, compared
+    with the same load without them;
+  - instance CPU above 60%, or engine writes above a third of the instance's write IOPS;
+  - DBOS checkpoint (step-completion write) p95 above 50 ms;
+  - pipeline connections above their budget, or `pipeline_engine` above 50 GB after retention.
+- **Retention:** DBOS workflow records older than 30 days are garbage-collected (the `pipeline`
+  schema keeps runs, lineage and audit), so engine state size tracks active work, not history.
 
 Keys and invariants:
 
@@ -835,8 +906,10 @@ session features it breaks (`LISTEN`, session advisory locks, `SET`); connect th
   and approval. Recheck at execution and publication, not only authoring time.
 - The agent (`spurby-ai`) only reaches allowlisted pipeline routes and only sees fingerprints,
   synthetic fixtures, fixed-schema reports, typed probe answers and job summaries.
-- Workers: gVisor, NetworkPolicy denying egress, read-only input, no secrets. Never mix workspaces'
-  data in one mutable workspace.
+- Workers (CPU and GPU): gVisor, read-only input, no secrets, no Google identity, and a
+  NetworkPolicy whose only egress is `api:8000` (§2.1). Anything a worker needs from Google (blobs,
+  Healthcare API, signing) is brokered by the API. Never mix workspaces' data in one mutable
+  workspace.
 - Secrets come from Secret Manager as `INKLING_*` env vars; never in pipeline YAML, Git commits,
   engine state, artifacts or logs.
 - PHI identification, encryption in transit/at rest, restricted previews, retention controls and
@@ -859,7 +932,9 @@ plugin.
 Essential metrics: queue latency, admitted/running by workspace/class, retry volume, failure
 reasons, worker CPU/GPU utilization, cost per dataset/1000 items, per-format error rate, schema
 drift detection rate, publish CAS conflicts, orphan artifact count, missing object/manifest
-violations, approval age, engine state size, backfill lag, recovery time.
+violations, approval age, engine state size, backfill lag, recovery time, and the §16 database
+signals: checkpoint latency, connections per role, API and versioning transaction latency, workflows
+per application version and time to drain.
 
 Regular reconciliations: outbox delivery, engine run ↔ projection mismatch, orphaned jobs, missing
 manifests, abandoned candidate commits, stale source cursors, missed bucket notifications, leaked
@@ -874,9 +949,20 @@ observable.
   and release fields.
 - Spike `apps/pipeline` with DBOS Go against the real kernel job queue, locally (compose Postgres +
   RustFS; no orchestration server). Write the `Engine` adapter and its conformance tests (§5.5)
-  first, then confirm: step retry and cancel, approval via message, recovery after a restart and
-  after a deploy with a new application version, per-workspace fairness on partitioned queues,
-  engine state size for a 50k-item run.
+  first, then confirm: step retry and cancel, recovery after a restart, idempotent starts with
+  workflow IDs on partitioned queues (§5.3), engine state size for a 50k-item run.
+- Three tests that could change the engine decision, run against the real Go SDK, kernel queue and
+  versioning service:
+  1. **Deploy with pending work:** start runs on version A, some mid-step and some awaiting review;
+     deploy B; retire A at the drain deadline. Mid-step runs finish on A or are forked or rerun on
+     B as §5.2 says; approvals arriving after A is gone publish through B; nothing is lost or
+     published twice.
+  2. **Fan-out with a competing workspace:** workspace A starts 10,000 tasks, then workspace B
+     starts 20. Measure when B's tasks start and finish, with both gates of §11 in place. Target:
+     B's first task starts within one claim cycle of a slot freeing, and B finishes within 2× its
+     time on an idle system.
+  3. **Database contention:** high-frequency workflow checkpoints while committing dataset versions
+     and serving API load on the same instance. Measure against the §16 thresholds.
 - A failed check is a design problem to fix on DBOS first; it only triggers a switch (§5.5) if it
   can't be fixed.
 - Test the versioning candidate and CAS publication contract; orchestration never updates Git
@@ -887,7 +973,8 @@ observable.
 - The implicit ingest pipeline (§6) over today's imports, inspection and derivatives.
 - Upload staged data → inspect/type detect → two typed plugin steps → validation → immutable
   artifact → candidate dataset commit.
-- Kernel changes: lease renewal on progress, cancel stops the child process, GPU resource class.
+- Kernel changes: lease renewal on progress, cancel stops the child process, resource classes
+  (GPU, memory-heavy), per-workspace claim caps and `resource_leases` (§11).
 - UI: basic run status and per-file error report; no DAG editor.
 - Per-workspace cap, idempotency, cancellation, and outbox before launch.
 - Infra (`infra/terraform/phi`, needs a go-ahead to apply): pipeline service account, database
@@ -947,7 +1034,9 @@ observable.
     chunk.
 14. Worker disappears during a 20-minute transform: lease expires, bounded retry, no duplicate
     publication.
-15. Long reviewer hold resumes after a pipeline service deploy with a new application version.
+15. A review held for weeks across several workflow-code deploys still publishes exactly once,
+    through a `PublishWorkflow` on the current version, and only if the approval matches the
+    candidate's digest.
 16. Wrong validation rule discovered after release: lineage locates impacted outputs; freeze,
     correct and audit repair.
 17. Duplicate/out-of-order bucket notifications and outbox events cause no extra logical commits or
@@ -955,6 +1044,9 @@ observable.
 18. Retention GC does not delete objects reachable by branch/tag/release/candidate under retention
     lease.
 19. Unauthorized workspace cannot read a run, list artifacts, or approve by guessing IDs.
+20. Network: a worker pod can't resolve or reach anything but `api:8000` (Google APIs, the metadata
+    server, the internet); the pipeline pod can reach `restricted.googleapis.com` but a Google API
+    outside the perimeter is refused.
 
 **Performance gates to define before production:** target latency for small runs, queue fairness,
 per-file import throughput, max queue depth, engine state growth, memory and CPU footprints, cost
@@ -963,20 +1055,27 @@ successful cancellation rate. Do not invent targets before measuring realistic w
 
 ## 21. Open architecture decisions
 
-1. **GPU dispatch:** a kernel job with a GPU resource class vs a Kubernetes Job launched by a step.
-2. **Data physical formats:** raw objects + Parquet initially; evaluate Lance and Iceberg only when
+1. **Data physical formats:** raw objects + Parquet initially; evaluate Lance and Iceberg only when
    workload evidence justifies them; neither replaces repository-level review semantics.
-3. **Pipeline user experience:** implicit ingestion pipelines first, visual authoring later. Most
+2. **Pipeline user experience:** implicit ingestion pipelines first, visual authoring later. Most
    end users should not build DAGs to upload data.
-4. **Retention and deletions:** legal/privacy deletion may override immutable-history retention;
+3. **Retention and deletions:** legal/privacy deletion may override immutable-history retention;
    design key revocation, tombstones, object lifecycle and audit exceptions early.
-5. **Cross-service release coordination:** versioning-owned release record + single authoritative
+4. **Cross-service release coordination:** versioning-owned release record + single authoritative
    Postgres pointer; pipeline stores projections only, no distributed transactions.
+5. **Thresholds:** the §16 database limits and the §19 fairness target are initial values, to be
+   replaced with Stage 0 measurements.
 
-Settled: the engine is DBOS Go only, with self-hosted Temporal in `spurby-phi` as the switch target
-under §5.5's triggers (Dagster stays a reference for asset lineage and partitions); the agent
-runtime is Node + pi; Python work goes through the kernel job queue with the kernel as the only
-retry owner.
+Settled, pending Stage 0 where noted:
+
+- The engine is DBOS Go only (pending Stage 0), with self-hosted Temporal in `spurby-phi` as the
+  switch target under §5.5's triggers. Dagster stays a reference for asset lineage and partitions.
+- No workflow waits for a human; approvals start a `PublishWorkflow` (§5.2).
+- Fairness has two gates: DBOS partitions and kernel admission with Postgres leases (§11).
+- GPU work is a GPU-class kernel job claimed by a GPU worker Deployment (§2, §5.3).
+- Workers reach only the API; the API brokers every Google call they need (§2.1).
+- The agent runtime is Node + pi; Python work goes through the kernel job queue with the kernel as
+  the only retry owner.
 
 ## 22. References
 

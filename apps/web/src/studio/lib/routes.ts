@@ -14,6 +14,8 @@ export const projectUrl = (projectId: string, section: ProjectSection = "overvie
 export const filesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "sources")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
 /** The Trash view (todo7 Phase 4). */
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;
+/** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */
+export const pipelinesUrl = (projectId: string, runId?: string) => `${projectUrl(projectId, "sources")}/pipelines${runId ? `/${encodeURIComponent(runId)}` : ""}`;
 /** An alias of `filesUrl` (`/files/*` redirects there too). */
 export const sourcesUrl = filesUrl;
 export const exploreUrl = (projectId: string, tab?: string, proposalId?: string) => withQuery(`${projectUrl(projectId, "explore")}${tab ? `/${tab}` : ""}`, { proposal: proposalId });
@@ -44,8 +46,10 @@ function withQuery(path: string, query?: Record<string, string | undefined>): st
 }
 
 /** Where an attention row, an activity entry or an assistant link resolves (`ProjectTarget`). */
-export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string }): string {
+export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string; runId?: string }): string {
   switch (t.section) {
+    case "pipelines":
+      return pipelinesUrl(projectId, t.runId);
     case "sources":
     case "files":
       if (t.tab === "trash") return trashUrl(projectId);

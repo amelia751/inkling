@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FsShortcut, SourceNode } from "@studio/contracts/types";
 import { RES } from "@studio/contracts/naming";
-import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, ImportedIcon } from "@studio/ui/icons";
+import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, ImportedIcon, QueueIcon } from "@studio/ui/icons";
 import { cn } from "@studio/ui/utils";
 import { nodeIcon } from "@/studio/lib/file-kinds";
 import { DROP_HIGHLIGHT, relativeTime } from "./shared";
@@ -25,6 +25,8 @@ export interface TreeFooterProps {
   onOpenImports?: () => void;
   importsCount?: number;
   importsActive?: boolean;
+  /** Pipeline runs link (todo12 M1); left out when not given. */
+  onOpenPipelines?: () => void;
   /** A drop on a starred folder (the page's drag controller decides what it means). */
   onDropOnNode?: (node: SourceNode, dataTransfer: DataTransfer) => void;
   /** May this drag drop here? (Only types are readable during a drag.) Default: yes, for folders. */
@@ -57,7 +59,7 @@ function writeOpen(o: Open) {
   }
 }
 
-export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash, trashActive, onOpenImports, importsCount, importsActive, onDropOnNode, acceptsDrop, dropAttrs, dropHighlightId }: TreeFooterProps) {
+export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash, trashActive, onOpenImports, importsCount, importsActive, onOpenPipelines, onDropOnNode, acceptsDrop, dropAttrs, dropHighlightId }: TreeFooterProps) {
   const [open, setOpen] = useState<Open>(readOpen);
   const toggle = (k: keyof Open) =>
     setOpen((o) => {
@@ -87,6 +89,12 @@ export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash,
             <ImportedIcon className="size-4 shrink-0 text-hint" aria-hidden />
             <span className="min-w-0 flex-1 truncate">Imports</span>
             {!!importsCount && <span className="tnum text-xs text-muted-foreground">{importsCount.toLocaleString()}</span>}
+          </LinkRow>
+        )}
+        {onOpenPipelines && (
+          <LinkRow onClick={onOpenPipelines} testid="tree-footer-pipelines">
+            <QueueIcon className="size-4 shrink-0 text-hint" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">Pipeline runs</span>
           </LinkRow>
         )}
         <LinkRow active={trashActive} onClick={onOpenTrash} testid="tree-footer-trash">

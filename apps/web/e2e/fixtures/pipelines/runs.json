@@ -1,0 +1,94 @@
+{
+  "runs": [
+    {
+      "run_id": "run_live",
+      "workspace_id": "e2e-pipelines",
+      "project_id": "e2e-pipelines",
+      "definition_id": "ingest",
+      "definition_name": "Ingest",
+      "definition_revision": "sha256:9f2c4e1ab07d33aa",
+      "state": "running",
+      "trigger": {
+        "kind": "upload",
+        "import_id": "imp_run_live",
+        "actor": "user:ana"
+      },
+      "created_at": "2026-11-01T09:20:00Z",
+      "started_at": "2026-11-01T09:20:02Z",
+      "finished_at": null,
+      "item_counts": {
+        "processed": 3,
+        "staged": 2
+      },
+      "item_total": 5
+    },
+    {
+      "run_id": "run_review",
+      "workspace_id": "e2e-pipelines",
+      "project_id": "e2e-pipelines",
+      "definition_id": "ingest",
+      "definition_name": "Ingest",
+      "definition_revision": "sha256:9f2c4e1ab07d33aa",
+      "state": "awaiting_review",
+      "trigger": {
+        "kind": "upload",
+        "import_id": "imp_run_review",
+        "actor": "user:ana"
+      },
+      "created_at": "2026-11-01T09:12:00Z",
+      "started_at": "2026-11-01T09:12:01Z",
+      "finished_at": "2026-11-01T09:13:07Z",
+      "item_counts": {
+        "proposed": 8,
+        "quarantined": 1,
+        "rejected": 1
+      }
+    },
+    {
+      "run_id": "run_failed",
+      "workspace_id": "e2e-pipelines",
+      "project_id": "e2e-pipelines",
+      "definition_id": "ingest",
+      "definition_name": "Ingest",
+      "definition_revision": "sha256:9f2c4e1ab07d33aa",
+      "state": "failed",
+      "trigger": {
+        "kind": "upload",
+        "import_id": "imp_run_failed",
+        "actor": "user:ana"
+      },
+      "created_at": "2026-10-31T16:40:00Z",
+      "started_at": "2026-10-31T16:40:01Z",
+      "finished_at": "2026-10-31T16:41:30Z",
+      "item_counts": {
+        "quarantined": 4
+      },
+      "error": {
+        "class": "worker_lost",
+        "message": "The worker stopped answering three times in a row.",
+        "retryable": true
+      }
+    },
+    {
+      "run_id": "run_published",
+      "workspace_id": "e2e-pipelines",
+      "project_id": "e2e-pipelines",
+      "definition_id": "ingest",
+      "definition_name": "Ingest",
+      "definition_revision": "sha256:9f2c4e1ab07d33aa",
+      "state": "published",
+      "trigger": {
+        "kind": "upload",
+        "import_id": "imp_run_published",
+        "actor": "user:ana"
+      },
+      "created_at": "2026-10-30T11:00:00Z",
+      "started_at": "2026-10-30T11:00:01Z",
+      "finished_at": "2026-10-30T11:03:12Z",
+      "item_counts": {
+        "proposed": 24
+      }
+    }
+  ],
+  "next_cursor": null
+}

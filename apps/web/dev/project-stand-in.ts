@@ -22,6 +22,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *                                                       child is the sample's folder; below it, like /sources children
  *   GET  /api/v1/projects/:id/fs/history              → { undo: null, redo: null }
  *   GET  /api/v1/projects/:id/{trash,starred,recent}  → empty
+ *   GET  /api/v1/projects/:id/pipeline-runs           → { runs: [] } (samples are never uploaded, so never run)
  *   GET  /api/v1/source-nodes/:id/{versions,activity,download}
  *   Every write (fs/ops, undo, star, zip, versions…) answers 501, like the rest.
  */
@@ -499,6 +500,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
         return send(200, { items: items.sort((a, b) => collator.compare(a.name, b.name)).map((n) => ({ ...nodeDict(n), folderPath: n.relPath.split("/").slice(0, -1).join("/") })) });
       }
       if (sub === "imports") return send(200, { imports: [] });
+      if (sub === "pipeline-runs") return send(200, { runs: [], next_cursor: null });
       if (sub === "proposals") return send(200, { proposals: [] });
       if (sub === "review") {
         // Same shape and filters as the kernel's queue (seeds only ever have annotation rows).

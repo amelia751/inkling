@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filesRedirect, filesUrl, projectUrl, sourcesUrl, targetUrl, trashUrl } from "./routes";
+import { filesRedirect, filesUrl, pipelinesUrl, projectUrl, sourcesUrl, targetUrl, trashUrl } from "./routes";
 
 describe("targetUrl (todo6 Phase 8: every review row and activity link opens its exact surface)", () => {
   const p = "prj-1";
@@ -38,4 +38,12 @@ describe("Sources URLs", () => {
     ["/projects/p/files/n1", "?import=imp-1", "/projects/p/sources/n1?import=imp-1"],
     ["/projects/p/files/seq%3Aa%3Ab", "?status=held", "/projects/p/sources/seq%3Aa%3Ab?status=held"],
   ])("redirects %s%s", (path, search, to) => expect(filesRedirect(path, search)).toBe(to));
+});
+
+describe("Pipeline run URLs (todo12 M1)", () => {
+  it("live under Data, like the Trash", () => {
+    expect(pipelinesUrl("p1")).toBe("/projects/p1/sources/pipelines");
+    expect(pipelinesUrl("p1", "run 1")).toBe("/projects/p1/sources/pipelines/run%201");
+    expect(targetUrl("p1", { section: "pipelines", runId: "run_1" })).toBe("/projects/p1/sources/pipelines/run_1");
+  });
 });

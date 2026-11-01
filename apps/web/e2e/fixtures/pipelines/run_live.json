@@ -1,0 +1,100 @@
+{
+  "run_id": "run_live",
+  "workspace_id": "e2e-pipelines",
+  "project_id": "e2e-pipelines",
+  "definition_id": "ingest",
+  "definition_name": "Ingest",
+  "definition_revision": "sha256:9f2c4e1ab07d33aa",
+  "state": "running",
+  "trigger": {
+    "kind": "upload",
+    "import_id": "imp_run_live",
+    "actor": "user:ana"
+  },
+  "created_at": "2026-11-01T09:20:00Z",
+  "started_at": "2026-11-01T09:20:02Z",
+  "finished_at": null,
+  "item_counts": {
+    "processed": 3,
+    "staged": 2
+  },
+  "item_total": 5,
+  "steps": [
+    {
+      "step_id": "inspect",
+      "label": "Inspect",
+      "plugin": "plugin.inspect@1.2.0",
+      "state": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:20:02Z",
+      "finished_at": "2026-11-01T09:20:10Z",
+      "items_in": 5,
+      "items_out": 5
+    },
+    {
+      "step_id": "validate",
+      "label": "Validate",
+      "plugin": "plugin.validate@0.4.1",
+      "state": "succeeded",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:20:10Z",
+      "finished_at": "2026-11-01T09:20:14Z",
+      "items_in": 5,
+      "items_out": 5
+    },
+    {
+      "step_id": "derive",
+      "label": "Thumbnails and previews",
+      "plugin": "plugin.derivatives@2.0.0",
+      "state": "running",
+      "attempts": 1,
+      "started_at": "2026-11-01T09:20:14Z",
+      "items_in": 5
+    },
+    {
+      "step_id": "propose",
+      "label": "Propose version",
+      "state": "pending",
+      "attempts": 0
+    }
+  ],
+  "items": [
+    {
+      "item_id": "lv_0",
+      "rel_path": "batch2/film_00.png",
+      "size": 3000,
+      "kind": "Image",
+      "state": "processed"
+    },
+    {
+      "item_id": "lv_1",
+      "rel_path": "batch2/film_01.png",
+      "size": 3000,
+      "kind": "Image",
+      "state": "processed"
+    },
+    {
+      "item_id": "lv_2",
+      "rel_path": "batch2/film_02.png",
+      "size": 3000,
+      "kind": "Image",
+      "state": "processed"
+    },
+    {
+      "item_id": "lv_3",
+      "rel_path": "batch2/film_03.png",
+      "size": 3000,
+      "kind": "Image",
+      "state": "staged"
+    },
+    {
+      "item_id": "lv_4",
+      "rel_path": "batch2/film_04.png",
+      "size": 3000,
+      "kind": "Image",
+      "state": "staged"
+    }
+  ],
+  "candidate": null,
+  "review": null
+}

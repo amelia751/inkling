@@ -17,6 +17,7 @@ import { ExplorePage } from "./routes/ExplorePage";
 import { FilesPage } from "./routes/FilesPage";
 import { LEGACY, LegacyRedirect, SectionFrame, FilesRedirect, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
+import { PipelineRunPage, PipelineRunsPage } from "@/studio/core/pipelines";
 import { MembersPage } from "./routes/settings/MembersPage";
 import { ApiKeysPage, AuditLogPage, OrgProjectsPage, OrgSettingsPage, SecurityPage } from "./routes/settings/OrgPages";
 import { BillingDetailsPage, InvoicesPage, UsagePage } from "./routes/settings/BillingPages";
@@ -40,6 +41,9 @@ const routes = [
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.
   { path: "/projects/:projectId/sources/trash", element: <FilesPage trash /> },
+  // todo12 M1: pipeline runs live under Data (static segments win over `:nodeId`, as Trash does).
+  { path: "/projects/:projectId/sources/pipelines", element: <PipelineRunsPage /> },
+  { path: "/projects/:projectId/sources/pipelines/:runId", element: <PipelineRunPage /> },
   { path: "/projects/:projectId/sources/:nodeId?", element: <FilesPage /> },
   { path: "/projects/:projectId/files/*", element: <FilesRedirect /> },
   { path: "/projects/:projectId/explore/:tab?", element: <ExplorePage /> },

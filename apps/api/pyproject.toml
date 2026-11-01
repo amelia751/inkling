@@ -18,6 +18,8 @@ dependencies = [
     # Cloud Storage BlobStore (BLOB_STORE=gcs): native API with Application Default Credentials.
     "google-cloud-storage>=3.4",
     "jsonpatch>=1.33",
+    # Environment shape checks against schemas/environment.v1.json (todo11 D2).
+    "jsonschema>=4.23",
     "studio-observability",
     "studio-signing",
     # The generated versioning client (src/studio_api/clients/versioning) needs these.

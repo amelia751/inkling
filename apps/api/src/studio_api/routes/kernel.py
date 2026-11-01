@@ -272,7 +272,8 @@ def new_session(body: dict = Body(...), ctx: RequestContext = Depends(get_contex
     if ctx.scopes:
         raise HTTPException(403, "session tokens can't mint other tokens")
     scopes = [str(s) for s in body.get("scopes") or []]
-    token = issue_session(db, f"agent:{body.get('agent', 'builder')}", ctx.workspace_id, scopes, int(body.get("ttlSeconds") or 3600), body.get("profile"), on_behalf_of=ctx.principal)
+    # The task the person has open (X-Workspace-Id names it), so the agent may write its setup (todo11 D2.1).
+    token = issue_session(db, f"agent:{body.get('agent', 'builder')}", ctx.workspace_id, scopes, int(body.get("ttlSeconds") or 3600), body.get("profile"), on_behalf_of=ctx.principal, task_id=ctx.task_id)
     audit.record(db, ctx, "sessions.issue", after={"scopes": scopes, "profile": body.get("profile")})
     return {"token": token, "workspaceId": ctx.workspace_id, "scopes": scopes}
 

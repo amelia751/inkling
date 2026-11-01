@@ -1,0 +1,21 @@
+{
+  "$comment": "Where an environment names a contribution, and which enum in schemas/environment.v1.json lists the bundled ids for it. Read by src/validate.ts and by the API (apps/api kernel/environment_policy.py): one table, two languages. `*` is any array index or object key; `{key}` is an object's own key.",
+  "slots": [
+    { "instance": "/extends", "schema": "/$defs/EnvironmentSpec/properties/extends/anyOf/0/enum", "kind": "presets" },
+    { "instance": "/extends/*", "schema": "/$defs/EnvironmentSpec/properties/extends/anyOf/1/items/enum", "kind": "presets" },
+    { "instance": "/modules/{key}", "schema": "/$defs/EnvironmentSpec/properties/modules/propertyNames/enum", "kind": "modules" },
+    { "instance": "/data/kind", "schema": "/$defs/EnvironmentSpec/properties/data/properties/kind/enum", "kind": "dataKinds" },
+    { "instance": "/viewports/*/renderer", "schema": "/$defs/EnvironmentSpec/properties/viewports/items/properties/renderer/enum", "kind": "renderers" },
+    { "instance": "/tools/*", "schema": "/$defs/EnvironmentSpec/properties/tools/items/enum", "kind": "tools" },
+    { "instance": "/panels/*/*", "schema": "/$defs/EnvironmentSpec/properties/panels/properties/left/items/enum", "kind": "panels" },
+    { "instance": "/exporters/*", "schema": "/$defs/EnvironmentSpec/properties/exporters/items/enum", "kind": "exporters" },
+    { "instance": "/reviewRules/*", "schema": "/$defs/EnvironmentSpec/properties/reviewRules/items/enum", "kind": "reviewRules" },
+    { "instance": "/keybindings/*/command", "schema": "/$defs/EnvironmentSpec/properties/keybindings/items/properties/command/enum", "kind": "commands" },
+    { "instance": "/overrides/*/id", "schema": "/$defs/EnvironmentSpec/properties/overrides/items/properties/id/enum", "kind": "contributions" }
+  ],
+  "agentPaths": {
+    "$comment": "JSON Pointer prefixes an agent principal may patch (todo11 D2.3). `/modules/<id>` is allowed separately, for installed plugins only.",
+    "prefixes": ["/title", "/description", "/task", "/extends", "/labels", "/layout", "/overrides", "/studio"],
+    "patterns": ["^/viewports/[0-9]+/config(/.*)?$"]
+  }
+}

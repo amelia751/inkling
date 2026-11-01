@@ -9,6 +9,7 @@
 //   packages/plugin-ui-sdk     → contracts
 //   packages/ui         → nothing internal
 //   packages/renderers  → sdk, contracts, ui
+//   packages/environment-core → contracts; packages/studio-tools → contracts, environment-core
 //   plugins/*/ui               → sdk, contracts, ui, renderers, and other plugins'
 //                                manifest.ts / public.ts only
 //   extension-host             → sdk, contracts, ui (bundled.ts and host.tsx are the
@@ -40,7 +41,7 @@ const IMPORT = /(?:import|export)\s[^"'`]*?from\s+["']([^"']+)["']|import\(\s*["
 /** Layer (and plugin name / path inside it) of a repo-relative path. */
 function layerOfPath(rel) {
   let m;
-  if ((m = /^packages\/(agent-protocol|contracts|plugin-ui-sdk|ui|renderers)\//.exec(rel))) return { layer: m[1] };
+  if ((m = /^packages\/(agent-protocol|contracts|plugin-ui-sdk|ui|renderers|environment-core|studio-tools)\//.exec(rel))) return { layer: m[1] };
   if ((m = /^plugins\/([^/]+)\/ui\/(.*)$/.exec(rel))) return { layer: "plugin", plugin: m[1], rest: m[2] };
   if (rel.startsWith("apps/web/src/extension-host/")) return { layer: "host", rest: rel.slice("apps/web/src/extension-host/".length) };
   if (rel.startsWith("apps/web/src/studio/core/")) return { layer: "core" };
@@ -63,12 +64,15 @@ function layerOfImport(file, spec) {
 const ALLOWED = {
   "agent-protocol": [],
   "contracts": [],
+  // todo11: shared environment checks and the Studio tool layer (pure; no app or plugin code).
+  "environment-core": ["contracts"],
+  "studio-tools": ["contracts", "environment-core"],
   "plugin-ui-sdk": ["contracts"],
   "ui": [],
   "renderers": ["plugin-ui-sdk", "contracts", "ui"],
   plugin: ["plugin-ui-sdk", "contracts", "ui", "renderers"],
-  host: ["plugin-ui-sdk", "contracts", "ui"],
-  shell: ["host", "plugin-ui-sdk", "contracts", "ui", "core", "agent-protocol"],
+  host: ["plugin-ui-sdk", "contracts", "ui", "environment-core"],
+  shell: ["host", "plugin-ui-sdk", "contracts", "ui", "core", "agent-protocol", "environment-core"],
   // Studio built-ins (files, labels, select, pan…): contributes like a plugin, lives in the shell.
   core: ["shell", "host", "plugin-ui-sdk", "contracts", "ui", "renderers", "agent-protocol"],
 };

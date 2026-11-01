@@ -39,6 +39,8 @@ class RequestContext:
     # The task whose environment and annotation document a request reads (todo6 D3). Seeds and
     # older workspaces have one task with the workspace's id, hence the default.
     task_id: str | None = None
+    # todo11 D2.1: for an agent token, the task the person had open when minting it.
+    opened_task: str | None = None
 
     @property
     def task(self) -> str:
@@ -78,13 +80,13 @@ def scope_of(db: Session, id_: str) -> tuple[str, str]:
     return (task.project_id, task.id) if task is not None else (id_, id_)
 
 
-def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[str], ttl_s: int = 3600, profile: str | None = None, on_behalf_of: str | None = None) -> str:
+def issue_session(db: Session, principal: str, workspace_id: str, scopes: list[str], ttl_s: int = 3600, profile: str | None = None, on_behalf_of: str | None = None, task_id: str | None = None) -> str:
     """A session-scoped token (agent run, worker). Returned once; only its hash is stored."""
     ensure_workspace(db, workspace_id)
     token = pysecrets.token_urlsafe(32)
     db.add(SessionToken(token_hash=hash_token(token), principal=principal, workspace_id=workspace_id, scopes=scopes, profile=profile, expires_at=datetime.now(UTC) + timedelta(seconds=ttl_s)))
     if on_behalf_of:
-        db.add(SessionDelegation(token_hash=hash_token(token), on_behalf_of=on_behalf_of))
+        db.add(SessionDelegation(token_hash=hash_token(token), on_behalf_of=on_behalf_of, task_id=task_id))
     db.flush()
     return token
 
@@ -110,7 +112,7 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
 
         agent_scope.check(request, row.principal)
         delegation = db.get(SessionDelegation, row.token_hash)
-        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None, task)
+        return RequestContext(row.workspace_id, row.principal, correlation, idem, tuple(row.scopes or ()), row.profile, delegation.on_behalf_of if delegation else None, task, delegation.task_id if delegation else None)
     if not settings().dev_trust_headers:
         raise HTTPException(401, "session token required")
     workspace, task = scope_of(db, request.headers.get(WORKSPACE_HEADER) or "default")

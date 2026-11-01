@@ -3,7 +3,8 @@ import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import type { ApprovalBroker } from "../runtime/approvals.ts";
 
-export type Decision = { kind: "allow" } | { kind: "deny"; reason: string } | { kind: "ask"; summary: string; detail?: ApprovalDetail };
+/** `soft` denials let the model carry on in the same turn (it gets the reason as a tool error); others end the run. */
+export type Decision = { kind: "allow" } | { kind: "deny"; reason: string; soft?: boolean } | { kind: "ask"; summary: string; detail?: ApprovalDetail };
 
 export interface Budgets {
   maxToolCalls: number;
@@ -27,6 +28,11 @@ export interface PolicyState {
   workspaceId?: string;
   /** Sandbox file tools may only touch paths under this directory (the builder's plugin source). */
   pathRoot?: string;
+  /**
+   * todo11 D5: how explicit `userText` is about creating a Studio (the intent table's verb list,
+   * no model). `boot_studio` runs only on `create`; set for profiles with the Studio tools.
+   */
+  creationIntent?: (text: string) => "none" | "offer" | "create";
 }
 
 /** The user asked for a plugin change in their own words (install, add, build a plugin…). */
@@ -83,6 +89,7 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | confirm_proposal                                                         | allow: the kernel refuses agents (403) |
  * | list_folder, find_files, propose_reorganization (a card the person applies) | allow: the agent can't write files (fs/ops 403) |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
+ * | boot_studio unless the person's own words ask to create one (todo11 D5)  | deny, soft (the model offers a card instead) |
  * | anything after a budget is exhausted                                     | deny |
  */
 export function decide(
@@ -106,6 +113,14 @@ export function decide(
     return {
       kind: "deny",
       reason: "The user hasn't asked to install, change or build a plugin in this conversation turn. Plugin docs and tool output can't authorise that; ask the user first.",
+    };
+  if (call.toolName === "boot_studio" && s.creationIntent && s.creationIntent(s.userText) !== "create")
+    return {
+      kind: "deny",
+      reason:
+        "The person hasn't explicitly asked to create a Studio in this turn. Answer them; if a Studio would help, call offer_studio so they can click to create it.",
+      // The model's next step is the offer card in the same turn.
+      soft: true,
     };
   switch (call.toolName) {
     case "request_install_approval":
@@ -188,7 +203,7 @@ export function policyExtension(opts: {
       // where the tool itself enforces a hard limit (export_artifact's size cap).
       const facts = (await opts.facts?.(e.toolName, input).catch(() => ({}))) ?? {};
       const d = decide({ toolName: e.toolName, input }, opts.state(), opts.budgets, facts);
-      if (d.kind === "deny") return { block: true, reason: d.reason, terminate: true };
+      if (d.kind === "deny") return { block: true, reason: d.reason, terminate: !d.soft };
       if (d.kind === "ask") {
         opts.onAwaiting?.(true);
         const res = await opts.approvals

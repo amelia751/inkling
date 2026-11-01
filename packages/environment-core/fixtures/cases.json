@@ -1,0 +1,941 @@
+{
+ "$comment": "Conformance cases (todo11 D2.5): packages/environment-core (vitest) and the API (pytest, apps/api/tests/test_environment_conformance.py) must both produce exactly these (status, path, code). Synthetic ids only.",
+ "cases": [
+  {
+   "name": "person replaces a valid document",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent sets five labels",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/labels",
+     "value": [
+      {
+       "name": "finding",
+       "control": "Choices",
+       "classes": [
+        {
+         "id": "normal"
+        },
+        {
+         "id": "pneumothorax"
+        },
+        {
+         "id": "effusion"
+        },
+        {
+         "id": "nodule"
+        },
+        {
+         "id": "cardiomegaly"
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent renames the task",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/task",
+     "value": "detection"
+    }
+   ],
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent may not change tools",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/tools",
+     "value": [
+      "inkling.core.tools.select"
+     ]
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent may not replace the root",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "",
+     "value": {}
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent may not move from a forbidden path",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "tools": [
+     "inkling.core.tools.select"
+    ]
+   },
+   "patch": [
+    {
+     "op": "move",
+     "from": "/tools",
+     "path": "/task"
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent adds an installed module",
+   "principal": "agent",
+   "installed": [
+    "inkling.video"
+   ],
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/modules",
+     "value": {}
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent adds an installed module by id",
+   "principal": "agent",
+   "installed": [
+    "inkling.video"
+   ],
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "modules": {}
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/modules/inkling.video",
+     "value": "^1"
+    }
+   ],
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent can't add an uninstalled module",
+   "principal": "agent",
+   "installed": [],
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "modules": {}
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/modules/inkling.video",
+     "value": "^1"
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent tunes viewport config",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main",
+      "renderer": "inkling.image2d.renderers.canvas-raster"
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/viewports/0/config",
+     "value": {
+      "fit": "contain"
+     }
+    }
+   ],
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent may not swap the renderer",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main",
+      "renderer": "inkling.image2d.renderers.canvas-raster"
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/viewports/0/renderer",
+     "value": "inkling.image2d.renderers.cornerstone-stack"
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent may not PUT",
+   "principal": "agent",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown preset",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:does-not-exist"
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/extends",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown preset in a list",
+   "principal": "person",
+   "environment": {
+    "extends": [
+     "preset:image-2d",
+     "preset:nope"
+    ]
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/extends/1",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown renderer",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main",
+      "renderer": "inkling.image2d.renderers.nope"
+     }
+    ]
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/viewports/0/renderer",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "installed plugin renderer is a valid reference",
+   "principal": "person",
+   "installed": [
+    "test.viewer"
+   ],
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main",
+      "renderer": "test.viewer.renderers.tiles"
+     }
+    ]
+   },
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "a plugin id prefix must end at a dot",
+   "principal": "person",
+   "installed": [
+    "test.viewer"
+   ],
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main",
+      "renderer": "test.viewerx.renderers.tiles"
+     }
+    ]
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/viewports/0/renderer",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown module key",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "modules": {
+     "inkling.nope": "^1"
+    }
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/modules/inkling.nope",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown tool and panel",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "tools": [
+     "inkling.core.tools.select",
+     "inkling.core.tools.nope"
+    ],
+    "panels": {
+     "left": [
+      "inkling.core.panels.nope"
+     ]
+    }
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/tools/1",
+      "code": "reference"
+     },
+     {
+      "path": "/panels/left/0",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown exporter, review rule, command, override",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "exporters": [
+     "x.exporters.y"
+    ],
+    "reviewRules": [
+     "x.rules.y"
+    ],
+    "keybindings": [
+     {
+      "command": "x.commands.y",
+      "keys": [
+       "k"
+      ]
+     }
+    ],
+    "overrides": [
+     {
+      "id": "x.y.z"
+     }
+    ]
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/exporters/0",
+      "code": "reference"
+     },
+     {
+      "path": "/reviewRules/0",
+      "code": "reference"
+     },
+     {
+      "path": "/keybindings/0/command",
+      "code": "reference"
+     },
+     {
+      "path": "/overrides/0/id",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "unknown top-level property",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "colour": "blue"
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/colour",
+      "code": "schema"
+     }
+    ]
+   }
+  },
+  {
+   "name": "labels must be an array",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "labels": "nope"
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/labels",
+      "code": "schema"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a viewport needs a renderer",
+   "principal": "person",
+   "environment": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "viewports": [
+     {
+      "name": "main"
+     }
+    ]
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/viewports/0/renderer",
+      "code": "schema"
+     }
+    ]
+   }
+  },
+  {
+   "name": "the environment must be an object",
+   "principal": "person",
+   "environment": [
+    1,
+    2
+   ],
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "",
+      "code": "schema"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a failing patch op is reported by index",
+   "principal": "person",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/task",
+     "value": "x"
+    },
+    {
+     "op": "remove",
+     "path": "/nope"
+    }
+   ],
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/1",
+      "code": "patch"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a patch must be a list",
+   "principal": "person",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": {
+    "op": "add"
+   },
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "",
+      "code": "patch"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent's allowed patch that produces an invalid document",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/extends",
+     "value": "preset:nope"
+    }
+   ],
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/extends",
+      "code": "reference"
+     }
+    ]
+   }
+  },
+  {
+   "name": "agent's allowed patch with a bad shape",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ]
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/labels",
+     "value": 5
+    }
+   ],
+   "expect": {
+    "status": 422,
+    "errors": [
+     {
+      "path": "/labels",
+      "code": "schema"
+     }
+    ]
+   }
+  }
+ ]
+}

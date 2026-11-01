@@ -12,6 +12,8 @@ import { fileStore } from "../store/index.ts";
 import type { SessionStore, StoredMeta } from "../store/types.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
+import { type StudioCatalog, loadStudioCatalog } from "../agent/catalog.ts";
+import { StudioClient, isCreationIntent } from "@studio/studio-tools";
 import type { Config } from "../config.ts";
 import type { Logger } from "../log.ts";
 import type {
@@ -33,6 +35,7 @@ import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/c
 import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "../tools/dataset.ts";
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
+import { createStudioTools } from "../tools/studio.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
@@ -57,6 +60,7 @@ interface SessionMeta {
   profile: ProfileName;
   restricted: boolean;
   clientTools: ClientToolSpec[];
+  /** Legacy: sessions stored before todo11 may carry the browser's catalogue; it is never injected. */
   catalogPrompt?: string;
   createdAt: number;
   sandboxId?: string;
@@ -150,8 +154,12 @@ export interface SessionServiceDeps {
   principal?: string;
   /** Extra tools for tests (appended to the profile's). */
   extraTools?: ToolDefinition<any, any, any>[];
+  /** fetch for the Studio tools' API client (tests); the global one otherwise. */
+  fetchImpl?: typeof fetch;
   /** Durable state (store/); defaults to the dev file store under the data dir. */
   store?: SessionStore;
+  /** Catalogue + intent table for the Studio tools; defaults to the files config names, read once here. */
+  studio?: StudioCatalog;
   /** Run event fan-out (bus/); defaults to in-process. */
   bus?: RunEventBus;
 }
@@ -203,8 +211,11 @@ export class SessionService {
   readonly dir: string;
   readonly store: SessionStore;
   readonly cluster: RunCoordinator;
+  /** Read once at startup (agent/catalog.ts): static per deployment, never request state. */
+  readonly studio: StudioCatalog;
 
   constructor(private readonly deps: SessionServiceDeps) {
+    this.studio = deps.studio ?? loadStudioCatalog(deps.config);
     this.dir = sessionsDir(deps.config);
     mkdirSync(this.dir, { recursive: true });
     this.store = deps.store ?? fileStore(deps.config);
@@ -296,10 +307,12 @@ export class SessionService {
       profile: profileName,
       restricted: !!req.restricted,
       clientTools: req.clientTools ?? [],
-      catalogPrompt: req.catalogPrompt,
       createdAt: Date.now(),
       artifacts: [],
     };
+    // Accepted for compatibility, no longer injected (todo11): the compact preset index plus
+    // search_catalog replace the ~30 KB catalogue the browser sends.
+    if (req.catalogPrompt) this.deps.log.debug({ chars: req.catalogPrompt.length, profile: profileName }, "catalogPrompt ignored (compact preset index + search_catalog)");
     const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: meta.id.slice(4) })).catch((err) => {
       throw err instanceof ClientToolError ? new HttpError(400, err.message) : err;
     });
@@ -345,9 +358,13 @@ export class SessionService {
     const profile = PROFILES[meta.profile];
     const egress = this.deps.egress?.();
     const ctx = new SessionContext(meta, profile, this.config, !!egress?.canOverride);
+    // Tool order is fixed so the declared tool list is byte-identical across sessions of a profile
+    // (prompt caching, todo11): dataset, browser tools (sorted by name), project, Studio, kernel,
+    // sandbox, then test extras. Each group's own order is fixed in its module.
     const tools: ToolDefinition<any, any, any>[] = [...createDatasetTools(ctx.dataset)];
     // Server tools win over browser tools of the same name (the kernel sees the workspace's installs).
-    const clientSpecs = profile.kernel ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools;
+    const clientSpecs = (profile.kernel ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools)
+      .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     tools.push(...createClientTools(clientSpecs, profile.clientTools, ctx.bridge));
     // Project tools for every profile (todo6 Phase 6): reads plus proposals, with the session's kernel token.
     const kernel = new KernelClient({
@@ -357,6 +374,17 @@ export class SessionService {
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}),
     });
     tools.push(...createProjectTools(kernel));
+    if (profile.studio) {
+      ctx.policy.creationIntent = (text) => isCreationIntent(text, this.studio.intents);
+      // Studio tools (todo11): the API's boot and environment routes with the same token and headers.
+      const studioClient = new StudioClient({
+        baseUrl: this.config.kernelUrl,
+        token: () => ctx.kernelToken,
+        headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}) }),
+        fetch: this.deps.fetchImpl,
+      });
+      tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: meta.projectId, runId: () => ctx.activeRun?.id }));
+    }
     if (profile.kernel) {
       tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
@@ -377,7 +405,7 @@ export class SessionService {
       config: this.config,
       runtime: this.deps.runtime,
       cwd: SANDBOX_CWD,
-      systemPrompt: systemPrompt(profile, [meta.catalogPrompt]),
+      systemPrompt: systemPrompt(profile, { studioIndex: this.studio.index }),
       tools,
       sessionManager,
       model: resolveModel(this.deps.runtime, this.config),

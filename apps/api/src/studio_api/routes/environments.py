@@ -14,13 +14,14 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     POST         /api/environments/{projectId}/checks → the Studio booted it cleanly (may move last-known-good)
     POST         /api/environments/{projectId}/rollback → restore last-known-good (environment + pins), one transaction
     GET          /api/environments/{projectId}/audit → the workspace's hash-chained audit verifies
-    POST         /api/environments/validate            → 501: dev server only
-    GET          /api/catalog[/…]                      → 501: dev server only
+    POST         /api/environments/validate            → shape and reference checks (todo11 D2)
+    GET          /api/catalog, /api/catalog/schema     → schemas/catalog.json, schemas/environment.v1.json
+    GET          /api/catalog/{capabilities,plugins/…} → 501: dev server only
 
-Validation needs the TypeScript registry and resolver, which the kernel doesn't have: the
-kernel stores environments as given (the Studio validates them client-side before saving),
-and `validate` / the catalogue stay on the dev server (seed-server.ts), which runs the
-app's own registry through Vite.
+Every write is checked here (kernel/environment_policy.py, todo11 D2): required `revision`,
+who may write the task, the agent's mutation scope, shape and references against the
+generated schema. Resolve-level checks (extends merge, overrides) stay in the Studio's
+TypeScript resolver; `packages/environment-core` shares these rules with clients.
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ import posixpath
 import re
 from datetime import UTC, datetime
 
-import jsonpatch
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
@@ -38,7 +38,7 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
-from ..kernel import projects, studio_defs
+from ..kernel import boots, environment_policy, projects, studio_defs
 from ..kernel.canonical import content_hash
 from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision
 from ..streaming import blob_response
@@ -58,7 +58,7 @@ SEED_TYPES = {
     ".dzi": "application/xml",
 }
 
-DEV_ONLY = "needs the TypeScript registry and resolver, which only the dev server has (apps/web/dev/seed-server.ts); the kernel stores environments without server-side validation"
+DEV_ONLY = "needs the TypeScript registry, which only the dev server has (apps/web/dev/seed-server.ts)"
 
 
 def _json(status: int, body) -> JSONResponse:
@@ -131,14 +131,41 @@ def _base_environment(db: Session, c: RequestContext) -> dict | None:
 
 
 @router.post("/api/environments/validate")
-def validate_environment():
-    return _json(501, {"error": f"POST /api/environments/validate {DEV_ONLY}"})
+async def validate_environment(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo11 D2: the same checks a write gets (shape and references against the generated
+    schema and the workspace's installed plugins), without saving. Body: the spec. Resolve-level
+    checks (extends merge, overrides) stay in the Studio's resolver."""
+    try:
+        body = await _body(request)
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, ctx.workspace_id), environment=body)
+    return {"ok": True, "spec": body} if checked.ok else _json(422, checked.body())
 
 
-@router.api_route("/api/catalog", methods=["GET", "POST"], include_in_schema=False)
+@router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)
+def catalog():
+    """The generated catalogue (`schemas/catalog.json`), the same file the web server serves."""
+    return _static_json("catalog.json")
+
+
+@router.api_route("/api/catalog/schema", methods=["GET"], include_in_schema=False)
+def catalog_schema():
+    return _static_json("environment.v1.json")
+
+
 @router.api_route("/api/catalog/{rest:path}", methods=["GET", "POST"], include_in_schema=False)
-def catalog(rest: str = ""):
-    return _json(501, {"error": f"/api/catalog {DEV_ONLY}"})
+def catalog_rest(rest: str = ""):
+    return _json(501, {"error": f"/api/catalog/{rest} {DEV_ONLY}"})
+
+
+def _static_json(name: str):
+    from ..config import settings
+
+    try:
+        return json.loads((settings().repo_root / "schemas" / name).read_text())
+    except FileNotFoundError:
+        return _json(404, {"error": f"schemas/{name} isn't in this image"})
 
 
 @router.get("/api/environments/{project_id}")
@@ -308,6 +335,9 @@ class _BadBody(Exception):
 @router.put("/api/environments/{project_id}", operation_id="put_environment")
 @router.patch("/api/environments/{project_id}", operation_id="patch_environment")
 async def save_environment(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo11 D2: the API is the authority on every write, whoever the caller is: who may write
+    this task, a required `revision` (409 when stale), the agent's mutation scope (403), and
+    shape and references (422) — `kernel/environment_policy.py`."""
     c = _project(project_id, ctx, db)
     if isinstance(c, JSONResponse):
         return c
@@ -317,45 +347,42 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         return _json(400, {"error": str(e)})
     if not body:
         return _json(400, {"error": "missing body"})
+    agent = ctx.principal.startswith("agent:")
+    if agent and not boots.agent_may_write(db, ctx, c.task):
+        return _json(403, {"ok": False, "errors": [{"path": "", "code": "scope", "message": "an agent may change only the drafts it booted, or the task the person opened it on"}]})
     ensure_workspace(db, c.workspace_id)
     row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task))
     cur = _doc(row)
+    if not isinstance(body.get("revision"), int) or isinstance(body.get("revision"), bool):
+        return _json(422, {"ok": False, "errors": [{"path": "/revision", "code": "schema", "message": "send the revision you edited (revision: <int>, 0 for a first save); a stale one is a 409"}]})
     # Same optimistic-concurrency rule for both verbs: a stale revision is a conflict.
-    if "revision" in body and body["revision"] is not None and body["revision"] != cur["revision"]:
+    if body["revision"] != cur["revision"]:
         return _json(409, {"error": "revision conflict", "current": cur})
     prov = studio_defs.provenance(ctx, request.headers, body)
 
-    if request.method == "PUT":
-        environment = body.get("environment")
-        if not isinstance(environment, dict):
-            return _json(422, {"ok": False, "errors": [{"path": "", "code": "schema", "message": "environment must be an object"}]})
-    else:
-        base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
-        if not base:
-            return _json(404, {"error": f'no project "{project_id}"'})
-        ops = body.get("patch")
-        if not isinstance(ops, list):
-            return _json(422, {"ok": False, "errors": [{"path": "", "code": "schema", "message": "A JSON Patch is an array of operations"}]})
-        errors, spec = [], base
-        for i, op in enumerate(ops):
-            try:
-                spec = jsonpatch.JsonPatch([op]).apply(spec)
-            except (jsonpatch.JsonPatchException, jsonpatch.JsonPointerException, KeyError, TypeError, ValueError) as e:
-                desc = f"{op.get('op')} {op.get('path')}" if isinstance(op, dict) else "?"
-                errors.append({"path": f"/{i}", "code": "schema", "message": f"Patch op {i} ({desc}): {e}"})
-        if errors:
-            return _json(422, {"ok": False, "errors": errors})
-        environment = spec
-
     base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
-    saved = _save(db, c, row, cur["revision"], environment, prov, studio_defs.parent_hash(db, c.workspace_id, c.task, cur["revision"], base))
+    is_patch = request.method == "PATCH"
+    if is_patch and not base:
+        return _json(404, {"error": f'no project "{project_id}"'})
+    ops = body.get("patch") if is_patch else None
+    checked = environment_policy.check_write(
+        principal="agent" if agent else "person",
+        installed=environment_policy.installed_plugins(db, c.workspace_id),
+        base=base,
+        patch=ops,
+        environment=None if is_patch else body.get("environment"),
+        is_patch=is_patch,
+    )
+    if not checked.ok:
+        return _json(checked.status, checked.body())
+    saved = _save(db, c, row, cur["revision"], checked.environment, prov, studio_defs.parent_hash(db, c.workspace_id, c.task, cur["revision"], base), ops)
     if saved is None:
         db.rollback()
         return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))})
     return saved
 
 
-def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, prov: studio_defs.Provenance, parent: str) -> dict | None:
+def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, prov: studio_defs.Provenance, parent: str, patch: list | None = None) -> dict | None:
     """Store revision `seen + 1` (studio_defs.save_revision); None on a lost race."""
-    hist = studio_defs.save_revision(db, ctx, row, seen, environment, prov, parent)
+    hist = studio_defs.save_revision(db, ctx, row, seen, environment, prov, parent, patch)
     return _revision(hist) if hist is not None else None

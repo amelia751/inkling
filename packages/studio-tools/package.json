@@ -1,0 +1,23 @@
+{
+  "name": "@studio/studio-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "The shared Studio tool layer (todo11 D10): boot_studio, patch_studio, get_studio_state, search_catalog schemas plus an HTTP client for the API. Used by apps/agent now, apps/mcp later.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "typebox": "1.3.27"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "typescript": "^5",
+    "vitest": "^5.0.5"
+  }
+}

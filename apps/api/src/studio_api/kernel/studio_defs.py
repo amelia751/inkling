@@ -238,10 +238,15 @@ def parse_files(files: dict[str, str]) -> dict:
 # ---- Writing and restoring a definition ------------------------------------------------------
 
 
-def save_revision(db: Session, ctx: RequestContext, row, seen: int, environment, prov: Provenance, parent: str) -> WorkspaceEnvironmentRevision | None:
+# `environment.updated` carries the patch when it's small; a client refetches otherwise.
+PATCH_EVENT_MAX = 64 * 1024
+
+
+def save_revision(db: Session, ctx: RequestContext, row, seen: int, environment, prov: Provenance, parent: str, patch: list | None = None) -> WorkspaceEnvironmentRevision | None:
     """Store revision `seen + 1` of `ctx.task`'s environment only if nobody else saved since
     (conditional UPDATE / unique INSERT) and append it to the history with its hashes and
-    provenance. None on a lost race."""
+    provenance. None on a lost race. Every write publishes `environment.updated` on the
+    project's event stream in the same transaction (todo11 §6), so an open Studio applies it."""
     from sqlalchemy import update
     from sqlalchemy.exc import IntegrityError
 
@@ -269,6 +274,14 @@ def save_revision(db: Session, ctx: RequestContext, row, seen: int, environment,
         db.flush()
     except IntegrityError:
         return None
+    from . import events
+
+    payload: dict = {"taskId": ctx.task, "revision": rev, "author": prov.author, "authorKind": prov.kind, "contentHash": hist.content_hash, "parentHash": parent}
+    if prov.run_id:
+        payload["runId"] = prov.run_id
+    if patch is not None and len(json.dumps(patch)) <= PATCH_EVENT_MAX:
+        payload["patch"] = patch
+    events.publish(db, ctx, "environment.updated", payload, source="kernel")
     return hist
 
 

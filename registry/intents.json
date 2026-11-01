@@ -1,0 +1,276 @@
+{
+  "$comment": "todo11 D5: the deterministic preset table. Terms and detected file kinds map a request to a preset; matching is word-boundary and case-insensitive (packages/studio-tools/src/intents.ts). Longer terms weigh more, so 'cardiac mri' beats 'mri'. No model in the critical path.",
+  "version": 1,
+  "creation": {
+    "verbs": [
+      "create",
+      "make",
+      "build",
+      "set up",
+      "setup",
+      "spin up",
+      "boot",
+      "start a",
+      "start an",
+      "new studio",
+      "new task",
+      "open a new"
+    ],
+    "targets": [
+      "studio",
+      "task",
+      "task setup",
+      "environment",
+      "workspace",
+      "annotation",
+      "labelling",
+      "labeling",
+      "viewer",
+      "project"
+    ],
+    "questions": [
+      "what",
+      "why",
+      "how",
+      "who",
+      "when",
+      "where",
+      "which",
+      "is",
+      "are",
+      "does",
+      "do",
+      "explain",
+      "describe",
+      "tell me",
+      "define"
+    ],
+    "offers": [
+      "could we",
+      "can we",
+      "should we",
+      "shall we",
+      "could you",
+      "can you",
+      "would you",
+      "would it be possible",
+      "is it possible",
+      "maybe",
+      "perhaps",
+      "how about",
+      "what about",
+      "do you think"
+    ],
+    "negations": [
+      "don't",
+      "do not",
+      "dont",
+      "never",
+      "not yet",
+      "without creating",
+      "no need to"
+    ]
+  },
+  "intents": [
+    {
+      "preset": "preset:image-2d",
+      "terms": [
+        "x-ray",
+        "xray",
+        "radiograph",
+        "radiography",
+        "cxr",
+        "chest x-ray",
+        "chest film",
+        "mammogram",
+        "mammography",
+        "fluoroscopy",
+        "dicom image",
+        "2d image",
+        "image",
+        "window level",
+        "pneumothorax",
+        "fracture"
+      ],
+      "fileKinds": [
+        "image",
+        "dicom"
+      ]
+    },
+    {
+      "preset": "preset:generic-image",
+      "terms": [
+        "photo",
+        "photograph",
+        "picture",
+        "screenshot",
+        "natural image",
+        "everyday image",
+        "coco",
+        "object detection",
+        "bounding box"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:volume-3d",
+      "terms": [
+        "ct",
+        "cta",
+        "mri",
+        "mr",
+        "volume",
+        "volumetric",
+        "3d",
+        "3d volume",
+        "nifti",
+        "nrrd",
+        "mpr",
+        "dicom series",
+        "brain mri",
+        "segmentation mask",
+        "labelmap",
+        "tumor segmentation"
+      ],
+      "fileKinds": [
+        "dicom-series",
+        "volume",
+        "mask"
+      ]
+    },
+    {
+      "preset": "preset:cine-4d",
+      "terms": [
+        "cine",
+        "cine mri",
+        "cardiac mri",
+        "cardiac cine",
+        "4d",
+        "ventricle",
+        "ejection fraction",
+        "acdc",
+        "end-diastole",
+        "end-systole"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:ecg",
+      "terms": [
+        "ecg",
+        "ekg",
+        "electrocardiogram",
+        "12-lead",
+        "12 lead",
+        "wfdb",
+        "heart rhythm",
+        "arrhythmia",
+        "qrs",
+        "holter"
+      ],
+      "fileKinds": [
+        "waveform"
+      ]
+    },
+    {
+      "preset": "preset:sensor-timeseries-events",
+      "terms": [
+        "sensor",
+        "accelerometer",
+        "gyroscope",
+        "imu",
+        "wearable",
+        "time series",
+        "timeseries",
+        "signal",
+        "activity recognition",
+        "fall detection"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:video",
+      "terms": [
+        "video",
+        "footage",
+        "clip",
+        "movie",
+        "mp4",
+        "frames",
+        "endoscopy",
+        "surgical video",
+        "ultrasound clip"
+      ],
+      "fileKinds": [
+        "video"
+      ]
+    },
+    {
+      "preset": "preset:drone-video-tracks",
+      "terms": [
+        "drone",
+        "uav",
+        "aerial video",
+        "drone footage",
+        "vehicle tracking",
+        "multi-object tracking",
+        "mot"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:pathology",
+      "terms": [
+        "pathology",
+        "histology",
+        "histopathology",
+        "wsi",
+        "whole-slide",
+        "whole slide",
+        "slide",
+        "biopsy",
+        "h&e",
+        "svs",
+        "cell counting",
+        "microscopy"
+      ],
+      "fileKinds": [
+        "slide"
+      ]
+    },
+    {
+      "preset": "preset:satellite-tiles",
+      "terms": [
+        "satellite",
+        "aerial imagery",
+        "aerial image",
+        "remote sensing",
+        "orthophoto",
+        "dzi",
+        "building footprint",
+        "land use"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:ner",
+      "terms": [
+        "ner",
+        "named entity",
+        "named entities",
+        "entity",
+        "entities",
+        "text",
+        "document",
+        "clinical notes",
+        "radiology report",
+        "transcript",
+        "span",
+        "spans"
+      ],
+      "fileKinds": [
+        "document"
+      ]
+    }
+  ]
+}

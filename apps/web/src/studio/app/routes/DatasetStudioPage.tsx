@@ -1,4 +1,4 @@
-import { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
+import { Component, startTransition, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
@@ -8,7 +8,8 @@ import { LeftSidebar, SlotTabs } from "@/studio/components/studio/LeftSidebar";
 import { StudioLayout } from "@/studio/components/studio/StudioLayout";
 import { StudioTopBar } from "@/studio/components/studio/StudioTopBar";
 import { ShortcutsDialog } from "@/studio/components/studio/ShortcutsDialog";
-import { ViewportHost } from "@/studio/components/studio/ViewportHost";
+import { BootTimelineOverlay, bootTimelineEnabled } from "@/studio/components/studio/BootTimelineOverlay";
+import { remountsOnItemSwitch, ViewportHost } from "@/studio/components/studio/ViewportHost";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
@@ -22,7 +23,7 @@ import { applySafeWorkspace, applyWorkspace, fetchWorkspaceState, loadRemotePlug
 import { kernelEnabled, prepareAssetUrls } from "@/extension-host/kernel";
 import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { ErrorState } from "@studio/ui/ui/error-state";
-import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, type KnownGood } from "@/studio/lib/safe-mode";
+import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, safeHref, type KnownGood } from "@/studio/lib/safe-mode";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
@@ -38,6 +39,8 @@ import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
+import { markAfterPaint, markBoot, startBoot } from "@/extension-host/boot-timing";
+import { loadInPriority, newModules, warmFromHint, warmFromSpec } from "@/studio/lib/boot-priority";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
 
 const AUTOSAVE_MS = 800;
@@ -46,25 +49,29 @@ const LEGACY_TYPES = /^(interval|beat|wave|rhythm|phase|segment|event|mark|point
 export type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
 
 /**
- * Resolve the project's environment (its saved edits, else the manifest's) and load the
- * implementations of every module it uses, so renderers and panels mount synchronously.
+ * Resolve the task's environment (its saved edits, else the manifest's). Ready as soon as it
+ * resolves: modules load in priority order behind it (viewer, visible panels, the rest) and
+ * each viewport or panel waits for its own (ModuleSlot), so nothing waits for every module
+ * (todo11 Milestone 1). `taskId` lets the environment and workspace fetches start on route
+ * enter, alongside the task document instead of after it.
  */
-export function useEnvironment(project: Project | undefined, { safe = false }: { safe?: boolean } = {}): Boot {
-  const saved = useQuery({ queryKey: ["environment", project?.id], queryFn: () => fetchEnvironment(project!.id).catch(() => null), enabled: !!project && !safe, staleTime: Infinity });
+export function useEnvironment(project: Project | undefined, { safe = false, taskId }: { safe?: boolean; taskId?: string } = {}): Boot {
+  const id = taskId || project?.id;
+  const saved = useQuery({ queryKey: ["environment", id], queryFn: () => fetchEnvironment(id!).catch(() => null), enabled: !!id && !safe, staleTime: Infinity });
   // Safe mode (todo10 §3.4): the task's last-known-good setup instead of its saved one.
-  const known = useQuery({ queryKey: ["known-good", project?.id], queryFn: () => fetchKnownGood(project!.id).catch(() => null), enabled: !!project && safe, staleTime: 0 });
+  const known = useQuery({ queryKey: ["known-good", id], queryFn: () => fetchKnownGood(id!).catch(() => null), enabled: !!id && safe, staleTime: 0 });
   // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
   // Safe mode never loads a remote (non-first-party) plugin, and boots even if the state route fails.
   const workspace = useQuery({
-    queryKey: ["workspace", project?.id, safe ? "safe" : "normal"],
+    queryKey: ["workspace", id, safe ? "safe" : "normal"],
     queryFn: async () => {
-      await prepareAssetUrls(project!.id);
-      if (safe) return fetchWorkspaceState(project!.id).catch(() => null);
-      const state = await fetchWorkspaceState(project!.id);
+      await prepareAssetUrls(id!);
+      if (safe) return fetchWorkspaceState(id!).catch(() => null);
+      const state = await fetchWorkspaceState(id!);
       await loadRemotePlugins(state);
       return state;
     },
-    enabled: !!project,
+    enabled: !!id,
     staleTime: Infinity,
   });
   const [boot, setBoot] = useState<Boot>({ status: "loading" });
@@ -75,22 +82,25 @@ export function useEnvironment(project: Project | undefined, { safe = false }: {
     else applyWorkspace(workspace.data ?? null);
     setApplied(true);
   }, [workspace.isLoading, workspace.error, workspace.data, safe, known.isLoading, known.data]);
+  // The saved spec is known before the workspace applies: start its viewer's chunk now.
+  const spec = safe ? known.data?.environment : saved.data?.environment;
+  const fetched = safe ? !known.isLoading : !saved.isLoading;
+  useEffect(() => {
+    if (!fetched) return;
+    markBoot("env-fetched");
+    warmFromSpec(spec);
+  }, [fetched, spec]);
   // Re-resolve when plugins are enabled or disabled (e.g. enabling one this environment needs).
   const activation = useSyncExternalStore((l) => registry.subscribe(l), () => registry.activationVersion);
   useEffect(() => {
     if (workspace.error) return setBoot({ status: "failed", message: String(workspace.error) });
-    if (!project || (safe ? known.isLoading : saved.isLoading) || !applied) return;
-    const spec = safe ? (known.data?.environment ?? project.environment) : (saved.data?.environment ?? project.environment);
-    const r = resolveEnvironment(spec, registry);
+    if (!project || !fetched || !applied) return;
+    const r = resolveEnvironment(spec ?? project.environment, registry);
     if (r.errors) return setBoot({ status: "errors", errors: r.errors });
-    let live = true;
-    Promise.all(r.env.modules.map((m) => registry.preload(m.id)))
-      .then(() => live && setBoot({ status: "ready", env: r.env }))
-      .catch((e) => live && setBoot({ status: "failed", message: e instanceof Error ? e.message : String(e) }));
-    return () => {
-      live = false;
-    };
-  }, [project, saved.isLoading, saved.data, applied, activation, workspace.error, safe, known.isLoading, known.data]);
+    markBoot("env-resolved");
+    loadInPriority(r.env, project.id);
+    setBoot({ status: "ready", env: r.env });
+  }, [project, fetched, spec, applied, activation, workspace.error]);
   return boot;
 }
 
@@ -125,13 +135,20 @@ function SmallScreenNotice() {
 function StudioPage() {
   const { taskId, datasetId: legacyId } = useParams();
   const datasetId = taskId ?? legacyId ?? "";
+  // Route enter (todo11 Milestone 1): start the boot timeline and this task's last viewer chunk.
+  const [entered, setEntered] = useState("");
+  if (entered !== datasetId) {
+    setEntered(datasetId);
+    startBoot(datasetId);
+    warmFromHint(datasetId);
+  }
   const { data: project, isLoading, error } = useTaskDocument(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
   // branch; otherwise the plain document, exactly as before.
   const saved = useQuery({ queryKey: ["annotations", datasetId], queryFn: () => loadDocument(datasetId, () => fetchAnnotations(datasetId)), enabled: !!project, staleTime: Infinity });
   const location = useLocation();
   const safe = isSafeMode(location.search);
-  const boot = useEnvironment(project, { safe });
+  const boot = useEnvironment(project, { safe, taskId: datasetId });
   const projectId = useStudio((s) => s.projectId);
   const load = useStudio((s) => s.load);
   const setEnv = useStudio((s) => s.setEnv);
@@ -148,22 +165,15 @@ function StudioPage() {
   if (error || !project) return <FullPageMessage kind="not-found" title="Task not found" body={`No task “${datasetId}” in this project. Seeds need pnpm seeds, then a reload.`} />;
   if (saved.error) return <FullPageMessage kind="error" title="Couldn't load annotations" body={String(saved.error)} />;
   if (boot.status === "errors") return <EnvErrors errors={boot.errors} safe={safe} />;
-  if (boot.status === "failed") return <BrokenStudio title="Couldn't load this environment's modules" message={boot.message} safe={safe} />;
+  if (boot.status === "failed") return <BrokenStudio title="Couldn't load this task's plugins" message={boot.message} safe={safe} />;
   if (boot.status === "loading" || projectId !== project.id) return <FullPageMessage title="Opening Studio" loading />;
   return (
     <StudioBoundary safe={safe}>
       {safe && <SafeModeBanner taskId={project.id} />}
       <Studio key={project.id} projectId={project.id} safe={safe} />
+      {bootTimelineEnabled(location.search) && <BootTimelineOverlay />}
     </StudioBoundary>
   );
-}
-
-/** The current Studio URL in (or out of) safe mode. A full page load: the registry starts clean. */
-function safeHref(on: boolean): string {
-  const u = new URL(window.location.href);
-  if (on) u.searchParams.set("safe", "");
-  else u.searchParams.delete("safe");
-  return u.pathname + u.search + u.hash;
 }
 
 /** "Start in safe mode" on every screen a broken setup can leave a person on (todo10 §3.4). */
@@ -298,6 +308,8 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
   useActivationSync(env);
   useResume(projectId, items, env);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
+  // Boot timeline: the chrome is on screen (modules may still be loading behind skeletons).
+  useEffect(() => markAfterPaint("shell-painted", { env: env.id }), [env.id]);
 
   // Open on a tool this environment actually offers (whole-slide starts in pan, not select).
   const tool = useStudio((s) => s.tool);
@@ -333,14 +345,14 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {item ? (
           env.viewports.length === 1 ? (
-            <ViewportHost key={item.id} env={env} viewport={main} project={project} item={item} />
+            <ViewportHost key={remountsOnItemSwitch(main) ? item.id : main.name} env={env} viewport={main} project={project} item={item} />
           ) : (
             // Several viewports (e.g. a video next to its sensor trace) share the item and
             // stay in sync through runtime values such as `playhead`.
             <div className="flex h-full min-h-0 divide-x divide-border">
               {env.viewports.map((vp) => (
                 <div key={vp.name} className="min-w-0 flex-1" data-viewport={vp.name}>
-                  <ViewportHost key={`${item.id}:${vp.name}`} env={env} viewport={vp} project={project} item={item} />
+                  <ViewportHost key={remountsOnItemSwitch(vp) ? `${item.id}:${vp.name}` : vp.name} env={env} viewport={vp} project={project} item={item} />
                 </div>
               ))}
             </div>
@@ -490,11 +502,9 @@ function useActivationSync(env: ResolvedEnv) {
       console.warn("[plugins] the environment no longer resolves with this workspace's plugins", r.errors);
       return;
     }
-    let live = true;
-    Promise.all(r.env.modules.map((m) => registry.preload(m.id))).then(() => live && useStudio.getState().setEnv(r.env, { record: false }));
-    return () => {
-      live = false;
-    };
+    // Only the modules this workspace change added load; the Studio keeps running meanwhile.
+    newModules(r.env).forEach((id) => registry.ensure(id));
+    startTransition(() => useStudio.getState().setEnv(r.env, { record: false }));
   }, [activation, env.source]);
 }
 

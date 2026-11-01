@@ -7,9 +7,9 @@ configures modules, datasets, viewers or labels by hand.
 Our advantage isn't supporting every agent protocol or having the most sophisticated pipeline. It's
 making complicated data feel simple.
 
-**Status (2026-10-31).** Plan amended after review; nothing started.
+**Status (2026-10-31).** Milestone 1 merged (`todo11-shell`); see its done note in §4.
 
-- **Milestone 1 can start now.**
+- **Milestone 1: done.**
 - **Milestone 2** starts after Milestone 1's measurements land.
 - **Milestone 3** follows.
 - **Milestone 4** (external agents) is deliberately later and only outlined.
@@ -289,6 +289,35 @@ The native Studio, opened by hand, should feel instant. Nothing here involves ag
    - item switching in `image2d` keeps one engine instance;
    - every existing e2e passes, with the same `data-testid`s.
 
+**Done (2026-10-31, `todo11-shell`).**
+- *Instrument:* `performance` marks `<resourcePrefix>:boot:*` (`extension-host/boot-timing.ts`;
+  `markFirstFrame()` in the SDK, called by the image2d, video, volume, timeseries and wsi hosts);
+  overlay with the `bootTimeline` flag or `?boot-timeline`; `apps/web/e2e/boot_test.py` prints the
+  timeline per preset and gates the exits. "First item thumbnail" is `items-painted` until the
+  items rail has thumbnails (Milestone 3).
+- *Boot gate removed:* the Studio is ready when the environment resolves; `ModuleSlot` gives each
+  viewport and panel a layout-matched skeleton, its own error card (Try again, Start in safe mode)
+  and its own error boundary. Environment, workspace and known-good fetches start on route enter.
+- *Priority:* viewer module, then visible panels, then the rest on idle (`studio/lib/boot-priority.ts`);
+  the viewer module starts on route enter from a per-browser hint and again from the saved spec
+  before the workspace applies (in place of a literal `modulepreload` tag: Vite names the chunk).
+- *No remount:* renderers declaring the `itemSwap` capability keep their instance; both image2d
+  renderers do (`CornerstoneStackEngine.setItem` keeps the viewport and tool group and swaps the
+  image, labelmap and bridge).
+- *Live in-tab apply:* `installEnvironment` and plugin activation load only new modules, then
+  `setEnv` in `startTransition` (zustand updates are synchronous, so this mostly schedules the
+  render; `<ViewTransition>` waits for React 19.3, Milestone 2).
+- *Exits:* all met (§7). E2e: every web suite passes except failures that also fail on `main`
+  (`studio_toolbar_test` classification ×4; `volume3d_test` flakes on different checks each run);
+  `tests/e2e/safe_mode_test.py` now accepts a broken panel failing alone, and passes. Found on the
+  way: the safe-mode test's broken plugin actually fails one step earlier, at workspace state
+  parsing ("workspace state is invalid: expected string, received object"); an API/client contract
+  issue for `todo11-boot` to look at.
+- *Watch:* pathology's shell paints ~1.6 s after route enter because the OSD viewer's mount blocks the
+  main thread in the same commit (warm 1.39 s, just under budget); defer heavy renderer mounts a
+  frame after the shell if it drifts. ECG's cold shell went 0.68 → 1.10 s for the same reason (the strip
+  chart now mounts in the shell's commit, not behind the gate); still within budget.
+
 ### Milestone 2: server-side boot and live updates (`todo11-boot`, `todo11-live`)
 
 A user can create a Studio from chat without opening the Studio first.
@@ -465,14 +494,21 @@ Two kinds, kept separate.
 
 | Moment | Target | Today |
 |---|---|---|
-| Studio route to shell painted (warm / cold) | < 1.5 s / < 3 s | TBD (Milestone 1 step 1) |
-| Route to first viewport frame, `image-2d` cold | < 3 s | ~20–45 s implied by e2e waits; to measure |
+| Studio route to shell painted (warm / cold) | < 1.5 s / < 3 s | before → after M1, cold: image-2d 1.40 → 0.63 s, video 0.63 → 0.74, volume-3d 0.72 → 0.76, ecg 0.68 → 1.10, pathology 1.96 → 1.96; warm 0.08–0.26 s except pathology 1.49 → 1.39 s |
+| Route to first viewport frame, `image-2d` cold | < 3 s | 1.51 → 1.11 s (video 0.83, volume-3d 1.26, ecg 1.34, pathology 3.32 after M1) |
 | Explicit request to boot card visible | < 300 ms after the `boot_studio` call starts | n/a |
 | Boot start to shell painted on the draft | < 2 s | n/a |
 | Explicit request to usable preset (scripted model) | < 20 s | n/a |
 | Agent setup complete (real model) | < 60 s | n/a |
 | Item `registered` to skeleton; `thumb_ready` to thumbnail | < 300 ms; < 500 ms | n/a |
 | First item viewable while a batch is still uploading | yes | no |
+
+Milestone 1 numbers: `apps/web/e2e/boot_test.py`, median of 3, local Vite dev server (transform
+cache primed, so "cold" is a cold browser), chromium, 1440×900; cold since navigation start, warm
+since an in-app navigation. "Before" is `main` b6719e2 measured with the same script. The e2e waits
+of 20–45 s came from a cold Vite, not the Studio. The shell now paints before slow modules load
+(before M1 it waited for all of them), so where "before" is already fast, the gain shows up as
+robustness rather than in the median.
 
 **Background ingest** (tracked, reported, **not** gates):
 

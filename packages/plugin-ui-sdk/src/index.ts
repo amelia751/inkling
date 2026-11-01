@@ -8,3 +8,4 @@ export * from "./runtime";
 export * from "./labels";
 export * from "./host";
 export * from "./viewer";
+export * from "./perf";

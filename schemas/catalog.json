@@ -229,7 +229,8 @@
         "zoom",
         "rotate",
         "holdToPan",
-        "overlayOpacity"
+        "overlayOpacity",
+        "itemSwap"
       ],
       "example": {
         "viewports": [
@@ -418,7 +419,8 @@
         "pan",
         "holdToPan",
         "drafting",
-        "vertexUndo"
+        "vertexUndo",
+        "itemSwap"
       ],
       "example": {
         "viewports": [

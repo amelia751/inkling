@@ -19,7 +19,7 @@ import { overviewTimeAt, type Caliper } from "./draw";
 import { computeFrame } from "./layout";
 import { nextSuggestion, setCodeOfSelected, StripChartEngine } from "./StripChartEngine";
 import { ns } from "@studio/contracts/naming";
-import { isEditable, useCommands, useHost, useToolOption, visibleFor } from "@studio/plugin-ui-sdk";
+import { isEditable, markFirstFrame, useCommands, useHost, useToolOption, visibleFor } from "@studio/plugin-ui-sdk";
 
 /**
  * `inkling.timeseries.renderers.strip-chart`: the React host. Loads the recording through
@@ -93,6 +93,9 @@ export function StripChartHost({ env, item, config, runtime }: RendererProps) {
   const ov = useCanvasSize();
   const size = main.size;
   const [rec, setRec] = useState<Recording | null>(null);
+  useEffect(() => {
+    if (rec) requestAnimationFrame(() => markFirstFrame({ renderer: "strip-chart", itemId: item.id }));
+  }, [rec, item.id]);
   const [error, setError] = useState<string | null>(null);
   const [display, setDisplay] = useDisplay(cfg);
   const [windowSec, setWindowSec] = useState(10);

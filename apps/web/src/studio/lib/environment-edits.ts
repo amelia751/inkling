@@ -1,14 +1,16 @@
+import { startTransition } from "react";
 import { createPatch } from "rfc6902";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { useStudio } from "@/studio/stores/studio";
+import { newModules } from "./boot-priority";
 import { fetchEnvironment, saveEnvironment, type ChangeProvenance } from "./api";
 
 /**
  * The one path for changing a running environment, shared by the assistant and the config
- * forms: JSON Patch against the source spec → validate → load modules → one undoable
+ * forms: JSON Patch against the source spec → validate → load new modules → one undoable
  * `setEnv` step → save as a project environment edit (with its author).
  */
 const revisions = new Map<string, number>();
@@ -19,9 +21,14 @@ export async function persistEnvironment(projectId: string, env: ResolvedEnv, au
   revisions.set(projectId, saved.revision);
 }
 
-export async function installEnvironment(env: ResolvedEnv): Promise<void> {
-  await Promise.all(env.modules.map((m) => registry.preload(m.id)));
-  useStudio.getState().setEnv(env);
+/**
+ * Make `env` the running environment: load only the modules it adds (the running ones stay as
+ * they are), then swap it in as a transition. A module that fails to load rejects, so callers
+ * (the assistant's patch tool, config forms) report it instead of applying a broken setup.
+ */
+export async function installEnvironment(env: ResolvedEnv, opts?: { record?: boolean }): Promise<void> {
+  await Promise.all(newModules(env).map((id) => registry.preload(id)));
+  startTransition(() => useStudio.getState().setEnv(env, opts));
 }
 
 /** Apply a patch to the running env. Returns structured errors (nothing applied) or the new env. */

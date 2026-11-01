@@ -12,7 +12,7 @@ import { useHoldToPan } from "../holdToPan";
 import { fitCamera, panBy, toImage, toScreen, zoomAbout, type Camera } from "./camera";
 import { RasterEditor, type EditorEnv } from "./editor";
 import { RES, ns } from "@studio/contracts/naming";
-import { assetUrl, isEditable, newAnnotation, useCommands, useHost, visibleFor } from "@studio/plugin-ui-sdk";
+import { assetUrl, isEditable, markFirstFrame, newAnnotation, useCommands, useHost, visibleFor } from "@studio/plugin-ui-sdk";
 
 const SCOPES = [ns("image2d"), ns("core")];
 
@@ -55,6 +55,10 @@ export default function CanvasRasterHost({ project, item, runtime }: RendererPro
   useEffect(() => {
     if (!asset) return;
     let live = true;
+    // A new item (the shell swaps items without remounting): never draw its shapes on the old image.
+    setError(null);
+    setImage(null);
+    setHover(null);
     const img = new Image();
     img.decoding = "async";
     img.onload = () => live && setImage(img);
@@ -163,6 +167,7 @@ export default function CanvasRasterHost({ project, item, runtime }: RendererPro
     if (!image || !camera) return;
     ctx.imageSmoothingEnabled = camera.scale < 2;
     ctx.drawImage(image, camera.tx, camera.ty, image.naturalWidth * camera.scale, image.naturalHeight * camera.scale);
+    markFirstFrame({ renderer: "canvas-raster", itemId: item.id });
 
     const ts = (x: number, y: number) => toScreen(camera, x, y);
     const selected = new Set(selectedIds);

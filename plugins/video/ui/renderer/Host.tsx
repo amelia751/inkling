@@ -15,7 +15,7 @@ import { TransportBar } from "./TransportBar";
 import { useVideoCommands } from "./useVideoCommands";
 import { VideoEngine } from "./VideoEngine";
 import { VideoTimeline } from "./VideoTimeline";
-import { assetUrl, useHost, visibleFor } from "@studio/plugin-ui-sdk";
+import { assetUrl, markFirstFrame, useHost, visibleFor } from "@studio/plugin-ui-sdk";
 import { useRequestedPlacement } from "@studio/plugin-ui-sdk/runtime";
 
 /** "Per-frame shape" drawing mode survives switching videos. */
@@ -35,6 +35,9 @@ function VideoHost({ project, item, runtime }: RendererProps) {
   const [engine] = useState(() => new VideoEngine({ url, fps, frames: asset.frames, duration: asset.duration, width: asset.width, height: asset.height }));
   const s = useSyncExternalStore(engine.subscribe, engine.getState);
   const { frame, target, frames, dims, mode } = s;
+  useEffect(() => {
+    if (engine.ready) markFirstFrame({ renderer: "frame-canvas", itemId: item.id });
+  }, [engine.ready, item.id]);
   const [, bump] = useReducer((x: number) => x + 1, 0);
   const [editor] = useState(() => new FrameEditor(bump));
   const [perFrame, setPerFrame] = useState(perFrameDefault);

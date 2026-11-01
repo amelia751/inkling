@@ -21,7 +21,8 @@ export function describeGeometry(a: Annotation, env?: ResolvedEnv | null): strin
 /**
  * Inspector rows for an annotation: every inspector in the environment whose geometries
  * include the annotation's type contributes rows, in module order. Implementations must
- * be loaded (the Studio preloads the environment's modules).
+ * be loaded: the Studio loads every module of the environment soon after the viewer, and an
+ * inspector whose module is still loading contributes nothing yet.
  */
 export function inspectRows(a: Annotation, env: ResolvedEnv, ctx: Omit<InspectContext, "env">): [string, string][] {
   const rows: [string, string][] = [];

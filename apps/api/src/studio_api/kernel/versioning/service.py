@@ -601,8 +601,11 @@ def op_review_get(c: Call, body: dict) -> tuple[int, dict]:
 def op_review_approve(c: Call, body: dict) -> tuple[int, dict]:
     rid = str(body["review_id"])
     source = body.get("source_oid") or client().get_review(c.token(), c.repo_id, rid)["source_oid"]
-    r = client().approve_review(c.token(), c.repo_id, rid, {"source_oid": source})
-    c.audit_after = {"reviewId": rid, "source_oid": source}
+    req = {"source_oid": source}
+    if body.get("candidate_digest"):  # a pipeline candidate: the approval is bound to its digest (todo12)
+        req["candidate_digest"] = str(body["candidate_digest"])
+    r = client().approve_review(c.token(), c.repo_id, rid, req)
+    c.audit_after = {"reviewId": rid, "source_oid": source, **({"candidate_digest": req["candidate_digest"]} if "candidate_digest" in req else {})}
     return 200, _enrich_review(c, r)
 
 

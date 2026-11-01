@@ -8,6 +8,7 @@ from attrs import field as _attrs_field
 
 from ..types import UNSET, Unset
 
+from ..types import UNSET, Unset
 
 
 
@@ -23,9 +24,11 @@ class ApproveRequest:
     """ 
         Attributes:
             source_oid (str):
+            candidate_digest (str | Unset):
      """
 
     source_oid: str
+    candidate_digest: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
 
@@ -35,12 +38,16 @@ class ApproveRequest:
     def to_dict(self) -> dict[str, Any]:
         source_oid = self.source_oid
 
+        candidate_digest = self.candidate_digest
+
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update({
             "source_oid": source_oid,
         })
+        if candidate_digest is not UNSET:
+            field_dict["candidate_digest"] = candidate_digest
 
         return field_dict
 
@@ -51,8 +58,11 @@ class ApproveRequest:
         d = dict(src_dict)
         source_oid = d.pop("source_oid")
 
+        candidate_digest = d.pop("candidate_digest", UNSET)
+
         approve_request = cls(
             source_oid=source_oid,
+            candidate_digest=candidate_digest,
         )
 
 

@@ -394,7 +394,14 @@ class FakeVersioning:
                 raise problem(403, "self_approval", "authors cannot approve their own review")
             if body["source_oid"] != rv["source_oid"]:
                 raise VersioningProblem(409, {"title": "stale head", "code": "stale_head", "detail": "the source changed since you reviewed it", "current_head": rv["source_oid"]})
-            rv["approvals"].append({"reviewer_id": a["id"], "approved_source_oid": body["source_oid"], "created_at": _now()})
+            target = rv.get("checked_target_oid") or self._branch(r, rv["target_branch"])["commit_oid"]
+            # Stable per (reviewer, source, target), like the service: the pipeline's PublishWorkflow id.
+            aid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"approval:{review_id}:{a['id']}:{body['source_oid']}:{target}"))
+            if not any(x["id"] == aid for x in rv["approvals"]):
+                entry = {"id": aid, "reviewer_id": a["id"], "approved_source_oid": body["source_oid"], "approved_target_oid": target, "created_at": _now()}
+                if body.get("candidate_digest"):
+                    entry["candidate_digest"] = body["candidate_digest"]
+                rv["approvals"].append(entry)
             return self._view(rv)
 
     def resolve_conflicts(self, token, repo_id, review_id, body):

@@ -3,7 +3,7 @@ point clouds), built as an agent-authored plugin, approved by a person, and rend
 Studio behind the MCP Apps sandbox proxy. Its annotations come back as typed geometries.
 
 What is real and what is scripted:
-- real: the kernel's artifact build (checks, digest, signature), the install flow (plan → stage
+- real: the kernel's checks (dry run), the worker's rebuild and signature (todo10 Phase 7), the install flow (plan → stage
   → validate → approve), scope enforcement (the agent session can't approve), the Studio
   loading the approved plugin from the kernel, the sandbox proxy, the MCP Apps bridge, the
   viewer reading the item's bytes and proposing an annotation;
@@ -12,12 +12,12 @@ What is real and what is scripted:
   agent's build_plugin_artifact tool does (Daytona isn't involved). The person's approval is a
   kernel call with the person's identity, the same call InstallReview makes.
 
-    (cd apps/api && uv run uvicorn studio_api.app:app --port 8241) &
+    (cd apps/api && INKLING_API_DATA_DIR=/tmp/k uv run uvicorn studio_api.app:app --port 8241) &
+    (cd apps/worker && INKLING_WORKER_SIGNING_KEY_FILE=/tmp/k/plugin-signing.key uv run studio-worker --kernel http://127.0.0.1:8241) &
     INKLING_E2E=1 pnpm exec vite --port 5240 --strictPort          # from apps/web
     INKLING_E2E_API_URL=http://127.0.0.1:8241 python3 ../../tests/e2e/viewer_test.py --port 5240
 
-Without a kernel the install half is skipped (reported) and the Studio half runs on the packed
-contributions directly.
+Without a kernel the test is skipped (reported).
 """
 from __future__ import annotations
 
@@ -85,8 +85,15 @@ def install() -> tuple[dict, dict] | None:
     s, sess = kernel("POST", "/sessions", {"agent": "builder", "scopes": ["plugins.read", "plugins.manage", "plugins.author"], "ttlSeconds": 900})
     check("install: person mints an agent session without plugins.approve", s == 200 and "plugins.approve" not in sess["scopes"], str(sess))
     agent = sess["token"]
-    s, built = kernel("POST", "/plugins/artifacts", token=agent, raw=viewer_plugin.pack(NS), ctype="application/gzip")
-    check("install: the agent's artifact passes the kernel's checks and is signed", s == 200 and built.get("ok") and built.get("artifactDigest", "").startswith("sha256:"), json.dumps(built)[:400])
+    tarball = viewer_plugin.pack(NS)
+    s, dry = kernel("POST", "/plugins/artifacts?dryRun=true", token=agent, raw=tarball, ctype="application/gzip")
+    check("install: the agent's package passes the kernel's checks (dry run)", s == 200 and dry.get("ok"), json.dumps(dry)[:300])
+    # todo10 Phase 7: agents only send source; the worker rebuilds, hashes and signs it.
+    s, started = kernel("POST", "/boundary/builds", token=agent, raw=tarball, ctype="application/gzip")
+    job = (started or {}).get("job", {}).get("jobId")
+    view = wait(lambda: (lambda v: v if v["job"]["state"] in ("succeeded", "failed") else None)(kernel("GET", f"/boundary/jobs/{job}", token=agent)[1]), 180, 1) if job else None
+    built = (view or {}).get("result") or {}
+    check("install: the worker rebuilt and signed it; the registry holds our build", bool(built.get("registered")) and str(built.get("artifactDigest", "")).startswith("sha256:"), json.dumps(view)[:400] if view else f"{s} {started} (is a worker running against {KERNEL}?)")
     s, plan = kernel("POST", f"/workspaces/{WS}/plugins/plan", {"pluginId": PLUGIN}, token=agent)
     check("install: the agent plans the install", s == 200 and plan.get("requestId"), str(plan)[:300])
     s, staged = kernel("POST", f"/workspaces/{WS}/plugins/stage", {"requestId": plan["requestId"]}, token=agent)
@@ -102,13 +109,10 @@ def install() -> tuple[dict, dict] | None:
     return state, body
 
 
-def t_viewer(browser, port: int, installed: tuple[dict, dict] | None, out: Path) -> None:
+def t_viewer(browser, port: int, installed: tuple[dict, dict], out: Path) -> None:
     ply = Path(tempfile.mkdtemp()) / "sphere.ply"
     ply.write_bytes(viewer_plugin.synthetic_ply(2000))
-    state, body = installed or (
-        {"workspaceId": WS, "plugins": [{"pluginId": PLUGIN, "version": "0.1.0", "configRevision": 0, "state": "ACTIVATED"}]},
-        {"manifest": {**__import__("yaml").safe_load(viewer_plugin.files(NS)["plugin.yaml"])}, "contributions": viewer_plugin.contributions(NS)},
-    )
+    state = installed[0]
     proj = {
         "id": WS,
         "title": "PLY point clouds (synthetic)",
@@ -124,13 +128,20 @@ def t_viewer(browser, port: int, installed: tuple[dict, dict] | None, out: Path)
     }
     st = open_studio(browser, port, WS, extra_projects=[proj], fixtures={f"{WS}/sphere.ply": ply}, fixture_annotations=[], workspace_state=state)
     p = st.page
-    p.route(f"**/api/v1/plugins/{PLUGIN}*", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(body)))
+    # The dev server runs in seed mode; plugin files come from the real kernel, and the Studio
+    # checks them against the workspace's pinned digest (fetch-and-hash, todo10 Phase 3).
+    def from_kernel(route):
+        url = route.request.url
+        r = route.fetch(url=KERNEL + url[url.index("/api/v1/"):], headers={**route.request.headers, "x-workspace-id": WS})
+        route.fulfill(response=r)
+
+    p.route(f"**/api/v1/plugins/{PLUGIN}/**", from_kernel)
     try:
         p.reload()
         frame = p.locator("[data-testid='sandbox-viewer']")
         frame.wait_for(state="attached", timeout=60000)
         src = frame.get_attribute("src") or ""
-        check("studio: the viewer fills the viewport, on the sandbox proxy's origin", src.endswith("/sandbox-proxy.html") and not src.startswith(p.evaluate("location.origin") + "/"), src)
+        check("studio: the approved bytes passed the browser's digest check; the viewer fills the viewport, on the sandbox proxy's origin", src.endswith("/sandbox-proxy.html") and not src.startswith(p.evaluate("location.origin") + "/"), src)
         check("studio: proxy frame allows scripts only", (frame.get_attribute("sandbox") or "").split() == ["allow-scripts"], str(frame.get_attribute("sandbox")))
         view = p.frame_locator("[data-testid='sandbox-viewer']").frame_locator("iframe")
         points = wait(lambda: view.locator("#ply-canvas").get_attribute("data-points"), 60)
@@ -153,8 +164,9 @@ def t_viewer(browser, port: int, installed: tuple[dict, dict] | None, out: Path)
 def main() -> int:
     args = parse_args()
     installed = install() if KERNEL else None
-    if not KERNEL:
-        print(f"SKIP install: set {P}E2E_API_URL to run it against the kernel")
+    if not installed:
+        print(f"SKIP: needs the kernel and a worker ({P}E2E_API_URL)")
+        return 0
     with sync_playwright() as pw:
         browser = launch(pw, args.browser, args.headed)
         try:

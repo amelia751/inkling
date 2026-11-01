@@ -88,8 +88,13 @@ import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.p
   person (`API_DROP_RATE_PER_MINUTE`, 429 with `Retry-After`). A client `id` (`drp-…`) makes a
   retry return the same drop.
 - `POST /v1/projects/:id/imports` takes `origin: {kind, conversationId?, messageId?, dropId?}`
-  (or `dropId`). A chat drop lands in **Shared in chat/<conversation>** (made on first use, one
-  subfolder per conversation) with `Source.kind = chat`; the drop's totals stay within the limits.
+  (or `dropId`). A chat drop, and a Home drop (D1 delivers it into the new project's
+  conversation), lands in **Shared in chat/<conversation>** (made on first use, one subfolder per
+  conversation) with `Source.kind = chat`; the drop's totals stay within the limits.
+- The worker's listing of an import that holds a table (`GET /v1/worker/inspect/imports/:id`)
+  carries `knownNames`: the file names of the drop's dataset, so a labels CSV dropped later is
+  recognized as keyed by them (§3.3). Worker-only, inside the perimeter; the plan and the agent
+  get the count of matching columns, never the names.
 - `GET /v1/drops/:id`: a person gets the drop with one entry per file (`state`: uploading,
   checking, ready, kept, failed, duplicate "Already in Files", removed, deleted; `looksLike` when
   the extension and the detected kind disagree, "Looks like a ZIP"); an agent gets the
@@ -101,8 +106,16 @@ import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.p
   "Deleted file" on its chips.
 - Events on the project stream: `drop.received {dropId, origin, count}`, `drop.file {dropId,
   nodeId, state}`, `drop.failed {dropId, step, errorClass}`; `drop.classified|planned|applied`
-  come from the classifier. Each transition logs one JSON line (`dropId`, `state`, `elapsed_ms`,
-  `origin`, counts; no names).
+  come from the classifier. Each transition logs one JSON line (`msg`/`event` `drop.<state>`:
+  received, session, uploaded, inspected, classified, planned, applied, undone, failed with
+  `step` and `errorClass`; `dropId`, `elapsed_ms` since `drop.received`, `origin`, counts by
+  kind; no names), and a drop still `inspecting` 10 minutes after its last change logs
+  `drop.stuck` about once a minute. The log-based metrics and alerts read them
+  (`infra/terraform/phi/monitoring.tf`, `docs/deployment-gcp.md` "Drops: config, monitoring and
+  rollout").
+- Feature flags: drops and their routes need `API_FEATURE_CHAT_DROPS`; the plan routes too;
+  structure, collections and `POST /v1/telemetry/timeline` answer while any todo13 flag is on.
+  With every flag off none of them answers (404) and imports work as before.
 - `GET /v1/source-nodes/:id` `provenance.drop`: "Shared in chat · <conversation> · <date>".
 
 **Screened names (D13).** Each node has `agent_name` / `name_flagged`: what an agent sees for its

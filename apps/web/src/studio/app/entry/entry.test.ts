@@ -44,8 +44,12 @@ describe("todo13 D1 project titles", () => {
 describe("pending ask (Home's first send)", () => {
   it("is taken once", () => {
     usePendingAsks.getState().queue("p1", "Segment liver CT");
-    expect(usePendingAsks.getState().take("p1")).toBe("Segment liver CT");
+    expect(usePendingAsks.getState().take("p1")).toEqual({ text: "Segment liver CT" });
     expect(usePendingAsks.getState().take("p1")).toBeUndefined();
+  });
+  it("carries a drop already started in the conversation (Home's drop)", () => {
+    usePendingAsks.getState().queue("p1", "", { dropId: "drp-1", messageId: "m-1" });
+    expect(usePendingAsks.getState().take("p1")).toEqual({ text: "", drop: { dropId: "drp-1", messageId: "m-1" } });
   });
 });
 

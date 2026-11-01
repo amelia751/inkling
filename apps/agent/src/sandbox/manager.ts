@@ -1,4 +1,4 @@
-import { type Daytona, DaytonaNotFoundError, type Sandbox } from "@daytona/sdk";
+import { DaytonaNotFoundError, type Sandbox } from "@daytona/sdk";
 import type { Config } from "../config.ts";
 import { SandboxQuotaExceededError, SandboxUnavailableError, mapDaytonaError, withRateLimitRetry } from "./client.ts";
 import {
@@ -12,7 +12,7 @@ import {
   sandboxName,
 } from "./defaults.ts";
 import { ensureStarted, execCommand } from "./exec.ts";
-import { resolveSnapshot } from "./snapshot.ts";
+import type { SandboxProvider } from "./provider.ts";
 
 export type SandboxEvent =
   | { state: "creating"; name: string }
@@ -59,7 +59,7 @@ export class SandboxManager {
   readonly refs: SandboxRefStore;
 
   constructor(
-    private readonly daytona: Daytona,
+    readonly provider: SandboxProvider,
     private readonly config: Config,
     private readonly opts: ManagerOptions = {},
   ) {
@@ -132,11 +132,9 @@ export class SandboxManager {
     }
 
     ctx.onEvent?.({ state: "creating", name });
-    const snapshot = await resolveSnapshot(this.daytona, this.config.sandbox.snapshot, this.opts.warn);
     const egress = typeof this.opts.egress === "function" ? this.opts.egress() : this.opts.egress;
-    const params = createParams(this.config, ctx, { snapshot, egress: egress ?? DEFAULT_EGRESS });
-    const create = () =>
-      withRateLimitRetry(() => this.daytona.create(params, { timeout: this.opts.createTimeoutS ?? 120 }));
+    const params = createParams(this.config, ctx, { egress: egress ?? DEFAULT_EGRESS, canBlockNetwork: this.provider.canBlockNetwork() });
+    const create = () => this.provider.create(params, { timeoutS: this.opts.createTimeoutS ?? 120, warn: this.opts.warn });
     let sandbox: Sandbox;
     try {
       sandbox = await create();
@@ -156,14 +154,8 @@ export class SandboxManager {
   }
 
   private async reattach(idOrName: string): Promise<{ sandbox: Sandbox } | undefined> {
-    try {
-      const sandbox = await withRateLimitRetry(() => this.daytona.get(idOrName));
-      if (sandbox.state === "destroyed" || sandbox.state === "destroying" || sandbox.state === "error") return undefined;
-      return { sandbox };
-    } catch (err) {
-      if (err instanceof DaytonaNotFoundError) return undefined;
-      throw err;
-    }
+    const sandbox = await this.provider.get(idOrName);
+    return sandbox ? { sandbox } : undefined;
   }
 
   private async prepare(sandbox: Sandbox): Promise<void> {

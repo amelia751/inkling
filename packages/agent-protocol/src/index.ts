@@ -189,7 +189,8 @@ export interface AgentStatus {
   configured: boolean;
   provider: string;
   model: string | null;
-  sandbox: "daytona" | "off";
+  /** Which sandbox provider the service runs (todo10 §6.2), or off. */
+  sandbox: "daytona" | "local" | "gke" | "fake" | "off";
   profiles: ProfileName[];
 }
 

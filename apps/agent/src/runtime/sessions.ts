@@ -25,13 +25,15 @@ import type {
   SessionInfo,
 } from "@studio/agent-protocol";
 import { NAMING } from "../naming.ts";
-import { type EgressPolicy, PACKAGE_INDEX_HOSTS, SANDBOX_CWD } from "../sandbox/defaults.ts";
+import { type EgressPolicy, SANDBOX_CWD } from "../sandbox/defaults.ts";
+import { DaytonaProvider, type SandboxProvider } from "../sandbox/provider.ts";
 import { type SandboxEvent, SandboxManager, type SandboxRefStore } from "../sandbox/manager.ts";
 import { reclaimForQuota } from "../sandbox/sweeper.ts";
 import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/client.ts";
-import { SeedApiDatasetSource, SessionDatasetSource, StudioSampleSource, createDatasetTools } from "../tools/dataset.ts";
+import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "../tools/dataset.ts";
+import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
-import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
+import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
@@ -141,6 +143,8 @@ export interface SessionServiceDeps {
   runtime: ModelRuntime;
   log: Logger;
   daytona?: Daytona;
+  /** Where sandboxes come from (AGENT_SANDBOX); defaults to Daytona when `daytona` is given. */
+  provider?: SandboxProvider;
   egress?: () => EgressPolicy;
   /** Single local principal in dev; apps/api passes the authenticated user later. */
   principal?: string;
@@ -212,7 +216,8 @@ export class SessionService {
       abort: (ctx, run) => this.abortRun(ctx, run, "cancelled"),
     });
     this.slots = new Slots(Math.max(1, deps.config.limits.maxConcurrentRuns));
-    if (deps.daytona) {
+    const provider = deps.provider ?? (deps.daytona ? new DaytonaProvider(deps.daytona, { snapshot: deps.config.sandbox.snapshot, canBlock: () => deps.egress?.().canOverride ?? false }) : undefined);
+    if (provider) {
       const refs: SandboxRefStore = {
         // Sandboxes are only acquired for live sessions, whose meta is in memory.
         get: (sessionId) => this.sessions.get(sessionId)?.meta.sandboxId,
@@ -227,13 +232,13 @@ export class SessionService {
           if (ctx) this.persist(ctx);
         },
       };
-      const daytona = deps.daytona;
-      this.sandboxes = new SandboxManager(daytona, deps.config, {
+      const daytona = provider.kind === "daytona" ? (provider as DaytonaProvider).daytona : undefined;
+      this.sandboxes = new SandboxManager(provider, deps.config, {
         refs,
         egress: deps.egress,
         warn: (m) => deps.log.warn(m),
-        // Quota pressure: stop the oldest idle sandboxes (never ones with a run in flight).
-        reclaim: () => reclaimForQuota(daytona, deps.config.env, this.activeSessionIds(), (m) => deps.log.warn(m)),
+        // Quota pressure (Daytona): stop the oldest idle sandboxes (never ones with a run in flight).
+        reclaim: daytona ? () => reclaimForQuota(daytona, deps.config.env, this.activeSessionIds(), (m) => deps.log.warn(m)) : undefined,
       });
     }
   }
@@ -355,8 +360,17 @@ export class SessionService {
     if (profile.kernel) {
       tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
+      // Without a sandbox the builder can still read fingerprints and probe (todo10 Phase 7).
+      else if (profile.kernel === "builder") tools.push(...createBoundaryTools(kernel, { sourceDir: PLUGIN_DIR }).filter((t) => t.name === "get_fingerprint" || t.name === "probe_sample"));
     }
-    if (profile.sandbox === true && this.sandboxes) tools.push(...this.sandboxTools(ctx));
+    if (profile.sandbox === true && this.sandboxes) {
+      tools.push(...this.sandboxTools(ctx));
+      // The coder's way to data: a fingerprint and synthetic fixtures in its work dir, never the sample.
+      const manager = this.sandboxes;
+      const owner = { sessionId: ctx.id, projectId: meta.projectId, owner: meta.owner, profile: meta.profile, restricted: meta.restricted };
+      const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
+      tools.push(...createBoundaryTools(kernel, { acquire, sourceDir: SANDBOX_CWD }).filter((t) => t.name === "get_fingerprint" || t.name === "get_fixtures"));
+    }
     tools.push(...(this.deps.extraTools ?? []));
 
     const session = await createStudioSession({
@@ -403,14 +417,12 @@ export class SessionService {
       onUncertain: (detail) => manager.quarantine(ctx.id, detail, (e) => this.onSandboxEvent(ctx, e)),
       artifactsDir: this.artifactsDir(ctx.id),
       onArtifact: (a) => this.onArtifact(ctx, a),
-      samples: new StudioSampleSource(ctx.dataset, this.config.studioUrl),
-      uploadLimits: this.config.upload,
     });
   }
 
   /**
-   * Phase 9: the builder's sandbox holds one plugin's source. Labelled purpose=plugin-build, egress
-   * limited to the package index where the org tier allows rules, fake credentials, and file tools
+   * Phase 9: the builder's sandbox holds one plugin's source. Labelled purpose=plugin-build, no
+   * network on any provider (todo10 Phase 7), no credentials or env from us, a short life, file tools
    * rooted at PLUGIN_DIR (policy denies paths outside it). No bash or run_python.
    */
   private pluginSandboxTools(ctx: SessionContext, kernel: KernelClient): ToolDefinition<any, any, any>[] {
@@ -422,8 +434,6 @@ export class SessionService {
       profile: ctx.meta.profile,
       restricted: ctx.meta.restricted,
       labels: { purpose: "plugin-build" },
-      egressAllow: PACKAGE_INDEX_HOSTS,
-      envVars: { [`${NAMING.envPrefix}KERNEL_TOKEN`]: "fake-kernel-token", [`${NAMING.envPrefix}SECRET_USE_TOKEN`]: "fake-secret-token" },
     };
     const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
     const files = createSandboxTools({
@@ -434,7 +444,9 @@ export class SessionService {
       outputMax: this.config.sandbox.outputMax,
       artifactsDir: this.artifactsDir(ctx.id),
     }).filter((t) => (PLUGIN_FILE_TOOLS as readonly string[]).includes(t.name));
-    return [...createPluginSandboxTools(kernel, { acquire, execTimeoutS: this.config.sandbox.execTimeoutS }), ...files];
+    // todo10 Phase 7: fixtures in, source out; the real sample stays in our worker.
+    const boundary = createBoundaryTools(kernel, { acquire, sourceDir: PLUGIN_DIR, pack: (sb) => packTarball(sb, this.config.sandbox.execTimeoutS) });
+    return [...createPluginSandboxTools(kernel, { acquire, execTimeoutS: this.config.sandbox.execTimeoutS }), ...boundary, ...files];
   }
 
   private async facts(ctx: SessionContext, toolName: string, input: Record<string, unknown>): Promise<CallFacts> {

@@ -1,3 +1,4 @@
+import { SandboxNetworkError } from "../../src/sandbox/defaults.ts";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -73,16 +74,19 @@ describe("sandbox defaults", () => {
     expect(sandboxLabels("test", who)).toEqual({ app: RES, env: "test", session: "S_1_x", project: "p_1", owner: "me_x.com", profile: "coder" });
   });
 
-  it("private, lifecycle-bounded, no egress overrides unless the tier allows it", () => {
-    const p = createParams(config, who);
-    expect(p).toMatchObject({ public: false, autoStopInterval: 15, autoArchiveInterval: 1440, autoDeleteInterval: 10080, ttlMinutes: 1440 });
+  it("private, lifecycle-bounded, no network on any tier, no env from us (todo10 Phase 7.8)", () => {
+    const p = createParams(config, who, { canBlockNetwork: true });
+    expect(p).toMatchObject({ public: false, autoStopInterval: 15, autoArchiveInterval: 1440, autoDeleteInterval: 10080, ttlMinutes: 1440, networkBlockAll: true });
     expect(p.domainAllowList).toBeUndefined();
-    expect(p.networkBlockAll).toBeUndefined();
-    expect(JSON.stringify(p.envVars)).not.toMatch(/KEY|TOKEN|SECRET/);
-
-    const egress = { canOverride: true, allowDomains: ["pypi.org"] };
-    expect(createParams(config, who, { egress }).domainAllowList).toBe("pypi.org");
-    expect(createParams(config, { ...who, restricted: true }, { egress }).networkBlockAll).toBe(true);
+    expect(p.envVars).toEqual({ PYTHONUNBUFFERED: "1", MPLBACKEND: "Agg" });
+    // A tier that can't block the network: refused, unless dev explicitly accepts the org default.
+    expect(() => createParams(config, who)).toThrow(SandboxNetworkError);
+    const dev = loadConfig(withPrefix({ ENV: "test", DAYTONA_API_KEY: "k", AGENT_SANDBOX_NETWORK: "org-default" })).config;
+    expect(createParams(dev, who).networkBlockAll).toBeUndefined();
+    expect(() => loadConfig(withPrefix({ ENV: "production", AGENT_TOKEN: "t", OPENAI_API_KEY: "k", DAYTONA_API_KEY: "k", AGENT_SANDBOX_NETWORK: "org-default" }))).toThrow(/must be block/);
+    // Build sandboxes live briefly.
+    const b = createParams(config, { ...who, labels: { purpose: "plugin-build" } }, { canBlockNetwork: true });
+    expect(b).toMatchObject({ ttlMinutes: 60, autoDeleteInterval: 60, autoStopInterval: 15 });
   });
 });
 

@@ -59,8 +59,26 @@ const schema = z.object({
   GOOGLE_CLOUD_PROJECT: optional,
   GOOGLE_CLOUD_LOCATION: optional,
 
-  /** `off` disables sandboxes even when a Daytona key is present (e2e, offline dev). */
-  AGENT_SANDBOX: z.enum(["daytona", "off"]).default("daytona"),
+  /**
+   * Which `SandboxProvider` (sandbox/provider.ts, todo10 §6.2): `daytona` (cloud), `local` (a
+   * container here, gVisor), `gke` (agent-sandbox on GKE Sandbox), `fake` (in-memory, dev/tests
+   * only), `off` (no sandboxes even when a Daytona key is present: e2e, offline dev).
+   */
+  AGENT_SANDBOX: z.enum(["daytona", "local", "gke", "fake", "off"]).default("daytona"),
+  /** `block` (default): a provider that can't cut the network refuses to create. `org-default`: accept the org's policy (dev only). */
+  AGENT_SANDBOX_NETWORK: z.enum(["block", "org-default"]).default("block"),
+  /** Build sandboxes live at most this long (autoDelete and TTL), whatever the general settings say. */
+  AGENT_SANDBOX_BUILD_TTL_MIN: int(60),
+  AGENT_SANDBOX_LOCAL_IMAGE: optional,
+  AGENT_SANDBOX_LOCAL_RUNTIME: z.string().default("runsc"),
+  AGENT_SANDBOX_LOCAL_CLI: z.enum(["docker", "podman"]).default("docker"),
+  AGENT_SANDBOX_GKE_NAMESPACE: z.string().default("sandboxes"),
+  AGENT_SANDBOX_GKE_TEMPLATE: z.string().default("plugin-build"),
+  /** Set by Kubernetes in every pod: the API server the `gke` provider talks to. */
+  KUBERNETES_SERVICE_HOST: z.string().default("kubernetes.default.svc"),
+  KUBERNETES_SERVICE_PORT: z.string().default("443"),
+  /** `fake` only: also write every sandbox's files and command log here (end-to-end tests read it). */
+  AGENT_SANDBOX_FAKE_DIR: optional,
   DAYTONA_API_KEY: optional,
   DAYTONA_API_URL: z.string().url().default("https://app.daytona.io/api"),
   DAYTONA_TARGET: optional,
@@ -81,12 +99,10 @@ const schema = z.object({
   AGENT_MAX_CONCURRENT_RUNS: int(2),
   AGENT_APPROVAL_TIMEOUT_S: int(600),
 
-  /** The Studio (Vite dev server) for the seed API fallback and sample uploads. */
+  /** The Studio (Vite dev server) for the seed API fallback. */
   WEB_URL: z.string().url().default("http://localhost:5173"),
   /** The API (apps/api) for the builder and task profiles' kernel tools; calls there carry `traceparent` / `x-request-id`. */
   API_URL: z.string().url().default("http://127.0.0.1:8000"),
-  AGENT_UPLOAD_MAX_FILES: int(20),
-  AGENT_UPLOAD_MAX_MB: int(200),
   AGENT_SANDBOX_RETENTION_DAYS: int(7),
   AGENT_SANDBOX_IDLE_STOP_MIN: int(30),
   /** `auto`: probe once (cached a day) whether the org may set egress rules; `off`: assume not. */
@@ -135,6 +151,12 @@ export interface Config {
   vertex: { project: string; location: string } | undefined;
   daytona: { apiKey: string; apiUrl: string; target: string | undefined } | undefined;
   sandbox: {
+    provider: Env["AGENT_SANDBOX"];
+    network: Env["AGENT_SANDBOX_NETWORK"];
+    buildTtlMin: number;
+    local: { image: string | undefined; runtime: string; cli: Env["AGENT_SANDBOX_LOCAL_CLI"] };
+    gke: { namespace: string; template: string; apiServer: string };
+    fakeDir: string | undefined;
     autoStopMin: number;
     autoArchiveMin: number;
     autoDeleteMin: number;
@@ -149,7 +171,6 @@ export interface Config {
   limits: { maxSessions: number; maxConcurrentRuns: number };
   studioUrl: string;
   kernelUrl: string;
-  upload: { maxFiles: number; maxBytes: number };
   sweep: { retentionDays: number; idleStopMin: number };
   egressProbe: "auto" | "off";
   /** Set when the model is `scripted`: path of the replay fixture. */
@@ -208,6 +229,9 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
     );
   const sandboxOn = e.AGENT_SANDBOX === "daytona";
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
+  if (e.AGENT_SANDBOX === "local" && !e.AGENT_SANDBOX_LOCAL_IMAGE) missing.push(envName("AGENT_SANDBOX_LOCAL_IMAGE"));
+  if (e.ENV === "production" && e.AGENT_SANDBOX === "fake") throw new ConfigError(`${envName("AGENT_SANDBOX")}=fake is for development and tests only`);
+  if (e.ENV === "production" && e.AGENT_SANDBOX_NETWORK !== "block") throw new ConfigError(`${envName("AGENT_SANDBOX_NETWORK")} must be block in production`);
   // Explicitly chosen backends need their URL in every stage (development included).
   const backend: string[] = [];
   if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push(envName("AGENT_DATABASE_URL"));
@@ -235,6 +259,12 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
         ? { apiKey: e.DAYTONA_API_KEY, apiUrl: e.DAYTONA_API_URL, target: e.DAYTONA_TARGET }
         : undefined,
       sandbox: {
+        provider: e.AGENT_SANDBOX,
+        network: e.AGENT_SANDBOX_NETWORK,
+        buildTtlMin: Math.max(1, e.AGENT_SANDBOX_BUILD_TTL_MIN),
+        local: { image: e.AGENT_SANDBOX_LOCAL_IMAGE, runtime: e.AGENT_SANDBOX_LOCAL_RUNTIME, cli: e.AGENT_SANDBOX_LOCAL_CLI },
+        gke: { namespace: e.AGENT_SANDBOX_GKE_NAMESPACE, template: e.AGENT_SANDBOX_GKE_TEMPLATE, apiServer: `https://${e.KUBERNETES_SERVICE_HOST}:${e.KUBERNETES_SERVICE_PORT}` },
+        fakeDir: e.AGENT_SANDBOX_FAKE_DIR,
         autoStopMin: e.AGENT_SANDBOX_AUTO_STOP_MIN,
         autoArchiveMin: e.AGENT_SANDBOX_AUTO_ARCHIVE_MIN,
         autoDeleteMin: e.AGENT_SANDBOX_AUTO_DELETE_MIN,
@@ -253,7 +283,6 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       limits: { maxSessions: e.AGENT_MAX_SESSIONS, maxConcurrentRuns: e.AGENT_MAX_CONCURRENT_RUNS },
       studioUrl: e.WEB_URL,
       kernelUrl: e.API_URL,
-      upload: { maxFiles: e.AGENT_UPLOAD_MAX_FILES, maxBytes: e.AGENT_UPLOAD_MAX_MB * 1024 * 1024 },
       sweep: { retentionDays: e.AGENT_SANDBOX_RETENTION_DAYS, idleStopMin: e.AGENT_SANDBOX_IDLE_STOP_MIN },
       egressProbe: e.AGENT_EGRESS_PROBE,
       script: scripted ? e.AGENT_SCRIPT : undefined,

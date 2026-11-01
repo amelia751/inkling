@@ -137,7 +137,7 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
       configured: config.model.provider === "scripted" || !!config.providerKeys[config.model.provider],
       provider: config.model.provider,
       model: config.model.id,
-      sandbox: sessions.sandboxes ? "daytona" : "off",
+      sandbox: sessions.sandboxes?.provider.kind ?? "off",
       profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes)),
     };
     return c.json(status);

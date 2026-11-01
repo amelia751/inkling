@@ -9,3 +9,5 @@ matplotlib==3.11.2
 pydicom==3.0.2
 nibabel==5.4.2
 SimpleITK==2.5.6
+uv==0.9.11
+pytest==9.2.0

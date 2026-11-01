@@ -1,3 +1,4 @@
+import { DaytonaProvider } from "../../src/sandbox/provider.ts";
 import type { Sandbox } from "@daytona/sdk";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -28,7 +29,7 @@ async function call(name: string, params: Record<string, unknown>, onUpdate?: (r
 describe.skipIf(!live)("Daytona live", () => {
   beforeAll(async () => {
     await assertNoLeftovers(daytona!, config);
-    manager = new SandboxManager(daytona!, config, { warn: (m) => console.warn(m) });
+    manager = new SandboxManager(new DaytonaProvider(daytona!, { canBlock: () => true }), config, { warn: (m) => console.warn(m) });
     sandbox = await manager.acquire({ ...owner, onEvent: (e) => events.push(e.state) });
     tools = new Map(
       createSandboxTools({
@@ -180,7 +181,7 @@ describe.skipIf(!live)("Daytona live", () => {
     const res = await withRecovery(sandbox, () => sandbox.process.executeCommand("echo back"));
     expect(res.result.trim()).toBe("back");
 
-    const fresh = new SandboxManager(daytona!, config);
+    const fresh = new SandboxManager(new DaytonaProvider(daytona!, { canBlock: () => true }), config);
     const seen: string[] = [];
     const again = await fresh.acquire({ ...owner, onEvent: (e) => seen.push(e.state) });
     expect(again.id).toBe(sandbox.id);

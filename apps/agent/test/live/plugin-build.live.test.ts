@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import type { Sandbox } from "@daytona/sdk";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NAMING, ns } from "../../src/naming.ts";
-import { PACKAGE_INDEX_HOSTS } from "../../src/sandbox/defaults.ts";
+import { DaytonaProvider } from "../../src/sandbox/provider.ts";
 import { execCommand } from "../../src/sandbox/exec.ts";
 import { SandboxManager } from "../../src/sandbox/manager.ts";
 import { KERNEL_SCOPES, KernelClient, PLUGIN_DIR, createBuilderTools, createPluginSandboxTools } from "../../src/tools/kernel.ts";
@@ -18,7 +18,7 @@ import { LIVE_LABELS, assertNoLeftovers, config, daytona, live, runId } from "./
  * request waiting for the user's approval. One labelled sandbox, always deleted.
  */
 const sessionId = runId();
-const owner = { sessionId, projectId: "live-test", owner: "ci", profile: "builder", labels: { ...LIVE_LABELS, purpose: "plugin-build" }, egressAllow: PACKAGE_INDEX_HOSTS };
+const owner = { sessionId, projectId: "live-test", owner: "ci", profile: "builder", labels: { ...LIVE_LABELS, purpose: "plugin-build" } };
 const API_DIR = resolve(import.meta.dirname, "../../../api");
 
 let manager: SandboxManager;
@@ -50,7 +50,7 @@ describe.skipIf(!live)("plugin build (Daytona + kernel, live)", () => {
       if (await fetch(`${kernelUrl}/api/v1/health`).then((r) => r.ok, () => false)) break;
       await new Promise((r) => setTimeout(r, 500));
     }
-    manager = new SandboxManager(daytona!, config, { warn: (m) => console.warn(m) });
+    manager = new SandboxManager(new DaytonaProvider(daytona!, { canBlock: () => true }), config, { warn: (m) => console.warn(m) });
     sandbox = await manager.acquire(owner);
   }, 240_000);
 

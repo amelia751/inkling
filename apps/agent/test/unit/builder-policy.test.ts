@@ -1,3 +1,4 @@
+import { filesDigest, readTarGz, writeTarGz } from "../../src/sandbox/tar.ts";
 import { type IncomingMessage, type Server, createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
@@ -63,6 +64,16 @@ async function fakeKernel() {
     if (m) return send(200, requests.get(m[1]!));
     if (path.startsWith("/api/v1/plugins/artifacts"))
       return send(200, { ok: true, pluginId: ns("generated.counter"), version: "0.1.0", artifactDigest: "sha256:abc", errors: [], warnings: [], registered: !path.includes("dryRun") });
+    if (path.startsWith("/api/v1/boundary/builds")) {
+      const job = { schema: "boundary.job-summary/v1", jobId: "bjob_1", kind: "build_plugin", state: "queued", progress: 0, counts: { total: "<20", succeeded: 0, failed: 0 }, errorClasses: [], createdAt: "2026-10-31T00:00:00+00:00", updatedAt: null };
+      return send(200, { job });
+    }
+    if (path === "/api/v1/boundary/jobs/bjob_1") {
+      const ours = `sha256:${"b".repeat(64)}`;
+      const job = { schema: "boundary.job-summary/v1", jobId: "bjob_1", kind: "build_plugin", state: "succeeded", progress: 1, counts: { total: "<20", succeeded: "<20", failed: 0 }, errorClasses: [], createdAt: "2026-10-31T00:00:00+00:00", updatedAt: null };
+      const result = { schema: "boundary.build/v1", pass: true, pluginId: ns("generated.counter"), version: "0.1.0", artifactDigest: ours, sourceDigest: ours, sandboxDigest: null, matchesSandbox: false, signature: { signer: "local", alg: "ed25519", keyId: "ed25519:00", digest: ours, sig: "c2ln" }, dropped: [], errors: [], registered: true, duplicate: false, toolchain: { python: "3.12.8", builder: "canonical-source-v1" } };
+      return send(200, { job, result });
+    }
     if (path === "/api/v1/commands" && String((JSON.parse(raw) as { tool?: string }).tool).includes(".versioning."))
       return send(200, { result: { name: "work/agent-task/demo", commit_oid: "c0ffee00", generation: 1, changes: [{ type: "annotation.added", annotation_id: "a1" }] } });
     if (path === "/api/v1/commands") return send(202, { job: { jobId: "job_1", state: "queued", pluginId: SEG, tool: "segment_objects" } });
@@ -254,7 +265,7 @@ describe("plugin sandbox helpers (Phase 9)", () => {
       if (cmd.includes("test -f") && cmd.includes("echo yes")) return { exitCode: 0, result: "no\n" };
       const tgz = cmd.match(/tar -czf '?([^' ]+)'?/)?.[1];
       if (tgz) {
-        sb.files.set(tgz, Buffer.from("fake-tarball"));
+        sb.files.set(tgz, writeTarGz({ "plugin.yaml": "id: x\n" }));
         return { exitCode: 0, result: "" };
       }
       if (cmd.includes("::deps")) return { exitCode: 0, result: "::deps none\n" };
@@ -267,9 +278,11 @@ describe("plugin sandbox helpers (Phase 9)", () => {
     expect([...sb.files.keys()].filter((f) => !f.includes(".schemas")).sort()).toEqual([`${PLUGIN_DIR}/README.md`, `${PLUGIN_DIR}/plugin.yaml`, `${PLUGIN_DIR}/ui/contributions.json`]);
     const report = JSON.parse(((await run(checks, {})).content[0] as { text: string }).text);
     expect(report).toMatchObject({ ok: true, sandbox: { dependencies: "none" }, kernel: { ok: true } });
-    await run(build, {});
-    expect(k.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /api/v1/plugins/artifacts?dryRun=true", "POST /api/v1/plugins/artifacts"]);
-    expect(k.calls[1]!.body).toBe("fake-tarball".length);
+    const built = JSON.parse(((await run(build, {})).content[0] as { text: string }).text);
+    // todo10 Phase 7: the source goes to our worker's build; the sandbox's own package is only digested and compared.
+    const sandboxDigest = filesDigest(readTarGz(writeTarGz({ "plugin.yaml": "id: x\n" })));
+    expect(k.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["POST /api/v1/plugins/artifacts?dryRun=true", `POST /api/v1/boundary/builds?sandboxDigest=${encodeURIComponent(sandboxDigest)}`, "GET /api/v1/boundary/jobs/bjob_1"]);
+    expect(built).toMatchObject({ registered: true, artifactDigest: `sha256:${"b".repeat(64)}`, matchesSandbox: false });
   });
 
   it("parses the in-sandbox check report", () => {

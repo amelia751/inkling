@@ -7,6 +7,7 @@ import { env } from "../config.ts";
 import { NAMING, canonicalId, ns } from "../naming.ts";
 import { SANDBOX_HOME } from "../sandbox/defaults.ts";
 import { execCommand, shellQuote, withRecovery } from "../sandbox/exec.ts";
+import { createBuildTool } from "./boundary.ts";
 
 /**
  * Server tools over the kernel (apps/api), docs/plugins.md §8. Every call carries the session's
@@ -43,8 +44,9 @@ export const KERNEL_SCOPES = {
   // Every profile reads its project (Overview, Sources, Explore) and may propose (never confirm).
   assistant: ["proposals.write"],
   "environment-designer": ["proposals.write"],
-  coder: ["proposals.write"],
-  builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write"],
+  coder: ["proposals.write", "samples.inspect"],
+  // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints, fixtures, verify, probes.
+  builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
   task: ["proposals.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 } as const;
 
@@ -55,7 +57,7 @@ export class KernelClient {
     return this.access.workspaceId;
   }
 
-  async request<T = any>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal } = {}): Promise<T> {
+  async request<T = any>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean } = {}): Promise<T> {
     const token = this.access.token();
     if (!token) throw new KernelError(401, "This session has no kernel access. Ask the user to reopen the assistant panel (the Studio passes a fresh token with each message).");
     const headers: Record<string, string> = { ...this.access.headers?.(), Authorization: `Bearer ${token}`, "X-Workspace-Id": this.access.workspaceId };
@@ -69,6 +71,7 @@ export class KernelClient {
       body: opts.json !== undefined ? JSON.stringify(opts.json) : (opts.body as Uint8Array<ArrayBuffer> | undefined),
       signal: opts.signal,
     });
+    if (opts.raw && res.ok) return (await res.arrayBuffer()) as T;
     const data = (await res.json().catch(() => ({}))) as { detail?: unknown };
     if (!res.ok) {
       const d = data.detail;
@@ -318,8 +321,9 @@ export function createBuilderTools(k: KernelClient): ToolDefinition<any, any, an
 
 export const TASK_TOOL_NAMES = ["list_assets", "invoke_capability", "create_job", "get_job_status", "list_annotations", "export_dataset"] as const;
 
+/** The kernel answers agents with job summaries (todo10 §6.3): counts, states, error classes, annotation ids. */
 function jobSummary(j: any) {
-  return j ? { jobId: j.jobId, state: j.state, progress: j.progress, pluginId: j.pluginId, tool: j.tool, provider: j.provider, estimatedCostUsd: j.estimatedCostUsd, costUsd: j.costUsd, error: j.error, recoverable: j.recoverable, annotationIds: j.result?.annotationIds } : null;
+  return j ? { jobId: j.jobId, kind: j.kind, state: j.state, progress: j.progress, counts: j.counts, errorClasses: j.errorClasses, annotationIds: j.annotationIds ?? [] } : null;
 }
 
 export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[] {
@@ -377,11 +381,12 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
   const jobStatus = defineTool({
     name: "get_job_status",
     label: "Checking job",
-    description: "State, progress, cost and result annotation ids of a job.",
+    description: "State, progress, counts and error classes of a job, and the ids of the annotations it produced. Never its outputs or error text.",
     promptSnippet: "Status of a gateway job",
     parameters: Type.Object({ jobId: Type.String() }),
     async execute(_id, args, signal) {
-      const j = jobSummary(await k.get(`/jobs/${encodeURIComponent(args.jobId)}`, signal));
+      const r = await k.get<{ job: any; result: { annotationIds?: string[] } | null }>(`/boundary/jobs/${encodeURIComponent(args.jobId)}`, signal);
+      const j = jobSummary({ ...r.job, annotationIds: r.result?.annotationIds });
       return out(j, `${j?.state ?? "unknown"}`);
     },
   });
@@ -389,11 +394,13 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
   const listAnnotations = defineTool({
     name: "list_annotations",
     label: "Listing annotations",
-    description: "Canonical annotations in this workspace (optionally for one item or label): label, geometry type, provenance and review state.",
+    description:
+      "Annotations in this workspace (optionally for one item or label), through the filtered view: label, geometry type, provenance and review state. " +
+      "Free text (notes, comments, string attributes) and names that could identify someone come back as <redacted:N>; counts under 20 as \"<20\".",
     promptSnippet: "List workspace annotations",
     parameters: Type.Object({ itemId: Type.Optional(Type.String()), label: Type.Optional(Type.String()), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })) }),
     async execute(_id, args, signal) {
-      const r = await k.get<{ annotations: any[] }>(`/annotations${qs({ item_id: args.itemId, label: args.label, limit: args.limit ?? 200 })}`, signal);
+      const r = await k.get<{ annotations: any[] }>(`/boundary/annotations${qs({ item_id: args.itemId, label: args.label, limit: args.limit ?? 200 })}`, signal);
       // Geometry bodies can be large (masks); the model gets the type, not the pixels.
       const rows = r.annotations.map((a) => ({ id: a.id, itemId: a.itemId, label: a.label, type: a.geometry?.type, provenance: a.provenance, review: a.attributes?.review_status }));
       return out({ total: rows.length, annotations: rows }, plural(rows.length, "annotation"));
@@ -403,17 +410,12 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
   const exportDataset = defineTool({
     name: "export_dataset",
     label: "Exporting dataset",
-    description: "Snapshot this workspace's annotation document as a JSON artifact in the kernel's artifact store. Returns the artifact id; nothing leaves the workspace.",
+    description: "Snapshot this workspace's annotation document as a JSON artifact in the kernel's artifact store. The kernel copies it server-side; the document never passes through you. Returns the artifact id.",
     promptSnippet: "Export annotations as a stored artifact",
     parameters: Type.Object({}),
     async execute(_id, _args, signal) {
-      const doc = await k.request("GET", `/api/annotations/${encodeURIComponent(k.workspaceId)}`, { signal }).catch(async (err) => {
-        if (err instanceof KernelError && err.status === 404) return { annotations: [] };
-        throw err;
-      });
-      const bytes = new TextEncoder().encode(JSON.stringify(doc));
-      const r = await k.request<{ artifactId: string }>("POST", "/artifacts?source=agent.export_dataset", { body: bytes, contentType: "application/json", signal });
-      return out({ artifactId: r.artifactId, bytes: bytes.length, annotations: Array.isArray((doc as any).annotations) ? (doc as any).annotations.length : undefined }, `Artifact ${r.artifactId.slice(0, 12)}`);
+      const r = await k.post<{ artifactId: string; bytes: number; annotations: number | string }>("/boundary/annotations/export", {}, signal);
+      return out(r, `Artifact ${r.artifactId.slice(0, 12)}`);
     },
   });
 
@@ -522,7 +524,8 @@ export const PLUGIN_FILE_TOOLS = ["read", "write", "edit", "ls", "find", "grep"]
 const TEMPLATE_DIR = env("AGENT_PLUGIN_TEMPLATE_DIR") ?? join(import.meta.dirname, "../../../../plugins/_template");
 const SCHEMAS_DIR = join(import.meta.dirname, "../../../../schemas");
 const SKIP = /(^|\/)(node_modules|\.venv|__pycache__|\.pytest_cache)(\/|$)/;
-const TAR_EXCLUDES = ["./.venv", "./node_modules", "./__pycache__", "./.pytest_cache", "./.ruff_cache"].map((x) => `--exclude=${x}`).join(" ");
+// Fixtures are synthetic but not source: they never travel back with the plugin.
+const TAR_EXCLUDES = ["./.venv", "./node_modules", "./__pycache__", "./.pytest_cache", "./.ruff_cache", "./fixtures", "./.schemas"].map((x) => `--exclude=${x}`).join(" ");
 
 /**
  * The scaffold an agent-authored plugin starts from: plugins/_template minus its trusted TS UI
@@ -566,7 +569,7 @@ export interface PluginSandboxDeps {
   execTimeoutS: number;
 }
 
-async function packTarball(sb: Sandbox, timeoutS: number): Promise<Uint8Array> {
+export async function packTarball(sb: Sandbox, timeoutS: number): Promise<Uint8Array> {
   const tgz = `/tmp/plugin-${Date.now()}.tgz`;
   const r = await execCommand(sb, `test -f plugin.yaml && tar -czf ${shellQuote(tgz)} ${TAR_EXCLUDES} .`, { cwd: PLUGIN_DIR, timeoutS });
   if (r.exitCode !== 0) throw new Error(`Couldn't pack ${PLUGIN_DIR} (is there a plugin.yaml? call create_plugin_sandbox first): ${r.output.slice(0, 500)}`);
@@ -580,7 +583,7 @@ export const SANDBOX_CHECK_SCRIPT = [
   "set -u",
   'if [ ! -f pyproject.toml ]; then echo "::deps none"; exit 0; fi',
   'if ! command -v uv >/dev/null 2>&1; then echo "::deps uv-missing"; exit 3; fi',
-  'uv sync --locked --quiet 2>&1 || { echo "::deps sync-failed"; exit 4; }',
+  'uv sync --locked --offline --quiet 2>&1 || { echo "::deps sync-failed"; exit 4; }',
   'echo "::deps ok"',
   'if [ -d tests ]; then uv run --quiet pytest -q 2>&1; rc=$?; echo "::tests $rc"; else echo "::tests none"; rc=0; fi',
   `uv run --quiet python -c ${shellQuote('import importlib.metadata as m, json; print("::licences " + json.dumps(sorted({(d.metadata["Name"] or "?"): (d.metadata.get("License-Expression") or d.metadata.get("License") or "unknown")[:80] for d in m.distributions()}.items())))')}`,
@@ -598,7 +601,7 @@ export function parseSandboxChecks(output: string, exitCode: number) {
   const copyleft = licences.filter(([, l]) => /\b(A?GPL|SSPL|EUPL|OSL)\b/i.test(l));
   const problems: string[] = [];
   if (deps === "uv-missing") problems.push("uv isn't installed in the sandbox, so dependencies and tests couldn't run");
-  if (deps === "sync-failed") problems.push("uv sync --locked failed: the lockfile doesn't match pyproject.toml, or a package isn't on the allowed index");
+  if (deps === "sync-failed") problems.push("uv sync --locked --offline failed: the lockfile doesn't match pyproject.toml, or it needs a package the sandbox image doesn't have (sandboxes have no network; use the preinstalled scientific stack)");
   if (tests && tests !== "none" && tests !== "0") problems.push(`tests failed (exit ${tests})`);
   return {
     ok: problems.length === 0 && (exitCode === 0 || deps === "none"),
@@ -616,7 +619,7 @@ export function createPluginSandboxTools(k: KernelClient, deps: PluginSandboxDep
     name: "create_plugin_sandbox",
     label: "Creating plugin sandbox",
     description:
-      `Start authoring a new plugin: a private sandbox (no credentials; network limited to the package index at most) with the plugin template copied to ${PLUGIN_DIR}. ` +
+      `Start authoring a new plugin: a private sandbox (no credentials, no network, a short life; dependencies are the preinstalled ones) with the plugin template copied to ${PLUGIN_DIR}. ` +
       "Edit only files there with read/write/edit/ls/find/grep. Generated plugins are declarative: plugin.yaml + ui/contributions.json naming trusted renderers, optionally a Python worker (pyproject.toml, uv.lock, src/, tests/). " +
       "Use this only after the preference order says nothing installed, vetted or composable does the job.",
     promptSnippet: "Scaffold a new plugin in a sandbox",
@@ -649,7 +652,7 @@ export function createPluginSandboxTools(k: KernelClient, deps: PluginSandboxDep
     label: "Checking plugin",
     description:
       "Check the plugin in the sandbox: in the sandbox, uv sync --locked, the plugin's tests and a licence scan of installed packages; in the kernel, a dry-run build " +
-      "(manifest schema, declarative-UI rules, trusted renderer names, dependency sources). Fix every error before build_plugin_artifact.",
+      "(manifest schema, declarative-UI rules, trusted renderer names, dependency sources). Tests run on synthetic fixtures (get_fixtures), never real samples. Fix every error before build_plugin_artifact.",
     promptSnippet: "Validate and test the sandbox plugin",
     parameters: Type.Object({}),
     async execute(_id, _args, signal) {
@@ -662,25 +665,8 @@ export function createPluginSandboxTools(k: KernelClient, deps: PluginSandboxDep
     },
   });
 
-  const build = defineTool({
-    name: "build_plugin_artifact",
-    label: "Building plugin artifact",
-    description:
-      "Package the sandbox plugin and hand it to the kernel's artifact builder: it re-runs the checks, computes the digest, signs it and registers it as a `generated` plugin " +
-      "visible only in this workspace. It doesn't install anything: then plan_plugin_change → stage_plugin → request_install_approval.",
-    promptSnippet: "Sign and register the sandbox plugin",
-    parameters: Type.Object({}),
-    async execute(_id, _args, signal) {
-      const sb = await deps.acquire();
-      const r = await k.request<{ ok: boolean; pluginId: string; version: string; artifactDigest: string; errors: string[]; registered?: boolean; duplicate?: boolean }>("POST", "/plugins/artifacts", {
-        body: await packTarball(sb, deps.execTimeoutS),
-        contentType: "application/gzip",
-        signal,
-      });
-      if (!r.ok) throw new Error(`The kernel rejected the package:\n- ${r.errors.join("\n- ")}`);
-      return out(r, `${r.pluginId}@${r.version}${r.duplicate ? " (unchanged)" : ""}`);
-    },
-  });
+  // Phase 7: the registered bundle is our worker's rebuild of the source, never the sandbox's package.
+  const build = createBuildTool(k, { acquire: deps.acquire, pack: (sb) => packTarball(sb, deps.execTimeoutS) });
 
   return [create, checks, build];
 }

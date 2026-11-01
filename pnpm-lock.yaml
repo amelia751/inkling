@@ -193,6 +193,9 @@ importers:
       '@studio/agent-protocol':
         specifier: workspace:*
         version: link:../../packages/agent-protocol
+      '@studio/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@studio/observability-ts':
         specifier: workspace:*
         version: link:../../packages/observability-ts

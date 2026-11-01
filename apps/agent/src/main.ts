@@ -9,6 +9,7 @@ import { type Config, ConfigError, describeSecrets, envName, loadConfig } from "
 import { createServiceLog } from "./observability.ts";
 import { SessionService } from "./runtime/sessions.ts";
 import { createDaytona } from "./sandbox/client.ts";
+import { createProvider } from "./sandbox/providers.ts";
 import { DEFAULT_EGRESS, type EgressPolicy } from "./sandbox/defaults.ts";
 import { probeEgress } from "./sandbox/egress.ts";
 import { getSnapshotStatus } from "./sandbox/snapshot.ts";
@@ -76,7 +77,9 @@ if (daytona && config.egressProbe === "auto") {
   );
 }
 
-const sessions = new SessionService({ config, runtime, log, daytona, egress: () => egress, store, bus });
+// Daytona, a local container runner, GKE agent-sandbox or the fake: a config change (AGENT_SANDBOX).
+const provider = createProvider(config, { egress: () => egress });
+const sessions = new SessionService({ config, runtime, log, daytona, provider, egress: () => egress, store, bus });
 
 let readyCache: { at: number; value: ReadyCheck } | undefined;
 async function ready(): Promise<ReadyCheck> {
@@ -97,7 +100,7 @@ async function ready(): Promise<ReadyCheck> {
     }
     checks.egress = { ok: true, detail: `${egress.canOverride ? "custom rules allowed" : "org policy"}: ${egress.detail ?? ""}` };
   } else {
-    checks.daytona = { ok: true, detail: "sandbox off (no DAYTONA_API_KEY)" };
+    checks.daytona = { ok: true, detail: provider ? `sandbox provider ${provider.kind}` : "sandbox off" };
   }
   const value = { ok: Object.values(checks).every((c) => c.ok), checks };
   readyCache = { at: Date.now(), value };

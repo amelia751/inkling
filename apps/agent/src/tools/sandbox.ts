@@ -19,11 +19,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { type TSchema, Type } from "typebox";
 import { SandboxUnavailableError } from "../sandbox/client.ts";
-import { SANDBOX_CWD, SANDBOX_DATA_DIR, SANDBOX_HOME, SANDBOX_LOG_DIR } from "../sandbox/defaults.ts";
+import { SANDBOX_CWD, SANDBOX_HOME, SANDBOX_LOG_DIR } from "../sandbox/defaults.ts";
 import { ExecAbortedError, shellQuote, streamCommand, truncateMiddle, withRecovery } from "../sandbox/exec.ts";
 import { createEditOps, createLsOps, createReadOps, createWriteOps } from "../sandbox/ops.ts";
 import { type FindParams, type GrepParams, remoteFind, remoteGrep } from "../sandbox/search.ts";
-import type { SampleSource } from "./dataset.ts";
 
 export interface SandboxToolDeps {
   /** Resolve (lazily create/reattach) the session's sandbox. Must throw rather than fall back to the host. */
@@ -40,9 +39,6 @@ export interface SandboxToolDeps {
   onArtifact?: (a: ArtifactInfo) => void;
   /** A killed command may have left processes behind: quarantine (recreate) the sandbox. */
   onUncertain?: (detail: string) => void;
-  /** Authorized seed files for upload_dataset_sample; the tool is omitted without it. */
-  samples?: SampleSource;
-  uploadLimits?: { maxFiles: number; maxBytes: number };
 }
 
 export interface ArtifactInfo {
@@ -99,7 +95,9 @@ export class HeadTail {
   }
 }
 
-export const SANDBOX_TOOL_NAMES = ["bash", "read", "write", "edit", "ls", "find", "grep", "run_python", "preview_url", "export_artifact", "upload_dataset_sample"] as const;
+// No tool copies dataset files into a sandbox (todo10 Phase 7): real samples stay in our worker;
+// sandboxes get synthetic fixtures (get_fixtures) and code only.
+export const SANDBOX_TOOL_NAMES = ["bash", "read", "write", "edit", "ls", "find", "grep", "run_python", "preview_url", "export_artifact"] as const;
 
 const text = (t: string) => [{ type: "text" as const, text: t }];
 
@@ -293,45 +291,7 @@ export function createSandboxTools(deps: SandboxToolDeps): ToolDefinition<any, a
     },
   });
 
-  const limits = deps.uploadLimits ?? { maxFiles: 20, maxBytes: 200 * 1024 * 1024 };
-  const samples = deps.samples;
-  const uploadSample = samples
-    ? defineTool({
-        name: "upload_dataset_sample",
-        label: "Upload dataset sample",
-        description:
-          `Copy the files behind some dataset items (by item id or name) into ${SANDBOX_DATA_DIR}/ so code can read them. ` +
-          `At most ${limits.maxFiles} files and ${formatBytes(limits.maxBytes)} per call. Only items of the open dataset are available.`,
-        promptSnippet: "Copy dataset item files into the sandbox for analysis",
-        parameters: Type.Object({ itemIds: Type.Array(Type.String(), { minItems: 1, maxItems: limits.maxFiles }) }),
-        async execute(_id, { itemIds }, signal, onUpdate) {
-          const files = await samples.resolve(itemIds, signal);
-          if (files.length > limits.maxFiles) throw new Error(`${files.length} files requested; the limit is ${limits.maxFiles} per call`);
-          return guard(async (sb) => {
-            let total = 0;
-            const written: string[] = [];
-            for (const f of files) {
-              if (signal?.aborted) throw new Error("aborted");
-              const data = await samples.read(f.path, signal);
-              total += data.length;
-              if (total > limits.maxBytes) throw new Error(`upload exceeds ${formatBytes(limits.maxBytes)}; ask for fewer items`);
-              const dest = posix.join(SANDBOX_DATA_DIR, f.path);
-              if (!dest.startsWith(`${SANDBOX_DATA_DIR}/`)) throw new Error(`refusing to write outside ${SANDBOX_DATA_DIR}`);
-              await withRecovery(sb, () => sb.fs.createFolder(posix.dirname(dest), "755"));
-              await withRecovery(sb, () => sb.fs.uploadFile(data, dest));
-              written.push(dest);
-              onUpdate?.({ content: text(`${written.length}/${files.length} ${dest}`), details: undefined });
-            }
-            return {
-              content: text(`Copied ${written.length} file(s), ${formatBytes(total)}:\n${written.join("\n")}`),
-              details: { files: written, bytes: total, summary: `${written.length} file${written.length === 1 ? "" : "s"} · ${formatBytes(total)}` },
-            };
-          });
-        },
-      })
-    : undefined;
-
-  return [bash, read, write, edit, ls, find, grep, runPython, previewUrl, exportArtifact, ...(uploadSample ? [uploadSample] : [])];
+  return [bash, read, write, edit, ls, find, grep, runPython, previewUrl, exportArtifact];
 }
 
 export function formatBytes(n: number): string {

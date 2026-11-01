@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { SandboxDisabledError } from "../../src/sandbox/client.ts";
-import { isSafeSeedPath, StudioSampleSource, SessionDatasetSource } from "../../src/tools/dataset.ts";
+import { SessionDatasetSource } from "../../src/tools/dataset.ts";
+import { SANDBOX_TOOL_NAMES } from "../../src/tools/sandbox.ts";
 import { createSandboxTools, safeArtifactName } from "../../src/tools/sandbox.ts";
 import { FakeSandbox } from "./fake-sandbox.ts";
 import { TOKEN, harness, snapshot } from "./harness.ts";
@@ -82,15 +83,10 @@ describe("security", () => {
     expect(safeArtifactName("/home/daytona/out/a b;rm -rf.csv")).toBe("a_b_rm_-rf.csv");
   });
 
-  it("upload_dataset_sample only copies safe asset paths of the session's own items", async () => {
-    for (const bad of ["../x", "/etc/passwd", "a/../../b", "a/./b", "a//b", ""]) expect(isSafeSeedPath(bad), bad).toBe(false);
-    expect(isSafeSeedPath("2d-xray/normal/IM-0001-0001.jpeg")).toBe(true);
+  it("no tool copies dataset files into a sandbox (todo10 Phase 7)", () => {
+    expect(SANDBOX_TOOL_NAMES).not.toContain("upload_dataset_sample");
     const ds = new SessionDatasetSource("demo");
-    ds.update(snapshot("demo", { items: [{ id: "i1", name: "i1", group: "g", assets: ["demo/../../secrets/daytona.env"] }, { id: "i2", name: "i2", group: "g", assets: ["demo/ok.png"] }] }));
-    const src = new StudioSampleSource(ds, "http://127.0.0.1:9", async () => new Response("x"));
-    await expect(src.resolve(["i1"])).rejects.toThrow(/unsafe/);
-    await expect(src.resolve(["not-an-item"])).rejects.toThrow(/No item/);
-    expect(await src.resolve(["i2"])).toEqual([{ itemId: "i2", path: "demo/ok.png" }]);
+    ds.update(snapshot("demo"));
     expect(() => ds.update(snapshot("other"))).toThrow(/scoped to demo/);
   });
 });

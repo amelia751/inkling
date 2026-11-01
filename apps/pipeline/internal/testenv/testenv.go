@@ -54,11 +54,20 @@ type Consumer struct {
 
 // StartConsumer starts a consumer with an in-memory cursor (shared across restarts if given).
 func StartConsumer(k *kernelfake.Kernel, e triggers.Sender, cur triggers.Cursors) *Consumer {
+	return startConsumer(Client(k), e, cur)
+}
+
+// StartConsumerURL starts a consumer against a kernel at url (another process's fake).
+func StartConsumerURL(url string, e triggers.Sender) *Consumer {
+	return startConsumer(kernel.New(url, Token), e, nil)
+}
+
+func startConsumer(feed triggers.Feed, e triggers.Sender, cur triggers.Cursors) *Consumer {
 	if cur == nil {
 		cur = &triggers.MemoryCursor{}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	c := &Consumer{C: &triggers.Consumer{Feed: Client(k), Engine: e, Cursors: cur, Log: Quiet(), Backoff: 50 * time.Millisecond}, cancel: cancel}
+	c := &Consumer{C: &triggers.Consumer{Feed: feed, Engine: e, Cursors: cur, Log: Quiet(), Backoff: 50 * time.Millisecond}, cancel: cancel}
 	c.wg.Add(1)
 	go func() { defer c.wg.Done(); _ = c.C.Run(ctx) }()
 	return c

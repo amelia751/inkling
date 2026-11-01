@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,6 +47,9 @@ type Consumer struct {
 	Log     *slog.Logger
 	// Backoff after a failed poll or delivery (default 1s, doubling to 30s).
 	Backoff time.Duration
+	// Parallel bounds concurrent deliveries within a page (default 32): one Send is a
+	// database transaction, and a serial consumer caps the whole pipeline's job throughput.
+	Parallel int
 
 	pages, delivered, skipped, failed atomic.Int64
 }
@@ -110,43 +114,65 @@ func (c *Consumer) Run(ctx context.Context) error {
 	return nil
 }
 
-// Handle delivers one page. It fails (so the page is retried) only on a delivery error
-// that isn't "no such workflow".
+// Handle delivers one page, Parallel events at a time. It fails (so the page is retried)
+// only on a delivery error that isn't "no such workflow".
 func (c *Consumer) Handle(ctx context.Context, events []kernel.Event) error {
+	par := c.Parallel
+	if par <= 0 {
+		par = 32
+	}
+	sem := make(chan struct{}, par)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var first error
 	for _, ev := range events {
-		if ev.Type != kernel.EventJobSucceeded && ev.Type != kernel.EventJobFailed {
-			c.skipped.Add(1)
-			continue
-		}
-		var je kernel.JobEvent
-		if err := json.Unmarshal(ev.Payload, &je); err != nil || je.JobID == "" {
-			c.skipped.Add(1) // malformed: never block the feed on it
-			continue
-		}
-		waiters := dispatch.Resolve(je.IdempotencyKey)
-		if len(waiters) == 0 {
-			c.skipped.Add(1)
-			continue
-		}
-		msg, _ := json.Marshal(dispatch.Message{Type: ev.Type, Job: je})
-		delivered := false
-		for _, wf := range waiters {
-			err := c.Engine.Send(ctx, wf, dispatch.Topic(je.JobID), msg, ev.EventID)
-			if err == nil {
-				delivered = true
-				break
+		sem <- struct{}{}
+		wg.Add(1)
+		go func() {
+			defer func() { <-sem; wg.Done() }()
+			if err := c.deliver(ctx, ev); err != nil {
+				mu.Lock()
+				if first == nil {
+					first = err
+				}
+				mu.Unlock()
 			}
-			if !errors.Is(err, engine.ErrNotFound) {
-				c.failed.Add(1)
-				return err
-			}
-		}
-		if delivered {
+		}()
+	}
+	wg.Wait()
+	return first
+}
+
+// deliver hands one event to its waiting workflow. Order between events doesn't matter:
+// each job's completion goes to its own topic.
+func (c *Consumer) deliver(ctx context.Context, ev kernel.Event) error {
+	if ev.Type != kernel.EventJobSucceeded && ev.Type != kernel.EventJobFailed {
+		c.skipped.Add(1)
+		return nil
+	}
+	var je kernel.JobEvent
+	if err := json.Unmarshal(ev.Payload, &je); err != nil || je.JobID == "" {
+		c.skipped.Add(1) // malformed: never block the feed on it
+		return nil
+	}
+	waiters := dispatch.Resolve(je.IdempotencyKey)
+	if len(waiters) == 0 {
+		c.skipped.Add(1)
+		return nil
+	}
+	msg, _ := json.Marshal(dispatch.Message{Type: ev.Type, Job: je})
+	for _, wf := range waiters {
+		err := c.Engine.Send(ctx, wf, dispatch.Topic(je.JobID), msg, ev.EventID)
+		if err == nil {
 			c.delivered.Add(1)
-		} else {
-			c.skipped.Add(1) // the run is gone (retention) or never existed
+			return nil
+		}
+		if !errors.Is(err, engine.ErrNotFound) {
+			c.failed.Add(1)
+			return err
 		}
 	}
+	c.skipped.Add(1) // the run is gone (retention) or never existed
 	return nil
 }
 

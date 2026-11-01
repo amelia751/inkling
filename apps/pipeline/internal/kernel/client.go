@@ -123,7 +123,9 @@ type Client struct {
 
 // New returns a client with timeouts suited to the long-poll feed.
 func New(baseURL, token string) *Client {
-	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Token: token, HTTP: &http.Client{Timeout: 40 * time.Second}}
+	tr := http.DefaultTransport.(*http.Transport).Clone()
+	tr.MaxIdleConnsPerHost = 64 // many workflows' steps call the kernel at once
+	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), Token: token, HTTP: &http.Client{Timeout: 40 * time.Second, Transport: tr}}
 }
 
 // Enqueue creates (or, for a repeated idempotency key, returns) a kernel job.

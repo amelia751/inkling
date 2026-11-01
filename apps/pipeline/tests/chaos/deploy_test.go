@@ -23,7 +23,9 @@ func TestDeployWithPendingWork(t *testing.T) {
 	exec(t, studio, toyDDL)
 	engineDB := newDB(t)
 	k := testenv.Kernel(t, kernelfake.Options{Workers: 4, ClaimInterval: 20 * time.Millisecond, LongPoll: 2 * time.Second,
-		Work: func(kernelfake.Job) kernelfake.Outcome { return kernelfake.Outcome{Duration: 120 * time.Millisecond, ResultRef: "blob://r"} }})
+		Work: func(kernelfake.Job) kernelfake.Outcome {
+			return kernelfake.Outcome{Duration: 120 * time.Millisecond, ResultRef: "blob://r"}
+		}})
 	y := &toy{db: studio, k: testenv.Client(k), pollAfter: 2 * time.Second}
 
 	const onA, onB = 40, 10

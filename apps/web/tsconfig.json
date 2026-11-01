@@ -30,6 +30,9 @@
       "@studio/ui/*": [
         "../../packages/ui/src/*"
       ],
+      "@studio/studio-tools/*": [
+        "../../packages/studio-tools/src/*"
+      ],
       "@studio/renderers": [
         "../../packages/renderers/src/index.ts"
       ],

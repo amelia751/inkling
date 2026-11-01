@@ -1,9 +1,14 @@
+import { useState } from "react";
 import { Link, Navigate, useLocation, useParams, type Params } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Card } from "@studio/ui/ui/card";
+import { Badge } from "@studio/ui/ui/badge";
+import { Button } from "@studio/ui/ui/button";
+import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { Skeleton } from "@studio/ui/ui/skeleton";
-import { useOverview } from "@/studio/lib/projects-api";
+import { api, projectKeys, useOverview } from "@/studio/lib/projects-api";
 import { datasetUrl, filesRedirect, projectUrl, settingsUrl, sourcesUrl, studioUrl, versionReviewUrl } from "@/studio/lib/routes";
 
 /**
@@ -46,22 +51,53 @@ export function StudioEntry() {
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
-        <PageHeading title="Open the Studio" description="Pick the task to work on. The Studio opens the right viewer for its data." />
+        <PageHeading title="Open the Studio" description="Pick the task to work on. The Studio opens the right viewer for its data." actions={<NewStudioButton projectId={projectId} />} />
         {overview.isLoading && <Skeleton className="h-28 rounded-lg" />}
         {overview.error && <p className="text-sm text-muted-foreground">{String(overview.error)}</p>}
         {o && (
           <Card className="divide-y divide-border" data-testid="task-picker">
             {o.tasks.map((t) => (
-              <Link key={t.id} to={studioUrl(projectId, t.id)} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-generic">
-                <AnnotateIcon className="size-4 text-hint" />
-                <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
-                <span className="text-muted-foreground">{t.kind.replace("-", " ")}</span>
-              </Link>
+              <div key={t.id} className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-generic" data-testid="task-picker-row" data-state={t.state ?? "published"}>
+                <Link to={studioUrl(projectId, t.id)} viewTransition className="flex min-w-0 flex-1 items-center gap-3">
+                  <AnnotateIcon className="size-4 text-hint" />
+                  <span className="min-w-0 flex-1 truncate font-medium">{t.title}</span>
+                  <span className="text-muted-foreground">{t.kind.replace("-", " ")}</span>
+                </Link>
+                {t.state === "draft" && <DraftPublish projectId={projectId} taskId={t.id} />}
+              </div>
             ))}
           </Card>
         )}
       </div>
     </AppLayout>
+  );
+}
+
+/** A boot's draft in the Studio list (todo11 D6): "Draft · Publish"; only a person publishes. */
+function DraftPublish({ projectId, taskId }: { projectId: string; taskId: string }) {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <span className="flex shrink-0 items-center gap-1.5">
+      <Badge theme="warning">Draft</Badge>
+      <Button
+        variant="ghost"
+        size="xs"
+        disabled={busy}
+        data-testid="task-publish"
+        title={error ?? undefined}
+        onClick={() => {
+          setBusy(true);
+          api(`/tasks/${encodeURIComponent(taskId)}/publish`, { method: "POST" })
+            .then(() => qc.invalidateQueries({ queryKey: projectKeys.overview(projectId) }))
+            .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+            .finally(() => setBusy(false));
+        }}
+      >
+        Publish
+      </Button>
+    </span>
   );
 }
 

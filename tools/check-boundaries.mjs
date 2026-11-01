@@ -14,7 +14,7 @@
 //                                manifest.ts / public.ts only
 //   extension-host             → sdk, contracts, ui (bundled.ts and host.tsx are the
 //                                composition roots and may import anything)
-//   studio (shell)             → extension-host, sdk, contracts, ui; never @plugins/*
+//   studio (shell)             → extension-host, sdk, contracts, ui, studio-tools (todo11 intents); never @plugins/*
 //   studio/core                → like the shell, plus renderers (the built-in tools)
 // Tests (*.test.ts, *.test-helpers.ts) may reach into the host to set up a real registry.
 // Also: no brand name in code (D3). Usage: node tools/check-boundaries.mjs.
@@ -72,7 +72,7 @@ const ALLOWED = {
   "renderers": ["plugin-ui-sdk", "contracts", "ui"],
   plugin: ["plugin-ui-sdk", "contracts", "ui", "renderers"],
   host: ["plugin-ui-sdk", "contracts", "ui", "environment-core"],
-  shell: ["host", "plugin-ui-sdk", "contracts", "ui", "core", "agent-protocol", "environment-core"],
+  shell: ["host", "plugin-ui-sdk", "contracts", "ui", "core", "agent-protocol", "environment-core", "studio-tools"],
   // Studio built-ins (files, labels, select, pan…): contributes like a plugin, lives in the shell.
   core: ["shell", "host", "plugin-ui-sdk", "contracts", "ui", "renderers", "agent-protocol"],
 };

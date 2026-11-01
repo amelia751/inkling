@@ -28,6 +28,7 @@ import { useWindowWidth } from "@/studio/lib/use-media-query";
 import { useStudio } from "@/studio/stores/studio";
 import type { Project } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
+import { BootPill } from "@/studio/components/layout/boot-status";
 import { RequestReview, StaleNotice, useDraftHasChanges, useVersioning, WorkStateChip } from "@/studio/core/versioning";
 
 /**
@@ -111,6 +112,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
 
       {/* The one next step */}
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <BootPill className="max-md:hidden" />
         {reviewFirst ? (
           <RequestReview projectId={project.id} />
         ) : (

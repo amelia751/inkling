@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ChevronDownIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
@@ -13,6 +13,7 @@ import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/ag
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import { exploreUrl } from "@/studio/lib/routes";
 import { AgentCardView, type StudioCardContext } from "./cards";
+import { BootCard, OfferCard } from "./boot-card";
 import { Markdown } from "./markdown";
 
 const PAST: Record<string, string> = {
@@ -62,13 +63,24 @@ export function AssistantMessage({ message, streaming, projectId, studio, onRetr
   const setCardState = useAgent((s) => s.setCardState);
   const decide = useAgent((s) => s.decide);
   const groups = groupParts(message.parts);
-  const idle = streaming && (message.parts.length === 0 || message.parts[message.parts.length - 1].type === "card");
+  const lastType = message.parts[message.parts.length - 1]?.type;
+  const idle = streaming && (message.parts.length === 0 || lastType === "card" || lastType === "boot");
 
   return (
     <div className="flex flex-col gap-2.5">
       {groups.map((g, i) => {
-        if (g.kind === "tools") return <ToolSteps key={i} parts={g.parts} live={streaming} />;
+        if (g.kind === "tools")
+          return (
+            <Fragment key={i}>
+              <ToolSteps parts={g.parts} live={streaming} />
+              {g.parts.map((t) => {
+                const offer = studioOffer(t);
+                return offer && <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
+              })}
+            </Fragment>
+          );
         const p = g.part;
+        if (p.type === "boot") return <BootCard key={i} bootId={p.id} />;
         if (p.type === "text") return <Markdown key={i} text={p.text} />;
         if (p.type === "reasoning") return <Reasoning key={i} text={p.text} live={streaming && i === groups.length - 1} />;
         if (p.type === "approval")
@@ -103,7 +115,7 @@ export function AssistantMessage({ message, streaming, projectId, studio, onRetr
           {SANDBOX_TEXT[message.sandbox] ?? message.sandbox}
         </p>
       )}
-      {idle && <p className="shimmer-text self-start">Thinking…</p>}
+      {idle && <p className="shimmer-text self-start">{message.runStatus === "queued" ? "Queued…" : "Thinking…"}</p>}
       {message.error && (
         <div className="flex items-start gap-2 rounded-lg bg-danger-tint px-3 py-2 text-danger">
           <ErrorIcon className="mt-px size-4 shrink-0" />
@@ -124,6 +136,13 @@ export function AssistantMessage({ message, streaming, projectId, studio, onRetr
       )}
     </div>
   );
+}
+
+/** An `offer_studio` call that finished: its arguments are the offer (todo11 D5), rendered as a Create button. */
+function studioOffer(t: Extract<MessagePart, { type: "tool" }>): { preset: string; title: string; reason?: string } | null {
+  if (t.name !== "offer_studio" || t.status !== "done" || !t.input || typeof t.input !== "object") return null;
+  const o = t.input as { preset?: unknown; title?: unknown; reason?: unknown };
+  return typeof o.preset === "string" && typeof o.title === "string" ? { preset: o.preset, title: o.title, ...(typeof o.reason === "string" ? { reason: o.reason } : {}) } : null;
 }
 
 type Group = { kind: "tools"; parts: Extract<MessagePart, { type: "tool" }>[] } | { kind: "part"; part: Exclude<MessagePart, { type: "tool" }> };

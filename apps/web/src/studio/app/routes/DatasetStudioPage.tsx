@@ -38,12 +38,16 @@ import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
+import { useLiveEnvironment } from "@/studio/lib/live-environment";
+import { ShellTransition } from "@/studio/lib/view-transition";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { markAfterPaint, markBoot, startBoot } from "@/extension-host/boot-timing";
 import { loadInPriority, newModules, warmFromHint, warmFromSpec } from "@/studio/lib/boot-priority";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
 
 const AUTOSAVE_MS = 800;
+/** The environment query refetches at most this often (focus, remount); events carry the rest. */
+const ENV_STALE_MS = 30_000;
 const LEGACY_TYPES = /^(interval|beat|wave|rhythm|phase|segment|event|mark|point)$/;
 
 export type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[] } | { status: "failed"; message: string } | { status: "ready"; env: ResolvedEnv };
@@ -57,7 +61,9 @@ export type Boot = { status: "loading" } | { status: "errors"; errors: EnvError[
  */
 export function useEnvironment(project: Project | undefined, { safe = false, taskId }: { safe?: boolean; taskId?: string } = {}): Boot {
   const id = taskId || project?.id;
-  const saved = useQuery({ queryKey: ["environment", id], queryFn: () => fetchEnvironment(id!).catch(() => null), enabled: !!id && !safe, staleTime: Infinity });
+  // Kept current by `environment.updated` (useLiveEnvironment), not by staleTime: Infinity;
+  // a refetch after a missed event applies too.
+  const saved = useQuery({ queryKey: ["environment", id], queryFn: () => fetchEnvironment(id!).catch(() => null), enabled: !!id && !safe, staleTime: ENV_STALE_MS });
   // Safe mode (todo10 §3.4): the task's last-known-good setup instead of its saved one.
   const known = useQuery({ queryKey: ["known-good", id], queryFn: () => fetchKnownGood(id!).catch(() => null), enabled: !!id && safe, staleTime: 0 });
   // The workspace's active plugins (kernel Workspace API; in dev seed-data/<project>/workspace.json).
@@ -280,7 +286,7 @@ const CLEAN_BOOT_MS = 5000;
  * plugins that widen permissions. Not in safe mode, not without the kernel.
  */
 function useCleanBootReport(projectId: string, safe: boolean) {
-  const env = useQuery({ queryKey: ["environment", projectId], queryFn: () => fetchEnvironment(projectId).catch(() => null), staleTime: Infinity, enabled: !safe });
+  const env = useQuery({ queryKey: ["environment", projectId], queryFn: () => fetchEnvironment(projectId).catch(() => null), staleTime: ENV_STALE_MS, enabled: !safe });
   const doc = env.data;
   useEffect(() => {
     if (safe || !kernelEnabled() || env.isLoading) return;
@@ -306,6 +312,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   useEnvBindings(env, items);
   useActivationSync(env);
+  useLiveEnvironment(projectId, safe);
   useResume(projectId, items, env);
   useStudioShortcuts(env, items, () => setShortcutsOpen(true));
   // Boot timeline: the chrome is on screen (modules may still be loading behind skeletons).
@@ -371,15 +378,18 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <StudioTopBar
-        project={project}
-        onRetrySave={save}
-        onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
-        onShowShortcuts={() => setShortcutsOpen(true)}
-        showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
-        showLeftToggle={viewport !== "phone" && env.panels.left.length > 0}
-      />
+      <ShellTransition>
+        <StudioTopBar
+          project={project}
+          onRetrySave={save}
+          onOpenSidebar={viewport === "phone" ? () => setSidebarOpen(true) : undefined}
+          onShowShortcuts={() => setShortcutsOpen(true)}
+          showAi={hasAi || (viewport !== "desktop" && env.panels.right.length > 0)}
+          showLeftToggle={viewport !== "phone" && env.panels.left.length > 0}
+        />
+      </ShellTransition>
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
+      <ShellTransition>
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
       ) : (
@@ -396,6 +406,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
           }}
         />
       )}
+      </ShellTransition>
 
       {viewport === "phone" && (
         <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>

@@ -33,6 +33,7 @@
     "@studio/plugin-volume": "workspace:*",
     "@studio/plugin-wsi": "workspace:*",
     "@studio/renderers": "workspace:*",
+    "@studio/studio-tools": "workspace:*",
     "@studio/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.0",
     "@tanstack/react-virtual": "3.14.24",

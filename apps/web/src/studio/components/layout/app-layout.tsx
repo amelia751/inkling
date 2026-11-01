@@ -26,6 +26,7 @@ import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { UserMenu } from "@/studio/components/layout/user-menu";
 import { UploadLayer } from "@/studio/components/uploads/uploads";
 import { AssistantToggle, PersistentAgentDrawer } from "@/studio/components/ai/agent-drawer";
+import { BootNavigator, BootPill } from "@/studio/components/layout/boot-status";
 import { useStudio } from "@/studio/stores/studio";
 import { NewProjectDialog } from "@/studio/components/projects/new-project";
 import { setShellContext, useCommands } from "@/extension-host/commands";
@@ -154,6 +155,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
           </aside>
         )}
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <BootNavigator />
         <UploadLayer />
         <NewProjectDialog />
       </div>
@@ -177,6 +179,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
         <main className="thin-scrollbar min-w-0 flex-1 overflow-y-auto">{children}</main>
         {project && <PersistentAgentDrawer project={project} section={section} />}
       </div>
+      <BootNavigator />
       <UploadLayer />
       <NewProjectDialog />
       {!desktop && (
@@ -209,6 +212,7 @@ function AppHeader({ project, sidebarOpen, onToggleSidebar }: { project?: Projec
       <BrandMark compact={!!project} className={cn(project && "max-sm:hidden")} />
       <Breadcrumbs project={project} section={label} />
       <div className="ml-auto flex shrink-0 items-center gap-3">
+        {project && <BootPill className="max-sm:hidden" />}
         {project && <AssistantToggle />}
         <UserMenu />
       </div>

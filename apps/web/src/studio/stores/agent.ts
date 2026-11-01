@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
-import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, SandboxState } from "@studio/agent-protocol";
+import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
 export type CardState = "open" | "applied" | "dismissed" | "undone";
@@ -18,7 +18,9 @@ export type MessagePart =
   | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail }
   | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
   | { type: "artifact"; id: string; name: string; bytes: number }
-  | { type: "status"; text: string };
+  | { type: "status"; text: string }
+  /** A Studio boot (todo11): the card reads its progress from the boots store (project `boot.*` events). */
+  | { type: "boot"; id: string };
 
 export interface ChatMessage {
   id: string;
@@ -26,6 +28,10 @@ export interface ChatMessage {
   parts: MessagePart[];
   /** Assistant only. */
   model?: string;
+  /** The run this message streams (from `start`): a boot it started names it as `initiator.runId`. */
+  runId?: string;
+  /** The service's run status (`run-status`): queued, running, awaiting approval… */
+  runStatus?: RunStatus;
   error?: string;
   stopped?: boolean;
   usage?: { inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number };
@@ -93,10 +99,22 @@ interface AgentState {
   setCardState: (projectId: string, messageId: string, cardId: string, state: CardState) => void;
   setPart: (projectId: string, messageId: string, partId: string, patch: Partial<MessagePart>) => void;
   decide: (projectId: string, messageId: string, approvalId: string, decision: "approve" | "reject") => Promise<void>;
+  /** Append a part to a message (a boot card under the offer that started it). */
+  addPart: (projectId: string, messageId: string, part: MessagePart) => void;
+  /** A boot the run streaming in this tab started: its card goes under that run's message. Returns whether it matched. */
+  attachBoot: (runId: string, bootId: string) => boolean;
+  /** A turn answered in the browser without the model (`/studio <words>`): the user's text and the reply's parts. */
+  addLocal: (projectId: string, text: string, parts: MessagePart[]) => string;
 }
 
 let host: AgentHost | null = null;
 let controller: AbortController | null = null;
+/**
+ * Runs this tab streamed (not persisted: another tab never claims them). A boot whose
+ * `initiator.runId` is one of these was asked for here, even when the run already finished
+ * by the time `boot.started` arrives on the project stream.
+ */
+const streamed = new Map<string, { projectId: string; messageId: string }>();
 
 const plainSummary = (output: unknown): string | undefined => {
   if (!output || typeof output !== "object") return undefined;
@@ -112,7 +130,9 @@ function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
   const at = (pred: (p: MessagePart) => boolean) => parts.findIndex(pred);
   switch (e.type) {
     case "start":
-      return { ...m, model: e.model };
+      return { ...m, model: e.model, runId: e.runId };
+    case "run-status":
+      return { ...m, runStatus: e.status };
     case "text":
       if (last?.type === "text") parts[parts.length - 1] = { ...last, text: last.text + e.delta };
       else parts.push({ type: "text", text: e.delta });
@@ -173,7 +193,7 @@ function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
     case "error":
       return { ...m, error: e.message };
     case "done":
-      return e.status === "cancelled" ? { ...m, stopped: true } : m;
+      return e.status === "cancelled" ? { ...m, stopped: true, runStatus: e.status } : { ...m, runStatus: e.status };
     default:
       return m;
   }
@@ -220,6 +240,7 @@ export const useAgent = create<AgentState>()(
         controller?.abort();
         const ctl = new AbortController();
         controller = ctl;
+        streamed.set(a.runId, { projectId: a.projectId, messageId: a.messageId });
         set({ running: a.projectId, active: a });
         try {
           await followRun(
@@ -304,6 +325,7 @@ export const useAgent = create<AgentState>()(
             set((s) => ({ notes: { ...s.notes, [projectId]: [] } }));
             if (steering && res.steered && get().active?.runId === res.runId) {
               // Same run: route the rest of its events to the new assistant message.
+              streamed.set(res.runId, { projectId, messageId: assistant.id });
               set((s) => ({ active: s.active ? { ...s.active, messageId: assistant.id } : s.active }));
               return;
             }
@@ -350,6 +372,21 @@ export const useAgent = create<AgentState>()(
             patchMessage(projectId, messageId, (m) => ({ ...m, parts: m.parts.map((p) => (p.type === "approval" && p.id === approvalId ? { ...p, state } : p)) }));
           setState(decision === "approve" ? "approved" : "rejected");
           await decideApproval(approvalId, { decision }).catch(() => setState("expired"));
+        },
+        addPart: (projectId, messageId, part) =>
+          patchMessage(projectId, messageId, (m) => (m.parts.some((p) => "id" in p && p.id === (part as { id?: string }).id && p.type === part.type) ? m : { ...m, parts: [...m.parts, part] })),
+        attachBoot: (runId, bootId) => {
+          const a = get().active;
+          const r = a?.runId === runId ? a : streamed.get(runId);
+          if (!r) return false;
+          get().addPart(r.projectId, r.messageId, { type: "boot", id: bootId });
+          return true;
+        },
+        addLocal: (projectId, text, parts) => {
+          const user: ChatMessage = { id: crypto.randomUUID(), role: "user", parts: [{ type: "text", text }] };
+          const reply: ChatMessage = { id: crypto.randomUUID(), role: "assistant", parts };
+          set((s) => ({ threads: { ...s.threads, [projectId]: [...(s.threads[projectId] ?? []), user, reply] } }));
+          return reply.id;
         },
       };
     },

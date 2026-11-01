@@ -30,6 +30,12 @@ import { PLUGIN_PACKAGES } from "./manifests";
 import "./host";
 import { ns } from "@studio/contracts/naming";
 
+/**
+ * The deterministic intent → preset table (todo11 D5, `registry/intents.json`, shared with the
+ * agent): the New Studio button and `/studio` pick their preset with it.
+ */
+export { default as INTENT_TABLE } from "../../../../registry/intents.json";
+
 /** Presets are environment JSON only (registry/presets/*.json), registered as one module. */
 const presetFiles = import.meta.glob<PresetContribution>("../../../../registry/presets/*.json", { eager: true, import: "default" });
 export const presets = defineModule({

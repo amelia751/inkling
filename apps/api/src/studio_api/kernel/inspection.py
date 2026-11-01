@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import uuid
 from typing import Any
 
@@ -53,13 +54,49 @@ def import_for_worker(db: Session, import_id: str) -> dict:
     if (s.totals or {}).get("mode") == "replace":
         # A new version: check the name the new file arrived with, not the first upload's.
         uploaded = {f.node_id: f.rel_path for f in db.scalars(select(UploadFile).where(UploadFile.session_id == s.id)) if f.node_id}
-    return {
+    out = {
         "importId": s.id,
         "projectId": s.project_id,
         "sourceId": s.source_id,
         "state": s.state,
         "files": [{"nodeId": n.id, "relPath": uploaded.get(n.id) or n.original_path or n.name, "name": n.name, "size": n.size, "sha256": n.sha256} for n in files],
     }
+    if any(TABLE_EXT.search(n.name or "") for n in files):
+        known = _dataset_names(db, s)
+        if known:
+            out["knownNames"] = known
+    return out
+
+
+TABLE_EXT = re.compile(r"\.(csv|tsv|xlsx|parquet)$", re.IGNORECASE)
+MAX_KNOWN_NAMES = 20_000
+
+
+def _dataset_names(db: Session, s: ImportSession) -> list[str]:
+    """todo13 §3.3: a table dropped into a dataset may be keyed by the names of files already in
+    it, not only by names in the same drop. The worker (in the same project, inside the
+    perimeter) gets the file names of the drop's dataset so its name-column check sees them;
+    nothing leaves the worker but the count of matching columns."""
+    from ..models import DatasetRow, Drop, TaskRow
+
+    drop_id = s.drop_id or (s.totals or {}).get("dropId")
+    d = db.get(Drop, drop_id) if drop_id else None
+    if d is None and drop_id and "-u" in str(drop_id):
+        d = db.get(Drop, str(drop_id).split("-u")[0])
+    if d is None:
+        return []
+    dataset_id = d.dataset_id
+    if not dataset_id and d.task_id:
+        t = db.get(TaskRow, d.task_id)
+        dataset_id = t.dataset_id if t is not None else None
+    ds = db.get(DatasetRow, dataset_id) if dataset_id else None
+    if ds is None or ds.project_id != s.project_id:
+        return []
+    ids = [str(r.get("nodeId")) for r in (ds.definition or {}).get("files") or [] if isinstance(r, dict) and r.get("nodeId")][:MAX_KNOWN_NAMES]
+    names: list[str] = []
+    for i in range(0, len(ids), 500):
+        names += [n for (n,) in db.execute(select(SourceNode.name).where(SourceNode.id.in_(ids[i : i + 500]))) if n]
+    return names
 
 
 def node_asset(db: Session, node_id: str) -> tuple[SourceNode, Asset]:

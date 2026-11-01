@@ -234,11 +234,11 @@ function Conversation({
       restricted: project.restricted,
       snapshot: shared ? provider.snapshot?.() : bareSnapshot?.(),
       context: shared ? provider.turnContext() : `Project: ${project.title} (${project.id})\nThe user removed the section context: nothing about their current selection is shared.`,
-      ...(withDrop ? { drop: { dropId: withDrop.dropId }, messageId: drop ? undefined : withDrop.messageId, beforeSend: () => whenRegistered(withDrop.dropId) } : {}),
+      ...(withDrop ? { drop: { dropId: withDrop.dropId }, messageId: withDrop.messageId, beforeSend: () => whenRegistered(withDrop.dropId) } : {}),
     });
   };
-  // A message typed on Home before this project existed (todo13 D1) is sent once, here.
-  usePendingAsk(project.id, ask);
+  // A message typed (or files dropped) on Home before this project existed (todo13 D1) is sent once, here.
+  usePendingAsk(project.id, (text, drop) => ask(text, drop));
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
@@ -501,7 +501,7 @@ function Composer({
 }
 
 /**
- * What the assistant can see ("Sources › MRI/patient_002"), above the composer. Removing it
+ * What the assistant can see ("Files › MRI/patient_002"), above the composer. Removing it
  * stops sending the selection until the context changes; the "+" brings it back.
  */
 export function ContextIndicator({ provider }: { provider: AgentContextProvider }) {

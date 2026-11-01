@@ -15,6 +15,10 @@ data:
   # Platform signing key (todo10 D5): Cloud KMS, HSM (output plugin_signing_key).
   INKLING_API_SIGNER: gcpkms
   INKLING_API_SIGNER_KMS_KEY: projects/spurby-phi/locations/us-central1/keyRings/studio/cryptoKeys/plugin-signing/cryptoKeyVersions/1
+  # Name screening calls Sensitive Data Protection here, in us-central1 (todo13 §7.2): enabled,
+  # inside the perimeter, and the api's service account has roles/dlp.user (terraform/phi).
+  INKLING_API_NAME_SCREEN_PROJECT: spurby-phi
+  # todo13 flags stay off (base) until a person turns them on, one a day (§7.4).
 ---
 apiVersion: v1
 kind: ConfigMap

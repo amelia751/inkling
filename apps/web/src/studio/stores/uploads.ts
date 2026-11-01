@@ -5,6 +5,7 @@ import { apiUrl } from "@/extension-host/runtime-config";
 import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
 import type { Picked } from "@/studio/lib/uploads/walk";
+import { markTimeline } from "@/studio/lib/drop-timeline";
 
 /**
  * Uploads (todo6 Phase 4.4): a Drive-style tray that never blocks. One entry per import:
@@ -203,15 +204,18 @@ export const useUploads = create<UploadsState>((set, get) => {
         patch(key, { phase: "cancelled", error: "Nothing was uploaded" });
         return session(key);
       }
+      markTimeline("attested");
       const ctrl = new AbortController();
       aborts.set(key, ctrl);
       patch(key, { phase: "preparing" });
       try {
         const shas = await hashFiles(picked.files.map((f) => f.file), (n) => patch(key, { prepared: n }), ctrl.signal);
+        markTimeline("hashed");
         const files = picked.files.map((f, i) => ({ clientFileId: `f${i}`, relPath: f.relPath, size: f.file.size, sha256: shas[i] }));
         blobs.set(key, new Map(picked.files.map((f, i) => [`f${i}`, f.file])));
         const server = await api<ImportSession & { items?: SeedAsset[] }>(`/projects/${encodeURIComponent(projectId)}/imports`, { method: "POST", json: { attested: true, files, ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}), ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(opts.drop ? { origin: { ...opts.drop.origin, dropId: opts.drop.dropId } } : {}) } });
         if (server.items) opts.onRegistered?.(server.items);
+        markTimeline("import-created");
         patch(key, { importId: server.id });
         absorb(key, server);
         patch(key, { phase: "uploading" });

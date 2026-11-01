@@ -87,7 +87,11 @@ export function AiPanel({ project, items, item }: PanelProps) {
     [project, items, item, selected],
   );
   useAgentContext(provider);
-  const live = useAgentContextStore((s) => (s.provider?.section === "studio" ? s.provider : null)) ?? provider;
+  const shared = useAgentContextStore((s) => (s.provider?.section === "studio" ? s.provider : null)) ?? provider;
+  // The conversation's session is the project's (the route's); a Studio's dataset is its task,
+  // whose id is the project's only for seeds. The agent checks a snapshot against its session's
+  // project, so the snapshot names the project; the task is in the turn context.
+  const live = useMemo(() => (shared.snapshot ? { ...shared, snapshot: () => inProject(shared.snapshot!(), projectId) } : shared), [shared, projectId]);
   const noun = pluralWord(2, itemNoun(useStudio.getState().env ?? undefined));
 
   const runTool = async (name: string, input: Record<string, unknown>): Promise<ClientToolOutcome> => {
@@ -123,7 +127,7 @@ export function AiPanel({ project, items, item }: PanelProps) {
       studio={{ project, items }}
       taskId={params.taskId}
       onUndo={(m, p) => void undo(m, p)}
-      bareSnapshot={() => bareSnapshot(project)}
+      bareSnapshot={() => inProject(bareSnapshot(project), projectId)}
       placeholder={(profile) => (profile === "assistant" ? `Ask about ${project.title}…` : `Ask ${NAMING.displayName} to change this environment…`)}
       empty={(profile) => ({
         title: "How can I help with this dataset?",
@@ -132,4 +136,9 @@ export function AiPanel({ project, items, item }: PanelProps) {
       })}
     />
   );
+}
+
+/** The snapshot as the project's (see `live` above). */
+function inProject<T extends { project: { id: string } }>(snap: T, projectId: string): T {
+  return snap.project.id === projectId ? snap : { ...snap, project: { ...snap.project, id: projectId } };
 }

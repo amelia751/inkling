@@ -97,7 +97,7 @@ def main() -> int:
         check("the project opens with the drawer", bool(page.wait_for_selector("[data-testid=agent-drawer]", timeout=10000)))
         pending = page.evaluate(f"async () => (await import('{PENDING}')).usePendingAsks.getState().asks")
         # Without the agent service the drawer can't send: the message waits for it, unlost.
-        check("the message is queued for the conversation", pending.get(P) == "Segment liver CT", json.dumps(pending))
+        check("the message is queued for the conversation", (pending.get(P) or {}).get("text") == "Segment liver CT", json.dumps(pending))
         steps = page.evaluate(f"async () => (await import('{TIMELINE}')).dropTimeline().steps.map(s => s.step)")
         check("the timeline has the gesture and the project", steps[:2] == ["gesture", "project-created"], str(steps))
         check("?timeline=1 shows the overlay across pages", page.locator("[data-testid=drop-timeline] [data-step=project-created]").count() == 1)
@@ -109,11 +109,16 @@ def main() -> int:
         created = []
         page.route("**/api/v1/projects?*", json_route({"projects": []}))
         page.route("**/api/v1/projects", lambda r: (created.append(r.request.post_data_json), json_route({"id": P, "title": "12 images"}, 201)(r)) if r.request.method == "POST" else json_route({"projects": []})(r))
+        # The stand-in can't make drops (501): answer the drop as the API would.
+        drops: list[dict] = []
+        page.route(f"**/api/v1/projects/{P}/drops", lambda r: (drops.append(r.request.post_data_json), json_route({"id": r.request.post_data_json.get("id"), "state": "uploading", "files": []}, 201)(r)))
         page.goto(f"{base}/")
         page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
         page.evaluate(DROP_PNGS, ["[data-testid=home-composer]", 12])
         page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
         check("a drop creates a project named from the kinds, not the names", created and created[0]["title"] == "12 images", json.dumps(created))
+        page.wait_for_timeout(500)
+        check("the drop is shared in the project's conversation (D1, D2)", len(drops) == 1 and drops[0].get("origin") == "home" and str(drops[0].get("conversationId", "")).startswith("conv-") and drops[0].get("files") == 12, json.dumps(drops)[:300])
         page.wait_for_selector("[data-testid=attestation]", timeout=10000)
         check("the files go to the uploader (attestation first)", "12" in page.locator("[data-testid=attestation]").inner_text())
         steps = page.evaluate(f"async () => (await import('{TIMELINE}')).dropTimeline().steps.map(s => s.step)")
@@ -181,7 +186,7 @@ def main() -> int:
         page.locator("[data-testid=empty-project-input]").press("Enter")
         check("Overview's composer opens the drawer with the message", bool(page.wait_for_selector("[data-testid=agent-drawer]", timeout=10000)))
         pending = page.evaluate(f"async () => (await import('{PENDING}')).usePendingAsks.getState().asks")
-        check("…queued for the conversation", pending.get(P) == "Outline the liver", json.dumps(pending))
+        check("…queued for the conversation", (pending.get(P) or {}).get("text") == "Outline the liver", json.dumps(pending))
 
         page.goto(f"{base}/projects/{P}/studio")
         page.wait_for_selector("[data-testid=studio-empty]", timeout=20000)

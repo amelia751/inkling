@@ -28,3 +28,24 @@ data:
   # pipeline presents to the api's service routes is <envPrefix>API_PIPELINE_TOKEN in api-secrets.
   INKLING_API_PIPELINE_URL: http://pipeline:8095
   INKLING_API_PIPELINE_JWT_KID: api
+  # Drops (todo13 §7.1): per drop, at most this many files and bytes (50 GB); above it the card
+  # points to Files' folder upload. 20 drops a minute per person (429 with a retry hint).
+  INKLING_API_DROP_MAX_FILES: "10000"
+  INKLING_API_DROP_MAX_BYTES: "53687091200"
+  INKLING_API_DROP_RATE_PER_MINUTE: "20"
+  # How long an automatically applied drop plan can be undone (D6).
+  INKLING_API_DROP_UNDO_SECONDS: "30"
+  # Name screening (D3, D13): Sensitive Data Protection in the api's own project (the phi
+  # overlay names it); `regex` only in dev and tests, never `off` in production (refused).
+  # BATCH names per call; QPS calls per second per pod, shared by live drops and the backfill.
+  INKLING_API_NAME_SCREEN_MODE: dlp
+  INKLING_API_NAME_SCREEN_BATCH: "500"
+  INKLING_API_NAME_SCREEN_QPS: "5"
+  INKLING_API_NAME_SCREEN_LOCATION: us-central1
+  # Feature flags (served at GET /api/v1/features; a flag off hides its UI and 404s its routes).
+  # Off in production until the rollout (docs/deployment-gcp.md, "Rolling out drops"):
+  # CHAT_DROPS, then DATASETS_TAB, then FAST_PATH, then AUTO_APPLY, a day apart.
+  INKLING_API_FEATURE_CHAT_DROPS: "false"
+  INKLING_API_FEATURE_DATASETS_TAB: "false"
+  INKLING_API_FEATURE_FAST_PATH: "false"
+  INKLING_API_FEATURE_AUTO_APPLY: "false"

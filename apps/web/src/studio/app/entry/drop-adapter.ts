@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ComposerFiles } from "@studio/ui/ui/composer-empty-state";
 import type { SeedAsset } from "@studio/contracts/types";
 import { insertRegistered } from "@/studio/lib/task-items";
-import { markTimeline, startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
+import { markTimeline, setTimelineDrop, startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
 import { fromDataTransfer, fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
 import { feature } from "@/studio/lib/features";
@@ -28,6 +28,12 @@ export interface DropRequest {
   surface?: TimelineOrigin;
   /** The conversation the files are shared in (the drawer's thread), when there is one. */
   conversationId?: string;
+  /** Names the conversation's `Shared in chat` folder. */
+  conversationTitle?: string;
+  /** The chat message that will carry the drop (Home's drop, delivered into the conversation). */
+  messageId?: string;
+  /** The drop's id, when the caller needs it before the upload starts (to queue its message). */
+  dropId?: string;
   /** A drop into a Studio: same-kind files become its items at once (todo11 D8, D11). */
   taskId?: string;
   /** A folder of the drive to land in (Files). */
@@ -52,6 +58,8 @@ export function dropFiles(req: DropRequest): Promise<void> {
   markTimeline("upload-start");
   if (feature("chatDrops")) {
     const id = startDrop(req);
+    // The project stream may open after `drop.received` (Home navigates first): name it here.
+    setTimelineDrop(id);
     watchDrop(id);
     return Promise.resolve();
   }

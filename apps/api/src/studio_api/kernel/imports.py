@@ -157,7 +157,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
     if drop is not None and not target:
         landing_folder = drops.landing_folder(db, p, drop)
         target = landing_folder.id if landing_folder is not None else None
-    source_kind = "chat" if drop is not None and drop.origin == "chat" else "upload"
+    source_kind = "chat" if drop is not None and drops.shared_in_chat(drop) else "upload"
     node = None
     if target:
         node = db.get(SourceNode, str(target))
@@ -231,7 +231,10 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) 
         db.flush()
         tree.bump(db, drive.id, 0, 0, children=1)
         landing = source.root_node_id
-    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing, **({"taskId": task.id} if task is not None else {})}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
+    # todo13 M4: the uploader sends a big drop's first files as their own session with
+    # `origin.priority: "first"`: inspected first, classified without waiting for the rest.
+    first = drop is not None and isinstance(body.get("origin"), dict) and body["origin"].get("priority") == "first"
+    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing, **({"taskId": task.id} if task is not None else {}), **({"priority": "first"} if first else {})}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
     db.add(s)
     db.flush()
     for fid, rel, size, sha, state, reason in plan:
@@ -500,7 +503,8 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     if (s.totals or {}).get("taskId"):
         ingest.link_to_dataset(db, s)
     if ids:
-        events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
+        prio = {"priority": "first"} if (s.totals or {}).get("priority") == "first" else {}
+        events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids, **prio}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
     if s.drop_id:
         drops.session_completed(db, ctx, s, ids)
     _publish(db, ctx, s)

@@ -12,7 +12,9 @@ import { apiUrl } from "@/extension-host/runtime-config";
  *
  * - `gesture`: the drop, paste or send (t = 0);
  * - `project-created`: Home made the project (D1);
- * - `upload-start`, `first-file-uploaded`, `upload-done`: the browser's side of the upload;
+ * - `upload-start`, `attested` (the person confirmed the attestation), `hashed` (SHA-256 of
+ *   every file), `import-created` (the kernel's import session), `first-file-uploaded`,
+ *   `upload-done`: the browser's side of the upload;
  * - `server:<event>`: the first time the project stream carried `import.updated`,
  *   `source.node.inspected`, `boot.started`, `boot.ready`, `item.ready` or a `drop.*` event
  *   (the server's own timestamps live in its `drop.*` log lines, §7.3);

@@ -17,8 +17,9 @@ A drop's files are found through its import sessions. The `drops` table and
 when it exists, else from the sessions. Everything here goes through `drop_of` and
 `_drop_row`, the two seams the integrator reconciles.
 
-Logs (§7.3): one JSON line per transition, `drop.<state>` with dropId, state, elapsed_ms since
-the plan was made, origin and counts by kind (never names).
+Logs (§7.3): one JSON line per transition, `drop.<state>` (classified, planned, applied, undone,
+failed) with dropId, state, elapsed_ms since `drop.received`, origin and counts by kind (never
+names).
 """
 
 from __future__ import annotations
@@ -32,7 +33,7 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from .. import models
 from ..config import settings
@@ -159,13 +160,31 @@ def _service_ctx(project_id: str, principal: str) -> RequestContext:
     return RequestContext(workspace_id=project_id, principal=principal, correlation_id=uuid.uuid4().hex)
 
 
+def _started(row: DropPlanRow) -> datetime | None:
+    """When the drop was received (`drops.created_at`), so `elapsed_ms` is since `drop.received`
+    (§7.3); the plan's own time for drops without a row (an unpacked archive's child drop)."""
+    db = object_session(row)
+    d = db.get(models.Drop, row.drop_id) if db is not None else None
+    t = d.created_at if d is not None and d.created_at else row.created_at
+    return t.replace(tzinfo=UTC) if t and t.tzinfo is None else t
+
+
 def _log(row: DropPlanRow, state: str, **extra) -> None:
-    started = row.created_at.replace(tzinfo=UTC) if row.created_at and row.created_at.tzinfo is None else row.created_at
+    """One JSON line per transition (§7.3): ids, state, elapsed, origin, counts by kind; never names."""
+    started = _started(row)
     elapsed = int((datetime.now(UTC) - started).total_seconds() * 1000) if started else None
     kinds = Counter()
     for g in row.groups or []:
         kinds[g.get("kind") or "unknown"] += int(g.get("count") or 0)
-    log.info(f"drop.{state}", extra={"dropId": row.drop_id, "state": state, "elapsed_ms": elapsed, "origin": (row.context or {}).get("origin"), "byKind": dict(kinds), **extra})
+    log.info(f"drop.{state}", extra={"event": f"drop.{state}", "dropId": row.drop_id, "state": state, "elapsed_ms": elapsed, "origin": (row.context or {}).get("origin"), "byKind": dict(kinds), **extra})
+
+
+def log_failed(drop_id: str, step: str, error_class: str, db: Session | None = None) -> None:
+    """`drop.failed` as a log line (the event's twin), for the failures-by-step metric (§7.3)."""
+    d = db.get(models.Drop, drop_id) if db is not None and drop_id else None
+    started = d.created_at.replace(tzinfo=UTC) if d is not None and d.created_at and d.created_at.tzinfo is None else (d.created_at if d is not None else None)
+    elapsed = int((datetime.now(UTC) - started).total_seconds() * 1000) if started else None
+    log.info("drop.failed", extra={"event": "drop.failed", "dropId": drop_id, "state": "failed", "step": step, "errorClass": error_class, "elapsed_ms": elapsed, **({"origin": d.origin} if d is not None else {})})
 
 
 def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
@@ -175,8 +194,14 @@ def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
     if not drop_id:
         return None
     sessions = sessions_of(db, s.project_id, drop_id)
-    if any(x.state in ("uploading", "inspecting") for x in sessions):
-        return None
+    busy = [x for x in sessions if x.state in ("uploading", "inspecting")]
+    if busy:
+        # todo13 M4: a drop's first files (the uploader's `priority: first` session) are
+        # classified, and may boot a Studio, without waiting for the rest; the rest get a
+        # follow-up plan when they're inspected.
+        if (s.totals or {}).get("priority") != "first" or db.get(DropPlanRow, drop_id) is not None:
+            return None
+        sessions = [x for x in sessions if x not in busy]
     try:
         with db.begin_nested():
             return classify_drop(db, s.project_id, drop_id, sessions)
@@ -185,6 +210,7 @@ def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
         p = db.get(ProjectRow, s.project_id)
         if p is not None:
             events.publish(db, _service_ctx(p.id, "kernel:drops"), "drop.failed", {"dropId": drop_id, "step": "classify", "errorClass": type(e).__name__}, source="kernel")
+        log_failed(drop_id, "classify", type(e).__name__, db)
         return None
 
 
@@ -197,9 +223,21 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     if not files:
         return None
     row = db.get(DropPlanRow, drop_id)
+    parent_fast = False
     if row is not None and row.state in ("applied", "applying"):
-        # New files of a drop that was already applied (a late session): a follow-up plan.
-        drop_id = f"{drop_id}-{len(sessions)}"
+        # New files of a drop that was already applied (a late session): a follow-up plan for
+        # the sessions the first plan didn't cover.
+        covered = set((row.context or {}).get("sessionIds") or [])
+        parent_fast = bool(row.fast_path)
+        # The rest belongs where the first plan put the files: its dataset (never a second one).
+        parent_ds = (row.context or {}).get("datasetId") or next(iter((row.applied or {}).get("datasets") or []), None)
+        if parent_ds and not ctx_info.get("datasetId"):
+            ctx_info["datasetId"] = parent_ds
+        sessions = [x for x in sessions if x.id not in covered] or sessions
+        files = gather(db, project_id, sessions)
+        if not files:
+            return row
+        drop_id = f"{drop_id}-{len(covered) + len(sessions)}"
         row = db.get(DropPlanRow, drop_id)
         if row is not None and row.state != "planned":
             return row
@@ -218,8 +256,10 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     db.flush()
     sctx = _service_ctx(project_id, "kernel:drops")
     events.publish(db, sctx, "drop.classified", {"dropId": drop_id, "groups": [g.as_dict(with_nodes=False) for g in groups]}, source="kernel")
+    _log(row, "classified", groups=len(groups))
     fast = _fast_path_preset(groups, cctx, plan)
-    auto = bool(fast) or (drop_flags.enabled("auto_apply") and dc.safe_to_auto_apply(plan))
+    # The rest of a fast-path drop joins what its first files started, as the fast path did.
+    auto = bool(fast) or ((drop_flags.enabled("auto_apply") or (parent_fast and drop_flags.enabled("fast_path"))) and dc.safe_to_auto_apply(plan))
     row.auto = auto
     events.publish(db, sctx, "drop.planned", {"dropId": drop_id, "plan": plan, "auto": auto}, source="kernel")
     _log(row, "planned", auto=auto)
@@ -234,6 +274,7 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
             _sync_drop(db, row)
             db.flush()
             events.publish(db, sctx, "drop.failed", {"dropId": drop_id, "step": "apply", "errorClass": type(e).__name__}, source="kernel")
+            log_failed(drop_id, "apply", type(e).__name__, db)
     return row
 
 
@@ -287,7 +328,7 @@ def _boot_id(drop_id: str, group_id: str) -> str:
 def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, c: DatasetCollectionRow, preset: str, name: str, patch: list | None) -> list[str]:
     from . import boots
 
-    body: dict = {"bootId": _boot_id(drop_id[:20], c.id), "preset": preset, "collectionId": c.id, "name": f"{name} Studio"}
+    body: dict = {"bootId": _boot_id(drop_id[:20], c.id), "preset": preset, "collectionId": c.id, "name": f"{name} Studio", "dropId": drop_id}
     if patch:
         body["patch"] = patch
     status, out = boots.boot(db, ctx, p, body, {})
@@ -537,7 +578,7 @@ def undo(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
     db.flush()
     events.publish(db, ctx.for_scope(row.project_id, None), "drop.applied", {"dropId": row.drop_id, "taskIds": [], "undoUntil": None, "collectionIds": [], "undone": True}, source="kernel")
     audit.record(db, ctx.for_scope(row.project_id, None), "drop.undone", target=row.drop_id, after={"tasks": a.get("tasks"), "collections": a.get("collections"), "datasets": a.get("datasets")})
-    _log(row, "undone")
+    _log(row, "undone", auto=bool(row.auto))
     return state_dict(db, row)
 
 

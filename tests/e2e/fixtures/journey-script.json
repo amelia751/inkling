@@ -1,0 +1,72 @@
+{
+  "scripts": [
+    {
+      "when": "chest x-ray classification with five labels",
+      "turns": [
+        {
+          "text": "Your chest X-ray Studio is open. Adding the five labels.",
+          "toolCalls": [
+            {
+              "name": "patch_environment",
+              "arguments": {
+                "patch": [
+                  {
+                    "op": "add",
+                    "path": "/labels",
+                    "value": [
+                      {
+                        "name": "finding",
+                        "control": "Choices",
+                        "classes": [
+                          {
+                            "id": "normal",
+                            "name": "Normal"
+                          },
+                          {
+                            "id": "pneumonia",
+                            "name": "Pneumonia"
+                          },
+                          {
+                            "id": "effusion",
+                            "name": "Effusion"
+                          },
+                          {
+                            "id": "cardiomegaly",
+                            "name": "Cardiomegaly"
+                          },
+                          {
+                            "id": "pneumothorax",
+                            "name": "Pneumothorax"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "summary": "Five classification labels"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Done: five labels. Drop chest X-rays on the canvas to start."
+        }
+      ]
+    },
+    {
+      "when": "<drop id=",
+      "turns": [
+        {
+          "text": "Got your files. They're in Files, under Shared in chat."
+        }
+      ]
+    },
+    {
+      "turns": [
+        {
+          "text": "OK."
+        }
+      ]
+    }
+  ]
+}

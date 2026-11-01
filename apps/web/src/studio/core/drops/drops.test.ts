@@ -62,3 +62,20 @@ describe("pasted files", () => {
     expect(c!.name).toBe("scan.png");
   });
 });
+
+describe("a big drop's first files (todo13 M4)", () => {
+  const file = (name: string) => ({ relPath: name, file: new File([new Uint8Array(4)], name) });
+  it("go ahead as their own part: the first images, in order", async () => {
+    const { splitFirst, FIRST_FILES, SPLIT_ABOVE } = await import("./start");
+    const files = [file("notes.pdf"), ...Array.from({ length: SPLIT_ABOVE + 10 }, (_, i) => file(`img_${i}.png`))];
+    const parts = splitFirst({ files, skipped: 2 })!;
+    expect(parts[0].files.map((f) => f.relPath)).toEqual(Array.from({ length: FIRST_FILES }, (_, i) => `img_${i}.png`));
+    expect(parts[1].files.length).toBe(files.length - FIRST_FILES);
+    expect(parts[1].skipped).toBe(2);
+  });
+  it("not for small drops or drops without plain images", async () => {
+    const { splitFirst } = await import("./start");
+    expect(splitFirst({ files: Array.from({ length: 10 }, (_, i) => file(`a${i}.png`)), skipped: 0 })).toBeNull();
+    expect(splitFirst({ files: Array.from({ length: 100 }, (_, i) => file(`IM${i}.dcm`)), skipped: 0 })).toBeNull();
+  });
+});

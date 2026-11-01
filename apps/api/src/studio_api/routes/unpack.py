@@ -127,5 +127,7 @@ def refused(node_id: str, body: dict = Body(...), db: Session = Depends(get_sess
     n.flags = {**(n.flags or {}), "unsupported": message, "unpack": {"refused": reason}}
     db.flush()
     events.publish(db, _ctx(p.id, person), "drop.failed", {"dropId": str(body.get("dropId") or ""), "step": "unpack", "errorClass": reason, "nodeId": n.id}, source="kernel")
+    # The unpack-refusals metric reads this line (§7.3).
+    drops_plan.log_failed(str(body.get("dropId") or ""), "unpack", reason, db)
     events.publish(db, _ctx(p.id, person), "source.node.inspected", {"projectId": p.id, "nodeIds": [n.id]}, source="kernel")
     return {"nodeId": n.id, "refused": reason}

@@ -15,9 +15,9 @@
 archive unpack job are in `routes/unpack.py`.
 
 Feature flags: `API_FEATURE_AUTO_APPLY` and `API_FEATURE_FAST_PATH` gate the kernel's own
-applies (kernel/drops_plan.py); these routes answer whatever the flags, because a plan that
-exists was made for a drop that exists. todo13-entry's `API_FEATURE_CHAT_DROPS` gates the
-drops themselves.
+applies (kernel/drops_plan.py). The plan routes answer while `API_FEATURE_CHAT_DROPS` is on (a
+plan exists only for a drop); structure and collections while any todo13 flag is on. With every
+flag off none of these routes answers (§6 J12, §7.4 rollback: drops already made stay as Files).
 """
 
 from __future__ import annotations
@@ -28,22 +28,24 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import collections, drops_plan, projects, structure
+from ..kernel import collections, drops_plan, features, projects, structure
 
 router = APIRouter(prefix="/api/v1")
+PLANS = [Depends(features.require("chat_drops"))]
+TODO13 = [Depends(features.require_any())]
 
 
-@router.get("/drops/{drop_id}/plan")
+@router.get("/drops/{drop_id}/plan", dependencies=PLANS)
 def get_plan(drop_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     return drops_plan.state_dict(db, drops_plan.require(db, ctx, drop_id))
 
 
-@router.put("/drops/{drop_id}/plan")
+@router.put("/drops/{drop_id}/plan", dependencies=PLANS)
 def change_plan(drop_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     return drops_plan.change(db, ctx, drops_plan.require(db, ctx, drop_id), body.get("actions"))  # type: ignore[arg-type]
 
 
-@router.post("/drops/{drop_id}/apply")
+@router.post("/drops/{drop_id}/apply", dependencies=PLANS)
 def apply_plan(drop_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.principal.startswith(("plugin:", "worker:", "event:")):
         raise HTTPException(403, "only a person or their assistant applies a drop plan")
@@ -51,7 +53,7 @@ def apply_plan(drop_id: str, body: dict = Body(default={}), ctx: RequestContext 
     return drops_plan.apply(db, ctx, row, body.get("actions") if "actions" in body else None)
 
 
-@router.post("/drops/{drop_id}/undo")
+@router.post("/drops/{drop_id}/undo", dependencies=PLANS)
 def undo_plan(drop_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     return drops_plan.undo(db, ctx, drops_plan.require(db, ctx, drop_id))
 
@@ -63,7 +65,7 @@ def _dataset(db: Session, ctx: RequestContext, dataset_id: str):
     return d
 
 
-@router.get("/datasets/{dataset_id}/structure")
+@router.get("/datasets/{dataset_id}/structure", dependencies=TODO13)
 def get_structure(dataset_id: str, branch: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     d = _dataset(db, ctx, dataset_id)
     if ctx.principal.startswith("agent:") and branch is None:
@@ -80,7 +82,7 @@ def get_structure(dataset_id: str, branch: str | None = None, ctx: RequestContex
     return doc
 
 
-@router.put("/datasets/{dataset_id}/structure")
+@router.put("/datasets/{dataset_id}/structure", dependencies=TODO13)
 def put_structure(dataset_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.principal.startswith(("plugin:", "worker:", "event:")):
         raise HTTPException(403, "only a person or their assistant writes a dataset structure")
@@ -93,14 +95,14 @@ def put_structure(dataset_id: str, body: dict = Body(...), ctx: RequestContext =
     return JSONResponse(out, status_code=status)
 
 
-@router.post("/datasets/{dataset_id}/structure/accept")
+@router.post("/datasets/{dataset_id}/structure/accept", dependencies=TODO13)
 def accept_structure(dataset_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     d = _dataset(db, ctx, dataset_id)
     projects.require_project(db, ctx, d.project_id, write=True)
     return structure.accept(db, ctx, d, str(body.get("branch") or ""))
 
 
-@router.get("/projects/{project_id}/datasets/{dataset_id}/collections")
+@router.get("/projects/{project_id}/datasets/{dataset_id}/collections", dependencies=TODO13)
 def list_collections(project_id: str, dataset_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     d, p = projects.require_dataset(db, ctx, dataset_id)
     if p.id != project_id:

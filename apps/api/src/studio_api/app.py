@@ -23,11 +23,19 @@ def _housekeeping(stop: threading.Event) -> None:
     """Event delivery and lease reaping that must not depend on a worker being up (KEDA may
     have scaled workers to zero). Every replica runs it; the bus's consumer group and the
     queue's reaper lock keep the work single."""
-    from .kernel import eventbus, queue
+    import time
+
+    from .kernel import drops, eventbus, queue
 
     interval = settings().housekeeping_interval_s
+    stuck_checked = 0.0
     while not stop.wait(interval):
         try:
+            # Drops stuck in `inspecting` (todo13 §7.3 alert), about once a minute.
+            if time.monotonic() - stuck_checked >= 60:
+                stuck_checked = time.monotonic()
+                with session_scope() as db:
+                    drops.log_stuck(db)
             with session_scope() as db:
                 if settings().event_bus == "redis":
                     eventbus.deliver(db)

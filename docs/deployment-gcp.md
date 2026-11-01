@@ -215,3 +215,81 @@ switch on only when that milestone ships.
 - The agent's model is on Vertex AI in `spurby-ai` (`AGENT_MODEL=google-vertex:…`, D8) and its
   allowlist holds only Vertex models. Confirm that the BAA covers `spurby-ai` (a separate billing
   account outside the organization) and that the model is on the HIPAA covered list.
+
+## Drops: config, monitoring and rollout (todo13)
+
+todo13 (drop anything into chat, plans, collections, the Datasets tab) adds no Google Cloud
+product, API, IAM binding or perimeter change: Sensitive Data Protection is already enabled in
+`spurby-phi` and the api has `roles/dlp.user`. What changes is config, log-based metrics and the
+order flags go on.
+
+**Config** (`infra/k8s/base/{api,worker}/configmap.yaml`; prod defaults, keys with the naming
+config's `envPrefix`):
+
+| Key | Base (prod) | What |
+|---|---|---|
+| `API_DROP_MAX_FILES` / `API_DROP_MAX_BYTES` | 10,000 / 50 GB | per drop; above it the card points to Files' folder upload |
+| `API_DROP_RATE_PER_MINUTE` | 20 | drops a minute per person (429 with a retry hint) |
+| `API_DROP_UNDO_SECONDS` | 30 | Undo window of an automatically applied plan |
+| `API_NAME_SCREEN_MODE` | `dlp` | `regex` in dev and tests; `off` is refused in production |
+| `API_NAME_SCREEN_BATCH` / `_QPS` / `_LOCATION` | 500 / 5 / `us-central1` | names per call, calls per second per pod (live and backfill share it) |
+| `API_NAME_SCREEN_PROJECT` | `spurby-phi` (phi overlay) | where the screening calls go |
+| `API_FEATURE_CHAT_DROPS`, `_DATASETS_TAB`, `_FAST_PATH`, `_AUTO_APPLY` | `false` | on by rollout (below); the dev overlay turns all on |
+| `WORKER_UNPACK_MAX_BYTES` / `_MAX_FILES` / `_MAX_RATIO` / `_MAX_DEPTH` / `_TMP_BYTES` | 20 GB / 50,000 / 100 / 2 / 6 GB | archive unpack, sized to the worker pod (4 GiB memory, 8 GiB `/tmp`) |
+
+**Monitoring** (`infra/terraform/phi/monitoring.tf`, applied by a person with the phi stack). The
+api logs one JSON line per drop transition (`drop.received` … `drop.applied`, `drop.undone`,
+`drop.failed {step, errorClass}`, `drop.stuck`), the browser's timeline (`drop.timeline`,
+durations only, from `POST /api/v1/telemetry/timeline`) and name screening calls
+(`name_screen.batch`, `name_screen.error`). Log-based metrics: `drop_first_interactive_ms`
+(distribution; p50/p95 in Metrics Explorer), `drop_failures` (by step and error class),
+`drop_unpack_refusals` (by reason), `drops_stuck_inspecting`, `name_screen_errors` and
+`name_screen_batches`, `drop_auto_applied` and `drop_auto_undone` (the undo rate is their
+ratio). Alerts: p95 drop to first interactive over 30 s for 15 minutes; screening error rate
+over 5 %; any drop stuck inspecting over 10 minutes. Set `alert_notification_channels` to page
+someone; without it the alerts only open incidents.
+
+### Rolling out drops (runbook)
+
+Run from the repo root with the deploy identity; every `kubectl` against the phi cluster
+(namespace `studio`). Nothing here deletes a File.
+
+**Dev** (kind/k3d, `infra/k8s/overlays/dev`): every flag is on and names use the regex screen.
+
+1. `kubectl apply -k infra/k8s/overlays/dev`, then run the journeys:
+   `python3 tests/e2e/journey_test.py --port <vite>` (its docstring has the commands); J1–J9 and
+   the D13 walk test (`uv run --package studio-api pytest apps/api/tests/test_drops.py -k no_agent_route`)
+   green.
+
+**Staging** (synthetic data only):
+
+1. Deploy the images with the flags off (the base). The api runs the Alembic migrations
+   `0011` (drops, screened-name columns) and `0012` (collections, drop plans, structures; it
+   backfills one collection per detected kind for existing datasets and points each task at
+   the one holding its items).
+2. Screening backfill: `kubectl exec deploy/api -- python -m studio_api.kernel.name_screen
+   backfill` (resumable; the worker's `files.screen_names` also does it about once a minute).
+   Wait until it reports nothing left; meanwhile agents see `file-<n>.<ext>`.
+3. Check every existing Studio opens on the same items (open a few; the journeys' J11 does this
+   for a fixture database).
+4. Turn the flags on one at a time, **a day apart**, each by editing the api ConfigMap value and
+   `kubectl rollout restart deploy/api` (the web app reads flags once at start; reload):
+   `API_FEATURE_CHAT_DROPS` → `API_FEATURE_DATASETS_TAB` → `API_FEATURE_FAST_PATH` →
+   `API_FEATURE_AUTO_APPLY`. After each, watch the §7.3 metrics for a day: drop failures by
+   step, screening errors, p95 drop to first interactive, and (after auto-apply) the undo rate.
+
+**Prod** (a person, after review):
+
+1. `terraform plan` then `apply` in `infra/terraform/phi` (adds only `monitoring.tf`'s metrics
+   and alerts); set `alert_notification_channels`.
+2. Deploy with the flags off (the base values); the migrations `0011`/`0012` run.
+3. Screening backfill as in staging, then measure the Sensitive Data Protection cost per 10,000
+   names (Billing, SKU "Inspection") and record it here.
+4. Check that every existing Studio opens on the same items.
+5. The flags, in the staging order, a day apart, watching the alerts.
+
+**Rollback.** Turn the flag off and restart the api: its UI and routes disappear (they answer
+404), drops already made stay in Files. With every flag off the product behaves as before
+todo13. The collections migration has a tested `downgrade` (`alembic downgrade 0011` drops the
+collections, drop plans and structures, never files); the screened-name columns are additive and
+stay. Never roll back by deleting Files.

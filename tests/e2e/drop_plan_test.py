@@ -1,6 +1,7 @@
 """Drop plans in the browser (todo13 Milestone 2), against the real API (no agent, no model).
 
-The test starts the API itself (SQLite in a temp dir, `API_FEATURE_*` off) on
+The test starts the API itself (SQLite in a temp dir, auto-apply and the fast path off, so every plan
+asks) on
 <envPrefix>E2E_API_PORT (default 8261). Start a frozen dev server pointed at it first:
 
     cd apps/web && INKLING_API_URL=http://127.0.0.1:8261 INKLING_E2E=1 pnpm exec vite --port 5261 --strictPort
@@ -67,7 +68,8 @@ def png(w: int, h: int) -> bytes:
 
 
 def start_api(data_dir: str) -> subprocess.Popen:
-    env = {**os.environ, f"{P}API_DATA_DIR": data_dir, f"{P}ENV": "test", f"{P}LOG_LEVEL": "WARNING"}
+    # Every plan asks (no auto-apply) and nothing boots before the card: the test applies by hand.
+    env = {**os.environ, f"{P}API_DATA_DIR": data_dir, f"{P}ENV": "test", f"{P}LOG_LEVEL": "WARNING", f"{P}API_FEATURE_AUTO_APPLY": "false", f"{P}API_FEATURE_FAST_PATH": "false"}
     proc = subprocess.Popen(["uv", "run", "--package", "studio-api", "uvicorn", "studio_api.app:app", "--port", str(API_PORT)], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
     for _ in range(300):
         try:

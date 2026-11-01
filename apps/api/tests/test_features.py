@@ -101,3 +101,33 @@ def test_timeline_log_line_is_json(make_client, capsys):
     rec.steps_ms = {"first-frame": 1}
     line = json.loads(JsonFormatter("api", "0").format(rec))
     assert line["msg"] == "drop.timeline" and line["steps_ms"] == {"first-frame": 1}
+
+
+def test_every_flag_off_no_todo13_route_answers(make_client):
+    """§6 J12: with every API_FEATURE_* off the product is as before todo13: drops, plans,
+    structure, collections, the Datasets reads and the timeline all answer 404."""
+    c = make_client(feature_chat_drops=False, feature_auto_apply=False, feature_fast_path=False, feature_datasets_tab=False)
+    pid = c.post("/api/v1/projects", json={"title": "Flags off"}).json()["id"]
+    calls = [
+        ("POST", f"/api/v1/projects/{pid}/drops", {"origin": "chat", "conversationId": "conv-1"}),
+        ("GET", f"/api/v1/projects/{pid}/drops", None),
+        ("GET", "/api/v1/drops/drp-x", None),
+        ("GET", "/api/v1/drops/drp-x/plan", None),
+        ("POST", "/api/v1/drops/drp-x/apply", {}),
+        ("POST", "/api/v1/drops/drp-x/undo", {}),
+        ("GET", "/api/v1/datasets/ds-x/structure", None),
+        ("PUT", "/api/v1/datasets/ds-x/structure", {"structure": {}}),
+        ("GET", f"/api/v1/projects/{pid}/datasets/ds-x/collections", None),
+        ("GET", f"/api/v1/projects/{pid}/dataset-summaries", None),
+        ("GET", f"/api/v1/projects/{pid}/dataset-attention", None),
+        ("POST", "/api/v1/telemetry/timeline", {"origin": "home", "steps": {"gesture": 0, "first-interactive": 10}}),
+    ]
+    for method, path, body in calls:
+        r = c.request(method, path, json=body)
+        assert r.status_code == 404, (method, path, r.status_code, r.text[:200])
+    assert c.get("/api/v1/features").json() == {k: False for k in ALL}
+    # An import with a chat origin is refused too (no drop gets made).
+    r = c.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": [{"clientFileId": "f0", "relPath": "a.png", "size": 3, "sha256": "0" * 64}], "origin": {"kind": "chat", "conversationId": "conv-1"}})
+    assert r.status_code in (201, 404, 422), r.text
+    if r.status_code == 201:
+        assert not r.json().get("dropId")

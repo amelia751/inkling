@@ -88,11 +88,16 @@ KERNEL_EVENTS = {"job.succeeded", "job.failed"}
 
 
 def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:
-    """Events of `types` that built-in `subscriber` hasn't acknowledged yet (oldest first)."""
+    """Events of `types` that built-in `subscriber` hasn't acknowledged yet: those whose payload
+    says `priority: "first"` (a drop's first files, todo13 M4) first, then oldest first."""
     from ..models import EventConsumption
 
     done = select(EventConsumption.event_id).where(EventConsumption.subscriber == subscriber)
-    return list(db.scalars(select(PluginEvent).where(PluginEvent.type.in_(types), PluginEvent.event_id.not_in(done)).order_by(PluginEvent.created_at).limit(limit)))
+    q = select(PluginEvent).where(PluginEvent.type.in_(types), PluginEvent.event_id.not_in(done))
+    first = list(db.scalars(q.where(PluginEvent.payload["priority"].as_string() == "first").order_by(PluginEvent.created_at).limit(limit)))
+    seen = {e.event_id for e in first}
+    rest = [] if len(first) >= limit else [e for e in db.scalars(q.order_by(PluginEvent.created_at).limit(limit)) if e.event_id not in seen]
+    return (first + rest)[:limit]
 
 
 def ack(db: Session, subscriber: str, event_ids: list[str]) -> int:

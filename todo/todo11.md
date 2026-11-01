@@ -1,56 +1,59 @@
-# Live boot: talk to an agent, watch the Studio build itself
+# Live boot: describe a Studio, see it immediately, work while it takes shape
 
-**Goal.** Ask the in-app agent ("boot up an environment for chest x-ray"), or point an external agent
-at a folder ("Claude, find my session and drop these 200 images and videos in"). The Studio then
-builds in front of you:
+**Goal.** A researcher says "Create a chest X-ray Studio with five classification labels". Within
+seconds a usable workspace appears, and it keeps gaining capability as the agent configures it. No one
+configures modules, datasets, viewers or labels by hand.
 
-- something on screen within 2 seconds;
-- usable within 20 seconds on seed data;
-- done within 60 seconds.
+Our advantage isn't supporting every agent protocol or having the most sophisticated pipeline. It's
+making complicated data feel simple.
 
-It shows a calm, OpenAI-style progress ledger while it works, and items fill in one by one without
-page reloads. The same boot works from:
+**Status (2026-10-31).** Plan amended after review; nothing started.
 
-- our agent (OpenAI today);
-- Claude Code or Cursor over MCP, using the user's own model, which saves our tokens;
-- later, Claude Desktop or ChatGPT showing a live MCP Apps card.
+- **Milestone 1 can start now.**
+- **Milestone 2** starts after Milestone 1's measurements land.
+- **Milestone 3** follows.
+- **Milestone 4** (external agents) is deliberately later and only outlined.
 
-**Status (2026-10-31).** Research and plan only; nothing started. Decisions D1–D10 need the user's
-go-ahead (recommendations given). Agents: start at "Start here (agents)".
+Decisions are settled in §2 (approved, modified, simplified or deferred). Agents: start at "Start here
+(agents)".
 
 **Audit date:** 2026-10-31, against `main` 235b9fe (todo10 merged).
+
+**Three projects, kept apart:**
+
+1. **Make the Studio load fast and update live** (Milestone 1, plus Milestone 2's client side).
+   Essential.
+2. **Let agents create and modify Studios** (Milestone 2). Essential.
+3. **Ingest at scale and open up to external agents** (Milestones 3–4). They matter, but they don't
+   block 1 and 2.
 
 ---
 
 ## Start here (agents)
 
-This file is the whole brief, together with `AGENTS.md`.
+This file plus `AGENTS.md` is the whole brief.
 
 1. **Read, in order:**
    1. `AGENTS.md`;
-   2. this file: §0 (where we are), §1 principles, §2 decisions, your workstream's phases in §4,
-      and §6 (ownership, contracts, rules);
+   2. this file: §0 (audit), §1 principles, §2 decisions, your milestone in §4, §6 (ownership,
+      contracts, rules), §7 budgets;
    3. `docs/agent.md`, `docs/modules.md`, `docs/deployment-gcp.md`;
    4. the files in your workstream's row in §6.
-2. **Set up:**
-   `git worktree add .worktrees/todo11-<name> -b todo11-<name> main`. Work only there; never merge,
-   never edit this file (report instead).
-3. **The data boundary from todo10 still holds** (`todo/todo10.md`, "Start here", point 3):
-   - nothing an agent reads may contain item bytes; metadata, thumbnails rendered in the *browser*,
-     and summaries only;
-   - an external agent uploading the user's own files acts **as the user** (like dragging into the
-     browser), never with the agent token;
-   - the model never gets the bytes back.
+2. **Set up:** `git worktree add .worktrees/todo11-<name> -b todo11-<name> main`. Work only there;
+   never merge, never edit this file (report instead).
+3. **The data boundary from todo10 still holds** (`todo/todo10.md`, "Start here", point 3): nothing
+   an agent reads contains item bytes, and the model never gets bytes back.
 4. **Hand back:**
-   - done per phase against its exit tests;
+   - done per milestone item against its exit tests;
    - commits, migrations, env vars, events and routes added;
-   - checks run (`AGENTS.md` list plus your e2e);
+   - the checks run (`AGENTS.md` list plus your e2e);
+   - before/after numbers for the §7 metrics you touched;
    - what's left.
 
 **Prompt for each agent:**
 
 > Read `/Users/anhlam/inkling/todo/todo11.md` from "Start here (agents)" and follow it. You are
-> workstream `todo11-<name>`. Do every phase §6 assigns to you, to its exit tests.
+> workstream `todo11-<name>`. Do every item §6 assigns to you, to its exit tests.
 
 ---
 
@@ -157,367 +160,331 @@ This file is the whole brief, together with `AGENTS.md`.
 
 ## 1. Principles
 
-1. **Paint first, refine after.** The shell and skeletons appear before the model finishes, from the
-   nearest preset. The model only sends a *diff* against that preset.
-2. **The server owns the boot; every surface watches the same events.** A boot is a server-side
-   operation. Our agent, MCP, and the browser all observe it through the project event stream. A
-   Studio tab never has to be open for a boot to happen, and an open tab always shows it.
-3. **Nothing reloads.** Environment changes arrive as patches. Only modules that are new get loaded.
-   Items are inserted, never re-fetched wholesale. Viewers swap data instead of remounting.
-4. **Every step tick is a real event.** The progress ledger shows only what actually happened, and a
-   stop keeps the partial work.
-5. **Few, coarse, idempotent tools.** The same five tools serve our agent and MCP. Results are small,
-   with links instead of payloads.
-6. **One implementation of "what is a valid environment".** Shared TypeScript for web, agent, MCP and
-   the seed server; no 501 path.
-7. **Measure it.** Boot timing marks in the browser and server; budgets asserted in e2e.
+1. **A fast native Studio first.** Before any autonomous booting, the Studio a person opens by hand
+   must paint its shell immediately and load modules independently.
+2. **Create only on explicit intent.** Questions get answers. "Could we…" gets an offer with a
+   **Create** button. Only an explicit request, or the user clicking Create, makes a draft task.
+3. **Deterministic first paint, model refinement after.** An explicit request maps to a preset
+   through a fixed table, and the Studio opens on it. The model then sends a small patch against it.
+4. **The server enforces; clients assist.** The API is the authority on authorisation, revisions and
+   which mutations are allowed. Shared TypeScript gives fast client feedback, never the final word.
+   This matters doubly with medical data.
+5. **Nothing reloads.** Environment changes arrive as patches and load only new modules. Items are
+   inserted, not re-fetched. Viewers swap data instead of remounting.
+6. **Every progress tick is a real event.** A stop keeps the partial work.
+7. **Separate "usable" from "fully ingested".** Time to first useful interaction is a product budget.
+   Background ingest time depends on bytes, bandwidth, formats and workers, so we track it but don't
+   gate on it.
+8. **Measure before and after.** Every milestone reports its §7 numbers.
 
 ---
 
-## 2. Decisions (recommendations; confirm before Phase 1)
+## 2. Decisions (settled 2026-10-31)
 
-- [ ] **D1. A boot is a server-side operation.** `POST /api/v1/projects/:id/boots` with a
-  client-supplied `bootId` (idempotent) creates a **draft task**, writes the environment, links
-  data, and emits `boot.*` events. The agent token may create draft tasks; a person publishes them
-  (undoable, so this keeps todo10's rule that the model can't widen permissions).
-  *Alternative:* keep booting as browser client tools. That needs an open tab, so it's rejected.
-- [ ] **D2. `packages/environment-core`.** A pure TypeScript resolver and validator over
-  `schemas/catalog.json` and the environment schema (no React, no icons). Used by `apps/web`,
-  `apps/agent`, `apps/mcp` and the Vite seed server. The API stays storage plus events; writers
-  validate with environment-core before `PUT`/`PATCH` with `revision`.
-  *Alternative:* a Python port. That means two implementations, so it's rejected.
-- [ ] **D3. The project event stream carries everything the Studio needs.** Add:
-  - `environment.updated {taskId, revision, patch?, author}`;
-  - `boot.started|step|ready|failed {bootId, taskId, step}`;
-  - `item.*` lifecycle events (D8);
-  - `presence.*` (D6).
+| | Decision | Verdict | What we do |
+|---|---|---|---|
+| D1 | Server-side boot | **Approved** | A boot is an API operation that creates **draft** tasks; only a person publishes them. |
+| D2 | Shared TypeScript environment core | **Approved, changed** | `packages/environment-core` shares the resolver logic for clients. **The API validates authoritatively** (below). |
+| D3 | Project SSE events | **Approved** | Reuse the existing project event stream, with its revision tracking and `Last-Event-ID` replay. |
+| D4 | AG-UI protocol v2 | **Deferred** | Keep the working run protocol. Boot progress travels on project events. Add an AG-UI adapter when an integration needs it. |
+| D5 | Speculative preset boot | **Modified** | Deterministic presets, triggered only by explicit creation intent. No model classifier in the critical path. |
+| D6 | Presence and follow-agent | **Simplified** | The tab that asked navigates itself; everything else gets deep links. No presence infrastructure now. |
+| D7 | Mixed files create multiple tasks | **Modified** | Group files into compatible collections and **let the user choose** how they become tasks. |
+| D8 | Incremental item lifecycle | **Approved** | Items appear as they register and upgrade in place. |
+| D9 | Progressive viewers | **Approved in stages** | Images and previews first. DICOM, video and signals are separate later slices. |
+| D10 | MCP integration | **Deferred** | Build the shared tool layer now (Milestone 2); external agent workflows come after native boot works (Milestone 4). |
 
-  The Studio applies these whoever caused them (our agent, MCP, another tab). Keep the 250 ms outbox
-  poll for now; Postgres `NOTIFY` as a wake-up signal is a later optimisation.
-- [ ] **D4. `agent-protocol` v2 uses AG-UI 1.0 event names and shapes.**
-  - `RUN_STARTED/FINISHED/ERROR`, `STEP_STARTED/FINISHED`, `TEXT_MESSAGE_*`;
-  - `TOOL_CALL_START/ARGS/END/RESULT`;
-  - `STATE_SNAPSHOT/DELTA` for the environment being written;
-  - `ACTIVITY_*` for the ledger;
-  - `CUSTOM` for approvals, client tools and sandbox events.
+### D2 in detail: what the API enforces
 
-  The web reducer accepts v1 and v2 during the switch. *Alternative:* extend v1 ad hoc. It's cheaper
-  now but diverges from the standard.
-- [ ] **D5. Speculative preset boot.**
-  - On a new message, the harness classifies intent in under 1 s, using keyword rules plus the kinds
-    of the project's files, with a small fast model as fallback.
-  - It starts a boot from the nearest `registry/presets/<id>.json` **before** the main model answers.
-  - The main model then emits a JSON Patch against it; a wrong guess swaps with a `ViewTransition`.
-- [ ] **D6. Presence and "follow the agent".** An open Studio tab heartbeats
-  `PUT /api/v1/presence {projectId, taskId, tabId}` every 20 s (Postgres row with a TTL, so services
-  stay stateless). `find_sessions` (agent and MCP) lists live tabs with deep links.
-  - A tab that started the boot from its own chat **navigates itself** to the new task.
-  - Other tabs show a "Studio ready, open it" toast.
-  - A per-user "Follow agent" toggle allows auto-navigation for external agents too.
-- [ ] **D7. Mixed drops make one task per data kind.**
-  - A boot over 200 mixed files groups them by detected kind (x-ray images, videos, DICOM series,
-    ECG) and creates one draft task per group, each with its preset.
-  - A task switcher shows them as they become ready.
-  - Multi-kind environments are a later decision.
-- [ ] **D8. Items have a lifecycle and arrive incrementally.**
-  - Lifecycle: `registered` (name, size, hash, sniffed kind) → `uploaded` → `probed` (dimensions,
-    duration, series UIDs, ThumbHash) → `thumb_ready` → `preview_ready` → `ready` | `failed`.
-  - `GET /api/v1/tasks/:id/items?after=<cursor>` plus `item.*` events replace "refetch the task
-    document".
-  - Items appear at `registered` as skeletons sized from the aspect ratio.
-- [ ] **D9. Viewers render progressively and don't remount.** Each viewer starts from the best
-  derivative available and upgrades in place:
-  - images: ThumbHash, then thumbnail, then preview, then full or tiles;
-  - DICOM: HTJ2K stages when served by DICOMweb;
-  - video: poster, then the faststart proxy;
-  - signals: the pyramid.
+`PUT`/`PATCH` on environments and `POST …/boots` are checked **in the API** for every caller,
+including the browser, the agent, a future MCP server and raw HTTP:
 
-  Switching items swaps data inside a live engine; `key={item.id}` goes. Decodes share one priority
-  queue (Interaction > Thumbnail > Prefetch).
-- [ ] **D10. MCP: the same five coarse tools, dev-only person auth for now.**
-  - stdio for Claude Code and Cursor; compatible with spec `2026-07-28` and `2025-11-25`.
-  - `add_files` reads **local paths** and uploads through the import API **as the user**, using a
-    personal dev token from `pnpm mcp login` or dev trust headers.
-  - It is refused when `INKLING_ENV=production` until todo9's OAuth lands. Results carry metadata and
-    links only, never bytes.
+1. **Authorisation.** The principal may write this task. The agent token may only touch draft tasks
+   it created, or tasks a person opened to it. It may never publish.
+2. **Revision.** `revision` (the expected current revision) is required on writes; a stale one gets
+   **409**.
+3. **Mutation scope.** For agent principals, JSON Patch operations are limited to an allowlist of
+   paths: `extends`, `labels`, `layout`, module `config`, `overrides`. Changing `modules` is limited to
+   plugins already installed and pinned in the workspace (todo10 lockfile). Anything that would widen
+   permissions goes through the existing approval path.
+4. **Shape and references.**
+   - The patched document must validate against `schemas/environment.v1.json`.
+   - Every referenced preset, module, renderer, tool and panel must exist in `schemas/catalog.json`
+     or an installed plugin's pinned contributions.
+   - The API does this in Python from the generated schema and catalogue.
+5. **Conformance.** A shared fixture set (`packages/environment-core/fixtures/`) runs against both the
+   TypeScript core and the API. If they disagree, the build fails. If resolve-level rules (`extends`
+   merge, overrides) ever need server enforcement beyond this, add a small Node validation service
+   rather than duplicating the resolver.
+
+### D5 in detail: what counts as creation intent
+
+| Message | Behaviour |
+|---|---|
+| "Can you explain what pneumothorax means?" | Answer. No boot. |
+| "Could we make a chest X-ray Studio?" | The model replies with a **Create X-ray Studio** button (a card). Clicking it is the explicit intent. |
+| "Create a chest X-ray Studio with five classification labels." | The model calls `boot_studio`. The boot starts **when the call starts**, from the preset table; the labels arrive as the refinement patch. |
+| The user clicks **New Studio** or types `/studio chest x-ray` | Explicit; boots immediately from the table, no model turn needed for the first paint. |
+
+The preset table (`registry/presets/intents.json`, data, not code) maps terms and file kinds to a
+preset (x-ray, radiograph, CXR → `preset:image-2d`; CT, MRI → `preset:volume-3d`; ECG, EKG →
+`preset:ecg`; video → `preset:video`; …). A model-based classifier is a later option, measured
+against this table first.
 
 ---
 
-## 3. The experience (what "done" looks like)
+## 3. The experience
 
-**In-app chat:** "boot up an environment for chest x-ray".
+**In-app chat:** "Create a chest X-ray Studio with five classification labels".
 
 | t | User sees | Under the hood |
 |---|---|---|
-| 0.2 s | The message lands; a ledger appears in the thread: "Setting up your Studio", shimmering | `RUN_STARTED`; boot opened with a `bootId` |
-| < 1 s | Ledger row "Chose X-ray template" ticks | D5 classifier picks `preset:image-2d`; `boot.started`; draft task created |
-| < 2 s | The page moves to the new task (view transition); Studio chrome with skeleton viewport, items rail and labels | Tab follows `boot.started` (D6); shell renders from the preset; viewer chunk preloading |
-| 2–10 s | Skeleton items fill with thumbnails; the viewer paints the first image from its preview | `item.*` events; preview derivative; Cornerstone warmed |
-| 5–20 s | Labels panel fills in ("Pneumothorax, Effusion, …"); the ledger ticks "Added labels", "Tuned layout" | Model streams `boot_studio` arguments; each completed field becomes `environment.updated` with a patch |
-| ≤ 60 s | Ledger collapses to "Studio ready · 14 s" with an Undo | `boot.ready`; `RUN_FINISHED`; revision recorded with its author (todo10) |
+| ~0.2 s | The message lands; the thread shows "Thinking…" | Existing run stream |
+| first model tokens | A **boot card** appears: "Setting up your Studio", shimmering | The model calls `boot_studio`; at call start the harness calls `POST …/boots` with the table's preset |
+| + < 2 s | The tab navigates (SPA, view transition) to the draft task; the Studio chrome is there with a skeleton viewport, items rail and labels | `boot.started`; the shell renders from the preset; modules load independently |
+| + 2–10 s | The viewer paints the first item from its preview; thumbnails fill in | Milestone 1 shell; Milestone 3 previews where available |
+| + 5–20 s | Labels appear; the card ticks "Added 5 labels", "Tuned layout" | Refinement patch, validated by the API, arrives as `environment.updated` |
+| ≤ 60 s | The card collapses to "Studio ready · 14 s · Undo · Publish" | `boot.ready`; revision recorded with its author |
 
-**Claude Code:** "find my Inkling session and drop ~/scans/* in".
+If the user isn't on that tab (another tab, or the boot came from elsewhere), the boot card and the
+Studio list show a deep link instead.
 
-1. It calls `find_sessions`, which returns the tab the user has open.
-2. It calls `add_files(projectId, paths)`, which streams `notifications/progress` per file. In the
-   browser, items appear as they register.
-3. It calls `boot_studio({projectId, fromFiles: true})`, which makes one draft task per kind group. The
-   open tab gets "3 Studios ready: X-ray (120), Video (60), ECG (20)" and follows the first one.
-4. Claude Code prints the deep links. Nothing in the tab reloads.
-
-**Ledger design.**
-
-- **Header:** one line, shimmering while active (shadcn `shimmer` utility, `role="status"`,
-  `aria-live="polite"`, no animation under `prefers-reduced-motion`).
-- **Rows:** expandable, fixed height. States: pending, active, done, failed, blocked; elapsed time on
-  the header.
-- **Placement:** the same component appears in the assistant thread and as a compact pill in the
-  Studio top bar while a boot runs.
-- **Stop** keeps what's been built.
-- **Content:** artefacts are named ("Added 7 labels"), not tool ids.
+**Boot card / ledger.**
+- **Header:** one line, shimmering while active (`role="status"`, `aria-live="polite"`, static
+  under `prefers-reduced-motion`).
+- **Rows:** expandable, fixed height, with states pending, active, done and failed.
+- **Content:** artefacts are named, not tool ids.
+- **Stop** keeps what's built.
+- **Sources:** it's fed by project `boot.*` events, so it also works for boots the model didn't
+  start, such as the New Studio button.
 
 ---
 
-## 4. Phases
+## 4. Milestones
 
-### Phase 0: measure (all workstreams depend on it; `todo11-protocol` does it first)
+### Milestone 1: fast Studio shell (`todo11-shell`)
 
-1. `performance.mark` at:
-   - route enter;
-   - environment fetched;
-   - resolved;
-   - shell painted;
-   - first viewport frame;
-   - first item thumbnail.
+The native Studio, opened by hand, should feel instant. Nothing here involves agents.
 
-   Also server-side timings per boot step. Results go into a `boot.metrics` event, and the e2e reads
-   them.
-2. Baseline today's numbers for `image-2d`, `video`, `volume-3d` and `ecg` on seed data; record them in
-   §7.
-3. **Exit:** a script prints the boot timeline for each preset.
+1. **Instrument.**
+   - `performance.mark` at route enter, environment fetched, resolved, shell painted, each module
+     loaded, first viewport frame and first item thumbnail.
+   - A dev overlay plus a script that prints the timeline per preset: `image-2d`, `video`,
+     `volume-3d`, `ecg`, `pathology`.
+   - Record today's numbers in §7 **before** changing anything.
+2. **Remove the boot gate.** `useEnvironment` (`DatasetStudioPage.tsx`) stops waiting on
+   `Promise.all(env.modules.map(registry.preload))`. The shell renders once the environment
+   resolves. Each viewport, panel and inspector suspends on its own module behind a layout-matched
+   skeleton, so one slow or broken module doesn't block the others.
+3. **Load in priority order.** Start the viewer module for the first item first, then visible panels,
+   then the rest. Add `modulepreload` for the preset's viewer chunk on route enter.
+4. **Stop remounting on item switch** for `image2d`. Engines take `setItem` instead of
+   `key={item.id}`. Other engines follow in their Milestone 3 slices.
+5. **Live in-tab apply.** `environment-edits.ts` diffs resolved modules and preloads only new ones,
+   then `setEnv` inside `startTransition`.
+6. **Exit:**
+   - shell painted under 1.5 s warm and under 3 s cold for every preset (local);
+   - first viewport frame for `image-2d` under 3 s cold;
+   - a deliberately broken panel module leaves the viewport working;
+   - item switching in `image2d` keeps one engine instance;
+   - every existing e2e passes, with the same `data-testid`s.
 
-### Phase 1: protocol and events (D3, D4, D6)
+### Milestone 2: server-side boot and live updates (`todo11-boot`, `todo11-live`)
 
-1. `packages/agent-protocol` v2 (AG-UI 1.0 names). The agent's projector emits v2, and `/v1/runs/:id/events?v=2`
-   serves it. The web reducer accepts both.
-2. Project event stream: add `environment.updated`, `boot.*`, `item.*`, `presence.*` (contracts in
-   `packages/contracts`, emitted from the API). The stream close interval stays, and replay stays
-   `Last-Event-ID`.
-3. Presence: a `presence` table with a TTL, `PUT/DELETE /api/v1/presence`, and `GET /api/v1/presence?projectId=`.
-   Add it to the agent route allowlist (read only).
-4. **Exit:**
-   - an environment `PATCH` from curl updates an open Studio tab within 500 ms, with no reload
-     (e2e);
-   - presence lists an open tab within 1 s and drops it within 60 s of closing.
+A user can create a Studio from chat without opening the Studio first.
 
-### Phase 2: boot core (D1, D2, D5)
+**Server (`todo11-boot`):**
 
-1. `packages/environment-core`: resolve plus validate over `schemas/catalog.json` and the environment
-   schema; shared fixtures prove it agrees with today's web resolver. The Vite seed server and
-   `apps/web` use it.
-2. `POST /api/v1/projects/:id/boots` (idempotent on `bootId`):
-   - creates draft task(s);
-   - links files or folders into the task's dataset;
-   - writes the environment from a preset, plus an optional patch;
-   - emits `boot.*`.
-
-   Draft tasks get a `draft` state that only a person can publish. Allow the agent token on the boot
-   routes.
-3. Boot steps as data: `template`, `task`, `data`, `labels`, `layout`, `ready`. Each is a
-   `boot.step` event carrying the artefact it produced.
-4. Speculative classifier in `apps/agent`: keyword rules plus project file kinds, with a fallback to a
-   small fast model (`INKLING_AGENT_FAST_MODEL`). It runs on message receipt and calls the boot route
-   before the main model turn.
-5. **Exit:**
-   - `curl` boot of `image-2d` on seed data reaches `boot.ready` in under 3 s server-side;
-   - environment-core and the web resolver agree on every preset and every e2e fixture.
-
-### Phase 3: agent tools and token diet (D4, D5)
-
-1. Server-side tools in `apps/agent`, shared with MCP through a small `packages/studio-tools` (HTTP
-   client plus schemas):
-   - `find_sessions`;
-   - `boot_studio({projectId, intent?, preset?, patch?, files?|folders?|fromFiles?, bootId})`;
+1. `packages/environment-core`: a pure TypeScript resolver and validator over `schemas/catalog.json`
+   and the environment schema. Used by `apps/web`, the Vite seed server (ending the 501 split brain)
+   and `apps/agent`. It ships the conformance fixtures.
+2. **API enforcement (D2):**
+   - required `revision` on writes, 409 on stale;
+   - the agent mutation-scope allowlist;
+   - schema and reference checks in Python;
+   - the conformance test against the fixtures.
+3. `POST /api/v1/projects/:id/boots {bootId, preset, patch?, files?, folders?, name?}`:
+   - idempotent on `bootId`;
+   - creates a **draft** task, links the given files or folders into its dataset, writes the
+     environment, emits `boot.started`, `boot.step` and `boot.ready|failed`;
+   - draft tasks get a `draft` state with a person-only `publish`;
+   - the agent token is allowed on the boot routes, within D2's scope.
+4. Project events (D3): `environment.updated {taskId, revision, patch?, author}` on every environment
+   write, plus `boot.*`, on the existing stream with replay.
+5. `packages/studio-tools`, the shared tool layer (D10's "now" part): schemas plus an HTTP client for
+   - `boot_studio({projectId, preset?, intent?, patch?, files?, folders?, name?, bootId})`;
    - `patch_studio({taskId, patch, revision})`;
    - `get_studio_state({taskId})`;
-   - `search_catalog({query, detail: "names"|"summary"|"full"})`.
+   - `search_catalog({query, detail})`.
+6. `apps/agent`:
+   - register these as **server** tools (so no open Studio is needed);
+   - the harness calls the boot route as soon as `boot_studio` starts (preset from the call, or from
+     the intent table if absent);
+   - the card tool for "Create X-ray Studio?" offers;
+   - a `boot` profile prompt (explicit intent only, small patches);
+   - replace the injected 30 KB catalogue with a compact preset index plus `search_catalog`;
+   - give the system prompt and tool list a stable order for prompt caching.
 
-   The environment client tools stay for in-tab edits; they are no longer needed to boot.
-2. Partial arguments:
-   - **verify whether pi exposes streamed tool-call arguments.**
-   - If it does: parse incrementally (`partial-json`); each newly completed top-level field of
-     `boot_studio.patch` becomes an `environment.updated` patch, and a module id is preloaded the
-     moment it's complete. Validate only at `TOOL_CALL_END`.
-   - If not: the harness applies the patch in field order after the call, so the visual result is
-     the same, only later.
-3. Token diet:
-   - replace the injected 30 KB catalogue with a compact index (preset ids and one-line
-     descriptions, ≤ 2k tokens) plus `search_catalog`;
-   - put the system prompt and tool list in a stable order for prompt caching;
-   - the model writes a diff against the preset, not a full environment.
-4. `boot` profile prompt: pick a preset, set the task name, add labels for the stated finding, keep
-   the patch small.
+**Client (`todo11-live`):**
+
+7. **Subscribe to project events in the Studio.**
+   - `environment.updated` applies the patch, or refetches when the patch is missing or its
+     revision is out of order. It loads only new modules, inside `startTransition`; the shell
+     regions are wrapped in `<ViewTransition>`.
+   - The environment query loses `staleTime: Infinity` in favour of event-driven updates.
+8. **Navigation (D6).**
+   - The tab whose chat started the boot navigates itself (SPA, view transition) on `boot.started`.
+   - Otherwise, a deep link in the card, in the Studio list ("Draft · Publish") and in a toast.
+9. **Boot card** in the thread and a compact top-bar pill while a boot runs. New test ids:
+   `boot-card`, `boot-step`, `boot-pill`.
+10. **Entry points:** a **New Studio** button and a `/studio <words>` command, both on the same boot
+    route. Handle `run-status` in the agent reducer.
+11. **Exit:**
+    - an e2e with a scripted model: "Create a chest X-ray Studio with five classification labels"
+      typed in the Overview drawer (no Studio open) navigates without a full page load, paints the
+      shell under 2 s after the boot starts, shows the 5 labels and `boot.ready` under 20 s;
+    - an environment `PATCH` via curl updates an open tab within 500 ms, with no reload;
+    - API tests: an agent token can't publish, can't add an uninstalled module, and a stale
+      `revision` gets 409;
+    - conformance fixtures pass on both sides;
+    - "explain pneumothorax" boots nothing;
+    - input tokens per boot are down at least 70% against today, measured from `usage` events.
+
+### Milestone 3: progressive data ingestion (`todo11-ingest`), in slices
+
+Time to first useful interaction matters here. Completing the whole ingest does not gate the Studio.
+
+**Slice A: images (ships first).**
+
+1. Item lifecycle (D8): the worker emits `item.registered|uploaded|probed|thumb_ready|preview_ready|ready|failed`.
+   Derivatives: ThumbHash, a 256 px WebP thumbnail and a ~1600 px preview. The client posts its
+   visible item ids and the worker serves those first.
+2. `GET /api/v1/tasks/:id/items?after=<cursor>` plus `item.*` events replace task-document refetches.
+   The items rail inserts at `registered`:
+   - TanStack Virtual with stable ids;
+   - skeletons sized by aspect ratio;
+   - a "N new" pill when the user isn't at the end.
+3. `image2d` paints the preview, then upgrades to full in place.
+4. **Collections (D7).** When dropped files span kinds, the boot (or the Files drop) groups them into
+   compatible collections (images, DICOM series by Series UID, videos, ECG records), then shows a
+   card: "120 X-rays, 60 videos, 20 ECGs. Create one Studio per group? / Pick which to include /
+   Put compatible ones together". Nothing is created until the user chooses. Default: one draft per
+   group.
 5. **Exit:**
-   - with a scripted model, "boot up an environment for chest x-ray" from the project Overview (no
-     Studio open) ends with a booted draft task and the tab on it, first paint under 2 s and
-     `boot.ready` under 20 s;
-   - with the real model, under 60 s;
-   - input tokens per boot are down at least 70% against Phase 0.
-
-### Phase 4: the live Studio (D3, D6, D9 shell side)
-
-1. **Shell first.** `useEnvironment` no longer waits for every module. The shell renders as soon as
-   the environment resolves. Each viewport and panel suspends on its own module with a
-   layout-matched skeleton.
-2. **Live apply.** On `environment.updated`, diff the resolved modules and preload only new ones,
-   then `setEnv` inside `startTransition` (batched per animation frame). Name the shell regions in
-   `<ViewTransition>` so a preset swap animates. Use `<Activity mode="hidden">` to pre-render
-   predicted panels.
-3. **Follow.** On `boot.started` for a boot this tab started, navigate within the SPA with a view
-   transition. Otherwise show a toast, or follow if "Follow agent" is on. Draft tasks show a
-   "Draft · Publish" chip.
-4. **Ledger component** (`BootLedger`) in the thread and the top-bar pill, fed by `boot.*` and
-   `ACTIVITY_*`. New `data-testid`s: `boot-ledger`, `boot-step`, `boot-pill`. Keep every existing
-   test id.
-5. Handle `run-status` in the agent reducer.
-6. **Exit:**
-   - e2e: a boot started from the Overview drawer shows `boot-ledger`, navigates without a full page
-     load (asserted through `performance.getEntriesByType("navigation")` count), and paints the
-     shell under 2 s;
-   - a preset swap animates and keeps annotations;
-   - Lighthouse-style check: no layout shift over 0.1 during the boot.
-
-### Phase 5: progressive items and viewers (D7, D8, D9)
-
-1. **Item lifecycle.**
-   - The worker emits `item.*` at each stage.
-   - Derivatives:
-     - images: ThumbHash, 256 px WebP, ~1600 px preview;
-     - video: poster, faststart H.264 proxy (GOP ≤ 0.5 s) and sprite strip with a VTT index;
-     - signals: min/max pyramid;
-     - DICOM: series grouping by UID, rendered thumbnail.
-   - Priority: the client posts its visible item ids (debounced) and the worker serves those first.
-2. **Incremental items.** `GET /api/v1/tasks/:id/items?after=` replaces document refetches. The items
-   rail inserts at `registered` (TanStack Virtual, stable ids, skeletons sized by aspect ratio, a
-   "N new" pill when the user isn't at the end).
-3. **Mixed drops (D7).** The boot groups files by kind (DICOM series by Series UID, WFDB by record
-   name) and creates one draft task per group. The task switcher shows readiness counts.
-4. **Viewers.**
-   - image2d: preview first, then full; Cornerstone `imageLoadPoolManager` priorities; HTJ2K staged
-     retrieval when the source is DICOMweb.
-   - Video: poster, then proxy, with Mediabunny for frame-accurate seeking.
-   - ECG: pyramid level per zoom.
-   - Remove `key={item.id}` remounts; engines take `setItem`.
-5. **Exit:**
-   - e2e drops 200 mixed fixtures (synthetic): the first skeleton within 300 ms of `registered`, the
-     first thumbnail within 3 s, every item `ready` within the budget in §7;
+   - an e2e drops 200 synthetic images: the first skeleton within 300 ms of `registered`, the first
+     thumbnail painted within 500 ms of `thumb_ready`, the first item viewable before the batch
+     finishes;
    - zero full page loads;
-   - the viewer engine instance count stays at 1 while switching 20 items;
-   - memory stays flat (within 20% after 200 switches).
+   - one engine instance across 20 switches;
+   - background completion time recorded, not gated.
 
-### Phase 6: MCP for Claude Code and Cursor (D10)
+**Slice B: DICOM.** Series grouping, rendered thumbnails, Cornerstone3D staged HTJ2K retrieval when
+served by DICOMweb (Google's Healthcare API in `spurby-phi`), an image load pool with priorities
+(Interaction > Thumbnail > Prefetch), and no remount in the MPR viewer. Its own exit tests.
 
-1. **Rebuild `apps/mcp` on `packages/studio-tools`.** Tools: `find_sessions`, `boot_studio`,
-   `patch_studio`, `get_studio_state`, `search_catalog`, `add_files`, `open_in_browser`.
-   - Every tool has `outputSchema` plus `structuredContent`, and returns `resource_link`s for
-     `catalog.md` and `environment.v1.json` rather than inlining them.
-   - The tool list is stable and ordered.
-   - It talks to the API (no more Vite-only paths) with environment-core for validation.
-2. **`add_files(projectId, paths[], bootId?)`.**
-   - Recurse folders and hash with BLAKE3.
-   - Upload through the import API as the user, with resumable chunks.
-   - Send `notifications/progress` per file when the client gave a `progressToken`.
-   - Use the Tasks extension when the client supports it.
-   - It returns counts and item ids, never bytes.
-3. **Auth.**
-   - `pnpm mcp login` mints a personal dev token (a person principal, scoped to a workspace, expiring
-     in 12 h), stored under `~/.config/<NAMING>/mcp.json`.
-   - The server refuses to start with `INKLING_ENV=production`.
-   - The agent-token allowlist is unchanged.
-4. **Client setup.**
-   - A documented `claude mcp add …` line.
-   - A `.cursor/mcp.json.example`.
-   - `docs/running.md` section "Drive the Studio from Claude Code or Cursor".
-5. **MCP Apps card.** `ui://studio/boot` renders the ledger from `tool-input-partial` and boot events
-   in Claude Desktop and ChatGPT, with a link to open the real Studio. Claude Code and Cursor get the
-   deep link and the open tab does the rest.
-6. **Exit:**
-   - an MCP stdio client (scripted, `tests/e2e/`) runs find, add 200 files, boot, and the open
-     browser tab fills in progressively and follows the first Studio, with no reload;
-   - all of it under 60 s on synthetic fixtures;
-   - no tool result contains file bytes (asserted).
+**Slice C: video.** Poster plus ThumbHash, a faststart H.264 proxy (GOP ≤ 0.5 s), sprite strips with
+a VTT index, Mediabunny for frame-accurate seeking, and no remount. Its own exit tests.
+
+**Slice D: signals.** Min/max pyramids, a zoom-level picker, and uPlot or WebGL by density. Its own
+exit tests.
+
+### Milestone 4: external agents (later; outline only)
+
+Start when native boot (Milestone 2) is in daily use. Build only what real usage asks for:
+
+- `apps/mcp` on `packages/studio-tools` (the same tools), aimed at spec `2026-07-28`, with
+  `notifications/progress` and `resource_link` results;
+- `add_files` from local paths, acting as the user with a personal dev token, refused in production
+  until todo9's sign-in lands;
+- session discovery (`find_sessions`) and general tab presence, if deep links prove insufficient;
+- an MCP Apps boot card for Claude Desktop and ChatGPT;
+- an AG-UI adapter for the run stream, if an integration needs it.
+
+Write a todo12 for this when it starts.
 
 ---
 
-## 5. What we will not do (now)
+## 5. Not now
 
-- **Make MCP our live channel.** MCP is stateless and has no resumability; the browser plus our SSE is
-  the live surface.
-- **Multi-kind environments.** D7 uses one task per kind instead.
-- **WebSockets or WebTransport.** SSE suffices; WebTransport adds UDP and Safari risk.
-- **A Python port of the resolver** (D2).
-- **Rely on progressive JPEG XL or AVIF decode.** Derivatives are the portable path.
-- **Production MCP over HTTP with OAuth.** That stays in todo9.
-- **Let the agent publish tasks or widen permissions** (todo10 rule).
+- **AG-UI migration of the run protocol** (D4: an adapter later, if needed).
+- **A model-based intent classifier in the critical path** (D5).
+- **Tab presence infrastructure** (D6).
+- **Automatically creating multiple tasks from a mixed drop without asking** (D7).
+- **DICOM, video and signal optimisation as launch dependencies** (D9: separate slices).
+- **The MCP server, external upload, MCP Apps** (D10: Milestone 4).
+- **Client-side validation as a security boundary** (D2).
+- **Multi-kind environments; WebSockets or WebTransport; relying on progressive JPEG XL or AVIF
+  decode; letting the agent publish tasks or widen permissions.**
 
 ---
 
 ## 6. Workstreams
 
-| Branch | Phases | Owns | Must not touch |
+| Branch | Milestone | Owns | Must not touch |
 |---|---|---|---|
-| `todo11-protocol` | 0, 1 | `packages/agent-protocol` v2, the agent projector and run SSE (`apps/agent/src/runtime/events.ts`, `http/events.ts`), project event types and emitters in `apps/api` (`kernel/events.py`, `routes/projects.py` stream), presence (table, routes), boot timing marks | agent tools, `apps/mcp`, Studio components beyond the reducer, worker |
-| `todo11-boot` | 2, 3 | `packages/environment-core`, `packages/studio-tools`, `POST …/boots` and draft tasks in `apps/api`, the classifier, server tools and `boot` profile in `apps/agent`, the compact catalogue, the Vite seed server switch | run SSE format, Studio shell, worker derivatives, MCP server |
-| `todo11-studio` | 4 | `apps/web/src/studio/**` shell (boot gate, live apply, follow, `BootLedger`, top-bar pill, view transitions), `useEnvironment`, `environment-edits.ts`, the agent thread UI | protocol package internals, API, plugins' viewer engines, items rail internals |
-| `todo11-ingest` | 5 | worker derivative jobs and `item.*` emission, `GET …/items?after=`, the visible-items priority route, the items rail (virtual list), viewer engines in `plugins/*/ui` and `packages/renderers` (progressive load, no remount) | Studio shell, boot route, MCP |
-| `todo11-mcp` | 6 | `apps/mcp` (tools, auth, Apps card), `pnpm mcp login`, client config examples, the `docs/running.md` section | `packages/studio-tools` internals (consume them; ask `todo11-boot` for changes), Studio |
+| `todo11-shell` | 1 | boot instrumentation, `useEnvironment` / `DatasetStudioPage.tsx` boot gate, per-panel Suspense and skeletons, module priority, `environment-edits.ts` diffed preload, `image2d` engine `setItem` | API, agent, worker, other plugins' engines |
+| `todo11-boot` | 2 (server) | `packages/environment-core` (+ fixtures), API enforcement and the conformance test, `POST …/boots`, draft tasks and publish, `environment.updated` / `boot.*` emission, `packages/studio-tools`, agent server tools, intent table, `boot` profile, compact catalogue, Vite seed server switch | `apps/web/src/studio/**` (beyond consuming environment-core), worker, `apps/mcp` |
+| `todo11-live` | 2 (client) | Studio subscription to project events, live apply with view transitions, self-navigation and deep links, boot card and pill, New Studio button and `/studio`, `run-status` in the reducer | API internals, agent tools, viewer engines |
+| `todo11-ingest` | 3 | worker derivatives and `item.*`, `GET …/items?after=`, visible-items priority, the items rail, collections card, viewer engines per slice | Studio shell boot path, boot route internals |
 
-**Contracts between workstreams** (names are fixed; change them only through the integrator):
+Milestone 1 runs alone first. `todo11-boot` and `todo11-live` run in parallel once Milestone 1 merges
+(`todo11-live` can begin against the event contract immediately). `todo11-ingest` starts with Slice A
+after Milestone 2's events land.
 
-- **Project events.**
-  - `environment.updated {taskId, revision, patch?: Operation[], author}`;
-  - `boot.started {bootId, taskIds[], preset}`;
-  - `boot.step {bootId, step, state, label, artefact?}`;
-  - `boot.ready {bootId, taskIds[], ms}`;
-  - `boot.failed {bootId, step, message}`;
-  - `item.registered|uploaded|probed|thumb_ready|preview_ready|ready|failed {taskId?, itemId, nodeId, kind, meta?}`;
-  - `presence.changed {projectId}`.
-- **Boot route:** `POST /api/v1/projects/:id/boots {bootId, intent?, preset?, patch?, files?, folders?, fromFiles?}`
-  returns `202 {bootId, taskIds}`.
-- **`packages/studio-tools`** exports the five tool schemas and an HTTP client. `apps/agent` and
-  `apps/mcp` both import it, plus `add_files` and `open_in_browser`, which only MCP uses.
-- **Agent run stream v2:** AG-UI 1.0 event names; `CUSTOM` names `approval`, `client-tool`,
-  `sandbox`, `artifact`.
+**Contracts** (names fixed; change only through the integrator):
 
-**Rules:** as in todo10 §11:
+- `environment.updated {taskId, revision, patch?: Operation[], author}`.
+- `boot.started {bootId, taskIds[], preset, initiator: {kind: "person"|"agent", runId?}}`, used by
+  the initiating tab to self-navigate (matched by `runId`).
+- `boot.step {bootId, step, state, label, artefact?}`.
+- `boot.ready {bootId, taskIds[], ms}`.
+- `boot.failed {bootId, step, message}`.
+- `item.registered|uploaded|probed|thumb_ready|preview_ready|ready|failed {taskId?, itemId, nodeId, kind, meta?}`.
+- `POST /api/v1/projects/:id/boots {bootId, preset, patch?, files?, folders?, name?}` returns
+  `202 {bootId, taskIds}`; 403 outside the agent scope, 409 on stale revision, 422 on validation
+  errors (same error shape as environment `PATCH`).
+- `packages/studio-tools` exports the four tool schemas and the HTTP client.
 
-- branch slugs in Alembic filenames;
-- never merge; never edit this file;
+**Rules** (as todo10 §11):
+- branch slug in Alembic filenames;
+- never merge, never edit this file;
 - no Spurby renames (use `NAMING`);
 - synthetic fixtures only;
 - the `AGENTS.md` checks plus your exit tests before handing back.
 
-**Merge order:** `todo11-protocol` → `todo11-boot` → `todo11-studio` → `todo11-ingest` →
-`todo11-mcp`. After each merge, run the full checks and the boot timeline script (Phase 0) on
-`main`.
+**Merge order:** `todo11-shell` → `todo11-boot` → `todo11-live` → `todo11-ingest` (slice by slice).
+After each merge, run the full checks and the boot timeline script.
 
 ---
 
 ## 7. Budgets
 
-| Moment | Budget | Measured by |
-|---|---|---|
-| Message to ledger visible | < 300 ms | `RUN_STARTED` to `boot-ledger` paint |
-| Message to shell painted on the new task | < 2 s | `performance.mark` "shell painted" |
-| Shell to first viewport frame (seed image) | < 3 s | "first viewport frame" |
-| `boot.ready` (scripted model) | < 20 s | `boot.metrics` |
-| `boot.ready` (real model) | < 60 s | `boot.metrics` |
-| `registered` to item skeleton | < 300 ms | e2e |
-| `thumb_ready` to thumbnail painted | < 500 ms | e2e |
-| 200 mixed synthetic files all `ready` (local) | < 60 s | e2e |
-| Input tokens per in-app boot | −70% against Phase 0 | `usage` events |
+Two kinds, kept separate.
 
-Phase 0 fills in today's numbers here: TBD.
+**Time to first useful interaction** (product budgets, gated in e2e):
+
+| Moment | Target | Today |
+|---|---|---|
+| Studio route to shell painted (warm / cold) | < 1.5 s / < 3 s | TBD (Milestone 1 step 1) |
+| Route to first viewport frame, `image-2d` cold | < 3 s | ~20–45 s implied by e2e waits; to measure |
+| Explicit request to boot card visible | < 300 ms after the `boot_studio` call starts | n/a |
+| Boot start to shell painted on the draft | < 2 s | n/a |
+| Explicit request to usable preset (scripted model) | < 20 s | n/a |
+| Agent setup complete (real model) | < 60 s | n/a |
+| Item `registered` to skeleton; `thumb_ready` to thumbnail | < 300 ms; < 500 ms | n/a |
+| First item viewable while a batch is still uploading | yes | no |
+
+**Background ingest** (tracked, reported, **not** gates):
+
+- bytes per second end to end;
+- per-format time from `uploaded` to `ready`;
+- worker queue depth;
+- time to all `ready` for the 200-file fixture.
+
+These depend on total bytes, bandwidth, formats, decode cost and workers, so a slow 200-file batch
+never blocks declaring the Studio usable.
+
+**Tokens:** input tokens per in-app boot down at least 70% against today (`usage` events).
 
 ---
 

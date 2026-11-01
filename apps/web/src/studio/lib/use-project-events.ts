@@ -46,6 +46,13 @@ export const FORWARDED = [
   "dataset.candidate.created",
   "review.requested",
   "review.approved",
+  // todo13: drops (core/drops follows them on its cards).
+  "drop.received",
+  "drop.file",
+  "drop.classified",
+  "drop.planned",
+  "drop.applied",
+  "drop.failed",
 ];
 
 /**

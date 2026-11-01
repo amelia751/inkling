@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ImportSession, ImportState, SeedAsset, UploadFileState } from "@studio/contracts/types";
+import type { DropOrigin } from "@studio/contracts/drops";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
@@ -31,6 +32,8 @@ export interface TraySession {
   key: string;
   projectId: string;
   importId?: string;
+  /** todo13: the drop this upload belongs to. */
+  dropId?: string;
   title: string;
   phase: TrayPhase;
   total: number;
@@ -60,7 +63,20 @@ interface UploadsState {
    * (a drop into a Studio, todo11 D8) its images become the task's items at once: the server
    * answers with them and `onRegistered` gets them before any byte is sent.
    */
-  add: (projectId: string, picked: Picked, opts?: { targetNodeId?: string; taskId?: string; onRegistered?: (items: SeedAsset[]) => void; onChanged?: (projectId: string) => void }) => Promise<TraySession | undefined>;
+  add: (
+    projectId: string,
+    picked: Picked,
+    opts?: {
+      targetNodeId?: string;
+      taskId?: string;
+      onRegistered?: (items: SeedAsset[]) => void;
+      onChanged?: (projectId: string) => void;
+      /** todo13: the drop this upload belongs to (`core/drops`); the kernel groups its sessions. */
+      drop?: { dropId: string; origin: DropOrigin };
+      /** The tray entry's key, as soon as it exists (a drop card follows its progress). */
+      onStarted?: (key: string) => void;
+    },
+  ) => Promise<TraySession | undefined>;
   retry: (key: string) => Promise<void>;
   cancel: (key: string) => Promise<void>;
   dismiss: (key: string) => void;
@@ -175,9 +191,10 @@ export const useUploads = create<UploadsState>((set, get) => {
       const key = `upload-${++seq}`;
       const top = new Set(picked.files.map((f) => f.relPath.split("/")[0]));
       const title = top.size === 1 && picked.files[0].relPath.includes("/") ? [...top][0] : `${picked.files.length} ${picked.files.length === 1 ? "file" : "files"}`;
-      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [] };
+      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [], dropId: opts.drop?.dropId };
       set((st) => ({ sessions: [entry, ...st.sessions], collapsed: false }));
       if (opts.onChanged) listeners.set(key, opts.onChanged);
+      opts.onStarted?.(key);
       if (!(await attest(projectId, picked.files.length))) {
         patch(key, { phase: "cancelled", error: "Nothing was uploaded" });
         return session(key);
@@ -189,7 +206,7 @@ export const useUploads = create<UploadsState>((set, get) => {
         const shas = await hashFiles(picked.files.map((f) => f.file), (n) => patch(key, { prepared: n }), ctrl.signal);
         const files = picked.files.map((f, i) => ({ clientFileId: `f${i}`, relPath: f.relPath, size: f.file.size, sha256: shas[i] }));
         blobs.set(key, new Map(picked.files.map((f, i) => [`f${i}`, f.file])));
-        const server = await api<ImportSession & { items?: SeedAsset[] }>(`/projects/${encodeURIComponent(projectId)}/imports`, { method: "POST", json: { attested: true, files, ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}), ...(opts.taskId ? { taskId: opts.taskId } : {}) } });
+        const server = await api<ImportSession & { items?: SeedAsset[] }>(`/projects/${encodeURIComponent(projectId)}/imports`, { method: "POST", json: { attested: true, files, ...(opts.targetNodeId ? { targetNodeId: opts.targetNodeId } : {}), ...(opts.taskId ? { taskId: opts.taskId } : {}), ...(opts.drop ? { origin: { ...opts.drop.origin, dropId: opts.drop.dropId } } : {}) } });
         if (server.items) opts.onRegistered?.(server.items);
         patch(key, { importId: server.id });
         absorb(key, server);

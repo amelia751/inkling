@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
+import { AiIcon, AttachIcon, ChevronLeftIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +25,9 @@ import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import type { StudioCardContext } from "./cards";
+import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, whenRegistered } from "@/studio/core/drops";
+import { useProjectSummary } from "@/studio/lib/projects-api";
+import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
 
 /**
  * The assistant (docs/ux.md §9), shared by its two hosts (todo6 Phase 6): the Studio's right
@@ -67,6 +70,17 @@ export interface AssistantPanelProps {
   empty: (profile: ProfileName) => { title: string; body: ReactNode; prompts: Prompt[] };
   /** Called with the snapshot to send when the chip is removed (the Studio: name only). */
   bareSnapshot?: () => ReturnType<NonNullable<AgentContextProvider["snapshot"]>>;
+  /** The Studio's task: images dropped in its chat become its items as they arrive (todo11 D8). */
+  taskId?: string;
+}
+
+/** todo13: what the composer may do with files here. */
+interface Attach {
+  /** Chat drops are on (`API_FEATURE_CHAT_DROPS`). */
+  on: boolean;
+  /** Contributors and above (D14); viewers see attach disabled with a hint. */
+  allowed: boolean;
+  onFiles: (files: Picked | File[]) => void;
 }
 
 export function AssistantPanel(props: AssistantPanelProps) {
@@ -82,13 +96,21 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const ready = !!status.data?.configured && consent;
   const profiles = PROFILES.filter((p) => status.data?.profiles.includes(p.id) ?? p.id !== "coder");
   const [scrolled, setScrolled] = useState(false);
+  const [view, setView] = useState<"chat" | "files">("chat");
+  const dropsOn = useChatDropsEnabled(project.id).data === true;
+  const canEdit = useProjectSummary(project.id).data?.role !== "viewer";
+  const conversationId = useAgent((s) => s.conversations[project.id]?.id);
   const first = thread.find((m) => m.role === "user")?.parts.find((p) => p.type === "text");
-  const title = ready ? (first?.type === "text" ? first.text : "New chat") : `${NAMING.displayName} AI`;
+  const title = view === "files" ? "Shared files" : ready ? (first?.type === "text" ? first.text : "New chat") : `${NAMING.displayName} AI`;
 
   return (
     <aside className="flex h-full min-w-0 flex-col bg-float" aria-label={`${NAMING.displayName} AI`}>
       <header className={cn("flex shrink-0 items-center gap-2 border-b pt-3 pr-3 pb-2 pl-4", scrolled && ready && thread.length > 0 ? "border-border" : "border-transparent")}>
-        <AiIcon className="size-4 shrink-0 text-ai-text" />
+        {view === "files" ? (
+          <Button variant="ghost-secondary" size="icon-sm" className="-ml-1 text-hint" onClick={() => setView("chat")} aria-label="Back to the chat" data-testid="agent-back-to-chat"><ChevronLeftIcon /></Button>
+        ) : (
+          <AiIcon className="size-4 shrink-0 text-ai-text" />
+        )}
         <h2 className="sr-only">{NAMING.displayName} AI</h2>
         <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1 text-hint">
@@ -119,6 +141,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
                   ))}
                 </DropdownMenuRadioGroup>
                 <DropdownMenuSeparator />
+                {dropsOn && (
+                  <DropdownMenuItem onSelect={() => setView(view === "files" ? "chat" : "files")} data-testid="agent-shared-files">
+                    {view === "files" ? "Back to the chat" : "Shared files"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem disabled={!thread.length} onSelect={() => reset(project.id)}>Clear conversation</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => setConsent(false)}>Stop sharing with {status.data?.provider ?? "the model"}</DropdownMenuItem>
               </DropdownMenuContent>
@@ -134,8 +161,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
         <NotConfigured status={status.data} studio={!!props.studio} />
       ) : !consent ? (
         <Consent provider={status.data.provider} model={status.data.model ?? ""} project={project} studio={!!props.studio} onAccept={() => setConsent(true)} />
+      ) : view === "files" ? (
+        <SharedFiles projectId={project.id} conversationId={conversationId} canEdit={canEdit} />
       ) : (
-        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} />
+        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} canEdit={canEdit} />
       )}
     </aside>
   );
@@ -154,7 +183,10 @@ function Conversation({
   running,
   busy,
   onScrolled,
-}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void }) {
+  taskId,
+  dropsOn,
+  canEdit,
+}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; canEdit: boolean }) {
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
@@ -170,25 +202,41 @@ function Conversation({
     return () => useAgent.getState().setHost(null);
   }, [project.id]);
 
-  const ask = (text: string) => {
+  // todo13: files dropped, pasted or attached before send join one pending drop; the message carries it.
+  const [pending, setPending] = useState<{ dropId: string; messageId: string } | undefined>();
+  const [dragging, setDragging] = useState(false);
+  const addFiles = (files: Picked | File[]) => {
+    if (!dropsOn || !canEdit) return;
+    const conv = useAgent.getState().conversation(project.id);
+    const messageId = pending?.messageId ?? crypto.randomUUID();
+    const dropId = startDrop({ projectId: project.id, origin: "chat", files, conversationId: conv.id, conversationTitle: conv.title, messageId, taskId, dropId: pending?.dropId });
+    setPending({ dropId, messageId });
+  };
+  const attach: Attach = { on: dropsOn, allowed: canEdit, onFiles: addFiles };
+
+  const ask = (text: string, drop?: { dropId: string; messageId: string }) => {
     const t = text.trim();
-    if (!t || busy) return;
+    const withDrop = drop ?? pending;
+    if ((!t && !withDrop) || busy) return;
     pinned.current = true;
     // `/studio <words>` boots from the preset table in the browser; no model turn (todo11 D5).
-    if (STUDIO_COMMAND.test(t)) return runStudioCommand(project.id, t);
+    if (!withDrop && STUDIO_COMMAND.test(t)) return runStudioCommand(project.id, t);
     const shared = !dismissed;
+    if (!drop) setPending(undefined);
     void send(project.id, t, {
       ...sessionTools(profile),
       restricted: project.restricted,
       snapshot: shared ? provider.snapshot?.() : bareSnapshot?.(),
       context: shared ? provider.turnContext() : `Project: ${project.title} (${project.id})\nThe user removed the section context: nothing about their current selection is shared.`,
+      ...(withDrop ? { drop: { dropId: withDrop.dropId }, messageId: drop ? undefined : withDrop.messageId, beforeSend: () => whenRegistered(withDrop.dropId) } : {}),
     });
   };
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
     useAgent.setState((s) => ({ threads: { ...s.threads, [project.id]: thread.slice(0, thread.lastIndexOf(lastUser)) } }));
-    ask(lastUser.parts.map((p) => (p.type === "text" ? p.text : "")).join(""));
+    const drop = lastUser.parts.find((p) => p.type === "drop");
+    ask(lastUser.parts.map((p) => (p.type === "text" ? p.text : "")).join(""), drop ? { dropId: drop.id, messageId: crypto.randomUUID() } : undefined);
   };
 
   // Follow the stream unless the expert scrolled up to read.
@@ -199,7 +247,30 @@ function Conversation({
 
   const e = empty(profile);
   return (
-    <>
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDragOver={(ev) => {
+        if (!attach.on || !hasFiles(ev.dataTransfer)) return;
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = attach.allowed ? "copy" : "none";
+        setDragging(true);
+      }}
+      onDragLeave={(ev) => {
+        if (!ev.currentTarget.contains(ev.relatedTarget as Node | null)) setDragging(false);
+      }}
+      onDrop={(ev) => {
+        if (!attach.on || !hasFiles(ev.dataTransfer)) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        setDragging(false);
+        if (attach.allowed) void fromDataTransfer(ev.dataTransfer).then((picked) => picked.files.length && addFiles(picked));
+      }}
+    >
+      {dragging && (
+        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-brand bg-float/90 text-center" data-testid="agent-drop-overlay">
+          <p className="max-w-60 text-body-2">{attach.allowed ? "Drop files to share them in this chat" : "Ask a contributor to add files"}</p>
+        </div>
+      )}
       <div
         ref={scroller}
         onScroll={(ev) => {
@@ -211,12 +282,12 @@ function Conversation({
         data-testid="agent-log"
       >
         {thread.length === 0 ? (
-          <EmptyState title={e.title} body={e.body} prompts={e.prompts} onAsk={ask} />
+          <EmptyState title={e.title} body={e.body} prompts={e.prompts} onAsk={(t) => ask(t)} drops={attach.on && attach.allowed} />
         ) : (
           <div className="flex min-h-full flex-col justify-end gap-6 px-4 pt-2 pb-2">
             {thread.map((m, i) =>
               m.role === "user" ? (
-                <UserMessage key={m.id} message={m} />
+                <UserMessage key={m.id} message={m} projectId={project.id} canEdit={canEdit} />
               ) : (
                 <AssistantMessage
                   key={m.id}
@@ -233,20 +304,36 @@ function Conversation({
           </div>
         )}
       </div>
-      <Composer project={project} provider={provider} placeholder={placeholder(profile)} running={running} busy={busy} onSend={ask} studio={!!studio} fresh={thread.length === 0} />
-    </>
+      <Composer
+        project={project}
+        provider={provider}
+        placeholder={placeholder(profile)}
+        running={running}
+        busy={busy}
+        onSend={(t) => ask(t)}
+        studio={!!studio}
+        fresh={thread.length === 0}
+        attach={attach}
+        pending={pending?.dropId}
+        onCancelDrop={() => {
+          if (pending) void cancelDrop(pending.dropId);
+          setPending(undefined);
+        }}
+      />
+    </div>
   );
 }
 
-function EmptyState({ title, body, prompts, onAsk }: { title: string; body: ReactNode; prompts: Prompt[]; onAsk: (t: string) => void }) {
+function EmptyState({ title, body, prompts, onAsk, drops }: { title: string; body: ReactNode; prompts: Prompt[]; onAsk: (t: string) => void; drops?: boolean }) {
   return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center">
+    <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center" data-testid="agent-empty">
       <div className="flex flex-col items-center">
         <span className="echo-star mb-3 flex size-12 items-center justify-center text-ai-text" aria-hidden>
           <AiIcon className="size-8" />
         </span>
         <h3 className="text-body-3 font-semibold">{title}</h3>
         <p className="mt-1.5 max-w-80 text-muted-foreground">{body}</p>
+        {drops && <p className="mt-1.5 max-w-80 text-hint">Drop files, paste a screenshot, or tell me what you're making.</p>}
       </div>
       <ul className="flex w-full max-w-82 flex-col gap-3">
         {prompts.map(({ icon: I, text }) => (
@@ -265,9 +352,35 @@ function EmptyState({ title, body, prompts, onAsk }: { title: string; body: Reac
   );
 }
 
-function Composer({ project, provider, placeholder, running, busy, onSend, studio, fresh }: { project: AssistantProject; provider: AgentContextProvider; placeholder: string; running: boolean; busy: boolean; onSend: (t: string) => void; studio: boolean; fresh: boolean }) {
+function Composer({
+  project,
+  provider,
+  placeholder,
+  running,
+  busy,
+  onSend,
+  studio,
+  fresh,
+  attach,
+  pending,
+  onCancelDrop,
+}: {
+  project: AssistantProject;
+  provider: AgentContextProvider;
+  placeholder: string;
+  running: boolean;
+  busy: boolean;
+  onSend: (t: string) => void;
+  studio: boolean;
+  fresh: boolean;
+  attach: Attach;
+  pending?: string;
+  onCancelDrop: () => void;
+}) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const canSend = !!text.trim() || !!pending;
   const stop = useAgent((s) => s.stop);
 
   useEffect(() => {
@@ -285,7 +398,7 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
 
   // While a run is active, a message steers it (the service queues it after the current step).
   const submit = () => {
-    if (!text.trim() || busy) return;
+    if (!canSend || busy) return;
     onSend(text);
     setText("");
   };
@@ -299,6 +412,11 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
         )}
         onClick={(e) => e.target === e.currentTarget && area.current?.focus()}
       >
+        {pending && (
+          <div className="mb-2">
+            <DropCard dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />
+          </div>
+        )}
         <textarea
           ref={area}
           value={text}
@@ -310,17 +428,58 @@ function Composer({ project, provider, placeholder, running, busy, onSend, studi
             }
             if (e.key === "Escape" && running) stop();
           }}
+          onPaste={(e) => {
+            // A pasted screenshot (or copied files) becomes a drop, like an attached file.
+            const files = e.clipboardData?.files;
+            if (!attach.on || !files?.length) return;
+            e.preventDefault();
+            if (attach.allowed) attach.onFiles(pastedFiles(files));
+          }}
           rows={2}
           placeholder={running ? "Add to the current request…" : placeholder}
           aria-label={`Message ${NAMING.displayName} AI`}
           className="block max-h-55 min-h-11 w-full flex-1 resize-none bg-transparent text-chat outline-none placeholder:text-hint focus-visible:outline-none"
         />
         <div className="mt-2 flex items-end gap-2">
+          {attach.on && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span tabIndex={attach.allowed ? -1 : 0} className="inline-flex">
+                    <Button
+                      variant="ghost-secondary"
+                      size="icon-lg"
+                      className="text-hint disabled:opacity-50"
+                      onClick={() => picker.current?.click()}
+                      disabled={!attach.allowed}
+                      aria-label={attach.allowed ? "Attach files" : "Ask a contributor to add files"}
+                      title={attach.allowed ? undefined : "Ask a contributor to add files"}
+                      data-testid="agent-attach"
+                    >
+                      <AttachIcon />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{attach.allowed ? "Attach files" : "Ask a contributor to add files"}</TooltipContent>
+              </Tooltip>
+              <input
+                ref={picker}
+                type="file"
+                multiple
+                hidden
+                data-testid="agent-attach-input"
+                onChange={(e) => {
+                  if (e.target.files?.length) attach.onFiles(fromFileList(e.target.files));
+                  e.target.value = "";
+                }}
+              />
+            </>
+          )}
           <ContextIndicator provider={provider} />
-          {running && !text.trim() ? (
+          {running && !canSend ? (
             <Button variant="secondary" size="icon-lg" className="ml-auto" onClick={stop} aria-label="Stop generating"><StopIcon /></Button>
           ) : (
-            <Button variant={text.trim() ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={submit} disabled={!text.trim() || busy} aria-label="Send"><SubmitIcon /></Button>
+            <Button variant={canSend ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={submit} disabled={!canSend || busy} aria-label="Send"><SubmitIcon /></Button>
           )}
         </div>
       </div>

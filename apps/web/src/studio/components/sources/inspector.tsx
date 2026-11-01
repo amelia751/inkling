@@ -358,8 +358,17 @@ function Provenance({ projectId, detail }: { projectId: string; detail: SourceNo
   const p = detail.provenance;
   return (
     <Section title="Provenance" testid="inspector-provenance">
+      {p.drop && (
+        // todo13 D4: files shared in a conversation say so, like Messenger's shared files.
+        <p className="mb-2 text-muted-foreground" data-testid="inspector-shared-in-chat">
+          Shared in chat · {p.drop.conversationTitle ?? "a conversation"}
+          {p.drop.conversationDeleted ? " (deleted chat)" : ""}
+          {p.drop.sharedAt ? ` · ${shortDate(p.drop.sharedAt)}` : ""}
+          {p.drop.removedFromChat ? " · removed from the chat" : ""}
+        </p>
+      )}
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-        {p.sourceTitle && (
+        {p.sourceTitle && !p.drop && (
           <>
             <dt className="text-muted-foreground">Source</dt>
             <dd className="truncate">{p.sourceTitle}</dd>

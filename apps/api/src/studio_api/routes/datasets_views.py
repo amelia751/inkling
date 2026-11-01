@@ -16,9 +16,11 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import datasets_views, projects
+from ..kernel import datasets_views, features, projects
 
-router = APIRouter(prefix="/api/v1")
+# Behind API_FEATURE_DATASETS_TAB (todo13 §7.1): off, both reads answer 404 and the landing
+# falls back to per-dataset profiles.
+router = APIRouter(prefix="/api/v1", dependencies=[Depends(features.require("datasets_tab"))])
 
 
 @router.get("/projects/{project_id}/dataset-summaries")

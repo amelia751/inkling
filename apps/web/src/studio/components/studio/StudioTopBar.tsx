@@ -1,5 +1,8 @@
 import { Link, useParams } from "react-router";
-import { ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon, SettingsIcon, LightThemeIcon } from "@studio/ui/icons";
+import { ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon, SettingsIcon, LightThemeIcon, SecurityIcon, DoneIcon } from "@studio/ui/icons";
+import { toast } from "sonner";
+import { kernelEnabled } from "@/extension-host/kernel";
+import { markKnownGood } from "@/studio/lib/safe-mode";
 import { TaskSwitcher } from "@/studio/components/layout/switchers";
 import { useCurrentProject } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
@@ -192,6 +195,18 @@ function MoreMenu({ projectId, taskId, datasetId, exportInMenu, onShowShortcuts 
             </DropdownMenuRadioGroup>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        <DropdownMenuSeparator />
+        {/* todo10 §3.4: the known-good baseline safe mode and rollback return to. */}
+        {kernelEnabled() && (
+          <DropdownMenuItem onSelect={() => void markKnownGood(taskId).then((r) => toast(r.moved ? "This setup is now the last known good one" : (r.reason ?? "Unchanged"))).catch((e) => toast(`Couldn't mark it: ${e instanceof Error ? e.message : String(e)}`))} data-testid="menu-known-good">
+            <DoneIcon /> Mark setup as known good
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem asChild>
+          <a href={`${window.location.pathname}?safe`} data-testid="menu-safe-mode">
+            <SecurityIcon /> Restart in safe mode
+          </a>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to={projectUrl(projectId, "review")} data-testid="menu-project-review">

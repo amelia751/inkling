@@ -63,7 +63,11 @@ routes in `spurby-phi`, enforced by the agent's token scope in `apps/api`:
   `GET /plugins/{id}/files` (plugin package bytes and hashes), `POST
   /workspaces/{ws}/plugins/load-refused` (writes one audit row) and `POST
   /plugins/{id}/promotions` (asks only). Artifact export and import, and promotion review, need
-  `plugins.approve`, which agent tokens never carry;
+  `plugins.approve`, which agent tokens never carry. The Studio-definition routes (todo10 Phases 1,
+  2, 4) are here too: `GET /api/environments/{id}/lockfile`, `…/last-known-good`, `…/audit` and
+  `PUT …/readme` (reads and notes), and `GET /api/v1/datasets/{id}/studio` plus `POST
+  …/studio/commits` (only onto `work/agent-*`). Moving last-known-good, boot checks and rollback
+  refuse agent tokens;
 - a filtered annotation view: geometries and controlled-vocabulary labels; free text checked first.
 
 Summaries suppress small counts (as All of Us does with counts under 20), so a rare cohort can't be

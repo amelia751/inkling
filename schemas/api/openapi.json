@@ -269,6 +269,81 @@
         "summary": "Save Environment"
       }
     },
+    "/api/environments/{project_id}/audit": {
+      "get": {
+        "operationId": "audit_chain_api_environments__project_id__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Audit Chain"
+      }
+    },
+    "/api/environments/{project_id}/checks": {
+      "post": {
+        "description": "The Studio resolved this revision and loaded every module (`ok`): passing checks may move\nlast-known-good, never to an agent's change or to plugins that widen permissions.",
+        "operationId": "boot_checks_api_environments__project_id__checks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Boot Checks"
+      }
+    },
     "/api/environments/{project_id}/history": {
       "get": {
         "operationId": "environment_history_api_environments__project_id__history_get",
@@ -304,6 +379,78 @@
           }
         },
         "summary": "Environment History"
+      }
+    },
+    "/api/environments/{project_id}/last-known-good": {
+      "get": {
+        "operationId": "get_known_good_api_environments__project_id__last_known_good_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Known Good"
+      },
+      "put": {
+        "operationId": "put_known_good_api_environments__project_id__last_known_good_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Known Good"
       }
     },
     "/api/environments/{project_id}/lockfile": {
@@ -380,6 +527,43 @@
           }
         },
         "summary": "Put Readme"
+      }
+    },
+    "/api/environments/{project_id}/rollback": {
+      "post": {
+        "operationId": "rollback_environment_api_environments__project_id__rollback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rollback Environment"
       }
     },
     "/api/v1/annotations": {

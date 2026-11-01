@@ -350,3 +350,108 @@ def restore_definition(db: Session, ctx: RequestContext, files: dict[str, str], 
             set_readme(db, ctx, t, d["readme"], prov.author)
     pins = restore_pins(db, ctx, parsed["lockfile"]) if parsed["lockfile"] is not None else None
     return {"reason": reason, "environments": envs, "plugins": pins}
+
+
+# ---- last-known-good, safe mode and rollback (todo10 §3.4, Phase 4) ---------------------------
+
+PERSON, CHECKS = "person", "checks"
+
+
+def known_good_doc(k) -> dict:
+    return {
+        "revision": k.revision, "environment": k.environment, "contentHash": k.content_hash, "lockfile": k.lockfile, "lockfileHash": k.lockfile_hash,
+        **({"commitOid": k.commit_oid} if k.commit_oid else {}), "movedBy": k.moved_by, "movedBecause": k.moved_because, "movedAt": k.moved_at.isoformat(),
+    }
+
+
+def known_good(db: Session, workspace_id: str, task_id: str):
+    from ..models import StudioKnownGood
+
+    return db.get(StudioKnownGood, (workspace_id, task_id))
+
+
+def _widens(new: dict, old: dict) -> list[str]:
+    """Capability-widening changes from `old` to `new` (todo10 §3.4: a new plugin, new
+    permissions, a new signer), which only a person may make known-good."""
+    before = {p["id"]: p for p in old.get("plugins") or []}
+    out = []
+    for p in new.get("plugins") or []:
+        o = before.get(p["id"])
+        if o is None:
+            out.append(f"new plugin {p['id']}")
+            continue
+        extra = set(p.get("permissions") or []) - set(o.get("permissions") or [])
+        if extra:
+            out.append(f"{p['id']} gains {', '.join(sorted(extra))}")
+        if p.get("signer") != o.get("signer"):
+            out.append(f"{p['id']} has a new signer")
+    return out
+
+
+def move_known_good(db: Session, ctx: RequestContext, task_id: str, revision: int, because: str, commit_oid: str | None = None) -> dict:
+    """Point `last-known-good` at a task's environment revision (0: its base) and the
+    workspace's current lockfile. A person may move it anywhere; passing checks only to a
+    person's revision that widens nothing (todo10 §3.4)."""
+    from fastapi import HTTPException
+
+    from ..models import StudioKnownGood, WorkspaceEnvironment, now
+    from ..plugins import installer
+    from . import audit, projects
+
+    if ctx.principal.startswith("agent:"):
+        raise HTTPException(403, "only a person or passing checks move last-known-good")
+    row = db.get(WorkspaceEnvironment, (ctx.workspace_id, task_id))
+    current = row.revision if row is not None else 0
+    if revision != current:
+        raise HTTPException(409, {"message": "only the current setup can become known good", "current": current})
+    if revision > 0:
+        rev = db.scalar(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == ctx.workspace_id, WorkspaceEnvironmentRevision.task_id == task_id, WorkspaceEnvironmentRevision.revision == revision))
+        env, kind = (rev.environment, rev.author_kind) if rev is not None else (row.environment, "person")
+    else:
+        env, kind = projects.manifest_environment(task_id), PERSON
+    installer.bootstrap(db, ctx.for_scope(ctx.workspace_id, task_id))
+    lock = lockfile(db, ctx.workspace_id)
+    prev = known_good(db, ctx.workspace_id, task_id)
+    if because == CHECKS:
+        if kind != PERSON:
+            return {"moved": False, "reason": "an agent's change becomes known good only when a person marks it"}
+        widened = _widens(lock, prev.lockfile) if prev is not None else []
+        if widened:
+            return {"moved": False, "reason": "the plugins widen what the Studio may do: " + "; ".join(widened)}
+    h, lh = content_hash(env), lockfile_hash(lock)
+    if prev is not None and prev.revision == revision and prev.content_hash == h and prev.lockfile_hash == lh:
+        return {"moved": False, "reason": "already known good", "knownGood": known_good_doc(prev)}
+    before = {"revision": prev.revision, "contentHash": prev.content_hash, "lockfileHash": prev.lockfile_hash} if prev is not None else None
+    if prev is None:
+        prev = StudioKnownGood(workspace_id=ctx.workspace_id, task_id=task_id)
+        db.add(prev)
+    prev.revision, prev.environment, prev.content_hash, prev.lockfile, prev.lockfile_hash = revision, env, h, lock, lh
+    prev.commit_oid, prev.moved_by, prev.moved_because, prev.moved_at = commit_oid, ctx.principal, because, now()
+    db.flush()
+    audit.record(db, ctx.for_scope(ctx.workspace_id, task_id), "studio.known_good.moved", target=f"task:{task_id}", before=before, after={"revision": revision, "contentHash": h, "lockfileHash": lh, "because": because, "authorKind": kind})
+    return {"moved": True, "knownGood": known_good_doc(prev), "authorKind": kind}
+
+
+def rollback(db: Session, ctx: RequestContext, task_id: str) -> dict:
+    """Restore `last-known-good` in one transaction (the caller's): the environment as a new
+    revision and the plugin pins exactly as locked, with a hash-chained audit entry. No model
+    call, no versioning service: a pointer move a person makes (todo10 §1.6)."""
+    from fastapi import HTTPException
+
+    from . import audit
+
+    if ctx.principal.startswith("agent:"):
+        raise HTTPException(403, "only a person can roll the Studio back")
+    k = known_good(db, ctx.workspace_id, task_id)
+    if k is None:
+        raise HTTPException(404, "this task has no last-known-good setup yet")
+    before = {"lockfileHash": lockfile_hash(lockfile(db, ctx.workspace_id))}
+    env = effective_environment(db, ctx.workspace_id, task_id)
+    before["contentHash"] = content_hash(env)
+    prov = Provenance(ctx.principal.removeprefix("user:"), PERSON)
+    hist = write_environment(db, ctx, task_id, k.environment, prov) if k.environment is not None else None
+    pins = restore_pins(db, ctx, k.lockfile)
+    after_lock = lockfile_hash(lockfile(db, ctx.workspace_id))
+    entry = audit.record(db, ctx.for_scope(ctx.workspace_id, task_id), "studio.rollback", target=f"task:{task_id}", before=before,
+                         after={"revision": hist.revision if hist else None, "contentHash": k.content_hash, "lockfileHash": after_lock, "knownGoodLockfileHash": k.lockfile_hash, "plugins": pins})
+    return {"knownGood": known_good_doc(k), "revision": hist.revision if hist else None, "contentHash": k.content_hash, "lockfileHash": after_lock, "plugins": pins, "audit": {"id": entry.id, "hash": entry.entry_hash, "prev": entry.prev_hash}}

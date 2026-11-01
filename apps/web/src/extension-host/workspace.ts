@@ -4,6 +4,8 @@ import { UiContributions } from "@studio/contracts/ui-contributions";
 import yaml from "js-yaml";
 import { declarativeModule, verifyPackage, type PackageFiles } from "./contributions-loader";
 import { registry, type ActivationResult } from "./registry";
+import { MODULES } from "./bundled";
+import { firstPartyIds, type PluginsLock } from "@studio/contracts/lockfile";
 import { apiUrl } from "./runtime-config";
 
 /**
@@ -24,6 +26,17 @@ export async function fetchWorkspaceState(workspaceId: string): Promise<Workspac
 /** Activate exactly the workspace's plugins (null: all bundled). Unknown ids are ignored; missing requirements reported. */
 export function applyWorkspace(state: WorkspaceStateT | null): ActivationResult {
   return registry.setActive(state ? activePluginIds(state) : null);
+}
+
+/**
+ * Safe mode (todo10 §3.4): only first-party plugins this build bundles, never a remote one.
+ * With a last-known-good lockfile, those it locks as first-party; otherwise the workspace's
+ * active ones (all bundled ones without a workspace state).
+ */
+export function applySafeWorkspace(state: WorkspaceStateT | null, lock: PluginsLock | null): ActivationResult {
+  const bundled = new Set(MODULES.map((m) => m.id));
+  const wanted = lock ? firstPartyIds(lock) : state ? activePluginIds(state) : [...bundled];
+  return registry.setActive(wanted.filter((id) => bundled.has(id)));
 }
 
 /**

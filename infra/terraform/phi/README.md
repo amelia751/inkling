@@ -53,6 +53,8 @@ Irreversible switches, off by default: `artifacts_retention_locked`, `audit_rete
   `node tools/versioning-keys.mjs --gcp-project spurby-phi …` (it never prints a key).
 - Copy the outputs into `infra/k8s/overlays/gke/live/phi/local.env` (git-ignored;
   `infra/k8s/overlays/gke/README.md` lists which).
-- CI: put outputs `ci_workload_identity_provider` and `ci_service_account` in the images workflow
-  (`google-github-actions/auth`), and admit `ci-images` to Artifact Registry through the perimeter
+- CI: set the repository variables `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_CI_SERVICE_ACCOUNT`
+  (outputs `ci_workload_identity_provider`, `ci_service_account`) and `GCP_IMAGES_REGISTRY`
+  (`us-central1-docker.pkg.dev/<project>/images`); `.github/workflows/images.yml` then also
+  pushes there. Admit `ci-images` to Artifact Registry through the perimeter
   (an ingress rule in `../org`, a person's change).

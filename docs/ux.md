@@ -127,7 +127,7 @@ also posted, as durations only, to `POST /api/v1/telemetry/timeline`.
 
 The assistant sees each dropped file's id, a screened name (`image-0007.png` when the name
 looks like it identifies a person) and technical facts, never pixels, text or cell values
-(docs/agent.md, "What the agent sees of a drop").
+(docs/agent.md §7.4.1, "Drops on messages").
 
 ## 4. Redesigned Project Overview — the project home
 

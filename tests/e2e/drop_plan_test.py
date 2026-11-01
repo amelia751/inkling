@@ -38,7 +38,7 @@ import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "apps" / "web" / "e2e"))
-from harness import NAMING, launch, parse_args, sync_playwright  # noqa: E402
+from harness import NAMING, launch, sync_playwright  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 P = NAMING["envPrefix"]
@@ -86,7 +86,7 @@ def drop(db: Path, project: str, files: dict[str, bytes], drop_id: str, kinds: d
     for f in s["files"]:
         if f.get("uploadUrl"):
             data = next(d for rel, d in files.items() if rel.endswith(f["relPath"]))
-            call("PUT", f["uploadUrl"].removeprefix("/api") if f["uploadUrl"].startswith("/api/v1") is False else f["uploadUrl"], raw=data, headers={"Content-Type": "application/octet-stream"})
+            call("PUT", f["uploadUrl"], raw=data, headers={"Content-Type": "application/octet-stream"})
     call("POST", f"/api/v1/imports/{s['id']}/complete", {})
     with sqlite3.connect(db) as c:
         (raw,) = c.execute("SELECT totals FROM import_sessions WHERE id = ?", (s["id"],)).fetchone()
@@ -119,7 +119,12 @@ def run(browser, port: int, out: Path, db: Path) -> None:
     t0 = time.time()
     drop(db, project, {f"films/x{i}.png": png(20 + i, 16) for i in range(3)}, "drp_e2e_1", {f"x{i}.png": "image" for i in range(3)})
     card = page.locator('[data-testid="plan-card"][data-drop-id="drp_e2e_1"]')
-    card.wait_for(timeout=10000)
+    try:
+        card.wait_for(timeout=10000)
+    except Exception:
+        page.screenshot(path=str(out / "debug-no-card.png"))
+        print("plan:", json.dumps(call("GET", "/api/v1/drops/drp_e2e_1/plan"))[:400], "errors:", errors[:3])
+        raise
     page.locator('[data-testid="plan-card"][data-drop-id="drp_e2e_1"][data-state="planned"]').wait_for(timeout=10000)
     check("plan card on drop.planned", True, f"{time.time() - t0:.2f}s after the report")
     check("the card names the action, no file names", "a new draft dataset" in card.inner_text() and "x0.png" not in card.inner_text(), card.inner_text()[:200])
@@ -147,7 +152,7 @@ def run(browser, port: int, out: Path, db: Path) -> None:
     check("J4: a CT collection in this dataset is offered", plan2["plan"]["actions"][0]["type"] == "new_collection" and plan2["plan"]["actions"][0]["datasetId"] == st["datasetId"], json.dumps(plan2["plan"]["actions"])[:300])
     call("POST", "/api/v1/drops/drp_e2e_2/apply", {})
     page.get_by_test_id("collection-switcher").wait_for(timeout=15000)
-    check("J4: switcher shows within 5 s of the second drop's plan", time.time() - t1 < 15, f"{time.time() - t1:.2f}s")
+    check("J4: switcher shows within 5 s of the second drop's plan", time.time() - t1 < 5, f"{time.time() - t1:.2f}s")
     page.get_by_test_id("collection-switcher").click()
     opts = page.get_by_test_id("collection-option")
     opts.first.wait_for(timeout=5000)
@@ -183,6 +188,18 @@ def run(browser, port: int, out: Path, db: Path) -> None:
         check("Undo from the card (window passed: covered by the API tests)", True, "skipped")
     check("no page errors", not errors, "; ".join(errors[:3]))
     ctx.close()
+
+
+def parse_args():
+    """Like the harness's, without its seed-data check: this test makes its own data."""
+    import argparse
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--port", type=int, required=True)
+    ap.add_argument("--browser", default="chromium", choices=["chromium", "webkit", "firefox"])
+    ap.add_argument("--headed", action="store_true")
+    ap.add_argument("--out", default=str(ROOT / "apps" / "web" / "e2e" / ".artifacts"))
+    return ap.parse_args()
 
 
 def main() -> int:

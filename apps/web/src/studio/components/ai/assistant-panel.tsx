@@ -132,7 +132,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
       {status.isLoading ? (
         <div className="flex flex-1 items-center justify-center"><Loader /></div>
       ) : !status.data?.configured ? (
-        <NotConfigured status={status.data} studio={!!props.studio} />
+        <>
+          <NotConfigured status={status.data} studio={!!props.studio} />
+          {/* Drop plans are the kernel's: they show (and apply) without the assistant. */}
+          <DropPlanCards projectId={project.id} />
+        </>
       ) : !consent ? (
         <Consent provider={status.data.provider} model={status.data.model ?? ""} project={project} studio={!!props.studio} onAccept={() => setConsent(true)} />
       ) : (

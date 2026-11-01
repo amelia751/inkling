@@ -95,6 +95,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/environments/{project_id}/readme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Readme
+         * @description The task's `.studio/tasks/<id>/README.md`: intent and notes (todo10 §3.2).
+         */
+        put: operations["put_readme_api_environments__project_id__readme_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/annotations": {
         parameters: {
             query?: never;
@@ -567,6 +587,46 @@ export interface paths {
         put?: never;
         /** Resolve */
         post: operations["resolve_api_v1_datasets__dataset_id__reviews__review_id__resolutions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/studio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Studio Setup
+         * @description The Studio setup (`.studio/`: lockfile, environments, READMEs) at a branch, oid or `tag:<release>`.
+         */
+        get: operations["studio_setup_api_v1_datasets__dataset_id__studio_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/datasets/{dataset_id}/studio/commits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Commit Studio Setup
+         * @description Commit the live Studio setup onto the caller's work branch (Task setup saved, an agent change approved).
+         */
+        post: operations["commit_studio_setup_api_v1_datasets__dataset_id__studio_commits_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2539,6 +2599,37 @@ export interface operations {
             };
         };
     };
+    put_readme_api_environments__project_id__readme_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_annotations_api_v1_annotations_get: {
         parameters: {
             query?: {
@@ -3578,6 +3669,77 @@ export interface operations {
             cookie?: never;
         };
         requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    studio_setup_api_v1_datasets__dataset_id__studio_get: {
+        parameters: {
+            query?: {
+                ref?: string | null;
+                current?: boolean;
+            };
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    commit_studio_setup_api_v1_datasets__dataset_id__studio_commits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                dataset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
             content: {
                 "application/json": {
                     [key: string]: unknown;

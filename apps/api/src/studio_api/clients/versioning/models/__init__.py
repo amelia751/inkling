@@ -84,6 +84,10 @@ from .sample_group import SampleGroup
 from .sample_objects_item import SampleObjectsItem
 from .signed_object import SignedObject
 from .signed_object_status import SignedObjectStatus
+from .studio import Studio
+from .studio_files import StudioFiles
+from .studio_input import StudioInput
+from .studio_input_files import StudioInputFiles
 from .version_info import VersionInfo
 
 __all__ = (
@@ -171,5 +175,9 @@ __all__ = (
     "SampleObjectsItem",
     "SignedObject",
     "SignedObjectStatus",
+    "Studio",
+    "StudioFiles",
+    "StudioInput",
+    "StudioInputFiles",
     "VersionInfo",
 )

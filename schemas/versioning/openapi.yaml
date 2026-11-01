@@ -183,6 +183,17 @@ paths:
       responses:
         "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Commit"}}}}
         default: {$ref: "#/components/responses/Problem"}
+  /internal/v1/repos/{repo_id}/studio:
+    parameters: [{$ref: "#/components/parameters/RepoID"}]
+    get:
+      tags: [commits]
+      operationId: getStudio
+      description: The Studio definition (`.studio/` files) at a branch, commit oid or release (todo10 §3.2).
+      parameters:
+        - {name: ref, in: query, required: true, schema: {type: string, maxLength: 128}, description: "Branch name, commit oid or tag:<release>"}
+      responses:
+        "200": {description: OK, content: {application/json: {schema: {$ref: "#/components/schemas/Studio"}}}}
+        default: {$ref: "#/components/responses/Problem"}
   /internal/v1/repos/{repo_id}/reverts:
     parameters: [{$ref: "#/components/parameters/RepoID"}]
     post:
@@ -648,6 +659,24 @@ components:
         idempotency_key: {type: string, minLength: 8, maxLength: 128}
         tool: {type: string, maxLength: 128}
         inputs: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/CommitOID"}}
+        studio: {$ref: "#/components/schemas/StudioInput"}
+    StudioInput:
+      type: object
+      description: "Replaces the commit's whole `.studio/` tree (empty `files` removes it); omitted, the commit keeps its parent's. JSON files must be RFC 8785 canonical."
+      required: [files]
+      properties:
+        files:
+          type: object
+          maxProperties: 512
+          description: "plugins.lock.json, tasks/<taskId>/environment.json, tasks/<taskId>/README.md → file text"
+          additionalProperties: {type: string, maxLength: 1048576}
+    Studio:
+      type: object
+      required: [commit_oid, files]
+      properties:
+        commit_oid: {$ref: "#/components/schemas/CommitOID"}
+        studio_tree: {$ref: "#/components/schemas/CommitOID"}
+        files: {type: object, additionalProperties: {type: string}}
     RevertRequest:
       type: object
       required: [branch, expected_head, target_oid, idempotency_key]
@@ -665,6 +694,7 @@ components:
         branch: {type: string}
         head_generation: {type: integer, format: int64}
         manifest_root: {$ref: "#/components/schemas/ContentHash"}
+        studio_tree: {type: string, description: "Git tree id of the commit's .studio/ subtree"}
         request_id: {type: string}
     Commit:
       type: object
@@ -681,6 +711,7 @@ components:
         message: {type: string}
         operation: {type: string, enum: [init, commit, merge, revert]}
         created_at: {type: string, format: date-time}
+        studio_tree: {type: string, description: "Git tree id of the commit's .studio/ subtree (todo10 §3.2)"}
     CommitPage:
       type: object
       required: [items]
@@ -883,6 +914,7 @@ components:
         retention_policy: {type: string}
         retain_until: {type: string, format: date-time}
         attestations: {type: array, items: {type: object, additionalProperties: true}}
+        studio_tree: {type: string, description: "The released commit's .studio/ tree id: the Studio definition its labels were made with"}
 
     CheckoutFilter:
       type: object

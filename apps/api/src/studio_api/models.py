@@ -323,6 +323,41 @@ class PluginAudit(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     # The person an agent acted for (SessionDelegation), so Activity can say "the assistant, for Ana".
     on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # todo10 §3.4: per-workspace hash chain (kernel/audit.py); NULL on entries from before it.
+    prev_hash: Mapped[str | None] = mapped_column(String(71), nullable=True)
+    entry_hash: Mapped[str | None] = mapped_column(String(71), nullable=True)
+
+
+# ---- Studio definitions (todo10 §3.2, §3.4) ----------------------------------------------
+
+
+class TaskStudioNotes(Base):
+    """`.studio/tasks/<id>/README.md`: a task's intent and notes, by a person or the agent."""
+
+    __tablename__ = "task_studio_notes"
+    workspace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    readme: Mapped[str] = mapped_column(Text)
+    updated_by: Mapped[str] = mapped_column(String(256))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class StudioKnownGood(Base):
+    """The `last-known-good` ref of a task: moved only by a person or by passing checks.
+    Safe mode boots from it; rollback restores it (environment and plugin pins)."""
+
+    __tablename__ = "studio_known_good"
+    workspace_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    content_hash: Mapped[str] = mapped_column(String(71))
+    environment: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    lockfile: Mapped[dict] = mapped_column(JSON)
+    lockfile_hash: Mapped[str] = mapped_column(String(71))
+    commit_oid: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    moved_by: Mapped[str] = mapped_column(String(256))
+    moved_because: Mapped[str] = mapped_column(String(32))  # person | checks
+    moved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 # ---- Dataset versioning (todo4 Phase 6) ---------------------------------------------------

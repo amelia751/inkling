@@ -20,7 +20,7 @@ from ...clients.versioning import Client
 from ...clients.versioning.api.artifacts import put_annotation_revision, put_artifact
 from ...clients.versioning.api.branches import create_branch, list_branches
 from ...clients.versioning.api.checkouts import create_checkout
-from ...clients.versioning.api.commits import create_commit, get_commit, list_commits, put_manifest, revert
+from ...clients.versioning.api.commits import create_commit, get_commit, get_studio, list_commits, put_manifest, revert
 from ...clients.versioning.api.diff import get_diff
 from ...clients.versioning.api.ops import readyz
 from ...clients.versioning.api.releases import create_release, list_releases
@@ -90,6 +90,7 @@ class VersioningClient(Protocol):
     def create_release(self, token: str, repo_id: str, body: dict, idempotency_key: str) -> dict: ...
     def list_releases(self, token: str, repo_id: str) -> list: ...
     def create_checkout(self, token: str, repo_id: str, body: dict) -> dict: ...
+    def get_studio(self, token: str, repo_id: str, ref: str) -> dict: ...
     def fetch(self, url: str) -> bytes: ...
 
 
@@ -199,6 +200,9 @@ class HttpVersioningClient:
 
     def create_checkout(self, token, repo_id, body):
         return self._send(token, create_checkout._get_kwargs(UUID(repo_id), body=_model(CheckoutRequest, body)))
+
+    def get_studio(self, token, repo_id, ref):
+        return self._send(token, get_studio._get_kwargs(UUID(repo_id), ref=ref))
 
     def fetch(self, url: str) -> bytes:
         """GET a short-lived signed object URL from a checkout."""

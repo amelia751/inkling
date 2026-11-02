@@ -35,7 +35,7 @@ import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
 import { useTrashCount } from "@/studio/lib/files/api";
-import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, trashUrl, type ProjectSection } from "@/studio/lib/routes";
+import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
@@ -302,7 +302,7 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
       </ul>
       <ul className={cn("mt-auto pt-4", rail && "flex flex-col items-center gap-1")}>
         {/* todo16 Milestone 0: the Trash is a sidebar item so it's findable (the tree footer link stays). */}
-        <NavItem to={trashUrl(project.id)} icon={TrashIcon} label="Trash" rail={rail} count={trashCount} testId="nav-trash" />
+        <NavItem to={projectTrashUrl(project.id)} icon={TrashIcon} label="Trash" rail={rail} count={trashCount} testId="nav-trash" />
         <NavItem to={projectUrl(project.id, "settings")} icon={SETTINGS.icon} label={SETTINGS.label} rail={rail} />
       </ul>
     </nav>

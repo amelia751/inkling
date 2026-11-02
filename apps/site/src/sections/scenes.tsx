@@ -90,8 +90,8 @@ export function SceneAsk() {
 
 const LABELS = ["Normal", "Pneumonia", "Effusion", "Nodule", "Other"];
 
-/** A drawn chest X-ray: no real image bytes on the page. */
-function Xray() {
+/** A drawn chest X-ray (no real image bytes on the page): 0 effusion at the right base, 1 a hazy left lung, 2 clear. */
+export function Xray({ variant = 0 }: { variant?: number }) {
   const id = useId();
   return (
     <svg viewBox="0 0 240 240" className="size-full" aria-hidden>
@@ -118,7 +118,8 @@ function Xray() {
       ))}
       <rect x="112" y="40" width="16" height="170" rx="6" fill="#cfd4da" opacity="0.35" />
       <ellipse cx="138" cy="160" rx="34" ry="30" fill="#c9ced6" opacity="0.32" />
-      <path d="M150 196 C160 186 176 184 186 190 L186 206 L150 206Z" fill="#c9ced6" opacity="0.4" />
+      {variant === 0 && <path d="M150 196 C160 186 176 184 186 190 L186 206 L150 206Z" fill="#c9ced6" opacity="0.4" />}
+      {variant === 1 && <ellipse cx="82" cy="138" rx="24" ry="34" fill="#c9ced6" opacity="0.28" />}
     </svg>
   );
 }

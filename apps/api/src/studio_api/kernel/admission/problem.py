@@ -18,6 +18,7 @@ def problem(exc: WriteRejected, *, status: int = 422, code: str = "write_rejecte
         "code": code,
         "violations": [v.to_json() for v in exc.violations],
         "retryable": exc.retryable,
+        **(getattr(exc, "body_extra", None) or {}),
     }
 
 

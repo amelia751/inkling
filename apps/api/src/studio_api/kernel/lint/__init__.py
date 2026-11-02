@@ -32,6 +32,12 @@ CATALOGUE: dict[str, RuleSpec] = {
         RuleSpec("label.unknown", "error", "Use one of the project's labels, or propose adding it to the rules."),
         RuleSpec("label.synonym", "info", "Use the canonical label; the normaliser rewrites synonyms.", fixable=True),
         RuleSpec("geometry.not-allowed", "error", "Use a geometry this label allows."),
+        RuleSpec("annotation.invalid", "error", "Send a well-formed annotation: id, itemId, label, provenance, author, createdAt and a geometry with a type."),
+        RuleSpec("annotation.out-of-bounds", "error", "Keep the geometry inside the image extent; clip it or redraw it.", fixable=True, evaluate=True),
+        RuleSpec("annotation.too-small", "warn", "Redraw it at least `annotations.minSize` across, or delete it if it was a stray click.", evaluate=True),
+        RuleSpec("annotation.attribute-missing", "error", "Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema.", evaluate=True),
+        RuleSpec("env.unresolved", "error", "Fix the references the resolver reports (modules, renderers, tools) using the catalogue."),
+        RuleSpec("env.label-drift", "warn", "Use the project's labels in the Studio, or propose a rules change.", fixable=True, evaluate=True),
         RuleSpec("layout.misplaced", "error", "Put the file under one of the project's folder patterns."),
         RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path."),
         RuleSpec("layout.too-deep", "warn", "Use a shallower folder."),
@@ -97,3 +103,7 @@ def run_families(families: Iterable[Family], data: Mapping[str, Any], rules: Map
     for fam in families:
         out.extend(resolve_severity(v, rules) for v in fam(data, rules))
     return [v for v in out if v.severity != "off"]
+
+# `from __future__ import annotations` binds the name `annotations` here, which would shadow the
+# `annotations` family submodule for `from ..lint import annotations`.
+del annotations  # type: ignore[name-defined]  # noqa: F821

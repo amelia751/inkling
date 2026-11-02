@@ -9,6 +9,7 @@ Every write runs these rules (todo17 D4). Severities: **error** rejects the writ
 | `label.unknown` | annotation | error | enforce | no | Label isn't in the project's rules. Use one of the labels in the project rules (see `allowed`), or propose a rules change that adds it. |
 | `label.synonym` | annotation | info | enforce | yes | Label is a synonym of a canonical label. Use the canonical label name; the normaliser rewrites synonyms on write. |
 | `geometry.not-allowed` | annotation | error | enforce | no | Geometry not allowed for this label. Draw this label with one of its allowed geometries (see `allowed`). |
+| `annotation.invalid` | annotation | error | enforce | no | Annotation is malformed. Send a well-formed annotation: id, itemId, label, provenance, author, createdAt and a geometry with a type (see the message). |
 | `annotation.out-of-bounds` | annotation | error | evaluate | yes | Annotation lies outside the image. Keep the geometry inside the image extent; clip it or redraw it. |
 | `annotation.too-small` | annotation | warn | evaluate | no | Annotation is smaller than the minimum size. Redraw it at least `annotations.minSize` across, or delete it if it was a stray click. |
 | `annotation.attribute-missing` | annotation | error | evaluate | no | Required attribute missing. Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema. |

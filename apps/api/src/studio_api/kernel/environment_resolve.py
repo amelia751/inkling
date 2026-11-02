@@ -199,3 +199,22 @@ def resolve_issues(spec: dict, root: str | Path) -> list[dict]:
         if accepts != "*" and isinstance(accepts, list) and in_use and not set(accepts) & in_use:
             err(f"/exporters/{exporter_ids.index(x['id'])}", "exporter-unused", f'Exporter "{x["id"]}" accepts {", ".join(accepts)}, but this environment only creates {", ".join(sorted(in_use))}')
     return issues
+
+
+def merged_spec(spec: dict, root: str | Path) -> dict:
+    """`spec` with its `extends` presets merged in, as the resolver does (unknown presets and
+    cycles are skipped; `resolve_issues` reports them). Used for preset-only labels (todo17)."""
+    by_id, presets = _load(str(root))
+
+    def expand(s: dict, seen: tuple[str, ...]) -> dict:
+        ext = s.get("extends")
+        parents = [] if ext is None else ext if isinstance(ext, list) else [ext]
+        base: dict = {}
+        for pid in parents:
+            if isinstance(pid, str) and pid not in seen:
+                preset = _preset(presets, by_id, pid)
+                if preset is not None:
+                    base = merge_specs(base, expand(preset, (*seen, pid)))
+        return merge_specs(base, s)
+
+    return expand(spec, ()) if isinstance(spec, dict) else {}

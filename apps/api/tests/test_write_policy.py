@@ -83,8 +83,9 @@ def test_annotation_save_validates_every_item_at_once(client):
     bad = [ann(1), ann(2, provenance="made-up"), {**ann(3), "geometry": None}, ann(4)]
     r = client.put("/api/annotations/ws-a", json={"revision": 0, "annotations": bad}, headers=ws("ws-a"))
     assert r.status_code == 422, r.text
-    errors = r.json()["detail"]["errors"]
-    assert [e["path"] for e in errors] == ["/annotations/1", "/annotations/2"]
+    body = r.json()  # todo17: problem JSON, every violation at once (legacy `errors` kept)
+    assert body["code"] == "write_rejected" and [(v["rule"], v["path"]) for v in body["violations"]] == [("annotation.invalid", "/annotations/1"), ("annotation.invalid", "/annotations/2")]
+    assert [e["path"] for e in body["errors"]] == ["/annotations/1", "/annotations/2"]
     assert client.get("/api/annotations/ws-a", headers=ws("ws-a")).json()["revision"] == 0
 
 
@@ -94,7 +95,7 @@ def test_annotation_save_rejects_labels_outside_the_studio_label_set(client):
     doc = {"revision": 0, "annotations": [ann(1), ann(2, label="cat"), ann(3, label="dog")]}
     r = client.put(f"/api/annotations/{pid}", json=doc, headers=ws(pid))
     assert r.status_code == 422, r.text
-    errors = r.json()["detail"]["errors"]
-    assert [(e["path"], e["code"]) for e in errors] == [("/annotations/1/label", "label"), ("/annotations/2/label", "label")]
+    violations = r.json()["violations"]
+    assert [(v["path"], v["rule"]) for v in violations] == [("/annotations/1/label", "label.unknown"), ("/annotations/2/label", "label.unknown")]
     ok = client.put(f"/api/annotations/{pid}", json={"revision": 0, "annotations": [ann(1)]}, headers=ws(pid))
     assert ok.status_code == 200, ok.text

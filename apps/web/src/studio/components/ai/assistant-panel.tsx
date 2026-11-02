@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
 import { DropPlanCards } from "@/studio/core/drops";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, AttachIcon, ChevronLeftIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
+import { AiIcon, AttachIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
@@ -22,7 +22,7 @@ import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/ag
 import { sessionTools } from "@/studio/lib/agent/session";
 import { useStudio } from "@/studio/stores/studio";
 import { MAX_ANNOTATIONS, snapshotTruncation } from "@/studio/lib/agent/context";
-import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
+import { chatTitle, selectThread, useAgent, type ChatMessage, type ChatSummary, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
 import { useAckAiNotice, useAiAssistOff } from "./ai-notice";
@@ -41,7 +41,7 @@ import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/
  * removable, in the `ContextIndicator` chip. Every flow works with it closed.
  */
 
-const EMPTY: ChatMessage[] = [];
+const NO_CHATS: ChatSummary[] = [];
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 export interface Prompt {
@@ -93,9 +93,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const { project, onClose } = props;
   const status = useQuery({ queryKey: ["agent-status"], queryFn: fetchAgentStatus, staleTime: 60_000, retry: false });
   const aiOff = useAiAssistOff();
-  const thread = useAgent((s) => s.threads[project.id] ?? EMPTY);
-  const running = useAgent((s) => s.running);
-  const reset = useAgent((s) => s.reset);
+  const thread = useAgent(selectThread(project.id));
+  // todo20 D2: runs are per project; one in another project doesn't block this one.
+  const running = useAgent((s) => !!s.streaming[project.id]);
+  const newChat = useAgent((s) => s.newChat);
+  const deleteChat = useAgent((s) => s.deleteChat);
   const profile = useAgent((s) => s.profile);
   const setProfile = useAgent((s) => s.setProfile);
   const ready = !!status.data?.configured && !aiOff;
@@ -105,9 +107,16 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const drops = useChatDropsEnabled(project.id);
   const dropsOn = drops.data === true;
   const canEdit = useProjectSummary(project.id).data?.role !== "viewer";
-  const conversationId = useAgent((s) => s.conversations[project.id]?.id);
-  const first = thread.find((m) => m.role === "user")?.parts.find((p) => p.type === "text");
-  const title = view === "files" ? "Shared files" : ready ? (first?.type === "text" ? first.text : "New chat") : `${NAMING.displayName} AI`;
+  const conversationId = useAgent((s) => s.conversations[project.id]?.activeSessionId);
+  // todo20 D2: the project's chats live on the server; the list and the open thread load from it.
+  useEffect(() => {
+    if (ready) void useAgent.getState().loadChats(project.id).catch(() => {});
+  }, [project.id, ready]);
+  const title = view === "files" ? "Shared files" : `${NAMING.displayName} AI`;
+  const startChat = () => {
+    setView("chat");
+    void newChat(project.id, { restricted: project.restricted });
+  };
 
   return (
     <aside className="flex h-full min-w-0 flex-col bg-float" aria-label={`${NAMING.displayName} AI`}>
@@ -118,7 +127,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
           <AiIcon className="size-4 shrink-0 text-ai-text" />
         )}
         <h2 className="sr-only">{NAMING.displayName} AI</h2>
-        <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
+        {ready && view === "chat" ? (
+          <ChatSwitcher projectId={project.id} activeId={conversationId} onNew={startChat} />
+        ) : (
+          <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
+        )}
         <div className="ml-auto flex shrink-0 items-center gap-1 text-hint">
           {status.data?.provider === "scripted" && (
             <span className="rounded border border-border px-1.5 text-caption" title="Dev: replies come from a fixture, not a model" data-testid="agent-scripted-badge">
@@ -130,10 +143,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
               {SPECIALIST_LABEL[specialist]} · Back to assistant
             </Button>
           )}
-          {ready && thread.length > 0 && (
+          {ready && (
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost-secondary" size="icon-sm" className="text-hint" onClick={() => reset(project.id)} aria-label="New chat"><NewChatIcon /></Button>
+                <Button variant="ghost-secondary" size="icon-sm" className="text-hint" onClick={startChat} disabled={thread.length === 0} aria-label="New chat" data-testid="agent-new-chat"><NewChatIcon /></Button>
               </TooltipTrigger>
               <TooltipContent>New chat</TooltipContent>
             </Tooltip>
@@ -151,7 +164,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
                     {view === "files" ? "Back to the chat" : "Shared files"}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem disabled={!thread.length} onSelect={() => reset(project.id)}>Clear conversation</DropdownMenuItem>
+                <DropdownMenuItem disabled={!conversationId} onSelect={() => conversationId && deleteChat(project.id, conversationId)} data-testid="agent-delete-chat">Delete this chat</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -181,7 +194,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : (
         <>
           <FollowedElsewhere />
-          <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+          <Conversation {...props} thread={thread} status={status.data} running={running} busy={false} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
         </>
       )}
     </aside>
@@ -226,14 +239,15 @@ function Conversation({
   // todo13: files dropped, pasted or attached before send join one pending drop; the message carries it.
   const [pending, setPending] = useState<{ dropId: string; messageId: string } | undefined>();
   const [dragging, setDragging] = useState(false);
-  const addFiles = (files: Picked | File[]) => {
+  const addFiles = async (files: Picked | File[]) => {
     if (!dropsOn || !canEdit) return;
-    const conv = useAgent.getState().conversation(project.id);
+    // todo20 D2: the drop names the chat (= agent session) it's shared in; made on the server first.
+    const conv = await useAgent.getState().ensureConversation(project.id, { restricted: project.restricted });
     const messageId = pending?.messageId ?? crypto.randomUUID();
     const dropId = startDrop({ projectId: project.id, origin: "chat", files, conversationId: conv.id, conversationTitle: conv.title, messageId, taskId, dropId: pending?.dropId });
     setPending({ dropId, messageId });
   };
-  const attach: Attach = { on: dropsOn, pending: dropsPending, allowed: canEdit, onFiles: addFiles };
+  const attach: Attach = { on: dropsOn, pending: dropsPending, allowed: canEdit, onFiles: (f) => void addFiles(f) };
 
   const ask = (text: string, drop?: { dropId: string; messageId: string }) => {
     const t = text.trim();
@@ -274,7 +288,8 @@ function Conversation({
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
-    useAgent.setState((s) => ({ threads: { ...s.threads, [project.id]: thread.slice(0, thread.lastIndexOf(lastUser)) } }));
+    const key = useAgent.getState().conversations[project.id]?.activeSessionId ?? project.id;
+    useAgent.setState((s) => ({ threads: { ...s.threads, [key]: thread.slice(0, thread.lastIndexOf(lastUser)) } }));
     const drop = lastUser.parts.find((p) => p.type === "drop");
     ask(lastUser.parts.map((p) => (p.type === "text" ? p.text : "")).join(""), drop ? { dropId: drop.id, messageId: crypto.randomUUID() } : undefined);
   };
@@ -303,7 +318,9 @@ function Conversation({
         ev.preventDefault();
         ev.stopPropagation();
         setDragging(false);
-        if (attach.allowed) void fromDataTransfer(ev.dataTransfer).then((picked) => picked.files.length && addFiles(picked));
+        if (attach.allowed) void fromDataTransfer(ev.dataTransfer).then((picked) => {
+          if (picked.files.length) void addFiles(picked);
+        });
       }}
     >
       {dragging && (
@@ -476,7 +493,7 @@ function Composer({
               e.preventDefault();
               submit();
             }
-            if (e.key === "Escape" && running) stop();
+            if (e.key === "Escape" && running) stop(project.id);
           }}
           onPaste={(e) => {
             // A pasted screenshot (or copied files) becomes a drop, like an attached file.
@@ -528,7 +545,7 @@ function Composer({
           )}
           <ContextIndicator provider={provider} />
           {running && !canSend ? (
-            <Button variant="secondary" size="icon-lg" className="ml-auto" onClick={stop} aria-label="Stop generating"><StopIcon /></Button>
+            <Button variant="secondary" size="icon-lg" className="ml-auto" onClick={() => stop(project.id)} aria-label="Stop generating"><StopIcon /></Button>
           ) : (
             <Button variant={canSend ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={submit} disabled={!canSend || busy} aria-label="Send"><SubmitIcon /></Button>
           )}
@@ -587,6 +604,39 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
         <CloseIcon className="size-3" />
       </button>
     </span>
+  );
+}
+
+/**
+ * todo20 D2: the project's chats (like Codex), newest first, titled from their first message.
+ * Picking one opens its thread (rebuilt from the server); "New chat" keeps the others listed.
+ */
+function ChatSwitcher({ projectId, activeId, onNew }: { projectId: string; activeId?: string; onNew: () => void }) {
+  const chats = useAgent((s) => s.chats[projectId] ?? NO_CHATS);
+  const threads = useAgent((s) => s.threads);
+  const titleOf = (c: Pick<ChatSummary, "id" | "title">) => chatTitle({ threads }, c);
+  const selectChat = useAgent((s) => s.selectChat);
+  const current = titleOf({ id: activeId ?? "", title: chats.find((c) => c.id === activeId)?.title ?? null });
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" className="flex min-w-0 items-center gap-1 rounded-md px-1 text-left text-body-2 font-semibold hover:bg-generic" title={current} data-testid="agent-chat-switcher">
+          <span className="truncate">{current}</span>
+          <ChevronDownIcon className="size-3.5 shrink-0 text-hint" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto" data-testid="agent-chat-list">
+        <DropdownMenuItem onSelect={onNew} data-testid="agent-chat-new">
+          <NewChatIcon /> New chat
+        </DropdownMenuItem>
+        {chats.length > 0 && <DropdownMenuSeparator />}
+        {chats.map((c) => (
+          <DropdownMenuItem key={c.id} onSelect={() => selectChat(projectId, c.id)} className={cn(c.id === activeId && "bg-generic")} data-testid="agent-chat-item" data-active={c.id === activeId || undefined}>
+            <span className="truncate">{titleOf(c)}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

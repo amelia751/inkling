@@ -6,7 +6,7 @@ import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
-import { useAgent } from "@/studio/stores/agent";
+import { threadKey, useAgent } from "@/studio/stores/agent";
 import { readySeconds } from "@/studio/components/layout/boot-status";
 import { bootRows, formatSeconds, useBoots, type BootStep, type BootView } from "@/studio/stores/boots";
 
@@ -136,7 +136,7 @@ function BootRow({ row }: { row: BootStep }) {
 export function OfferCard({ projectId, messageId, offerId, offer }: { projectId: string; messageId: string; offerId: string; offer: { preset: string; title: string; reason?: string } }) {
   // One boot per offer (a second click replays it on the server instead of making another task).
   const bootId = `boot_${messageId.replace(/[^A-Za-z0-9]/g, "")}_${offerId.replace(/[^A-Za-z0-9_-]/g, "")}`.slice(0, 64);
-  const booted = useAgent((s) => !!s.threads[projectId]?.find((m) => m.id === messageId)?.parts.some((p) => p.type === "boot" && p.id === bootId));
+  const booted = useAgent((s) => !!s.threads[threadKey(s, projectId)]?.find((m) => m.id === messageId)?.parts.some((p) => p.type === "boot" && p.id === bootId));
   const create = () => {
     useAgent.getState().addPart(projectId, messageId, { type: "boot", id: bootId });
     void useBoots.getState().start(projectId, { bootId, preset: offer.preset, name: offer.title });

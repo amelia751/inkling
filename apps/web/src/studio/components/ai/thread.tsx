@@ -377,9 +377,9 @@ function ApprovalAlert({ title, children }: { title: string; children: ReactNode
 function BlockedStop() {
   const running = useAgent((s) => s.running);
   const stop = useAgent((s) => s.stop);
-  if (!running) return <p className="text-hint">That reply has finished; send again.</p>;
+  if (!running || !useAgent.getState().streaming[running]) return <p className="text-hint">That reply has finished; send again.</p>;
   return (
-    <Button variant="outline" size="sm" className="mt-2" onClick={stop} data-testid="agent-blocked-stop">
+    <Button variant="outline" size="sm" className="mt-2" onClick={() => stop(running)} data-testid="agent-blocked-stop">
       <CloseIcon /> Stop it
     </Button>
   );

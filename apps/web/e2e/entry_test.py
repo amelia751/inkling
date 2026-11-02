@@ -117,7 +117,7 @@ def main() -> int:
         page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
         check("a drop creates a project named from the kinds, not the names", created and created[0]["title"] == "12 images", json.dumps(created))
         page.wait_for_timeout(500)
-        check("the drop is shared in the project's conversation (D1, D2)", len(drops) == 1 and drops[0].get("origin") == "home" and str(drops[0].get("conversationId", "")).startswith("conv-") and drops[0].get("files") == 12, json.dumps(drops)[:300])
+        check("the drop is shared in the project's conversation (D1, D2)", len(drops) == 1 and drops[0].get("origin") == "home" and bool(drops[0].get("conversationId")) and drops[0].get("files") == 12, json.dumps(drops)[:300])
         page.wait_for_selector("[data-testid=attestation]", timeout=10000)
         check("the files go to the uploader (attestation first)", "12" in page.locator("[data-testid=attestation]").inner_text())
         steps = page.evaluate(f"async () => (await import('{TIMELINE}')).dropTimeline().steps.map(s => s.step)")
@@ -126,23 +126,17 @@ def main() -> int:
         check("no page errors (home drop)", not errors, "; ".join(errors))
         ctx.close()
 
-        # ---- Home with projects: a send asks where it goes (§3.4) ----------------------------
+        # ---- Home with projects: a send starts a new project (todo20 D1, no "Add to…?") -----
         ctx, page, errors = fresh()
         page.goto(f"{base}/")
         page.wait_for_selector("[data-testid=project-card]", timeout=20000)
         shot(page, "home-with-projects")
-        projects = page.evaluate("async () => (await (await fetch('/api/v1/projects')).json()).projects")
-        if all(p.get("sample") for p in projects):
-            # Samples are never the default target: the send creates a project straight away.
+        if True:
             page.route("**/api/v1/projects", lambda r: json_route({"id": P, "title": "x"}, 201)(r) if r.request.method == "POST" else r.continue_())
             page.locator("[data-testid=goal]").fill("Classify skin lesions")
             page.locator("[data-testid=composer-send]").click()
             page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
-            check("with only samples, a send starts a new project", True)
-        else:
-            page.locator("[data-testid=goal]").fill("Classify skin lesions")
-            page.locator("[data-testid=composer-send]").click()
-            check("with projects, a send asks: last project or new", page.locator("[data-testid=home-target-dialog]").is_visible())
+            check("with projects, a send starts a new project (no dialog)", page.locator("[data-testid=home-target-dialog]").count() == 0)
         check("no page errors (home with projects)", not errors, "; ".join(errors))
         ctx.close()
 

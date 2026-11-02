@@ -259,6 +259,7 @@ export class MprEngine {
         try {
           const ref = await loadVolume(segAsset.path);
           if (cancelled) return;
+          if (ref.orientationWarning) this.events.viewerStatus(ref.orientationWarning);
           const n = geom.dims[0] * geom.dims[1] * geom.dims[2];
           if (ref.data.length >= n) {
             const lm = new Uint8Array(n);
@@ -283,6 +284,8 @@ export class MprEngine {
           }
         } catch (e) {
           console.warn(`[${RES}] reference mask unavailable`, e);
+          // todo18: say so, instead of a silently missing reference.
+          if (!cancelled) this.events.viewerStatus(referenceFailureText(e));
         }
       }
     })().catch((e: Error) => {
@@ -981,4 +984,10 @@ function applyRefStyle(s: Session, viewportIds: string[], visible: boolean) {
       /* representation not on this viewport */
     }
   }
+}
+
+/** The notice when a subject's reference segmentation can't be loaded (todo18 §2 C). */
+export function referenceFailureText(e: unknown): string {
+  const why = e instanceof Error && e.message ? `: ${e.message}` : "";
+  return `Reference segmentation couldn't be loaded${why}`;
 }

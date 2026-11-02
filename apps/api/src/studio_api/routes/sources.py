@@ -27,7 +27,8 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import audit, events, fs, imports, projects, trash, tree, url_imports
+from ..kernel import audit, events, fs, imports, projects, trash, tree, url_imports, write_doors
+from ..kernel.admission.http import WriteParams, declares, write_params
 from ..models import DatasetRow, ImportSession, SourceNode, now
 
 router = APIRouter(prefix="/api/v1")
@@ -123,10 +124,25 @@ def list_imports(project_id: str, ctx: RequestContext = Depends(get_context), db
     return {"imports": imports.list_sessions(db, projects.require_project(db, ctx, project_id))}
 
 
-@router.post("/projects/{project_id}/imports", status_code=201)
-def start_import(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.post("/projects/{project_id}/imports", status_code=201, openapi_extra=declares(write_doors.IMPORTS_CREATE.id))
+def start_import(project_id: str, body: dict = Body(...), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo17: the paths the files land at run the layout rules. Forbidden characters are
+    replaced (an upload is never refused for them); rules in evaluate mode only report
+    (`findings`); a promoted error rejects the import with every violation. `?dryRun=true`
+    plans the import and saves nothing."""
     p = projects.require_project(db, ctx, project_id, write=True)
-    return imports.create_session(db, ctx, p, body)
+    rules = write_doors.project_rules(db, p)
+    forbidden = (rules.get("layout") or {}).get("forbiddenCharacters") or ""
+
+    def check(paths: list[str]):
+        return write_doors.check_paths(db, ctx, p, write_doors.IMPORTS_CREATE, paths, dry_run=w.dry_run)
+
+    def run():
+        return imports.create_session(db, ctx, p, body, check=check, forbidden=forbidden if isinstance(forbidden, str) else "".join(forbidden))
+
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, run())
+    return write_doors.idempotent(db, ctx, w, write_doors.IMPORTS_CREATE, {"project": p.id, **body}, run, status=201)
 
 
 @router.post("/projects/{project_id}/imports/url", status_code=202)

@@ -221,3 +221,24 @@ def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any],
 def history(db: Session, p: ProjectRow, limit: int = 50) -> dict[str, Any]:
     rows = db.scalars(select(ProjectRulesHistory).where(ProjectRulesHistory.project_id == p.id).order_by(ProjectRulesHistory.revision.desc()).limit(max(1, min(limit, 200))))
     return {"history": [{"revision": r.revision, "rules": r.rules, "actor": r.actor, "onBehalfOf": r.on_behalf_of, "createdAt": r.created_at.isoformat()} for r in rows]}
+
+
+def seed_from_preset(db: Session, p: ProjectRow, preset: str | None, actor: str) -> dict[str, Any] | None:
+    """todo17 D3: a new project (or its first boot with a preset) stores that preset's rules as
+    revision 1, so later preset edits never change a project's rules under it. No-op when the
+    project already has rules or the preset has none."""
+    preset = (preset or "").removeprefix("preset:")
+    if not preset or "/" in preset or ".." in preset or db.get(ProjectRules, p.id) is not None:
+        return None
+    raw = _preset_rules(preset, str(settings().repo_root))
+    if raw is None:
+        return None
+    try:
+        rules = validate(json.loads(raw))
+    except HTTPException:
+        return None
+    at = datetime.now(UTC)
+    db.add(ProjectRules(project_id=p.id, rules=rules, revision=1, updated_by=actor, updated_at=at))
+    db.add(ProjectRulesHistory(project_id=p.id, revision=1, rules=rules, actor=actor, on_behalf_of=None, created_at=at))
+    db.flush()
+    return rules

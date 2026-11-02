@@ -21,9 +21,10 @@ row, so it can be undone (D9) and shown in Activity.
 from __future__ import annotations
 
 import json
+import unicodedata
 import uuid
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -122,7 +123,8 @@ def drive_info(db: Session, p: ProjectRow) -> dict:
 
 
 def clean_name(raw: Any) -> str:
-    name = str(raw if raw is not None else "").rstrip(" .")
+    # todo17 D1 normalise: trimmed, Unicode NFC (so "Café" typed two ways is one name).
+    name = unicodedata.normalize("NFC", str(raw if raw is not None else "")).strip().rstrip(" .")
     if not name.strip():
         raise HTTPException(422, "A name can't be empty")
     if "/" in name:
@@ -763,8 +765,11 @@ def _iso(d: datetime | None) -> str | None:
 # ---- apply -------------------------------------------------------------------------------------
 
 
-def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
-    """`POST /v1/projects/:id/fs/ops`: all or nothing."""
+def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, check: Callable[[Batch], Any] | None = None, dry_run: bool = False) -> dict:
+    """`POST /v1/projects/:id/fs/ops`: all or nothing. `check(batch)` runs the write pipeline
+    (todo17 D1) on the applied batch before it is recorded; it raises to reject the whole batch
+    and returns the admission (its findings ride on the result). `dry_run`: the caller rolls
+    the transaction back; the batch is not recorded."""
     ops = body.get("ops")
     purges = [o for o in ops if isinstance(o, dict) and o.get("kind") == "purge"] if isinstance(ops, list) else []
     only_people(ctx, destroy=bool(purges))
@@ -805,8 +810,16 @@ def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
         what = "An item" if n == 1 else f"{n} items"
         msg = f'An item named "{first["name"]}" already exists in {first["parentName"]}' if n == 1 else f"{what} have the same name as something already there"
         raise HTTPException(409, {"message": msg, "conflicts": b.conflicts})
-    finish(b)
-    return result(b)
+    admitted = check(b) if check is not None else None
+    if dry_run:
+        db.flush()
+        out = result(b)
+    else:
+        finish(b)
+        out = result(b)
+    if admitted is not None:
+        out["findings"] = admitted.findings_json()
+    return out
 
 
 def _label(b: Batch) -> str:

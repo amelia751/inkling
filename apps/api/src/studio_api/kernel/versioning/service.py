@@ -447,12 +447,28 @@ def _commit(c: Call, body: dict) -> dict:
     req = {"branch": branch, "expected_head": expected, "manifest_root": root, "message": str(body.get("message") or "Save annotations")[:2000], "idempotency_key": _idem(c, body, branch, expected, root)}
     if body.get("tool"):
         req["tool"] = str(body["tool"])[:128]
+    studio_files = _with_rules(c, token, expected)
+    if studio_files is not None:
+        req["studio"] = {"files": studio_files}
     res = client().create_commit(token, c.repo_id, req)
     if m is not None:
         _cache_put(c.repo_id, res["commit_oid"], m)
     c.audit_after = {"branch": branch, "expected_head": expected, "commit_oid": res["commit_oid"], "manifest_root": root, **counts}
     _announce_checks(c, branch=branch)
     return {**res, **counts}
+
+
+def _with_rules(c: Call, token: str, head: str) -> dict[str, str] | None:
+    """todo17 D3: every dataset commit carries the project's rules as `.studio/rules.json`.
+    The head's `.studio/` tree plus the current rules, or None when the head already has them
+    (no `studio` keeps the parent's tree)."""
+    rules = studio_defs.rules_file(c.db, c.ctx.workspace_id)
+    if rules is None:
+        return None
+    files = dict(client().get_studio(token, c.repo_id, head).get("files") or {})
+    if files.get(studio_defs.RULES_PATH) == rules:
+        return None
+    return {**files, studio_defs.RULES_PATH: rules}
 
 
 def op_commit(c: Call, body: dict) -> tuple[int, dict]:

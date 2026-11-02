@@ -40,11 +40,14 @@ CATALOGUE: dict[str, RuleSpec] = {
         RuleSpec("annotation.attribute-missing", "error", "Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema.", evaluate=True),
         RuleSpec("env.unresolved", "error", "Fix the references the resolver reports (modules, renderers, tools) using the catalogue."),
         RuleSpec("env.label-drift", "warn", "Use the project's labels in the Studio, or propose a rules change.", fixable=True, evaluate=True),
-        RuleSpec("layout.misplaced", "error", "Put the file under one of the project's folder patterns."),
-        RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path."),
-        RuleSpec("layout.too-deep", "warn", "Use a shallower folder."),
-        RuleSpec("name.pattern", "warn", "Rename the file to match the project's file-name pattern."),
-        RuleSpec("dataset.metadata-missing", "error", "Add the required metadata to the dataset."),
+        # Layout and names mirror lint-rules.ts: new rules ship in evaluate mode (D5), so a
+        # person's upload is never blocked until the project promotes them.
+        RuleSpec("layout.misplaced", "warn", "Put the file under one of the project's folder patterns.", evaluate=True),
+        RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path.", fixable=True),
+        RuleSpec("layout.too-deep", "warn", "Use a shallower folder.", evaluate=True),
+        RuleSpec("name.pattern", "warn", "Rename the file to match the project's file-name pattern.", fixable=True, evaluate=True),
+        RuleSpec("name.phi-suspect", "error", "Rename it with a pseudonymous id; never use patient names, dates of birth or record numbers.", evaluate=True),
+        RuleSpec("dataset.metadata-missing", "error", "Add the required metadata to the dataset.", evaluate=True),
         RuleSpec("dataset.name-taken", "error", "Choose a dataset name that is not used in this project."),
         RuleSpec("dataset.mixed-modality", "warn", "Split the dataset so it holds one modality.", evaluate=True),
         # Imaging checks (D11): the worker's `imaging.check` reports them (kernel/imaging_findings.py).

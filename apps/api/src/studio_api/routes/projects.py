@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import unicodedata
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -33,7 +34,11 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session, session_scope
-from ..kernel import dataset_profile, datasets_views, events, overview, projects, samples
+from ..kernel import dataset_profile, datasets_views, events, overview, projects, samples, write_doors
+from ..kernel import rules as krules
+from ..kernel.admission import Ctx, admit
+from ..kernel.admission.http import WriteParams, declares, write_params
+from ..kernel.admission.problem import with_findings
 from ..models import DatasetRow, PluginEvent, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -44,10 +49,21 @@ def list_projects(q: str | None = None, sort: str = "recent", archived: bool = F
     return {"projects": projects.list_projects(db, ctx, q, sort, archived)}
 
 
-@router.post("/projects", status_code=201)
-def create_project(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    p = projects.create_project(db, ctx, str(body.get("title") or ""), str(body.get("description") or ""), str(body.get("visibility") or "private"))
-    return projects.project_dict(db, ctx, p)
+@router.post("/projects", status_code=201, openapi_extra=declares(write_doors.PROJECTS_CREATE.id))
+def create_project(body: dict = Body(...), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """`{title, description?, visibility?, preset?}`; with a preset the project starts with that
+    preset's rules (todo17 D3, revision 1)."""
+
+    def run() -> dict:
+        v = admit(write_doors.PROJECTS_CREATE, {"title": str(body.get("title") or ""), "description": str(body.get("description") or "")}, Ctx(principal=ctx.principal, rules={})).value
+        p = projects.create_project(db, ctx, v["title"], v["description"], str(body.get("visibility") or "private"))
+        if isinstance(body.get("preset"), str):
+            krules.seed_from_preset(db, p, body["preset"], projects.person(ctx))
+        return projects.project_dict(db, ctx, p)
+
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, run())
+    return write_doors.idempotent(db, ctx, w, write_doors.PROJECTS_CREATE, body, run, status=201)
 
 
 @router.get("/samples")
@@ -115,18 +131,33 @@ def list_datasets(project_id: str, ctx: RequestContext = Depends(get_context), d
     return {"datasets": [projects.dataset_dict(db, d) for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id).order_by(DatasetRow.created_at))]}
 
 
-@router.post("/projects/{project_id}/datasets", status_code=201)
-def create_dataset(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    """The simple form (pick folders, pick a preset); the guided path is confirming a proposal."""
+@router.post("/projects/{project_id}/datasets", status_code=201, openapi_extra=declares(write_doors.DATASETS_CREATE.id))
+def create_dataset(project_id: str, body: dict = Body(...), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The simple form (pick folders, pick a preset); the guided path is confirming a proposal.
+
+    todo17: name and metadata (`metadata: {modality, license, source}`, `description`) run the
+    datasets rules (dataset.metadata-missing, dataset.name-taken, dataset.mixed-modality); an
+    enforced error is a 422 listing every violation, the rest come back as `findings`."""
     if ctx.scopes:
         raise HTTPException(403, "only people create datasets; the assistant can propose one")
     p = projects.require_project(db, ctx, project_id, write=True)
-    d = projects.create_dataset(db, ctx, p, str(body.get("title") or ""), {"nodeIds": body.get("nodeIds") or []}, str(body.get("description") or ""))
-    task = body.get("task")
-    if isinstance(task, dict):
-        env = task.get("environment") or ({"extends": task["preset"]} if task.get("preset") else None)
-        projects.create_task(db, ctx, d, str(task.get("title") or d.title), str(task.get("kind") or "annotate"), env)
-    return projects.dataset_dict(db, d)
+    title = unicodedata.normalize("NFC", str(body.get("title") or "")).strip()
+    description = unicodedata.normalize("NFC", str(body.get("description") or "")).strip()
+    node_ids = [str(x) for x in body.get("nodeIds") or []] if isinstance(body.get("nodeIds"), list) else []
+    meta = write_doors.metadata_of(body, description=description)
+    admitted = write_doors.check_dataset(db, ctx, p, write_doors.DATASETS_CREATE, title, meta, write_doors.modalities(db, node_ids, meta), dry_run=w.dry_run)
+
+    def run() -> dict:
+        d = projects.create_dataset(db, ctx, p, title, {"nodeIds": body.get("nodeIds") or [], "metadata": admitted.value["dataset"]["metadata"]}, description)
+        task = body.get("task")
+        if isinstance(task, dict):
+            env = task.get("environment") or ({"extends": task["preset"]} if task.get("preset") else None)
+            projects.create_task(db, ctx, d, str(task.get("title") or d.title), str(task.get("kind") or "annotate"), env)
+        return with_findings(projects.dataset_dict(db, d), admitted)
+
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, run(), admitted)
+    return write_doors.idempotent(db, ctx, w, write_doors.DATASETS_CREATE, {"project": p.id, **body}, run, status=201)
 
 
 def _dataset(db: Session, ctx: RequestContext, project_id: str, dataset_id: str) -> DatasetRow:

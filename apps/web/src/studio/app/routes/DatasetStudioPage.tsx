@@ -48,7 +48,7 @@ import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
 import { CanvasDropTarget, CanvasEmptyState } from "@/studio/app/entry/empty-states";
-import { useLiveEnvironment } from "@/studio/lib/live-environment";
+import { useLiveEnvironment, useSetupStale } from "@/studio/lib/live-environment";
 import { ShellTransition } from "@/studio/lib/view-transition";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { personKey } from "@/studio/lib/person-key";
@@ -448,6 +448,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
       <SaveConflictNotice />
       <UnsavedLeaveGuard save={save} />
+      <SetupStaleBanner />
       <ShellTransition>
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
@@ -607,6 +608,18 @@ function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
       setActiveCommands([]);
     };
   }, [env]);
+}
+
+/** todo18 §2 C: a newer setup can't run here (e.g. a plugin was disabled mid-session). */
+function SetupStaleBanner() {
+  const stale = useSetupStale((s) => s.stale);
+  if (!stale) return null;
+  return (
+    <div role="alert" data-testid="setup-stale-banner" className="flex items-center gap-2 border-b bg-amber-50 px-3 py-1.5 text-sm dark:bg-amber-950">
+      <span className="flex-1">Setup changed and can't be applied: {stale.reason}. Your annotations still save.</span>
+      <button type="button" className="rounded border px-2 py-0.5" onClick={() => (stashUnsaved(), window.location.reload())}>Reload</button>
+    </div>
+  );
 }
 
 /**

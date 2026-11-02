@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { create } from "zustand";
 import { regionLabelNames, type EnvironmentSpec } from "@studio/contracts/environment";
 import type { Project } from "@studio/contracts/types";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
@@ -32,9 +33,19 @@ export interface EnvironmentUpdated {
 
 const envKey = (taskId: string) => ["environment", taskId] as const;
 
-function resolved(spec: EnvironmentSpec | null | undefined, qc: QueryClient, taskId: string): ResolvedEnv | undefined {
+/**
+ * todo18 §2 C: a newer setup arrived that this tab can't run (a plugin it needs was disabled or
+ * isn't installed). The Studio keeps working on the old one and shows "reload" (setup-stale-banner).
+ */
+export const useSetupStale = create<{ stale: { revision: number; reason: string } | null; set: (s: { revision: number; reason: string } | null) => void }>((set) => ({
+  stale: null,
+  set: (stale) => set({ stale }),
+}));
+
+function resolved(spec: EnvironmentSpec | null | undefined, qc: QueryClient, taskId: string, revision?: number): ResolvedEnv | undefined {
   const manifest = qc.getQueryData<Project>(["tasks", taskId, "document"])?.environment;
   const r = resolveEnvironment((spec ?? manifest) as EnvironmentSpec, registry);
+  if (!r.env && revision !== undefined) useSetupStale.getState().set({ revision, reason: r.errors?.[0]?.message ?? "a module it needs isn't available" });
   return r.env;
 }
 
@@ -59,6 +70,7 @@ async function install(qc: QueryClient, taskId: string, env: ResolvedEnv, doc: P
   if (useStudio.getState().projectId !== taskId) return;
   await installEnvironment(env, { record: false });
   noteRevision(taskId, doc.revision);
+  useSetupStale.getState().set(null);
   const label = labelAfterSetupChange(useStudio.getState().activeLabel, regionLabelNames(env.labels));
   if (label.removed) useStudio.setState({ activeLabel: label.active });
   announce(doc, label.removed, label.active);
@@ -81,7 +93,7 @@ export async function applyEnvironmentUpdate(qc: QueryClient, taskId: string, e:
   }
   const fresh = await fetchEnvironment(taskId);
   if (fresh.revision <= (knownRevision(taskId) ?? current)) return "ignored";
-  const env = resolved(fresh.environment, qc, taskId);
+  const env = resolved(fresh.environment, qc, taskId, fresh.revision);
   if (!env) return "ignored";
   await install(qc, taskId, env, fresh);
   return "refetched";
@@ -114,7 +126,7 @@ export function useLiveEnvironment(taskId: string, safe: boolean) {
       if (!d || d.revision <= (knownRevision(taskId) ?? 0)) return;
       run(async () => {
         if (d.revision <= (knownRevision(taskId) ?? 0)) return;
-        const env = resolved(d.environment, qc, taskId);
+        const env = resolved(d.environment, qc, taskId, d.revision);
         if (env) await install(qc, taskId, env, d);
       });
     });

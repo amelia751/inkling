@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext
-from ..models import AnnotationDocumentRow, DatasetRow, ImportSession, PluginAudit, ProjectRow, Proposal, Source, SourceNode, TaskRow, UploadFile, WorkspaceEnvironmentRevision
+from ..models import AnnotationDocumentRow, DatasetRow, FsBatch, ImportSession, PluginAudit, ProjectRow, Proposal, Source, SourceNode, TaskRow, UploadFile, WorkspaceEnvironmentRevision
 from . import projects
 
 SEVERITY = {"high": 0, "medium": 1, "low": 2}
@@ -313,7 +313,10 @@ def activity(db: Session, p: ProjectRow, cursor: int | None = None, limit: int =
     titles = {d.id: d.title for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id))}
     tasks = {t.id: t.title for t in db.scalars(select(TaskRow).where(TaskRow.project_id == p.id))}
     entries = []
+    turn_entries, turn_batches = _turn_entries(db, p, limit) if not cursor else ([], set())
     for r in rows:
+        if r.target in turn_batches:
+            continue  # shown once, as its assistant turn
         if r.action not in ACTIVITY_LABELS and (r.action.startswith(_QUIET_PREFIXES) or r.action in _QUIET):
             continue
         after = r.after_ref if isinstance(r.after_ref, dict) else {}
@@ -338,9 +341,50 @@ def activity(db: Session, p: ProjectRow, cursor: int | None = None, limit: int =
         for e in db.scalars(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == p.id).order_by(WorkspaceEnvironmentRevision.id.desc()).limit(limit)):
             actor = f"user:{e.author}" if e.author and ":" not in e.author else e.author
             entries.append({"id": f"env:{e.id}", "action": "environment.saved", "label": "set up the Studio" if e.revision == 1 else f"saved Studio setup revision {e.revision}", "actor": actor, "onBehalfOf": None, "who": who(actor), "target": e.task_id, "subject": tasks.get(e.task_id or "", e.task_id), "details": {"revision": e.revision}, "at": projects.iso(e.saved_at), "link": {"section": "studio", "taskId": e.task_id}})
+    entries.extend(turn_entries)
     # Newest first; within the same instant, the later write first (audit ids increase).
     entries.sort(key=lambda e: (e["at"] or "", int(e["id"].split(":")[1]) if e["id"].startswith("audit:") else 0), reverse=True)
     return {"entries": entries[:limit], "nextCursor": str(rows[-1].id) if len(rows) == limit else None}
+
+
+def _turn_entries(db: Session, p: ProjectRow, limit: int) -> tuple[list[dict], set[str]]:
+    """todo16 D9: one row per assistant turn that changed things ("Ana's assistant: renamed 3
+    items, deleted dataset X"), with Undo while it is the latest change (kernel/turns.py)."""
+    from . import turns
+
+    q = select(FsBatch.turn_id).where(FsBatch.project_id == p.id, FsBatch.turn_id.is_not(None), FsBatch.kind.in_(turns.CHANGES))
+    ids = list(dict.fromkeys(db.scalars(q.order_by(FsBatch.at.desc())).all()))[:limit]
+    out: list[dict] = []
+    seen: set[str] = set()
+    for tid in ids:
+        rows = turns.batches(db, p.id, tid)
+        if not rows:
+            continue
+        seen.update(r.id for r in rows)
+        person = rows[0].on_behalf_of or rows[0].actor
+        name = person.split(":")[-1] if person else "someone"
+        out.append(
+            {
+                "id": f"turn:{tid}",
+                "kind": "batch",
+                "action": "assistant.turn",
+                "label": turns.summary(rows),
+                "summary": turns.summary(rows),
+                "actor": "agent:assistant",
+                "actorLabel": f"{name}'s assistant",
+                "onBehalfOf": person,
+                "who": who("agent:assistant", person),
+                "target": rows[0].id,
+                "subject": None,
+                "details": {"batches": len(rows)},
+                "batchId": rows[0].id,
+                "turnId": tid,
+                "undoable": turns.is_latest(db, p.id, rows),
+                "at": projects.iso(rows[0].at),
+                "link": None,
+            }
+        )
+    return out, seen
 
 
 def _label(r: PluginAudit, after: dict) -> str:

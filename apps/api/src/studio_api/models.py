@@ -800,7 +800,7 @@ class FsBatch(Base):
     """One `fs/ops` call (or an undo / redo of one): the unit of undo (D9)."""
 
     __tablename__ = "fs_batches"
-    __table_args__ = (Index("ix_fs_batches_actor", "project_id", "actor", "at"),)
+    __table_args__ = (Index("ix_fs_batches_actor", "project_id", "actor", "at"), Index("ix_fs_batches_turn", "project_id", "turn_id"))
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     project_id: Mapped[str] = mapped_column(String(128), index=True)
     actor: Mapped[str] = mapped_column(String(256))
@@ -815,6 +815,10 @@ class FsBatch(Base):
     seq: Mapped[int] = mapped_column(Integer, default=0)
     # todo16: what the batch moved (`source` = the drive; dataset | collection | studio | project).
     resource: Mapped[str] = mapped_column(String(16), default="source", server_default="source")
+    # todo16 D9: the person an assistant acted for (None: the person's own change) and the
+    # assistant turn (`X-Turn-Id`), so a whole turn can be listed and undone (kernel/turns.py).
+    on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    turn_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

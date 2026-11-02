@@ -94,6 +94,9 @@ export const fetchReview = (id: string) => api<{ items: AttentionItem[] }>(`/pro
 export const fetchProposals = (id: string, status?: string) => api<{ proposals: Proposal[] }>(`/projects/${encodeURIComponent(id)}/proposals${status ? `?status=${status}` : ""}`).then((r) => r.proposals);
 export const fetchImports = (id: string) => api<{ imports: ImportSession[] }>(`/projects/${encodeURIComponent(id)}/imports`).then((r) => r.imports);
 export const fetchActivity = (id: string, cursor?: string | null) => api<{ entries: ActivityEntry[]; nextCursor: string | null }>(`/projects/${encodeURIComponent(id)}/activity${cursor ? `?cursor=${cursor}` : ""}`);
+/** todo16 D9: undo everything one assistant turn changed (newest first; 409 if changed since). */
+export const undoTurn = (projectId: string, turnId: string) =>
+  api<{ turnId: string; undone: number; batchIds: string[] }>(`/projects/${encodeURIComponent(projectId)}/turns/${encodeURIComponent(turnId)}/undo`, { method: "POST", json: {} });
 export const fetchTask = (id: string) => api<TaskSummary>(`/tasks/${encodeURIComponent(id)}`);
 export const putResume = (projectId: string, r: { taskId: string; itemId?: string | null; placement?: unknown; tool?: string | null }) =>
   api<{ resume: ResumeState | null }>(`/projects/${encodeURIComponent(projectId)}/resume`, { method: "PUT", json: r });

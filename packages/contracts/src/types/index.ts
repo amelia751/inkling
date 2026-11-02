@@ -766,6 +766,14 @@ export interface ActivityEntry {
   who?: ActivityActor;
   /** The thing acted on, by name (a dataset, task or plugin; never a file path). */
   subject?: string | null;
+  /** todo16 D9: an assistant turn's changes as one row ("Ana's assistant: renamed 3 items, …"). */
+  kind?: "batch";
+  actorLabel?: string;
+  summary?: string;
+  batchId?: string;
+  turnId?: string;
+  /** The turn is the project's latest change and can still be undone as one step. */
+  undoable?: boolean;
 }
 
 export interface ActivityActor {

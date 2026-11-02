@@ -72,7 +72,7 @@ def test_layout_good():
 
 def test_layout_misplaced_and_name_pattern_never_echo_value():
     vs = layout.check({"path": "misc/John Smith.dcm"}, RULES)
-    assert codes(vs) == ["layout.forbidden-char", "layout.misplaced", "name.pattern"]
+    assert codes(vs) == ["layout.forbidden-char", "layout.misplaced", "name.pattern", "name.phi-suspect"]
     for v in vs:
         assert "value" not in v.to_json()
         assert "John" not in str(v.to_json())
@@ -161,8 +161,11 @@ def test_admit_defaults_and_injected_existing_names():
     with pytest.raises(WriteRejected) as e:
         admit(DS_OP, {"dataset": {"name": "Taken", "metadata": {"modality": "MR", "license": "a"}}}, Ctx(rules=RULES, extra={"names": ["taken"]}))
     assert codes(e.value.violations) == ["dataset.name-taken"]
+    # dataset.metadata-missing ships in evaluate mode (lint-rules.ts): recorded, not rejected...
+    assert codes(admit(DS_OP, {}, Ctx(rules=RULES)).findings) == ["dataset.metadata-missing", "dataset.metadata-missing"]
+    # ...until the project promotes it.
     with pytest.raises(WriteRejected) as e:
-        admit(DS_OP, {}, Ctx(rules=RULES))
+        admit(DS_OP, {}, Ctx(rules={**RULES, "enforce": ["dataset.metadata-missing"]}))
     assert codes(e.value.violations) == ["dataset.metadata-missing", "dataset.metadata-missing"]
 
 

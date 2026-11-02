@@ -53,9 +53,14 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
   });
   if (res.status === 501) throw new NeedsApiError();
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
+    const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown; title?: unknown; violations?: unknown };
     const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
-    const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
+    // todo17 D6: a rejected write is problem JSON listing every violation with its fix.
+    const violations = Array.isArray(body.violations) ? (body.violations as { message?: unknown; fix?: unknown }[]) : [];
+    const problemMessage = violations.length
+      ? violations.map((v) => [v.message, v.fix].filter((x) => typeof x === "string" && x).join(" ")).join(" ")
+      : typeof body.title === "string" ? body.title : undefined;
+    const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? problemMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
     throw new ApiError(res.status, msg, body, res.headers.get("X-Request-Id") ?? undefined);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;

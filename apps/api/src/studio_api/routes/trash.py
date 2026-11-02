@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -25,7 +26,9 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import projects, trash, turns
+from ..kernel import projects, trash, turns, write_doors
+from ..kernel.admission.http import WriteParams, declares, write_params
+from ..kernel.admission.problem import with_findings
 from ..models import DatasetCollectionRow, DatasetRow, ProjectRow, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -68,10 +71,13 @@ def file_impact(project_id: str, nodeIds: str = "", ctx: RequestContext = Depend
     return {"impact": trash.file_impact(db, p, [x.strip() for x in ids])}
 
 
-@router.post("/projects/{project_id}/trash/{batch_id}/restore")
-def restore(project_id: str, batch_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.post("/projects/{project_id}/trash/{batch_id}/restore", openapi_extra=declares(write_doors.TRASH_RESTORE.id))
+def restore(project_id: str, batch_id: str, w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    return trash.restore(db, ctx, p, batch_id)
+    write_doors.admit_plain(db, ctx, p, write_doors.TRASH_RESTORE, dry_run=w.dry_run)
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, trash.restore(db, ctx, p, batch_id))
+    return write_doors.idempotent(db, ctx, w, write_doors.TRASH_RESTORE, {"project": p.id, "batch": batch_id}, lambda: trash.restore(db, ctx, p, batch_id))
 
 
 @router.delete("/projects/{project_id}/trash/{batch_id}")
@@ -109,9 +115,32 @@ def _delete(db: Session, ctx: RequestContext, project_id: str, what: str, id_: s
     return trash.trash(db, ctx, p, kind, r)
 
 
-@router.patch("/projects/{project_id}/datasets/{item_id}")
-def patch_dataset(project_id: str, item_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return _patch(db, ctx, project_id, "datasets", item_id, body)
+@router.patch("/projects/{project_id}/datasets/{item_id}", openapi_extra=declares(write_doors.DATASETS_UPDATE.id))
+def patch_dataset(project_id: str, item_id: str, body: dict = Body(...), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """`{ name?, description?, metadata? }`; todo17: the result runs the datasets rules (the
+    dataset's own name doesn't count as taken). Errors are a 422 listing every violation."""
+    p = trash.require_trash(db, ctx, project_id)
+    _, r = _row(db, p, "datasets", item_id)
+    name = body.get("name")
+    name = unicodedata.normalize("NFC", name).strip() if isinstance(name, str) else r.title
+    desc = body.get("description")
+    desc = unicodedata.normalize("NFC", desc).strip() if isinstance(desc, str) else (r.description or "")
+    base = dict((r.definition or {}).get("metadata") or {})
+    meta = write_doors.metadata_of(body, description=desc, base=base)
+    node_ids = list((r.definition or {}).get("nodeIds") or [])
+    admitted = write_doors.check_dataset(db, ctx, p, write_doors.DATASETS_UPDATE, name, meta, write_doors.modalities(db, node_ids, meta), exclude=r.id, dry_run=w.dry_run)
+
+    def run() -> dict:
+        clean = {**body, **({"name": name} if "name" in body else {}), **({"description": desc} if "description" in body else {})}
+        out = _patch(db, ctx, project_id, "datasets", item_id, {k: v for k, v in clean.items() if k in ("name", "description")})
+        if "metadata" in body or any(k in body for k in ("modality", "license", "source")):
+            r.definition = {**(r.definition or {}), "metadata": admitted.value["dataset"]["metadata"]}
+            db.flush()
+        return with_findings({**out, "metadata": (r.definition or {}).get("metadata") or {}}, admitted)
+
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, run(), admitted)
+    return write_doors.idempotent(db, ctx, w, write_doors.DATASETS_UPDATE, {"project": p.id, "dataset": item_id, **body}, run)
 
 
 @router.delete("/projects/{project_id}/datasets/{item_id}")
@@ -147,10 +176,13 @@ def delete_project(project_id: str, dryRun: bool = False, ctx: RequestContext = 
     return trash.trash_project(db, ctx, p)
 
 
-@router.post("/projects/{project_id}/restore")
-def restore_project(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.post("/projects/{project_id}/restore", openapi_extra=declares(write_doors.PROJECTS_RESTORE.id))
+def restore_project(project_id: str, w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id, include_trashed=True)
-    return trash.restore_project(db, ctx, p)
+    write_doors.admit_plain(db, ctx, p, write_doors.PROJECTS_RESTORE, dry_run=w.dry_run)
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, trash.restore_project(db, ctx, p))
+    return write_doors.idempotent(db, ctx, w, write_doors.PROJECTS_RESTORE, {"project": p.id}, lambda: trash.restore_project(db, ctx, p))
 
 
 @router.get("/org/deleted-projects")

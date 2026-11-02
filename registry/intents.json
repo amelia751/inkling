@@ -152,7 +152,9 @@
         "end-diastole",
         "end-systole"
       ],
-      "fileKinds": []
+      "fileKinds": [
+        "volume-time"
+      ]
     },
     {
       "preset": "preset:ecg",

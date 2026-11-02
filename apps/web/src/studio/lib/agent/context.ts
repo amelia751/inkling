@@ -8,7 +8,12 @@ import type { DatasetSnapshot as AgentContext } from "@studio/agent-protocol";
 import type { AgentContextProvider } from "./providers";
 
 /** Cap so one huge dataset can't blow the request size; tools report totals separately. */
-const MAX_ANNOTATIONS = 3000;
+export const MAX_ANNOTATIONS = 3000;
+
+/** todo18 D: the chip says when the snapshot was cut (null when everything is shared). */
+export function snapshotTruncation(total: number): string | null {
+  return total > MAX_ANNOTATIONS ? `Shares the first ${MAX_ANNOTATIONS.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} annotations` : null;
+}
 
 /** The text-only snapshot the dataset tools read (see AgentContext). Never pixels or file contents. */
 export function buildAgentContext(project: Project, items: StudioItem[]): AgentContext {

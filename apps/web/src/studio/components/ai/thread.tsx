@@ -1,4 +1,5 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { secondsLeft } from "@/studio/lib/agent/approval";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ChevronDownIcon, CloseIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, RetryIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
@@ -11,10 +12,11 @@ import { artifactUrl } from "@/studio/lib/agent/client";
 import { approveInstall, getInstallRequest, rejectInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
-import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
+import { BLOCKED_PREFIX, useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import { exploreUrl, trashUrl } from "@/studio/lib/routes";
 import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
+import { undoTurn } from "@/studio/lib/projects-api";
 import { AgentCardView, type StudioCardContext } from "./cards";
 import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
@@ -124,7 +126,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
                 const offer = studioOffer(t);
                 if (offer) return <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
                 const trashed = movedToTrash(t);
-                return trashed && <TrashCard key={t.id} projectId={projectId} name={t.name} batchId={trashed} />;
+                return trashed && <TrashCard key={t.id} projectId={projectId} name={t.name} batchId={trashed} turnId={message.runId} />;
               })}
             </Fragment>
           );
@@ -166,11 +168,17 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
         </p>
       )}
       {idle && <Pending queued={message.runStatus === "queued"} />}
+      {message.reconnecting && !message.error && (
+        <p className="text-hint text-warning" data-testid="agent-reconnecting">
+          Reconnecting…
+        </p>
+      )}
       {message.error && (
         <div className="self-start" role="alert">
           <Meta />
           <p className="text-chat break-words text-muted-foreground italic">{message.error}</p>
-          {onRetry && (
+          {message.error.startsWith(BLOCKED_PREFIX) && <BlockedStop />}
+          {onRetry && !message.error.startsWith(BLOCKED_PREFIX) && (
             <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
               <RetryIcon /> Retry
             </Button>
@@ -178,6 +186,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
         </div>
       )}
       {message.stopped && <p className="text-hint">Stopped.</p>}
+      {!streaming && message.runId && message.parts.some((p) => p.type === "tool" && !!movedToTrash(p)) && <TurnUndo projectId={projectId} turnId={message.runId} />}
       {!streaming && (text || message.usage) && (
         <div className={cn("-mt-0.5 flex h-6 items-center gap-1 text-muted-foreground transition-opacity", !latest && "opacity-0 group-hover/message:opacity-100 focus-within:opacity-100")}>
           {text && <CopyButton text={text} label="Copy response" size="icon-sm" />}
@@ -228,7 +237,32 @@ function movedToTrash(t: Extract<MessagePart, { type: "tool" }>): string | null 
 const TRASHED_WHAT: Record<string, string> = { source_trash: "files", dataset_delete: "a dataset", collection_delete: "a collection", studio_delete: "a Studio", project_delete: "the project" };
 
 /** "Moved to Trash: files · Undo · Open Trash" (todo16 D8). */
-function TrashCard({ projectId, name, batchId }: { projectId: string; name: string; batchId: string }) {
+/** todo18 D: one "Undo this turn" per assistant message; it reverses everything the turn changed. */
+function TurnUndo({ projectId, turnId }: { projectId: string; turnId: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "undone" | "failed">("idle");
+  const qc = useQueryClient();
+  const undo = async () => {
+    setState("busy");
+    try {
+      await undoTurn(projectId, turnId);
+      await qc.invalidateQueries();
+      setState("undone");
+    } catch {
+      setState("failed");
+    }
+  };
+  if (state === "undone") return <p className="text-hint" data-testid="agent-turn-undone">This turn was undone.</p>;
+  return (
+    <div className="flex items-center gap-2 self-start" id={`turn-undo-${turnId}`}>
+      <Button variant="outline" size="sm" onClick={undo} disabled={state === "busy"} data-testid="agent-turn-undo">
+        <UndoIcon /> Undo this turn
+      </Button>
+      {state === "failed" && <span className="text-warning">Couldn't undo; something changed since. Restore from the Trash.</span>}
+    </div>
+  );
+}
+
+function TrashCard({ projectId, name, batchId, turnId }: { projectId: string; name: string; batchId: string; turnId?: string }) {
   const [state, setState] = useState<"idle" | "busy" | "undone" | "failed">("idle");
   const qc = useQueryClient();
   const undo = async () => {
@@ -244,10 +278,16 @@ function TrashCard({ projectId, name, batchId }: { projectId: string; name: stri
   return (
     <div className="flex items-center gap-2 self-start rounded-lg border border-border bg-background px-3 py-2" data-testid="agent-trash-card">
       <span>{state === "undone" ? "Restored" : `Moved to Trash: ${TRASHED_WHAT[name] ?? "items"}`}</span>
-      {state !== "undone" && (
-        <Button variant="ghost" size="sm" onClick={undo} disabled={state === "busy"} data-testid="agent-trash-undo">
-          <UndoIcon /> Undo
-        </Button>
+      {turnId ? (
+        <a href={`#turn-undo-${turnId}`} className="text-brand underline-offset-2 hover:underline" data-testid="agent-trash-turn-link">
+          Undo this turn
+        </a>
+      ) : (
+        state !== "undone" && (
+          <Button variant="ghost" size="sm" onClick={undo} disabled={state === "busy"} data-testid="agent-trash-undo">
+            <UndoIcon /> Undo
+          </Button>
+        )
       )}
       <Link to={trashUrl(projectId)} className="text-brand underline-offset-2 hover:underline" data-testid="agent-trash-open">
         Open Trash
@@ -333,6 +373,18 @@ function ApprovalAlert({ title, children }: { title: string; children: ReactNode
   );
 }
 
+/** todo18 D: a send refused because another project's run is active; Stop it from here. */
+function BlockedStop() {
+  const running = useAgent((s) => s.running);
+  const stop = useAgent((s) => s.stop);
+  if (!running) return <p className="text-hint">That reply has finished; send again.</p>;
+  return (
+    <Button variant="outline" size="sm" className="mt-2" onClick={stop} data-testid="agent-blocked-stop">
+      <CloseIcon /> Stop it
+    </Button>
+  );
+}
+
 function Decided({ state, approved = "Approved", children }: { state: "approved" | "rejected" | "expired" | "pending"; approved?: string; children?: ReactNode }) {
   return (
     <div className="flex h-6 items-center gap-1.5 text-hint">
@@ -357,8 +409,20 @@ function DecideButtons({ onReject, approve, busy }: { onReject: () => void; appr
 const approveClass = "border-positive/50 text-positive hover:bg-positive-tint";
 
 /** Consequential steps wait here; nothing runs until the expert approves. */
-function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void }) {
-  const pending = part.state === "pending";
+function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void | Promise<void> }) {
+  const [now, setNow] = useState(() => Date.now());
+  const left = secondsLeft(part.expiresAt, now);
+  const pending = part.state === "pending" && left > 0;
+  const [deciding, setDeciding] = useState(false);
+  useEffect(() => {
+    if (part.state !== "pending" || left <= 0) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [part.state, left]);
+  const choose = (d: "approve" | "reject") => {
+    setDeciding(true);
+    Promise.resolve(onDecide(d)).finally(() => setDeciding(false));
+  };
   // A proposal (propose_schema / propose_relationship) is confirmed by a person in Explore.
   const proposal = part.detail?.kind === "proposal" ? part.detail : undefined;
   // todo16 D8: a catalogue operation that asks first: what goes, and whether it can be undone.
@@ -378,17 +442,25 @@ function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart
               </span>
             )}
           </ApprovalAlert>
+          <span className="text-hint text-muted-foreground" data-testid="agent-approval-countdown">
+            {deciding ? "Sending…" : `Expires in ${left >= 60 ? `${Math.ceil(left / 60)} min` : `${left} s`}`}
+          </span>
           <DecideButtons
-            onReject={() => onDecide("reject")}
+            onReject={() => !deciding && choose("reject")}
             approve={
-              <Button variant="outline" size="sm" className={approveClass} onClick={() => onDecide("approve")}>
+              <Button variant="outline" size="sm" className={approveClass} disabled={deciding} onClick={() => choose("approve")}>
                 <DoneIcon /> Approve
               </Button>
             }
           />
         </>
       ) : (
-        <Decided state={part.state}>
+        <Decided state={part.state === "pending" ? "expired" : part.state}>
+          {part.failed && (
+            <span className="text-destructive" data-testid="agent-approval-failed">
+              Approved, but it failed: {part.failed}
+            </span>
+          )}
           {proposal && part.state === "approved" && (
             <Link to={exploreUrl(projectId, proposal.proposalKind === "mapping" ? "mappings" : "relationships")} className="ml-auto text-brand underline-offset-2 hover:underline" data-testid="agent-proposal-link">
               Review in Explore

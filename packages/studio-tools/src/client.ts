@@ -12,6 +12,8 @@ export interface StudioClientOptions {
   token?: () => string | undefined | Promise<string | undefined>;
   /** Extra headers per request. */
   headers?: () => Record<string, string> | Promise<Record<string, string>>;
+  /** On a 401: get a fresh token (true when one was had); the request is retried once. */
+  refresh?: () => Promise<boolean>;
   fetch?: typeof fetch;
 }
 
@@ -115,6 +117,16 @@ export class StudioClient {
   constructor(private readonly opts: StudioClientOptions) {}
 
   async request<T>(method: string, path: string, json?: unknown, signal?: AbortSignal): Promise<T> {
+    try {
+      return await this.once<T>(method, path, json, signal);
+    } catch (err) {
+      if (!(err instanceof StudioApiError) || err.status !== 401 || !this.opts.refresh) throw err;
+      if (!(await this.opts.refresh().catch(() => false))) throw err;
+      return this.once<T>(method, path, json, signal);
+    }
+  }
+
+  private async once<T>(method: string, path: string, json?: unknown, signal?: AbortSignal): Promise<T> {
     const token = await this.opts.token?.();
     if (this.opts.token && !token) throw new StudioApiError(401, "No API access for this session. Ask the person to reopen the assistant panel (it passes a fresh token with each message).");
     const headers: Record<string, string> = { ...(await this.opts.headers?.()), Accept: "application/json" };

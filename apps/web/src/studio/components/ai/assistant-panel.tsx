@@ -22,6 +22,8 @@ import { NAMING } from "@studio/contracts/naming";
 import { agentUnavailable, fetchAgentStatus } from "@/studio/lib/agent/client";
 import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/agent/providers";
 import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
+import { useStudio } from "@/studio/stores/studio";
+import { MAX_ANNOTATIONS, snapshotTruncation } from "@/studio/lib/agent/context";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
@@ -120,6 +122,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
         <h2 className="sr-only">{NAMING.displayName} AI</h2>
         <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1 text-hint">
+          {status.data?.provider === "scripted" && (
+            <span className="rounded border border-border px-1.5 text-caption" title="Dev: replies come from a fixture, not a model" data-testid="agent-scripted-badge">
+              Scripted model
+            </span>
+          )}
           {ready && thread.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -180,7 +187,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : view === "files" ? (
         <SharedFiles projectId={project.id} conversationId={conversationId} canEdit={canEdit} />
       ) : (
-        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+        <>
+          <FollowedElsewhere />
+          <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+        </>
       )}
     </aside>
   );
@@ -196,6 +206,7 @@ function Conversation({
   empty,
   bareSnapshot,
   thread,
+  status,
   running,
   busy,
   onScrolled,
@@ -253,7 +264,21 @@ function Conversation({
   // A message typed (or files dropped) on Home before this project existed (todo13 D1) is sent once, here.
   // todo16 round 2: a drop from the assistant's upload card comes the same way; while a run is
   // going it waits in the composer and goes with the next message.
-  usePendingAsk(project.id, (text, drop) => (drop && (busy || running) ? setPending(drop) : ask(text, drop)));
+  // todo18 D: it says so, and goes by itself when the current reply finishes.
+  const [deferred, setDeferred] = useState<{ text: string; drop: { dropId: string; messageId: string } } | null>(null);
+  usePendingAsk(project.id, (text, drop) => {
+    if (drop && (busy || running)) {
+      setPending(drop);
+      setDeferred({ text, drop });
+    } else ask(text, drop);
+  }, !!status?.configured);
+  useEffect(() => {
+    if (!deferred || busy || running) return;
+    setDeferred(null);
+    ask(deferred.text, deferred.drop);
+    setPending(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferred, busy, running]);
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
@@ -339,9 +364,11 @@ function Conversation({
         fresh={thread.length === 0}
         attach={attach}
         pending={pending?.dropId}
+        deferred={!!deferred}
         onCancelDrop={() => {
           if (pending) void cancelDrop(pending.dropId);
           setPending(undefined);
+          setDeferred(null);
         }}
       />
     </div>
@@ -387,6 +414,7 @@ function Composer({
   fresh,
   attach,
   pending,
+  deferred,
   onCancelDrop,
 }: {
   project: AssistantProject;
@@ -399,6 +427,7 @@ function Composer({
   fresh: boolean;
   attach: Attach;
   pending?: string;
+  deferred?: boolean;
   onCancelDrop: () => void;
 }) {
   const [text, setText] = useState("");
@@ -439,6 +468,11 @@ function Composer({
         {pending && (
           <div className="mb-2">
             <DropCard dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />
+            {deferred && (
+              <p className="mt-1 text-hint text-muted-foreground" data-testid="agent-drop-deferred">
+                Will send when the current reply finishes.
+              </p>
+            )}
           </div>
         )}
         <textarea
@@ -525,6 +559,8 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
   const dismiss = useAgentContextStore((s) => s.dismiss);
   const restore = useAgentContextStore((s) => s.restore);
+  const total = useStudio((s) => (provider.snapshot ? s.annotations.length : 0));
+  const cut = snapshotTruncation(total);
   if (dismissed)
     return (
       <button
@@ -545,8 +581,16 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
         <TooltipTrigger asChild>
           <span className="truncate" tabIndex={0}>{provider.label}</span>
         </TooltipTrigger>
-        <TooltipContent className="max-w-64">{provider.shares}</TooltipContent>
+        <TooltipContent className="max-w-64">
+          {provider.shares}
+          {cut && <span className="mt-1 block">{cut}.</span>}
+        </TooltipContent>
       </Tooltip>
+      {cut && (
+        <span className="shrink-0 text-caption text-warning" data-testid="agent-context-truncated" title={cut}>
+          first {MAX_ANNOTATIONS.toLocaleString("en-US")}
+        </span>
+      )}
       <button type="button" onClick={dismiss} className="flex h-8.5 w-6 shrink-0 items-center justify-center rounded-r-lg text-hint hover:text-foreground" aria-label="Don't share this context">
         <CloseIcon className="size-3" />
       </button>
@@ -600,6 +644,21 @@ function NotConfigured({ status, studio }: { status: AgentStatus | undefined; st
         </p>
       )}
       <p className="text-muted-foreground">{studio ? "Everything else in the Studio works without it." : "Everything else works without it."}</p>
+    </div>
+  );
+}
+
+/** todo18 D: another tab streams this run; this one can take it back. */
+function FollowedElsewhere() {
+  const elsewhere = useAgent((s) => !!s.followedElsewhere && s.active?.runId === s.followedElsewhere);
+  const takeOver = useAgent((s) => s.takeOver);
+  if (!elsewhere) return null;
+  return (
+    <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-hint" data-testid="agent-followed-elsewhere">
+      Following in another tab
+      <Button variant="ghost" size="sm" onClick={takeOver} data-testid="agent-take-over">
+        Take over
+      </Button>
     </div>
   );
 }

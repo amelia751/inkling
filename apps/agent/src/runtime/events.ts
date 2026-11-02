@@ -193,6 +193,24 @@ export function scrubSecrets(text: string): string {
 }
 
 /** Strip anything key-shaped before an error reaches the browser. */
+/**
+ * todo18 D: provider errors in plain words with the action (check the key, wait, start a new
+ * chat). Anything unrecognised falls through to the scrubbed original.
+ */
+export function providerErrorMessage(msg: string): string {
+  const m = msg.toLowerCase();
+  if (/\b401\b|invalid[_ ]api[_ ]key|incorrect api key|authentication|unauthori[sz]ed|permission denied/.test(m))
+    return "The model provider rejected the API key. Check the key in the assistant settings, then try again.";
+  if (/\b429\b|rate[_ ]limit|too many requests|overloaded|quota/.test(m)) {
+    const wait = /retry[- ]after[^0-9]{0,4}(\d+)|try again in (\d+(?:\.\d+)?)\s*s|(\d+)\s*seconds?/.exec(m);
+    const n = wait ? Math.ceil(Number(wait[1] ?? wait[2] ?? wait[3])) : 0;
+    return n > 0 ? `The model provider is busy (rate limited). Wait ${n} s, then send again.` : "The model provider is busy (rate limited). Wait a minute, then send again.";
+  }
+  if (/context[_ ]length|context window|maximum context|too many tokens|prompt is too long|max_tokens/.test(m))
+    return "This chat is too long for the model. Start a new chat to continue; this one stays in your history.";
+  return sanitizeError(msg);
+}
+
 export function sanitizeError(msg: string): string {
   return clip(scrubSecrets(msg), 1000);
 }

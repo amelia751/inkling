@@ -6,7 +6,7 @@ import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import { api } from "@/studio/lib/projects-api";
-import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
+import type { RefreshTokenTool, AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
 export type CardState = "open" | "applied" | "dismissed" | "undone";
@@ -17,7 +17,7 @@ export type MessagePart =
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
   | { type: "card"; id: string; card: AgentCard; state: CardState }
-  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail }
+  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail; toolCallId?: string; failed?: string }
   | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
   | { type: "artifact"; id: string; name: string; bytes: number }
   | { type: "status"; text: string }
@@ -38,6 +38,8 @@ export interface ChatMessage {
   runStatus?: RunStatus;
   error?: string;
   stopped?: boolean;
+  /** todo18 D: the event stream dropped and is reconnecting (not persisted meaning: cleared on reconnect or end). */
+  reconnecting?: boolean;
   usage?: { inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number };
   sandbox?: SandboxState;
 }
@@ -100,6 +102,11 @@ interface AgentState {
   profile: ProfileName;
   /** Dataset whose run is streaming in this tab, if any. */
   running: string | null;
+  /** todo18 D: the run another tab is following now (this tab stopped streaming it). */
+  followedElsewhere?: string | null;
+  takeOver: () => void;
+  /** The last send refused because another project's run is active (one run per tab). */
+  blockedBy?: { projectId: string; waitingOn: string } | null;
   setProfile: (p: ProfileName) => void;
   setHost: (host: AgentHost | null) => void;
   send: (projectId: string, text: string, opts: SendOptions) => Promise<void>;
@@ -120,6 +127,32 @@ interface AgentState {
 
 let host: AgentHost | null = null;
 let controller: AbortController | null = null;
+/** Browser-side tool work of the run being followed: Stop aborts it and posts the failure at once. */
+let toolAbort: AbortController | null = null;
+
+/** todo18 D: one tab follows a run; the others say so and can take over. */
+const TAB_ID = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random());
+const followChannel: BroadcastChannel | null = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`${RES}-agent-follow`) : null;
+let handedOff: AbortController | null = null;
+/** The protocol package is types-only here (run-events.test); the type pins the literal. */
+const REFRESH_TOKEN_TOOL: RefreshTokenTool = "__refresh_kernel_token";
+
+export const STUDIO_CLOSED = "The Studio isn't open, so this tool can't run. Ask the person to open it, or use open_location.";
+export const BLOCKED_PREFIX = "Waiting for the assistant in project ";
+export const TOOL_STOPPED = "Stopped by the person.";
+
+/** Run a browser tool, but give up as soon as `signal` aborts (Stop, panel closed). */
+export function raceAbort<T>(work: Promise<T>, signal: AbortSignal, onAbort: () => T): Promise<T> {
+  if (signal.aborted) return Promise.resolve(onAbort());
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => resolve(onAbort());
+    signal.addEventListener("abort", abort, { once: true });
+    work.then(
+      (v) => (signal.removeEventListener("abort", abort), resolve(v)),
+      (e) => (signal.removeEventListener("abort", abort), reject(e)),
+    );
+  });
+}
 /**
  * Runs this tab streamed (not persisted: another tab never claims them). A boot whose
  * `initiator.runId` is one of these was asked for here, even when the run already finished
@@ -135,7 +168,7 @@ const plainSummary = (output: unknown): string | undefined => {
   return undefined;
 };
 
-function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
+export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
   const parts = [...m.parts];
   const last = parts[parts.length - 1];
   const at = (pred: (p: MessagePart) => boolean) => parts.findIndex(pred);
@@ -167,10 +200,15 @@ function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
         // A summary the browser already set (card and environment tools) is more specific than the service's.
         parts[i] = { ...p, status: e.ok ? "done" : "error", summary: p.summary ?? e.summary, input: e.input };
       }
+      // todo18 D: approved, then the tool failed (target gone): the card says so.
+      if (!e.ok) {
+        const j = at((p) => p.type === "approval" && p.toolCallId === e.id && p.state === "approved");
+        if (j >= 0) parts[j] = { ...(parts[j] as Extract<MessagePart, { type: "approval" }>), failed: e.summary || "The change didn't apply." };
+      }
       return { ...m, parts };
     }
     case "approval":
-      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt, detail: e.detail });
+      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt, detail: e.detail, toolCallId: e.toolCallId });
       return { ...m, parts };
     case "approval-resolved": {
       const i = at((p) => p.type === "approval" && p.id === e.approvalId);
@@ -222,10 +260,22 @@ export const useAgent = create<AgentState>()(
         a.answered.push(e.callId);
         set({ active: { ...a } });
         let outcome: ClientToolOutcome;
-        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: "The assistant for this project is closed." } };
+        if (e.name === REFRESH_TOKEN_TOOL) {
+          // todo18 D: the service's delegated token expired mid-run; mint a fresh one (no host needed).
+          const profile = get().sessions[a.projectId]?.profile ?? get().profile;
+          const token = await kernelToken(a.projectId, profile).catch(() => undefined);
+          await answerClientTool(a.runId, e.callId, token ? { ok: true, output: { token } } : { ok: false, output: { error: "Could not refresh access" } }).catch(() => {});
+          return;
+        }
+        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: STUDIO_CLOSED }, summary: "The Studio isn't open" };
         else {
           try {
-            outcome = await host.runTool(e.name, (e.input ?? {}) as Record<string, unknown>);
+            toolAbort ??= new AbortController();
+            outcome = await raceAbort(host.runTool(e.name, (e.input ?? {}) as Record<string, unknown>), toolAbort.signal, () => ({
+              ok: false,
+              output: { error: host && host.projectId === a.projectId ? TOOL_STOPPED : STUDIO_CLOSED },
+              summary: "Stopped",
+            }));
           } catch (err) {
             outcome = { ok: false, output: { error: err instanceof Error ? err.message : String(err) } };
           }
@@ -252,7 +302,8 @@ export const useAgent = create<AgentState>()(
         const ctl = new AbortController();
         controller = ctl;
         streamed.set(a.runId, { projectId: a.projectId, messageId: a.messageId });
-        set({ running: a.projectId, active: a });
+        set({ running: a.projectId, active: a, followedElsewhere: null });
+        followChannel?.postMessage({ type: "follow", runId: a.runId, tab: TAB_ID });
         try {
           await followRun(
             a.runId,
@@ -265,23 +316,30 @@ export const useAgent = create<AgentState>()(
               set({ active: { ...cur, lastSeq: e.seq } });
             },
             ctl.signal,
+            (state) => patchMessage(a.projectId, a.messageId, (m) => ({ ...m, reconnecting: state === "reconnecting" })),
           );
         } catch (err) {
-          if (!ctl.signal.aborted) {
+          if (!ctl.signal.aborted && handedOff !== ctl) {
             const message = err instanceof Error ? err.message : String(err);
             patchMessage(a.projectId, a.messageId, (m) => ({ ...m, error: m.error ?? message }));
           }
         } finally {
-          if (controller === ctl) {
+          if (handedOff === ctl) {
+            // Another tab follows it now: leave the message as it is; that tab finishes it.
+            handedOff = null;
+            if (controller === ctl) controller = null;
+          } else if (controller === ctl) {
             controller = null;
             // Tools still marked running when a run ends were cut off.
             patchMessage(a.projectId, a.messageId, (m) => ({
               ...m,
+              reconnecting: false,
               parts: m.parts.map((p) =>
                 p.type === "tool" && p.status === "running" ? { ...p, status: "error" as const, summary: p.summary ?? "Stopped" } : p.type === "approval" && p.state === "pending" ? { ...p, state: "expired" as const } : p,
               ),
             }));
             set((s) => ({ running: null, active: s.active?.runId === a.runId ? null : s.active }));
+            followChannel?.postMessage({ type: "ended", runId: a.runId, tab: TAB_ID });
           }
         }
       }
@@ -310,8 +368,15 @@ export const useAgent = create<AgentState>()(
         active: null,
         profile: "environment-designer",
         running: null,
+        followedElsewhere: null,
+        blockedBy: null,
         setProfile: (profile) => set({ profile }),
         setHost: (h) => {
+          // The panel closed (or moved to another project): browser tools in flight fail now.
+          if (!h || (host && h.projectId !== host.projectId)) {
+            toolAbort?.abort();
+            toolAbort = null;
+          }
           host = h;
         },
         conversation: (projectId) => {
@@ -323,7 +388,12 @@ export const useAgent = create<AgentState>()(
         },
         send: async (projectId, text, opts) => {
           const state = get();
-          if (state.running && state.running !== projectId) return;
+          if (state.running && state.running !== projectId) {
+            // One run at a time per tab: say so instead of dropping the message.
+            const blocked: ChatMessage = { id: crypto.randomUUID(), role: "assistant", parts: [], error: `${BLOCKED_PREFIX}${state.running} · Stop it there first.` };
+            set((s) => ({ threads: { ...s.threads, [projectId]: [...(s.threads[projectId] ?? []), blocked] }, blockedBy: { projectId, waitingOn: state.running! } }));
+            return;
+          }
           const steering = state.running === projectId && state.active;
           const parts: MessagePart[] = [...(opts.drop ? [{ type: "drop" as const, id: opts.drop.dropId }] : []), ...(text ? [{ type: "text" as const, text }] : [])];
           const user: ChatMessage = { id: opts.messageId ?? crypto.randomUUID(), role: "user", parts };
@@ -358,12 +428,20 @@ export const useAgent = create<AgentState>()(
             set({ running: null });
           }
         },
+        takeOver: () => {
+          const a = get().active;
+          if (!a || controller) return;
+          void follow(a);
+        },
         reattach: (projectId) => {
           const a = get().active;
-          if (!a || a.projectId !== projectId || controller) return;
+          if (!a || a.projectId !== projectId || controller || get().followedElsewhere === a.runId) return;
           void follow(a);
         },
         stop: () => {
+          // Browser-side tool work stops now; its failure is posted to the service by clientTool.
+          toolAbort?.abort();
+          toolAbort = null;
           const a = get().active;
           if (!a) return controller?.abort();
           // Cancel on the service; the stream then ends with `done: cancelled`. Fall back to local abort.
@@ -399,8 +477,23 @@ export const useAgent = create<AgentState>()(
         decide: async (projectId, messageId, approvalId, decision) => {
           const setState = (state: ApprovalState) =>
             patchMessage(projectId, messageId, (m) => ({ ...m, parts: m.parts.map((p) => (p.type === "approval" && p.id === approvalId ? { ...p, state } : p)) }));
-          setState(decision === "approve" ? "approved" : "rejected");
-          await decideApproval(approvalId, { decision }).catch(() => setState("expired"));
+          // Pending until the service agrees (a second tab or an expiry may have decided first).
+          const part = (get().threads[projectId] ?? []).find((m) => m.id === messageId)?.parts.find((p) => p.type === "approval" && p.id === approvalId) as
+            | Extract<MessagePart, { type: "approval" }>
+            | undefined;
+          if (part && (part.state !== "pending" || part.expiresAt <= Date.now())) {
+            if (part.state === "pending") setState("expired");
+            return;
+          }
+          try {
+            await decideApproval(approvalId, { decision });
+            setState(decision === "approve" ? "approved" : "rejected");
+          } catch (err) {
+            const status = err instanceof AgentHttpError ? err.status : 0;
+            // 404/409/410: decided elsewhere or expired. Anything else: still pending, try again.
+            if (status === 404 || status === 409 || status === 410) setState("expired");
+            // Otherwise the card stays pending and the person can try again.
+          }
         },
         addPart: (projectId, messageId, part) =>
           patchMessage(projectId, messageId, (m) => (m.parts.some((p) => "id" in p && p.id === (part as { id?: string }).id && p.type === part.type) ? m : { ...m, parts: [...m.parts, part] })),
@@ -431,6 +524,25 @@ export const useAgent = create<AgentState>()(
     },
   ),
 );
+
+// todo18 D: another tab started following this run: stop streaming here and say so.
+followChannel?.addEventListener("message", (ev: MessageEvent<{ type?: string; runId?: string; tab?: string }>) => {
+  const d = ev.data;
+  if (!d || d.tab === TAB_ID) return;
+  const a = useAgent.getState().active;
+  if (d.type === "ended") {
+    // The tab that followed it saw it end; this tab's copy of the thread is older (reload to see it).
+    if (a?.runId === d.runId) useAgent.setState({ running: null, active: null, followedElsewhere: null });
+    return;
+  }
+  if (d.type !== "follow") return;
+  if (!a || a.runId !== d.runId) return;
+  if (controller) {
+    handedOff = controller;
+    controller.abort();
+  }
+  useAgent.setState({ followedElsewhere: d.runId });
+});
 
 // Another person (or organization) signed in: load theirs, or start empty (todo15 D1).
 followPerson(useAgent, () => localStorage);

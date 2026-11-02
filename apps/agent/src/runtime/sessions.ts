@@ -26,6 +26,7 @@ import type {
   SendMessageRequest,
   SessionInfo,
 } from "@studio/agent-protocol";
+import { REFRESH_TOKEN_TOOL } from "@studio/agent-protocol";
 import { NAMING } from "../naming.ts";
 import { type EgressPolicy, SANDBOX_CWD } from "../sandbox/defaults.ts";
 import { DaytonaProvider, type SandboxProvider } from "../sandbox/provider.ts";
@@ -42,7 +43,7 @@ import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilder
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
-import { Projector, sanitizeError } from "./events.ts";
+import { Projector, providerErrorMessage, sanitizeError } from "./events.ts";
 import { Run } from "./runs.ts";
 
 export const AI_ASSIST_OFF_MESSAGE = "The assistant is off for this organization";
@@ -102,6 +103,8 @@ export class SessionContext {
   onClientToolSettled: ((callId: string) => void) | undefined;
   /** Kernel session token (builder / task); memory only, the Studio refreshes it per message. */
   kernelToken: string | undefined;
+  /** todo18 D: ask the browser for a fresh delegated token mid-run (set with the kernel client). */
+  refreshToken?: () => Promise<boolean>;
   /** The kernel client the project tools use (set in build), also for reading a message's drop. */
   kernel: KernelClient | undefined;
   private unsubscribe: (() => void) | undefined;
@@ -398,6 +401,15 @@ export class SessionService {
       token: () => ctx.kernelToken,
       // todo16 D9: the run is the turn; the kernel journals every write under it (X-Turn-Id).
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
+      // todo18 D: a long run outlives the delegated token; ask the browser for a fresh one.
+      refresh: (ctx.refreshToken = async () => {
+        if (!ctx.activeRun) return false;
+        const r = await ctx.bridge.request(`tok_${randomUUID()}`, REFRESH_TOKEN_TOOL, {}).catch(() => undefined);
+        const token = r?.ok ? (r.output as { token?: unknown } | null)?.token : undefined;
+        if (typeof token !== "string" || !token) return false;
+        ctx.kernelToken = token;
+        return true;
+      }),
       fetchImpl: this.deps.fetchImpl,
     });
     ctx.kernel = kernel;
@@ -415,6 +427,7 @@ export class SessionService {
       const studioClient = new StudioClient({
         baseUrl: this.config.kernelUrl,
         token: () => ctx.kernelToken,
+        refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false),
         headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
         fetch: this.deps.fetchImpl,
       });
@@ -740,7 +753,7 @@ export class SessionService {
       if (run.endReason) this.transition(ctx, run.endReason === "budget" ? "failed" : run.endReason, run);
       else {
         log.error({ err: sanitizeError(String(err)) }, "run failed");
-        run.events.push({ type: "error", message: sanitizeError(err instanceof Error ? err.message : String(err)) });
+        run.events.push({ type: "error", message: providerErrorMessage(err instanceof Error ? err.message : String(err)) });
         this.transition(ctx, "failed", run);
       }
     } finally {
@@ -769,7 +782,7 @@ export class SessionService {
     if (run.done || run.endReason) return;
     run.endReason = reason;
     if (message) run.events.push({ type: "error", message });
-    if (reason === "expired") run.events.push({ type: "error", message: `Stopped: the run exceeded ${this.config.budgets.maxRunSeconds}s.` });
+    if (reason === "expired") run.events.push({ type: "error", message: `Stopped by the time budget: this run reached its ${this.config.budgets.maxRunSeconds} s limit. Send "continue" to pick up where it left off; an admin can raise AGENT_MAX_RUN_SECONDS.` });
     run.abort.abort();
     ctx.bridge.cancelAll(reason);
     ctx.approvals.rejectAll(reason);
@@ -854,7 +867,7 @@ export class SessionService {
     }
     ctx.policy.spendUsd = ctx.projector.spendUsd;
     if (e.type === "message_end" && ctx.projector.spendUsd >= this.config.budgets.maxSpendUsd)
-      this.abortRun(ctx, run, "budget", `Stopped: this run reached the $${this.config.budgets.maxSpendUsd.toFixed(2)} spend limit.`);
+      this.abortRun(ctx, run, "budget", `Stopped by the spend budget: this run reached its $${this.config.budgets.maxSpendUsd.toFixed(2)} limit. Send "continue" to go on; an admin can raise AGENT_MAX_SPEND_USD.`);
   }
 
   /** Stop live sandboxes on shutdown (disk kept; reattached lazily next time). */

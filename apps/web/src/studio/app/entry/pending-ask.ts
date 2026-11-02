@@ -70,13 +70,14 @@ export const usePendingAsks = create<PendingAsks>((set, get) => ({
 }));
 
 /** In the conversation: send the queued message (and its drop) for this project once, when mounted. */
-export function usePendingAsk(projectId: string, ask: (text: string, drop?: PendingDrop) => void): void {
+export function usePendingAsk(projectId: string, ask: (text: string, drop?: PendingDrop) => void, ready = true): void {
   const pending = usePendingAsks((s) => s.asks[projectId]);
   useEffect(() => {
-    if (pending === undefined) return;
+    // todo18 D: not ready yet (status loading, session starting): keep it queued and retry when ready.
+    if (pending === undefined || !ready) return;
     const queued = usePendingAsks.getState().take(projectId);
     if (queued && (queued.text || queued.drop)) ask(queued.text, queued.drop);
     // `ask` changes every render; the queued text is what triggers this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, pending]);
+  }, [projectId, pending, ready]);
 }

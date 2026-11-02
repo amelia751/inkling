@@ -36,6 +36,11 @@ export interface KernelAccess {
   token: () => string | undefined;
   /** Extra headers per request, e.g. `X-Agent-Run` so a proposal names the run that made it. */
   headers?: () => Record<string, string>;
+  /**
+   * todo18 D: the delegated token outlives no run longer than an hour. On a 401 the client asks
+   * for a fresh one (the Studio mints it) and retries once; false when none could be had.
+   */
+  refresh?: () => Promise<boolean>;
   fetchImpl?: typeof fetch;
 }
 
@@ -58,6 +63,16 @@ export class KernelClient {
   }
 
   async request<T = any>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean; headers?: Record<string, string> } = {}): Promise<T> {
+    try {
+      return await this.once<T>(method, path, opts);
+    } catch (err) {
+      if (!(err instanceof KernelError) || err.status !== 401 || !this.access.refresh) throw err;
+      if (!(await this.access.refresh().catch(() => false))) throw err;
+      return this.once<T>(method, path, opts);
+    }
+  }
+
+  private async once<T>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean; headers?: Record<string, string> }): Promise<T> {
     const token = this.access.token();
     if (!token) throw new KernelError(401, "This session has no kernel access. Ask the user to reopen the assistant panel (the Studio passes a fresh token with each message).");
     const headers: Record<string, string> = { ...this.access.headers?.(), ...opts.headers, Authorization: `Bearer ${token}`, "X-Workspace-Id": this.access.workspaceId };

@@ -37,7 +37,7 @@ export function AiNotice({ className }: { className?: string }) {
   }
   return (
     <span className={className} data-testid="ai-notice">
-      File contents are encrypted and never go to the assistant.{" "}
+      File contents are encrypted and never go to the assistant; names and file facts (sizes, types, counts) do.{" "}
       <a href={LEGAL_PATHS.privacy} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground" data-testid="ai-notice-privacy">Privacy</a>
       {" · "}
       <a href={LEGAL_PATHS.terms} target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-foreground">Terms</a>

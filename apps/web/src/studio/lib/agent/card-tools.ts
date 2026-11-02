@@ -120,9 +120,19 @@ export interface CardResult {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-function findItem(ctx: AgentContext, ref: string) {
-  const r = ref.trim().toLowerCase();
-  return ctx.items.find((i) => i.id.toLowerCase() === r || i.name.toLowerCase() === r) ?? ctx.items.find((i) => i.name.toLowerCase().includes(r));
+/**
+ * Exact id first, then exact name (case-insensitive). Never a substring: two items named alike
+ * would silently pick the wrong one. Several items with that name → `ambiguous`, ask the person.
+ */
+export function findItem(ctx: AgentContext, ref: string): { id: string } | { ambiguous: string[] } | undefined {
+  const raw = ref.trim();
+  const byId = ctx.items.find((i) => i.id === raw);
+  if (byId) return { id: byId.id };
+  const r = raw.toLowerCase();
+  const byName = ctx.items.filter((i) => i.name.toLowerCase() === r);
+  if (byName.length === 1) return { id: byName[0]!.id };
+  if (byName.length > 1) return { ambiguous: byName.map((i) => i.id) };
+  return undefined;
 }
 
 const SECTIONS = new Set(["overview", "sources", "explore", "datasets", "studio", "review", "activity"]);
@@ -159,7 +169,14 @@ export function runCardTool(name: string, input: Json, ctx?: AgentContext): Card
         };
       }
       case "show_items": {
-        const ids = [...new Set(list(input.itemIds).map((r) => findItem(ctx!, r)?.id).filter((x): x is string => !!x))];
+        const found = list(input.itemIds).map((r) => ({ r, hit: findItem(ctx!, r) }));
+        const ambiguous = found.filter((f) => f.hit && "ambiguous" in f.hit);
+        if (ambiguous.length)
+          return fail(
+            ambiguous.map((f) => `Several items are named "${f.r}" (${(f.hit as { ambiguous: string[] }).ambiguous.join(", ")}); ask the person which one, then use its id.`).join(" "),
+            "Which item?",
+          );
+        const ids = [...new Set(found.map((f) => (f.hit && "id" in f.hit ? f.hit.id : undefined)).filter((x): x is string => !!x))];
         if (!ids.length) return fail("None of those item ids exist.", "No matching items");
         return { ok: true, output: { shown: ids.length }, summary: `Listed ${plural(ids.length, "item")}`, card: { kind: "items", title: String(input.title ?? "Items"), itemIds: ids } };
       }

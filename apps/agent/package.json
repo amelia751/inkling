@@ -29,6 +29,7 @@
     "@studio/contracts": "workspace:*",
     "@studio/observability-ts": "workspace:*",
     "@studio/studio-tools": "workspace:*",
+    "@workos-inc/node": "^12.1.0",
     "hono": "4.13.14",
     "ioredis": "5.11.1",
     "pg": "8.23.1",

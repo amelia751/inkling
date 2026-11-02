@@ -652,6 +652,9 @@ def purge_plan(db: Session, p: ProjectRow, roots: list[SourceNode]) -> PurgePlan
 
 def purge_apply(b: Batch, plan: PurgePlan) -> None:
     db = b.db
+    from . import trash  # files deleted forever leave the datasets that held them (todo16 D5)
+
+    trash.drop_purged(db, b.ctx, b.project, set(plan.node_ids))
     for r in plan.roots:
         b.journal("purge", r.id, {"name": r.name, "parent_id": r.parent_id, "is_dir": r.is_dir}, None)
         b.parents.add(r.parent_id or "")

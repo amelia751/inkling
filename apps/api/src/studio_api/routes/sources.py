@@ -27,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import audit, events, fs, imports, projects, tree, url_imports
+from ..kernel import audit, events, fs, imports, projects, trash, tree, url_imports
 from ..models import DatasetRow, ImportSession, SourceNode, now
 
 router = APIRouter(prefix="/api/v1")
@@ -42,7 +42,8 @@ def list_sources(project_id: str, ctx: RequestContext = Depends(get_context), db
 @router.get("/projects/{project_id}/search")
 def search(project_id: str, q: str = "", kind: str | None = None, status: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.require_project(db, ctx, project_id)
-    return {"items": projects.search_nodes(db, p, q.strip()[:200], kind, status)}
+    q = q.strip()[:200]
+    return {"items": projects.search_nodes(db, p, q, kind, status), "trashedMatches": trash.search_trashed(db, p, q, kind)}
 
 
 @router.get("/sources/{source_id}/children")

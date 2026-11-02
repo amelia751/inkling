@@ -20,6 +20,7 @@ from fastapi import HTTPException
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
+from .. import aftercommit, blobstore
 from ..auth.audit import record_event
 from ..config import settings
 from ..context import RequestContext
@@ -27,13 +28,16 @@ from ..db import Base
 from ..models import (
     INCLUDE_TRASHED,
     AnnotationDocumentRow,
+    Asset,
     DatasetCollectionRow,
+    DatasetRepo,
     DatasetRow,
     FsBatch,
     ProjectRow,
     SourceNode,
     TaskRow,
     User,
+    Workspace,
     now,
 )
 from . import fs, tree
@@ -133,7 +137,125 @@ def impact(db: Session, kind: str, row: Any) -> dict:
     files = 0
     if kind == "project":
         files = db.scalar(select(func.count()).select_from(SourceNode).where(SourceNode.project_id == row.id, SourceNode.is_dir.is_(False), SourceNode.trashed_at.is_(None))) or 0
+    # Trashing a dataset, collection, Studio or project never takes files out of another dataset
+    # (D3: files stay in Sources), so only a file delete fills `datasetsLosingItems`.
     return {"items": items, "files": files, "datasetsLosingItems": []}
+
+
+# ---- Files a dataset uses (round 2: D3-D5) -----------------------------------------------------
+
+
+def _dataset_refs(db: Session, d: DatasetRow) -> list[str]:
+    """The file node ids a dataset holds (its frozen list, or an older definition's live nodeIds)."""
+    definition = d.definition or {}
+    refs = definition.get("files")
+    if isinstance(refs, list):
+        return [str(r["nodeId"]) for r in refs if isinstance(r, dict) and r.get("nodeId")]
+    return [n.id for n in tree.files_under(db, [str(x) for x in definition.get("nodeIds") or []])]
+
+
+def datasets_losing(db: Session, project_id: str, file_ids: set[str]) -> list[dict]:
+    """`[{id, name, items}]`: the datasets (not in Trash) holding some of `file_ids`, and how many."""
+    out = []
+    if not file_ids:
+        return out
+    for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == project_id).order_by(DatasetRow.created_at)):
+        k = sum(1 for i in _dataset_refs(db, d) if i in file_ids)
+        if k:
+            out.append({"id": d.id, "name": d.title, "items": k})
+    return out
+
+
+def file_impact(db: Session, p: ProjectRow, node_ids: list[str]) -> dict:
+    """What moving files and folders to Trash takes from datasets (`GET …/trash/impact`)."""
+    ids = list(dict.fromkeys(str(x) for x in node_ids if x))
+    nodes = list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.id.in_(ids)))) if ids else []
+    if len(nodes) != len(ids):
+        raise HTTPException(404, "not in this project: " + ", ".join(sorted(set(ids) - {n.id for n in nodes}))[:300])
+    files: set[str] = set()
+    for n in nodes:
+        files |= {r.id for r in tree.subtree(db, n.id, into_trash=True) if not r.is_dir} if n.is_dir else {n.id}
+    return {"items": [{"kind": "source", "id": n.id, "name": n.name} for n in nodes], "files": len(files), "datasetsLosingItems": datasets_losing(db, p.id, files)}
+
+
+def trashed_files(db: Session, nodes: list[SourceNode]) -> dict[str, str]:
+    """node id → the Trash batch that holds it, for the files of `nodes` in Trash (themselves or a
+    folder above them). The batch id is what `POST …/trash/{batchId}/restore` takes."""
+    ch = tree.chains(db, [n.id for n in nodes])
+    holder: dict[str, str] = {}
+    for n in nodes:
+        c = ch.get(n.id)
+        if n.trashed_at is not None:
+            holder[n.id] = n.id
+        elif c is not None and c.hidden:
+            holder[n.id] = next(i for i, t in zip(reversed(c.ids), reversed(c.trashed), strict=True) if t is not None)
+    if not holder:
+        return {}
+    batch = {r.id: r.trash_batch_id or r.id for r in db.scalars(select(SourceNode).where(SourceNode.id.in_(set(holder.values()))))}
+    return {nid: batch.get(h, h) for nid, h in holder.items()}
+
+
+def dataset_trash_facts(db: Session, d: DatasetRow, nodes: list[SourceNode]) -> dict:
+    """`filesInTrash`, `filesTrashBatchIds` (the batches to restore them) and `itemCount` (files
+    not in Trash) for a dataset response."""
+    held = trashed_files(db, nodes)
+    return {"filesInTrash": len(held), "filesTrashBatchIds": list(dict.fromkeys(held.values())), "itemCount": len(nodes) - len(held)}
+
+
+def dataset_trashed(db: Session, t: TaskRow) -> bool:
+    d = _get(db, DatasetRow, t.dataset_id)
+    return d is None or d.trashed_at is not None
+
+
+def search_trashed(db: Session, p: ProjectRow, q: str, kind: str | None = None) -> int:
+    """How many files in Trash (themselves or inside a trashed folder) match a search."""
+    query = select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.parent_id.is_not(None), SourceNode.is_dir.is_(False))
+    if q:
+        query = query.where(func.lower(SourceNode.name).contains(q.lower()))
+    if kind:
+        query = query.where(SourceNode.detected_kind == kind)
+    rows = list(db.scalars(query.limit(5000)))
+    return len(trashed_files(db, rows))
+
+
+def drop_purged(db: Session, ctx: RequestContext, p: ProjectRow, node_ids: set[str]) -> list[dict]:
+    """Files deleted forever leave every dataset that held them. The dataset's definition loses
+    them, and a versioned dataset commits their removal as a new version on the purger's work
+    branch (`main` is protected: it reaches main through the usual review), so its history still
+    has them (D5). `[{id, name, items, commitOid}]`."""
+    out: list[dict] = []
+    if not node_ids:
+        return out
+    from .versioning import configured, run
+    from .versioning.studio import sample_id
+
+    for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id).execution_options(**INCLUDE_TRASHED)):
+        definition = dict(d.definition or {})
+        refs = definition.get("files")
+        if not isinstance(refs, list):
+            continue
+        gone = [r for r in refs if isinstance(r, dict) and str(r.get("nodeId")) in node_ids]
+        if not gone:
+            continue
+        definition["files"] = [r for r in refs if r not in gone]
+        for key in ("nodeIds", "followedFolders", "heldNodeIds"):
+            if isinstance(definition.get(key), list):
+                definition[key] = [i for i in definition[key] if str(i) not in node_ids]
+        d.definition = definition
+        oid = None
+        if configured() and db.get(DatasetRepo, (p.id, d.id)) is not None:
+            aids = [str(r["assetId"]) for r in gone if r.get("assetId")]
+            paths = list(db.scalars(select(Asset.path).where(Asset.id.in_(aids)))) if aids else []
+            body = {"message": f"Removed {len(gone)} {'file' if len(gone) == 1 else 'files'} deleted forever", "changes": {"remove_samples": [sample_id(x) for x in paths]}}
+            vctx = ctx.for_scope(p.id, None)
+            status, res = run(db, vctx, "branch", d.id, {})
+            if status < 300:
+                status, res = run(db, vctx, "commit", d.id, body)
+            oid = res.get("commit_oid") if status < 300 else None
+        record_event(db, org_id=p.org_id, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, action="dataset.files_purged", target=d.id, detail={"projectId": p.id, "files": len(gone), "commitOid": oid})
+        out.append({"id": d.id, "name": d.title, "items": len(gone), "commitOid": oid})
+    db.flush()
+    return out
 
 
 # ---- Trash, restore, destroy -------------------------------------------------------------------
@@ -233,7 +355,15 @@ def _owner_col(t: Any) -> Any:
 
 def _destroy_project(db: Session, pid: str) -> None:
     """Every row of the project, children before parents (rows keyed only through a foreign key to
-    a project-owned table, such as an upload's files, go with their parent)."""
+    a project-owned table, such as an upload's files, go with their parent), its workspace row,
+    and its blobs through the BlobStore, except bytes another project's asset row still names
+    (a sample copy shares its template's keys; the same rule as a file purge)."""
+    paths = set(db.scalars(select(Asset.path).where(Asset.workspace_id == pid)))
+    shared: set[str] = set()
+    plist = sorted(paths)
+    for i in range(0, len(plist), 500):
+        shared |= set(db.scalars(select(Asset.path).where(Asset.path.in_(plist[i : i + 500]), Asset.workspace_id != pid)))
+    keys = sorted(paths - shared)
     for t in reversed(Base.metadata.sorted_tables):
         if t.name in ("projects", "workspaces"):
             continue
@@ -247,6 +377,18 @@ def _destroy_project(db: Session, pid: str) -> None:
             if pown is not None and parent.name != "workspaces":
                 db.execute(delete(t).where(fk.parent.in_(select(fk.column).where(pown == pid))))
     db.execute(delete(ProjectRow).where(ProjectRow.id == pid))
+    db.execute(delete(Workspace).where(Workspace.id == pid))
+    if keys:
+        aftercommit.defer(db, _delete_blobs, keys)
+
+
+def _delete_blobs(keys: list[str]) -> None:
+    store = blobstore.data()
+    for k in keys:
+        try:
+            store.delete(k)
+        except Exception:  # noqa: BLE001 - a missing blob is already gone
+            pass
 
 
 def destroy(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> dict:

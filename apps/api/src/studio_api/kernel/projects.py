@@ -708,9 +708,9 @@ def staleness(db: Session, d: DatasetRow, pairs: list[tuple[SourceNode, dict]] |
 def dataset_dict(db: Session, d: DatasetRow) -> dict:
     tasks = [task_dict(db, t) for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at))]
     pairs = dataset_files(db, d)
-    from . import collections
+    from . import collections, trash
 
-    return {"id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(pairs), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at), "staleness": staleness(db, d, pairs),
+    return {**trash.dataset_trash_facts(db, d, [n for n, _ in pairs]), "id": d.id, "projectId": d.project_id, "title": d.title, "description": d.description or "", "definition": d.definition or {}, "fileCount": len(pairs), "tasks": tasks, "createdFromProposalId": d.created_from_proposal_id, "createdBy": d.created_by, "createdAt": iso(d.created_at), "staleness": staleness(db, d, pairs),
             "collections": collections.list_dicts(db, d), "draft": is_draft_dataset(db, d)}
 
 
@@ -791,7 +791,9 @@ def add_followed(db: Session, ctx: RequestContext, d: DatasetRow) -> DatasetRow:
 def task_dict(db: Session, t: TaskRow) -> dict:
     doc = db.get(AnnotationDocumentRow, (t.project_id, t.id))
     anns = doc.annotations if doc else []
-    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id, "collectionId": t.collection_id}
+    from . import trash
+
+    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id, "collectionId": t.collection_id, "datasetTrashed": trash.dataset_trashed(db, t)}
 
 
 def require_dataset(db: Session, ctx: RequestContext, dataset_id: str) -> tuple[DatasetRow, ProjectRow]:
@@ -911,7 +913,12 @@ def task_document(db: Session, t: TaskRow) -> dict:
     # todo13 D7: a task on one collection sees only that collection's files.
     in_collection = collections.item_filter(db, t, d)
     if d is not None:
-        files = [(n, ref) for n, ref in dataset_files(db, d, include_hidden=False) if n.id not in theirs and (in_collection is None or in_collection(n.id))]
+        every = [(n, ref) for n, ref in dataset_files(db, d) if n.id not in theirs and (in_collection is None or in_collection(n.id))]
+        # todo16 D4: a file in Trash stays an item, greyed (`state: "trashed"` + its batch to restore).
+        from . import trash
+
+        in_trash = trash.trashed_files(db, [n for n, _ in every])
+        files = every
         # WFDB: a header's signal files (.mat/.dat beside it) are part of its item, not items.
         signal_of = wfdb_parts([(n.id, n.parent_id, n.name) for n, _ in files])
         signals: dict[str, list[str]] = {}
@@ -932,6 +939,8 @@ def task_document(db: Session, t: TaskRow) -> dict:
             # The item id is the asset's storage path, which never changes (D3): annotations
             # stay on their items whatever happens to the file's name or folder.
             entry: dict[str, Any] = {"path": a.path, "sha256": sha or "", "bytes": size or 0, "name": n.name, "nodeId": n.id}
+            if n.id in in_trash:
+                entry.update(state="trashed", trashBatchId=in_trash[n.id])
             if kind == "waveform" and n.name.lower().endswith(".hea"):
                 # The record name (the header's stem) names the item; `raw` lists the header
                 # and its signal files, as the seeds' recordings do (plugins/timeseries reader).

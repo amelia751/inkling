@@ -120,6 +120,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(kernel.router)
     app.include_router(plugins.router)
     app.include_router(worker.router)
+    app.include_router(worker.workers_router)
     app.include_router(versioning.router)
     app.include_router(projects.router)
     app.include_router(prefs_routes.router)

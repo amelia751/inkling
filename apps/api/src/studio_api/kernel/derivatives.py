@@ -4,7 +4,7 @@ Inspection reports `facts.derivative = {kind}` for files the browser can't show;
 records a pending row. The worker claims rows (`claim`, leased), reports `progress`, uploads
 files through the BlobStore and calls `complete` or `fail`. A failed attempt is retried until
 `max_attempts`, then the row stays `failed` with the reason (e.g. the codec ffmpeg couldn't
-decode). `state_for` gives the item's ingest view (`processing` + progress / ready / failed);
+decode). `state_for` gives the item's ingest view (`processing` + progress / ready / failed / waiting);
 `derived_keys` lists blob keys for the purge worker.
 """
 
@@ -21,6 +21,9 @@ KINDS = ("video-mp4", "slide-dzi")
 LEASE_S = 15 * 60
 DEFAULT_MAX_ATTEMPTS = 3
 LABEL = {"video-mp4": "Converting video", "slide-dzi": "Preparing slide"}
+# The converter each kind needs (todo19 D10): a worker serves a kind when it reports any of these.
+NEEDS = {"video-mp4": ("ffmpeg",), "slide-dzi": ("openslide", "pyvips")}
+CONVERTER = {"video-mp4": "ffmpeg", "slide-dzi": "OpenSlide"}
 
 
 def _now() -> datetime:
@@ -39,11 +42,15 @@ def request(db: Session, node: SourceNode, kind: str) -> Derivative | None:
     return row
 
 
-def claim(db: Session, limit: int = 1, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> list[Derivative]:
+def claim(db: Session, limit: int = 1, max_attempts: int = DEFAULT_MAX_ATTEMPTS, kinds: list[str] | None = None) -> list[Derivative]:
+    """Lease pending rows; `kinds` (what the claiming worker can convert) routes jobs only to a
+    worker that can serve them (todo19 D10). `None` is an older worker: every kind."""
     now = _now()
+    q = select(Derivative).where(Derivative.attempts < max_attempts)
+    if kinds is not None:
+        q = q.where(Derivative.kind.in_(list(kinds) or ["-"]))
     rows = db.scalars(
-        select(Derivative)
-        .where(Derivative.attempts < max_attempts)
+        q
         .where(or_(Derivative.state == "pending", (Derivative.state == "processing") & (Derivative.lease_until < now)))
         .order_by(Derivative.created_at)
         .limit(limit)
@@ -66,9 +73,18 @@ def complete(db: Session, row: Derivative, *, sha: str, key: str, keys: list[str
     db.flush()
 
 
-def fail(db: Session, row: Derivative, reason: str, *, retry: bool, max_attempts: int = DEFAULT_MAX_ATTEMPTS) -> None:
-    row.error = reason[:500]
+def fail(db: Session, row: Derivative, reason: str, *, retry: bool, max_attempts: int = DEFAULT_MAX_ATTEMPTS, unavailable: bool = False) -> None:
+    """`unavailable` (todo19 P0-2): the worker lacks the converter. Not the file's fault, so the row
+    `waiting`s ("Waiting for a converter: OpenSlide") without spending an attempt, and a worker that
+    reports the capability re-queues it (`capabilities.report`)."""
     row.lease_until = None
+    if unavailable:
+        row.state, row.error = "waiting", f"Waiting for a converter: {CONVERTER.get(row.kind, 'a converter')}"
+        row.attempts = max(0, row.attempts - 1)
+        row.progress = 0
+        db.flush()
+        return
+    row.error = reason[:500]
     row.state = "pending" if retry and row.attempts < max_attempts else "failed"
     db.flush()
 
@@ -79,9 +95,9 @@ def state_for(db: Session, node_ids: list[str]) -> dict[str, dict]:
     if not node_ids:
         return out
     for r in db.scalars(select(Derivative).where(Derivative.source_node_id.in_(node_ids))):
-        state = "ready" if r.state == "ready" else "failed" if r.state == "failed" else "processing"
+        state = r.state if r.state in ("ready", "failed", "waiting") else "processing"
         v: dict = {"kind": r.kind, "state": state, "progress": r.progress, "label": LABEL.get(r.kind, "Preparing")}
-        if r.error and state == "failed":
+        if r.error and state in ("failed", "waiting"):
             v["error"] = r.error
         if state == "ready":
             v["key"], v["meta"] = r.blob_key, r.meta or {}

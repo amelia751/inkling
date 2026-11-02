@@ -3,6 +3,7 @@ import type { SeedAsset } from "@studio/contracts/types";
 import { ApiError } from "@/studio/lib/projects-api";
 import { fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
+import { hashFiles } from "@/studio/lib/uploads/hash";
 import { dropsApi, newDropId } from "./api";
 import { useDrops, type LocalDrop } from "./store";
 
@@ -183,12 +184,37 @@ export function whenRegistered(dropId: string, timeoutMs = 20_000): Promise<void
   });
 }
 
-/** "Upload paused" after a reload: the same files resume from the server's offset; others start a new drop. */
-export function resumeDrop(drop: LocalDrop, files: Picked | File[], extra: Partial<StartDropOptions> = {}): string[] {
-  const picked: Picked = Array.isArray(files) ? fromFileList(files) : files;
+/**
+ * Which picked files continue the drop: same path and size, and, when the server knows the
+ * file's SHA-256, the same bytes (todo18: a different file of the same size starts fresh
+ * instead of failing at the end as "damaged"). `shaOf` gives the picked file's hash.
+ */
+export function splitResume<F extends { relPath: string; file: File }>(drop: Pick<LocalDrop, "files">, picked: F[], serverSha: Map<string, string>, shaOf: Map<F, string> = new Map()): { same: F[]; other: F[] } {
   const known = new Set(drop.files.map((f) => `${f.relPath}\u0000${f.size}`));
-  const same = picked.files.filter((f) => known.has(`${f.relPath}\u0000${f.file.size}`));
-  const other = picked.files.filter((f) => !known.has(`${f.relPath}\u0000${f.file.size}`));
+  const same: F[] = [];
+  const other: F[] = [];
+  for (const f of picked) {
+    const want = serverSha.get(f.relPath);
+    const ok = known.has(`${f.relPath}\u0000${f.file.size}`) && (!want || !shaOf.has(f) || shaOf.get(f) === want);
+    (ok ? same : other).push(f);
+  }
+  return { same, other };
+}
+
+/** The server's hashes of a drop's files, by path (from its tray sessions). */
+function serverShas(dropId: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const s of useUploads.getState().sessions) if (s.dropId === dropId) for (const f of s.files) if (f.sha256) out.set(f.relPath, f.sha256);
+  return out;
+}
+
+/** "Upload paused" after a reload: the same files resume from the server's offset; others start a new drop. */
+export async function resumeDrop(drop: LocalDrop, files: Picked | File[], extra: Partial<StartDropOptions> = {}): Promise<string[]> {
+  const picked: Picked = Array.isArray(files) ? fromFileList(files) : files;
+  const server = serverShas(drop.id);
+  const check = picked.files.filter((f) => server.has(f.relPath));
+  const shas = check.length ? await hashFiles(check.map((f) => f.file), () => {}).catch(() => null) : null;
+  const { same, other } = splitResume(drop, picked.files, server, new Map(shas ? check.map((f, i) => [f, shas[i]]) : []));
   const base = { projectId: drop.projectId, origin: drop.origin, conversationId: drop.conversationId, taskId: drop.taskId, ...extra };
   const ids: string[] = [];
   if (same.length) ids.push(startDrop({ ...base, files: { files: same, skipped: 0 }, dropId: drop.id }));

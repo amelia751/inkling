@@ -60,7 +60,7 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
   const total = chips.reduce((n, c) => n + c.size, 0);
   const overall = interrupted ? "interrupted" : local?.error ? "failed" : paused ? "paused" : summaryState(chips);
   const again = (list: FileList) => {
-    if (local) resumeDrop(local, fromFileList(list));
+    if (local) void resumeDrop(local, fromFileList(list));
   };
   const remove = async (nodeId: string) => {
     await dropsApi.removeFromChat(dropId, nodeId).catch(() => undefined);

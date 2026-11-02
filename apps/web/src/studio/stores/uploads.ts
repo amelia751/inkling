@@ -43,6 +43,8 @@ export interface TrayFile {
   received: number;
   state: UploadFileState;
   reason: string | null;
+  /** The server's SHA-256 for this file (resume matches by it, todo18). */
+  sha256?: string;
 }
 
 export interface TraySession {
@@ -253,7 +255,7 @@ export const useUploads = create<UploadsState>((set, get) => {
     patch(key, (s) => ({
       ...(server.state === "inspecting" ? { checkingSince: s.checkingSince ?? Date.now() } : { checkingSince: undefined, stalled: false }),
       serverState: server.state,
-      files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason })) : s.files,
+      files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason, ...(f.sha256 ? { sha256: f.sha256 } : {}) })) : s.files,
       phase: server.state === "inspecting" ? "checking" : server.state === "uploading" ? (s.phase === "uploading" ? "uploading" : "failed") : server.state === "failed" ? "failed" : server.state === "cancelled" ? "cancelled" : "done",
       needsReview: server.state === "needs_review",
       error: server.error ?? undefined,

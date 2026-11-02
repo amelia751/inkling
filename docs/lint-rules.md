@@ -27,3 +27,9 @@ Every write runs these rules (todo17 D4). Severities: **error** rejects the writ
 | `dicom.series-incomplete` | dicom | warn | evaluate | no | DICOM series is incomplete. Upload the missing instances (see the slice gaps), or remove the partial series. |
 | `dicom.seg-frame-mismatch` | dicom | error | evaluate | no | SEG frame of reference doesn't match its source. Regenerate the segmentation against the referenced series. |
 | `nifti.orientation-mismatch` | nifti | warn | evaluate | no | NIfTI qform and sform disagree. Rewrite the header with one consistent affine (qform = sform). |
+| `dicom.inconsistent-spacing` | dicom | warn | evaluate | no | DICOM series has uneven slice or pixel spacing. Check the series for missing or duplicated slices, or resample it to even spacing. |
+| `dicom.inconsistent-orientation` | dicom | warn | evaluate | no | DICOM series mixes slice orientations. Split the series: its slices belong to more than one volume. |
+| `dicom.conformance` | dicom | info | evaluate | no | DICOM file fails conformance checks (dciodvfy). Fix the attributes dciodvfy reports, or re-export from the source system. |
+| `nifti.voxel-size` | nifti | error | evaluate | no | NIfTI voxel size is zero, negative or not finite. Set positive voxel sizes (pixdim) in the header. |
+| `nifti.nan` | nifti | warn | evaluate | no | NIfTI image contains NaN voxels. Replace NaN voxels (e.g. with 0) before labelling or training. |
+| `nifti.grid-mismatch` | nifti | error | evaluate | no | NIfTI mask grid differs from its image. Resample the mask onto the image grid (same shape and affine). |

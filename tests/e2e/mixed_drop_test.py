@@ -55,13 +55,17 @@ FIXTURE: dict[str, tuple[str, dict]] = {
     "drop/xray/cxr_0001.png": ("image", {"width": 24, "height": 16}),
     **{f"drop/brats/{BRATS}_{seq}.nii.gz": ("volume", {"sequence": seq}) for seq in ("t1", "t1ce", "t2", "flair")},
     f"drop/brats/{BRATS}_seg.nii.gz": ("mask", {"sequence": "seg"}),
-    f"drop/cine/{CINE}_4d.nii.gz": ("volume-time", {"slices": 10, "frames": 30}),
+    # The worker reports a 4D NIfTI as a volume with frames > 1; the plan makes it volume-time.
+    f"drop/cine/{CINE}_4d.nii.gz": ("volume", {"slices": 10, "frames": 30}),
     "drop/cine/Info.cfg": ("document", {}),
     "drop/ecg/00001_hr.hea": ("waveform", {"wfdb": {"record": "00001_hr", "leads": 12}}),
     "drop/ecg/00001_hr.dat": ("waveform", {"wfdb": {"record": "00001_hr"}}),
     "drop/video/colitis-0001.avi": ("video", {}),
     "drop/slide/TCGA-A6-5665-01Z.svs": ("slide", {}),
 }
+# The task document lists one asset per viewable file, each by its original filename (grouping
+# into items, e.g. the BraTS subject, happens in the Studio, checked in the browser below).
+EXPECTED_ASSETS = {"cxr_0001.png", *(f"{BRATS}_{s}.nii.gz" for s in ("t1", "t1ce", "t2", "flair", "seg")), f"{CINE}_4d.nii.gz", "00001_hr.hea", "colitis-0001.avi", "TCGA-A6-5665-01Z.svs"}
 # What the Studio's item list should show: one name per item, the original filename.
 EXPECTED_ITEMS = {"cxr_0001.png", f"{BRATS}_t1.nii.gz", f"{CINE}_4d.nii.gz", "00001_hr.hea", "colitis-0001.avi", "TCGA-A6-5665-01Z.svs"}
 
@@ -151,21 +155,18 @@ def run_api(db: Path) -> dict:
         return {"project": project, "task": None}
 
     task = task_ids[0]
-    env = call("GET", f"/api/environments/{task}")
-    effective = env.get("effective") or env.get("environment") or {}
-    accepts = effective.get("accepts") or list(((effective.get("data") or {}).get("kinds") or {}).keys())
+    doc = call("GET", f"/api/v1/tasks/{task}/document")
+    accepts = doc.get("accepts") or []
     check("the Studio accepts every kind in the drop (≥ 6)", len(set(accepts)) >= 6, json.dumps(accepts))
 
-    doc = call("GET", f"/api/v1/tasks/{task}/document")
     assets = doc.get("assets") or []
     names = [a.get("name") or "" for a in assets]
-    check("item names equal the original filenames", set(names) == EXPECTED_ITEMS, json.dumps(sorted(names)))
+    check("item names equal the original filenames", set(names) == EXPECTED_ASSETS, json.dumps(sorted(set(names) ^ EXPECTED_ASSETS)))
     check("no item is named by a storage key", not any(STORAGE_KEY.search(n) for n in names), json.dumps([n for n in names if STORAGE_KEY.search(n)]))
     check("every item carries its kind", all(a.get("kind") for a in assets), json.dumps([(a.get("name"), a.get("kind")) for a in assets])[:400])
     check("items of six kinds in one task", len({a.get("kind") for a in assets}) >= 6, json.dumps(sorted({str(a.get("kind")) for a in assets})))
-    subject = next((a for a in assets if (a.get("name") or "").startswith(BRATS)), None)
-    parts = [p.get("name", p) if isinstance(p, dict) else p for p in ((subject or {}).get("parts") or [])]
-    check("the BraTS subject is one item with its seg as a part", subject is not None and any("seg" in str(p) for p in parts), json.dumps(parts)[:300])
+    seg = next((a for a in assets if (a.get("name") or "") == f"{BRATS}_seg.nii.gz"), None)
+    check("the BraTS seg is a mask of the same task, served by its subject's profile", seg is not None and seg.get("kind") == "mask" and bool(seg.get("profile")), json.dumps(seg)[:300])
     return {"project": project, "task": task}
 
 

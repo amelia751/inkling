@@ -32,7 +32,7 @@ import {
   useSetMfaRequired,
 } from "@/studio/lib/org-api";
 import { useProjectList } from "@/studio/lib/projects-api";
-import { projectUrl, settingsUrl } from "@/studio/lib/routes";
+import { deletedProjectsUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
 import { API_KEY_SCOPES, type AdminPortalIntent, type ApiKey, type AuditEvent, type ProjectSummary } from "@studio/contracts";
 
 /** Organization › Projects: every project in the org, with who's in it. */
@@ -557,6 +557,14 @@ export function OrgSettingsPage() {
             <span className="mt-0.5 block leading-5 text-muted-foreground">Members can ask for AI contours and labels. Every suggestion is marked and needs a person to accept it.</span>
           </span>
         </label>
+        <Field label="Deleted projects">
+          <span className="text-sm text-muted-foreground">
+            Deleted projects are kept for 30 days.{" "}
+            <Link to={deletedProjectsUrl()} className="text-foreground underline-offset-2 hover:underline" data-testid="org-deleted-projects">
+              Restore or delete them forever
+            </Link>
+          </span>
+        </Field>
         <Button size="lg" className="w-fit" disabled={!editable || !dirty || !name.trim() || patch.isPending} onClick={save} data-testid="org-settings-save">
           Save changes
         </Button>

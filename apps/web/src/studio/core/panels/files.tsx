@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { InTrashBadge } from "@/studio/components/trash/delete-dialog";
+import { isTrashedItem } from "@/studio/lib/trash-api";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -424,6 +426,7 @@ interface RowEvents {
 function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string }; thumb?: ReactNode } & RowEvents) {
   const s = STATE[state];
   const count = bundleCount(item);
+  const trashed = isTrashedItem(item);
   return (
     <button
       onClick={() => onChoose(index)}
@@ -433,11 +436,13 @@ function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoo
       className={cn(
         "flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm transition-colors",
         current ? "bg-selection text-foreground" : "text-[var(--text-secondary)] hover:bg-generic hover:text-foreground",
+        trashed && "opacity-60",
       )}
       aria-current={current}
       role="listitem"
       data-testid="file-row"
       data-state={state}
+      data-trashed={trashed || undefined}
     >
       <s.icon className={cn("h-3.5 w-3.5 shrink-0", s.className)} aria-label={s.label} />
       {thumb}
@@ -446,6 +451,7 @@ function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoo
       {suffix && <span className="min-w-0 flex-1 truncate text-xs text-hint" data-testid="file-suffix">{suffix}</span>}
       {!suffix && <span className="flex-1" />}
       {count && <span className="tnum shrink-0 text-xs text-hint">{count}</span>}
+      {trashed && <InTrashBadge />}
     </button>
   );
 }
@@ -562,6 +568,7 @@ function FoldersView({
           return {
             "data-testid": "file-row",
             "data-state": states.get(items[index].id) ?? "todo",
+            "data-trashed": isTrashedItem(items[index]) ? "true" : undefined,
             "aria-current": index === itemIndex ? "true" : "false",
             onMouseEnter: (e) => onEnter(index, e.currentTarget),
             onMouseLeave: onLeave,

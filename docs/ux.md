@@ -417,6 +417,19 @@ A project goes to Deleted projects after you type its name (Settings › Danger 
 | Sources after deleting everything | Same as first run (drop files, ask) |
 | Search with trashed matches | "2 matches in Trash" (links to Trash) |
 
+Round 2 (test ids are a regression contract):
+
+- Rename and Delete live in the "…" menu of the dataset header (`dataset-header-menu`), next to the
+  Studio's collection switcher (`collection-menu`) and in the Studio's ⋯ menu (`studio-header-menu`).
+  Collection cards are whole-card links, so they carry no menu.
+- Trashing Sources files a dataset uses asks first: "Used by 2 datasets (340 items)"
+  (`delete-used-by`, from `GET /projects/:p/trash/impact?nodeIds=`). Without that endpoint the
+  delete goes straight ahead, as before.
+- An item whose file is in Trash (`state: "trashed"`) shows greyed with an **In Trash** badge
+  (`item-in-trash`) in the Studio's item list.
+- Empty states: `empty-files-in-trash` (Restore opens Trash), `empty-dataset-in-trash`,
+  `search-trashed-matches`. Org Settings links to Deleted projects (`org-deleted-projects`).
+
 ## 10. Review and versioning language
 
 Keep user-facing language accessible:

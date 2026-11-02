@@ -87,6 +87,9 @@ export const fetchChildren = (sourceId: string, node: string | null, cursor?: st
   api<ChildrenPage>(`/sources/${encodeURIComponent(sourceId)}/children?${new URLSearchParams({ ...(node ? { node } : {}), ...(cursor ? { cursor } : {}) })}`);
 export const fetchNode = (id: string) => api<SourceNodeDetail>(`/source-nodes/${encodeURIComponent(id)}`);
 export const fetchPreview = (id: string) => api<NodePreview>(`/source-nodes/${encodeURIComponent(id)}/preview`);
+/** Search, with how many more matches are in Trash (`trashedMatches`, 0 when the api doesn't say). */
+export const searchNodesWithTrash = (projectId: string, q: string, kind?: string, status?: string) =>
+  api<{ items: SourceNode[]; trashedMatches?: number }>(`/projects/${encodeURIComponent(projectId)}/search?${new URLSearchParams({ q, ...(kind ? { kind } : {}), ...(status ? { status } : {}) })}`).then((r) => ({ items: r.items, trashedMatches: r.trashedMatches ?? 0 }));
 export const searchNodes = (projectId: string, q: string, kind?: string, status?: string) =>
   api<{ items: SourceNode[] }>(`/projects/${encodeURIComponent(projectId)}/search?${new URLSearchParams({ q, ...(kind ? { kind } : {}), ...(status ? { status } : {}) })}`).then((r) => r.items);
 export const fetchDatasets = (id: string) => api<{ datasets: DatasetSummary[] }>(`/projects/${encodeURIComponent(id)}/datasets`).then((r) => r.datasets);

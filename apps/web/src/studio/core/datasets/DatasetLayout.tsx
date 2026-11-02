@@ -27,6 +27,7 @@ import { useDatasetView, type ProfileQuery } from "./api";
 import { datasetContext, rememberDataset, useAddData } from "./add-data";
 import type { DatasetStructure as StructureDraft } from "./structure";
 import { ReadOnlyBadge } from "./shared";
+import { RenameInPlace, ResourceMenu } from "@/studio/components/trash/delete-dialog";
 import { datasetStatus, STATUS_LABEL, STATUS_THEME } from "./model";
 import { DatasetOverview } from "./DatasetOverview";
 import { DatasetStructure } from "./structure/DatasetStructure";
@@ -135,6 +136,8 @@ function ViewSkeleton() {
 
 function DatasetHeader({ projectId, dataset: d, profile, canEdit }: { projectId: string; dataset?: DatasetSummary; profile?: DatasetProfile; canEdit: boolean }) {
   const setAssistant = useShell((s) => s.setAssistant);
+  const navigate = useNavigate();
+  const [renaming, setRenaming] = useState(false);
   const addData = useAddData(projectId, d);
   const status = d ? datasetStatus(d, profile) : undefined;
   if (!d)
@@ -148,7 +151,9 @@ function DatasetHeader({ projectId, dataset: d, profile, canEdit }: { projectId:
     <div className="mb-5 flex flex-wrap items-start justify-between gap-x-6 gap-y-3" data-testid="dataset-header">
       <div className="min-w-0 max-w-2xl">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-header-2 font-semibold" data-testid="dataset-title">{d.title}</h1>
+          <RenameInPlace projectId={projectId} kind="dataset" id={d.id} name={d.title} className="flex min-w-0 items-center gap-1" editing={renaming} onEditingChange={setRenaming}>
+            <h1 className="text-header-2 font-semibold" data-testid="dataset-title">{d.title}</h1>
+          </RenameInPlace>
           {status && <Badge theme={STATUS_THEME[status]} data-testid="dataset-status">{STATUS_LABEL[status]}</Badge>}
           {d.definition.seed && <Badge theme="unknown">Sample</Badge>}
           {!canEdit && <ReadOnlyBadge />}
@@ -172,6 +177,7 @@ function DatasetHeader({ projectId, dataset: d, profile, canEdit }: { projectId:
             <Link to={datasetUrl(projectId, d.id, "publish")} data-testid="dataset-publish"><ExportIcon /> Publish</Link>
           </Button>
         )}
+        <ResourceMenu projectId={projectId} kind="dataset" id={d.id} name={d.title} canEdit={canEdit} testId="dataset-header-menu" onRename={() => setRenaming(true)} onDeleted={() => navigate(projectUrl(projectId, "datasets"))} />
       </div>
     </div>
   );

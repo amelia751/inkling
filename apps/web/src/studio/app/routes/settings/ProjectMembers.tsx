@@ -6,7 +6,6 @@ import { Dialog } from "@studio/ui/ui/dialog";
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
-import { Loader } from "@studio/ui/ui/loader";
 import { PROJECT_ROLES, roleName, type MemberStatus, type ProjectMember, type ProjectRole } from "@studio/contracts";
 import { CopyId, DataTable, Field, OutlineLabel, PersonCell, RowMenu, SearchField, SettingsDialog, StatusLabel, type Column } from "@/studio/components/settings/kit";
 import { toastError, useAddToProject, useOrgMembers, useProjectMembers, useRemoveFromProject, useSelfId, useSetProjectRole, usePermission } from "@/studio/lib/org-api";
@@ -75,12 +74,8 @@ export function ProjectMembers({ projectId }: { projectId: string }) {
           <InviteIcon /> Add user
         </Button>
       </div>
-      <DataTable columns={columns} rows={rows} rowKey={(m) => m.userId} empty={
-          team.isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader size="s" /> Loading members
-            </span>
-          ) : offline ? (
+      <DataTable columns={columns} rows={rows} rowKey={(m) => m.userId} loading={team.isLoading} empty={
+          offline ? (
             "Project members need the API: see docs/running.md"
           ) : (
           <EmptyState

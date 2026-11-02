@@ -5,7 +5,6 @@ import { Dialog } from "@studio/ui/ui/dialog";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
-import { Loader } from "@studio/ui/ui/loader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { ORG_ROLES, PROJECT_ROLES, roleName, type OrgRole, type ProjectRole } from "@studio/contracts";
@@ -73,12 +72,8 @@ export function MembersPage() {
         columns={columns}
         rows={rows}
         rowKey={(m) => m.id}
-        empty={
-          membersQ.isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader size="s" /> Loading members
-            </span>
-          ) : offline ? (
+        loading={membersQ.isLoading} empty={
+          offline ? (
             "Members need the API: see docs/running.md"
           ) : q || status !== "all" ? (
             <NoResults what="users" onClear={() => (setQ(""), setStatus("all"))} />

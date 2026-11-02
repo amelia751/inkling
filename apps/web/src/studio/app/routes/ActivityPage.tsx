@@ -5,7 +5,7 @@ import { ActivityIcon, AiIcon, ChevronRightIcon, HumanIcon } from "@studio/ui/ic
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
-import { Skeleton } from "@studio/ui/ui/skeleton";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import type { ActivityActor, ActivityEntry } from "@studio/contracts/types";
 import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
 import { targetUrl } from "@/studio/lib/routes";
@@ -31,7 +31,7 @@ export function ActivityPage() {
     <AppLayout>
       <div className="mx-auto w-full max-w-4xl px-4 py-5 md:px-6 md:py-6" data-testid="activity-page">
         <PageHeading title="Activity" description="Who changed what, and when." />
-        {feed.isLoading && <Skeleton className="h-48 rounded-lg" />}
+        {feed.isLoading && <ActivitySkeleton />}
         {feed.error && <p className="text-sm text-muted-foreground">Couldn't load activity: {String(feed.error)}</p>}
         {feed.data && !entries.length && <EmptyState art="activity" title="No activity yet" description="Uploads, edits, reviews and releases in this project show up here, with who did them and when." data-testid="activity-empty" />}
         <div className="flex flex-col gap-6">
@@ -105,4 +105,24 @@ export function groupByDay(entries: ActivityEntry[], now = new Date()): [string,
     out.set(k, [...(out.get(k) ?? []), e]);
   }
   return [...out.entries()];
+}
+
+/** A day of placeholder entries, shaped like the real feed (heading, icon, line, time). */
+function ActivitySkeleton() {
+  return (
+    <section aria-busy data-testid="activity-skeleton">
+      <SkeletonText className="mb-2 w-24" />
+      <Card className="divide-y divide-border overflow-hidden">
+        {["w-3/5", "w-2/5", "w-1/2", "w-1/3", "w-2/5"].map((w, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-2.5">
+            <Skeleton className="size-4 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1">
+              <SkeletonText className={w} />
+            </div>
+            <SkeletonText className="w-10 shrink-0" />
+          </div>
+        ))}
+      </Card>
+    </section>
+  );
 }

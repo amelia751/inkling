@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Alert } from "@studio/ui/ui/alert";
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, SearchIcon } from "@studio/ui/icons";
@@ -62,7 +62,21 @@ export function PluginsPage() {
     }
   };
 
-  if (isLoading) return <FullPageMessage title="Loading plugins" loading />;
+  if (isLoading)
+    return (
+      <AppLayout>
+        <PageContainer>
+          <div className="mb-6" aria-busy data-testid="plugins-skeleton">
+            <Skeleton className="h-7 w-32" />
+            <SkeletonText className="mt-2 w-2/3" />
+          </div>
+          <SkeletonText variant="subheader" className="mb-2 w-20" />
+          <Card className="mb-6 divide-y divide-border">
+            <PluginRowsSkeleton />
+          </Card>
+        </PageContainer>
+      </AppLayout>
+    );
   if (!project) return <FullPageMessage kind="not-found" title="Dataset not found" />;
   if (!enabled)
     return (
@@ -114,7 +128,7 @@ export function PluginsPage() {
               <Button variant="ghost-secondary" size="sm" disabled={act.isPending} onClick={() => act.mutate(() => rollbackPlugin(datasetId, p.pluginId))}>Roll back</Button>
             </div>
           ))}
-          {installed.isLoading && <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><Loader size="s" /> Loading</p>}
+          {installed.isLoading && <PluginRowsSkeleton />}
         </Card>
 
         <div className="mb-2 flex items-center gap-3">
@@ -194,6 +208,23 @@ function BuiltInPlugins() {
           );
         })}
       </Card>
+    </>
+  );
+}
+
+/** Placeholder installed-plugin rows: name, id line, state badge. */
+function PluginRowsSkeleton() {
+  return (
+    <>
+      {["w-1/3", "w-1/2", "w-2/5"].map((w, i) => (
+        <div key={i} className="flex items-center gap-3 px-4 py-3" aria-busy>
+          <div className="min-w-0 flex-1">
+            <SkeletonText variant="subheader" className="w-1/4" />
+            <SkeletonText className={w} />
+          </div>
+          <Skeleton className="h-5 w-16 rounded-md" />
+        </div>
+      ))}
     </>
   );
 }

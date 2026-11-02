@@ -130,12 +130,9 @@ export function ProfilePage() {
           columns={columns}
           rows={rows}
           rowKey={(s) => s.id}
+          loading={sessions.isLoading}
           empty={
-            sessions.isLoading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader size="s" /> Loading sessions
-              </span>
-            ) : sessions.isError ? (
+            sessions.isError ? (
               `Couldn't load your sessions: ${errorText(sessions.error)}`
             ) : (
               "No active sessions."

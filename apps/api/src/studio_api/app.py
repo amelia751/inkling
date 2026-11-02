@@ -17,6 +17,7 @@ from .auth import routes as auth_routes
 from .auth.session import session_middleware
 from .kernel import service_scope
 from .routes import audit as audit_routes
+from .routes import connected_agents as connected_agents_routes
 from .routes import me as me_routes
 from .routes import org as org_routes
 from .routes import org_security
@@ -99,6 +100,11 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     from .kernel.admission import http as admission_http
 
     admission_http.install(app)  # problem JSON for rejected writes (todo17 D6)
+    from .auth import oauth as oauth_auth
+    from .auth import scopes as token_scopes
+
+    token_scopes.install(app)  # 403 insufficient_scope (todo17 D12)
+    oauth_auth.install(app)  # 202 + approval link for an outside agent's destroy (todo17 D12)
     app.include_router(ops.router)
     app.include_router(auth_routes.router)
     app.include_router(api_keys.router)
@@ -126,6 +132,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(org_security.router)
     app.include_router(audit_routes.router)
     app.include_router(me_routes.router)
+    app.include_router(connected_agents_routes.router)
     app.include_router(org_routes.router)
 
     @app.get("/api/v1/health")

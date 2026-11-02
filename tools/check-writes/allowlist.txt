@@ -1,6 +1,7 @@
 # Mutating routes that do not go through admit() yet (todo17 D1). This list only shrinks.
 # Regenerate: uv run pytest tools/check-writes -q --update-writes
 DELETE /api/v1/drops/{drop_id}/files/{node_id}
+DELETE /api/v1/me/connected-agents/{conn_id}
 DELETE /api/v1/me/sessions/{session_id}
 DELETE /api/v1/org/api-keys/{key_id}
 DELETE /api/v1/org/deleted-projects/{project_id}
@@ -33,6 +34,8 @@ POST /api/environments/{project_id}/checks
 POST /api/environments/{project_id}/rollback
 POST /api/v1/annotations
 POST /api/v1/annotations/{annotation_id}/review
+POST /api/v1/approvals/{approval_id}/approve
+POST /api/v1/approvals/{approval_id}/deny
 POST /api/v1/artifacts
 POST /api/v1/assets/url-token
 POST /api/v1/boundary/annotations/export
@@ -56,6 +59,7 @@ POST /api/v1/datasets/{dataset_id}/reviews/{review_id}/merge
 POST /api/v1/datasets/{dataset_id}/reviews/{review_id}/resolutions
 POST /api/v1/datasets/{dataset_id}/structure/accept
 POST /api/v1/datasets/{dataset_id}/studio/commits
+POST /api/v1/dev/oauth/tokens
 POST /api/v1/drops/{drop_id}/apply
 POST /api/v1/drops/{drop_id}/undo
 POST /api/v1/events

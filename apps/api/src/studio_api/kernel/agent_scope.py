@@ -131,6 +131,11 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # todo16 D9: an assistant turn, journaled in fs_batches (kernel/turns.py).
         ("GET", f"{P}/projects/{{project_id}}/turns/{{turn_id}}"),
         ("POST", f"{P}/projects/{{project_id}}/turns/{{turn_id}}/undo"),
+        # todo17 D3/D12: the project's rules (writes stay people's; agents propose changes), and
+        # an outside agent polling the approval a person gives for its destroy (202 + link).
+        ("GET", f"{P}/projects/{{project_id}}/rules"),
+        ("GET", f"{P}/projects/{{project_id}}/rules/history"),
+        ("GET", f"{P}/approvals/{{approval_id}}"),
     }
 )
 

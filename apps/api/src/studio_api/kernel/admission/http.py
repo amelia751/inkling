@@ -30,6 +30,31 @@ def write_params(
     return WriteParams(dry_run=dry_run, idempotency_key=(idempotency_key or "").strip() or None)
 
 
+def idempotency_principal(ctx: Any) -> str:
+    """Whose keys an `Idempotency-Key` lives among (todo17 D13): always the authenticated caller,
+    never a body field. An API key is `apikey:<id>`; an outside agent's OAuth token is its
+    connection (`conn:<id>`: the token subject's grant to that client, stable across refreshes,
+    so two agents of one person never share keys); a session token its own hash; a person their
+    principal."""
+    from ...context import AUTH_OAUTH, AUTH_TOKEN
+
+    if ctx.auth == AUTH_OAUTH and ctx.token_hash:
+        return ctx.token_hash
+    if ctx.auth == AUTH_TOKEN and ctx.token_hash:
+        return f"token:{ctx.token_hash}"
+    return ctx.principal
+
+
+def admission_ctx(ctx: Any, project_id: str | None = None, **extra: Any) -> Any:
+    """An `admit` context from the request's: actor, the person it acts for, and the D12 scopes
+    of an API key or OAuth token (None for people and session tokens, which D12 doesn't govern)."""
+    from ...auth import scopes
+    from . import Ctx
+
+    held = frozenset(scopes.tier_scopes(ctx.scopes) if "*" not in ctx.scopes else scopes.SCOPES) if scopes.governed(ctx) else None
+    return Ctx(project_id=project_id, principal=ctx.principal, on_behalf_of=ctx.on_behalf_of, scopes=held, extra=dict(extra))
+
+
 def declares(op_id: str) -> dict[str, Any]:
     """`openapi_extra` marking a route as going through `admit(op_id)` (checked by `check:writes`)."""
     return {OPERATION_KEY: op_id}

@@ -26,6 +26,7 @@
     "seeds": "uv run tools/fetch-seeds.py",
     "seeds:upload": "uv run tools/fetch-seeds.py --upload",
     "mcp": "pnpm --filter @studio/mcp dev",
+    "mcp:http": "pnpm --filter @studio/mcp dev:http",
     "site": "pnpm --filter @studio/site dev",
     "agent": "pnpm --filter @studio/agent dev",
     "agent:test": "pnpm --filter @studio/agent test",

@@ -1,0 +1,33 @@
+# mcp: the remote MCP server, reached only through the ingress controller (/mcp). Forwards each
+# call to the api with the caller's token; counts calls in Redis (6379 plain; 6378/6380 TLS). No
+# internet egress: it never verifies tokens itself (the api does, against WorkOS).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: mcp
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 8300
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.255.0.0/16 # managed data services (overlay patches this)
+      ports:
+        - port: 6378
+        - port: 6379
+        - port: 6380
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - port: 8000

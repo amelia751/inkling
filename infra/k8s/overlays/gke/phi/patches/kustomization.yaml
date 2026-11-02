@@ -18,7 +18,7 @@ patches:
   # Memorystore serves TLS with its own CA (ConfigMap redis-ca, from `terraform output redis_ca`).
   - target:
       kind: Deployment
-      name: (api|versioning)
+      name: (api|versioning|mcp)
     patch: |-
       - op: add
         path: /spec/template/spec/volumes/-

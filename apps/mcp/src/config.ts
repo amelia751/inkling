@@ -18,21 +18,48 @@ export interface McpConfig {
   workspace: string | undefined;
   /**
    * Organization API key (todo9 Phase 8), sent as `Authorization: Bearer` on every API call. The API
-   * then knows who edits, so `author` is no longer sent.
+   * then knows who edits, so `author` is no longer sent. stdio only: over HTTP the caller's token is used.
    */
   apiKey: string | undefined;
   /** todo16: a person's token for the kernel tools (default: the API key). The kernel applies their project role. */
   personToken: string | undefined;
   /** Dev fallback without a key: the author name saved with environment edits. */
   author: string;
+  /** todo17 D12: `stdio` (default; `--http` on the command line also picks http) or `http` (streamable HTTP). */
+  transport: "stdio" | "http";
+  /** HTTP listen address (`MCP_HOST`, `MCP_PORT`). */
+  host: string;
+  port: number;
+  /** Public URL of the remote MCP endpoint, e.g. `https://mcp.example.com/mcp`: the OAuth resource (audience). */
+  publicUrl: string;
+  /** The OAuth authorization server (the WorkOS AuthKit domain, `https://<sub>.authkit.app`). */
+  authServer: string | undefined;
+  /** Calls per token per minute, and writes per token per day (todo17 D12). */
+  rateLimitPerMin: number;
+  writeQuotaPerDay: number;
+  /** Redis for the rate-limit counters (replica-safe). Unset: in-process counters (one replica only). */
+  redisUrl: string | undefined;
+  /** PEM of the CA that signs Redis's TLS certificate (`rediss://` on Memorystore). */
+  redisCaFile: string | undefined;
+  /** Image build's git sha (`--build-arg GIT_SHA`), served by /version. */
+  gitSha: string | undefined;
 }
 
 /** The api's dev URL (`pnpm dev`, docs/running.md). */
 export const DEFAULT_STUDIO_URL = "http://127.0.0.1:8000";
+export const DEFAULT_PORT = 8300;
 
-export function loadConfig(raw: NodeJS.ProcessEnv = process.env): McpConfig {
+const int = (v: string | undefined, d: number) => {
+  const n = v === undefined ? NaN : Number.parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : d;
+};
+
+export function loadConfig(raw: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv): McpConfig {
   const env = (key: string) => raw[`${NAMING.envPrefix}${key}`] || undefined;
   const webUrl = (env("MCP_STUDIO_URL") ?? env("WEB_URL") ?? env("API_URL") ?? DEFAULT_STUDIO_URL).replace(/\/$/, "");
+  const host = env("MCP_HOST") ?? "127.0.0.1";
+  const port = int(env("MCP_PORT"), DEFAULT_PORT);
+  const transport = env("MCP_TRANSPORT") === "http" || argv.includes("--http") ? "http" : "stdio";
   return {
     webUrl,
     apiUrl: (env("API_URL") ?? webUrl).replace(/\/$/, ""),
@@ -40,6 +67,16 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): McpConfig {
     apiKey: env("MCP_API_KEY"),
     personToken: env("MCP_PERSON_TOKEN"),
     author: env("MCP_AUTHOR") ?? "agent:mcp",
+    transport,
+    host,
+    port,
+    publicUrl: (env("MCP_PUBLIC_URL") ?? `http://${host === "0.0.0.0" ? "127.0.0.1" : host}:${port}/mcp`).replace(/\/$/, ""),
+    authServer: env("MCP_AUTH_SERVER")?.replace(/\/$/, ""),
+    rateLimitPerMin: int(env("MCP_RATE_LIMIT_PER_MIN"), 120),
+    writeQuotaPerDay: int(env("MCP_WRITE_QUOTA_PER_DAY"), 5000),
+    redisUrl: env("MCP_REDIS_URL"),
+    redisCaFile: env("MCP_REDIS_CA_FILE"),
+    gitSha: raw.GIT_SHA || undefined,
   };
 }
 

@@ -3,17 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "MCP server (stdio) that lets an outside agent inspect and boot Studio environments",
+  "description": "MCP server (stdio and streamable HTTP) for outside agents: project operations, context, Studio environments",
   "scripts": {
     "dev": "tsx src/main.ts",
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test:apps-host": "node test/apps-host/run.mjs",
-    "test": "tsx --test test/unit/*.test.ts"
+    "test": "tsx --test test/unit/*.test.ts",
+    "start:http": "node dist/main.js --http",
+    "dev:http": "tsx src/main.ts --http"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2"
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "ioredis": "5.11.1"
   },
   "devDependencies": {
     "@types/node": "^24",

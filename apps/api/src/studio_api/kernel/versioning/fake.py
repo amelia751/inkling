@@ -237,6 +237,18 @@ class FakeVersioning:
             self.idem[key] = out
             return out
 
+    def delete_repo(self, token, repo_id):
+        """todo18 D8: the repo and its refs; its objects go at the next `gc`."""
+        with self.lock:
+            self._auth("delete_repo", token, "versioning:admin")
+            self.repos.pop(repo_id, None)
+            self.deleted = [*getattr(self, "deleted", []), repo_id]
+
+    def gc(self, token):
+        with self.lock:
+            self._auth("gc", token, "versioning:admin")
+            self.gcs = getattr(self, "gcs", 0) + 1
+
     def get_repo(self, token, repo_id):
         with self.lock:
             r = self._repo(self._auth("get_repo", token, "versioning:read"), repo_id)

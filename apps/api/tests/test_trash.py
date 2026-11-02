@@ -223,7 +223,7 @@ def test_deleting_a_project_forever_removes_its_workspace_and_unshared_blobs(cli
 
     p, _, _ = _setup(client)
     deleted: list[str] = []
-    monkeypatch.setattr(ktrash, "_delete_blobs", lambda keys: deleted.extend(keys))
+    monkeypatch.setattr(ktrash.purge, "apply", lambda keys, repos: deleted.extend(keys))
     with kdb.session_scope() as db:
         paths = sorted(db.scalars(select(Asset.path).where(Asset.workspace_id == p)))
         assert paths

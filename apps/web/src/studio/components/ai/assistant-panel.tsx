@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
-import { Loader } from "@studio/ui/ui/loader";
+import { PanelBodySkeleton } from "@/studio/components/studio/ModuleSlot";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
@@ -161,7 +161,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       </header>
 
       {status.isLoading ? (
-        <div className="flex flex-1 items-center justify-center"><Loader /></div>
+        <div className="flex flex-1 flex-col" role="status" aria-label="Loading the assistant" data-testid="assistant-loading"><PanelBodySkeleton /></div>
       ) : !status.data?.configured ? (
         <>
           {!status.data && agentUnavailable(status.error) ? (

@@ -4,7 +4,7 @@ import { registry } from "@/extension-host/registry";
 import { isSafeMode, safeHref } from "@/studio/lib/safe-mode";
 import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { Loader } from "@studio/ui/ui/loader";
-import { SkeletonText } from "@studio/ui/ui/skeleton";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 
 /**
  * Per-slot module loading (todo11 Milestone 1 §2). The shell paints as soon as the environment
@@ -28,7 +28,7 @@ export function useContributionImpl<T>(id: string): { impl: T | undefined; statu
 }
 
 /** Layout-matched placeholders: the canvas stays dark, panels show text lines. */
-export function SlotSkeleton({ kind }: { kind: SlotKind }) {
+export function SlotSkeleton({ kind, standalone = false }: { kind: SlotKind; standalone?: boolean }) {
   if (kind === "viewport") {
     return (
       // The canvas stays dark with a slow sheen; the spinner only appears if loading drags on.
@@ -37,11 +37,39 @@ export function SlotSkeleton({ kind }: { kind: SlotKind }) {
       </div>
     );
   }
+  // A panel alone in its slot draws its own header (the assistant's: icon, title, actions):
+  // the skeleton has the same header and body rhythm, so the swap doesn't move anything.
+  if (standalone)
+    return (
+      <div className="flex h-full min-w-0 flex-col" data-testid="panel-skeleton" role="status" aria-label="Loading panel">
+        <div className="flex shrink-0 items-center gap-2 border-b border-transparent pt-3 pr-3 pb-2 pl-4">
+          <Skeleton className="size-4 rounded-xs" />
+          <SkeletonText variant="body-2" className="w-28" />
+          <span className="ml-auto size-7" aria-hidden />
+        </div>
+        <PanelBodySkeleton />
+      </div>
+    );
   return (
     <div className="flex flex-col gap-1 p-3" data-testid="panel-skeleton" role="status" aria-label="Loading panel">
       <SkeletonText variant="subheader" className="w-1/3" />
       <SkeletonText className="w-full" />
       <SkeletonText className="w-5/6" />
+      <SkeletonText className="w-2/3" />
+    </div>
+  );
+}
+
+/** A panel body while it loads: an icon tile, a heading and a few lines (the assistant's empty states' shape). */
+export function PanelBodySkeleton() {
+  return (
+    <div className="flex flex-1 flex-col gap-3 px-4 pt-6" aria-hidden>
+      <Skeleton className="size-8 rounded-lg" />
+      <SkeletonText variant="subheader" className="w-1/2" />
+      <div className="flex flex-col">
+        <SkeletonText className="w-full" />
+        <SkeletonText className="w-5/6" />
+      </div>
       <SkeletonText className="w-2/3" />
     </div>
   );
@@ -117,7 +145,7 @@ class SlotBoundary extends Component<{ kind: SlotKind; id: string; children: Rea
  * (and while a lazy component inside suspends), a failure card if the module or the component
  * fails.
  */
-export function ModuleSlot<T>({ id, kind, children }: { id: string; kind: SlotKind; children: (impl: T) => ReactNode }) {
+export function ModuleSlot<T>({ id, kind, standalone, children }: { id: string; kind: SlotKind; standalone?: boolean; children: (impl: T) => ReactNode }) {
   const { impl, status, error, moduleId } = useContributionImpl<T>(id);
   // A viewer's engine mounts synchronously and can be slow (WebGL probes, decoders). When its
   // module is already loaded (in-app navigation) it would mount in the same task as the shell
@@ -127,10 +155,10 @@ export function ModuleSlot<T>({ id, kind, children }: { id: string; kind: SlotKi
     const message = error?.message ?? `Module "${moduleId}" has no implementation for "${id}"`;
     return <SlotFailed kind={kind} id={id} message={message} onRetry={moduleId && error ? () => registry.retry(moduleId) : undefined} />;
   }
-  if (impl === undefined || !painted) return <SlotSkeleton kind={kind} />;
+  if (impl === undefined || !painted) return <SlotSkeleton kind={kind} standalone={standalone} />;
   return (
     <SlotBoundary kind={kind} id={id}>
-      <Suspense fallback={<SlotSkeleton kind={kind} />}>{children(impl)}</Suspense>
+      <Suspense fallback={<SlotSkeleton kind={kind} standalone={standalone} />}>{children(impl)}</Suspense>
     </SlotBoundary>
   );
 }

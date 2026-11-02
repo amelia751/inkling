@@ -22,7 +22,7 @@ import { formatCombo } from "@studio/ui/keys";
 import { OverlayOpacityControl } from "@studio/renderers/viewport-chrome/opacity";
 import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
-import { COMMANDS, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";
+import { COMMANDS, StackConfigSchema, VIEW_CONTROLS, VIEW_STATE, type ViewControls, type ViewState } from "../view";
 import { commandDef, useHost } from "@studio/plugin-ui-sdk";
 
 /** First key of a command as bound in the active environment ("⇧I"), if any. */
@@ -85,7 +85,31 @@ export function ViewControlsPanel({ env, item }: PanelProps) {
   const setTool = useHost((s) => s.setTool);
   // The toolbar hides Zoom (scroll already zooms); it lives here, with its key.
   const zoom = env.tools.find((t) => t.name === "zoom");
-  if (!view || !act) return null;
+  // Until the image is in, the same controls show disabled (from the renderer's config), so the
+  // bar has its final width from the first frame instead of growing when the image loads.
+  const waiting = !view || !act;
+  if (waiting) {
+    if (!item) return null;
+    const parsed = StackConfigSchema.safeParse(env.viewports[0]?.config ?? {});
+    if (!parsed.success) return null;
+    return (
+      <div inert className="opacity-50" data-testid="view-controls-pending">
+        <Controls view={placeholder(parsed.data)} act={NOOP} tool={tool} setTool={setTool} zoom={zoom} />
+      </div>
+    );
+  }
+  return <Controls view={view} act={act} tool={tool} setTool={setTool} zoom={zoom} />;
+}
+
+const noop = () => undefined;
+const NOOP: ViewControls = { toggleInvert: noop, flip: noop, rotate: noop, reset: noop, setColormap: noop, toggleInterpolation: noop, applyVoiPreset: noop, toggleMagnifier: noop, setWandMode: noop, removeIslands: noop };
+
+function placeholder(config: ReturnType<typeof StackConfigSchema.parse>): ViewState {
+  const { windowLevel, invert, flip, rotate, colormap, interpolation, magnifier } = config;
+  return { features: { windowLevel, invert, flip, rotate, colormap, interpolation, magnifier }, invert: false, colormap: "Grayscale", colormaps: config.colormaps, linear: true, magnify: false, wandMode: "flood", unit: "px", voiOptions: [{ value: "", label: "Window" }] };
+}
+
+function Controls({ view, act, tool, setTool, zoom }: { view: ViewState; act: ViewControls; tool: string | undefined; setTool: (t: string) => void; zoom: PanelProps["env"]["tools"][number] | undefined }) {
   const f = view.features;
   const segTools = tool === "brush" || tool === "eraser" || tool === "wand";
 

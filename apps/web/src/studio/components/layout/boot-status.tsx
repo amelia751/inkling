@@ -8,6 +8,7 @@ import { useStudio } from "@/studio/stores/studio";
 import { usePendingAsks } from "@/studio/app/entry/pending-ask";
 import { useDrops } from "@/studio/core/drops/store";
 import { bootSeconds, formatSeconds, useBoots, type BootView } from "@/studio/stores/boots";
+import { dropTimeline, type DropTimeline } from "@/studio/lib/drop-timeline";
 
 /** How long the pill stays after a boot finishes ("Studio ready · 0.4 s"). */
 const LINGER_MS = 8000;
@@ -55,14 +56,34 @@ function useCurrentBoot(projectId: string | undefined): BootView | undefined {
   return boot;
 }
 
+/**
+ * How long the person waited for this Studio, in seconds, or `undefined` when there's no honest
+ * number. A boot from a drop or a send is timed on the drop timeline, from the confirmed upload
+ * (or the gesture) to the boot being ready: the fast path's own boot is a few milliseconds of
+ * server work, and "0.02 s" says nothing about the wait. Otherwise the boot's own duration,
+ * shown only when it's long enough to mean something.
+ */
+export function readySeconds(boot: Pick<BootView, "ms" | "finishedAt" | "seenAt" | "initiator">, t: Pick<DropTimeline, "active" | "dropId" | "steps"> = dropTimeline()): number | undefined {
+  const dropId = (boot.initiator as { dropId?: string } | undefined)?.dropId;
+  if (t.active && (!dropId || !t.dropId || dropId === t.dropId)) {
+    const at = (step: string) => t.steps.find((s) => s.step === step)?.ms;
+    const start = at("attested") ?? 0;
+    const end = at("server:boot.ready") ?? at("studio:route-enter");
+    if (end !== undefined && end > start) return (end - start) / 1000;
+  }
+  const s = bootSeconds(boot as BootView);
+  return s >= 0.1 ? s : undefined;
+}
+
 /** The compact top-bar pill while a boot runs (todo11 item 9). */
 export function BootPill({ className }: { className?: string }) {
   const { projectId, taskId } = useParams();
   const boot = useCurrentBoot(projectId);
   if (!boot) return null;
   const task = boot.taskIds[0];
+  const secs = boot.state === "ready" ? readySeconds(boot) : undefined;
   const text =
-    boot.state === "running" ? "Setting up Studio" : boot.state === "ready" ? `Studio ready · ${formatSeconds(bootSeconds(boot))} s` : boot.state === "stopped" ? "Studio stopped" : "Studio failed";
+    boot.state === "running" ? "Setting up Studio" : boot.state === "ready" ? (secs !== undefined ? `Studio ready · ${formatSeconds(secs)} s` : "Studio ready") : boot.state === "stopped" ? "Studio stopped" : "Studio failed";
   const body = (
     <>
       {boot.state === "running" ? <Spinner className="size-3" /> : boot.state === "failed" ? <ErrorIcon className="size-3.5 text-danger" /> : <DoneIcon className="size-3.5 text-hint" />}

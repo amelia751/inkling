@@ -17,6 +17,7 @@ import { forgetClient } from "@/studio/lib/person-key";
 import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
 
 const TRIGGER = "press flex h-7 min-w-0 items-center gap-1 rounded-lg bg-generic py-1.5 pl-[9px] pr-1.5 text-sm text-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]";
@@ -121,7 +122,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
     // dismiss layer is still live) can't swallow the next click on the trigger and close it again.
     <DropdownMenu key={projectId}>
       <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[min(280px,40vw)]", className)} aria-label={`Project: ${title}. Switch project`} data-testid="project-switcher">
-        <span className="truncate">{title}</span>
+        {title ? <span className="truncate">{title}</span> : <SkeletonText className="w-24" aria-label="Loading project name" />}
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[280px]">

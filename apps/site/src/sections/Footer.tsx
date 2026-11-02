@@ -1,5 +1,6 @@
+import { LEGAL_PATHS } from "@studio/contracts/legal";
 import { ArrowRightIcon } from "@studio/ui/icons";
-import { APP_URL, FOOTER, NAME } from "@/content";
+import { APP_URL, FOOTER_LINKS, NAME } from "@/content";
 import { stagger, useReveal } from "@/lib/motion";
 import { Logo } from "./Header";
 
@@ -33,39 +34,29 @@ export function Footer() {
           </a>
         </div>
         <div className="mt-16 h-px bg-white/20" />
-        <div className="mt-12 grid gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]">
+        <div className="mt-12 flex flex-col gap-8 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-col gap-4">
             <Logo inverse />
             <p className="max-w-[260px] text-ui text-white/60">The data studio for people who know the data.</p>
           </div>
-          {FOOTER.map((col) => (
-            <div key={col.title}>
-              <h3 className="text-ui font-semibold text-white/85">{col.title}</h3>
-              <ul className="mt-4 space-y-4">
-                {col.links.map((l) => (
-                  <li key={l}>
-                    <a href="#top" className="text-ui text-white/50 transition-colors hover:text-white">
-                      {l}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-8 gap-y-3">
+            {FOOTER_LINKS.map((l) => (
+              <a key={l.label} href={l.href} className="text-ui text-white/60 transition-colors hover:text-white">
+                {l.label}
+              </a>
+            ))}
+          </nav>
         </div>
         <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6 text-caption text-white/40">
           <span>
             © {new Date().getFullYear()} {NAME}
           </span>
           <span className="flex gap-6">
-            <a href="#top" className="hover:text-white">
+            <a href={LEGAL_PATHS.privacy} className="hover:text-white">
               Privacy
             </a>
-            <a href="#top" className="hover:text-white">
+            <a href={LEGAL_PATHS.terms} className="hover:text-white">
               Terms
-            </a>
-            <a href="#top" className="hover:text-white">
-              Security
             </a>
           </span>
         </div>

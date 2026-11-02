@@ -55,7 +55,6 @@ export const NAV: NavEntry[] = [
     ],
   },
   { label: "Why us", href: "#why" },
-  { label: "Developers", href: "#news" },
   { label: "Pricing", href: "#start" },
 ];
 
@@ -107,9 +106,10 @@ export const NEWS: NewsItem[] = [
   { date: "Sep 2026", title: "CT and MRI: three views, window presets and slice-by-slice masks", art: "scan" },
 ];
 
-export const FOOTER: { title: string; links: string[] }[] = [
-  { title: "Product", links: ["Assistant", "Studio", "Files", "Datasets", "Versions", "Review"] },
-  { title: "Data types", links: ["Imaging", "Volumes", "Signals", "Video", "Pathology", "Text"] },
-  { title: "Developers", links: ["Docs", "Plugin SDK", "MCP server", "API reference", "Status"] },
-  { title: "Company", links: ["About", "Security", "Careers", "Contact"] },
+/** Only links that go somewhere real; sections are absolute so they work from /privacy and /terms. */
+export const FOOTER_LINKS: { label: string; href: string }[] = [
+  { label: "How it works", href: "/#journey" },
+  { label: "Data types", href: "/#data" },
+  { label: "Why us", href: "/#why" },
+  { label: "Sign in", href: APP_URL },
 ];

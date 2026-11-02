@@ -7,7 +7,8 @@ import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
 import { useAgent } from "@/studio/stores/agent";
-import { bootRows, bootSeconds, formatSeconds, useBoots, type BootStep, type BootView } from "@/studio/stores/boots";
+import { readySeconds } from "@/studio/components/layout/boot-status";
+import { bootRows, formatSeconds, useBoots, type BootStep, type BootView } from "@/studio/stores/boots";
 
 /**
  * The boot card / ledger (todo11 §3): one shimmering header line while the boot runs, then
@@ -46,7 +47,9 @@ function BootLedger({ boot }: { boot: BootView }) {
     boot.state === "running"
       ? "Setting up your Studio"
       : boot.state === "ready"
-        ? `Studio ready · ${formatSeconds(bootSeconds(boot))} s`
+        ? readySeconds(boot) !== undefined
+          ? `Studio ready · ${formatSeconds(readySeconds(boot)!)} s`
+          : "Studio ready"
         : boot.state === "stopped"
           ? "Stopped · what was built is kept"
           : "Couldn't set up the Studio";

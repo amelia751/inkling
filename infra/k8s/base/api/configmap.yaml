@@ -8,6 +8,10 @@ metadata:
 data:
   INKLING_ENV: production
   INKLING_API_CREATE_TABLES: "0"
+  # Sign-in (todo9 D8): `dev` trusts the dev identity headers; `workos` signs people in with
+  # WorkOS AuthKit and requires DEV_TRUST_HEADERS=0 (overlays/prod; gke/phi components/workos).
+  # The WorkOS key, cookie password and client id come from Secret workos-secrets (optional).
+  INKLING_API_AUTH_MODE: dev
   INKLING_API_DEV_TRUST_HEADERS: "1"
   INKLING_REDIS_URL: redis://redis:6379/0
   INKLING_JOB_QUEUE: redis

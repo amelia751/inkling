@@ -7,6 +7,7 @@ Local development secrets. Everything in this folder is git-ignored except this 
 | `daytona.env` | `DAYTONA_API_KEY`, `DAYTONA_API_URL`, `DAYTONA_TARGET` | `apps/agent` sandboxes |
 | `models.env` | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY` | `apps/agent` model runtime |
 | `agent.env` | `INKLING_AGENT_TOKEN` | Vite proxy → `apps/agent` bearer auth (generated on first start if missing; the proxy reads it too) |
+| `workos.env` | `INKLING_API_WORKOS_API_KEY`, `INKLING_API_WORKOS_COOKIE_PASSWORD`, `INKLING_API_WORKOS_CLIENT_ID`, `INKLING_MCP_API_KEY`; optional `INKLING_API_AUTH_MODE`, `…_REDIRECT_URI`, `…_ISSUER`, `…_BASE_URL`, `INKLING_API_PUBLIC_URL`, `INKLING_AGENT_AUTH_MODE`, `INKLING_AGENT_WORKOS_*`; see `workos.env.example` | `apps/api` sign-in (todo9; `secrets/api.env` wins over it), `apps/agent`; `apps/mcp` reads only its process env (pass the key in the MCP client's `env`). WorkOS **staging** keys only (`sk_test_…`); Emulate needs none (`docs/running.md`, "Signing in") |
 | `versioning.env` | `VERSIONING_*` (with the naming config's env prefix), see `versioning.env.example` | `apps/versioning`: Postgres role, object-store endpoint and bucket credentials, JWT public key |
 
 How it's loaded: `apps/agent/src/secrets.ts` reads every `secrets/*.env` (`KEY=VALUE`, `#` comments) when `INKLING_ENV` is not `production`, and **never overrides** a variable already set in the real environment. Production reads only the real environment or a secret manager.

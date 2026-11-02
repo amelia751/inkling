@@ -1,0 +1,115 @@
+# WorkOS Emulate seed (todo9 Phase 13): the in-memory WorkOS API that dev and CI sign in against
+# (D8). Roles and permissions are identical to infra/workos/seed.yml; change both together.
+#
+#   npx @workos/emulate@0.18.0 --seed infra/workos/emulate.yaml            # :4100, key sk_test_default
+#   npx @workos/emulate@0.18.0 --seed infra/workos/emulate.yaml --validate-config
+#   pnpm infra:up                                                     # compose service workos-emulate
+#
+# Format: docs/seeding.md of @workos/emulate 0.18.0. Ids are pinned so tokens, membership ids and
+# rows stored by api line up across restarts. Any client id is accepted (use client_emulated);
+# the emulator accepts every password grant for a seeded user with the password below.
+# Test-only data: example.com addresses, fixed passwords. Never real people, never PHI (D11).
+
+sessionSettings:
+  access_token_ttl_seconds: 300 # D10: 5 min, as configured on the staging/production Sessions tab
+
+# Phase 0 JWT template: only the membership id (keep the cookie small).
+jwtTemplate:
+  content: '{"organization_membership_id": "{{ organization_membership.id }}"}'
+
+users:
+  - id: user_01JTODO9ADM0000000000000AD
+    email: admin@example.com
+    first_name: Ada
+    last_name: Admin
+    password: test-password-admin
+    email_verified: true
+  - id: user_01JTODO9MEM0000000000000ME
+    email: member@example.com
+    first_name: Max
+    last_name: Member
+    password: test-password-member
+    email_verified: true
+  - id: user_01JTODO9BIL0000000000000BI
+    email: billing@example.com
+    first_name: Bea
+    last_name: Billing
+    password: test-password-billing
+    email_verified: true
+
+organizations:
+  # external_id = the api's organization id (D4); api creates the matching rows on first sign-in.
+  - id: org_01JTODO9ACME000000000000AC
+    name: Acme Imaging
+    external_id: org-acme
+    domains:
+      - domain: acme.example.com
+        state: verified
+    memberships:
+      - id: om_01JTODO9ACMEADM000000000AA
+        email: admin@example.com
+        role: admin
+        status: active
+      - id: om_01JTODO9ACMEMEM000000000AM
+        email: member@example.com
+        role: member
+        status: active
+      - id: om_01JTODO9ACMEBIL000000000AB
+        email: billing@example.com
+        role: billing
+        status: active
+  # Second organization: multi-org selection and the org boundary (admin is only a member here).
+  - id: org_01JTODO9GLOBEX0000000000GL
+    name: Globex Radiology
+    external_id: org-globex
+    memberships:
+      - id: om_01JTODO9GLOBEXADM0000000GA
+        email: admin@example.com
+        role: member
+        status: active
+
+# No `apiKeys` here: seeding any replaces sk_test_default as the emulator's environment key
+# (checked with 0.18.0). Tests create organization API keys at run time
+# (POST /organizations/{id}/api_keys), as the api does in Phase 8.
+
+roles:
+  - slug: admin
+    name: Admin
+    description: Manages the organization, its members, keys and billing
+    permissions:
+      - org:manage
+      - members:manage
+      - billing:manage
+      - apikeys:manage
+      - audit:read
+      - project:create
+      - widgets:users-table:manage
+      - widgets:api-keys:manage
+      - widgets:sso:manage
+      - widgets:domain-verification:manage
+  - slug: member
+    name: Member
+    description: Default role; works in the projects they are added to
+    permissions:
+      - project:create
+  - slug: billing
+    name: Billing
+    description: Manages billing only
+    permissions:
+      - billing:manage
+
+permissions:
+  - { slug: org:manage, name: Manage organization }
+  - { slug: members:manage, name: Manage members }
+  - { slug: billing:manage, name: Manage billing }
+  - { slug: apikeys:manage, name: Manage API keys }
+  - { slug: audit:read, name: Read audit log }
+  - { slug: project:create, name: Create projects }
+  - { slug: widgets:users-table:manage, name: Users table widget }
+  - { slug: widgets:api-keys:manage, name: API keys widget }
+  - { slug: widgets:sso:manage, name: SSO widget }
+  - { slug: widgets:domain-verification:manage, name: Domain verification widget }
+  - { slug: datasets:read, name: Read datasets }
+  - { slug: annotations:write, name: Write annotations }
+  - { slug: studio:tools, name: Studio tools }
+  - { slug: admin, name: Admin }

@@ -1,7 +1,8 @@
 # One VPC. Google APIs resolve to restricted.googleapis.com (the VPC Service Controls VIP), so
 # pods reach only services the perimeter allows. Cloud SQL and Memorystore sit on private
-# services access (var.network.psa). Cloud NAT exists only for the web pods' proxy to the agent
-# in spurby-ai; NetworkPolicies (infra/k8s/overlays/gke/phi) keep every other pod off it.
+# services access (var.network.psa). Cloud NAT exists for the web pods' proxy to the agent in
+# spurby-ai and, once sign-in is on (todo9), api and worker calls to api.workos.com;
+# NetworkPolicies (infra/k8s/overlays/gke/phi) keep every other pod off it.
 resource "google_compute_network" "studio" {
   name                    = "studio"
   auto_create_subnetworks = false

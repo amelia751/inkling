@@ -76,6 +76,11 @@ replacements:
     targets:
       - select: { kind: Ingress, name: studio }
         fieldPaths: [spec.rules.0.host, spec.tls.0.hosts.0]
+      # components/workos (off until todo9 Phase 14; matches nothing until then): the host part
+      # of https://STUDIO_HOST/… (third `/`-separated field).
+      - select: { kind: ConfigMap, name: api-auth-config }
+        fieldPaths: [data.INKLING_API_WORKOS_REDIRECT_URI, data.INKLING_API_PUBLIC_URL]
+        options: { delimiter: "/", index: 2 }
   - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_API_HOST }
     targets:
       - select: { kind: Ingress, name: agent-api }

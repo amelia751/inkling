@@ -1,0 +1,42 @@
+# Sign-in with WorkOS (todo9 Phase 14). OFF: the Studio still trusts dev headers behind the
+# ingress allow-list (STUDIO_ALLOW_CIDRS). Turn on, staging first (docs/running.md, "Signing in";
+# infra/k8s/README.md, "WorkOS runbook"):
+#   1. the WorkOS production environment is seeded (infra/workos/seed.yml) and its redirect URI is
+#      exactly https://<STUDIO_HOST>/api/auth/callback;
+#   2. Secret Manager secret workos-secrets has a version (key, Fernet cookie password, client id)
+#      and the ExternalSecret of the same name reports SecretSynced;
+#   3. add `components/workos` to ../../kustomization.yaml, before `values`, and apply;
+#   4. sign in; only then remove the ingress whitelist-source-range (STUDIO_ALLOW_CIDRS).
+#
+# What it changes:
+#   - ConfigMap api-auth-config, after api-config in the api's envFrom: AUTH_MODE=workos,
+#     DEV_TRUST_HEADERS=0, the redirect URI and public URL (host from STUDIO_HOST, values/);
+#   - web: INKLING_WEB_AUTH_MODE=workos (the SPA's /config.json);
+#   - NetworkPolicy workos-egress: api and worker may open 443 to public addresses (network.yaml).
+# The agent (spurby-ai, ../../ai) flips separately: INKLING_AGENT_AUTH_MODE=workos and
+# INKLING_AGENT_WORKOS_CLIENT_ID in its agent-config.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - configmap.yaml
+  - network.yaml
+patches:
+  # After api-config (index 0), so its keys override the base defaults; the Secrets stay after it.
+  - target:
+      kind: Deployment
+      name: api
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/1
+        value:
+          configMapRef:
+            name: api-auth-config
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: INKLING_WEB_AUTH_MODE
+          value: workos

@@ -33,6 +33,7 @@ from sqlalchemy import String, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .. import aftercommit, blobstore
+from ..config import settings
 from ..context import RequestContext
 from ..dbutil import insert_ignore
 from ..models import (
@@ -1139,7 +1140,8 @@ def trash_item(db: Session, n: SourceNode, chain: tree.Chain | None, starred: se
     parent_hidden = chain is None or len(chain.ids) < 2 or any(t is not None for t in chain.trashed[:-1])
     location = None if parent_hidden or chain is None else (chain.folder or tree.ROOT_NAME)
     at = n.trashed_at if n.trashed_at is None or n.trashed_at.tzinfo else n.trashed_at.replace(tzinfo=UTC)
-    left = TRASH_DAYS - (now() - at).days if at else TRASH_DAYS
+    days = settings().trash_days
+    left = days - (now() - at).days if at else days
     d.update(trashedAt=_iso(n.trashed_at), trashedBy=n.trashed_by or "", originalLocation=location, purgeInDays=max(0, left))
     return d
 

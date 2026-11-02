@@ -47,6 +47,13 @@ describe("volume data kind", () => {
     expect(volumeSources(items[0].assets).map((s) => s.label)).toEqual(["t1", "flair"]);
     expect(referenceAsset(items[0].assets)?.name).toBe("BraTS2021_00621_seg.nii.gz");
     expect(volumeSources(items[1].assets).map((s) => s.label)).toEqual(["patient101_4d.nii.gz"]);
+    // The Items panel lists a subject's sequences, then its reference, under it; single-file subjects get none.
+    expect(items[0].parts).toEqual([
+      { key: "t1", label: "t1", role: "view" },
+      { key: "flair", label: "flair", role: "view" },
+      { key: "seg", label: "seg (reference)", role: "reference" },
+    ]);
+    expect(items[1].parts).toBeUndefined();
     expect(inferSubject({ path: "x", name: "IM0001.dcm", folder: ["ct", "series-3"] })).toEqual({ subject: "series-3", sequence: undefined });
     expect(inferSubject({ path: "x", name: "a_t1.nii", subject: "S9", sequence: "t2" })).toEqual({ subject: "S9", sequence: "t2" });
   });

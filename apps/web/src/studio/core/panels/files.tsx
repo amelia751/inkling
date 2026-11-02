@@ -5,7 +5,7 @@ import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { AddDataIcon, AiIcon, ArrowDownIcon, CloseIcon, DoneIcon, FolderIcon, FolderOpenIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
+import { AddDataIcon, AiIcon, ArrowDownIcon, CloseIcon, DoneIcon, FileIcon, FolderIcon, FolderOpenIcon, MaskFileIcon, FoldersIcon, ImportedIcon, QueueIcon, SearchIcon, TodoIcon, type IconComponent } from "@studio/ui/icons";
 import { Input } from "@studio/ui/ui/input";
 import { FileTree, type FileTreeHandle, type FileTreeNode } from "@studio/ui/ui/file-tree";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
@@ -64,6 +64,14 @@ const STATE_TREE_ICON = Object.fromEntries(
 ) as Record<ItemState, IconComponent>;
 
 const ITEM = "item:";
+/** A part row under an item (`part:<index>:<key>`): a subject's sequence, a study's series. */
+const PART = "part:";
+const partId = (index: number, key: string) => `${PART}${index}:${key}`;
+const parsePart = (id: string) => {
+  const rest = id.slice(PART.length);
+  const at = rest.indexOf(":");
+  return { index: Number(rest.slice(0, at)), key: rest.slice(at + 1) };
+};
 
 /**
  * `studio.core.panels.files`, the Items panel (todo8 D3): the task's items (never raw slices
@@ -107,7 +115,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   const chosen = useItemsView((s) => s.views[taskId]);
   const setView = useItemsView((s) => s.setView);
   const [stored] = useState(() => readView(taskId));
-  const view: ItemsView = chosen ?? stored ?? (folderCount(viewItems) > 1 ? "folders" : "queue");
+  const view: ItemsView = chosen ?? stored ?? (folderCount(viewItems) > 1 || viewItems.some((i) => (i.parts?.length ?? 0) > 1) ? "folders" : "queue");
   const queueFilter = useItemsView((s) => s.queueFilter);
   const setQueueFilter = useItemsView((s) => s.setQueueFilter);
   const folderFilter = useItemsView((s) => s.folderFilter);
@@ -485,6 +493,7 @@ function FoldersView({
 } & RowEvents) {
   const tree = useMemo(() => itemTree(items, states, indices), [items, states, indices]);
   const handle = useRef<FileTreeHandle>(null);
+  const activePart = useStudio((s) => s.activePart);
 
   const data = useMemo(() => {
     const leaf = (index: number): FileTreeNode => {
@@ -500,6 +509,11 @@ function FoldersView({
         badges: suffixes[index] ? <span className="max-w-32 truncate text-xs" data-testid="file-suffix">{suffixes[index]}</span> : undefined,
         count: count ?? undefined,
         status: kind ? <kind.icon className="size-3.5 text-hint" aria-label={kind.label} data-testid="file-kind" /> : undefined,
+        // A subject's sequences (or a study's series) as rows under it; click shows that one.
+        children:
+          item.parts && item.parts.length > 1
+            ? item.parts.map((p) => ({ id: partId(index, p.key), name: p.label, title: p.role === "reference" ? "Show the reference overlay" : `Show ${p.label}`, icon: p.role === "reference" ? MaskFileIcon : FileIcon }))
+            : undefined,
       };
     };
     const dir = (d: ItemDir): FileTreeNode => ({
@@ -529,15 +543,17 @@ function FoldersView({
         walk(c);
       }
       for (const l of d.leaves) if (l.kind === "run") out.push(l.id);
+      for (const l of d.leaves) if (l.kind === "item" && l.index === itemIndex && items[l.index]?.parts) out.push(`${ITEM}${l.index}`);
     };
     walk(tree);
     return out;
-  }, [tree]);
+  }, [tree, itemIndex, items]);
   const initialOpen = useMemo(() => (filtering || allDirs.length <= 24 ? allDirs : dirsAbove(tree, itemIndex)), [filtering, allDirs, tree, itemIndex]);
   const key = filtering ? `f:${indices.join(",")}` : "all";
 
   // Follow the current item (N, arrows, the decision bar): open its folders and scroll to it.
   const current = `${ITEM}${itemIndex}`;
+  const currentPart = activePart && items[itemIndex]?.parts?.some((p) => p.key === activePart && p.role !== "reference") ? partId(itemIndex, activePart) : current;
   useEffect(() => {
     const api = handle.current?.api();
     if (!api?.get(current)) return;
@@ -552,17 +568,23 @@ function FoldersView({
         key={key}
         ref={handle}
         data={data}
-        selectedId={current}
+        selectedId={currentPart}
         initialOpen={initialOpen}
         aria-label="Items"
         onKey={onKey}
         onSelect={(ids) => {
           const id = ids[0];
           if (id?.startsWith(ITEM)) onChoose(Number(id.slice(ITEM.length)));
+          else if (id?.startsWith(PART)) {
+            const { index, key } = parsePart(id);
+            if (index !== itemIndex) onChoose(index);
+            useStudio.getState().setActivePart(key);
+          }
           else if (id) handle.current?.api()?.get(id)?.toggle();
         }}
         onContextMenu={(id, e) => id.startsWith(ITEM) && onMenu(Number(id.slice(ITEM.length)), e)}
         rowProps={(n) => {
+          if (n.id.startsWith(PART)) return { "data-testid": "part-row", "data-part": parsePart(n.id).key };
           if (!n.id.startsWith(ITEM)) return { "data-testid": "folder-row" };
           const index = Number(n.id.slice(ITEM.length));
           return {

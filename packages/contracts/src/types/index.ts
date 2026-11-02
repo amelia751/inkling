@@ -276,6 +276,19 @@ export interface StudioItem {
   folder?: string[];
   /** todo8 D3: the source node of the item's first asset, for "Show in Data". */
   nodeId?: string;
+  /**
+   * The views an item is made of, when it has several (a subject's MR sequences, a study's
+   * series), from the data kind's `groupItems`. The Items panel lists them under the item;
+   * clicking one sets the host's `activePart`, which the renderer follows. `reference` parts
+   * (a ground-truth segmentation) toggle an overlay instead of replacing the view.
+   */
+  parts?: ItemPart[];
+}
+
+export interface ItemPart {
+  key: string;
+  label: string;
+  role?: "view" | "reference";
 }
 
 // ---- Projects, sources, datasets and tasks (todo6 Phase 1, docs/ux.md §2) -----------------

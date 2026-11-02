@@ -9,14 +9,14 @@ import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { TrySample } from "@/studio/app/entry/sample-picker";
 import { projectsUrl, projectUrl, studioUrl, deletedProjectsUrl } from "@/studio/lib/routes";
-import { HomeComposer } from "@/studio/app/entry/HomeComposer";
+import { HomeComposer, NewProjectButton } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { cn } from "@studio/ui/utils";
 
 /**
  * Home (todo6 Phase 3.1, todo13 D1 and §3.1): "What are you working on?" as the composer. A
- * send or a drop (anywhere on the page) starts a project, or adds to the last one, and opens
- * it with the assistant. Below it, the recent projects with a single Resume action each. No
+ * send or a drop (anywhere on the page) starts a new project (todo20 D1) and opens it with the
+ * assistant; "New project" asks for a name. Below it, the recent projects with a single Resume action each. No
  * metrics. There is no form: this composer is how a project starts.
  */
 export function HomePage() {
@@ -37,7 +37,10 @@ export function HomePage() {
             <section className="mt-6" aria-labelledby="recent-heading">
               <div className="mb-3 flex items-baseline justify-between gap-4">
                 <h2 id="recent-heading" className="text-body-2 font-semibold">Recent projects</h2>
-                <Link to={projectsUrl()} className="text-sm text-brand hover:underline">All projects</Link>
+                <span className="flex items-center gap-3">
+                  <NewProjectButton />
+                  <Link to={projectsUrl()} className="text-sm text-brand hover:underline">All projects</Link>
+                </span>
               </div>
               {error && <p className="text-sm text-danger" role="alert" data-testid="home-projects-error">Couldn't load your projects: {problemMessage(error)}</p>}
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

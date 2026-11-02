@@ -58,7 +58,20 @@ export function PersistentAgentDrawer({ project, section }: { project: { id: str
   const open = useShell((s) => s.assistantOpen);
   const setAssistant = useShell((s) => s.setAssistant);
   const desktop = useViewport() === "desktop";
-  if (!open) return null;
+  // todo20 D2: on a project page the chat is collapsed, never absent (desktop): a rail opens it.
+  if (!open)
+    return desktop ? (
+      <div className="flex w-11 shrink-0 flex-col items-center border-l border-border bg-float pt-3" data-testid="agent-drawer-collapsed">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost-secondary" size="icon-sm" className="text-ai-text" onClick={() => setAssistant(true)} aria-label={`Open ${NAMING.displayName} AI`} data-testid="agent-drawer-expand">
+              <AiIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left">Chats</TooltipContent>
+        </Tooltip>
+      </div>
+    ) : null;
   const panel = <DrawerPanel project={project} section={agentSection(section)} onClose={() => setAssistant(false)} />;
   if (!desktop)
     return (

@@ -1,5 +1,5 @@
 import type { ChangeProvenance } from "@/studio/lib/api";
-import { useAgent } from "@/studio/stores/agent";
+import { threadKey, useAgent } from "@/studio/stores/agent";
 
 /** `sha256:<hex>` of a prompt's UTF-8 text: what a revision records instead of the prompt itself. */
 export async function promptHash(text: string): Promise<string> {
@@ -14,9 +14,9 @@ export async function promptHash(text: string): Promise<string> {
  */
 export async function activeRunProvenance(projectId: string): Promise<ChangeProvenance> {
   const s = useAgent.getState();
-  const a = s.active?.projectId === projectId ? s.active : null;
+  const a = s.runs[projectId] ?? (s.active?.projectId === projectId ? s.active : null);
   if (!a) return { kind: "agent" };
-  const thread = s.threads[projectId] ?? [];
+  const thread = s.threads[a.chatId ?? threadKey(s, projectId)] ?? [];
   const at = thread.findIndex((m) => m.id === a.messageId);
   const user = thread.slice(0, at < 0 ? thread.length : at).reverse().find((m) => m.role === "user");
   const text = user?.parts.map((p) => (p.type === "text" ? p.text : "")).join("") ?? "";

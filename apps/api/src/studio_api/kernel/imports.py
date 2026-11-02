@@ -103,7 +103,7 @@ def _publish(db: Session, ctx: RequestContext, s: ImportSession) -> None:
     events.publish(db, ctx.for_scope(s.project_id, None), "import.updated", {"projectId": s.project_id, "importId": s.id, "state": s.state}, source="kernel")
 
 
-def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, internal: bool = False) -> dict:
+def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, internal: bool = False, session_id: str | None = None) -> dict:
     """`internal`: the kernel's own fetch or copy (todo16 D10, `url_imports`), which may run
     for the assistant's delegated token; the bytes never pass through the caller."""
     if ctx.scopes and not internal:
@@ -142,7 +142,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     drop = drops.for_import(db, ctx, p, body)
     # Resume: the same file list after a reload (or a dropped connection) gets its session back.
     task = ingest.require_task_for_drop(db, p.id, body["taskId"]) if body.get("taskId") is not None else None
-    resumed = _resumable(db, ctx, p, wanted)
+    resumed = _resumable(db, ctx, p, wanted) if session_id is None else None  # a queued fetch keeps its own id
     if resumed is not None and drop is not None and resumed.drop_id not in (None, drop.id):
         resumed = None  # the same files, but another drop: a new session for this one
     if resumed is not None:
@@ -236,7 +236,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     # todo13 M4: the uploader sends a big drop's first files as their own session with
     # `origin.priority: "first"`: inspected first, classified without waiting for the rest.
     first = drop is not None and isinstance(body.get("origin"), dict) and body["origin"].get("priority") == "first"
-    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing, **({"taskId": task.id} if task is not None else {}), **({"priority": "first"} if first else {})}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
+    s = ImportSession(id=(session_id if internal and session_id else projects.new_id("imp")), project_id=p.id, source_id=source.id, target_node_id=str(target) if target else None, state="uploading", totals={"skippedSystemFiles": skipped_junk, "landingNodeId": landing, **({"taskId": task.id} if task is not None else {}), **({"priority": "first"} if first else {})}, created_by=projects.person(ctx), attested_by=projects.person(ctx), attested_at=now())
     db.add(s)
     db.flush()
     for fid, rel, size, sha, state, reason in plan:

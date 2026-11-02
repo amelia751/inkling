@@ -24,7 +24,8 @@ function fakeKernel() {
     seen.push({ path: url.pathname, body: init?.body ? JSON.parse(String(init.body)) : undefined });
     const send = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
     if (new Headers(init?.headers).get("authorization") !== `Bearer ${KTOKEN}`) return send(401, { detail: "invalid token" });
-    if (init?.method === "POST" && (url.pathname === "/api/v1/projects/demo/imports/url" || url.pathname === "/api/v1/projects/demo/imports/copy")) return send(201, IMPORTED);
+    if (init?.method === "POST" && url.pathname === "/api/v1/projects/demo/imports/url") return send(202, { importId: "imp-2", state: "fetching", jobId: "job-1" });
+    if (init?.method === "POST" && url.pathname === "/api/v1/projects/demo/imports/copy") return send(201, IMPORTED);
     return send(404, { detail: "no route" });
   }) as typeof fetch;
   return { seen, fetchImpl };
@@ -61,14 +62,37 @@ describe("add data from chat", () => {
     expect(s.status).toBe(201);
     const m = await h.json("POST", `/v1/sessions/${s.body.sessionId}/messages`, { text: "add the chest X-rays from this link", kernelToken: KTOKEN });
     expect(m.status).toBe(202);
-    const events: AgentEvent[] = await h.drive(m.body.runId);
+    const asked: string[] = [];
+    const events: AgentEvent[] = await h.drive(m.body.runId, async (e) => {
+      if (e.type !== "approval") return;
+      // Nothing is sent before the person answers the rights card.
+      expect(api.seen.filter((x) => x.path.includes("/imports/"))).toHaveLength(asked.length);
+      asked.push((e as { summary: string }).summary);
+      expect((await h!.json("POST", `/v1/approvals/${e.approvalId}`, { decision: "approve" })).status).toBe(200);
+    });
+    expect(asked).toHaveLength(2);
+    expect(asked.every((x) => x.startsWith("Do you have the rights to add this data?"))).toBe(true);
+    expect(asked[0]).toContain("https://example.com");
     const results = events.filter((e) => e.type === "tool-result");
     expect(results).toHaveLength(2);
     expect(results.every((e) => (e as { ok: boolean }).ok)).toBe(true);
     const posts = api.seen.filter((x) => x.path.includes("/imports/"));
     expect(posts.map((x) => x.path)).toEqual(["/api/v1/projects/demo/imports/url", "/api/v1/projects/demo/imports/copy"]);
-    expect(posts[0]!.body).toEqual({ url: "https://example.com/chest.png" });
+    expect(posts[0]!.body).toEqual({ url: "https://example.com/chest.png", attested: true });
+    expect(posts[1]!.body).toEqual({ sampleId: "ws-a", attested: true });
     expect(JSON.stringify(results)).not.toMatch(/QUJDQUJD/);
     expect(events.at(-1)).toMatchObject({ type: "done", status: "completed" });
+  });
+
+  it("sends nothing when the person declines the rights card (scripted model)", async () => {
+    const api = fakeKernel();
+    const fixture = { scripts: [{ turns: [{ toolCalls: [{ name: "import_from_url", arguments: { url: "https://example.com/chest.png" } }] }, { text: "Okay." }] }] };
+    h = await harness(fixture, {}, [], { fetchImpl: api.fetchImpl });
+    const s = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "assistant", clientTools: [], kernelToken: KTOKEN });
+    const m = await h.json("POST", `/v1/sessions/${s.body.sessionId}/messages`, { text: "add this link", kernelToken: KTOKEN });
+    await h.drive(m.body.runId, async (e) => {
+      if (e.type === "approval") await h!.json("POST", `/v1/approvals/${e.approvalId}`, { decision: "reject" });
+    });
+    expect(api.seen.filter((x) => x.path.includes("/imports/"))).toHaveLength(0);
   });
 });

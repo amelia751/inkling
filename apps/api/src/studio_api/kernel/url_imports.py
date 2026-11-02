@@ -1,8 +1,15 @@
 """Add data without the assistant seeing it (todo16 D10): import from a link, copy from a
 sample or another project.
 
-    POST /api/v1/projects/{id}/imports/url    {url, folderId?}                        -> {importId, ...}
-    POST /api/v1/projects/{id}/imports/copy   {fromProjectId | sampleId, nodeIds?, folderId?} -> {importId, ...}
+    POST /api/v1/projects/{id}/imports/url    {url, attested: true, folderId?}        -> 202 {importId, state: "fetching"}
+    POST /api/v1/projects/{id}/imports/copy   {fromProjectId | sampleId, attested: true, nodeIds?, folderId?} -> {importId, ...}
+
+`attested: true` is the person's rights confirmation ("Do you have the rights to add this
+data?"); without it both answer 422. A link import is a background job (todo16 round 2): the
+route checks the link, makes an import session in state `fetching` and enqueues
+`imports.fetch_url` on the JobQueue (reserved plugin `<ns>.imports`, tool `fetch_url`). The
+worker claims it and asks the kernel to run it (`POST /worker/imports/jobs/{id}/run`); the
+fetch lands in that same session, so `GET /imports/{id}` shows its progress.
 
 Both land through the normal import path (`imports.create_session` + `complete`): the bytes
 go to the content-addressed `sources/<project>/<sha256><ext>` key in the data BlobStore, the
@@ -12,7 +19,9 @@ tools) get the session dict back: names, sizes and counts, never bytes.
 
 Links: `https://` (no credentials in the URL, no private, loopback, link-local or reserved
 address, redirects re-checked hop by hop) and `gs://bucket/object` read with the service's own
-identity. The size cap is `INKLING_API_URL_IMPORT_MAX_BYTES` (5 GB); the fetch stops as soon
+identity. DNS rebinding: each hop's host is resolved once, every address checked, and the
+connection goes to that checked address (Host header and TLS SNI = the host name, so the
+certificate is still verified for it). The size cap is `INKLING_API_URL_IMPORT_MAX_BYTES` (5 GB); the fetch stops as soon
 as it passes it. The fetcher is a module-level hook so tests replace it.
 """
 
@@ -35,8 +44,14 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
-from ..models import Asset, ImportSession, ProjectRow, SourceNode, UploadFile
-from . import assets, imports, projects, samples, tree
+from ..models import Asset, ImportSession, PluginJob, ProjectRow, SourceNode, UploadFile, now
+from ..naming import ns
+from . import assets, imports, jobs, projects, samples, tree
+
+PLUGIN = ns("imports")  # reserved: kernel jobs of the import path, run by the worker's built-in
+VERSION = "1"
+TOOL = "fetch_url"
+JOB_TIMEOUT_S = 3600
 
 MAX_REDIRECTS = 5
 TIMEOUT_S = 60.0
@@ -74,6 +89,14 @@ def resolve(host: str) -> list[str]:
 
 def check_url(url: object) -> tuple[str, str]:
     """`(scheme, url)` for an allowed link, else 422 with a sentence a person can act on."""
+    scheme, url, _ = pin(url)
+    return scheme, url
+
+
+def pin(url: object) -> tuple[str, str, str | None]:
+    """`(scheme, url, ip)`: the link checked, with the one checked address to connect to (an
+    https link; None for gs://). The host is resolved once here: connecting to `ip` means a
+    second lookup can't swap in a private address (DNS rebinding)."""
     if not isinstance(url, str) or not url.strip() or len(url) > 4096:
         raise HTTPException(422, "url must be a link")
     url = url.strip()
@@ -82,7 +105,7 @@ def check_url(url: object) -> tuple[str, str]:
     if scheme == "gs":
         if not parts.netloc or not parts.path.strip("/"):
             raise HTTPException(422, "A gs:// link needs a bucket and an object: gs://bucket/path/file")
-        return "gs", url
+        return "gs", url, None
     if scheme != "https":
         raise HTTPException(422, "Only https:// and gs:// links can be imported")
     if parts.username or parts.password:
@@ -103,7 +126,7 @@ def check_url(url: object) -> tuple[str, str]:
             raise HTTPException(422, f"Couldn't find {host}") from None
     if not addrs or not all(_public_ip(a) for a in addrs):
         raise HTTPException(422, "That link points at a private address")
-    return "https", url
+    return "https", url, addrs[0]
 
 
 def _name_of(url: str, header: str | None = None) -> str:
@@ -135,17 +158,36 @@ def _spool(chunks: Iterator[bytes], max_bytes: int) -> tuple[str, int, str]:
     return tmp.name, n, h.hexdigest()
 
 
-def _fetch_https(url: str, max_bytes: int) -> Fetched:
+def _client():
+    """The HTTP client (a hook: tests give it a mock transport)."""
     import httpx
 
-    with httpx.Client(follow_redirects=False, timeout=TIMEOUT_S) as client:
+    return httpx.Client(follow_redirects=False, timeout=TIMEOUT_S)
+
+
+def pinned_request(url: str, ip: str) -> tuple[str, dict, dict]:
+    """`(url to connect to, headers, httpx extensions)`: the request goes to `ip`, while the
+    Host header and the TLS server name (SNI, and so certificate checks) stay the host name."""
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    literal = f"[{ip}]" if ":" in ip else ip
+    netloc = literal + (f":{parts.port}" if parts.port else "")
+    target = parts._replace(netloc=netloc).geturl()
+    return target, {"Host": host + (f":{parts.port}" if parts.port else "")}, {"sni_hostname": host}
+
+
+def _fetch_https(url: str, max_bytes: int) -> Fetched:
+    _, url, ip = pin(url)
+    with _client() as client:
         for _ in range(MAX_REDIRECTS + 1):
-            with client.stream("GET", url) as r:
+            assert ip is not None
+            target, headers, ext = pinned_request(url, ip)
+            with client.stream("GET", target, headers=headers, extensions=ext) as r:
                 if r.is_redirect:
                     nxt = urljoin(url, r.headers.get("location", ""))
                     if urlsplit(nxt).scheme.lower() != "https":
                         raise HTTPException(422, "That link redirects somewhere that can't be imported")
-                    url = check_url(nxt)[1]
+                    _, url, ip = pin(nxt)  # every hop re-resolved, re-checked and pinned
                     continue
                 if r.status_code >= 400:
                     raise HTTPException(422, f"The link answered {r.status_code}")
@@ -200,7 +242,7 @@ class Landed:
     sha256: str
 
 
-def _land(db: Session, ctx: RequestContext, p: ProjectRow, files: list[Landed], *, folder_id: object, title: str, origin: dict) -> dict:
+def _land(db: Session, ctx: RequestContext, p: ProjectRow, files: list[Landed], *, folder_id: object, title: str, origin: dict, session_id: str | None = None) -> dict:
     """The normal import path for bytes already at their `sources/` keys."""
     body = {
         "files": [{"clientFileId": f"f{i}", "relPath": f.rel, "size": f.size, "sha256": f.sha256} for i, f in enumerate(files)],
@@ -208,7 +250,7 @@ def _land(db: Session, ctx: RequestContext, p: ProjectRow, files: list[Landed], 
         "title": title,
         **({"targetNodeId": str(folder_id)} if folder_id else {}),
     }
-    s = imports.create_session(db, ctx, p, body, internal=True)
+    s = imports.create_session(db, ctx, p, body, internal=True, session_id=session_id)
     sid = s["id"]
     for f in db.scalars(select(UploadFile).where(UploadFile.session_id == sid, UploadFile.state == "pending")):
         f.state, f.received = "uploaded", f.size
@@ -229,22 +271,78 @@ def _facts(session: dict) -> dict:
     }
 
 
+def _require_attested(body: dict) -> None:
+    if body.get("attested") is not True:
+        raise HTTPException(422, "confirm that you have the rights to add this data (attested: true)")
+
+
 def import_url(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
-    scheme, url = check_url(body.get("url"))
+    """Check the link and queue the fetch; `{importId, state: "fetching"}` at once."""
+    _require_attested(body)
+    _, url = check_url(body.get("url"))
+    folder = body.get("folderId")
+    host = urlsplit(url).netloc
+    who = projects.person(ctx)
+    s = ImportSession(id=projects.new_id("imp"), project_id=p.id, source_id="", target_node_id=str(folder) if folder else None, state="fetching", totals={"origin": {"kind": "url", "host": host}}, created_by=who, attested_by=who, attested_at=now())
+    db.add(s)
+    db.flush()
+    j, _ = jobs.enqueue(db, ctx, plugin_id=PLUGIN, version=VERSION, tool=TOOL, input={"importId": s.id, "projectId": p.id, "url": url, "folderId": folder, "onBehalfOf": ctx.on_behalf_of}, capability=None, provider=None, estimated_cost_usd=0.0, timeout_s=JOB_TIMEOUT_S)
+    s.totals = {**s.totals, "jobId": j.job_id}
+    imports._publish(db, ctx, s)
+    return {"importId": s.id, "state": "fetching", "jobId": j.job_id}
+
+
+def worker_job(db: Session, job_id: str, worker_id: str) -> PluginJob:
+    j = jobs._owned(db, job_id, worker_id)
+    if j.plugin_id != PLUGIN or j.tool != TOOL:
+        raise HTTPException(404, "not an import job")
+    return j
+
+
+def _fail_session(db: Session, s: ImportSession, error: str) -> None:
+    s.state, s.error, s.finished_at = "failed", error, now()
+
+
+def run_fetch(db: Session, j: PluginJob) -> dict:
+    """The worker's `imports.fetch_url`: fetch the link (pinned, capped), land the bytes in the
+    session the route made, settle the job. A link that fails fails the session with a
+    sentence a person can act on; the job fails as not recoverable."""
+    inp = j.input or {}
+    s = db.get(ImportSession, inp.get("importId"))
+    p = db.get(ProjectRow, inp.get("projectId"))
+    if s is None or p is None or s.state != "fetching":
+        j.state, j.error, j.recoverable = "failed", "the import is gone", False
+        jobs.settle(db, j, "invalid_input")
+        return {"state": "failed"}
+    ctx = RequestContext(j.workspace_id, j.principal, j.correlation_id or "", task_id=j.task_id, on_behalf_of=inp.get("onBehalfOf"))
     cap = settings().url_import_max_bytes
     try:
-        got = FETCH(scheme, url, cap)
-    except TooLarge:
-        raise HTTPException(413, f"That file is larger than {imports._human(cap)}, the limit for an import from a link") from None
-    try:
-        key = imports.upload_key(p.id, got.sha256, got.name)
-        store = blobstore.data()
-        if store.stat(key) is None:
-            imports._put_file(store, key, got.path)
-    finally:
-        os.unlink(got.path)
+        scheme, url = check_url(inp.get("url"))
+        try:
+            got = FETCH(scheme, url, cap)
+        except TooLarge:
+            raise HTTPException(413, f"That file is larger than {imports._human(cap)}, the limit for an import from a link") from None
+        try:
+            key = imports.upload_key(p.id, got.sha256, got.name)
+            store = blobstore.data()
+            if store.stat(key) is None:
+                imports._put_file(store, key, got.path)
+        finally:
+            os.unlink(got.path)
+    except HTTPException as e:
+        _fail_session(db, s, str(e.detail))
+        imports._publish(db, ctx, s)
+        j.state, j.error, j.recoverable = "failed", str(e.detail), False
+        jobs.settle(db, j, "invalid_input")
+        return {"state": "failed", "error": str(e.detail)}
     host = urlsplit(url).netloc
-    return _land(db, ctx, p, [Landed(got.name, got.size, got.sha256)], folder_id=body.get("folderId"), title=f"From {host}", origin={"kind": "url", "host": host})
+    sid, folder = s.id, inp.get("folderId")
+    db.delete(s)  # the placeholder; `_land` makes the real session under the same id
+    db.flush()
+    out = _land(db, ctx, p, [Landed(got.name, got.size, got.sha256)], folder_id=folder, title=f"From {host}", origin={"kind": "url", "host": host}, session_id=sid)
+    j.state, j.progress, j.result = "succeeded", 1.0, {"importId": sid, "state": out["state"]}
+    jobs.settle(db, j)
+    return out
 
 
 def _source_project(db: Session, ctx: RequestContext, body: dict) -> tuple[ProjectRow, str]:
@@ -261,6 +359,7 @@ def _source_project(db: Session, ctx: RequestContext, body: dict) -> tuple[Proje
 
 
 def copy_into(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
+    _require_attested(body)
     src, kind = _source_project(db, ctx, body)
     if src.id == p.id:
         raise HTTPException(422, "that's this project: move files instead")

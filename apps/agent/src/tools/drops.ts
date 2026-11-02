@@ -133,7 +133,7 @@ export function safeImport(raw: any): { importId: string; state?: string; files:
 }
 
 const posixBase = (n: string) => n.split("/").pop() ?? n;
-const importSummary = (r: ReturnType<typeof safeImport>) => `${r.committed} file${r.committed === 1 ? "" : "s"} added`;
+const importSummary = (r: ReturnType<typeof safeImport>) => (r.state === "fetching" ? "fetching the link" : `${r.committed} file${r.committed === 1 ? "" : "s"} added`);
 
 export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, any>[] {
   const pid = () => encodeURIComponent(k.workspaceId);
@@ -141,14 +141,16 @@ export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, an
     name: "import_from_url",
     label: "Importing from a link",
     description:
-      "Import one file from a public https:// link or a gs:// object this project can read into the project's Sources. The kernel fetches it and inspects it; you get only its name, size and state, never its contents. Private and local addresses are refused; the size limit is set by the deployment.",
+      "Import one file from a public https:// link or a gs:// object this project can read into the project's Sources. The person is asked to confirm they have the rights to add it first. The kernel fetches it in the background (state \"fetching\"), then inspects it; you get only its import id and state, never its contents. Private and local addresses are refused; the size limit is set by the deployment.",
     promptSnippet: "Add a file to Sources from an https:// or gs:// link (facts only)",
     parameters: Type.Object({
       url: Type.String({ description: "The https:// or gs:// link the user gave." }),
       folderId: Type.Optional(Type.String({ description: "A folder id from list_folder to land in (optional)." })),
     }),
+    // Runs only after the policy's approval card ("Do you have the rights to add this data?")
+    // was approved by the person, so `attested: true` is their answer, not the model's.
     async execute(_id, args, signal) {
-      const r = safeImport(await k.post(`/projects/${pid()}/imports/url`, { url: args.url, ...(args.folderId ? { folderId: args.folderId } : {}) }, signal));
+      const r = safeImport(await k.post(`/projects/${pid()}/imports/url`, { url: args.url, attested: true, ...(args.folderId ? { folderId: args.folderId } : {}) }, signal));
       return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: { summary: importSummary(r) } };
     },
   });
@@ -156,7 +158,7 @@ export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, an
     name: "copy_into_project",
     label: "Copying files",
     description:
-      "Copy files into this project's Sources from a sample (sampleId) or from another project the user can read (fromProjectId), optionally only some nodes (nodeIds). The files are inspected as for an upload; you get only names, sizes and states.",
+      "Copy files into this project's Sources from a sample (sampleId) or from another project the user can read (fromProjectId), optionally only some nodes (nodeIds). The person is asked to confirm they have the rights to add them first. The files are inspected as for an upload; you get only names, sizes and states.",
     promptSnippet: "Copy files from a sample or another readable project into Sources",
     parameters: Type.Object({
       sampleId: Type.Optional(Type.String({ description: "A sample's id." })),
@@ -166,7 +168,8 @@ export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, an
     }),
     async execute(_id, args, signal) {
       if (!args.sampleId === !args.fromProjectId) throw new Error("Give exactly one of sampleId or fromProjectId.");
-      const r = safeImport(await k.post(`/projects/${pid()}/imports/copy`, args, signal));
+      // Runs only after the person approved the rights card (policy), so `attested` is theirs.
+      const r = safeImport(await k.post(`/projects/${pid()}/imports/copy`, { ...args, attested: true }, signal));
       return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: { summary: importSummary(r) } };
     },
   });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./projects-api";
-import { auditCsvUrl, fetchAudit, orgKeys, orgMutations, orgQueries, sessionCan, stepUpUrl } from "./org-api";
+import { auditCsvUrl, fetchAudit, memberRows, orgKeys, orgMutations, orgQueries, sessionCan, stepUpUrl } from "./org-api";
 
 type Call = { url: string; method: string; body: unknown };
 let calls: Call[] = [];
@@ -132,6 +132,18 @@ describe("org-api mutations", () => {
       ["POST", "/api/v1/org/admin-portal", { intent: "sso" }],
       ["DELETE", "/api/v1/me/sessions/sess_2", undefined],
       ["POST", "/api/v1/me/sessions/revoke-others", undefined],
+    ]);
+  });
+});
+
+describe("memberRows", () => {
+  it("lists members then pending invitations; a pending membership with an invitation shows once", () => {
+    const m = (id: string, email: string, status: "active" | "invited") => ({ id, userId: `user:${id}`, name: id, email, role: "member", status, projects: 0, lastActive: null, sso: false });
+    const inv = (id: string, email: string, state: "pending" | "revoked") => ({ id, email, role: "member", state, invitedAt: "2026-10-01T00:00:00Z", expiresAt: null, projects: [{ projectId: "p1", role: "annotator" as const }] });
+    const rows = memberRows([m("om_1", "a@x.org", "active"), m("om_2", "B@x.org", "invited")], [inv("inv_1", "b@x.org", "pending"), inv("inv_2", "c@x.org", "revoked")]);
+    expect(rows.map((r) => [r.id, r.status, r.invitation, r.projects])).toEqual([
+      ["om_1", "active", false, 0],
+      ["inv_1", "invited", true, 1],
     ]);
   });
 });

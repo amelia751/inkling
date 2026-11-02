@@ -1,10 +1,11 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type {
   AdminPortalIntent,
   ApiKey,
   AuditEvent,
   Invitation,
   Me,
+  MemberStatus,
   MySession,
   OrgMember,
   OrgPermission,
@@ -16,6 +17,7 @@ import type {
   Session,
 } from "@studio/contracts";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { notify } from "./files/announce";
 import { api, ApiError } from "./projects-api";
 
 /**
@@ -108,6 +110,11 @@ export async function fetchAuthSession(): Promise<Session> {
 /** The sentence to show for a failed call: the API's `detail` (WorkOS's error text passes through there). */
 export const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/** A failed settings write as an error toast with the API's text (pass as a mutation's `onError`). */
+export const toastError = (e: unknown) => void notify(errorText(e), { tone: "error", group: "org" });
+/** A settings write that worked. */
+export const toastDone = (text: string) => void notify(text, { tone: "success", group: "org" });
+
 /**
  * Key creation needs a recent sign-in (Phase 8): the API answers 403
  * `{detail: "step_up_required", loginUrl}`. Returns the URL to send the person through, else null.
@@ -182,6 +189,14 @@ export const useOrgSecurity = () => useQuery(orgQueries.security());
 export const useMe = () => useQuery(orgQueries.me());
 export const useMySessions = () => useQuery(orgQueries.mySessions());
 export const useAuthSession = () => useQuery(orgQueries.authSession());
+
+/** Member counts for the Organization › Projects table, by project id (`undefined` until loaded or when the API is missing). */
+export function useProjectMemberCounts(projectIds: string[]): Record<string, number | undefined> {
+  return useQueries({
+    queries: projectIds.map((id) => orgQueries.projectMembers(id)),
+    combine: (results) => Object.fromEntries(projectIds.map((id, i) => [id, results[i]?.data?.length])),
+  });
+}
 
 /** The audit log, 50 events a page, newest first; `fetchNextPage` follows `next` as `before`. */
 export function useAuditLog(f: AuditFilters = {}) {
@@ -261,6 +276,35 @@ export function useRevokeOtherSessions() {
 export function useMfaUrl() {
   return useMutation(orgMutations.mfaUrl());
 }
+
+// ---- Members table ----------------------------------------------------------------------------------
+
+/** One table row: an organization membership, or a pending invitation. */
+export interface MemberRow {
+  id: string;
+  userId: string | null;
+  name: string;
+  email: string;
+  role: string;
+  status: MemberStatus;
+  projects: number;
+  lastActive: string | null;
+  invitedAt: string | null;
+  invitation: boolean;
+}
+
+const memberRow = (m: OrgMember): MemberRow => ({ ...m, invitedAt: null, invitation: false });
+const invitationRow = (i: Invitation): MemberRow => ({ id: i.id, userId: null, name: "", email: i.email, role: i.role, status: "invited", projects: i.projects.length, lastActive: null, invitedAt: i.invitedAt, invitation: true });
+
+/** Members plus pending invitations (a pending membership that has an invitation shows once, as the invitation). */
+export function memberRows(members: OrgMember[], invitations: Invitation[]): MemberRow[] {
+  const pending = invitations.filter((i) => i.state === "pending");
+  const invited = new Set(pending.map((i) => i.email.toLowerCase()));
+  return [...members.filter((m) => !(m.status === "invited" && invited.has(m.email.toLowerCase()))).map(memberRow), ...pending.map(invitationRow)];
+}
+
+/** The signed-in person's principal, to mark "(you)" and keep them from demoting or removing themselves. */
+export const useSelfId = () => useAuthSession().data?.user.id;
 
 // ---- Permissions ---------------------------------------------------------------------------------
 

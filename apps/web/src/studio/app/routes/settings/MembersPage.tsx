@@ -4,15 +4,21 @@ import { Button } from "@studio/ui/ui/button";
 import { Dialog } from "@studio/ui/ui/dialog";
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
+import { Loader } from "@studio/ui/ui/loader";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
+import { ORG_ROLES, PROJECT_ROLES, roleName, type OrgRole, type ProjectRole } from "@studio/contracts";
 import { DataTable, Field, invalidProps, NoResults, OutlineLabel, PersonCell, RowMenu, SearchField, SettingsDialog, SettingsPage, StatusLabel, CopyId, fmtDate, type Column } from "@/studio/components/settings/kit";
-import { ACCOUNT, ORG_ROLES, PROJECT_ROLES, roleName, useAccount, type Member, type OrgRole, type ProjectRole } from "@/studio/lib/account-mock";
+import { memberRows, toastDone, toastError, useInvitations, useInvite, useOrgMembers, usePermission, useRemoveMember, useResendInvite, useRevokeInvite, useSelfId, useSetMemberRole, type MemberRow } from "@/studio/lib/org-api";
 import { useProjectList } from "@/studio/lib/projects-api";
 
 /** Organization › Team & Access: members and pending invitations (WorkOS organization memberships + invitations). */
 export function MembersPage() {
-  const members = useAccount((s) => s.members);
+  const canManage = usePermission("members:manage");
+  const membersQ = useOrgMembers();
+  const invitationsQ = useInvitations(canManage);
+  const members = useMemo(() => memberRows(membersQ.data ?? [], invitationsQ.data ?? []), [membersQ.data, invitationsQ.data]);
+  const self = useSelfId();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"all" | "active" | "invited">("all");
   const [inviting, setInviting] = useState(false);
@@ -21,6 +27,17 @@ export function MembersPage() {
     return members.filter((m) => (status === "all" || m.status === status) && (!needle || `${m.name} ${m.email} ${m.id}`.toLowerCase().includes(needle)));
   }, [members, q, status]);
   const invited = members.filter((m) => m.status === "invited").length;
+  const offline = membersQ.isError;
+
+  const columns: Column<MemberRow>[] = [
+    { key: "name", label: "Name", className: "w-[34%]", render: (m) => <PersonCell name={m.name} email={m.email} you={!!self && m.userId === self} /> },
+    { key: "id", label: "ID", render: (m) => <CopyId id={m.userId ?? m.id} short /> },
+    { key: "role", label: "Role", render: (m) => <OutlineLabel>{roleName(m.role)}</OutlineLabel> },
+    { key: "projects", label: "Projects", className: "tnum", render: (m) => <span className="text-muted-foreground">{m.projects}</span> },
+    { key: "status", label: "Status", render: (m) => <StatusLabel status={m.status} /> },
+    { key: "seen", label: "Last active", render: (m) => <span className="text-muted-foreground">{m.invitation ? `Invited ${fmtDate(m.invitedAt)}` : fmtDate(m.lastActive)}</span> },
+    { key: "menu", label: <span className="sr-only">Actions</span>, className: "w-12", render: (m) => (canManage ? <MemberMenu member={m} self={!!self && m.userId === self} /> : null) },
+  ];
 
   return (
     <SettingsPage
@@ -44,49 +61,59 @@ export function MembersPage() {
         </>
       }
       actions={
-        <Button size="lg" onClick={() => setInviting(true)} data-testid="invite-open">
+        <Button size="lg" onClick={() => setInviting(true)} disabled={!canManage || offline} title={offline ? "Managing members needs the API" : !canManage ? "You don't have permission to invite people" : undefined} data-testid="invite-open">
           <InviteIcon /> Invite
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(m) => m.id} empty={q || status !== "all" ? <NoResults what="users" onClear={() => (setQ(""), setStatus("all"))} /> : "No members yet."} testId="members-table" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(m) => m.id}
+        empty={
+          membersQ.isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader size="s" /> Loading members
+            </span>
+          ) : offline ? (
+            "Members need the API: see docs/running.md"
+          ) : q || status !== "all" ? (
+            <NoResults what="users" onClear={() => (setQ(""), setStatus("all"))} />
+          ) : (
+            "No members yet."
+          )
+        }
+        testId="members-table"
+      />
       <InviteDialog open={inviting} onOpenChange={setInviting} />
     </SettingsPage>
   );
 }
 
-const columns: Column<Member>[] = [
-  { key: "name", label: "Name", className: "w-[34%]", render: (m) => <PersonCell name={m.name} email={m.email} you={m.id === ACCOUNT.id} /> },
-  { key: "id", label: "ID", render: (m) => <CopyId id={m.id} short /> },
-  { key: "role", label: "Role", render: (m) => <OutlineLabel>{roleName(m.role)}</OutlineLabel> },
-  { key: "projects", label: "Projects", className: "tnum", render: (m) => <span className="text-muted-foreground">{m.projects}</span> },
-  { key: "status", label: "Status", render: (m) => <StatusLabel status={m.status} /> },
-  { key: "seen", label: "Last active", render: (m) => <span className="text-muted-foreground">{m.status === "invited" ? `Invited ${fmtDate(m.invitedAt)}` : fmtDate(m.lastActive)}</span> },
-  { key: "menu", label: <span className="sr-only">Actions</span>, className: "w-12", render: (m) => <MemberMenu member={m} /> },
-];
-
-function MemberMenu({ member }: { member: Member }) {
-  const { setRole, removeMember, resendInvite, revokeInvite } = useAccount();
-  const self = member.id === ACCOUNT.id;
-  if (member.status === "invited") {
+function MemberMenu({ member, self }: { member: MemberRow; self: boolean }) {
+  const setRole = useSetMemberRole();
+  const remove = useRemoveMember();
+  const resend = useResendInvite();
+  const revoke = useRevokeInvite();
+  if (member.invitation) {
     return (
       <RowMenu label={`Actions for ${member.email}`}>
-        <DropdownMenuItem onSelect={() => resendInvite(member.id)}>
+        <DropdownMenuItem onSelect={() => resend.mutate(member.id, { onSuccess: () => toastDone(`Invitation sent again to ${member.email}`), onError: toastError })}>
           <MailIcon /> Resend invitation
         </DropdownMenuItem>
-        <DropdownMenuItem className="text-danger focus:text-danger" onSelect={() => revokeInvite(member.id)}>
+        <DropdownMenuItem className="text-danger focus:text-danger" onSelect={() => revoke.mutate(member.id, { onError: toastError })}>
           <DeleteIcon /> Revoke invitation
         </DropdownMenuItem>
       </RowMenu>
     );
   }
   return (
-    <RowMenu label={`Actions for ${member.name}`}>
+    <RowMenu label={`Actions for ${member.name || member.email}`}>
       <DropdownMenuSub>
-        <DropdownMenuSubTrigger disabled={self}>Change role</DropdownMenuSubTrigger>
+        <DropdownMenuSubTrigger disabled={self || member.status !== "active"}>Change role</DropdownMenuSubTrigger>
         <DropdownMenuSubContent className="w-64">
           {ORG_ROLES.map((r) => (
-            <DropdownMenuItem key={r.slug} onSelect={() => setRole(member.id, r.slug)} className="flex-col items-start gap-0.5">
+            <DropdownMenuItem key={r.slug} onSelect={() => r.slug !== member.role && setRole.mutate({ id: member.id, role: r.slug }, { onError: toastError })} className="flex-col items-start gap-0.5">
               <span className={r.slug === member.role ? "font-semibold" : undefined}>{r.name}</span>
               <span className="text-xs text-muted-foreground">{r.description}</span>
             </DropdownMenuItem>
@@ -94,7 +121,7 @@ function MemberMenu({ member }: { member: Member }) {
         </DropdownMenuSubContent>
       </DropdownMenuSub>
       <DropdownMenuSeparator />
-      <DropdownMenuItem disabled={self} className="text-danger focus:text-danger" onSelect={() => removeMember(member.id)}>
+      <DropdownMenuItem disabled={self || member.status === "deactivated"} className="text-danger focus:text-danger" onSelect={() => remove.mutate(member.id, { onSuccess: () => toastDone(`Removed ${member.name || member.email}`), onError: toastError })}>
         <DeleteIcon /> Remove from organization
       </DropdownMenuItem>
     </RowMenu>
@@ -103,7 +130,7 @@ function MemberMenu({ member }: { member: Member }) {
 
 /** Nebius "Invite team member": email, organization-level role, optional project access rows. */
 export function InviteDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (o: boolean) => void; projectId?: string }) {
-  const invite = useAccount((s) => s.invite);
+  const invite = useInvite();
   const projects = useProjectList().data ?? [];
   const [emails, setEmails] = useState("");
   const [role, setRole] = useState<OrgRole>("member");
@@ -122,9 +149,18 @@ export function InviteDialog({ open, onOpenChange, projectId }: { open: boolean;
   const submit = () => {
     setTouched(true);
     if (!valid) return;
-    list.forEach((e) => invite(e, role, access.filter((a) => a.projectId)));
-    reset();
-    onOpenChange(false);
+    invite.mutate(
+      { emails: list, role, projects: access.filter((a) => a.projectId) },
+      {
+        onSuccess: (sent) => {
+          toastDone(sent.length > 1 ? `Invited ${sent.length} people` : `Invited ${sent[0]?.email ?? list[0]}`);
+          reset();
+          onOpenChange(false);
+        },
+        // WorkOS's text, e.g. a consumer-domain address that doesn't match exactly (Phase 6).
+        onError: toastError,
+      },
+    );
   };
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : (reset(), onOpenChange(false)))}>
@@ -135,7 +171,7 @@ export function InviteDialog({ open, onOpenChange, projectId }: { open: boolean;
             <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button size="lg" className="min-w-32" disabled={touched && !valid} onClick={submit} data-testid="invite-submit">
+            <Button size="lg" className="min-w-32" disabled={(touched && !valid) || invite.isPending} onClick={submit} data-testid="invite-submit">
               {list.length > 1 ? `Invite ${list.length} people` : "Invite user"}
             </Button>
           </>

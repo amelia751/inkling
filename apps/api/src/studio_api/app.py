@@ -16,7 +16,7 @@ from .naming import naming
 from .auth import routes as auth_routes
 from .auth.session import session_middleware
 from .kernel import service_scope
-from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
+from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, me, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -92,6 +92,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(worker.router)
     app.include_router(versioning.router)
     app.include_router(projects.router)
+    app.include_router(me.router)
     app.include_router(datasets_views.router)
     app.include_router(boots.router)
     app.include_router(sources.router)

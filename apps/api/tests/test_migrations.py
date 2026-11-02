@@ -222,3 +222,16 @@ def test_0015_adds_sample_of_and_downgrades(tmp_path):
     command.upgrade(cfg, "head")
     db.reset_engine()
 
+
+def test_0016_adds_user_prefs_and_downgrades(tmp_path):
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0016")
+    assert "user_prefs" in sa.inspect(db.engine()).get_table_names()
+    command.downgrade(cfg, "0015")
+    assert "user_prefs" not in sa.inspect(db.engine()).get_table_names()
+    command.upgrade(cfg, "head")
+    db.reset_engine()

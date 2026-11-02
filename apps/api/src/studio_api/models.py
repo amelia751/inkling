@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import DDL, JSON, false, true, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -565,6 +566,17 @@ class User(Base):
     workos_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class UserPref(Base):
+    """One preference of one person (todo14 D8), e.g. `firstRunHintsDismissed`. Keyed by the
+    principal (`user:…`), not by org: a person's hints follow them across organizations."""
+
+    __tablename__ = "user_prefs"
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class ProjectMember(Base):

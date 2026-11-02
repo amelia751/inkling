@@ -3733,6 +3733,71 @@
         "summary": "Retry Job"
       }
     },
+    "/api/v1/me/prefs": {
+      "get": {
+        "operationId": "get_prefs_api_v1_me_prefs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Prefs"
+      }
+    },
+    "/api/v1/me/prefs/{key}": {
+      "put": {
+        "operationId": "put_pref_api_v1_me_prefs__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Pref"
+      }
+    },
     "/api/v1/pipeline-runs": {
       "post": {
         "operationId": "start_run_api_v1_pipeline_runs_post",

@@ -1,3 +1,4 @@
+import { ErrorView } from "@/studio/app/routes/errors";
 import { invalidateFor } from "@/studio/lib/invalidate";
 import { Link, useParams } from "react-router";
 import { EmptyState } from "@studio/ui/ui/empty-state";
@@ -33,7 +34,7 @@ export function ActivityPage() {
       <div className="mx-auto w-full max-w-4xl px-4 py-5 md:px-6 md:py-6" data-testid="activity-page">
         <PageHeading title="Activity" description="Who changed what, and when." />
         {feed.isLoading && <ActivitySkeleton />}
-        {feed.error && <p className="text-sm text-muted-foreground">Couldn't load activity: {String(feed.error)}</p>}
+        {feed.error && <ErrorView variant="section" error={feed.error} what="activity" onRetry={() => void feed.refetch()} />}
         {feed.data && !entries.length && <EmptyState art="activity" title="No activity yet" description="Uploads, edits, reviews and releases in this project show up here, with who did them and when." data-testid="activity-empty" />}
         <div className="flex flex-col gap-6">
           {days.map(([day, list]) => (

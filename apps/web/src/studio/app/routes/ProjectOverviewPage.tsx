@@ -1,3 +1,4 @@
+import { ErrorView } from "@/studio/app/routes/errors";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -61,7 +62,7 @@ export function ProjectOverviewPage() {
       <DropOverlay label={o?.project.title ?? "this project"} onDrop={(p) => void addData(p)} className="min-h-full">
         <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-6 md:py-6" data-testid="overview">
           {overview.error ? (
-            <p className="text-sm text-muted-foreground">Couldn't open this project: {String(overview.error)}</p>
+            <ErrorView variant="section" error={overview.error} what="project" onRetry={() => void overview.refetch()} />
           ) : !o ? (
             <OverviewSkeleton />
           ) : (

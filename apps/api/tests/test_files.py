@@ -385,7 +385,7 @@ def test_dataset_contents_and_annotations_survive_moves_and_renames(client):
     task = ds["tasks"][0]["id"]
     doc = client.get(f"/api/v1/tasks/{task}/document").json()
     paths = sorted(a["path"] for a in doc["assets"])
-    ann = {"revision": 0, "annotations": [{"id": "x", "itemId": paths[0], "label": "l", "provenance": "human-created", "author": "me", "createdAt": "2026-10-30T00:00:00Z", "geometry": {"type": "box", "x": 1, "y": 1, "w": 2, "h": 2}}]}
+    ann = {"revision": 0, "annotations": [{"id": "x", "itemId": paths[0], "label": "normal", "provenance": "human-created", "author": "me", "createdAt": "2026-10-30T00:00:00Z", "geometry": {"type": "box", "x": 1, "y": 1, "w": 2, "h": 2}}]}
     assert client.put(f"/api/annotations/{task}", json=ann, headers={"X-Workspace-Id": task}).status_code == 200
     # Rename and move a, move c into the followed folder: the dataset doesn't change (D7).
     _ops(client, p, [{"kind": "rename", "nodeId": n["a.png"].id, "name": "renamed.png"}, {"kind": "move", "nodeIds": [n["a.png"].id], "parentId": root}, {"kind": "move", "nodeIds": [n["c.png"].id], "parentId": n["MRI"].id}])

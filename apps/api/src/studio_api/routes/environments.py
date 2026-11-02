@@ -39,7 +39,9 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
-from ..kernel import boots, environment_policy, projects, studio_defs
+from ..kernel import boots, environment_admission, environment_policy, projects, studio_defs
+from ..kernel.admission import doors
+from ..kernel.admission.http import WriteParams, declares, write_params
 from ..kernel.canonical import content_hash
 from ..models import ProjectRow, WorkspaceEnvironment, WorkspaceEnvironmentRevision
 from ..streaming import blob_response
@@ -357,12 +359,15 @@ class _BadBody(Exception):
     pass
 
 
-@router.put("/api/environments/{project_id}", operation_id="put_environment")
-@router.patch("/api/environments/{project_id}", operation_id="patch_environment")
-async def save_environment(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.put("/api/environments/{project_id}", operation_id="put_environment", openapi_extra=declares("studio.save"))
+@router.patch("/api/environments/{project_id}", operation_id="patch_environment", openapi_extra=declares("studio.patch"))
+async def save_environment(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session), w: WriteParams = Depends(write_params)):
     """todo11 D2: the API is the authority on every write, whoever the caller is: who may write
     this task, a required `revision` (409 when stale), the agent's mutation scope (403), and
-    shape and references (422) — `kernel/environment_policy.py`."""
+    shape and references (422) — `kernel/environment_policy.py`. todo17: through admit():
+    an environment that doesn't resolve is 422 problem JSON (`env.unresolved`, with the legacy
+    `errors[]`), label drift from the project's rules comes back as `findings`; `dryRun=true`
+    runs everything without saving; `Idempotency-Key` replays a retry."""
     c = _project(project_id, ctx, db, write=True)
     if isinstance(c, JSONResponse):
         return c
@@ -372,6 +377,22 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         return _json(400, {"error": str(e)})
     if not body:
         return _json(400, {"error": "missing body"})
+    is_patch = request.method == "PATCH"
+    op = environment_admission.PATCH_OP if is_patch else environment_admission.SAVE_OP
+    if w.dry_run:
+        return _save_environment(project_id, request, ctx, db, c, body, is_patch, op, dry_run=True)
+    # Idempotency-Key (D13): a retry replays the stored answer before the revision check (which
+    # the first attempt moved on); only successes are stored.
+    with doors.IdempotentWrite(db, w.idempotency_key, ctx.principal, op.id, {"path": project_id, "body": body}) as idem:
+        if idem.replay is not None:
+            return _json(idem.replay.status, idem.replay.response)
+        out = _save_environment(project_id, request, ctx, db, c, body, is_patch, op, dry_run=False)
+        if isinstance(out, dict):
+            idem.complete(200, out)
+        return out
+
+
+def _save_environment(project_id: str, request: Request, ctx: RequestContext, db: Session, c: RequestContext, body: dict, is_patch: bool, op, *, dry_run: bool):
     agent = ctx.principal.startswith("agent:")
     if agent and not boots.agent_may_write(db, ctx, c.task):
         return _json(403, {"ok": False, "errors": [{"path": "", "code": "scope", "message": "an agent may change only the drafts it booted, or the task the person opened it on"}]})
@@ -388,7 +409,6 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         return deferred
 
     base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
-    is_patch = request.method == "PATCH"
     if is_patch and not base:
         return _json(404, {"error": f'no project "{project_id}"'})
     ops = body.get("patch") if is_patch else None
@@ -400,13 +420,17 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         environment=None if is_patch else body.get("environment"),
         is_patch=is_patch,
     )
-    if not checked.ok:
+    if checked.status == 403:
         return _json(checked.status, checked.body())
-    saved = _save(db, c, row, cur["revision"], checked.environment, prov, studio_defs.parent_hash(db, c.workspace_id, c.task, cur["revision"], base), ops)
+    res = environment_admission.admit_environment(db, c.workspace_id, op, checked, principal=ctx.principal, on_behalf_of=ctx.on_behalf_of, dry_run=dry_run)
+    if dry_run:
+        return environment_admission.success({"ok": True, "revision": cur["revision"], "environment": res.value}, res, checked.warnings)
+    saved = _save(db, c, row, cur["revision"], res.value, prov, studio_defs.parent_hash(db, c.workspace_id, c.task, cur["revision"], base), ops)
     if saved is None:
         db.rollback()
         return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))})
-    return saved
+    environment_admission.record(db, c.workspace_id, c.task, res)
+    return environment_admission.success(saved, res, checked.warnings)
 
 
 def _change_request(db: Session, ctx: RequestContext, c: RequestContext, body: dict, prov: studio_defs.Provenance) -> JSONResponse | dict | None:

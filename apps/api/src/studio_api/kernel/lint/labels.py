@@ -46,6 +46,8 @@ def check(data: Mapping[str, Any], rules: Mapping[str, Any]) -> list[Violation]:
     names = sorted(lab.get("name") or lab.get("id") for lab in canon.values())
     out: list[Violation] = []
     for i, ann in enumerate(data.get("annotations") or ()):
+        if not isinstance(ann, dict):
+            continue  # the annotations family reports malformed items
         label = ann.get("label")
         if not isinstance(label, str):
             continue

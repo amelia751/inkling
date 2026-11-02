@@ -16,7 +16,6 @@ DELETE /api/v1/projects/{project_id}/trash/{batch_id}
 DELETE /api/v1/secrets/{name}
 DELETE /api/v1/source-nodes/{node_id}/star
 DELETE /api/v1/sources/{source_id}
-PATCH /api/environments/{project_id}
 PATCH /api/v1/me
 PATCH /api/v1/org
 PATCH /api/v1/org/members/{mid}
@@ -31,7 +30,6 @@ POST /api/auth/switch-org
 POST /api/environments/validate
 POST /api/environments/{project_id}/checks
 POST /api/environments/{project_id}/rollback
-POST /api/v1/annotations
 POST /api/v1/annotations/{annotation_id}/review
 POST /api/v1/approvals/{approval_id}/approve
 POST /api/v1/approvals/{approval_id}/deny
@@ -155,8 +153,6 @@ POST /api/v1/workspaces/{workspace_id}/plugins/plan
 POST /api/v1/workspaces/{workspace_id}/plugins/reject
 POST /api/v1/workspaces/{workspace_id}/plugins/rollback
 POST /api/v1/workspaces/{workspace_id}/plugins/stage
-PUT /api/annotations/{project_id}
-PUT /api/environments/{project_id}
 PUT /api/environments/{project_id}/last-known-good
 PUT /api/environments/{project_id}/readme
 PUT /api/v1/datasets/{dataset_id}/structure
@@ -171,4 +167,3 @@ PUT /api/v1/worker/boundary/jobs/{job_id}/fixtures/{name}
 PUT /api/v1/worker/inspect/nodes/{node_id}/derived/{role}
 PUT /api/v1/worker/items/{item_id}/derived/{role}
 PUT /api/v1/worker/unpack/sessions/{sid}/files/{fid}
-PUT /api/v1/workspaces/{workspace_id}/environment

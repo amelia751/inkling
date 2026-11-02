@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..lint import Family, Violation, resolve_severity, run_families
+from ..lint import annotations as lint_annotations
 from ..lint import datasets as lint_datasets
 from ..lint import labels as lint_labels
 from ..lint import layout as lint_layout
@@ -28,6 +29,8 @@ class WriteRejected(Exception):
         self.violations = list(violations)
         self.retryable = retryable
         self.title = title
+        # Extra top-level keys for the problem body (a route's legacy fields, e.g. `errors`).
+        self.body_extra: dict[str, Any] = {}
 
 
 class PermissionDenied(WriteRejected):
@@ -192,6 +195,6 @@ def admit(op_id: str | Operation, data: Mapping[str, Any], ctx: Ctx | None = Non
     return Admitted(value=op.persist(value, ctx), findings=findings)
 
 
-FAMILIES = {"labels": lint_labels.check, "layout": lint_layout.check, "datasets": lint_datasets.check}
+FAMILIES = {"annotations": lint_annotations.check, "labels": lint_labels.check, "layout": lint_layout.check, "datasets": lint_datasets.check}
 
 __all__ = ["CHANGE_REQUEST", "FAMILIES", "OPERATIONS", "Admitted", "Ctx", "Operation", "PermissionDenied", "WriteRejected", "admit", "needs_change_request", "normalise", "operation", "permit", "register"]

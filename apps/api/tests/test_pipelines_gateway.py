@@ -5,6 +5,8 @@ stream, and no pipeline routes for agents."""
 
 from __future__ import annotations
 
+import functools
+
 import base64
 import json
 import threading
@@ -19,8 +21,14 @@ from studio_api.kernel.versioning import client as vclient
 from studio_api.kernel.versioning import service as vservice
 from studio_api.kernel.versioning.fake import FakeVersioning
 
-from .conftest import ws
+from .conftest import SAMPLE_TEAM, ws
 from .test_versioning import ALICE, BOB, save, work
+
+
+@pytest.fixture
+def make_client(make_client):
+    """alice and bob work on the seed project together (conftest SAMPLE_TEAM, todo14 D7)."""
+    return functools.partial(make_client, sample_editors=SAMPLE_TEAM)
 
 DIGEST = "sha256:" + "ab" * 32
 

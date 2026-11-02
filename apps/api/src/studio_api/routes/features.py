@@ -1,6 +1,7 @@
 """Feature flags and the browser's drop timeline (todo13 §7.1, §7.3, Milestone 4 item 1).
 
-    GET  /api/v1/features            → {chatDrops, autoApply, fastPath, datasetsTab} (no auth: flags aren't secret)
+    GET  /api/v1/features            → {chatDrops, autoApply, fastPath, datasetsTab, samples} (no auth: flags aren't secret;
+                                       `samples` is API_SAMPLES_ENABLED, todo14 §8)
     POST /api/v1/telemetry/timeline  {dropId?, origin, steps: {step: ms}, outcome?} → 204
                                      (404 while every todo13 flag is off, §6 J12)
 
@@ -17,6 +18,7 @@ import re
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import Response
 
+from ..config import settings
 from ..context import RequestContext, get_context
 from ..kernel import features
 
@@ -33,7 +35,7 @@ MAX_MS = 60 * 60 * 1000
 
 @router.get("/features")
 def get_features():
-    return features.snapshot()
+    return {**features.snapshot(), "samples": settings().samples_enabled}
 
 
 def _validate(body: dict) -> dict:

@@ -66,7 +66,10 @@ def bootstrap(db: Session, ctx: RequestContext) -> None:
     if installations(db, ctx.workspace_id):
         return
     wanted: list[str] | None = None
-    raw = _seed_workspace(ctx.workspace_id)
+    from ..kernel.projects import template_of
+
+    # A sample copy installs what its template lists (todo14 D2).
+    raw = _seed_workspace(template_of(db, ctx.workspace_id))
     if raw is not None:
         wanted = [canonical_id(p["pluginId"] if isinstance(p, dict) else p) for p in raw.get("plugins", [])]
     boot = RequestContext(ctx.workspace_id, "system:bootstrap", ctx.correlation_id)

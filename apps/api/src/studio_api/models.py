@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import DDL, JSON, false, true, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -567,6 +568,17 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class UserPref(Base):
+    """One preference of one person (todo14 D8), e.g. `firstRunHintsDismissed`. Keyed by the
+    principal (`user:…`), not by org: a person's hints follow them across organizations."""
+
+    __tablename__ = "user_prefs"
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class ProjectMember(Base):
     """Project roles (todo9 D5): `owner` (shown as "Project admin") | reviewer | annotator |
     viewer. Org admins are implicitly owners everywhere and need no row."""
@@ -670,6 +682,8 @@ class ProjectRow(Base):
     visibility: Mapped[str] = mapped_column(String(16), default="private")  # private | shared
     # Seed projects: the manifest entry they came from (license, restricted badge).
     seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # todo14 D2: the Samples template this project is a copy of (its assets share the blob keys).
+    sample_of: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

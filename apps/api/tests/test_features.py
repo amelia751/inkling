@@ -21,7 +21,7 @@ def test_flags_default_on_in_development(make_client):
     c = make_client()
     r = c.get("/api/v1/features")
     assert r.status_code == 200
-    assert r.json() == {k: True for k in ALL}
+    assert r.json() == {**{k: True for k in ALL}, "samples": True}
 
 
 def test_flags_default_off_in_production():
@@ -34,7 +34,7 @@ def test_flags_follow_the_keys(make_client, monkeypatch):
     monkeypatch.setenv(f"{P}API_FEATURE_DATASETS_TAB", "false")
     monkeypatch.setenv(f"{P}API_FEATURE_FAST_PATH", "1")
     c = make_client()
-    assert c.get("/api/v1/features").json() == {"chatDrops": False, "autoApply": True, "fastPath": True, "datasetsTab": False}
+    assert c.get("/api/v1/features").json() == {"chatDrops": False, "autoApply": True, "fastPath": True, "datasetsTab": False, "samples": True}
 
 
 def test_features_need_no_token(make_client):
@@ -125,7 +125,7 @@ def test_every_flag_off_no_todo13_route_answers(make_client):
     for method, path, body in calls:
         r = c.request(method, path, json=body)
         assert r.status_code == 404, (method, path, r.status_code, r.text[:200])
-    assert c.get("/api/v1/features").json() == {k: False for k in ALL}
+    assert c.get("/api/v1/features").json() == {**{k: False for k in ALL}, "samples": True}
     # An import with a chat origin is refused too (no drop gets made).
     r = c.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": [{"clientFileId": "f0", "relPath": "a.png", "size": 3, "sha256": "0" * 64}], "origin": {"kind": "chat", "conversationId": "conv-1"}})
     assert r.status_code in (201, 404, 422), r.text

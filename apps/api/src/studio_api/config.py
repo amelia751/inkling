@@ -20,6 +20,8 @@ that are missing or invalid, never their values.
 | API_DATA_DIR              | apps/api/.data                   | dev-only local data (SQLite file, local derived blobs) |
 | API_SEED_ROOT             | <repo>/seed-data                 | the local BlobStore root for seed assets |
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
+| API_SAMPLE_MEMBERS        | user:local-expert                | todo14 D3: comma-separated dev principals that stay read-only (`viewer`) members of the Samples org; everyone else starts empty. Dev mode (trusted headers) only; ignored in `workos` mode |
+| API_SAMPLES_ENABLED       | 1                                | todo14 §8: "Try a sample" (served as `samples` in `GET /api/v1/features`) |
 | API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
 | API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
 | API_VERSIONING_URL        | (none)                           | apps/versioning base URL; unset = versioning routes answer 503 |
@@ -153,6 +155,12 @@ class Settings(BaseModel):
     # from the X-Workspace-Id header. Production sets this off and requires tokens.
     dev_trust_headers: bool = True
     dev_principal: str = "user:local-expert"
+    # todo14 D3/D7: dev principals that stay (read-only) members of the Samples org, comma
+    # separated. Everyone else starts with an empty personal org. Only honoured in dev mode
+    # (trusted headers); ignored when API_AUTH_MODE=workos.
+    sample_members: str = "user:local-expert"
+    # todo14 §8: "Try a sample" (the web hides it when off).
+    samples_enabled: bool = True
     # Phase 4 exit path: a kernel-internal mock `image.segment` provider usable without
     # installing a plugin. Off unless asked for (it bypasses installation, never policy).
     builtin_mock_segment: bool = False
@@ -255,6 +263,11 @@ class Settings(BaseModel):
     feature_fast_path: bool | None = None
     feature_datasets_tab: bool | None = None
 
+    def sample_member(self, principal: str) -> bool:
+        """todo14 D3: whether a principal keeps its Samples membership (dev mode only; ignored in
+        `workos` mode, where sign-in bootstraps an empty personal org)."""
+        return not self.workos and self.dev_trust_headers and principal in {p.strip() for p in self.sample_members.split(",") if p.strip()}
+
     def feature(self, name: str) -> bool:
         """A todo13 flag by short name (`chat_drops`, `auto_apply`, `fast_path`, `datasets_tab`)."""
         v = getattr(self, f"feature_{name}")
@@ -287,6 +300,8 @@ _KEYS: dict[str, str] = {
     "data_dir": "API_DATA_DIR",
     "seed_root": "API_SEED_ROOT",
     "dev_trust_headers": "API_DEV_TRUST_HEADERS",
+    "sample_members": "API_SAMPLE_MEMBERS",
+    "samples_enabled": "API_SAMPLES_ENABLED",
     "builtin_mock_segment": "API_BUILTIN_MOCK_SEGMENT",
     "housekeeping_interval_s": "API_HOUSEKEEPING_INTERVAL_S",
     "versioning_url": "API_VERSIONING_URL",

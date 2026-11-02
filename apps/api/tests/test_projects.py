@@ -67,8 +67,8 @@ def test_projects_are_isolated_between_people(client):
     for url in (f"/api/v1/projects/{p['id']}", f"/api/v1/projects/{p['id']}/sources", f"/api/v1/sources/{src['id']}/children", f"/api/v1/source-nodes/{src['rootNodeId']}", f"/api/v1/projects/{p['id']}/overview"):
         assert client.get(url, headers=BOB).status_code == 404, url
     assert client.post(f"/api/v1/projects/{p['id']}/imports", json={"files": []}, headers=BOB).status_code == 404
-    # Samples are shared with everyone.
-    assert client.get("/api/v1/projects/ws-a", headers=BOB).status_code == 200
+    # Samples aren't shared with everyone any more (todo14 D2, D3): Bob isn't a Samples member.
+    assert client.get("/api/v1/projects/ws-a", headers=BOB).status_code == 404
 
 
 def test_children_paging_natural_sort_sequences_and_compact_chains(client):

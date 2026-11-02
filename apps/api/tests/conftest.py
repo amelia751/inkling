@@ -48,9 +48,34 @@ def database_url_for_tests() -> str:
     return env("TEST_DATABASE_URL") or "sqlite:///:memory:"
 
 
+# The seed projects double as "a project the dev person can change" in most tests. Since todo14
+# D7 nobody edits a Samples template, so the test fixture makes these principals the templates'
+# maintainers (test data, not a product path). Access tests pass `sample_editors=()` to see the
+# product's rule: `user:local-expert` is a viewer, everyone else no member at all.
+SAMPLE_EDITORS = ("user:local-expert",)
+# Suites where several people (alice, bob) work on one seed project together.
+SAMPLE_TEAM = ("user:local-expert", "user:alice", "user:bob")
+
+
+def grant_sample_editors(principals) -> None:
+    from studio_api.dbutil import insert_ignore
+    from studio_api.kernel import projects
+    from studio_api.models import Organization, OrganizationMember, now
+
+    with db.session_scope() as s:
+        insert_ignore(s, Organization, [{"id": projects.SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
+        for who in principals:
+            projects.ensure_principal(s, who)
+            m = s.get(OrganizationMember, (projects.SAMPLES_ORG, who))
+            if m is None:
+                s.add(OrganizationMember(org_id=projects.SAMPLES_ORG, principal=who, role="member", created_at=now()))
+            else:
+                m.role = "member"
+
+
 @pytest.fixture
 def make_client(seed: Path, tmp_path: Path):
-    def make(**overrides) -> TestClient:
+    def make(*, sample_editors=SAMPLE_EDITORS, **overrides) -> TestClient:
         overrides = {"database_url": database_url_for_tests(), "seed_root": seed, "data_dir": tmp_path / "data", "secret_key": "test-secret-key", **overrides}
         s = config.load_settings(**overrides)
         config.set_settings(s)
@@ -61,7 +86,10 @@ def make_client(seed: Path, tmp_path: Path):
             db.Base.metadata.drop_all(db.engine())
         from studio_api.app import create_app
 
-        return TestClient(create_app())
+        app = create_app()
+        if sample_editors and s.create_tables and not s.workos:  # workos mode: sign-in, no dev grants
+            grant_sample_editors(sample_editors)
+        return TestClient(app)
 
     yield make
     db.reset_engine()

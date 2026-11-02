@@ -48,7 +48,7 @@ def list_proposals(project_id: str, status: str | None = None, ctx: RequestConte
 
 @router.post("/projects/{project_id}/proposals", status_code=201)
 def create_proposal(project_id: str, request: Request, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    p = projects.require_project(db, ctx, project_id)
+    p = projects.require_project(db, ctx, project_id, write=True)
     if ctx.scopes and not ctx.allows("proposals.write"):
         raise HTTPException(403, "this session can't propose changes")
     # The kernel names the author (`agent:<run>` or `user:…`) from the context, never the body.

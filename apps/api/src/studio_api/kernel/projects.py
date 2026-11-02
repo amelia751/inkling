@@ -44,7 +44,7 @@ from ..models import (
     now,
 )
 from . import assets, audit, events, fs, tree
-from .kinds import VIEWABLE, kind_from_extension
+from .kinds import VIEWABLE
 
 log = logging.getLogger(__name__)
 
@@ -80,17 +80,21 @@ def personal_org_id(principal: str) -> str:
 def ensure_principal(db: Session, principal: str) -> str | None:
     """A person's personal organization; returns its id.
 
-    dev mode: created here on first use for any `user:` principal, plus membership of the shared
-    samples (as before todo9, so the seed e2e suite keeps its projects). workos mode: sign-in
-    creates it (`auth.bootstrap`, no samples membership: todo14 D2); this only looks it up."""
+    dev mode: created here on first use for any `user:` principal, empty. Only principals in
+    `API_SAMPLE_MEMBERS` also join the shared Samples org, as read-only `viewer`s (todo14 D3,
+    D7); everyone else takes a sample as a copy. workos mode: sign-in creates it
+    (`auth.bootstrap`, no samples membership: todo14 D2); this only looks it up."""
     if not principal.startswith("user:"):
         return None
     org = personal_org_id(principal)
     if settings().workos:
         return org if db.get(Organization, org) is not None else None
     if db.get(OrganizationMember, (org, principal)) is None:
-        insert_ignore(db, Organization, [{"id": org, "name": "Personal", "kind": "personal", "created_at": now()}, {"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
-        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "admin", "created_at": now()}, {"org_id": SAMPLES_ORG, "principal": principal, "role": "member", "created_at": now()}])
+        insert_ignore(db, Organization, [{"id": org, "name": "Personal", "kind": "personal", "created_at": now()}])
+        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "admin", "created_at": now()}])
+    if settings().sample_member(principal) and db.get(OrganizationMember, (SAMPLES_ORG, principal)) is None:
+        insert_ignore(db, Organization, [{"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
+        insert_ignore(db, OrganizationMember, [{"org_id": SAMPLES_ORG, "principal": principal, "role": "viewer", "created_at": now()}])
     return org
 
 
@@ -130,10 +134,12 @@ def project_role(db: Session, ctx: RequestContext, p: ProjectRow) -> str | None:
         return None
     if org_role in ORG_ADMIN_ROLES:
         return "owner"
+    if org_role == "viewer":  # an org viewer (the Samples templates, todo14 D7) stays read-only
+        return "viewer"
     pm = db.get(ProjectMember, (p.id, who))
     if pm is not None:
         return pm.role
-    return "viewer" if org_role == "viewer" else "annotator"
+    return "annotator"
 
 
 def require_project(db: Session, ctx: RequestContext, project_id: str, *, write: bool = False) -> ProjectRow:
@@ -164,10 +170,28 @@ def require_project(db: Session, ctx: RequestContext, project_id: str, *, write:
     return p
 
 
-def project_of_scope(db: Session, ctx: RequestContext) -> ProjectRow | None:
+def can_write(db: Session, ctx: RequestContext, project_id: str) -> bool:
+    """Whether the caller may change the project (it can already see it)."""
+    try:
+        require_project(db, ctx, project_id, write=True)
+    except HTTPException:
+        return False
+    return True
+
+
+def project_of_scope(db: Session, ctx: RequestContext, *, write: bool = False) -> ProjectRow | None:
     """The project behind a legacy workspace/task route, membership-checked when it exists."""
     p = db.get(ProjectRow, ctx.workspace_id)
-    return require_project(db, ctx, p.id) if p is not None else None
+    return require_project(db, ctx, p.id, write=write) if p is not None else None
+
+
+def require_scope_write(db: Session, ctx: RequestContext) -> None:
+    """A write addressed by the request's workspace (header or token, not a path id): when that
+    workspace is a project, the caller must be allowed to change it. A viewer (the Samples
+    templates, todo14 D7) gets 403; a stranger 404. Service, worker and plugin principals are
+    governed by their own scopes, not by membership."""
+    if person(ctx).startswith("user:"):
+        project_of_scope(db, ctx, write=True)
 
 
 # ---- Seeds -------------------------------------------------------------------------------------
@@ -194,6 +218,18 @@ def label_groups(labels: list[str], task: str | None) -> list[dict]:
 
 def seed_entry(project_id: str) -> dict | None:
     return next((p for p in (assets.seed_manifest() or {}).get("projects", []) if p.get("id") == project_id), None)
+
+
+def template_of(db: Session, project_id: str) -> str:
+    """The manifest id behind a sample project: its own id for a template, `sample_of` for a
+    copy (todo14 D2; a copy's project, dataset and task share one id like a template's)."""
+    p = db.get(ProjectRow, project_id)
+    return p.sample_of if p is not None and p.sample_of else project_id
+
+
+def base_environment(db: Session, task_id: str) -> dict | None:
+    """What a task boots with when nothing is saved: its sample's manifest environment."""
+    return manifest_environment(template_of(db, task_id))
 
 
 def manifest_environment(project_id: str) -> dict | None:
@@ -224,54 +260,11 @@ def _seed_files(raw: dict) -> tuple[str, list[tuple[str, dict]]]:
     return raw["id"], [(a["path"], a) for a in entries]
 
 
-SEED_FACT_KEYS = ("label", "subject", "sequence", "record", "fps", "frames", "duration", "width", "height", "mpp", "magnification", "role")
-
-
 def ensure_seeds(db: Session) -> int:
-    """Upsert one project, source (with its tree), dataset and task per available seed.
-    Idempotent and safe to run on every start and from several replicas at once."""
-    manifest = assets.seed_manifest() or {}
-    insert_ignore(db, Organization, [{"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
-    n = 0
-    for raw in manifest.get("projects", []):
-        pid = raw.get("id")
-        if not isinstance(pid, str) or not ID_RE.fullmatch(pid) or raw.get("status", "available") != "available":
-            continue
-        title = str(raw.get("title") or pid)
-        ensure_workspace(db, pid, title)
-        root_name, files = _seed_files(raw)
-        root = tree.node_id(pid, "")
-        insert_ignore(db, ProjectRow, [{"id": pid, "org_id": SAMPLES_ORG, "title": title, "description": "", "visibility": "shared", "seed": True, "archived": False, "created_by": SEED_PRINCIPAL, "created_at": now(), "updated_at": now()}])
-        insert_ignore(db, Source, [{"id": pid, "project_id": pid, "title": root_name, "kind": "seed", "root_node_id": root, "created_by": SEED_PRINCIPAL, "status": "ready", "created_at": now()}])
-        project = db.get(ProjectRow, pid)
-        assert project is not None
-        drive = fs.ensure_drive(db, project)
-        changed = False
-        if db.get(SourceNode, root) is None:
-            # The sample's folder sits under the project's drive, locked (todo7 D1, D2).
-            name = tree.free_name(root_name, fs.taken_names(db, drive.id), is_dir=True)
-            insert_ignore(db, SourceNode, [tree._row(id=root, source_id=pid, project_id=pid, project_root=drive.id, parent_id=drive.id, name=name, original_path="", is_dir=True, locked=True, created_at=now())])
-            changed = True
-        if not db.scalar(select(SourceNode.id).where(SourceNode.source_id == pid, SourceNode.is_dir.is_(False)).limit(1)):
-            assets.ensure_seed_assets(db, RequestContext(pid, SEED_PRINCIPAL, ""))
-            by_path = {a.path: a for a in db.scalars(select(Asset).where(Asset.workspace_id == pid))}
-            specs = []
-            for rel, a in files:
-                asset = by_path.get(a["path"])
-                facts = {k: a[k] for k in SEED_FACT_KEYS if a.get(k) is not None}
-                specs.append(tree.FileSpec(rel, asset.id if asset else None, a.get("sha256"), a.get("bytes") if isinstance(a.get("bytes"), int) else (asset.size if asset else None), kind_from_extension(rel), {"source": "manifest", **facts}))
-            tree.add_files(db, pid, pid, root, specs, stable=True, locked=True, created_by=SEED_PRINCIPAL)
-            changed = True
-        if changed:
-            tree.recount_under(db, drive.id)
-        task_kind = str(raw.get("task") or (raw.get("environment") or {}).get("task") or "annotate")
-        if db.get(DatasetRow, pid) is None:
-            refs, followed = resolve_files(db, [root])
-            insert_ignore(db, DatasetRow, [{"id": pid, "project_id": pid, "title": title, "description": "", "definition": {"nodeIds": [root], "seed": True, "files": refs, "followedFolders": followed}, "created_by": SEED_PRINCIPAL, "created_at": now()}])
-        insert_ignore(db, TaskRow, [{"id": pid, "dataset_id": pid, "project_id": pid, "title": title, "kind": task_kind, "revision": 0, "created_by": SEED_PRINCIPAL, "created_at": now()}])
-        n += 1
-    db.flush()
-    return n
+    """The Samples templates (built in `kernel/samples.py`, with the copies people take)."""
+    from . import samples
+
+    return samples.ensure_seeds(db)
 
 
 _seeded: set[int] = set()
@@ -279,8 +272,6 @@ _seeded: set[int] = set()
 
 def ensure_seeds_once(db: Session) -> None:
     """Per process and settings object: a cache of work already done, not request state."""
-    from ..config import settings
-
     key = id(settings())
     if key not in _seeded:
         ensure_seeds(db)
@@ -321,7 +312,8 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "title": p.title,
         "description": p.description or "",
         "visibility": p.visibility,
-        "sample": p.seed,
+        "sample": p.seed or p.sample_of is not None,
+        "sampleOf": p.sample_of,
         "archived": p.archived,
         "createdBy": p.created_by,
         "createdAt": iso(p.created_at),
@@ -332,7 +324,7 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         # todo13 D14: viewers can't drop; the composer reads this to disable attach.
         "role": project_role(db, ctx, p),
     }
-    if p.seed and (raw := seed_entry(p.id)):
+    if (p.seed or p.sample_of) and (raw := seed_entry(p.sample_of or p.id)):
         out["license"] = raw.get("license")
         out["restricted"] = bool(raw.get("restricted"))
     return out
@@ -894,9 +886,9 @@ def task_document(db: Session, t: TaskRow) -> dict:
     assert p is not None
     saved = db.get(WorkspaceEnvironment, (p.id, t.id))
     env = saved.environment if saved and saved.environment is not None else None
-    if p.seed and t.id == p.id and (raw := seed_entry(p.id)):
+    if (p.seed or p.sample_of) and t.id == p.id and (raw := seed_entry(p.sample_of or p.id)):
         doc = {k: v for k, v in raw.items() if k not in ("viewer",)}
-        environment = env or manifest_environment(p.id) or {}
+        environment = env or manifest_environment(p.sample_of or p.id) or {}
         # The sample's files are nodes with stable ids (`ensure_seeds`): copy the manifest's
         # entries (cached, shared) and add each one's node and current folder.
         _, rels = _seed_files(raw)

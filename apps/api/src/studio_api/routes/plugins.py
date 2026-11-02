@@ -12,7 +12,7 @@ from studio_signing import oci
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import audit
+from ..kernel import audit, projects
 from ..plugins import artifacts, catalog, distribution, installer, policy, store
 
 router = APIRouter(prefix="/api/v1")
@@ -31,12 +31,16 @@ def _need(ctx: RequestContext, scope: str) -> None:
         raise HTTPException(403, f"this session lacks the {scope} scope")
 
 
-def _ws(ctx: RequestContext, workspace_id: str, scope: str = "plugins.manage") -> RequestContext:
+def _ws(ctx: RequestContext, workspace_id: str, scope: str = "plugins.manage", db: Session | None = None) -> RequestContext:
     # Token sessions are bound to their workspace; dev header identities may address any.
     if ctx.scopes and workspace_id != ctx.workspace_id:
         raise HTTPException(403, "session is bound to another workspace")
     _need(ctx, scope)
-    return RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
+    c = RequestContext(workspace_id, ctx.principal, ctx.correlation_id, ctx.idempotency_key, ctx.scopes, ctx.profile, ctx.on_behalf_of)
+    if db is not None and scope != "plugins.read":
+        # Plugin activation is per project (todo6 D1): changing it is a write (todo14 D7).
+        projects.require_scope_write(db, c)
+    return c
 
 
 def _visible(ctx: RequestContext, db: Session, plugin_id: str, version: str | None = None) -> catalog.Entry:
@@ -226,7 +230,7 @@ def capabilities(workspace_id: str, ctx: RequestContext = Depends(get_context), 
 
 @router.post("/workspaces/{workspace_id}/plugins/plan")
 def plan(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _ws(ctx, workspace_id)
+    c = _ws(ctx, workspace_id, db=db)
     return installer.request_dict(installer.plan(db, c, str(body["pluginId"]), body.get("version")))
 
 
@@ -237,7 +241,7 @@ def get_request(workspace_id: str, request_id: str, ctx: RequestContext = Depend
 
 @router.post("/workspaces/{workspace_id}/plugins/stage")
 def stage(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _ws(ctx, workspace_id)
+    c = _ws(ctx, workspace_id, db=db)
     r = installer.stage(db, c, str(body["requestId"]))
     if r.state == "STAGED":
         r = installer.validate(db, c, r.id)
@@ -246,37 +250,37 @@ def stage(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depen
 
 @router.post("/workspaces/{workspace_id}/plugins/approve")
 def approve(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _ws(ctx, workspace_id, "plugins.approve")
+    c = _ws(ctx, workspace_id, "plugins.approve", db)
     return installer.request_dict(installer.approve(db, c, str(body["requestId"]), [str(p) for p in body.get("grantOptional") or []]))
 
 
 @router.post("/workspaces/{workspace_id}/plugins/reject")
 def reject(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return installer.request_dict(installer.reject(db, _ws(ctx, workspace_id), str(body["requestId"]), str(body.get("reason") or "rejected by user")))
+    return installer.request_dict(installer.reject(db, _ws(ctx, workspace_id, db=db), str(body["requestId"]), str(body.get("reason") or "rejected by user")))
 
 
 @router.post("/workspaces/{workspace_id}/plugins/activate")
 def activate(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return installer.request_dict(installer.activate(db, _ws(ctx, workspace_id), str(body["requestId"])))
+    return installer.request_dict(installer.activate(db, _ws(ctx, workspace_id, db=db), str(body["requestId"])))
 
 
 @router.post("/workspaces/{workspace_id}/plugins/disable")
 def disable(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    r = installer.disable(db, _ws(ctx, workspace_id), str(body["pluginId"]))
+    r = installer.disable(db, _ws(ctx, workspace_id, db=db), str(body["pluginId"]))
     return {"pluginId": r.plugin_id, "version": r.version, "state": r.state}
 
 
 @router.post("/workspaces/{workspace_id}/plugins/rollback")
 def rollback(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    r = installer.rollback(db, _ws(ctx, workspace_id), str(body["pluginId"]))
+    r = installer.rollback(db, _ws(ctx, workspace_id, db=db), str(body["pluginId"]))
     return {"pluginId": r.plugin_id, "version": r.version, "state": r.state, "configRevision": r.config_revision}
 
 
 @router.post("/workspaces/{workspace_id}/plugins/configure")
 def configure(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return installer.configure(db, _ws(ctx, workspace_id), str(body["pluginId"]), dict(body.get("config") or {}))
+    return installer.configure(db, _ws(ctx, workspace_id, db=db), str(body["pluginId"]), dict(body.get("config") or {}))
 
 
 @router.post("/workspaces/{workspace_id}/plugins/grant")
 def grant(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return {"granted": installer.grant_permissions(db, _ws(ctx, workspace_id, "plugins.approve"), str(body["pluginId"]), [str(p) for p in body.get("permissions") or []])}
+    return {"granted": installer.grant_permissions(db, _ws(ctx, workspace_id, "plugins.approve", db), str(body["pluginId"]), [str(p) for p in body.get("permissions") or []])}

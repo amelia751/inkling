@@ -20,6 +20,7 @@ from .routes import audit as audit_routes
 from .routes import me as me_routes
 from .routes import org as org_routes
 from .routes import org_security
+from .routes import prefs as prefs_routes
 from .routes import api_keys, boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
 
 log = logging.getLogger(__name__)
@@ -102,6 +103,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(worker.router)
     app.include_router(versioning.router)
     app.include_router(projects.router)
+    app.include_router(prefs_routes.router)
     app.include_router(datasets_views.router)
     app.include_router(boots.router)
     app.include_router(sources.router)

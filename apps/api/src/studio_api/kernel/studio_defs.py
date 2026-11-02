@@ -162,7 +162,7 @@ def effective_environment(db: Session, workspace_id: str, task_id: str) -> dict 
     row = db.get(WorkspaceEnvironment, (workspace_id, task_id))
     if row is not None and row.revision > 0 and row.environment is not None:
         return row.environment
-    return projects.manifest_environment(task_id)
+    return projects.base_environment(db, task_id)
 
 
 def readme(db: Session, workspace_id: str, task_id: str) -> str | None:
@@ -435,7 +435,7 @@ def move_known_good(db: Session, ctx: RequestContext, task_id: str, revision: in
         rev = db.scalar(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == ctx.workspace_id, WorkspaceEnvironmentRevision.task_id == task_id, WorkspaceEnvironmentRevision.revision == revision))
         env, kind = (rev.environment, rev.author_kind) if rev is not None else (row.environment, "person")
     else:
-        env, kind = projects.manifest_environment(task_id), PERSON
+        env, kind = projects.base_environment(db, task_id), PERSON
     installer.bootstrap(db, ctx.for_scope(ctx.workspace_id, task_id))
     lock = lockfile(db, ctx.workspace_id)
     prev = known_good(db, ctx.workspace_id, task_id)

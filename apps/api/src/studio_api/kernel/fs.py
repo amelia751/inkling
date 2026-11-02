@@ -620,6 +620,14 @@ def purge_plan(db: Session, p: ProjectRow, roots: list[SourceNode]) -> PurgePlan
                 item = a.get("itemId") if isinstance(a, dict) else None
                 if item in by_path:
                     reasons.setdefault(by_path[item].id, "annotations are drawn on it")
+    # Bytes another asset row still names (a sample copy shares its template's keys, todo14 D2;
+    # any other project or workspace) are never deleted with this one.
+    paths, shared = [a.path for a in by_path.values()], set()
+    for i in range(0, len(paths), 500):
+        shared |= set(db.scalars(select(Asset.path).where(Asset.path.in_(paths[i : i + 500]), Asset.id.not_in(aids))))
+    for a in by_path.values():
+        if a.path in shared:
+            reasons.setdefault(a.id, "another project uses the same bytes")
     delete_assets, kept = [], []
     for aid, name in candidates.items():
         a = next((x for x in by_path.values() if x.id == aid), None)

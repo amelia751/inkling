@@ -27,7 +27,7 @@ function groupItems(project: Project): StudioItem[] {
     return [{ id: cine ?? project.id, name: cine ?? nii ?? "Study", group: "Studies", assets: project.assets, sourceLabel: project.meta?.group ? `${project.meta.group}` : undefined, dataKind: `${CINE}.dataKinds.volume-time` }];
   }
   return [...studies.entries()].map(([key, assets]) => {
-    const cine = assets.find((a) => a.role === "cine") ?? assets.find((a) => /\.nii(\.gz)?$/i.test(a.name ?? a.path));
+    const cine = assets.find((a) => a.role === "cine") ?? assets.find((a) => (a.frames ?? 0) > 1) ?? assets.find((a) => /\.nii(\.gz)?$/i.test(a.name ?? a.path));
     const seedFolder = cine?.path.split("/")[1];
     const name = key ? key.split("/").pop()! : (cine?.role === "cine" && seedFolder) || (cine?.name ?? "Study").replace(/\.nii(\.gz)?$/i, "");
     return {

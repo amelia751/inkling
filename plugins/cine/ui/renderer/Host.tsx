@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { cineAsset as findCineAsset } from "../io";
 import { loadVolume, type Volume } from "@studio/renderers/io/nifti";
 import { CLOSE_RADIUS } from "@studio/renderers/overlay2d/draw";
 import { hitVertex, pointInPolygon, polygonArea, rleDecode, rleEncode, rleForeground } from "@studio/renderers/overlay2d/geometry";
@@ -60,7 +61,7 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
   const config = useMemo(() => CineConfigSchema.parse(rawConfig), [rawConfig]);
   const keyFrames = config.keyFrames;
   const keyIds = useMemo(() => keyFrames.map((k) => k.id), [keyFrames]);
-  const cineAsset = item.assets.find((a) => a.role === "cine");
+  const cineAsset = findCineAsset(item);
   const labels = useMemo(() => labelNames(project.labels), [project.labels]);
   const structs = useMemo(() => structuresOf(config), [config]);
 

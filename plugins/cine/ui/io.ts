@@ -4,7 +4,19 @@ import type { Grid } from "./model";
 
 /** Exporter helpers shared with modules built on the cine (through public.ts). */
 
-export const cinePath = (item: StudioItem) => item.assets.find((a) => a.role === "cine")?.path;
+const NIFTI = /\.nii(\.gz)?$/i;
+const REFERENCE_NAME = /_(gt|seg)\.nii(\.gz)?$/i;
+
+/**
+ * The item's cine series: the asset tagged `role: "cine"` (seeds), else, for uploads that carry
+ * no role, a NIfTI with frames, else the first NIfTI that isn't a `_gt` / `_seg` reference.
+ */
+export const cineAsset = (item: StudioItem) =>
+  item.assets.find((a) => a.role === "cine") ??
+  item.assets.find((a) => NIFTI.test(a.name ?? a.path) && (a.frames ?? 0) > 1) ??
+  item.assets.find((a) => NIFTI.test(a.name ?? a.path) && !REFERENCE_NAME.test(a.name ?? a.path) && a.role !== "reference");
+
+export const cinePath = (item: StudioItem) => cineAsset(item)?.path;
 
 /** The (first) item that has cine data and annotations; cine projects have one study per item. */
 export function pickCineItem(items: StudioItem[], annotations: Annotation[]): StudioItem {

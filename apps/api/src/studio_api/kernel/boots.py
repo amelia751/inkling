@@ -59,7 +59,7 @@ def agent_may_write(db: Session, ctx: RequestContext, task_id: str) -> bool:
 def _request_hash(body: dict) -> str:
     keep = {k: body.get(k) for k in ("preset", "patch", "files", "folders", "name", "intent", "collectionId")}
     # todo19: newer fields join the hash only when present, so stored boots keep their hash.
-    keep.update({k: body[k] for k in ("extends", "accepts", "datasetId") if body.get(k) is not None})
+    keep.update({k: body[k] for k in ("extends", "accepts", "datasetId", "addToTask") if body.get(k) is not None})
     return "sha256:" + hashlib.sha256(json.dumps(keep, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -161,6 +161,16 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         if node_ids:
             return 422, {"ok": False, "errors": [{"path": "/files", "code": "schema", "message": "a boot on a dataset uses its files; add files to the dataset instead"}]}
 
+    # todo20 D4: a boot can add to an existing Studio (`addToTask`) instead of making one.
+    add_to = body.get("addToTask")
+    target: TaskRow | None = None
+    if add_to is not None:
+        target = db.get(TaskRow, add_to) if isinstance(add_to, str) else None
+        if target is None or target.project_id != p.id or target.trashed_at is not None:
+            return 422, {"ok": False, "errors": [{"path": "/addToTask", "code": "reference", "message": "no such Studio in this project"}]}
+        if collection is not None or dataset is not None:
+            return 422, {"ok": False, "errors": [{"path": "/addToTask", "code": "schema", "message": "addToTask adds to that Studio's dataset; leave out collectionId and datasetId"}]}
+
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
     initiator: dict[str, str | bool] = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
@@ -173,6 +183,8 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
             initiator["firstStudio"] = True
     b = Boot(id=boot_id, project_id=p.id, preset=preset, state="running", task_ids=[], steps=[], initiator=initiator, principal=ctx.principal, on_behalf_of=projects.person(ctx), request_hash=rh)
     db.add(b)
+    if target is not None:
+        return _boot_into(db, ctx, p, b, target, presets, accepts, node_ids, headers, body, started)
     # todo17 D3: the project's first boot with a preset stores that preset's rules (revision 1).
     from . import rules as project_rules
 
@@ -202,6 +214,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     # todo19 D2: the item filter is the dataset ∩ accepts (a dataset boot without accepts: all).
     t.accepts = accepts
     b.task_ids = [t.id]
+    # todo20 D4: the project's first Studio is its default (drops add to it).
+    if projects.default_task(db, p) is None:
+        p.default_task_id = t.id
     db.flush()
     scoped = ctx.for_scope(p.id, None)
     events.publish(db, scoped, "boot.started", {"bootId": boot_id, "taskIds": [t.id], "preset": preset, **({"extends": presets} if len(presets) > 1 else {}), **({"accepts": accepts} if accepts else {}), "initiator": initiator}, source="kernel")
@@ -229,6 +244,63 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     b.state, b.ms, b.finished_at = "ready", int((time.monotonic() - started) * 1000), now()
     events.publish(db, scoped, "boot.ready", {"bootId": boot_id, "taskIds": [t.id], "ms": b.ms}, source="kernel")
     audit.record(db, scoped, "boot.ready", target=boot_id, after={"preset": preset, "taskIds": [t.id], "initiator": initiator})
+    db.flush()
+    return 202, boot_doc(b)
+
+
+def extend_task(db: Session, ctx: RequestContext, p: ProjectRow, t: TaskRow, presets: list[str], kinds: list[str], headers=None, body: dict | None = None) -> list[str]:
+    """todo20 D4: a Studio takes more kinds. `accepts` gains `kinds` (a legacy per-collection
+    Studio becomes a dataset Studio accepting its collection's kind plus these) and the
+    environment's `extends` gains each kind's profile preset (a new revision). Returns the kinds
+    added. A Studio with no kind filter already sees every kind."""
+    from ..models import DatasetCollectionRow
+    from . import collections
+
+    added: list[str] = []
+    if t.accepts or t.collection_id:
+        cur = list(t.accepts or [])
+        if not cur and t.collection_id and (c := db.get(DatasetCollectionRow, t.collection_id)) is not None:
+            cur = [c.kind]
+        added = [k for k in dict.fromkeys(kinds) if not collections.accepts_kind(cur, k)]
+        if added or not t.accepts:
+            t.accepts, t.collection_id = [*cur, *added], None
+    row = db.get(WorkspaceEnvironment, (p.id, t.id))
+    env = dict((row.environment if row is not None else None) or {})
+    ext = env.get("extends")
+    have = [ext] if isinstance(ext, str) else [x for x in ext or [] if isinstance(x, str)]
+    want = list(dict.fromkeys([*have, *[x for x in presets if x]]))
+    if want != have and have:
+        env["extends"] = want[0] if len(want) == 1 else want
+        checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, p.id), environment=env)
+        if checked.ok:
+            from .canonical import NULL_CONTENT_HASH, content_hash
+
+            prov = studio_defs.provenance(ctx, headers or {}, body or {})
+            parent = content_hash(row.environment) if row is not None and row.environment is not None else NULL_CONTENT_HASH
+            studio_defs.save_revision(db, ctx.for_scope(p.id, t.id), row, row.revision if row is not None else 0, env, prov, parent)
+    db.flush()
+    return added
+
+
+def _boot_into(db: Session, ctx: RequestContext, p: ProjectRow, b: Boot, t: TaskRow, presets: list[str], accepts: list[str] | None, node_ids: list[str], headers, body: dict, started: float) -> tuple[int, dict]:
+    """`addToTask`: the files join that Studio's dataset (a collection per kind) and the Studio
+    accepts their kinds; no task is created."""
+    from . import collections
+
+    d = db.get(DatasetRow, t.dataset_id)
+    assert d is not None
+    b.task_ids = [t.id]
+    db.flush()
+    scoped = ctx.for_scope(p.id, None)
+    events.publish(db, scoped, "boot.started", {"bootId": b.id, "taskIds": [t.id], "preset": b.preset, "addToTask": t.id, "initiator": b.initiator}, source="kernel")
+    added, _already = collections.add_by_kind(db, ctx, d, node_ids) if node_ids else ({}, [])
+    n = sum(len(v) for v in added.values())
+    if node_ids:
+        _step(db, scoped, b, "files", f"Added {n} file{'' if n == 1 else 's'} to “{t.title}”")
+    extend_task(db, ctx, p, t, presets, list(dict.fromkeys([*(accepts or []), *added])), headers, body)
+    b.state, b.ms, b.finished_at = "ready", int((time.monotonic() - started) * 1000), now()
+    events.publish(db, scoped, "boot.ready", {"bootId": b.id, "taskIds": [t.id], "ms": b.ms}, source="kernel")
+    audit.record(db, scoped, "boot.ready", target=b.id, after={"addToTask": t.id, "files": n})
     db.flush()
     return 202, boot_doc(b)
 

@@ -144,6 +144,38 @@ def add_files(db: Session, d: DatasetRow, collection_id: str, node_ids: list[str
     return added
 
 
+def add_by_kind(db: Session, ctx: RequestContext, d: DatasetRow, node_ids: list[str]) -> tuple[dict[str, list[str]], list[str]]:
+    """todo20 D4/D5: pin files (folders expand) into `d`, each in the collection of its kind (made
+    when `d` has none). Files `d` already pins stay where they are. Returns ({kind: node ids
+    newly pinned}, node ids already in `d`)."""
+    from ..models import SourceNode
+    from . import tree
+    from .kinds import kind_from_extension
+
+    have = {str(r.get("nodeId")) for r in (d.definition or {}).get("files") or [] if isinstance(r, dict)}
+    # A re-dropped file is a new node with the same bytes: the dataset has it when it pins those bytes.
+    have_sha = set(db.scalars(select(SourceNode.sha256).where(SourceNode.id.in_(list(have)), SourceNode.sha256.is_not(None)))) if have else set()
+    rows = list(db.scalars(select(SourceNode).where(SourceNode.id.in_(node_ids), SourceNode.project_id == d.project_id))) if node_ids else []
+    dirs = [n.id for n in rows if n.is_dir]
+    files = [n for n in rows if not n.is_dir] + (tree.files_under(db, dirs) if dirs else [])
+    by_kind: dict[str, list[str]] = {}
+    already: list[str] = []
+    for n in files:
+        if n.id in have or (n.sha256 and n.sha256 in have_sha):
+            already.append(n.id)
+            continue
+        kind = collection_kind(n.detected_kind or kind_from_extension(n.name), n.facts)
+        if kind:
+            by_kind.setdefault(kind, []).append(n.id)
+    added: dict[str, list[str]] = {}
+    cols = of_dataset(db, d.id)
+    for kind, ids in by_kind.items():
+        c = next((x for x in cols if x.kind == kind), None) or create(db, ctx, d, kind)
+        if got := add_files(db, d, c.id, ids):
+            added[kind] = got
+    return added, list(dict.fromkeys(already))
+
+
 def remove_files(db: Session, d: DatasetRow, node_ids: list[str]) -> None:
     drop = set(node_ids)
     definition = dict(d.definition or {})

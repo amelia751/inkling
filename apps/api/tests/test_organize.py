@@ -189,7 +189,7 @@ def test_fast_path_opens_one_studio_for_a_mixed_drop(make_client):
     assert st["state"] == "applied" and len(st["taskIds"]) == 1
 
 
-def test_a_second_different_drop_adds_a_collection_and_never_changes_the_open_studio(make_client):
+def test_a_second_different_drop_adds_a_collection_to_the_open_studio(make_client):
     client = _flags(make_client, auto_apply=True)
     p = _project(client)
     files = _pngs(2)
@@ -205,14 +205,14 @@ def test_a_second_different_drop_adds_a_collection_and_never_changes_the_open_st
     st = client.get("/api/v1/drops/drp_j4/plan").json()
     (a,) = st["plan"]["actions"]
     assert a["type"] == "new_collection" and a["datasetId"] == first["datasetId"] and a["preset"] == "preset:volume-3d" and a["name"] == "CT series"
-    assert st["state"] == "applied" and st["datasetId"] == first["datasetId"] and len(st["taskIds"]) == 1 and st["taskIds"][0] != xray
+    # todo20 D4: a drop made inside an open Studio adds to that Studio (one Studio, more kinds).
+    assert st["state"] == "applied" and st["datasetId"] == first["datasetId"] and st["taskIds"] == [xray] and st["outcome"] == "add_to_studio"
     cols = client.get(f"/api/v1/projects/{p}/datasets/{first['datasetId']}/collections").json()["collections"]
     assert sorted(c["kind"] for c in cols) == ["dicom-series", "image"]
-    # The X-ray Studio: same environment revision, same items.
-    assert client.get(f"/api/environments/{xray}").json()["revision"] == env_before["revision"]
-    assert client.get(f"/api/v1/tasks/{xray}/document").json()["assets"] == doc_before
-    ct_doc = client.get(f"/api/v1/tasks/{st['taskIds'][0]}/document").json()["assets"]
-    assert sorted(x["name"] for x in ct_doc) == ["slice0.dcm", "slice1.dcm", "slice2.dcm"]
+    # The X-ray Studio keeps its items and gains the CT series and the volume profile.
+    after = client.get(f"/api/v1/tasks/{xray}/document").json()["assets"]
+    assert {x["name"] for x in doc_before} <= {x["name"] for x in after} and {"slice0.dcm", "slice1.dcm", "slice2.dcm"} <= {x["name"] for x in after}
+    assert client.get(f"/api/environments/{xray}").json()["revision"] == env_before["revision"] + 1
 
     # More X-rays join the X-ray collection (add_to_collection), live in its Studio.
     more = {"more/new.png": png(30, 30)}

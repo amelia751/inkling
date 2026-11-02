@@ -339,6 +339,11 @@ def _fail_reason(d: Drop, step: str, reason: str) -> None:
     d.declared = {**(d.declared or {}), "failure": {"step": step, "reason": reason[:300]}}
 
 
+def _same_bytes(f: UploadFile, n: SourceNode | None) -> bool:
+    """todo20 D5: a file uploaded again whose bytes were already in the project (a new node)."""
+    return n is not None and f.state == "uploaded" and ((f.reason or "").startswith("Same file as") or bool((n.flags or {}).get("duplicate_of")))
+
+
 def settle(db: Session, ctx: RequestContext | None, d: Drop) -> str:
     """Move a drop whose sessions all ended out of `uploading` / `inspecting`. Idempotent."""
     if d.state not in OPEN_SESSION_STATES:
@@ -353,7 +358,7 @@ def settle(db: Session, ctx: RequestContext | None, d: Drop) -> str:
             continue
         if st == "failed" or st == "uploading" or (st == "checking" and s.state == "failed"):
             failed += 1
-        elif st == "duplicate":
+        elif st == "duplicate" or _same_bytes(f, n):
             dup += 1
         else:
             good += 1
@@ -586,11 +591,17 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
             facts["columns"] = [{"name": c.get("name"), "type": c.get("type")} if isinstance(c, dict) else c for c in cols][:200]
         files.append({"nodeId": n.id, "agentName": name_screen.agent_name(n), **({"kind": n.detected_kind} if n.detected_kind else {}), **({"facts": facts} if facts else {})})
     total = sum(states.values())
+    # todo20 D5: files whose bytes were already in the project vs new ones; a drop of only
+    # known files settles as `duplicate`, never silently.
+    already = states.get("duplicate", 0) + sum(1 for _s, f, n in rows if _same_bytes(f, n))
+    new = sum(v for k, v in states.items() if k in ("ready", "kept", "checking")) - (already - states.get("duplicate", 0))
     out = {
         "dropId": d.id,
         "origin": d.origin,
         "state": d.state,
         "total": total,
+        "new": max(new, 0),
+        "alreadyHere": already,
         # todo20 D8: the files the browser declared, so "still uploading (12 of 35)" can be said.
         "expected": int((d.declared or {}).get("files") or 0),
         "byKind": by_kind,

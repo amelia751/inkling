@@ -3,8 +3,8 @@
 1. Import a folder of synthetic PNGs, `labels.csv` and unrelated files.
 2. Originals are preserved, and shapes are detected.
 3. The CSV↔image relationship is *proposed*, not applied: no annotations before confirming.
-4. Confirming it in Explore opens the 2D Studio with the CSV's classes as labels and the
-   imported labels shown with the `imported` badge.
+4. The project's Studio ("Studio", its default) is made from the images; the Overview's Open
+   Studio opens it with every image under its original name (todo20 D3/D4: no dataset proposal).
 5. Reloading the page keeps everything.
 
 Needs the API and a worker (inspection runs in the worker), and the dev server proxying to
@@ -201,49 +201,33 @@ def main() -> int:
             page.locator("[data-testid='quality-row']").first.wait_for(timeout=10000)
             check("quality lists the file we can't read", page.locator("[data-testid='quality-row'][data-type='unsupported']").count() == 1)
 
-            page.get_by_test_id("explore-tab-summary").click()
-            page.get_by_test_id("dataset-review").click()
-            dlg = page.get_by_test_id("action-preview")
-            dlg.wait_for(timeout=10000)
-            page.get_by_test_id("preview-imported").wait_for(timeout=10000)
-            ptext = dlg.inner_text()
-            check("action preview: files, classes, imported labels, also confirms", "8 files" in ptext and "Imports 8 labels" in ptext and "imported" in ptext and page.locator("[data-testid='preview-also'] li").count() == 2, ptext[:300])
-            check("the selected proposal is in the URL", f"proposal={props['dataset']['id']}" in page.url)
-            page.get_by_test_id("create-and-open").click()
-            # todo8 D7: creating a task lands its owner on Task setup, one click from the Studio.
-            page.wait_for_url("**/tasks/tsk-*/setup", timeout=30000)
-            page.get_by_test_id("setup-open-studio").click()
-            page.wait_for_url("**/studio/tsk-*", timeout=30000)
-            task = page.url.rsplit("/", 1)[-1].split("?")[0]
-            check("Create & set up lands on the new task's setup, then its Studio", task.startswith("tsk-"), page.url)
+            # todo20 D3/D4: no dataset proposal any more; the project's one Studio is made from
+            # the files (here the boot route, as "New Studio from these items" does) and becomes
+            # the project's default Studio.
+            check("no dataset proposal (drops and Studios are the one path)", "dataset" not in props, str(sorted(props)))
+            images = [v["id"] for k, v in tree.items() if v.get("detectedKind") == "image"]
+            boot = api.call("POST", f"/v1/projects/{pid}/boots", {"bootId": f"boot-mixed-{int(time.time())}", "preset": "preset:image-2d", "name": "Studio", "files": images})
+            task = (boot.get("taskIds") or [None])[0]
+            check("a Studio named Studio over the images", bool(task) and api.get(f"/v1/projects/{pid}")["defaultTaskId"] == task, json.dumps(boot)[:200])
+            page.goto(f"{base}/projects/{pid}/overview")
+            page.get_by_test_id("open-studio").click()
+            page.wait_for_url(f"**/studio/{task}*", timeout=30000)
+            check("Overview's Open Studio goes to the default Studio", task in page.url, page.url)
 
             def store(expr: str):
                 return page.evaluate(f"async () => {{ const m = await import('{STORE}'); return ({expr})(m.useStudio.getState()); }}")
 
-            def studio_state():
-                return store("s => ({ n: s.annotations.length, prov: [...new Set(s.annotations.map(a => a.provenance))], labels: [...new Set(s.annotations.map(a => a.label))].sort(), items: s.project?.assets?.length ?? 0 })")
-
-            st = wait(lambda: (lambda x: x if x["n"] else None)(studio_state()), 60)
-            check("the Studio has the imported labels", bool(st) and st["n"] == 8 and st["prov"] == ["imported"], str(st))
-            classes = wait(lambda: store("s => s.env?.labels?.map(g => g.classes.map(c => c.id).sort())"), 30)
-            check("the CSV's classes are the task's labels", bool(classes) and all(c == ["normal", "pneumonia"] for c in classes), str(classes))
+            items = wait(lambda: store("s => s.project?.assets?.length ?? 0") or None, 60)
+            check("the Studio has every image", items == len(images), str(items))
             check("2D Studio: the image tools", bool(wait(lambda: page.locator("[role='toolbar'][aria-label='Annotation tools']").count() == 1, 30)))
             check("items keep their original names", bool(wait(lambda: page.get_by_text("film_001.png").count() > 0, 15)))
-            page.get_by_role("tab", name="Labels").first.click()
-            on_item = page.get_by_test_id("on-this-item")
-            badge = wait(lambda: on_item.get_by_text("Imported", exact=True).count() > 0, 15)
-            check("the imported badge is shown in On this item", bool(badge))
-            n_before = st["n"] if st else 0
 
             # 5. Reload keeps everything.
             page.reload()
-            st2 = wait(lambda: (lambda x: x if x["n"] else None)(studio_state()), 60)
-            check("reload keeps the labels and their provenance", bool(st2) and st2["n"] == n_before and st2["prov"] == ["imported"], str(st2))
+            items2 = wait(lambda: store("s => s.project?.assets?.length ?? 0") or None, 60)
+            check("reload keeps the Studio's items", items2 == items, str(items2))
             props2 = {x["kind"]: x["status"] for x in api.get(f"/v1/projects/{pid}/proposals")["proposals"]}
-            check("relationship, mapping and dataset are confirmed", props2 == {"relationship": "confirmed", "mapping": "confirmed", "dataset": "confirmed"}, str(props2))
-            page.goto(f"{base}/projects/{pid}/explore/relationships")
-            page.get_by_test_id("confirmed").first.wait_for(timeout=15000)
-            check("Explore shows the confirmed relationship with a check", "Confirmed by you" in page.inner_text("[data-testid='relationship-row']"))
+            check("relationship and mapping are still offered, no dataset proposal", "dataset" not in props2 and {"relationship", "mapping"} <= set(props2), str(props2))
             check("no page errors", not errors, str(errors[:3]))
             page.screenshot(path=str(Path(args.out) / "mixed-import.png"))
         finally:

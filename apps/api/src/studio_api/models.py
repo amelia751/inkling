@@ -692,6 +692,8 @@ class ProjectRow(Base):
     trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
     trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # todo20 D4: the project's one default Studio; drops add their items to it.
+    default_task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class Source(Base):

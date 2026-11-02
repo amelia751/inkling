@@ -143,6 +143,9 @@ export interface DropSummary {
   byKind: Record<string, number>;
   bytes: number;
   states: Partial<Record<DropFileState, number>>;
+  /** todo20 D5: files new to the project, and files whose bytes were already here. */
+  new?: number;
+  alreadyHere?: number;
   groups: DropSummaryGroup[];
   files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
   nextOffset?: number;

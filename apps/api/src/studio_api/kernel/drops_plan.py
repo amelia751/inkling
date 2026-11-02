@@ -86,7 +86,12 @@ def _sync_drop(db: Session, row: DropPlanRow) -> None:
     """Keep the drop's own state in step with its plan (Datasets' "Needs attention" reads it)."""
     d = _drop_row(db, row.drop_id)
     if d is not None and row.state in _DROP_STATE:
-        d.state = _DROP_STATE[row.state]
+        # todo20 D5: a drop of only known files stays `duplicate` once applied (linked into the Studio).
+        acts = (row.plan or {}).get("actions") or []
+        if row.state == "applied" and acts and all(x.get("type") == "link_existing" for x in acts):
+            d.state = "duplicate"
+        elif not (d.state == "duplicate" and row.state == "applied"):
+            d.state = _DROP_STATE[row.state]
         ds = (row.applied or {}).get("datasetId") or (row.context or {}).get("datasetId")
         if ds and not getattr(d, "dataset_id", None):
             d.dataset_id = ds
@@ -333,10 +338,11 @@ def _boot_id(drop_id: str, group_id: str) -> str:
 
 
 def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, d: DatasetRow, presets: list[str], kinds: list[str], name: str, patch: list | None) -> list[str]:
-    """todo19 D4/D5: the drop's one Studio: every kind's profile preset, accepting those kinds."""
+    """todo19 D4/D5: the drop's one Studio: every kind's profile preset, accepting those kinds.
+    todo20 D6: it's called "Studio" (`name` is the dataset's, for the log only)."""
     from . import boots
 
-    body: dict = {"bootId": _boot_id(drop_id[:20], d.id), "extends": presets, "accepts": kinds, "datasetId": d.id, "name": f"{name} Studio", "dropId": drop_id}
+    body: dict = {"bootId": _boot_id(drop_id[:20], d.id), "extends": presets, "accepts": kinds, "datasetId": d.id, "name": "Studio", "dropId": drop_id}
     if patch:
         body["patch"] = patch
     status, out = boots.boot(db, ctx, p, body, {})
@@ -367,8 +373,26 @@ def _facts_of(db: Session, node_ids: list[str]) -> list[dict]:
     return [dict(n.facts or {}) for n in db.scalars(select(SourceNode).where(SourceNode.id.in_(node_ids[:500])))] if node_ids else []
 
 
+def _target_task(db: Session, p: ProjectRow, row: DropPlanRow) -> TaskRow | None:
+    """todo20 D4: the Studio this drop adds to: the one it was dropped in (the drop's task), else
+    the project's default Studio. None: the drop boots the default Studio."""
+    tid = (row.context or {}).get("taskId")
+    if tid:
+        t = db.get(TaskRow, tid)
+        if t is not None and t.project_id == p.id and t.trashed_at is None:
+            return t
+    return projects.default_task(db, p)
+
+
 def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | None = None, *, auto: bool = False, fast_preset: str | None = None) -> dict:
-    """Apply the plan (or the person's changed plan). Returns the plan state."""
+    """Apply the plan (or the person's changed plan). Returns the plan state.
+
+    todo20 D4: two outcomes. `new_default_studio`: the project has no Studio to add to, so the
+    drop's dataset gets one Studio ("Studio") and it becomes `projects.default_task_id`.
+    `add_to_studio`: the drop's files join the target Studio's dataset (a collection per kind)
+    and the Studio accepts any new kinds. `link_existing` files (D5) join it the same way when
+    it doesn't have them yet. Recorded in `applied.outcome`, `applied.studioTaskId`,
+    `applied.new` and `applied.alreadyHere`."""
     if row.state == "applied":
         return state_dict(db, row)
     if row.state not in APPLYABLE:
@@ -392,6 +416,12 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
     group_collection: dict[str, str] = {}
     dataset_of_plan: DatasetRow | None = None
     touched: dict[str, list[tuple[DatasetCollectionRow, list[dict]]]] = {}
+    target = None if PER_KIND_STUDIOS else _target_task(db, p, row)
+    if target is not None:
+        dataset_of_plan = db.get(DatasetRow, target.dataset_id)
+        if dataset_of_plan is None:
+            target = None
+    already_here: list[str] = []
 
     def new_dataset(name: str) -> DatasetRow:
         d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=(name or "Dataset")[:256], description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True, "dropId": row.drop_id}, created_by=row.created_by)
@@ -433,8 +463,12 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
                 kind = m.get("kind") or "image"
                 shape = next((g.get("shape") for g in row.groups or [] if g.get("groupId") == m["groupId"]), None) or {}
                 name = m.get("name") if a.get("members") else a.get("name")
-                c = collections.create(db, ctx, d, kind, name, {k: v for k, v in shape.items() if k == "modality"})
-                created["collections"].append(c.id)
+                same = next((x for x in collections.of_dataset(db, d.id) if x.kind == kind), None) if target is not None and d.id == target.dataset_id else None
+                if same is not None:
+                    c = same
+                else:
+                    c = collections.create(db, ctx, d, kind, name, {k: v for k, v in shape.items() if k == "modality"})
+                    created["collections"].append(c.id)
                 group_collection[m["groupId"]] = c.id
                 pin(d, c, [n for n in m.get("nodeIds") or [] if n in chosen])
                 preset = m.get("preset") or intents.preset_for_kind(kind)
@@ -456,16 +490,49 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
             pin(d, c, nodes)
             task_ids += [x.id for x in db.scalars(select(TaskRow).where(TaskRow.collection_id == c.id))]
             task_ids += [x.id for x in collections.accepting_tasks(db, d, c.kind)]
+        elif t == "link_existing" and a.get("kind") in dc.VIEWABLE and nodes:
+            # D5: files already in the project join the Studio when it doesn't have them yet.
+            d = dataset(a)
+            before = set(created["collections"])
+            known = {c.id for c in collections.of_dataset(db, d.id)}
+            added, there = collections.add_by_kind(db, ctx, d, nodes)
+            created["collections"] += [c.id for c in collections.of_dataset(db, d.id) if c.id not in known and c.id not in before]
+            already_here += there
+            for kind, ids in added.items():
+                created["refs"].setdefault(d.id, []).extend(ids)
+                preset = intents.preset_for_kind(kind)
+                if preset:
+                    s_ = studios.setdefault(d.id, {"d": d, "presets": [], "kinds": [], "name": a.get("name") or "Studio", "labels": False})
+                    s_["presets"].append(preset)
+                    s_["kinds"].append(kind)
         elif t == "unpack":
             for nid in nodes:
                 _request_unpack(db, row, nid)
                 created["unpack"].append(nid)
+    from . import boots
+
     for s_ in studios.values():
         presets, kinds = list(dict.fromkeys(s_["presets"])), list(dict.fromkeys(s_["kinds"]))
+        if target is not None and s_["d"].id == target.dataset_id:
+            boots.extend_task(db, ctx, p, target, presets, kinds)
+            created["outcome"], created["studioTaskId"] = "add_to_studio", target.id
+            task_ids.append(target.id)
+            continue
         patch = structure.label_patch(labels) if labels and s_["labels"] else None
         ids = _boot(db, ctx, p, row.drop_id, s_["d"], presets, kinds, s_["name"] if len(kinds) == 1 else (s_["d"].title or "Dataset"), patch)
         created["tasks"] += ids
         task_ids += ids
+        if ids and projects.default_task(db, p) is None:
+            p.default_task_id = ids[0]
+            created["defaultTaskId"] = ids[0]
+        created.setdefault("outcome", "new_default_studio")
+        created.setdefault("studioTaskId", ids[0] if ids else None)
+    if target is not None and "outcome" not in created and (already_here or created["refs"]):
+        # Nothing new for the Studio to accept, but its files are in it (D5).
+        created["outcome"], created["studioTaskId"] = "add_to_studio", target.id
+        task_ids.append(target.id)
+    created["alreadyHere"] = len(set(already_here))
+    created["new"] = sum(len(v) for v in created["refs"].values())
     # Labels tables: their relationship to the collection they describe (structure, suggested).
     rels = []
     for a in actions:
@@ -489,6 +556,7 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
     payload = {"dropId": row.drop_id, **({"datasetId": target_ds} if target_ds else {}), "taskIds": list(dict.fromkeys(task_ids)), "undoUntil": projects.iso(row.undo_until), "collectionIds": created["collections"], "auto": auto, "fastPath": bool(fast_preset)}
     if created["pipelineRunIds"]:
         payload["pipelineRunIds"] = created["pipelineRunIds"]
+    payload.update({"outcome": created.get("outcome"), "studioTaskId": created.get("studioTaskId"), "new": created["new"], "alreadyHere": created["alreadyHere"]})
     events.publish(db, ctx.for_scope(p.id, None), "drop.applied", payload, source="kernel")
     audit.record(db, ctx.for_scope(p.id, None), "drop.applied", target=row.drop_id, after={"auto": auto, "fastPath": bool(fast_preset), "datasets": created["datasets"], "collections": created["collections"], "tasks": created["tasks"], "files": sum(len(v) for v in created["refs"].values())})
     _log(row, "applied", auto=auto, fastPath=bool(fast_preset))
@@ -592,7 +660,10 @@ def undo(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
             raise HTTPException(409, "a Studio this drop made already has annotations: undo isn't safe any more")
         if t.state != "draft":
             raise HTTPException(409, "a Studio this drop made was published")
+    p = db.get(ProjectRow, row.project_id)
     for t in tasks:
+        if p is not None and p.default_task_id == t.id:
+            p.default_task_id = None
         _delete_task(db, t)
     db.flush()
     for dsid, nodes in (a.get("refs") or {}).items():
@@ -802,6 +873,9 @@ def state_dict(db: Session, row: DropPlanRow) -> dict:
     }
     if a.get("pipelineRunIds"):
         out["pipelineRunIds"] = a["pipelineRunIds"]
+    if row.state == "applied":
+        # todo20 D4/D5: where the files went and how many were already here.
+        out.update({"outcome": a.get("outcome"), "studioTaskId": a.get("studioTaskId"), "new": int(a.get("new") or 0), "alreadyHere": int(a.get("alreadyHere") or 0)})
     if row.error:
         out["error"] = row.error
     return out

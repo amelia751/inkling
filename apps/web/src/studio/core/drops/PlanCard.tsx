@@ -93,7 +93,9 @@ function PlanLedger({ plan }: { plan: PlanView }) {
   const held = actions.reduce((n, a) => n + (a.held ?? 0), 0);
   const spoofed = plan.groups.reduce((n, g) => n + (g.spoofed ?? 0), 0);
   const refused = Object.values(plan.refused);
-  const studio = plan.taskIds.find((t) => t !== taskId);
+  const target = plan.studioTaskId ?? plan.taskIds[0];
+  const studio = target && target !== taskId ? target : plan.taskIds.find((t) => t !== taskId);
+  const landed = appliedCopy(plan);
 
   const run = (kind: "apply" | "undo" | "change" | "replan", fn: () => Promise<void>) => {
     setBusy(kind);
@@ -118,7 +120,9 @@ function PlanLedger({ plan }: { plan: PlanView }) {
     plan.state === "applying"
       ? "Applying"
       : plan.state === "applied"
-        ? plan.fastPath
+        ? landed && !plan.waitingFirstItem
+          ? landed.headline
+          : plan.fastPath
           ? plan.waitingFirstItem
             ? "Preparing your first item"
             : "Studio opened · sorted on its own"
@@ -141,6 +145,11 @@ function PlanLedger({ plan }: { plan: PlanView }) {
           {header}
         </p>
       </header>
+      {plan.state === "applied" && landed?.detail && (
+        <p className="border-t border-border px-3 py-1.5 text-caption text-muted-foreground" data-testid="plan-counts">
+          {landed.detail}
+        </p>
+      )}
       {isFollowUp(plan.dropId) && (
         <p className="border-t border-border px-3 py-1.5 text-caption text-muted-foreground" data-testid="plan-follow-up">
           More files arrived after the first plan was applied. This plan covers only those.
@@ -257,7 +266,7 @@ function PlanLedger({ plan }: { plan: PlanView }) {
         {plan.state === "applied" && studio && (
           <Link to={studioUrl(plan.projectId, studio)} className="inline-flex h-6 items-center gap-1 rounded-sm bg-generic px-2 text-sm hover:bg-generic-hover" data-testid="plan-open-studio">
             <AnnotateIcon className="size-3.5" aria-hidden />
-            Open Studio
+            {landed?.open ?? "Open Studio"}
           </Link>
         )}
         {left > 0 && (
@@ -343,6 +352,18 @@ export function DropPlanCards({ projectId }: { projectId: string }) {
       ))}
     </div>
   );
+}
+
+const files = (n: number) => `${n} ${n === 1 ? "file" : "files"}`;
+
+/** todo20 D4/D5: what an applied drop did, in one line ("Added 35 files to Studio",
+ * "Already in this project") plus "12 new, 23 already here" when it was partly known. */
+export function appliedCopy(plan: Pick<PlanView, "outcome" | "newCount" | "alreadyHere">): { headline: string; detail?: string; open: string } | null {
+  const added = plan.newCount ?? 0;
+  const here = plan.alreadyHere ?? 0;
+  if (!plan.outcome) return null;
+  if (added === 0 && here > 0) return { headline: "Already in this project", detail: `${here === 1 ? "This file is" : `These ${here} files are`} already in this project`, open: "Open in Studio" };
+  return { headline: `Added ${files(added)} to Studio`, ...(here > 0 ? { detail: `${added} new, ${here} already here` } : {}), open: "Open" };
 }
 
 /** A follow-up plan for files that arrived after the first was applied (`<dropId>-<n>`, drops_plan.py). */

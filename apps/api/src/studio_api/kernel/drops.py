@@ -212,9 +212,10 @@ def shared_in_chat(d: Drop) -> bool:
     return d.origin in ("chat", "home") and bool(d.conversation_id)
 
 
-def landing_folder(db: Session, p: ProjectRow, d: Drop) -> SourceNode | None:
+def landing_folder(db: Session, p: ProjectRow, d: Drop, forbidden: str = "") -> SourceNode | None:
     """`Shared in chat/<conversation>` for a drop shared in a conversation (made on first use);
-    None otherwise."""
+    None otherwise. Characters in `forbidden` (the project's layout rules) become `_` in a new
+    folder's name, or every file below it would fail layout.forbidden-char."""
     if not shared_in_chat(d):
         return None
     if d.folder_node_id:
@@ -232,7 +233,9 @@ def landing_folder(db: Session, p: ProjectRow, d: Drop) -> SourceNode | None:
     if shared is None or not shared.is_dir:
         shared = _mkdir(db, p, drive, SHARED_FOLDER)
     title = d.declared.get("conversationTitle") if isinstance(d.declared, dict) else None
-    name = fs.clean_name(title) if title and title.strip(" .") else f"Chat {now():%b %-d, %H:%M}"
+    name = fs.clean_name(title) if title and title.strip(" .") else f"Chat {now():%b %-d, %H.%M}"
+    if forbidden:
+        name = "".join("_" if c in forbidden and c != "/" else c for c in name)
     folder = _mkdir(db, p, shared, name)
     d.folder_node_id = folder.id
     db.flush()

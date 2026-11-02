@@ -166,7 +166,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     drive = fs.ensure_drive(db, p)
     target = body.get("targetNodeId")
     if drop is not None and not target:
-        landing_folder = drops.landing_folder(db, p, drop)
+        landing_folder = drops.landing_folder(db, p, drop, forbidden)
         target = landing_folder.id if landing_folder is not None else None
     source_kind = "chat" if drop is not None and drops.shared_in_chat(drop) else "upload"
     node = None

@@ -108,6 +108,23 @@ def test_a_chat_drop_lands_in_shared_in_chat_and_reports_its_files(client):
     assert len(client.get(f"/api/v1/projects/{pid}/fs/children", params={"node": shared["id"]}).json()["items"]) == 1
 
 
+def test_a_chat_folder_name_never_breaks_the_projects_forbidden_characters(client):
+    pid = _project(client)
+    cur = client.get(f"/api/v1/projects/{pid}/rules").json()
+    layout = {**cur["rules"].get("layout", {}), "forbiddenCharacters": '<>:"\\|?*'}
+    assert client.put(f"/api/v1/projects/{pid}/rules", json={"rules": {**cur["rules"], "layout": layout}, "baseRevision": cur["revision"]}).status_code == 200
+    _, imp = _drop(client, pid, {"a.png": png(4, 4)}, title="Scans: batch 2?")
+    assert imp["state"] != "failed" and imp["files"][0]["state"] != "rejected", imp
+    with kdb.session_scope() as db:
+        folders = [n.name for n in db.scalars(select(SourceNode).where(SourceNode.project_id == pid, SourceNode.is_dir.is_(True)))]
+    assert "Scans_ batch 2_" in folders and not any(c in n for n in folders for c in ':?'), folders
+    # No conversation title: the default name has no colon either.
+    _, imp = _drop(client, pid, {"b.png": png(5, 5)}, conv="conv-2", title="")
+    with kdb.session_scope() as db:
+        folders = [n.name for n in db.scalars(select(SourceNode).where(SourceNode.project_id == pid, SourceNode.is_dir.is_(True)))]
+    assert any(n.startswith("Chat ") for n in folders) and not any(":" in n for n in folders), folders
+
+
 def test_a_chat_origin_without_a_drop_makes_one_and_duplicates_link(client):
     pid = _project(client)
     img = png(5, 5)

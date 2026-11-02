@@ -3,7 +3,7 @@
   "private": true,
   "description": "Python kernel and plugin control plane (uv workspace member); scripts run through uv",
   "scripts": {
-    "dev": "uv run --package studio-api uvicorn studio_api.app:app --reload --port 8000",
+    "dev": "uv run --package studio-api uvicorn studio_api.app:app --reload --timeout-graceful-shutdown 3 --port 8000",
     "test": "uv run --package studio-api pytest -q",
     "lint": "uv run ruff check .",
     "typecheck": "uv run pyright src",

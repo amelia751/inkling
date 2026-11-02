@@ -1194,13 +1194,14 @@ class LintFinding(Base):
 
 class IdempotencyKey(Base):
     """A mutating request's `Idempotency-Key` (todo17 D13): same key + same body replays
-    `response`; a different body is 422; `status` None means the first one is still running (409)."""
+    `response` (`{status, body}`); a different body is 422; `status` 'in_progress' means the first one
+    is still running (409), 'done' once stored."""
 
     __tablename__ = "idempotency_keys"
     key: Mapped[str] = mapped_column(String(256), primary_key=True)
     principal: Mapped[str] = mapped_column(String(256), primary_key=True)
-    op: Mapped[str] = mapped_column(String(256))
+    op_id: Mapped[str] = mapped_column(String(256))
     body_hash: Mapped[str] = mapped_column(String(71))
-    status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(16))
     response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)

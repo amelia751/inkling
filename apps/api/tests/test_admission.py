@@ -22,7 +22,7 @@ RULES = {
         {"id": "label-rv", "name": "Right ventricle"},
     ],
     "layout": {"folderPatterns": ["raw/*", "derived/*"], "fileNamePattern": r"[a-z0-9_]+\.(dcm|png)", "forbiddenCharacters": " #?", "maxDepth": 3},
-    "datasets": {"requiredMetadata": ["modality", "license"], "uniqueNames": True, "oneModality": True},
+    "datasets": {"requiredMetadata": ["modality", "license"], "uniqueNames": True, "oneModalityPerDataset": True},
 }
 
 

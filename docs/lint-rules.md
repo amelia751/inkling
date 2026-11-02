@@ -16,6 +16,8 @@ Every write runs these rules (todo17 D4). Severities: **error** rejects the writ
 | `dataset.metadata-missing` | dataset | error | evaluate | no | Required dataset metadata missing. Fill in every field in `datasets.requiredMetadata` (modality, license, source, description). |
 | `dataset.mixed-modality` | dataset, file | warn | evaluate | no | Dataset mixes modalities. Put each modality in its own dataset. |
 | `layout.misplaced` | file | warn | evaluate | no | File is outside the project's folder layout. Move the file under one of `layout.folderPatterns`, within `layout.maxDepth`. |
+| `layout.forbidden-char` | file | error | enforce | yes | Path contains forbidden characters. Remove the characters listed in `layout.forbiddenCharacters` from the path. |
+| `layout.too-deep` | file | warn | evaluate | no | Path is deeper than the layout allows. Use a shallower folder, within `layout.maxDepth`. |
 | `name.pattern` | file, dataset | warn | evaluate | yes | Name doesn't match the naming rules. Rename it to match `layout.fileNamePattern` without `layout.forbiddenCharacters`; trimming and NFC are applied on write. |
 | `name.phi-suspect` | file, dataset | error | evaluate | no | Name may contain personal health information. Rename it with a pseudonymous id; never use patient names, dates of birth or record numbers. |
 | `env.unresolved` | environment | error | enforce | no | Environment doesn't resolve. Fix the references the resolver reports (modules, renderers, tools) using the catalogue. |

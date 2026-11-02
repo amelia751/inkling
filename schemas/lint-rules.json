@@ -129,6 +129,30 @@
       "phi": false
     },
     {
+      "code": "layout.forbidden-char",
+      "title": "Path contains forbidden characters",
+      "appliesTo": [
+        "file"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Remove the characters listed in `layout.forbiddenCharacters` from the path.",
+      "fixable": true,
+      "mode": "enforce",
+      "phi": true
+    },
+    {
+      "code": "layout.too-deep",
+      "title": "Path is deeper than the layout allows",
+      "appliesTo": [
+        "file"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Use a shallower folder, within `layout.maxDepth`.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
       "code": "name.pattern",
       "title": "Name doesn't match the naming rules",
       "appliesTo": [

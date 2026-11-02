@@ -60,9 +60,9 @@ def upgrade() -> None:
         'idempotency_keys',
         sa.Column('key', sa.String(length=256), primary_key=True),
         sa.Column('principal', sa.String(length=256), primary_key=True),
-        sa.Column('op', sa.String(length=256), nullable=False),
+        sa.Column('op_id', sa.String(length=256), nullable=False),
         sa.Column('body_hash', sa.String(length=71), nullable=False),
-        sa.Column('status', sa.Integer(), nullable=True),  # None while the first request runs
+        sa.Column('status', sa.String(length=16), nullable=False),  # in_progress | done; HTTP status is in response
         sa.Column('response', sa.JSON(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     )

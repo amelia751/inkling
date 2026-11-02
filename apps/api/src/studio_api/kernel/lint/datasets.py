@@ -33,6 +33,6 @@ def check(data: Mapping[str, Any], rules: Mapping[str, Any]) -> list[Violation]:
         if _k(name) in {_k(n) for n in data.get("existingNames") or ()}:
             out.append(violation("dataset.name-taken", "/dataset/name", "A dataset with this name already exists in the project.", phi=True))
     mods = sorted(set(ds.get("modalities") or ()))
-    if conf.get("oneModality") and len(mods) > 1:
+    if conf.get("oneModalityPerDataset", conf.get("oneModality")) and len(mods) > 1:
         out.append(violation("dataset.mixed-modality", "/dataset/modalities", "The dataset holds more than one modality.", value=mods))
     return out

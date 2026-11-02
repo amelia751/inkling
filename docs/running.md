@@ -18,7 +18,8 @@ pnpm seeds                  # sample datasets into seed-data/ (see seed-data/REA
 
 Secrets for local work live in `secrets/*.env` (git-ignored; see `secrets/README.md`). None of
 the three modes needs a real key: without a model or Daytona key the agent runs scripted or
-with sandboxes off.
+with sandboxes off. For a real model see [Real model](#real-model); for the real sign-in, [Sign in
+locally](#sign-in-locally).
 
 ---
 
@@ -26,7 +27,8 @@ with sandboxes off.
 
 ```sh
 pnpm infra:up       # docker compose -f infra/docker/compose.yaml --profile deps up -d --wait
-pnpm dev            # web (Vite :5173), api (:8000), agent (:8100), worker
+pnpm dev            # web (Vite :5173), api (:8000), agent (:8100), worker; dev auth, scripted model
+pnpm dev:signin     # the same with the real WorkOS sign-in (see "Sign in locally")
 pnpm infra:down     # stop the deps (add `-v` to the compose command to drop their data)
 ```
 
@@ -71,6 +73,25 @@ pnpm seeds:upload                              # or: uv run tools/fetch-seeds.py
 Google Cloud takes the target as a URL and gets public templates only
 (`--upload-only=gs://<bucket>/samples/`, `--dry-run` to preview); see "Sample templates" in
 `docs/deployment-gcp.md`.
+
+### Real model
+
+`pnpm dev` runs the agent with the `scripted` model (free, deterministic) unless
+`INKLING_AGENT_MODEL` is set. For a real one, copy `secrets/models.env.example` to
+`secrets/models.env` and set one provider key and the model:
+
+```sh
+ANTHROPIC_API_KEY=sk-ant-…                       # or OPENAI_API_KEY=… with an openai: model
+INKLING_AGENT_MODEL=anthropic:claude-sonnet-5-5  # provider:model from INKLING_AGENT_MODEL_ALLOWLIST
+```
+
+`pnpm dev` (`tools/dev.mjs`) sees the model in the file and stops defaulting to `scripted`; the
+agent reads the key and model from `secrets/*.env` itself and refuses a model outside its allowlist
+(`apps/agent/src/config.ts`). It prints which model it runs (never the key). `GET
+/api/agent/status` says `provider` and `model`. A value exported in your shell wins over the file;
+`INKLING_AGENT_MODEL=scripted pnpm dev` goes back to scripted without editing it. Real-model runs
+cost money: keep them few (`AGENTS.md`, "Testing the product"); tests and e2e always use
+`scripted`.
 
 ### Seed mode, or the API and worker
 
@@ -336,6 +357,35 @@ redirect and public URLs (commented in `infra/docker/env/api.env`); the issuer s
 Emulate signs anyone in as any seeded user and keeps everything in memory: a restart forgets
 invitations and keys made since, and rotates its signing key (restart the api and agent too).
 Tests sign in by password through the api, never through a login page (todo9 Phase 13).
+
+### Sign in locally
+
+One command runs the whole journey with the real AuthKit sign-in:
+
+```sh
+cp secrets/workos.env.example secrets/workos.env   # once: staging key, client id, cookie password
+pnpm infra:up                                      # only for WorkOS Emulate (base URL in the file)
+pnpm dev:signin                                    # http://localhost:5173 → sign in
+```
+
+`pnpm dev:signin` is `pnpm dev` with api, web and agent in `workos` mode: it loads
+`secrets/workos.env` into all three (Vite reads only its process env) and defaults what they must
+agree on, unless set in the shell or the file:
+
+| Key | Default |
+|---|---|
+| `INKLING_API_AUTH_MODE`, `INKLING_WEB_AUTH_MODE`, `INKLING_AGENT_AUTH_MODE` | `workos` |
+| `INKLING_API_DEV_TRUST_HEADERS` | `0` |
+| `INKLING_API_PUBLIC_URL` | `http://localhost:5173` |
+| `INKLING_API_WORKOS_REDIRECT_URI` | `<public URL>/api/auth/callback` |
+| `INKLING_API_URL` (Vite's api) | `http://localhost:8000` |
+| `INKLING_AGENT_WORKOS_CLIENT_ID`, `…_ISSUER`, `…_BASE_URL` | the api's `INKLING_API_WORKOS_*` values |
+
+It stops with the missing key names if `secrets/workos.env` lacks the api key, client id or cookie
+password. With `INKLING_API_WORKOS_BASE_URL` unset it talks to WorkOS **staging** (redirect
+`http://localhost:5173/api/auth/callback` is registered there); set it to
+`http://localhost:4100/` (and the Emulate issuer) for Emulate. `pnpm dev` stays dev auth for
+everyday work and the e2e suites.
 
 ### WorkOS staging (real AuthKit)
 

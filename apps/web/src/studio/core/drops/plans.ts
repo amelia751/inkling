@@ -45,12 +45,38 @@ export interface PlanView {
   seenAt: number;
 }
 
+/** What `POST /drops/{id}/replan` did to an applied drop (ids only). */
+export interface ReplanSummary {
+  changed?: boolean;
+  moved: { collectionId: string; nodeIds: string[] }[];
+  createdCollections: string[];
+  createdStudios: string[];
+  retiredStudios: string[];
+  retiredCollections: string[];
+  keptAnnotated: string[];
+}
+
+const studios = (n: number) => `${n} ${n === 1 ? "Studio" : "Studios"}`;
+
+/** The summary in the card's words. */
+export function replanSummaryText(s: ReplanSummary): string {
+  const files = s.moved.reduce((n, m) => n + m.nodeIds.length, 0);
+  const parts: string[] = [];
+  if (files) parts.push(`${files} ${files === 1 ? "file" : "files"} moved`);
+  if (s.createdStudios.length) parts.push(`${s.createdStudios.length} new ${s.createdStudios.length === 1 ? "Studio" : "Studios"}`);
+  if (s.retiredStudios.length) parts.push(`${studios(s.retiredStudios.length)} left empty moved to Trash`);
+  if (s.keptAnnotated.length) parts.push(`${studios(s.keptAnnotated.length)} kept because of annotations`);
+  return parts.length ? `Re-planned: ${parts.join(", ")}.` : "Already matches the current rules: nothing changed.";
+}
+
 interface PlansState {
   plans: Record<string, PlanView>;
   load: (dropId: string) => Promise<PlanView | undefined>;
   apply: (dropId: string, actions?: Partial<DropAction>[]) => Promise<void>;
   change: (dropId: string, actions: Partial<DropAction>[]) => Promise<void>;
   undo: (dropId: string) => Promise<void>;
+  /** Classify again with the current rules; an applied plan is reconciled (`POST …/replan`). */
+  replan: (dropId: string) => Promise<ReplanSummary>;
   markOwn: (dropId: string) => void;
 }
 
@@ -175,6 +201,11 @@ export const usePlans = create<PlansState>()((set, get) => {
     },
     undo: async (dropId) => {
       fromState(await api<DropPlanState>(`/drops/${enc(dropId)}/undo`, { method: "POST" }));
+    },
+    replan: async (dropId) => {
+      const out = await api<DropPlanState & { replan?: ReplanSummary }>(`/drops/${enc(dropId)}/replan`, { method: "POST" });
+      fromState(out);
+      return out.replan ?? { moved: [], createdCollections: [], createdStudios: [], retiredStudios: [], retiredCollections: [], keptAnnotated: [] };
     },
     markOwn: (dropId) => set((s) => ({ plans: { ...s.plans, [dropId]: { ...(s.plans[dropId] ?? blank(dropId, "")), own: true } } })),
   };

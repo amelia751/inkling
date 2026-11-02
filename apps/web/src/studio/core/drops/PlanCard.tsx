@@ -7,7 +7,7 @@ import { Button } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
-import { actionLabel, findPlugins, QUESTION_COPY, QUESTIONS, REFUSED_COPY, undoSecondsLeft, usePlans, type PlanView } from "./plans";
+import { actionLabel, findPlugins, QUESTION_COPY, QUESTIONS, REFUSED_COPY, replanSummaryText, undoSecondsLeft, usePlans, type PlanView } from "./plans";
 
 /**
  * The plan card (todo13 D5, D6, §3.2–3.4): a drop's groups and the one action each gets, with
@@ -81,8 +81,9 @@ function useSecondsLeft(plan: PlanView) {
 
 function PlanLedger({ plan }: { plan: PlanView }) {
   const { taskId } = useParams();
-  const { apply, change, undo } = usePlans.getState();
-  const [busy, setBusy] = useState<null | "apply" | "undo" | "change">(null);
+  const { apply, change, undo, replan } = usePlans.getState();
+  const [busy, setBusy] = useState<null | "apply" | "undo" | "change" | "replan">(null);
+  const [replanned, setReplanned] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, DropActionType>>({});
@@ -94,7 +95,7 @@ function PlanLedger({ plan }: { plan: PlanView }) {
   const refused = Object.values(plan.refused);
   const studio = plan.taskIds.find((t) => t !== taskId);
 
-  const run = (kind: "apply" | "undo" | "change", fn: () => Promise<void>) => {
+  const run = (kind: "apply" | "undo" | "change" | "replan", fn: () => Promise<void>) => {
     setBusy(kind);
     setError(null);
     fn()
@@ -251,6 +252,24 @@ function PlanLedger({ plan }: { plan: PlanView }) {
             <UndoIcon aria-hidden />
             Undo · {left} s
           </Button>
+        )}
+        {plan.state === "applied" && !isFollowUp(plan.dropId) && (
+          <Button
+            size="sm"
+            variant="ghost-secondary"
+            loading={busy === "replan"}
+            disabled={!!busy}
+            onClick={() => run("replan", async () => setReplanned(replanSummaryText(await replan(plan.dropId))))}
+            title="Sort these files again with the current rules. Files move between collections; a Studio with annotations is never removed."
+            data-testid="drop-replan"
+          >
+            Re-plan with current rules
+          </Button>
+        )}
+        {replanned && (
+          <span className="text-sm text-muted-foreground" role="status" data-testid="drop-replan-summary">
+            {replanned}
+          </span>
         )}
         {error && (
           <span className="text-sm text-danger" role="alert">

@@ -4,6 +4,9 @@
     PUT  /api/v1/drops/{id}/plan            {actions} → "Change" before apply (person, agent)
     POST /api/v1/drops/{id}/apply           {actions?} → apply (person; an agent only D6-safe plans)
     POST /api/v1/drops/{id}/undo            → within the undo window (person)
+    POST /api/v1/drops/{id}/replan          → classify again with the current rules; an applied
+                                            plan is reconciled (files move, Studios added or
+                                            trashed, annotated ones kept) (person)
     GET  /api/v1/datasets/{id}/structure    ?branch= → `structure.json` (draft, or an agent branch)
     PUT  /api/v1/datasets/{id}/structure    {structure, baseHash?} → person: the draft (a published
                                             dataset gets a proposal); agent: its work/agent-* branch,
@@ -56,6 +59,11 @@ def apply_plan(drop_id: str, body: dict = Body(default={}), ctx: RequestContext 
 @router.post("/drops/{drop_id}/undo", dependencies=PLANS)
 def undo_plan(drop_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     return drops_plan.undo(db, ctx, drops_plan.require(db, ctx, drop_id))
+
+
+@router.post("/drops/{drop_id}/replan", dependencies=PLANS)
+def replan_plan(drop_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    return drops_plan.replan(db, ctx, drops_plan.require(db, ctx, drop_id))
 
 
 def _dataset(db: Session, ctx: RequestContext, dataset_id: str):

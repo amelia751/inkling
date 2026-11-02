@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@studio/ui/ui/sonner", () => ({ toast: vi.fn() }));
 
 const { emitProjectEvent } = await import("@/studio/lib/use-project-events");
-const { usePlans, actionLabel, undoSecondsLeft, QUESTION_COPY } = await import("./plans");
+const { usePlans, actionLabel, undoSecondsLeft, QUESTION_COPY, replanSummaryText } = await import("./plans");
 const { useBoots } = await import("@/studio/stores/boots");
 const { catalogForKind } = await import("@/extension-host/catalog");
 
@@ -85,5 +85,17 @@ describe("catalogue kind filter (Find a plugin)", () => {
     expect(catalogForKind(cat, "Image").contributions.map((c) => c.id)).toEqual(["m.img.dataKinds.raster"]);
     expect(catalogForKind(cat, "image").modules.map((m) => m.id)).toEqual(["m.img"]);
     expect(catalogForKind(cat, "audio").contributions).toEqual([]);
+  });
+});
+
+describe("replanSummaryText", () => {
+  const none = { moved: [], createdCollections: [], createdStudios: [], retiredStudios: [], retiredCollections: [], keptAnnotated: [] };
+  it("says what moved, what was made and what was kept", () => {
+    expect(replanSummaryText({ ...none, moved: [{ collectionId: "c1", nodeIds: ["a", "b"] }], createdStudios: ["t1"], retiredStudios: ["t2"], keptAnnotated: ["t3"] })).toBe(
+      "Re-planned: 2 files moved, 1 new Studio, 1 Studio left empty moved to Trash, 1 Studio kept because of annotations.",
+    );
+  });
+  it("says when nothing changed", () => {
+    expect(replanSummaryText(none)).toBe("Already matches the current rules: nothing changed.");
   });
 });

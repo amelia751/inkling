@@ -601,6 +601,130 @@ def _cancel_pipeline_runs(ctx: RequestContext, row: DropPlanRow) -> None:
             log.warning("drop.pipeline_cancel_failed", extra={"dropId": row.drop_id})
 
 
+# ---- Re-plan --------------------------------------------------------------------------------
+
+# Groups that put files into a collection (the rest stay in Sources: reference, unpack, …).
+_PLACING = ("new_dataset", "new_collection", "add_to_collection")
+
+
+def _has_annotations(db: Session, t: TaskRow) -> bool:
+    doc = db.get(AnnotationDocumentRow, (t.project_id, t.id))
+    return doc is not None and bool(doc.annotations)
+
+
+def replan(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
+    """Re-run classification for the drop's files with the current rules.
+
+    A plan not applied yet is simply replaced (it stays `planned`, nothing is applied on its
+    own). An applied plan is reconciled without losing work: the drop's dataset stays; each
+    group's files move to the collection of that kind that already holds most of them (else one
+    this drop made, else any of that kind, else a new collection with a Studio booted the way
+    `apply` boots one); a collection this drop made that is left empty goes to Trash with its
+    Studios, unless one of them has annotations (kept and reported). Running it again with the
+    same rules changes nothing."""
+    if ctx.principal.startswith(("agent:", "plugin:", "worker:", "event:")):
+        raise HTTPException(403, "only a person re-plans a drop")
+    p = projects.require_project(db, ctx, row.project_id, write=True)
+    if row.state == "applying":
+        raise HTTPException(409, "this plan is being applied")
+    sids = list((row.context or {}).get("sessionIds") or [])
+    sessions = list(db.scalars(select(ImportSession).where(ImportSession.id.in_(sids)))) if sids else sessions_of(db, row.project_id, row.drop_id)
+    files = gather(db, row.project_id, sessions)
+    if not files:
+        raise HTTPException(409, "this drop has no files left to plan")
+    summary: dict = {"moved": [], "createdCollections": [], "createdStudios": [], "retiredStudios": [], "retiredCollections": [], "keptAnnotated": []}
+    if row.state != "applied":
+        d0 = db.get(DatasetRow, (row.context or {}).get("datasetId")) if (row.context or {}).get("datasetId") else None
+        cctx = dc.Context(dataset=dataset_in(db, d0 if d0 is not None and d0.project_id == p.id else None, row.created_by), request=(row.context or {}).get("request"))
+        groups = dc.classify(files, cctx)
+        row.plan, row.groups, row.state, row.error = dc.plan(row.drop_id, groups, cctx, intents.preset_for_kind), [g.as_dict() for g in groups], "planned", None
+        _sync_drop(db, row)
+        db.flush()
+        events.publish(db, ctx.for_scope(p.id, None), "drop.planned", {"dropId": row.drop_id, "plan": row.plan, "auto": False}, source="kernel")
+        audit.record(db, ctx.for_scope(p.id, None), "drop.replanned", target=row.drop_id, after={"applied": False, "groups": len(groups)})
+        return {**state_dict(db, row), "replan": summary}
+
+    a = dict(row.applied or {})
+    dsid = (row.context or {}).get("datasetId") or next(iter(a.get("datasets") or []), None) or next(iter(a.get("refs") or {}), None)
+    d = db.get(DatasetRow, dsid) if dsid else None
+    if d is None or d.project_id != p.id or d.trashed_at is not None:
+        raise HTTPException(409, "this drop's dataset is gone; re-plan isn't possible")
+    # Classified as for a new dataset: the groups are the rules' own; placing them is below.
+    cctx = dc.Context(dataset=None, request=(row.context or {}).get("request"))
+    groups = dc.classify(files, cctx)
+    plan = dc.plan(row.drop_id, groups, cctx, intents.preset_for_kind)
+    mine = list(a.get("collections") or [])
+    live = lambda: [c for c in collections.of_dataset(db, d.id) if c.trashed_at is None]  # noqa: E731
+    pairs = collections._ref_kinds(db, d)
+    held = {c.id: collections.members(db, d, c, pairs) for c in live()}
+    labels = structure.labels_from_request((row.context or {}).get("request"))
+    new_tasks: list[str] = []
+    actions = []
+    for act in plan.get("actions") or []:
+        act = dict(act)
+        nodes = list(act.get("nodeIds") or [])
+        if act.get("type") not in _PLACING or not nodes:
+            actions.append(act)
+            continue
+        kind = act.get("kind") or "image"
+        same = [c for c in live() if c.kind == kind]
+        best = max(same, key=lambda c: (len(held.get(c.id, set()) & set(nodes)), c.id in mine), default=None)
+        if best is None:
+            shape = next((dict(g.shape or {}) for g in groups if g.group_id == act["groupId"]), {})
+            best = collections.create(db, ctx, d, kind, act.get("name"), {k: v for k, v in shape.items() if k == "modality"})
+            held[best.id] = set()
+            mine.append(best.id)
+            summary["createdCollections"].append(best.id)
+            if act.get("preset") and best.kind in collections.VIEWABLE_COLLECTIONS:
+                ids = _boot(db, ctx, p, row.drop_id, best, act["preset"], act.get("name") or best.name, structure.label_patch(labels) if labels else None)
+                new_tasks += ids
+                summary["createdStudios"] += ids
+        moving = [n for n in nodes if n not in held[best.id]]
+        if moving:
+            added = collections.add_files(db, d, best.id, moving)
+            if added:
+                a.setdefault("refs", {}).setdefault(d.id, []).extend(added)
+            for c in held:
+                held[c] -= set(moving)
+            held[best.id] |= set(moving)
+            summary["moved"].append({"collectionId": best.id, "nodeIds": moving})
+        actions.append({**act, "type": "add_to_collection", "collectionId": best.id, "datasetId": d.id})
+    # Collections this drop made that the new plan leaves empty.
+    for cid in list(mine):
+        c = db.get(DatasetCollectionRow, cid)
+        if c is None or c.trashed_at is not None or held.get(cid):
+            continue
+        tasks = [t for t in db.scalars(select(TaskRow).where(TaskRow.collection_id == cid)) if t.trashed_at is None]
+        annotated = [t.id for t in tasks if _has_annotations(db, t)]
+        if annotated:
+            summary["keptAnnotated"] += annotated
+            continue
+        from . import trash
+
+        trash.trash(db, ctx, p, "collection", c)
+        summary["retiredCollections"].append(cid)
+        summary["retiredStudios"] += [t.id for t in tasks]
+    collections.sync_definition(db, d)
+    gone = set(summary["retiredCollections"])
+    a["collections"] = [c for c in mine if c not in gone]
+    retired = set(summary["retiredStudios"])
+    a["tasks"] = [t for t in [*(a.get("tasks") or []), *new_tasks] if t not in retired]
+    a["taskIds"] = [t for t in dict.fromkeys([*(a.get("taskIds") or []), *new_tasks]) if t not in retired]
+    changed = any(summary[k] for k in ("moved", "createdCollections", "createdStudios", "retiredStudios", "retiredCollections"))
+    row.applied, row.plan, row.groups = a, {**plan, "actions": actions, "needsPerson": False}, [g.as_dict() for g in groups]
+    row.context = {**(row.context or {}), "appliedActions": actions}
+    if changed:
+        # What undo would take back no longer matches what the apply made: the window closes.
+        row.undo_until = None
+    _sync_drop(db, row)
+    db.flush()
+    if changed:
+        events.publish(db, ctx.for_scope(p.id, None), "drop.applied", {"dropId": row.drop_id, "datasetId": d.id, "taskIds": a["taskIds"], "undoUntil": None, "collectionIds": a["collections"], "replanned": True}, source="kernel")
+    audit.record(db, ctx.for_scope(p.id, None), "drop.replanned", target=row.drop_id, after={"applied": True, "changed": changed, "moved": sum(len(m["nodeIds"]) for m in summary["moved"]), "collections": summary["createdCollections"], "studios": summary["createdStudios"], "retired": summary["retiredStudios"], "keptAnnotated": summary["keptAnnotated"]})
+    _log(row, "replanned", changed=changed)
+    return {**state_dict(db, row), "replan": {**summary, "changed": changed}}
+
+
 # ---- Reads ----------------------------------------------------------------------------------
 
 

@@ -36,3 +36,18 @@ def test_agents_have_no_prefs(client):
     h = {"Authorization": f"Bearer {token}"}
     assert client.get("/api/v1/me/prefs", headers=h).status_code == 403
     assert client.put("/api/v1/me/prefs/firstRunHintsDismissed", json={"value": True}, headers=h).status_code == 403
+
+
+def test_ai_notice_seen_is_stored_on_first_send(client):
+    """todo15 D2: the first send stores the acknowledgement of the AI notice server-side."""
+    r = client.put("/api/v1/me/prefs/aiNoticeSeen", json={"value": "2026-11-02T00:00:00Z"}, headers=ALICE)
+    assert r.status_code == 200 and r.json() == {"key": "aiNoticeSeen", "value": "2026-11-02T00:00:00Z"}
+    assert client.get("/api/v1/me/prefs", headers=ALICE).json()["prefs"]["aiNoticeSeen"] == "2026-11-02T00:00:00Z"
+
+
+def test_agent_token_reads_ai_assist(client):
+    """todo15 D2: the agent reads the org's `aiAssist` with the session's token before a run."""
+    p = client.post("/api/v1/projects", json={"title": "P"}).json()
+    token = client.post("/api/v1/sessions", json={"agent": "assistant", "scopes": ["*"]}, headers=ws(p["id"])).json()["token"]
+    r = client.get("/api/v1/org", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200 and r.json()["aiAssist"] is True

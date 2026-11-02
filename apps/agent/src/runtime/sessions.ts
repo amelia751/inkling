@@ -13,7 +13,7 @@ import type { SessionStore, StoredMeta } from "../store/types.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
 import { type StudioCatalog, loadStudioCatalog } from "../agent/catalog.ts";
-import { StudioClient, isCreationIntent } from "@studio/studio-tools";
+import { StudioClient, isCreationIntent, namesTask } from "@studio/studio-tools";
 import type { Config } from "../config.ts";
 import type { Logger } from "../log.ts";
 import type {
@@ -44,10 +44,14 @@ import { ApprovalBroker } from "./approvals.ts";
 import { Projector, sanitizeError } from "./events.ts";
 import { Run } from "./runs.ts";
 
+export const AI_ASSIST_OFF_MESSAGE = "The assistant is off for this organization";
+
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** Machine-readable reason; the body is then `{error: code, message}` (todo15 D2). */
+    readonly code?: string,
   ) {
     super(message);
   }
@@ -397,6 +401,7 @@ export class SessionService {
     tools.push(...createDropTools(kernel));
     if (profile.studio) {
       ctx.policy.creationIntent = (text) => isCreationIntent(text, this.studio.intents);
+      ctx.policy.namesTask = (text) => namesTask(text, this.studio.intents);
       // Studio tools (todo11): the API's boot and environment routes with the same token and headers.
       const studioClient = new StudioClient({
         baseUrl: this.config.kernelUrl,
@@ -594,6 +599,8 @@ export class SessionService {
 
   async send(ctx: SessionContext, req: SendMessageRequest): Promise<{ run: Run; steered: boolean }> {
     if (req.kernelToken) ctx.kernelToken = req.kernelToken;
+    // todo15 D2: an org admin can turn the assistant off; no run (or steer) then.
+    if (!(await this.aiAssistOn(ctx))) throw new HttpError(403, AI_ASSIST_OFF_MESSAGE, "ai_assist_off");
     if (req.snapshot) {
       try {
         ctx.dataset.update(req.snapshot as DatasetSnapshot);
@@ -621,6 +628,8 @@ export class SessionService {
       return { run: { id: elsewhere.id } as Run, steered: true };
     }
     if (this.cluster.draining) throw new HttpError(503, "the agent service is restarting; retry in a moment");
+    // todo15 D3: the policy needs to know whether this project has a Studio yet (first-run boot).
+    if (ctx.profile.studio) ctx.policy.projectHasTask = await this.projectHasTask(ctx);
     const run = new Run(ctx.id, { principal: ctx.meta.owner, orgId: ctx.meta.orgId });
     run.pending.push(text);
     const taken = await this.cluster.startRun(ctx, run);
@@ -642,6 +651,29 @@ export class SessionService {
     if (drop?.part) run.events.push({ type: "custom", name: "drop", value: drop.part });
     void this.execute(ctx, run);
     return { run, steered: false };
+  }
+
+  /** The org's `aiAssist` setting, read from the API as the person; unreadable counts as on. */
+  private async aiAssistOn(ctx: SessionContext): Promise<boolean> {
+    if (!ctx.kernel || !ctx.kernelToken) return true;
+    try {
+      const org = await ctx.kernel.get<{ aiAssist?: unknown }>("/org");
+      return org?.aiAssist !== false;
+    } catch (err) {
+      this.deps.log.warn({ sessionId: ctx.id, err: sanitizeError(String(err)) }, "org settings not readable; assistant left on");
+      return true;
+    }
+  }
+
+  /** Whether the project has a task; `undefined` when the kernel can't say (the policy then stays strict). */
+  private async projectHasTask(ctx: SessionContext): Promise<boolean | undefined> {
+    if (!ctx.kernel || !ctx.kernelToken) return undefined;
+    try {
+      const o = await ctx.kernel.get<{ tasks?: unknown[] }>(`/projects/${encodeURIComponent(ctx.meta.projectId)}/overview`);
+      return Array.isArray(o?.tasks) ? o.tasks.length > 0 : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   /** The drop on a message, as the model will read it, and the part the browser renders. */

@@ -114,3 +114,18 @@ export function isCreationIntent(text: string, table: IntentTable): CreationInte
   if (/\?\s*$/.test(t)) return "offer";
   return "create";
 }
+
+/** Words that describe an annotation task without naming a modality ("labels", "segmentation", …). */
+const TASK_WORDS = /(?<![\p{L}\p{N}])(labels?|labell?ing|classes|classif\w*|categor\w*|segment\w*|detect\w*|annotat\w*|bounding[\s-]?box\w*|keypoints?|landmarks?|triage)(?![\p{L}\p{N}])/iu;
+
+/**
+ * todo15 D3: whether a message describes a task (a task kind, a modality from the preset table, or
+ * labels), e.g. "Chest X-ray classification with five labels". In a project without a Studio this is
+ * enough to boot one; negations ("don't create it yet") never are.
+ */
+export function namesTask(text: string, table: IntentTable): boolean {
+  const t = text.toLowerCase().replace(/[’`]/g, "'").trim();
+  if (!t) return false;
+  if (table.creation.negations.some((n) => has(table, t, n))) return false;
+  return TASK_WORDS.test(t) || resolveIntent(t, table) !== null;
+}

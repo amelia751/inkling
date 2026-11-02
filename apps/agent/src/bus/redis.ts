@@ -141,6 +141,13 @@ export class RedisRunEventBus implements RunEventBus {
     await this.cmd.publish(this.channel, JSON.stringify({ runId }));
   }
 
+  async deleteRuns(runIds: string[]): Promise<void> {
+    for (let i = 0; i < runIds.length; i += 500) {
+      const keys = runIds.slice(i, i + 500).map(this.key);
+      if (keys.length) await this.cmd.unlink(...keys);
+    }
+  }
+
   onSignal(fn: (runId: string) => void): () => void {
     this.handlers.add(fn);
     return () => this.handlers.delete(fn);

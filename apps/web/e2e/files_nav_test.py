@@ -111,7 +111,7 @@ def main() -> int:
         page.goto(f"{base}/projects/2d-xray/sources")
         page.wait_for_selector("[role=treeitem]:has-text('pneumonia')", timeout=20000)
         filt = page.get_by_test_id("tree-filter")
-        check("the two fields say which is which", filt.get_attribute("placeholder") == "Filter folders shown" and page.get_by_test_id("sources-search").get_attribute("placeholder") == "Search all files")
+        check("the two fields say which is which", filt.get_attribute("placeholder") == "Filter folders shown" and page.get_by_test_id("sources-search").get_attribute("placeholder") == "Search Sources")
         before = page.locator("[role=treeitem]").count()
         filt.fill("pneu")
         page.wait_for_timeout(400)

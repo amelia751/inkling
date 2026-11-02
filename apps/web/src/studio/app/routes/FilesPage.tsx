@@ -1076,8 +1076,8 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
               e.currentTarget.blur();
             }
           }}
-          placeholder="Search all files"
-          aria-label="Search all files"
+          placeholder="Search Sources"
+          aria-label="Search Sources"
           className="h-7 w-[min(260px,40vw)] pl-7"
           data-testid="sources-search"
         />

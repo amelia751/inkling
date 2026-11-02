@@ -20,6 +20,7 @@
     "check:boundaries": "node tools/check-boundaries.mjs",
     "check:names": "node tools/check-names.mjs",
     "check:python-imports": "uv run lint-imports",
+    "check:writes": "uv run pytest tools/check-writes -q -s -p no:cacheprovider",
     "emit:schemas": "pnpm --filter @studio/web emit:schemas",
     "build:registry": "node tools/build-registry.mjs",
     "seeds": "uv run tools/fetch-seeds.py",

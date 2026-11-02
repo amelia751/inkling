@@ -6,6 +6,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { ORG } from "@/studio/lib/account-mock";
+import { DEFAULT_DEV_PRINCIPAL, backToDefaultPrincipal, devPrincipal, devPrincipalAvailable, startAsNewPerson } from "@/studio/lib/dev-principal";
 import { logout, useSession } from "@/studio/lib/session";
 import { billingUrl, orgUrl, profileUrl, settingsUrl } from "@/studio/lib/routes";
 import { cn } from "@studio/ui/utils";
@@ -124,6 +125,9 @@ export function UserMenu({ className }: { className?: string }) {
           </li>
         </ul>
 
+        {/* Dev only, and never with WorkOS sign-in (todo14 M0): act as a brand-new person. */}
+        {devPrincipalAvailable() && <DevIdentity />}
+
         <div className="border-t border-border p-4">
           <ThemeSwitch className="w-full [&>*]:flex-1" />
         </div>
@@ -162,5 +166,32 @@ function IdRow({ label, id, copied, onCopy, spaced }: { label: string; id: strin
         </button>
       </td>
     </tr>
+  );
+}
+
+/**
+ * Dev only (todo14 M0): act as a brand-new person in this tab to see the first run, until sign-in
+ * exists (todo9). Switching reloads on Home, so projects, conversations and caches start over.
+ */
+function DevIdentity() {
+  const current = devPrincipal();
+  const go = (switchTo: () => void) => {
+    switchTo();
+    location.assign("/");
+  };
+  return (
+    <section className="flex flex-col gap-1 border-t border-border py-3" data-testid="dev-identity">
+      <p className="px-5 pb-1 text-xs text-muted-foreground">
+        Dev: acting as <span className="font-mono" data-testid="dev-principal">{current ?? DEFAULT_DEV_PRINCIPAL}</span>
+      </p>
+      <DropdownMenuItem className={ITEM} onSelect={() => go(() => void startAsNewPerson())} data-testid="dev-new-person">
+        Start as a new person
+      </DropdownMenuItem>
+      {current && (
+        <DropdownMenuItem className={ITEM} onSelect={() => go(backToDefaultPrincipal)} data-testid="dev-default-person">
+          Back to {DEFAULT_DEV_PRINCIPAL.replace(/^user:/, "")}
+        </DropdownMenuItem>
+      )}
+    </section>
   );
 }

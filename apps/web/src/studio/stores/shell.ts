@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/dev-principal";
 
 /**
  * Shell chrome state shared by every page (todo6 Phase 2): how the project navigation is
@@ -7,7 +8,8 @@ import { RES } from "@studio/contracts/naming";
  * in localStorage (guarded: private windows and blocked storage just use the defaults).
  */
 const NAV_KEY = `${RES}-nav`;
-const RECENT_KEY = `${RES}-recent-projects`;
+/** Per person (todo14 M0): a dev "new person" starts with no recents. */
+const RECENT_KEY = personKey(`${RES}-recent-projects`);
 const RECENT_MAX = 5;
 
 /** `auto`: full sidebar from 1280px, icon rail below; `full` / `rail`: the person's choice. */

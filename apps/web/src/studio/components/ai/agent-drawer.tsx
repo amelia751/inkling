@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AiIcon, FileIcon, FolderIcon, SearchIcon, SourcesIcon, TableFileIcon, WarningIcon, RelationshipIcon } from "@studio/ui/icons";
+import { AiIcon, FileIcon, FolderIcon, SearchIcon, SourcesIcon, TableFileIcon, WarningIcon, RelationshipIcon, SegmentIcon, TagIcon, VideoIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
@@ -12,6 +12,8 @@ import { ENV_TOOL_NAMES } from "@/studio/lib/agent/session";
 import { useOverview, useProjectSummary } from "@/studio/lib/projects-api";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { useFeature } from "@/studio/lib/features";
+import { useFirstRunHints } from "@/studio/lib/prefs-api";
+import { HOME_EXAMPLES } from "@/studio/app/entry/HomeComposer";
 import type { ClientToolOutcome } from "@/studio/stores/agent";
 import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/shell";
 
@@ -27,6 +29,10 @@ const FILES_PROMPTS = [
   { icon: FileIcon, text: "Rename files to remove dates" },
   { icon: TableFileIcon, text: "Put all spreadsheets in one folder" },
 ];
+
+/** todo14 D8: the first-run hints are the todo13 examples (Home's composer), in the same order. */
+const FIRST_RUN_ICONS = [SegmentIcon, TagIcon, VideoIcon];
+const FIRST_RUN_PROMPTS = HOME_EXAMPLES.map((text, i) => ({ icon: FIRST_RUN_ICONS[i] ?? SearchIcon, text }));
 
 /** Outside the Studio only project cards run; environment tools need the open Studio. */
 async function runProjectTool(name: string, input: Record<string, unknown>): Promise<ClientToolOutcome> {
@@ -110,6 +116,7 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
   const provider = currentProvider(registered, section, ref);
   // todo13 §3.1 "Chat, new conversation": with chat drops on, the empty chat says files go here too.
   const drops = useFeature("chatDrops");
+  const hints = useFirstRunHints();
   return (
     <AssistantPanel
       project={{ ...ref, restricted: ref.restricted, heldFiles: held }}
@@ -129,12 +136,27 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
               body: drops
                 ? `Drop files, paste a screenshot, or tell me what you're making. I can also tell you what's in ${ref.title} and what needs your attention; you confirm what I propose.`
                 : `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
-              prompts: [
-                { icon: SourcesIcon, text: "What did I import?" },
-                { icon: WarningIcon, text: "What needs my attention?" },
-                { icon: SearchIcon, text: "Did my last upload work?" },
-                { icon: RelationshipIcon, text: "How do these files fit together?" },
-              ],
+              ...(hints.show
+                ? {
+                    // todo14 D8: a first run gets the three todo13 examples, once, until dismissed.
+                    prompts: FIRST_RUN_PROMPTS,
+                    footer: (
+                      <p className="flex items-center gap-2 text-sm text-hint" data-testid="first-run-hints">
+                        Ideas to start with.
+                        <button type="button" className="rounded-md px-1.5 text-complementary underline-offset-2 hover:underline" onClick={hints.dismiss} data-testid="first-run-hints-dismiss">
+                          Don't show again
+                        </button>
+                      </p>
+                    ),
+                  }
+                : {
+                    prompts: [
+                      { icon: SourcesIcon, text: "What did I import?" },
+                      { icon: WarningIcon, text: "What needs my attention?" },
+                      { icon: SearchIcon, text: "Did my last upload work?" },
+                      { icon: RelationshipIcon, text: "How do these files fit together?" },
+                    ],
+                  }),
             }
       }
     />

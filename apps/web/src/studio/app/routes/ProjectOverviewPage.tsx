@@ -17,6 +17,7 @@ import {
   ReviewIcon,
   WarningIcon,
   type IconComponent,
+  LicenseIcon,
 } from "@studio/ui/icons";
 import { ProjectEmptyState } from "@/studio/app/entry/empty-states";
 import { useDropFiles } from "@/studio/app/entry/drop-adapter";
@@ -32,7 +33,7 @@ import { fetchAnnotations, fetchTaskDocument } from "@/studio/lib/api";
 import { envLabel, envOf, projectIcon } from "@/studio/lib/environment";
 import { kernelAssetUrl, kernelEnabled } from "@/extension-host/kernel";
 import { seedUrl } from "@/studio/lib/api";
-import { api, fetchPreview, fetchProposals, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
+import { api, fetchPreview, fetchProposals, isSampleTemplate, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
 import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
@@ -134,11 +135,21 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
               {project.description || <span className="text-hint">Add a short description</span>}
             </button>
           )}
+          {(project.sample || project.sampleOf) && project.license && (
+            <p className="mt-1 flex max-w-2xl items-start gap-1.5 text-xs text-muted-foreground" data-testid="sample-license">
+              <LicenseIcon className="mt-0.5 size-3 shrink-0" />
+              <span className="line-clamp-1">{project.license}</span>
+            </p>
+          )}
           {error && <p className="mt-1 text-sm text-danger" role="alert">{error}</p>}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <NewStudioButton projectId={project.id} />
-          {project.sample && <Badge theme="info">Sample</Badge>}
+          {(project.sample || project.sampleOf) && (
+            <Badge theme="info" title={project.license ? `License: ${project.license}` : undefined} data-testid="sample-badge">
+              Sample
+            </Badge>
+          )}
           <Badge theme="unknown" data-testid="visibility">
             {project.visibility === "private" && <LockIcon />}
             {project.visibility === "private" ? "Private" : "Shared"}
@@ -153,7 +164,7 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
               <DropdownMenuItem onSelect={() => navigate(settingsUrl(project.id))}>Settings</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setEditing("title")}>Rename</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={project.sample} onSelect={() => save.mutate({ archived: true }, { onSuccess: () => navigate("/projects") })}>Archive</DropdownMenuItem>
+              <DropdownMenuItem disabled={isSampleTemplate(project)} onSelect={() => save.mutate({ archived: true }, { onSuccess: () => navigate("/projects") })}>Archive</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

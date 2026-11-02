@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { withDevPrincipal } from "@/studio/lib/dev-principal";
 import { apiUrl } from "@/extension-host/runtime-config";
 
 /**
@@ -86,7 +87,8 @@ let client: QueryClient | null = null;
 
 function open(projectId: string): EventSource {
   const after = lastIds.get(projectId);
-  const es = new EventSource(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/events${after ? `?after=${encodeURIComponent(after)}` : ""}`));
+  // No headers on an EventSource: the dev principal rides in the URL (the Vite proxy makes it a header).
+  const es = new EventSource(withDevPrincipal(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/events${after ? `?after=${encodeURIComponent(after)}` : ""}`)));
   const seen = (e: Event) => {
     const id = (e as MessageEvent).lastEventId;
     if (id) lastIds.set(projectId, id);

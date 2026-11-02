@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/dev-principal";
 import { persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
@@ -424,7 +425,8 @@ export const useAgent = create<AgentState>()(
       };
     },
     {
-      name: `${RES}-ai`,
+      // Per person (todo14 M0): a dev "new person" starts with no conversations.
+      name: personKey(`${RES}-ai`),
       version: 2,
       // v1 threads were for the old stateless loop; their shape is compatible, sessions start fresh.
       migrate: (persisted) => ({ ...(persisted as object), sessions: {}, notes: {}, active: null }) as never,

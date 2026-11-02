@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { DeleteIcon, InviteIcon, MailIcon, TopUpIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Dialog } from "@studio/ui/ui/dialog";
+import { EmptyState } from "@studio/ui/ui/empty-state";
 import { DropdownMenuItem, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
 import { Loader } from "@studio/ui/ui/loader";
@@ -27,6 +28,8 @@ export function MembersPage() {
     return members.filter((m) => (status === "all" || m.status === status) && (!needle || `${m.name} ${m.email} ${m.id}`.toLowerCase().includes(needle)));
   }, [members, q, status]);
   const invited = members.filter((m) => m.status === "invited").length;
+  // todo14 §4.2: nobody but you (no other member, no invitation): say what inviting is for.
+  const alone = !membersQ.isLoading && !membersQ.isError && members.length <= 1 && members.every((m) => !self || m.userId === self) && !q && status === "all";
   const offline = membersQ.isError;
 
   const columns: Column<MemberRow>[] = [
@@ -85,6 +88,21 @@ export function MembersPage() {
         }
         testId="members-table"
       />
+      {alone && (
+        <EmptyState
+          art="members"
+          size="m"
+          className="mt-6"
+          title="Invite people to work on your projects"
+          description="Members can open your organization's projects, label and review. Conversations with the assistant stay yours."
+          actions={
+            <Button variant="outline" size="lg" onClick={() => setInviting(true)} disabled={!canManage} data-testid="members-empty-invite">
+              <InviteIcon /> Invite
+            </Button>
+          }
+          data-testid="members-empty"
+        />
+      )}
       <InviteDialog open={inviting} onOpenChange={setInviting} />
     </SettingsPage>
   );

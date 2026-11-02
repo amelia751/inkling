@@ -113,6 +113,42 @@ export function useProjectList(q?: string, sort?: string) {
   return useQuery({ queryKey: projectKeys.list(q, sort), queryFn: () => fetchProjectList(q, sort), staleTime: 10_000 });
 }
 
+/** A sample template a person can copy into their organization (todo14 §4.3, `GET /v1/samples`). */
+export interface SampleTemplate {
+  id: string;
+  title: string;
+  modality: string;
+  license: string;
+  restricted: boolean;
+}
+
+/** A sample template itself (read-only, D7), as opposed to a person's editable copy of one (`sampleOf` set). */
+export const isSampleTemplate = (p: Pick<ProjectSummary, "sample" | "sampleOf">) => p.sample && !p.sampleOf;
+
+/** `POST /v1/projects/from-sample`: a private copy of the template in the caller's current organization (todo14 D2). */
+export const copySample = (sampleId: string) => api<ProjectSummary>("/projects/from-sample", { method: "POST", json: { sampleId } });
+
+/**
+ * The sample templates, or `enabled: false` when the api doesn't offer them: turned off
+ * (`API_SAMPLES_ENABLED`), an api without the route, or the seed stand-in (404), or any error.
+ */
+export function useSamples() {
+  return useQuery({
+    queryKey: ["samples"],
+    queryFn: async (): Promise<{ enabled: boolean; samples: SampleTemplate[] }> => {
+      try {
+        const r = await api<{ enabled?: unknown; samples?: unknown }>("/samples");
+        const samples = Array.isArray(r.samples) ? (r.samples as SampleTemplate[]) : [];
+        return { enabled: r.enabled === true && samples.length > 0, samples };
+      } catch {
+        return { enabled: false, samples: [] };
+      }
+    },
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
 /**
  * A project's summary, read from the list the person can see: an id that isn't there (not a
  * member, or a manifest project injected by a test) is simply `undefined`, never a 404.

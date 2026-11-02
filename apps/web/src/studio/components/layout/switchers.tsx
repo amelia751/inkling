@@ -13,7 +13,7 @@ import {
 } from "@studio/ui/ui/dropdown-menu";
 import { Loader } from "@studio/ui/ui/loader";
 import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
-import { resetForOrg, switchOrg, useSession } from "@/studio/lib/session";
+import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
@@ -45,8 +45,23 @@ export function Breadcrumbs({ project, section, className }: { project?: { id: s
   );
 }
 
+/** The stored name of a personal organization (apps/api `PERSONAL_ORG_NAME`). */
+const PERSONAL = "Personal";
+
+/**
+ * todo14 D1: a personal organization reads "<First name>'s workspace"; a team org its own name.
+ * Without a first name (dev principals, the seed-mode mock account) it stays "Personal".
+ */
+export function workspaceName(org: SessionOrg | undefined, firstName: string | null | undefined): string {
+  if (!org) return PERSONAL;
+  return org.name === PERSONAL && firstName?.trim() ? `${firstName.trim()}'s workspace` : org.name;
+}
+
 export function WorkspaceSwitcher({ className }: { className?: string }) {
-  const { organization, organizations } = useSession();
+  const { organization, organizations, user } = useSession();
+  // The mock account (seed mode, dev without sessions) isn't a person: keep its org "Personal".
+  const first = user.id === mockSession().user.id ? null : user.firstName;
+  const name = workspaceName(organization, first);
   const client = useQueryClient();
   const navigate = useNavigate();
   const [switching, setSwitching] = useState<string | null>(null);
@@ -70,8 +85,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label={`Workspace: ${organization.name}. Switch workspace`} data-testid="workspace-switcher">
-        <span className="truncate">{organization.name}</span>
+      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label={`Workspace: ${name}. Switch workspace`} data-testid="workspace-switcher">
+        <span className="truncate">{name}</span>
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[240px]">
@@ -80,11 +95,14 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           const current = o.id === organization.id;
           return (
             <DropdownMenuItem key={o.id} disabled={!!switching} onSelect={() => void pick(o.id)} data-testid={`switch-org-${o.id}`} aria-current={current || undefined}>
-              <span className="min-w-0 flex-1 truncate">{o.name}</span>
+              <span className="min-w-0 flex-1 truncate">{workspaceName(o, first)}</span>
               {switching === o.id ? <Loader size="s" /> : current && <CheckIcon className="text-brand-heavy" />}
             </DropdownMenuItem>
           );
         })}
+        <DropdownMenuSeparator />
+        {/* TODO(todo14 Q2, todo9): team organizations; creating one isn't wired yet. */}
+        <DropdownMenuItem disabled data-testid="workspace-create">Create organization</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

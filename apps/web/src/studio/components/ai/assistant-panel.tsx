@@ -69,7 +69,7 @@ export interface AssistantPanelProps {
   onUndo?: (messageId: string, partId: string) => void;
   /** Composer placeholder for a profile. */
   placeholder: (profile: ProfileName) => string;
-  empty: (profile: ProfileName) => { title: string; body: ReactNode; prompts: Prompt[] };
+  empty: (profile: ProfileName) => { title: string; body: ReactNode; prompts: Prompt[]; footer?: ReactNode };
   /** Called with the snapshot to send when the chip is removed (the Studio: name only). */
   bareSnapshot?: () => ReturnType<NonNullable<AgentContextProvider["snapshot"]>>;
   /** The Studio's task: images dropped in its chat become its items as they arrive (todo11 D8). */
@@ -290,7 +290,7 @@ function Conversation({
         data-testid="agent-log"
       >
         {thread.length === 0 ? (
-          <EmptyState title={e.title} body={e.body} prompts={e.prompts} onAsk={(t) => ask(t)} drops={attach.on && attach.allowed} />
+          <EmptyState title={e.title} body={e.body} prompts={e.prompts} footer={e.footer} onAsk={(t) => ask(t)} drops={attach.on && attach.allowed} />
         ) : (
           <div className="flex min-h-full flex-col justify-end gap-6 px-4 pt-2 pb-2">
             {thread.map((m, i) =>
@@ -333,7 +333,7 @@ function Conversation({
   );
 }
 
-function EmptyState({ title, body, prompts, onAsk, drops }: { title: string; body: ReactNode; prompts: Prompt[]; onAsk: (t: string) => void; drops?: boolean }) {
+function EmptyState({ title, body, prompts, footer, onAsk, drops }: { title: string; body: ReactNode; prompts: Prompt[]; footer?: ReactNode; onAsk: (t: string) => void; drops?: boolean }) {
   return (
     <div className="flex min-h-full flex-col items-center justify-center gap-6 px-4 py-6 text-center" data-testid="agent-empty">
       <div className="flex flex-col items-center">
@@ -357,6 +357,7 @@ function EmptyState({ title, body, prompts, onAsk, drops }: { title: string; bod
           </li>
         ))}
       </ul>
+      {footer}
     </div>
   );
 }

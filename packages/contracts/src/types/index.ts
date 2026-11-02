@@ -271,8 +271,10 @@ export interface ProjectSummary {
   title: string;
   description: string;
   visibility: "private" | "shared";
-  /** A seed project from seed-data/manifest.json ("Sample" badge). */
+  /** A sample: a seed template, or a person's copy of one (todo14 D2; "Sample" badge). */
   sample: boolean;
+  /** todo14 D2: the template this project was copied from ("Try a sample"); null or absent for templates and ordinary projects. */
+  sampleOf?: string | null;
   archived: boolean;
   createdBy: string;
   createdAt: string;

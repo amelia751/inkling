@@ -7,6 +7,9 @@ import { sanitizeError } from "../runtime/events.ts";
 
 /** Header that carries the shared service token on browser-proxied calls in `workos` mode (todo9 Phase 5). */
 export const SERVICE_TOKEN_HEADER = "x-agent-service-token";
+/** Dev mode only (todo14 M0): act as another `user:` principal; ignored in `workos` mode. */
+export const DEV_PRINCIPAL_HEADER = "x-dev-principal";
+const DEV_PRINCIPAL = /^user:[A-Za-z0-9._-]{1,120}$/;
 
 /**
  * Who a /v1 call acts as. `principal` undefined means the service's single local principal (dev mode),
@@ -69,7 +72,7 @@ const bearer = (header: string | undefined) => header?.match(/^Bearer\s+(\S+)\s*
  * - The shared service token is always required, in `X-Agent-Service-Token` or (legacy, dev, and
  *   service-to-service calls) in `Authorization`, so the agent's ingress stays closed to anything but
  *   our proxies.
- * - `dev`: the caller is the local principal.
+ * - `dev`: the caller is the local principal, or the `X-Dev-Principal` user when one is sent.
  * - `workos`: when the token came in `X-Agent-Service-Token`, `Authorization` must carry a valid
  *   WorkOS access token; the caller is `user:<sub>` in `org_id`. A service-only call (token in
  *   `Authorization`, no user) acts as `service` and sees no person's sessions.
@@ -84,7 +87,11 @@ export function authenticate(config: Config, verifier: AccessTokenVerifier | und
     if (!inHeader && !inAuthorization) return c.json({ error: "unauthorized" }, 401);
 
     if (config.auth.mode === "dev") {
-      c.set("caller", { principal: undefined, orgId: undefined, via: "service" });
+      // todo14 M0: "Start as a new person" (web, dev only) sends `X-Dev-Principal`, so that person's
+      // conversations are their own. Without it, the single local principal, as before.
+      const dev = c.req.header(DEV_PRINCIPAL_HEADER);
+      const principal = dev && DEV_PRINCIPAL.test(dev) ? dev : undefined;
+      c.set("caller", { principal, orgId: undefined, via: principal ? "user" : "service" });
       return next();
     }
     if (!inHeader) {

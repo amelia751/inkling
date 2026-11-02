@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/dev-principal";
 import type { DropOriginKind } from "@studio/contracts/drops";
 
 /**
@@ -62,7 +63,7 @@ export const useDrops = create<DropsState>()(
         }),
     }),
     {
-      name: `${RES}-drops`,
+      name: personKey(`${RES}-drops`),
       version: 1,
       // Upload entries and object URLs don't survive a reload; the newest drops do.
       partialize: (s) => ({

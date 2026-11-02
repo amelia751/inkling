@@ -58,6 +58,24 @@ function serviceToken(): string | undefined {
   return agentToken;
 }
 /**
+ * Dev identity (todo14 M0, src/studio/lib/dev-principal.ts): "Start as a new person" sends
+ * `X-Dev-Principal: user:dev-<id>` on fetches; an EventSource can't, so its URL carries
+ * `devPrincipal=`, which becomes the header here. Anything not shaped like a dev principal is dropped.
+ */
+const DEV_PRINCIPAL = /^user:dev-[a-z0-9]{4,32}$/;
+function forwardDevPrincipal(proxyReq: { path: string; getHeader(n: string): unknown; setHeader(n: string, v: string): unknown; removeHeader(n: string): void }) {
+  const url = new URL(proxyReq.path, "http://proxy");
+  const fromQuery = url.searchParams.get("devPrincipal");
+  if (fromQuery !== null) {
+    url.searchParams.delete("devPrincipal");
+    proxyReq.path = url.pathname + url.search;
+    if (DEV_PRINCIPAL.test(fromQuery)) proxyReq.setHeader("x-dev-principal", fromQuery);
+  }
+  const header = proxyReq.getHeader("x-dev-principal");
+  if (header !== undefined && !(typeof header === "string" && DEV_PRINCIPAL.test(header))) proxyReq.removeHeader("x-dev-principal");
+}
+
+/**
  * <envPrefix>WEB_AUTH_MODE=workos (todo9 Phase 5, as the web nginx does): before proxying, ask the API
  * (`/api/auth/verify` with the browser's cookie) for the person's WorkOS access token and forward it
  * as `Authorization: Bearer`; the service token then travels in `X-Agent-Service-Token`. In `dev`
@@ -99,6 +117,9 @@ const agentProxy: Record<string, ProxyOptions> = {
     bypass: (req, res) => (isAgentInternal(req.url) ? false : res ? verifyForAgent(req, res) : undefined),
     configure: (proxy) => {
       proxy.on("proxyReq", (req) => {
+        // A dev identity means nothing once the agent verifies WorkOS tokens.
+        if (agentAuthMode === "dev") forwardDevPrincipal(req);
+        else req.removeHeader("x-dev-principal");
         const token = serviceToken();
         if (!token) return;
         req.setHeader(AGENT_SERVICE_TOKEN_HEADER, token);
@@ -178,7 +199,7 @@ export default defineConfig({
     // /api/agent goes to the agent service; with the API on, the rest of /api goes there (agentProxy is listed first).
     proxy: {
       ...agentProxy,
-      ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
+      ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined), configure: (proxy) => proxy.on("proxyReq", forwardDevPrincipal) } } : {}),
     },
   },
   // runtime-config.ts reads these as the dev defaults for `kernel` and `auth.mode` (/config.json

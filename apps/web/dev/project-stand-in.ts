@@ -29,7 +29,30 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *   Every write (fs/ops, undo, star, zip, versions…) answers 501, like the rest.
  *   GET  /api/v1/features                             → every todo13 flag on (dev, §7.4)
  *   POST /api/v1/telemetry/timeline                   → 204 (accepted, not stored)
+ *
+ * todo14 M0: like the api in dev, only the default principal (`user:local-expert`, no header) is a
+ * member of the Samples org. A request as any other dev principal (`X-Dev-Principal`, or the
+ * `devPrincipal=` query an EventSource carries) sees no projects, and every project-scoped read
+ * is a 404.
+ *   GET  /api/v1/samples                              → the manifest's available projects as templates (dev: restricted too)
+ *   POST /api/v1/projects/from-sample                 → 501 (copying needs the API)
+ *   GET  /api/v1/me/prefs, PUT /api/v1/me/prefs/:key  → per principal, in memory (dev only); local-expert
+ *                                                       has `firstRunHintsDismissed` (it isn't a first run)
  */
+/** The api's default dev principal, the one member of the Samples org (apps/api `API_SAMPLE_MEMBERS`). */
+const SAMPLE_MEMBER = "user:local-expert";
+/** Routes whose answers belong to a project (so to the Samples org here). */
+const PROJECT_SCOPED = new Set(["projects", "sources", "source-nodes", "datasets", "tasks"]);
+/** What each legacy viewer shows, for the sample picker (the api reads the template's modality). */
+const MODALITY: Record<string, string> = {
+  "image-2d": "2D images",
+  "volume-3d": "3D volumes (MRI, CT)",
+  signal: "Signals (ECG)",
+  temporal: "Video",
+  "cine-4d": "Cine MRI",
+  pathology: "Whole-slide images",
+};
+
 interface SeedAsset {
   path: string;
   sha256?: string;
@@ -480,6 +503,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     return { taskId: p.id, taskTitle: p.title, taskKind: task(p).kind, datasetId: p.id, itemId: body.itemId ?? null, placement: body.placement && typeof body.placement === "object" ? body.placement : null, tool: body.tool ?? null, at: new Date().toISOString() };
   }
 
+  const prefs = new Map<string, Record<string, unknown>>();
   return async function handle(req: IncomingMessage, res: ServerResponse, next: () => void) {
     const url = new URL(req.url ?? "/", "http://dev");
     const parts = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
@@ -491,6 +515,30 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     const notFound = () => send(404, { detail: "Not Found" });
     const [head, id, sub, subId, subSub] = parts;
     const { nodes } = load();
+
+    // todo14 M1: the templates anyone may copy.
+    if (head === "samples" && !id && req.method === "GET") {
+      const samples = load().projects.map((p) => ({ id: p.id, title: p.title, modality: MODALITY[String(p.viewer ?? "")] ?? String(p.task ?? ""), license: p.license ?? "", restricted: !!p.restricted }));
+      return send(200, { enabled: samples.length > 0, samples });
+    }
+    // todo14 D8: per-person preferences (the api's `user_prefs`).
+    if (head === "me" && id === "prefs") {
+      const who = String(req.headers["x-dev-principal"] ?? SAMPLE_MEMBER);
+      const mine = prefs.get(who) ?? (who === SAMPLE_MEMBER ? { firstRunHintsDismissed: true } : {});
+      if (!sub && req.method === "GET") return send(200, { prefs: mine });
+      if (sub && req.method === "PUT") {
+        const body = await readJson(req);
+        prefs.set(who, { ...mine, [sub]: body?.value ?? null });
+        return send(200, { key: sub, value: body?.value ?? null });
+      }
+    }
+    // todo14 M0: a new dev person belongs to no org with projects.
+    const principal = String(req.headers["x-dev-principal"] ?? url.searchParams.get("devPrincipal") ?? SAMPLE_MEMBER);
+    if (principal !== SAMPLE_MEMBER && PROJECT_SCOPED.has(head ?? "")) {
+      if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see docs/running.md" });
+      if (head === "projects" && !id) return send(200, { projects: [] });
+      return notFound();
+    }
 
     if (head === "projects" && id && sub === "resume" && req.method === "PUT") {
       const p = project(id);

@@ -6,7 +6,7 @@ import type { Drop, DropFileState } from "@studio/contracts/drops";
 import { runtimeConfig } from "@/extension-host/runtime-config";
 import { ApiError } from "@/studio/lib/projects-api";
 import { onProjectEvent, useProjectEvents } from "@/studio/lib/use-project-events";
-import { useUploads, type TrayFile } from "@/studio/stores/uploads";
+import { NOT_UPLOADED, useUploads, type TrayFile } from "@/studio/stores/uploads";
 import { dropsApi } from "./api";
 import { useDrops, type LocalDrop } from "./store";
 
@@ -83,8 +83,22 @@ export interface Chip {
   preview?: string;
 }
 
+type TrayLike = { files: TrayFile[]; phase: string };
+
+/**
+ * The drop stopped before the kernel had its files: the kernel refused it, every upload of it
+ * failed or was cancelled, or the page reloaded mid-way (its `File`s are gone). Never while the
+ * kernel's answer is still loading, so a finished drop doesn't flash "Not uploaded" after a reload.
+ */
+export function dropInterrupted(local: LocalDrop | undefined, server: Drop | undefined, trays: TrayLike[], loading = false): boolean {
+  if (!local || server?.files.length) return false;
+  if (local.error) return true;
+  if (trays.length) return trays.every((t) => t.phase === "failed" || t.phase === "cancelled");
+  return !!local.restored && !loading;
+}
+
 /** One chip per file: the kernel's view once it has the file, the browser's upload progress until then. */
-export function chipsOf(local: LocalDrop | undefined, server: Drop | undefined, trays: { files: TrayFile[]; phase: string }[]): Chip[] {
+export function chipsOf(local: LocalDrop | undefined, server: Drop | undefined, trays: TrayLike[], loading = false): Chip[] {
   const preview = new Map((local?.files ?? []).map((f) => [f.relPath, f.preview]));
   const live = new Map<string, TrayFile>();
   for (const t of trays) for (const f of t.files) live.set(f.relPath, f);
@@ -108,8 +122,10 @@ export function chipsOf(local: LocalDrop | undefined, server: Drop | undefined, 
       };
     });
   }
+  const stopped = dropInterrupted(local, server, trays, loading);
   return (local?.files ?? []).map((f) => {
     const t = live.get(f.relPath);
+    if (stopped && (!t || t.state !== "uploaded")) return { key: f.relPath, name: base(f.relPath), size: f.size, state: "failed" as const, reason: t?.state === "rejected" ? t.reason : NOT_UPLOADED, preview: f.preview };
     return { key: f.relPath, name: base(f.relPath), size: f.size, state: t ? (t.state === "failed" || t.state === "rejected" ? "failed" : "uploading") : "preparing", progress: t && f.size ? t.received / f.size : undefined, reason: t?.reason, preview: f.preview };
   });
 }
@@ -118,7 +134,8 @@ export function useDropChips(dropId: string) {
   const local = useDrops((s) => s.drops[dropId]);
   const trays = useUploads(useShallow((s) => s.sessions.filter((x) => x.dropId === dropId)));
   const server = useDrop(dropId);
-  return { local, server: server.data, trays, chips: chipsOf(local, server.data, trays), loading: server.isLoading };
+  const loading = server.isLoading;
+  return { local, server: server.data, trays, chips: chipsOf(local, server.data, trays, loading), loading, interrupted: dropInterrupted(local, server.data, trays, loading), missing: !local && server.isError };
 }
 
 export function useConversationDrops(projectId: string, conversationId: string | undefined, enabled = true) {

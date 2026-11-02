@@ -722,3 +722,52 @@ body {
 .tree-skeleton-delay {
   animation: tree-skeleton-in 0s 150ms both;
 }
+
+/*
+ * Studio boot (Home → project → Studio): one motion language. Route changes cross-fade through
+ * the router's view transition (short, no slide), the canvas waits dark with a slow sheen, and
+ * a loading spinner only appears when loading takes longer than a blink. Reduced motion: none.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 180ms;
+  animation-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+.canvas-notice-delayed {
+  animation: canvas-notice-in 200ms ease-out 700ms both;
+}
+@keyframes canvas-notice-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.canvas-skeleton {
+  background-image: linear-gradient(100deg, transparent 30%, hsl(var(--canvas-foreground) / 0.05) 50%, transparent 70%);
+  background-size: 300% 100%;
+  animation: canvas-sheen 1.8s ease-in-out infinite;
+}
+@keyframes canvas-sheen {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .canvas-skeleton {
+    animation: none;
+    background-image: none;
+  }
+  .canvas-notice-delayed {
+    animation: none;
+  }
+}

@@ -12,7 +12,9 @@ import { filesUrl } from "@/studio/lib/routes";
 import { fromFileList } from "@/studio/lib/uploads/walk";
 import { dropsApi } from "./api";
 import { dropKeys, useDropChips, useDropEvents, type Chip } from "./hooks";
-import { resumeDrop } from "./start";
+import { failureText } from "@/studio/stores/uploads";
+import { dismissDrop, resumeDrop } from "./start";
+import { useDrops } from "./store";
 
 /**
  * A drop's card (todo13 §3.2): one chip per file with its live state (uploading, checking, ready,
@@ -48,20 +50,25 @@ export interface DropCardProps {
 
 export function DropCard({ dropId, projectId, variant = "message", onCancel, canEdit = true }: DropCardProps) {
   useDropEvents(projectId);
-  const { local, server, trays, chips } = useDropChips(dropId);
+  const { local, server, trays, chips, interrupted, missing } = useDropChips(dropId);
+  const dismissed = useDrops((s) => !!s.dismissed[dropId]);
   const qc = useQueryClient();
   const [showAll, setShowAll] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const paused = !!local && trays.length === 0 && local.uploadKeys.length === 0 && chips.some((c) => c.state === "uploading");
   const shown = showAll ? chips : chips.slice(0, MAX_CHIPS);
   const total = chips.reduce((n, c) => n + c.size, 0);
-  const overall = local?.error ? "failed" : paused ? "paused" : summaryState(chips);
+  const overall = interrupted ? "interrupted" : local?.error ? "failed" : paused ? "paused" : summaryState(chips);
+  const again = (list: FileList) => {
+    if (local) resumeDrop(local, fromFileList(list));
+  };
   const remove = async (nodeId: string) => {
     await dropsApi.removeFromChat(dropId, nodeId).catch(() => undefined);
     void qc.invalidateQueries({ queryKey: dropKeys.drop(dropId) });
     void qc.invalidateQueries({ queryKey: ["drops", "list", projectId] });
   };
 
+  if (dismissed || missing) return null;
   if (!local && !server) return <div className="h-14 animate-pulse rounded-xl bg-generic" data-testid="drop-card" data-drop-id={dropId} data-state="loading" />;
   return (
     <div className={cn("flex flex-col gap-2 rounded-xl border border-border bg-background p-2.5", variant === "composer" && "bg-float")} data-testid="drop-card" data-drop-id={dropId} data-state={overall}>
@@ -76,18 +83,28 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
           </Button>
         )}
       </div>
-      {local?.error && (
-        <p className="flex items-start gap-1.5 px-0.5 text-caption text-danger" data-testid={local.overLimit ? "drop-over-limit" : "drop-error"}>
+      {interrupted && local && !local.overLimit && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-generic px-2.5 py-2 text-caption" data-testid="drop-error" data-interrupted="true">
+          <ErrorIcon className="size-3.5 shrink-0 text-danger" />
+          <span className="min-w-0 flex-1" data-testid="drop-error-text">{failureText(local.error, [])}</span>
+          <span className="flex gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => picker.current?.click()} data-testid="drop-again">Drop again</Button>
+            <Button size="sm" variant="ghost-secondary" onClick={() => void dismissDrop(dropId)} data-testid="drop-dismiss">Dismiss</Button>
+          </span>
+        </div>
+      )}
+      {local?.error && local.overLimit && (
+        <p className="flex items-start gap-1.5 px-0.5 text-caption text-danger" data-testid="drop-over-limit">
           <ErrorIcon className="mt-0.5 size-3.5 shrink-0" />
           <span>
-            {local.error}
-            {local.overLimit && (
-              <>
-                {" "}
-                <Link to={filesUrl(projectId)} className="text-brand hover:underline">Open Sources</Link>
-              </>
-            )}
+            {local.error} <Link to={filesUrl(projectId)} className="text-brand hover:underline">Open Sources</Link>
           </span>
+        </p>
+      )}
+      {local?.error && !local.overLimit && !interrupted && (
+        <p className="flex items-start gap-1.5 px-0.5 text-caption text-danger" data-testid="drop-error">
+          <ErrorIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span>{failureText(local.error, [])}</span>
         </p>
       )}
       {paused && local && (
@@ -95,19 +112,19 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
           <WarningIcon className="size-3.5 shrink-0 text-warning" />
           <span className="flex-1">Upload paused: choose the same files to continue.</span>
           <Button size="sm" variant="outline" onClick={() => picker.current?.click()} data-testid="drop-resume">Choose files</Button>
-          <input
-            ref={picker}
-            type="file"
-            multiple
-            hidden
-            data-testid="drop-resume-input"
-            onChange={(e) => {
-              if (e.target.files?.length) resumeDrop(local, fromFileList(e.target.files));
-              e.target.value = "";
-            }}
-          />
         </div>
       )}
+      <input
+        ref={picker}
+        type="file"
+        multiple
+        hidden
+        data-testid="drop-resume-input"
+        onChange={(e) => {
+          if (e.target.files?.length) again(e.target.files);
+          e.target.value = "";
+        }}
+      />
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-1.5">
         {shown.map((c) => (
           <DropChip key={c.key} chip={c} onRemove={variant === "message" && canEdit && c.nodeId && c.state !== "removed" && c.state !== "deleted" ? () => void remove(c.nodeId!) : undefined} />
@@ -128,6 +145,7 @@ const OVERALL_TEXT: Record<string, string> = {
   checking: "Checking",
   ready: "Ready",
   failed: "Some files didn't upload",
+  interrupted: "Not uploaded",
   paused: "Paused",
   empty: "Nothing to share",
 };

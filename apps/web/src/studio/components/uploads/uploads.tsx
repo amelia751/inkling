@@ -18,9 +18,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Label } from "@studio/ui/ui/label";
 import { Spinner } from "@studio/ui/ui/spinner";
-import { bytesInFlight, INSPECTION_STALLED_REASON, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
+import { bytesInFlight, INSPECTION_STALLED_REASON, NOT_UPLOADED, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
 import { cn } from "@studio/ui/utils";
+import { resumeDrop } from "@/studio/core/drops/start";
+import { useDrops } from "@/studio/core/drops/store";
 
 /** Invalidate a project's queries when an import changes what's in it. */
 export function useRefreshProject() {
@@ -260,9 +262,19 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
   const cancel = useUploads((x) => x.cancel);
   const dismiss = useUploads((x) => x.dismiss);
   const setCollapsed = useUploads((x) => x.setCollapsed);
+  const add = useUploads((x) => x.add);
+  const refresh = useRefreshProject();
   const [open, setOpen] = useState(false);
   const failed = s.files.filter((f) => f.state === "failed" || f.state === "rejected");
   const busy = s.phase === "preparing" || s.phase === "uploading";
+  // Stopped before the kernel had the files (a network drop, a reload): offer the same picker again.
+  const interrupted = s.phase === "failed" && !s.importId;
+  const again = usePickers((picked) => {
+    const drop = s.dropId ? useDrops.getState().drops[s.dropId] : undefined;
+    if (drop) resumeDrop(drop, picked);
+    else void add(s.projectId, picked, { targetNodeId: s.targetNodeId, onChanged: refresh });
+    dismiss(s.key);
+  });
   const skipped = s.files.filter((f) => f.state === "skipped_duplicate").length;
   return (
     <li className="px-3 py-2.5 text-sm" data-testid="tray-session" data-phase={s.phase}>
@@ -286,6 +298,13 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
             </p>
           )}
           <div className="mt-1.5 flex flex-wrap gap-1.5 pl-6">
+            {interrupted && (
+              <>
+                {again.inputs}
+                <Button size="sm" variant="outline" onClick={again.files} data-testid="tray-drop-again">Drop again</Button>
+                <Button size="sm" variant="ghost-secondary" onClick={() => dismiss(s.key)} data-testid="tray-dismiss">Dismiss</Button>
+              </>
+            )}
             {failed.length > 0 && s.importId && (
               <Button size="sm" variant="outline" onClick={() => void retry(s.key)} data-testid="tray-retry">Retry failed</Button>
             )}
@@ -303,7 +322,7 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
               {s.files.map((f) => (
                 <li key={f.clientFileId} className="flex gap-2 py-0.5">
                   <span className="min-w-0 flex-1 truncate" title={f.relPath}>{f.relPath}</span>
-                  <span className={cn("shrink-0", f.state === "failed" || f.state === "rejected" ? "text-danger" : "text-muted-foreground")}>{f.reason ?? FILE_STATE[f.state]}</span>
+                  <span className={cn("shrink-0", f.state === "failed" || f.state === "rejected" ? "text-danger" : "text-muted-foreground")}>{fileRowText(s, f)}</span>
                 </li>
               ))}
             </ul>
@@ -315,3 +334,10 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
 }
 
 const FILE_STATE: Record<string, string> = { pending: "Waiting", uploaded: "Uploaded", skipped_duplicate: "Already in this project", rejected: "Not accepted", failed: "Didn't upload" };
+
+/** A file row's words: a session that stopped leaves its unsent files "Not uploaded", never "Waiting". */
+export function fileRowText(s: Pick<TraySession, "phase">, f: Pick<TraySession["files"][number], "state" | "reason">): string {
+  if (f.reason) return f.reason;
+  if (f.state === "pending" && (s.phase === "failed" || s.phase === "cancelled")) return NOT_UPLOADED;
+  return FILE_STATE[f.state] ?? f.state;
+}

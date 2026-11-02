@@ -1,6 +1,7 @@
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { DropCard } from "./drop-card";
 import { useConversationDrops, useDropEvents } from "./hooks";
+import { useDrops } from "./store";
 
 /**
  * A conversation's Shared files (todo13 D4), like the files of a Messenger chat: its drops,
@@ -10,6 +11,7 @@ import { useConversationDrops, useDropEvents } from "./hooks";
 export function SharedFiles({ projectId, conversationId, canEdit }: { projectId: string; conversationId: string | undefined; canEdit: boolean }) {
   useDropEvents(projectId);
   const q = useConversationDrops(projectId, conversationId);
+  const dismissed = useDrops((s) => s.dismissed);
   if (conversationId && q.isLoading)
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3" role="status" aria-busy aria-label="Loading shared files">
@@ -21,7 +23,7 @@ export function SharedFiles({ projectId, conversationId, canEdit }: { projectId:
         ))}
       </div>
     );
-  const drops = (q.data?.drops ?? []).filter((d) => d.files.some((f) => f.state !== "removed"));
+  const drops = (q.data?.drops ?? []).filter((d) => !dismissed[d.id] && d.files.some((f) => f.state !== "removed"));
   if (!drops.length)
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center" data-testid="chat-files-empty">

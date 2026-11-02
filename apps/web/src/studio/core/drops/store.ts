@@ -31,6 +31,11 @@ export interface LocalDrop {
   error?: string;
   /** 413: point to Files' folder upload. */
   overLimit?: boolean;
+  /**
+   * Read back from storage after a reload: its `File`s are gone, so anything still unsent is
+   * interrupted, never "Preparing" again (set only in what's persisted).
+   */
+  restored?: boolean;
   createdAt: number;
 }
 
@@ -39,6 +44,9 @@ interface DropsState {
   put: (d: LocalDrop) => void;
   patch: (id: string, p: Partial<LocalDrop> | ((d: LocalDrop) => Partial<LocalDrop>)) => void;
   forget: (id: string) => void;
+  /** Drops the person dismissed ("Dismiss" on an interrupted card): their cards hide. */
+  dismissed: Record<string, true>;
+  dismiss: (id: string) => void;
 }
 
 const KEEP = 50;
@@ -47,6 +55,8 @@ export const useDrops = create<DropsState>()(
   persist(
     (set) => ({
       drops: {},
+      dismissed: {},
+      dismiss: (id) => set((s) => ({ dismissed: { ...s.dismissed, [id]: true } })),
       put: (d) => set((s) => ({ drops: { ...s.drops, [d.id]: d } })),
       patch: (id, p) =>
         set((s) => {
@@ -73,8 +83,9 @@ export const useDrops = create<DropsState>()(
           Object.values(s.drops)
             .sort((a, b) => b.createdAt - a.createdAt)
             .slice(0, KEEP)
-            .map((d) => [d.id, { ...d, uploadKeys: [], files: d.files.map(({ preview: _p, ...f }) => f) }]),
+            .map((d) => [d.id, { ...d, uploadKeys: [], restored: true, files: d.files.map(({ preview: _p, ...f }) => f) }]),
         ),
+        dismissed: Object.fromEntries(Object.keys(s.dismissed).slice(-KEEP * 4).map((k) => [k, true as const])),
       }),
     },
   ),

@@ -79,3 +79,50 @@ describe("a big drop's first files (todo13 M4)", () => {
     expect(splitFirst({ files: Array.from({ length: 100 }, (_, i) => file(`IM${i}.dcm`)), skipped: 0 })).toBeNull();
   });
 });
+
+describe("an interrupted drop (failed before the kernel had its files)", () => {
+  it("says Not uploaded on every file, never Preparing, when the drop failed", async () => {
+    const { dropInterrupted } = await import("./hooks");
+    const failed = { ...local, error: "Failed to fetch", uploadKeys: [] };
+    expect(dropInterrupted(failed, undefined, [])).toBe(true);
+    expect(chipsOf(failed, undefined, []).map((c) => [c.state, c.reason])).toEqual([
+      ["failed", "Not uploaded"],
+      ["failed", "Not uploaded"],
+    ]);
+  });
+  it("after a reload, once the kernel answered with nothing (the File handles are gone)", async () => {
+    const { dropInterrupted } = await import("./hooks");
+    const restored = { ...local, uploadKeys: [], restored: true };
+    expect(dropInterrupted(restored, undefined, [], true)).toBe(false); // still loading: no flash
+    expect(chipsOf(restored, undefined, [], true)[0]!.state).toBe("preparing");
+    expect(dropInterrupted(restored, undefined, [])).toBe(true);
+    expect(chipsOf(restored, drop([]), [])[0]).toMatchObject({ state: "failed", reason: "Not uploaded" });
+    // The kernel has its files: the kernel's states (and "Upload paused"), not "interrupted".
+    expect(dropInterrupted(restored, drop([{ relPath: "a.png", state: "uploading" }]), [])).toBe(false);
+  });
+  it("when every upload session of it failed or was cancelled", async () => {
+    const { dropInterrupted } = await import("./hooks");
+    expect(dropInterrupted(local, undefined, [{ phase: "failed", files: [] }])).toBe(true);
+    expect(dropInterrupted(local, undefined, [{ phase: "preparing", files: [] }])).toBe(false);
+  });
+  it("not while a fresh drop is still being created", async () => {
+    const { dropInterrupted } = await import("./hooks");
+    expect(dropInterrupted({ ...local, uploadKeys: [] }, undefined, [])).toBe(false);
+  });
+});
+
+describe("failed upload sessions in words", () => {
+  it("turn a network error into a plain headline and their files into Not uploaded", async () => {
+    const { failureText, notUploaded, trayLine } = await import("@/studio/stores/uploads");
+    const { fileRowText } = await import("@/studio/components/uploads/uploads");
+    expect(failureText("Failed to fetch", [])).toBe("Upload interrupted. Nothing was saved.");
+    expect(failureText("Load failed", [{ state: "uploaded" }])).toBe("Upload interrupted. Some files were saved.");
+    expect(failureText("A drop holds at most 10,000 files", [])).toBe("A drop holds at most 10,000 files");
+    const files = notUploaded([{ relPath: "a.png", size: 3 }]);
+    expect(files[0]).toMatchObject({ state: "failed", reason: "Not uploaded" });
+    const s = { key: "u", projectId: "p", title: "35 files", phase: "failed" as const, total: 35, prepared: 0, skippedJunk: 0, files, error: "Failed to fetch" };
+    expect(trayLine(s)).toBe("Upload interrupted. Nothing was saved.");
+    expect(fileRowText(s, { state: "pending", reason: null })).toBe("Not uploaded");
+    expect(fileRowText({ phase: "uploading" }, { state: "pending", reason: null })).toBe("Waiting");
+  });
+});

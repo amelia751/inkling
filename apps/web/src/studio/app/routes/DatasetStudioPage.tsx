@@ -28,7 +28,8 @@ import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, safeHref, type K
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
-import { api, putResume, useProjectSummary } from "@/studio/lib/projects-api";
+import { api, fetchTask, putResume, useProjectSummary } from "@/studio/lib/projects-api";
+import { projectTrashUrl } from "@/studio/lib/routes";
 import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
@@ -156,6 +157,9 @@ function StudioPage() {
     warmFromHint(datasetId);
   }
   const { data: project, isLoading, error } = useTaskDocument(datasetId);
+  // A Studio whose dataset is in Trash says so instead of opening (todo16 round 2).
+  const routeProjectId = useParams().projectId ?? "";
+  const summary = useQuery({ queryKey: ["tasks", datasetId, "summary"], queryFn: () => fetchTask(datasetId), enabled: kernelEnabled() && !!datasetId, staleTime: 30_000 });
   // todo13 J3: a drop applied to this Studio's collection shows up without a reload.
   useLiveDropItems(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
@@ -180,6 +184,18 @@ function StudioPage() {
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
+  if ((summary.data as { datasetTrashed?: boolean } | undefined)?.datasetTrashed)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col" data-testid="empty-dataset-in-trash">
+        <ErrorState
+          variant="page"
+          kind="not-found"
+          title="This Studio's dataset is in Trash"
+          description="Restore the dataset to open its Studio again. Trash keeps it for 30 days."
+          actions={routeProjectId ? <Link to={projectTrashUrl(routeProjectId)} className={buttonVariants({ size: "lg" })}>Open Trash</Link> : undefined}
+        />
+      </div>
+    );
   if (isLoading || saved.isLoading) return <FullPageMessage title="Opening Studio" loading shape="studio" />;
   if (error || !project) return <FullPageMessage kind="not-found" title="Task not found" body={`No task “${datasetId}” in this project. Seeds need pnpm seeds, then a reload.`} />;
   if (saved.error) return <FullPageMessage kind="error" title="Couldn't load annotations" body={String(saved.error)} />;

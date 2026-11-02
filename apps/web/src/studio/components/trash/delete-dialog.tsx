@@ -4,11 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CheckIcon, CloseIcon, DeleteIcon, MoreIcon, RenameIcon } from "@studio/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@studio/ui/ui/alert-dialog";
+import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Input } from "@studio/ui/ui/input";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { projectTrashUrl } from "@/studio/lib/routes";
-import { deleteResource, invalidateAfterTrash, KIND_LABEL, messageOf, movedToTrashToast, previewDelete, useRename, type DeletableKind, type Impact } from "@/studio/lib/trash-api";
+import { deleteResource, usedByLine, invalidateAfterTrash, KIND_LABEL, messageOf, movedToTrashToast, previewDelete, useRename, type DeletableKind, type Impact } from "@/studio/lib/trash-api";
 
 /**
  * Delete = move to Trash (todo16 D2). The dialog loads the impact preview (`?dryRun=true`) and
@@ -143,14 +144,14 @@ export function RenameInPlace({ projectId, kind, id, name, className, canEdit = 
  * The "…" menu on a dataset, collection or Studio (card menus, detail headers): Rename (in
  * place, through `onRename`) and Delete (the impact dialog, then the Moved to Trash toast).
  */
-export function ResourceMenu({ projectId, kind, id, name, onRename, onDeleted, canEdit = true }: { projectId: string; kind: DeletableKind; id: string; name: string; onRename?: () => void; onDeleted?: () => void; canEdit?: boolean }) {
+export function ResourceMenu({ projectId, kind, id, name, onRename, onDeleted, canEdit = true, testId = "resource-menu" }: { projectId: string; kind: DeletableKind; id: string; name: string; onRename?: () => void; onDeleted?: () => void; canEdit?: boolean; testId?: string }) {
   const [deleting, setDeleting] = useState(false);
   if (!canEdit) return null;
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost-secondary" size="icon-sm" aria-label={`More for ${name}`} data-testid="resource-menu">
+          <Button variant="ghost-secondary" size="icon-sm" aria-label={`More for ${name}`} data-testid={testId}>
             <MoreIcon />
           </Button>
         </DropdownMenuTrigger>
@@ -167,5 +168,52 @@ export function ResourceMenu({ projectId, kind, id, name, onRename, onDeleted, c
       </DropdownMenu>
       <DeleteDialog projectId={projectId} kind={kind} id={id} name={name} open={deleting} onOpenChange={setDeleting} onDeleted={onDeleted} />
     </>
+  );
+}
+
+/** The badge on a dataset item whose source file is in Trash (todo16 round 2). */
+export function InTrashBadge() {
+  return (
+    <Badge theme="unknown" data-testid="item-in-trash">
+      In Trash
+    </Badge>
+  );
+}
+
+/**
+ * Confirms trashing Sources files that datasets use: "Used by 2 datasets (340 items)". Only
+ * shown when the impact says a dataset loses items; otherwise the delete goes straight ahead.
+ */
+export function FilesDeleteDialog({ what, impact, open, onOpenChange, onConfirm }: { what: string; impact: Impact | null; open: boolean; onOpenChange: (open: boolean) => void; onConfirm: () => void }) {
+  const line = impact ? usedByLine(impact.datasetsLosingItems) : "";
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent data-testid="delete-dialog" data-kind="source">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Move {what} to Trash?</AlertDialogTitle>
+          <AlertDialogDescription>You can restore it for 30 days.</AlertDialogDescription>
+        </AlertDialogHeader>
+        {line && (
+          <div className="space-y-1 text-sm" data-testid="delete-used-by">
+            <p className="text-warning">{line}: those items show as In Trash until you restore.</p>
+            {impact!.datasetsLosingItems.length > 1 && (
+              <ul className="list-inside list-disc text-muted-foreground">
+                {impact!.datasetsLosingItems.map((d) => (
+                  <li key={d.id}>
+                    {d.name} ({d.items.toLocaleString()} {d.items === 1 ? "item" : "items"})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <Button variant="destructive" onClick={() => (onOpenChange(false), onConfirm())} data-testid="delete-confirm">
+            Move to Trash
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

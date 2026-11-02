@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { ImportSession, SourceNode } from "@studio/contracts/types";
-import { api, fetchChildren, fetchImports, fetchNode, fetchPreview, fetchSources, projectKeys, searchNodes } from "@/studio/lib/projects-api";
+import { api, fetchChildren, fetchImports, fetchNode, fetchPreview, fetchSources, projectKeys, searchNodesWithTrash } from "@/studio/lib/projects-api";
 
 /**
  * Sources queries (todo6 Phase 4). Every key sits under `["sources"]`, `["source-nodes"]` or
@@ -54,7 +54,7 @@ export function useSearch(projectId: string, q: string, kind: string | undefined
   return useQuery({
     queryKey: ["sources", "search", projectId, q, kind ?? "", status ?? ""],
     enabled: on,
-    queryFn: () => searchNodes(projectId, q, kind, status),
+    queryFn: () => searchNodesWithTrash(projectId, q, kind, status),
     staleTime: 5_000,
   });
 }

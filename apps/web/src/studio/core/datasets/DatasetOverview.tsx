@@ -13,7 +13,8 @@ import { ErrorView } from "@/studio/app/routes/errors";
 import { actorName, actorOf } from "@/studio/app/routes/ActivityPage";
 import { relativeTime } from "@/studio/components/files";
 import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
-import { datasetUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { datasetUrl, projectTrashUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
+import { allFilesInTrash } from "@/studio/lib/trash-api";
 import { api as versioning } from "@/studio/core/versioning/api";
 import { versioningEnabled } from "@/studio/core/versioning/session";
 import type { DatasetViewProps } from "./DatasetLayout";
@@ -39,6 +40,22 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
           {p.checking.toLocaleString()} {p.checking === 1 ? "file is" : "files are"} still being checked. Collections and counts fill in as inspection finishes.
         </Alert>
       ) : null}
+      {allFilesInTrash(d as { filesInTrash?: number; itemCount?: number }) && (
+        <Card>
+          <EmptyState
+            art="trash"
+            size="m"
+            title="This dataset's files are in Trash"
+            description="Its items show as In Trash until the files are restored. Trash keeps them for 30 days."
+            actions={
+              <Button variant="outline" size="lg" asChild>
+                <Link to={projectTrashUrl(projectId)} data-testid="empty-files-in-trash-restore">Restore from Trash</Link>
+              </Button>
+            }
+            data-testid="empty-files-in-trash"
+          />
+        </Card>
+      )}
       <DatasetSection id="collections-heading" title="Collections" testid="dataset-collections">
         {profile.error ? (
           <Card>
@@ -73,7 +90,7 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
       </DatasetSection>
 
       <div className="grid gap-8 lg:grid-cols-2 [&>*]:min-w-0">
-        <ContinueWorking projectId={projectId} dataset={d} />
+        <ContinueWorking projectId={projectId} dataset={d} canEdit={canEdit} />
         <NeedsAttention projectId={projectId} datasetId={d.id} profile={p} />
       </div>
 
@@ -111,7 +128,7 @@ function CollectionCard({ projectId, datasetId, collection: c }: { projectId: st
 }
 
 /** The dataset's annotation work (each task opens a Studio): the way back into what was underway. */
-function ContinueWorking({ projectId, dataset: d }: { projectId: string; dataset: DatasetSummary }) {
+function ContinueWorking({ projectId, dataset: d, canEdit = false }: { projectId: string; dataset: DatasetSummary; canEdit?: boolean }) {
   return (
     <DatasetSection id="continue-heading" title="Continue where you left off">
       {d.tasks.length === 0 ? (
@@ -120,7 +137,7 @@ function ContinueWorking({ projectId, dataset: d }: { projectId: string; dataset
         </Card>
       ) : (
         <Card className="overflow-hidden" data-testid="dataset-tasks">
-          <TaskList projectId={projectId} tasks={d.tasks} />
+          <TaskList projectId={projectId} tasks={d.tasks} canEdit={canEdit} />
         </Card>
       )}
     </DatasetSection>

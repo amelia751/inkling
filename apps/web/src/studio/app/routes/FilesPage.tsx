@@ -48,6 +48,8 @@ import {
 } from "@/studio/components/files";
 import { fetchNode, projectKeys, useProjectSummary } from "@/studio/lib/projects-api";
 import { KINDS, nodeIcon, nodeKind } from "@/studio/lib/file-kinds";
+import { FilesDeleteDialog } from "@/studio/components/trash/delete-dialog";
+import { fetchFilesImpact, trashedMatchesLine, type Impact } from "@/studio/lib/trash-api";
 import { exploreUrl, filesUrl, pipelinesUrl, studioUrl, trashUrl } from "@/studio/lib/routes";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fromDataTransfer, hasFiles } from "@/studio/lib/uploads/walk";
@@ -254,7 +256,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     );
 
   // ---- The rows shown -------------------------------------------------------------------------
-  const rawItems: SourceNode[] = useMemo(() => (searching ? (search.data ?? []) : rowsOf(listQ.data)), [searching, search.data, listQ.data]);
+  const rawItems: SourceNode[] = useMemo(() => (searching ? (search.data?.items ?? []) : rowsOf(listQ.data)), [searching, search.data, listQ.data]);
   // Server order (folders first, the sort key, then the name), except what only the client sorts.
   const items = useMemo(() => (searching || sort.key === "status" ? sortItems(rawItems, sort) : rawItems), [rawItems, sort, searching]);
   const listLoading = searching ? search.isLoading : drive.isLoading || anchor.isLoading || listQ.isLoading;
@@ -507,9 +509,15 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     await ops.run([{ kind: copy ? "copy" : "move", nodeIds: ids, parentId }]);
   };
 
-  const trashNodes = async (nodes: SourceNode[]) => {
+  // Trashing files a dataset uses asks first: "Used by 2 datasets (340 items)" (todo16 round 2).
+  const [usedBy, setUsedBy] = useState<{ nodes: SourceNode[]; impact: Impact } | null>(null);
+  const trashNodes = async (nodes: SourceNode[], confirmed = false) => {
     const list = nodes.filter((n) => !isRootId(n.id));
     if (!list.length) return;
+    if (!confirmed) {
+      const impact = await fetchFilesImpact(projectId, list.map((n) => n.id));
+      if (impact?.datasetsLosingItems.length) return setUsedBy({ nodes: list, impact });
+    }
     const res = await ops.run([{ kind: "trash", nodeIds: list.map((n) => n.id) }], { fallback: list.length === 1 ? `Moved “${list[0].name}” to Trash` : `Moved ${plural(list.length, "item")} to Trash` });
     if (!res) return;
     setSelection((s) => s.filter((id) => !list.some((n) => n.id === id)));
@@ -1217,7 +1225,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         )}
         {(searching || !!query) && (
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-border px-4 py-1.5 text-sm" data-testid="search-chips" onMouseDown={(e) => e.preventDefault()}>
-            <span className="mr-1 text-muted-foreground">{searching ? (search.isLoading ? "Searching" : `${(search.data ?? []).length.toLocaleString()}${(search.data ?? []).length >= 200 ? "+" : ""} found`) : "Filter"}</span>
+            <span className="mr-1 text-muted-foreground">{searching ? (search.isLoading ? "Searching" : `${(search.data?.items ?? []).length.toLocaleString()}${(search.data?.items ?? []).length >= 200 ? "+" : ""} found`) : "Filter"}</span>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Chip on={!!kind} data-testid="chip-kind">{kind ? KINDS[kind].plural : "Kind"}</Chip>
@@ -1233,6 +1241,11 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
             {STATUS_CHIPS.map((c) => (
               <Chip key={c.value} on={status === c.value} onClick={() => setParam("status", status === c.value ? undefined : c.value)} data-testid={`chip-${c.value}`}>{c.label}</Chip>
             ))}
+            {searching && !!search.data?.trashedMatches && (
+              <Link to={trashUrl(projectId)} className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" data-testid="search-trashed-matches">
+                {trashedMatchesLine(search.data.trashedMatches)}
+              </Link>
+            )}
             {searching && (
               <Button
                 variant="ghost-secondary"
@@ -1506,6 +1519,13 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
       <QuickLook items={qlItems} current={ql} onStep={(n) => (setQl(n), !trash && setSelection([n.id]))} onClose={() => setQl(null)} onKey={(e) => qlKeys(e) || keys(e)} />
       <FsDragGhost />
       {ops.dialogs}
+      <FilesDeleteDialog
+        what={usedBy ? (usedBy.nodes.length === 1 ? `“${usedBy.nodes[0].name}”` : plural(usedBy.nodes.length, "item")) : ""}
+        impact={usedBy?.impact ?? null}
+        open={!!usedBy}
+        onOpenChange={(o) => !o && setUsedBy(null)}
+        onConfirm={() => usedBy && void trashNodes(usedBy.nodes, true)}
+      />
       <MoveDialog
         open={!!moveDlg}
         onOpenChange={(o) => !o && setMoveDlg(null)}

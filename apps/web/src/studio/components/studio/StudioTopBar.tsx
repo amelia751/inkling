@@ -1,5 +1,7 @@
-import { Link, useParams } from "react-router";
-import { ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon, SettingsIcon, LightThemeIcon, SecurityIcon, DoneIcon } from "@studio/ui/icons";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router";
+import { DeleteDialog, RenameInPlace } from "@/studio/components/trash/delete-dialog";
+import { ExportIcon, MoreIcon, KeyboardIcon, ReviewIcon, SidebarIcon, AiIcon, ToolIcon, SettingsIcon, LightThemeIcon, SecurityIcon, DoneIcon, RenameIcon, DeleteIcon } from "@studio/ui/icons";
 import { toast } from "sonner";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { markKnownGood } from "@/studio/lib/safe-mode";
@@ -12,6 +14,7 @@ import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -72,6 +75,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
   // The one primary action follows the stage: Request review when there is a draft to review.
   const reviewFirst = useDraftHasChanges(project.id);
   const sameTitle = project.title.trim().toLowerCase() === routeProject.title.trim().toLowerCase();
+  const [renaming, setRenaming] = useState(false);
 
   return (
     <header className="@container flex h-12 shrink-0 items-center gap-2 border-b border-border bg-header pl-2 pr-2 text-foreground @[640px]:gap-6 @[640px]:pl-3.5 @[640px]:pr-3" data-testid="studio-header">
@@ -102,7 +106,11 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
             {routeProject.title}
           </Link>
           {!sameTitle && <span className="text-hint" aria-hidden>›</span>}
-          <TaskSwitcher projectId={p} taskId={project.id} title={project.title} subtitle={env ? envLabel(env) : undefined} compact={sameTitle} />
+          {renaming ? (
+            <RenameInPlace projectId={p} kind="studio" id={project.id} name={project.title} className="flex min-w-0 items-center gap-1" editing onEditingChange={setRenaming} />
+          ) : (
+            <TaskSwitcher projectId={p} taskId={project.id} title={project.title} subtitle={env ? envLabel(env) : undefined} compact={sameTitle} />
+          )}
           <CollectionSwitcher projectId={p} taskId={project.id} />
         </nav>
       </div>
@@ -137,7 +145,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
               tooltip={<ActionTooltipContent title={aiOpen ? "Close Assistant" : "Launch Assistant"} />}
             />
           )}
-          <MoreMenu projectId={p} taskId={project.id} datasetId={datasetId} exportInMenu={reviewFirst || readOnly} onShowShortcuts={onShowShortcuts} />
+          <MoreMenu projectId={p} taskId={project.id} taskTitle={project.title} datasetId={datasetId} exportInMenu={reviewFirst || readOnly} canEdit={!readOnly && kernelEnabled()} onRename={() => setRenaming(true)} onShowShortcuts={onShowShortcuts} />
         </div>
       </div>
     </header>
@@ -145,8 +153,10 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
 }
 
 /** ⋯: everything that isn't this task's next step, each in one home (todo8 D1). */
-function MoreMenu({ projectId, taskId, datasetId, exportInMenu, onShowShortcuts }: { projectId: string; taskId: string; datasetId: string; exportInMenu: boolean; onShowShortcuts: () => void }) {
+function MoreMenu({ projectId, taskId, taskTitle, datasetId, exportInMenu, canEdit, onRename, onShowShortcuts }: { projectId: string; taskId: string; taskTitle: string; datasetId: string; exportInMenu: boolean; canEdit: boolean; onRename: () => void; onShowShortcuts: () => void }) {
   const { preference, setPreference } = useTheme();
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
   // The menu renders in a portal, outside the header's container queries: below 480px the
   // header's Export button is hidden, so Export is always here then.
   const narrow = useWindowWidth() < 480;
@@ -215,7 +225,19 @@ function MoreMenu({ projectId, taskId, datasetId, exportInMenu, onShowShortcuts 
             <ReviewIcon /> Open project Review
           </Link>
         </DropdownMenuItem>
+        {canEdit && (
+          <DropdownMenuGroup data-testid="studio-header-menu">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onRename} data-testid="resource-rename">
+              <RenameIcon /> Rename Studio
+            </DropdownMenuItem>
+            <DropdownMenuItem className="text-danger" onSelect={() => setDeleting(true)} data-testid="resource-delete">
+              <DeleteIcon /> Delete Studio…
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        )}
       </DropdownMenuContent>
+      <DeleteDialog projectId={projectId} kind="studio" id={taskId} name={taskTitle} open={deleting} onOpenChange={setDeleting} onDeleted={() => navigate(projectUrl(projectId))} />
     </DropdownMenu>
   );
 }

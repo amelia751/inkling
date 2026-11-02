@@ -232,3 +232,42 @@ export function movedToTrashToast(opts: { qc: QueryClient; projectId: string; ba
     cancel: { label: "Open Trash", onClick: openTrash },
   });
 }
+
+// ---- Round 2: impact of a file delete, trashed items, empty states ------------------------------
+
+/**
+ * What trashing these Sources nodes takes from datasets (`GET /projects/{pid}/trash/impact`).
+ * Resolves `null` when the api doesn't have the endpoint yet, so the delete still goes ahead.
+ */
+export async function fetchFilesImpact(projectId: string, nodeIds: string[]): Promise<Impact | null> {
+  try {
+    const r = await api<{ impact?: Partial<Impact> } & Partial<Impact>>(`/projects/${P(projectId)}/trash/impact?nodeIds=${nodeIds.map(P).join(",")}`);
+    const i = r.impact ?? r;
+    return { items: i.items ?? [], files: i.files ?? 0, datasetsLosingItems: i.datasetsLosingItems ?? [] };
+  } catch {
+    return null;
+  }
+}
+
+/** "Used by 2 datasets (340 items)", or "" when no dataset loses an item. */
+export function usedByLine(datasets: Impact["datasetsLosingItems"]): string {
+  if (!datasets.length) return "";
+  const items = datasets.reduce((n, d) => n + d.items, 0);
+  const what = datasets.length === 1 ? datasets[0].name : `${datasets.length} datasets`;
+  return `Used by ${what} (${items.toLocaleString()} ${items === 1 ? "item" : "items"})`;
+}
+
+/** A dataset item (or row) whose source file is in Trash (`state: "trashed"`). */
+export function isTrashedItem(x: unknown): boolean {
+  return !!x && typeof x === "object" && (x as { state?: unknown }).state === "trashed";
+}
+
+/** Every one of the dataset's files is in Trash (`filesInTrash`, `itemCount` on the dataset). */
+export function allFilesInTrash(d: { filesInTrash?: number; itemCount?: number } | null | undefined): boolean {
+  return !!d && !!d.filesInTrash && d.filesInTrash >= (d.itemCount ?? Number.POSITIVE_INFINITY);
+}
+
+/** "3 matches in Trash", or "" when there are none. */
+export function trashedMatchesLine(n: number | undefined): string {
+  return n ? `${n.toLocaleString()} ${n === 1 ? "match" : "matches"} in Trash` : "";
+}

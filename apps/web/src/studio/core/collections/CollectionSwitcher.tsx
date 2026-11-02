@@ -1,10 +1,12 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { RenameInPlace, ResourceMenu } from "@/studio/components/trash/delete-dialog";
 import { useNavigate } from "react-router";
 import { CheckIcon, ChevronDownIcon } from "@studio/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { api, fetchTask } from "@/studio/lib/projects-api";
-import { studioUrl } from "@/studio/lib/routes";
+import { projectUrl, studioUrl } from "@/studio/lib/routes";
 
 /** `GET /v1/projects/:p/datasets/:d/collections` (todo13 D7). */
 export interface CollectionSummary {
@@ -29,6 +31,7 @@ export const fetchCollections = (projectId: string, datasetId: string) =>
  */
 export function CollectionSwitcher({ projectId, taskId }: { projectId: string; taskId: string }) {
   const navigate = useNavigate();
+  const [renaming, setRenaming] = useState(false);
   const kernel = kernelEnabled();
   const task = useQuery({ queryKey: ["tasks", taskId, "summary"], queryFn: () => fetchTask(taskId), enabled: kernel && !!taskId, staleTime: 30_000 });
   const datasetId = task.data?.datasetId;
@@ -36,7 +39,9 @@ export function CollectionSwitcher({ projectId, taskId }: { projectId: string; t
   const list = (cols.data?.collections ?? []).filter((c) => c.viewable || c.taskIds.length);
   if (list.length < 2) return null;
   const mine = task.data?.collectionId ? list.find((c) => c.id === task.data!.collectionId) : list.find((c) => c.taskIds.includes(taskId));
+  if (renaming && mine) return <RenameInPlace projectId={projectId} kind="collection" id={mine.id} name={mine.name} className="flex min-w-0 items-center gap-1" editing onEditingChange={setRenaming} />;
   return (
+    <span className="flex min-w-0 items-center gap-0.5">
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -68,5 +73,9 @@ export function CollectionSwitcher({ projectId, taskId }: { projectId: string; t
         })}
       </DropdownMenuContent>
     </DropdownMenu>
+    {mine && (
+      <ResourceMenu projectId={projectId} kind="collection" id={mine.id} name={mine.name} testId="collection-menu" onRename={() => setRenaming(true)} onDeleted={() => navigate(projectUrl(projectId, "datasets"))} />
+    )}
+    </span>
   );
 }

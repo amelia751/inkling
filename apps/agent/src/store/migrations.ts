@@ -57,6 +57,15 @@ CREATE TABLE agent_run_inputs (
 CREATE INDEX agent_run_inputs_answered ON agent_run_inputs (run_id) WHERE state = 'answered';
 `,
   },
+  {
+    // todo9 Phase 5: sessions belong to a person in one organization. Rows from before (owner `local`,
+    // no org) stay; no signed-in person can list them.
+    version: 2,
+    sql: `
+ALTER TABLE agent_sessions ADD COLUMN org_id text;
+CREATE INDEX agent_sessions_owner_org ON agent_sessions (owner, org_id);
+`,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS.at(-1)!.version;

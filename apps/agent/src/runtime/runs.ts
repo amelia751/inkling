@@ -30,7 +30,17 @@ export class Run {
   failed = false;
   readonly usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0 };
 
-  constructor(readonly sessionId: string) {}
+  /** Who the run acts for (the session's owner, `user:<sub>` in workos mode) and in which organization. */
+  readonly principal: string | undefined;
+  readonly orgId: string | undefined;
+
+  constructor(
+    readonly sessionId: string,
+    who: { principal?: string; orgId?: string } = {},
+  ) {
+    this.principal = who.principal;
+    this.orgId = who.orgId;
+  }
 
   /** Idempotent and monotonic: illegal or repeated transitions are ignored and return false. */
   transition(to: RunStatus): boolean {

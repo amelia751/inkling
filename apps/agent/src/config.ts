@@ -44,6 +44,19 @@ const schema = z.object({
   AGENT_HOST: z.string().default("127.0.0.1"),
   AGENT_PORT: int(8100),
   AGENT_TOKEN: optional,
+  /**
+   * Who the browser's calls act as (todo9 Phase 5). `dev`: the service token alone, every person is
+   * the one local principal. `workos`: browser-proxied calls also carry the person's WorkOS access
+   * token as `Authorization: Bearer`, verified against the client's JWKS; the service token moves to
+   * `X-Agent-Service-Token`.
+   */
+  AGENT_AUTH_MODE: z.enum(["dev", "workos"]).default("dev"),
+  /** `client_…`: builds the JWKS URL (`<base>/sso/jwks/<client id>`). No API key needed to verify. */
+  AGENT_WORKOS_CLIENT_ID: optional,
+  /** Expected `iss` of access tokens; unchecked when unset. */
+  AGENT_WORKOS_ISSUER: optional,
+  /** WorkOS API origin, e.g. `http://localhost:4100` for WorkOS Emulate; https://api.workos.com otherwise. */
+  AGENT_WORKOS_BASE_URL: z.string().url().optional().or(z.literal("").transform(() => undefined)),
 
   AGENT_MODEL: z.string().default("openai:gpt-6.1-sol"),
   AGENT_MODEL_ALLOWLIST: z
@@ -154,6 +167,8 @@ export interface Config {
   host: string;
   port: number;
   serviceToken: string | undefined;
+  /** How callers are identified (todo9 Phase 5); `workos` carries what verifying access tokens needs. */
+  auth: { mode: "dev" } | { mode: "workos"; clientId: string; issuer: string | undefined; baseUrl: string | undefined };
   model: { provider: string; id: string; allowlist: string[]; thinking: Env["AGENT_THINKING"] };
   providerKeys: Record<string, string>;
   /** Set when Vertex AI is configured (project and location); its "key" in providerKeys is the ADC marker. */
@@ -247,6 +262,11 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   const backend: string[] = [];
   if (e.AGENT_STORE === "postgres" && !e.AGENT_DATABASE_URL) backend.push(envName("AGENT_DATABASE_URL"));
   if (e.AGENT_EVENT_BUS === "redis" && !e.AGENT_REDIS_URL) backend.push(envName("AGENT_REDIS_URL"));
+  if (e.AGENT_AUTH_MODE === "workos") {
+    // Fail closed in every stage: a workos-mode agent that can't verify tokens must not start.
+    const need = [!e.AGENT_WORKOS_CLIENT_ID && envName("AGENT_WORKOS_CLIENT_ID"), !e.AGENT_TOKEN && envName("AGENT_TOKEN")].filter(Boolean);
+    if (need.length) throw new ConfigError(`${envName("AGENT_AUTH_MODE")}=workos needs ${need.join(", ")}`);
+  }
   if (e.ENV === "production") {
     if (!e.AGENT_TOKEN) missing.push(envName("AGENT_TOKEN"));
     missing.push(...backend);
@@ -263,6 +283,10 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       host: e.AGENT_HOST,
       port: e.AGENT_PORT,
       serviceToken: e.AGENT_TOKEN,
+      auth:
+        e.AGENT_AUTH_MODE === "workos"
+          ? { mode: "workos", clientId: e.AGENT_WORKOS_CLIENT_ID!, issuer: e.AGENT_WORKOS_ISSUER, baseUrl: e.AGENT_WORKOS_BASE_URL }
+          : { mode: "dev" },
       model: { provider, id, allowlist, thinking: e.AGENT_THINKING },
       providerKeys,
       vertex,

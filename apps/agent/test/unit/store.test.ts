@@ -47,6 +47,21 @@ function contract(name: string, make: () => Promise<SessionStore>, cleanup: () =
       expect(await s.activeRunForSession(m.id)).toBeUndefined();
     });
 
+    it("lists sessions by owner and organization (todo9 Phase 5)", async () => {
+      const u = `user:${randomUUID()}`;
+      const a = { ...meta(sid(), u), orgId: "org_a" };
+      const b = { ...meta(sid(), u), orgId: "org_b" };
+      const other = { ...meta(sid(), `user:${randomUUID()}`), orgId: "org_a" };
+      const noOrg = meta(sid(), u);
+      for (const m of [a, b, other, noOrg]) await s.putMeta(m);
+      const ids = async (orgId: string | undefined, projectId?: string) => (await s.listSessions({ owner: u, orgId, projectId })).map((m) => m.id);
+      expect(await ids("org_a")).toEqual([a.id]);
+      expect(await ids("org_b")).toEqual([b.id]);
+      expect(await ids(undefined)).toEqual([noOrg.id]);
+      expect(await ids("org_a", "elsewhere")).toEqual([]);
+      for (const m of [a, b, other, noOrg]) await s.deleteSession(m.id);
+    });
+
     it("keeps the transcript in order, header first", async () => {
       const m = meta();
       await s.putMeta(m);

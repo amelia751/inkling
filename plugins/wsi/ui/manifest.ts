@@ -4,6 +4,7 @@ import { tool } from "@studio/renderers/tool-catalog";
 import { defineModule, type GeometryContribution } from "@studio/plugin-ui-sdk/module";
 import type { Geometry, Project, StudioItem } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 export const WSI = ns("wsi");
 const ON_OSD = `renderer == ${WSI}.renderers.osd`;
@@ -20,7 +21,7 @@ export type WsiConfig = z.infer<typeof WsiConfigSchema>;
 function groupItems(project: Project): StudioItem[] {
   return project.assets
     .filter((a) => a.role !== "thumbnail")
-    .map((a) => ({ id: a.path, name: a.slide ?? a.path, group: "Slides", assets: [a], dataKind: `${WSI}.dataKinds.raster-pyramid` }));
+    .map((a) => ({ id: a.path, name: assetName(a), group: "Slides", assets: [a], dataKind: `${WSI}.dataKinds.raster-pyramid` }));
 }
 
 /** Cell points are core `keypoint`s (v1 `mark`), described the way pathologists read them. */

@@ -48,7 +48,7 @@ const snapshotSchema = z.object({
     restricted: z.boolean(),
   }),
   items: z.array(
-    z.object({ id: z.string(), name: z.string(), group: z.string(), sourceLabel: z.string().optional(), assets: z.array(z.string()).optional() }),
+    z.object({ id: z.string(), name: z.string(), group: z.string(), sourceLabel: z.string().optional(), assets: z.array(z.string()).optional(), kind: z.string().max(200).optional() }),
   ),
   annotations: z.array(
     z.object({

@@ -16,10 +16,12 @@ import { markAfterPaint } from "@/extension-host/boot-timing";
 import { useStudio } from "@/studio/stores/studio";
 import { readView, useItemsView, type ItemsView } from "@/studio/stores/items-view";
 import { itemKind, KINDS } from "@/studio/lib/file-kinds";
+import { kindChips } from "@/studio/lib/kind-chips";
 import { itemNoun, plural, pluralWord } from "@/studio/lib/format";
 import { filesUrl } from "@/studio/lib/routes";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
-import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState } from "@/studio/lib/item-folders";
+import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState, type QueueFilter } from "@/studio/lib/item-folders";
+import { kindFolder, queueCountsByKind } from "@/studio/lib/per-kind";
 import { bundleCount, HOVER_DELAY_MS, ItemHoverCard } from "./item-hover-card";
 import { ItemThumb } from "./item-thumb";
 import { DropOverlay, usePickers } from "@/studio/components/uploads/uploads";
@@ -110,7 +112,11 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   const suffixes = useMemo(() => disambiguate(viewItems), [viewItems]);
   // todo11 D8: items dropped here ingest in place; their rows get thumbnails (skeletons first).
   const thumbs = useMemo(() => items.some((i) => i.assets[0]?.ingest), [items]);
-  const mixed = useMemo(() => mixesKinds(items.map((i) => itemKind(i) ?? i.dataKind)), [items]);
+  const itemKinds = useMemo(() => viewItems.map((i) => itemKind(i) ?? i.dataKind ?? ""), [viewItems]);
+  const mixed = useMemo(() => mixesKinds(itemKinds), [itemKinds]);
+  // todo19 D11: kind filter chips when the Studio mixes kinds.
+  const chips = useMemo(() => kindChips(itemKinds), [itemKinds]);
+  const [kindFilter, setKindFilter] = useState<string | null>(null);
 
   const chosen = useItemsView((s) => s.views[taskId]);
   const setView = useItemsView((s) => s.setView);
@@ -148,9 +154,10 @@ export function FilesPanel({ items, env, project }: PanelProps) {
     return viewItems.flatMap((it, index) => {
       if (q && !it.name.toLowerCase().includes(q) && !(it.folder ?? []).some((s) => s.toLowerCase().includes(q))) return [];
       if (folderFilter && !inFolder(it.folder, folderFilter)) return [];
+      if (kindFilter !== null && itemKinds[index] !== kindFilter) return [];
       return [index];
     });
-  }, [viewItems, query, folderFilter]);
+  }, [viewItems, query, folderFilter, kindFilter, itemKinds]);
 
   // ---- Hover card (400ms) and row menu -------------------------------------------------------
   const [hover, setHover] = useState<{ index: number; left: number; top: number } | null>(null);
@@ -211,6 +218,12 @@ export function FilesPanel({ items, env, project }: PanelProps) {
     for (const f of QUEUE_FILTERS) out[f.id] = matching.filter((i) => inQueue(stateOf(items[i]), f.id)).length;
     return out;
   }, [matching, items, stateOf]);
+  // todo19 D8: the same counts per kind (item counts only; throughput units never add up across kinds).
+  const byKind = useMemo(
+    () => (mixed ? queueCountsByKind(matching.map((i) => items[i]), (k) => stateOf(items[matching[k]]), env.dataKind.id).byKind : {}),
+    [mixed, matching, items, stateOf, env.dataKind.id],
+  );
+  const kindTitle = (f: QueueFilter) => Object.entries(byKind).map(([k, c]) => `${kindFolder(k)} ${c[f]}`).join(" · ") || undefined;
   const queued = matching.filter((i) => inQueue(stateOf(items[i]), queueFilter));
 
   const hovered = hover ? items[hover.index] : undefined;
@@ -251,6 +264,29 @@ export function FilesPanel({ items, env, project }: PanelProps) {
           </button>
         </div>
       )}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1 px-2 pb-1.5" role="group" aria-label="Kind" data-testid="kind-chips">
+          {chips.map((c) => {
+            const kv = c.kind in KINDS ? KINDS[c.kind as keyof typeof KINDS] : undefined;
+            const Icon = kv?.icon;
+            const on = kindFilter === c.kind;
+            return (
+              <button
+                key={c.kind}
+                onClick={() => setKindFilter(on ? null : c.kind)}
+                aria-pressed={on}
+                className={cn("flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors", on ? "bg-selection text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground")}
+                data-testid="kind-chip"
+                data-kind={c.kind}
+              >
+                {Icon && <Icon className="size-3.5" aria-hidden />}
+                {kv?.label ?? (c.kind.split(".").pop() || "Other")}
+                <span className="tnum text-hint">{c.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {view === "queue" ? (
         <>
           <div className="flex flex-wrap gap-1 px-2 pb-1.5" role="group" aria-label="Status">
@@ -265,6 +301,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
                 )}
                 data-testid="queue-chip"
                 data-filter={f.id}
+                title={kindTitle(f.id)}
               >
                 {f.label}
                 <span className="tnum text-hint">{counts[f.id]}</span>

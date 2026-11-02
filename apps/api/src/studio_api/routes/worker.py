@@ -222,7 +222,8 @@ def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends
 def claim_derivatives(body: dict = Body(default={}), db: Session = Depends(get_session)):
     from ..kernel import derivatives
 
-    rows = derivatives.claim(db, int(body.get("limit") or 1), int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS))
+    kinds = body.get("kinds")
+    rows = derivatives.claim(db, int(body.get("limit") or 1), int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS), kinds=[str(k) for k in kinds] if isinstance(kinds, list) else None)
     db.commit()
     return {"derivatives": [derivatives.public(r) for r in rows]}
 
@@ -279,7 +280,7 @@ def derivative_fail(did: str, body: dict = Body(...), db: Session = Depends(get_
     from ..kernel import derivatives
 
     row = derivatives.get(db, did)
-    derivatives.fail(db, row, str(body.get("reason") or "Conversion failed"), retry=bool(body.get("retry")), max_attempts=int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS))
+    derivatives.fail(db, row, str(body.get("reason") or "Conversion failed"), retry=bool(body.get("retry")), max_attempts=int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS), unavailable=bool(body.get("unavailable")))
     db.commit()
     return derivatives.public(row)
 
@@ -465,3 +466,25 @@ def boundary_fail(job_id: str, body: dict = Body(...), db: Session = Depends(get
     j = boundary.fail(db, boundary.worker_job(db, job_id, str(body.get("workerId"))), str(body.get("errorClass") or "Other"), bool(body.get("recoverable", False)))
     return {"state": j.state}
 
+
+
+# ---- Worker capabilities (todo19 D10): which converters each worker has, with a TTL.
+
+workers_router = APIRouter(prefix="/api/v1/workers")
+
+
+@workers_router.post("/capabilities", dependencies=[Depends(_auth)])
+def report_capabilities(body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import capabilities
+
+    caps = body.get("capabilities") if isinstance(body.get("capabilities"), dict) else {}
+    requeued = capabilities.report(db, str(body.get("workerId") or "worker"), caps, ttl_s=int(body.get("ttlS") or capabilities.TTL_S))
+    db.commit()
+    return {"requeued": requeued, "kinds": capabilities.kinds_for(caps)}
+
+
+@workers_router.get("/capabilities", dependencies=[Depends(_auth)])
+def list_capabilities(db: Session = Depends(get_session)):
+    from ..kernel import capabilities
+
+    return {"capabilities": capabilities.live(db)}

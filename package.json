@@ -12,6 +12,7 @@
   "scripts": {
     "dev": "node tools/dev.mjs",
     "dev:signin": "node tools/dev.mjs --signin",
+    "doctor": "node tools/doctor.mjs",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",

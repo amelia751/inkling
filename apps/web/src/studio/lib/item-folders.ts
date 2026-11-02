@@ -1,7 +1,7 @@
 import { labelClasses } from "@studio/contracts/environment";
-import type { Project, StudioItem } from "@studio/contracts/types";
+import type { Project, SeedAsset, StudioItem } from "@studio/contracts/types";
 import { studioDefaults } from "./task-setup";
-import type { ResolvedEnv } from "@studio/plugin-ui-sdk/resolved";
+import type { ResolvedEnv, ResolvedProfile } from "@studio/plugin-ui-sdk/resolved";
 
 /**
  * Items follow the file system (todo8 D3, D8). Pure helpers for the Items panel, the status
@@ -254,8 +254,46 @@ export function mixesKinds(kinds: (string | undefined)[]): boolean {
  * The Studio's items for a task document: the data kind's grouping, then each item's Data
  * folder and node (D3), with label-named folders left out when the task is blind (D8).
  */
-export function studioItems(project: Project, env: Pick<ResolvedEnv, "spec" | "task" | "labels" | "dataKind">): StudioItem[] {
-  const items = withFolders(env.dataKind.groupItems(project));
+export function studioItems(project: Project, env: Pick<ResolvedEnv, "spec" | "task" | "labels" | "dataKind"> & Partial<Pick<ResolvedEnv, "profiles">>): StudioItem[] {
+  const items = withFolders(itemsByKind(project, env));
   const classes = labelClasses(env.labels).flatMap((c) => [c.id, ...(c.name ? [c.name] : [])]);
   return blindFolders(items, classes, showSourceLabels(env));
+}
+
+/** Whether a profile's kind claims an asset: its `kind` names the kind (full id, local name or a detected file kind), else its extension matches. */
+function claims(p: Pick<ResolvedProfile, "kind">, a: SeedAsset, byExt: boolean): boolean {
+  const k = p.kind;
+  if (a.kind) return a.kind === k.id || a.kind === k.name || !!k.fileKinds?.includes(a.kind);
+  if (!byExt) return false;
+  const name = (a.name ?? a.path).toLowerCase();
+  return !!k.match?.ext?.some((e) => name.endsWith(e.toLowerCase()));
+}
+
+/**
+ * Items per kind (todo19 D3, D6): the task's assets split by kind, each part grouped by that
+ * kind's own `groupItems` (so group items such as a subject or a WFDB record still come from
+ * their plugin), concatenated in profile order. Each item is tagged with `dataKind` (its kind)
+ * and `profile` (the profile id it opens with). Assets no profile claims become one-file items
+ * without a profile: the viewport host shows them in the generic file view. A one-kind
+ * environment hands every asset to its kind, as before.
+ */
+export function itemsByKind(project: Project, env: Pick<ResolvedEnv, "dataKind"> & Partial<Pick<ResolvedEnv, "profiles">>): StudioItem[] {
+  const profiles = Object.values(env.profiles ?? {});
+  const tag = (items: StudioItem[], p: Pick<ResolvedProfile, "kind" | "id"> | undefined) => items.map((it) => ({ ...it, dataKind: it.dataKind ?? p?.kind.id, ...(p ? { profile: p.id } : {}) }));
+  if (profiles.length <= 1) return tag(env.dataKind.groupItems(project), profiles[0]);
+  const buckets = new Map<ResolvedProfile, SeedAsset[]>(profiles.map((p) => [p, []]));
+  const loose: SeedAsset[] = [];
+  for (const a of project.assets) {
+    // An untagged thumbnail goes with the kinds that have thumbnails (slides), never as its own item.
+    const thumb = a.role === "thumbnail" && !a.kind;
+    const p = thumb ? profiles.find((x) => x.kind.fileKinds?.includes("slide")) : (profiles.find((x) => claims(x, a, false)) ?? profiles.find((x) => claims(x, a, true)));
+    if (p) buckets.get(p)!.push(a);
+    else if (!thumb) loose.push(a);
+  }
+  const grouped = profiles.flatMap((p) => {
+    const assets = buckets.get(p)!;
+    return assets.length ? tag(p.kind.groupItems({ ...project, assets }), p) : [];
+  });
+  const files: StudioItem[] = loose.map((a) => ({ id: a.path, name: a.name ?? a.path.split("/").pop() ?? a.path, group: "Files", assets: [a], sourceLabel: a.label, dataKind: a.kind }));
+  return [...grouped, ...files];
 }

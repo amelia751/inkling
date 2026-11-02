@@ -13,6 +13,7 @@ import { runtimeFor, useRuntimeVersion } from "@studio/plugin-ui-sdk/runtime";
 import { diffSpecs, patchEnvironment } from "@/studio/lib/environment-edits";
 import { isEditable, LOCAL_AUTHOR, useStudio } from "@/studio/stores/studio";
 import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
+import { labelsForItem } from "@/studio/lib/per-kind";
 import { OnThisItem } from "./onThisItem";
 import { ProvenanceBadge } from "./provenance";
 
@@ -30,12 +31,14 @@ function Heading({ children, id }: { children: React.ReactNode; id?: string }) {
  * current item's annotations), with the selection pinned to the bottom.
  */
 export function LabelsPanel({ env, project, items }: PanelProps) {
-  const labels = regionLabelNames(env.labels);
-  const choiceGroups = env.labels.filter((g) => g.control === "Choices");
   const annotations = useStudio((s) => s.annotations);
   const itemIndex = useStudio((s) => s.itemIndex);
   const setClass = useStudio((s) => s.setClass);
   const item = items[itemIndex];
+  // todo19 D7: only the groups that apply to the active item's kind.
+  const groups = labelsForItem(env, item);
+  const labels = regionLabelNames(groups);
+  const choiceGroups = groups.filter((g) => g.control === "Choices");
   const selectedId = useStudio((s) => s.selectedId);
   const selectedIds = useStudio((s) => s.selectedIds);
   const selected = annotations.find((a) => a.id === selectedId);

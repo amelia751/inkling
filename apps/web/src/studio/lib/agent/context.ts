@@ -31,7 +31,7 @@ export function buildAgentContext(project: Project, items: StudioItem[]): AgentC
       restricted: !!project.restricted,
     },
     // Blind tasks (todo8 D8): the assistant doesn't get the label that came with the file either.
-    items: items.map((i) => ({ id: i.id, name: i.name, group: i.group, ...(blind ? {} : { sourceLabel: i.sourceLabel }), assets: i.assets.map((a) => a.path) })),
+    items: items.map((i) => ({ id: i.id, name: i.name, group: i.group, ...(blind ? {} : { sourceLabel: i.sourceLabel }), assets: i.assets.map((a) => a.path), ...(i.dataKind ? { kind: i.dataKind } : {}) })),
     annotations: s.annotations.slice(0, MAX_ANNOTATIONS).map((a) => ({
       id: a.id,
       itemId: a.itemId,

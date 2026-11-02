@@ -3,6 +3,7 @@ import { FileIcon, KeypointIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 /**
  * Copy this folder to start a module (AGENTS.md). Rename `example` everywhere, keep the
@@ -12,7 +13,7 @@ import { ns } from "@studio/contracts/naming";
 export const EXAMPLE = ns("example");
 
 function groupItems(project: Project): StudioItem[] {
-  return project.assets.map((a) => ({ id: a.path, name: a.path.split("/").pop() ?? a.path, group: "Files", assets: [a], dataKind: `${EXAMPLE}.dataKinds.file` }));
+  return project.assets.map((a) => ({ id: a.path, name: assetName(a), group: "Files", assets: [a], dataKind: `${EXAMPLE}.dataKinds.file` }));
 }
 
 export default defineModule({

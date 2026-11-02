@@ -10,6 +10,8 @@ import { StudioTopBar } from "@/studio/components/studio/StudioTopBar";
 import { ShortcutsDialog } from "@/studio/components/studio/ShortcutsDialog";
 import { BootTimelineOverlay, bootTimelineEnabled } from "@/studio/components/studio/BootTimelineOverlay";
 import { remountsOnItemSwitch, ViewportHost } from "@/studio/components/studio/ViewportHost";
+import { FileView } from "@/studio/components/studio/FileView";
+import { activeProfile, envForProfile } from "@/studio/lib/active-profile";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
@@ -31,7 +33,7 @@ import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { ErrorState } from "@studio/ui/ui/error-state";
 import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, safeHref, type KnownGood } from "@/studio/lib/safe-mode";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
-import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
+import { itemWhenContext, resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { api, fetchTaskIncludingTrashed, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { projectTrashUrl } from "@/studio/lib/routes";
@@ -350,9 +352,15 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
   useCleanBootReport(projectId, safe);
   const { data: project } = useTaskDocument(projectId);
   useTaskItems(projectId); // todo11 D8: item.* events upgrade the document's items in place
-  const env = useStudio((s) => s.env)!;
-  const items = useMemo(() => (project ? studioItems(project, env) : []), [project, env]);
+  const baseEnv = useStudio((s) => s.env)!;
+  const items = useMemo(() => (project ? studioItems(project, baseEnv) : []), [project, baseEnv]);
   const itemIndex = useStudio((s) => s.itemIndex);
+  // todo19 D3: the active item's kind picks its profile (viewer, tools, panels, command scope).
+  // Memoised per profile, so items of one kind keep the same env (and the renderer mounted).
+  const active = activeProfile(baseEnv, items[itemIndex]);
+  const activeKey = active.key;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `active` is derived from the key
+  const env = useMemo(() => envForProfile(baseEnv, active, registry), [baseEnv, activeKey]);
   const aiOpen = useStudio((s) => s.aiOpen);
   const toggleAi = useStudio((s) => s.toggleAi);
   const leftOpen = useShell((s) => s.studioLeft);
@@ -406,15 +414,17 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {item ? (
           <CanvasDropTarget projectId={routeProjectId} taskId={projectId}>
-            {env.viewports.length === 1 ? (
-              <ViewportHost key={remountsOnItemSwitch(main) ? item.id : main.name} env={env} viewport={main} project={project} item={item} />
+            {env.showFileView ? (
+              <FileView key={activeKey} item={item} kind={active.kind} />
+            ) : env.viewports.length === 1 ? (
+              <ViewportHost key={remountsOnItemSwitch(main) ? item.id : `${activeKey}:${main.name}`} env={env} viewport={main} project={project} item={item} />
             ) : (
               // Several viewports (e.g. a video next to its sensor trace) share the item and
               // stay in sync through runtime values such as `playhead`.
               <div className="flex h-full min-h-0 divide-x divide-border">
                 {env.viewports.map((vp) => (
-                  <div key={vp.name} className="min-w-0 flex-1" data-viewport={vp.name}>
-                    <ViewportHost key={remountsOnItemSwitch(vp) ? `${item.id}:${vp.name}` : vp.name} env={env} viewport={vp} project={project} item={item} />
+                  <div key={`${activeKey}:${vp.name}`} className="min-w-0 flex-1" data-viewport={vp.name}>
+                    <ViewportHost key={remountsOnItemSwitch(vp) ? `${item.id}:${vp.name}` : `${activeKey}:${vp.name}`} env={env} viewport={vp} project={project} item={item} />
                   </div>
                 ))}
               </div>
@@ -595,6 +605,7 @@ function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
         "selection.count": s.selectedIds.length,
         "env.tools": env.tools.map((t) => t.name),
         "item.mediaType": itemMediaType(current()),
+        ...itemWhenContext(env, current()),
       };
     });
     // Declarative plugin commands (toolbar actions) run through the command gateway.

@@ -33,6 +33,14 @@ export class SessionDatasetSource implements DatasetSource {
     this.latest = s;
   }
 
+  /** The item open in the Studio, from the latest snapshot (todo19 D12: get_studio_state). */
+  current(): { id: string; kind?: string } | undefined {
+    const id = this.latest?.currentItemId;
+    if (!id) return undefined;
+    const item = this.latest!.items.find((i) => i.id === id);
+    return { id, ...(item?.kind ? { kind: item.kind } : {}) };
+  }
+
   async snapshot(signal?: AbortSignal): Promise<DatasetSnapshot> {
     if (this.latest) return this.latest;
     if (this.fallback) return this.fallback.snapshot(signal);

@@ -2,6 +2,7 @@ import { FileIcon, TagIcon } from "@studio/ui/icons";
 import { defineModule } from "@studio/plugin-ui-sdk/module";
 import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 /**
  * Named-entity / span labelling on plain text. Written from the outside, against the
@@ -23,7 +24,7 @@ export interface TextSpan {
 export const isTextSpan = (a: Annotation): a is Annotation & { geometry: TextSpan } => a.geometry.type === SPAN;
 
 function groupItems(project: Project): StudioItem[] {
-  return project.assets.map((a) => ({ id: a.path, name: a.path.split("/").pop() ?? a.path, group: "Documents", assets: [a], sourceLabel: a.label, dataKind: `${TEXT}.dataKinds.text` }));
+  return project.assets.map((a) => ({ id: a.path, name: assetName(a), group: "Documents", assets: [a], sourceLabel: a.label, dataKind: `${TEXT}.dataKinds.text` }));
 }
 
 const clip = (s: string) => (s.length > 32 ? `${s.slice(0, 31)}…` : s);

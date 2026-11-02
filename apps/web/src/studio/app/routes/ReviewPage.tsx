@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { registry } from "@/extension-host/registry";
+import { kindFolder, reviewRunsByKind } from "@/studio/lib/per-kind";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -46,7 +48,16 @@ export function ReviewPage() {
   const env = envOf(project);
   const annotated = new Set(annotations.map((a) => a.itemId));
   // Validation comes from the environment's review rules (modules/core/reviewRules.ts…).
-  const issues = env ? env.reviewRules.flatMap((r) => r.check({ env, items, annotations })).map((i) => i.message) : [];
+  // todo19 D8: rules run over single-kind views (env rules ∪ the kind profile's), one run per kind.
+  const runs = env ? reviewRunsByKind(env.spec, items, env.dataKind.id) : [];
+  const issues = env
+    ? runs.flatMap((run) => {
+        const ids = new Set(run.items.map((i) => i.id));
+        const scoped = annotations.filter((a) => ids.has(a.itemId));
+        const rules = run.ruleIds.map((id) => env.reviewRules.find((r) => r.id === id) ?? registry.get("reviewRules", id)).filter((r) => !!r);
+        return rules.flatMap((r) => r.check({ env, items: run.items, annotations: scoped })).map((i) => (runs.length > 1 ? `${kindFolder(run.kind)}: ${i.message}` : i.message));
+      })
+    : [];
   const rows = labelFilter === "all" ? annotations : annotations.filter((a) => a.label === labelFilter);
   const usedLabels = labels.filter((l) => annotations.some((a) => a.label === l));
 

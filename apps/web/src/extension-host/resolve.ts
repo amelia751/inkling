@@ -1,13 +1,29 @@
 import type * as z from "zod";
 import { canonicalDoc } from "@studio/contracts/naming";
-import { EnvironmentSpecSchema, labelClasses, type EnvironmentSpec, type LabelGroup, type ViewportSpec } from "@studio/contracts/environment";
+import { EnvironmentSpecSchema, labelClasses, normalizeEnvironment, type EnvironmentSpec, type KindProfile, type LabelGroup, type ViewportSpec } from "@studio/contracts/environment";
+import { FILE_VIEW_RENDERER } from "@studio/plugin-ui-sdk/resolved";
 import { normalizeCombo } from "@studio/ui/keys";
-import type { EnvError, ResolvedCommand, ResolvedEnv, ResolvedViewport, ResolveResult } from "@studio/plugin-ui-sdk/resolved";
+import type { EnvError, ResolvedCommand, ResolvedEnv, ResolvedProfile, ResolvedViewport, ResolveResult } from "@studio/plugin-ui-sdk/resolved";
 import type { ContributionType, PanelSlot } from "@studio/plugin-ui-sdk/module";
 import type { Registered, Registry } from "./registry";
 import { alwaysTrue, checkWhen, mayBeTrue, WhenSyntaxError, type WhenContext } from "./when";
 
-export type { EnvError, ResolvedCommand, ResolvedEnv, ResolvedViewport, ResolveResult } from "@studio/plugin-ui-sdk/resolved";
+export type { EnvError, ResolvedCommand, ResolvedEnv, ResolvedProfile, ResolvedViewport, ResolveResult } from "@studio/plugin-ui-sdk/resolved";
+
+/**
+ * The profile an item opens with (todo19 D3): `env.profiles[item.dataKind]`, or undefined when
+ * the environment doesn't map the item's kind. Then show `env.fileView` (the generic file view,
+ * `FILE_VIEW_RENDERER`), so nothing disappears. Items without a kind use the first profile.
+ */
+export function profileForItem(env: Pick<ResolvedEnv, "profiles" | "dataKind">, item: { dataKind?: string } | undefined): ResolvedProfile | undefined {
+  return env.profiles?.[item?.dataKind ?? env.dataKind?.id];
+}
+
+/** `when` keys about the active item: its kind and the profile it opens with (todo19 D3). */
+export function itemWhenContext(env: Pick<ResolvedEnv, "profiles" | "dataKind">, item: { dataKind?: string } | undefined): Record<string, unknown> {
+  const kind = item?.dataKind ?? env.dataKind?.id;
+  return { "item.kind": kind, "item.profile": (kind && env.profiles?.[kind]?.id) ?? null };
+}
 
 export interface ResolveOptions {
   /** Modules every environment gets (the Studio core). */
@@ -163,28 +179,60 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   };
   const enabled = <T extends { id: string }>(list: (T | undefined)[]): T[] => list.filter((c): c is T => !!c && !disabled.has(c.id));
 
-  // 3. Data kind and viewports.
+  // 3. Data kinds and their profiles (todo19 D3). `data.kind` + `viewports` is the one-kind
+  // shorthand; normalizeEnvironment folds it into `data.kinds`. The first kind feeds the
+  // one-kind fields (`dataKind`, `viewports`, `context`) current callers read.
+  const kindSpecs: Record<string, KindProfile> = normalizeEnvironment(spec).data?.kinds ?? {};
+  const firstKind = spec.data?.kind ?? Object.keys(kindSpecs)[0];
   let dataKind: Registered<"dataKinds"> | undefined;
-  if (!spec.data?.kind) err({ path: "/data/kind", code: "missing-data-kind", message: "The environment needs data.kind (a data kind contribution id)" });
-  else dataKind = ref("dataKinds", spec.data.kind, "/data/kind");
+  if (!firstKind) err({ path: "/data/kind", code: "missing-data-kind", message: "The environment needs data.kind or data.kinds (data kind contribution ids)" });
+  else dataKind = ref("dataKinds", firstKind, spec.data?.kind ? "/data/kind" : `/data/kinds/${escape(firstKind)}`);
+
+  const resolveViewports = (specs: ViewportSpec[], kind: Registered<"dataKinds"> | undefined, pathOf: (i: number) => string): ResolvedViewport[] => {
+    const out: ResolvedViewport[] = [];
+    specs.forEach((v, i) => {
+      const r = ref("renderers", v.renderer, pathOf(i));
+      if (!r) return;
+      if (kind && !r.consumes.includes(kind.id)) {
+        const fit = registry.list("renderers", (x) => x.consumes.includes(kind.id)).map((x) => x.id);
+        err({ path: pathOf(i), code: "renderer-data-mismatch", message: `Renderer "${r.id}" can't display data kind "${kind.id}"`, suggestion: fit[0] });
+      }
+      out.push({ name: v.name, renderer: r, config: v.config ?? {} });
+    });
+    return out;
+  };
+  const profileViewportSpecs = (p: KindProfile): ViewportSpec[] => (p.viewports?.length ? p.viewports : p.renderer ? [{ name: "main", renderer: p.renderer, ...(p.config ? { config: p.config } : {}) }] : []);
+
+  // Profiles written in `data.kinds` resolve on their own; the shorthand's profile is the
+  // top-level viewports (checked once, at /viewports).
+  const written = spec.data?.kinds ?? {};
+  const profileParts: { key: string; kind: Registered<"dataKinds">; id: string; spec: KindProfile; viewports: ResolvedViewport[] }[] = [];
+  for (const [key, p] of Object.entries(written)) {
+    const base = `/data/kinds/${escape(key)}`;
+    const kind = key === firstKind ? dataKind : ref("dataKinds", key, base);
+    if (!kind) continue;
+    const vps = resolveViewports(profileViewportSpecs(p), kind, (i) => (p.viewports?.length ? `${base}/viewports/${i}/renderer` : `${base}/renderer`));
+    profileParts.push({ key, kind, id: p.profile ?? kind.id, spec: p, viewports: vps });
+  }
 
   const viewportSpecs: ViewportSpec[] = spec.viewports ?? [];
-  if (!viewportSpecs.length) err({ path: "/viewports", code: "missing-viewport", message: "The environment needs at least one viewport with a renderer" });
-  const viewports: ResolvedViewport[] = [];
-  viewportSpecs.forEach((v, i) => {
-    const r = ref("renderers", v.renderer, `/viewports/${i}/renderer`);
-    if (!r) return;
-    if (dataKind && !r.consumes.includes(dataKind.id)) {
-      const fit = registry.list("renderers", (x) => x.consumes.includes(dataKind!.id)).map((x) => x.id);
-      err({ path: `/viewports/${i}/renderer`, code: "renderer-data-mismatch", message: `Renderer "${r.id}" can't display data kind "${dataKind.id}"`, suggestion: fit[0] });
-    }
-    viewports.push({ name: v.name, renderer: r, config: v.config ?? {} });
+  const fromProfile = !viewportSpecs.length && firstKind ? profileParts.find((x) => x.key === firstKind) : undefined;
+  if (!viewportSpecs.length && !fromProfile) err({ path: "/viewports", code: "missing-viewport", message: "The environment needs at least one viewport with a renderer" });
+  const viewports: ResolvedViewport[] = fromProfile ? fromProfile.viewports : resolveViewports(viewportSpecs, dataKind, (i) => `/viewports/${i}/renderer`);
+  if (dataKind && firstKind && !written[firstKind]) profileParts.unshift({ key: firstKind, kind: dataKind, id: dataKind.id, spec: { renderer: viewports[0]?.renderer.id ?? "" }, viewports });
+  const allViewports = [...new Set([...viewports, ...profileParts.flatMap((x) => x.viewports)])];
+  const multiKind = profileParts.length > 1;
+
+  const ctxFor = (vp: ResolvedViewport | undefined, profile?: { kind: Registered<"dataKinds">; id: string }): WhenContext => ({
+    section: "studio",
+    ...(vp ? { renderer: vp.renderer.id, "renderer.name": vp.renderer.name, "renderer.space": vp.renderer.space, "renderer.capabilities": vp.renderer.capabilities } : {}),
+    dataKind: profile?.kind.id ?? dataKind?.id,
+    // In a many-kind Studio the active item isn't known statically; keys left out read as "maybe".
+    ...(profile ? { "item.kind": profile.kind.id, "item.profile": profile.id } : {}),
   });
-  const ctxFor = (vp: ResolvedViewport | undefined): WhenContext =>
-    vp
-      ? { section: "studio", renderer: vp.renderer.id, "renderer.name": vp.renderer.name, "renderer.space": vp.renderer.space, "renderer.capabilities": vp.renderer.capabilities, dataKind: dataKind?.id }
-      : { section: "studio", dataKind: dataKind?.id };
-  const context = ctxFor(viewports[0]);
+  const firstProfile = profileParts.find((x) => x.key === firstKind);
+  const context = ctxFor(viewports[0], multiKind ? undefined : firstProfile);
+  const profileContexts = profileParts.map((x) => ctxFor(x.viewports[0], x));
   const checkedWhen = (src: string | undefined, path: string): string | undefined => {
     if (!src) return src;
     try {
@@ -205,13 +253,13 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     if (toolNames.has(t.name)) err({ path, code: "duplicate-tool", message: `Tools "${toolNames.get(t.name)}" and "${t.id}" share the name "${t.name}"; the store can only hold one` });
     toolNames.set(t.name, t.id);
     checkedWhen(t.when, `${path}`);
-    if (viewports.length && !viewports.some((vp) => mayBeTrue(t.when, ctxFor(vp)))) {
+    if (allViewports.length && !allViewports.some((vp) => mayBeTrue(t.when, ctxFor(vp)))) {
       err({ path, code: "tool-unsupported", message: `Tool "${t.id}" doesn't apply to any viewport (when: ${t.when})` });
     } else if (t.creates) {
       const g = registry.geometry(t.creates);
       if (!g) err({ path, code: "unknown-geometry", message: `Tool "${t.id}" creates unregistered geometry "${t.creates}"` });
-      else if (g.spaces && viewports.length && !viewports.some((vp) => g.spaces!.includes(vp.renderer.space))) {
-        err({ path, code: "tool-unsupported", message: `Tool "${t.id}" creates "${t.creates}", which no viewport's space (${viewports.map((v) => v.renderer.space).join(", ")}) supports` });
+      else if (g.spaces && allViewports.length && !allViewports.some((vp) => g.spaces!.includes(vp.renderer.space))) {
+        err({ path, code: "tool-unsupported", message: `Tool "${t.id}" creates "${t.creates}", which no viewport's space (${allViewports.map((v) => v.renderer.space).join(", ")}) supports` });
       }
     }
   });
@@ -227,7 +275,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const controls = labels.map((g, i) => {
     const c = registry.list("labelControls", (x) => x.name === g.control || x.id === g.control)[0];
     if (!c) err({ path: `/labels/${i}/control`, code: "unknown-contribution", message: `Unknown label control "${g.control}"`, suggestion: suggest(registry, "labelControls", g.control) });
-    if (g.toName && !viewports.some((v) => v.name === g.toName)) {
+    if (g.toName && !allViewports.some((v) => v.name === g.toName)) {
       err({ path: `/labels/${i}/toName`, code: "label-target", message: `Label group "${g.name}" targets viewport "${g.toName}", which doesn't exist`, suggestion: viewports[0]?.name });
     }
     return c;
@@ -247,6 +295,38 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const exporters = enabled((spec.exporters ?? []).map((id, i) => ref("exporters", id, `/exporters/${i}`)));
   const reviewRules = enabled((spec.reviewRules ?? []).map((id, i) => ref("reviewRules", id, `/reviewRules/${i}`)));
 
+  // 7b. Per-profile lists: a profile's own tools/panels/exporters/reviewRules, else the
+  // environment's; tools only where their `when` can hold for the profile's renderer.
+  const profileTools = (x: (typeof profileParts)[number], ctx: WhenContext) => {
+    const base = `/data/kinds/${escape(x.key)}`;
+    const own = x.spec.tools ? enabled(x.spec.tools.map((id, i) => ref("tools", id, `${base}/tools/${i}`))) : undefined;
+    const usable = own ? (labels.length ? own.filter((t) => !unusableReason(t, controls)) : own) : usableTools;
+    return usable.filter((t) => mayBeTrue(t.when, ctx));
+  };
+  const profiles: Record<string, ResolvedProfile> = {};
+  profileParts.forEach((x, n) => {
+    const base = `/data/kinds/${escape(x.key)}`;
+    const ctx = profileContexts[n];
+    const ownPanels = x.spec.panels;
+    profiles[x.kind.id] = {
+      kind: x.kind,
+      id: x.id,
+      viewports: x.viewports,
+      tools: profileTools(x, ctx),
+      panels: Object.fromEntries(
+        SLOTS.map((slot) => [slot, ownPanels?.[slot] ? enabled(ownPanels[slot]!.map((id, i) => ref("panels", id, `${base}/panels/${slot}/${i}`))) : panels[slot]]),
+      ) as Record<PanelSlot, Registered<"panels">[]>,
+      exporters: x.spec.exporters ? enabled(x.spec.exporters.map((id, i) => ref("exporters", id, `${base}/exporters/${i}`))) : exporters,
+      reviewRules: x.spec.reviewRules ? enabled(x.spec.reviewRules.map((id, i) => ref("reviewRules", id, `${base}/reviewRules/${i}`))) : reviewRules,
+      context: ctx,
+    };
+  });
+  const profileContribs = Object.values(profiles).flatMap((p) => [p.kind, ...p.viewports.map((v) => v.renderer), ...p.tools, ...Object.values(p.panels).flat(), ...p.exporters, ...p.reviewRules]);
+
+  // The generic file view, for items whose kind has no profile (todo19 D3).
+  const fileViewRenderer = registry.get("renderers", FILE_VIEW_RENDERER);
+  const fileView: ResolvedViewport | undefined = fileViewRenderer ? { name: "main", renderer: fileViewRenderer, config: {} } : undefined;
+
   // 8. Modules in play, and their requirements.
   const moduleIds = new Set<string>([...(options.baseModules?.filter((m) => registry.module(m)) ?? []), ...registry.listModules().filter((m) => m.ambient).map((m) => m.id)]);
   Object.entries(spec.modules ?? {}).forEach(([id, range]) => {
@@ -255,7 +335,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     if (!satisfies(m.version, range)) err({ path: `/modules/${escape(id)}`, code: "module-version", message: `Module "${id}" is ${m.version}, which doesn't satisfy "${range}"` });
     moduleIds.add(id);
   });
-  for (const c of [dataKind, ...viewports.map((v) => v.renderer), ...tools, ...Object.values(panels).flat(), ...exporters, ...reviewRules, ...controls]) if (c) moduleIds.add(c.module);
+  for (const c of [dataKind, ...viewports.map((v) => v.renderer), ...tools, ...Object.values(panels).flat(), ...exporters, ...reviewRules, ...controls, ...profileContribs, fileViewRenderer]) if (c) moduleIds.add(c.module);
   const queue = [...moduleIds];
   while (queue.length) {
     const m = registry.module(queue.shift()!)!;
@@ -275,6 +355,9 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     if (!mayBeTrue(p.when, context)) continue;
     if (!panels[p.slot].some((x) => x.id === p.id)) panels[p.slot].push(p);
   }
+  for (const prof of Object.values(profiles))
+    for (const p of registry.list("panels", (x) => !!x.autoInclude && inModules(x)))
+      if (prof.panels[p.slot] !== panels[p.slot] && mayBeTrue(p.when, prof.context) && !prof.panels[p.slot].some((x) => x.id === p.id)) prof.panels[p.slot].push(p);
 
   // 9. Geometries in use; exporters must accept at least one.
   const geometries = registry.list("geometries", inModules);
@@ -293,7 +376,7 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   const candidates = registry
     .list("commands", inModules)
     .filter((c) => checkedWhen(c.when, `/commands/${c.id}`) !== undefined || !c.when)
-    .filter((c) => mayBeTrue(c.when, { ...context, "env.tools": usableTools.map((t) => t.name) }));
+    .filter((c) => (multiKind ? profileContexts : [context]).some((ctx) => mayBeTrue(c.when, { ...ctx, "env.tools": usableTools.map((t) => t.name) })));
   const replaced = new Set(candidates.flatMap((c) => c.replaces ?? []));
   const commands: ResolvedCommand[] = candidates.filter((c) => !replaced.has(c.id)).map((c) => ({ ...c, keys: rebinds.get(c.id) ?? c.keys ?? [] }));
   // `shadows` takes the shadowing command's keys away from the shadowed ones, which keep the rest.
@@ -303,19 +386,33 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     for (const t of commands) if (c.shadows.includes(t.id)) t.keys = t.keys.filter((k) => !taken.has(normalizeCombo(k)));
   }
 
-  // 11. Hotkeys must be unique among bindings that are unconditionally active together.
-  const owners = new Map<string, string[]>();
-  const claim = (combo: string, owner: string) => {
-    const k = normalizeCombo(combo);
-    owners.set(k, [...(owners.get(k) ?? []), owner]);
-  };
-  for (const c of commands) if (!c.contextual && alwaysTrue(c.when, context)) c.keys.forEach((k) => claim(k, c.id));
-  for (const t of usableTools) if (t.hotkey) claim(t.hotkey, `tool ${t.id}`);
-  labelClasses(labels).forEach((c, i) => c.hotkey && c.hotkey !== String(i + 1) && claim(c.hotkey, `label ${c.id}`));
+  // 11. Hotkeys must be unique among bindings that are unconditionally active together. In a
+  // many-kind Studio each profile is checked on its own: a profile's plugin commands are only
+  // bound while an item of that kind is active, so "=" may mean "fit" for images and "zoom
+  // time" for ECG without a conflict.
   const shadowed = new Set(commands.flatMap((c) => (c.shadows ?? []).map((s) => `${c.id}>${s}`)));
-  for (const [combo, all] of owners) {
-    const who = all.filter((o) => !all.some((p) => shadowed.has(`${p}>${o}`)));
-    if (who.length > 1) err({ path: "/keybindings", code: "hotkey-conflict", message: `"${combo}" is bound to ${who.join(" and ")}`, suggestion: `Rebind one of them in "keybindings", or disable it in "overrides"` });
+  const profileModules = Object.values(profiles).map((p) => new Set([p.kind, ...p.viewports.map((v) => v.renderer)].map((c) => c.module)));
+  const ownedByProfile = new Set(profileModules.flatMap((m) => [...m]));
+  const scopes = multiKind ? Object.values(profiles).map((p, i) => ({ ctx: p.context, mods: profileModules[i], tools: p.tools })) : [{ ctx: context, mods: undefined, tools: usableTools }];
+  const reported = new Set<string>();
+  for (const scope of scopes) {
+    const owners = new Map<string, string[]>();
+    const claim = (combo: string, owner: string) => {
+      const k = normalizeCombo(combo);
+      owners.set(k, [...(owners.get(k) ?? []), owner]);
+    };
+    const inScope = (c: ResolvedCommand) => !scope.mods || !ownedByProfile.has(c.module) || scope.mods.has(c.module);
+    for (const c of commands) if (!c.contextual && inScope(c) && alwaysTrue(c.when, scope.ctx)) c.keys.forEach((k) => claim(k, c.id));
+    for (const t of scope.tools) if (t.hotkey) claim(t.hotkey, `tool ${t.id}`);
+    labelClasses(labels).forEach((c, i) => c.hotkey && c.hotkey !== String(i + 1) && claim(c.hotkey, `label ${c.id}`));
+    for (const [combo, all] of owners) {
+      const who = all.filter((o) => !all.some((p) => shadowed.has(`${p}>${o}`)));
+      const message = `"${combo}" is bound to ${who.join(" and ")}`;
+      if (who.length > 1 && !reported.has(message)) {
+        reported.add(message);
+        err({ path: "/keybindings", code: "hotkey-conflict", message, suggestion: `Rebind one of them in "keybindings", or disable it in "overrides"` });
+      }
+    }
   }
 
   // 12. Configs: schema defaults, then override config, then viewport config (renderers).
@@ -334,6 +431,18 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
     configure(vp.renderer, vp.config, `/viewports/${i}/config`);
     vp.config = configs[vp.renderer.id] ?? vp.config;
   });
+  for (const x of profileParts) {
+    if (x.viewports === viewports) continue;
+    x.viewports.forEach((vp, i) => {
+      const schema = vp.renderer.configSchema;
+      const raw = { ...overrideConfig.get(vp.renderer.id), ...vp.config };
+      if (!schema) return void (vp.config = raw);
+      const r = schema.safeParse(raw);
+      const base = `/data/kinds/${escape(x.key)}${x.spec.viewports?.length ? `/viewports/${i}` : ""}/config`;
+      if (r.success) vp.config = r.data as Record<string, unknown>;
+      else r.error.issues.forEach((iss) => err({ path: `${base}/${iss.path.map(String).join("/")}`.replace(/\/$/, ""), code: "invalid-config", message: `${vp.renderer.id}: ${iss.message}` }));
+    });
+  }
   for (const c of [dataKind, ...tools, ...Object.values(panels).flat(), ...exporters, ...commands])
     if (c && !(c.id in configs)) configure(c, undefined, `/overrides/${c.id}/config`);
 
@@ -349,6 +458,8 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
       modules: [...moduleIds].map((id) => ({ id, version: registry.module(id)!.version })),
       dataKind,
       viewports,
+      profiles,
+      fileView,
       tools: usableTools,
       unusableTools,
       commands,

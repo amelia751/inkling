@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SeedAsset, StudioItem } from "@studio/contracts/types";
 import type { ResolvedEnv } from "@studio/plugin-ui-sdk/resolved";
-import { blindFolders, dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, showSourceLabels, withFolders, type ItemState } from "./item-folders";
+import { blindFolders, dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, showSourceLabels, studioItems, withFolders, type ItemState } from "./item-folders";
 
 const asset = (path: string, folder?: string[], nodeId?: string): SeedAsset => ({ path, sha256: "", bytes: 0, folder, nodeId });
 const item = (id: string, name: string, assets: SeedAsset[], extra: Partial<StudioItem> = {}): StudioItem => ({ id, name, group: "Images", assets, ...extra });
@@ -96,5 +96,45 @@ describe("queue and path filters", () => {
     expect(inFolder(["a", "b"], ["a"])).toBe(true);
     expect(inFolder(["a"], ["a", "b"])).toBe(false);
     expect(inFolder(undefined, [])).toBe(true);
+  });
+});
+
+describe("studioItems per kind (todo19 D3)", () => {
+  const asset = (path: string, extra: Record<string, unknown> = {}) => ({ path, sha256: "x", bytes: 1, ...extra });
+  const kind = (id: string, ext: string[], fileKinds: string[] = []) => ({
+    id,
+    name: id.split(".").pop()!,
+    match: { ext },
+    fileKinds,
+    groupItems: (p: { assets: { path: string }[] }) => [{ id: `${id}:${p.assets.map((a) => a.path).join("+")}`, name: id, group: id, assets: p.assets, dataKind: id }],
+  });
+  const IMG = kind("studio.image2d.dataKinds.raster", [".png"], ["image"]);
+  const ECG = kind("studio.timeseries.dataKinds.multichannel-timeseries", [".hea", ".dat"], ["waveform"]);
+  const env = {
+    spec: {},
+    labels: [],
+    dataKind: IMG,
+    profiles: { [IMG.id]: { kind: IMG, id: "preset:image-2d" }, [ECG.id]: { kind: ECG, id: "preset:ecg" } },
+  } as never;
+
+  it("groups each kind with its own groupItems, concatenates, tags kind and profile; unmapped files stay as file items", () => {
+    const project = { id: "p", assets: [asset("a.png"), asset("r1.hea"), asset("r1.dat"), asset("b.png", { kind: "image" }), asset("x.bin")] } as never;
+    const items = studioItems(project, env);
+    expect(items.map((i) => [i.id, i.dataKind, i.profile])).toEqual([
+      [`${IMG.id}:a.png+b.png`, IMG.id, "preset:image-2d"],
+      [`${ECG.id}:r1.hea+r1.dat`, ECG.id, "preset:ecg"],
+      ["x.bin", undefined, undefined],
+    ]);
+  });
+
+  it("an explicit kind wins over the extension", () => {
+    const project = { id: "p", assets: [asset("trace.png", { kind: ECG.id })] } as never;
+    expect(studioItems(project, env).map((i) => i.dataKind)).toEqual([ECG.id]);
+  });
+
+  it("a one-kind environment hands every file to its kind, as before", () => {
+    const one = { spec: {}, labels: [], dataKind: IMG, profiles: { [IMG.id]: { kind: IMG, id: IMG.id } } } as never;
+    const items = studioItems({ id: "p", assets: [asset("a.png"), asset("x.bin")] } as never, one);
+    expect(items.map((i) => [i.id, i.profile])).toEqual([[`${IMG.id}:a.png+x.bin`, IMG.id]]);
   });
 });

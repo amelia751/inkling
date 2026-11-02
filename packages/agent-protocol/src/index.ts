@@ -58,6 +58,8 @@ export interface DatasetSnapshot {
     sourceLabel?: string;
     /** Seed-relative file paths behind this item; only these can be copied into a sandbox. */
     assets?: string[];
+    /** todo19 D12: the item's data kind id; its profile in the Studio follows from it. */
+    kind?: string;
   }[];
   annotations: {
     id: string;

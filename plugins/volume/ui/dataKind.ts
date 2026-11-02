@@ -1,5 +1,6 @@
 import type { ItemPart, Project, SeedAsset, StudioItem } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 /**
  * The `volume` data kind: one item per subject, whose files (sequences, DICOM series,
@@ -15,7 +16,7 @@ const isDicomPath = (p: string) => /\.dcm$/i.test(p);
 export const SEQUENCE_TOKENS = ["t1", "t1ce", "t1c", "t1gd", "t2", "flair", "t2f", "t2w", "t1w", "t1n", "pd", "dwi", "adc", "seg", "gt"];
 const SUFFIX = new RegExp(`^(.+?)[_-](${SEQUENCE_TOKENS.join("|")})$`, "i");
 
-const fileName = (a: Pick<SeedAsset, "path" | "name">) => a.name ?? a.path.split("/").pop() ?? a.path;
+const fileName = (a: Pick<SeedAsset, "path" | "name">) => assetName(a);
 const stem = (name: string) => name.replace(/\.(nii\.gz|nii|dcm|gz)$/i, "");
 
 /**

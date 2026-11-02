@@ -1,4 +1,5 @@
 import { ErrorView } from "@/studio/app/routes/errors";
+import { kindFolder, queueCountsByKind } from "@/studio/lib/per-kind";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -211,6 +212,12 @@ function ResumeWorkCard({ projectId, resume }: { projectId: string; resume: Resu
   const item = items.find((i) => i.id === resume.itemId);
   const ids = new Set(items.map((i) => i.id));
   const done = saved.data ? new Set(saved.data.annotations.map((a) => a.itemId).filter((id) => ids.has(id))).size : null;
+  // todo19 D8: per-kind progress (item counts only; never summed across throughput units).
+  const doneIds = useMemo(() => new Set(saved.data?.annotations.map((a) => a.itemId) ?? []), [saved.data]);
+  const perKind = useMemo(() => {
+    const { byKind } = queueCountsByKind(items, (i) => (doneIds.has(items[i].id) ? "annotated" : "todo"), env?.dataKind.id);
+    return Object.entries(byKind);
+  }, [items, doneIds, env]);
   const Icon = project ? projectIcon(project) : FileIcon;
   const asset = item?.assets[0] as ({ path: string; nodeId?: string } & Record<string, unknown>) | undefined;
   const preview = useQuery({ queryKey: ["source-nodes", asset?.nodeId, "preview"], queryFn: () => fetchPreview(asset!.nodeId!), enabled: !!asset?.nodeId, staleTime: 60_000 });
@@ -235,6 +242,13 @@ function ResumeWorkCard({ projectId, resume }: { projectId: string; resume: Resu
           ) : (
             <>
               <p className="tnum text-sm" data-testid="resume-progress">{done} of {items.length} annotated</p>
+              {perKind.length > 1 && (
+                <ul className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground" data-testid="resume-progress-kinds">
+                  {perKind.map(([k, c]) => (
+                    <li key={k} className="tnum" data-kind={k}>{kindFolder(k)}: {c.done} of {c.all}</li>
+                  ))}
+                </ul>
+              )}
               <div className="mt-1.5 h-1 overflow-hidden bg-generic-hover" role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={items.length} aria-label="Items annotated">
                 <div className={cn("h-full", done >= items.length ? "bg-positive" : "bg-primary")} style={{ width: `${Math.round((done / items.length) * 100)}%` }} />
               </div>

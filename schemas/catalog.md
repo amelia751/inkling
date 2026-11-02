@@ -1,6 +1,20 @@
 # Spurby environment catalogue
-An environment spec (JSON) picks a data kind, viewports (renderers), tools, panels, exporters and label groups by full id `<module>.<type>.<name>`.
+An environment spec (JSON) is one Studio: a task over a set of items. `accepts` lists the data kinds it takes; `data.kinds` maps each kind to its profile (renderer, config, tools, panels, exporters), and the active item's kind picks the profile. Tools, panels, exporters and label groups are referenced by full id `<module>.<type>.<name>`; a label group's `appliesTo` names the kinds it applies to.
 Validate before saving; fix errors using their `path` and `suggestion`.
+
+## profiles
+Each preset is a profile for its kind (kind → preset; a kind can have several). A Studio over several kinds `extends` one profile per kind it accepts.
+- `studio.text-spans.dataKinds.text` → `preset:ner` (renderer studio.text-spans.renderers.reader)
+- `studio.cine.dataKinds.volume-time` → `preset:cine-4d` (renderer studio.cine.renderers.slice-frame-canvas)
+- `studio.video.dataKinds.video` → `preset:drone-video-tracks` (renderer studio.video.renderers.frame-canvas)
+- `studio.timeseries.dataKinds.multichannel-timeseries` → `preset:ecg` (renderer studio.timeseries.renderers.strip-chart)
+- `studio.image2d.dataKinds.raster` → `preset:generic-image` (renderer studio.image2d.renderers.canvas-raster)
+- `studio.image2d.dataKinds.raster` → `preset:image-2d` (renderer studio.image2d.renderers.cornerstone-stack)
+- `studio.wsi.dataKinds.raster-pyramid` → `preset:pathology` (renderer studio.wsi.renderers.osd)
+- `studio.wsi.dataKinds.raster-pyramid` → `preset:satellite-tiles` (renderer studio.wsi.renderers.osd)
+- `studio.timeseries.dataKinds.multichannel-timeseries` → `preset:sensor-timeseries-events` (renderer studio.timeseries.renderers.strip-chart)
+- `studio.video.dataKinds.video` → `preset:video` (renderer studio.video.renderers.frame-canvas)
+- `studio.volume.dataKinds.volume` → `preset:volume-3d` (renderer studio.volume.renderers.cornerstone-mpr)
 
 ## dataKinds
 - `studio.generic.dataKinds.files` — One item per file, any format; shown by a sandboxed viewer renderer
@@ -13,6 +27,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `studio.text-spans.dataKinds.text` — One item per UTF-8 text file
 
 ## renderers
+- `studio.file-view.renderers.file` — Generic file view: name, size, kind, facts, preview for images, download (consumes studio.generic.dataKinds.files; space image2d)
 - `studio.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config (consumes studio.image2d.dataKinds.raster; space image2d)
 - `studio.image2d.renderers.canvas-raster` — Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools (consumes studio.image2d.dataKinds.raster; space image2d)
 - `studio.volume.renderers.cornerstone-mpr` — Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D (consumes studio.volume.dataKinds.volume; space volume)

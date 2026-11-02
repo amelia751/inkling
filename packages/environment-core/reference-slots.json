@@ -14,8 +14,8 @@
     { "instance": "/overrides/*/id", "schema": "/$defs/EnvironmentSpec/properties/overrides/items/properties/id/enum", "kind": "contributions" }
   ],
   "agentPaths": {
-    "$comment": "JSON Pointer prefixes an agent principal may patch (todo11 D2.3). `/modules/<id>` is allowed separately, for installed plugins only.",
+    "$comment": "JSON Pointer prefixes an agent principal may patch (todo11 D2.3). `/modules/<id>` is allowed separately, for installed plugins only. `/data/kinds/<kind>` is one kind profile (todo19 D12).",
     "prefixes": ["/title", "/description", "/task", "/extends", "/labels", "/layout", "/overrides", "/studio"],
-    "patterns": ["^/viewports/[0-9]+/config(/.*)?$"]
+    "patterns": ["^/viewports/[0-9]+/config(/.*)?$", "^/data/kinds/[^/]+(/.*)?$"]
   }
 }

@@ -3,6 +3,7 @@ import { defineModule } from "@studio/plugin-ui-sdk/module";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { StackConfigSchema } from "./view";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 export const IMAGE2D = ns("image2d");
 const RASTER = `${IMAGE2D}.dataKinds.raster`;
@@ -16,7 +17,7 @@ const CANVAS = `${IMAGE2D}.renderers.canvas-raster`;
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
-    name: a.name ?? a.path.split("/").pop() ?? a.path,
+    name: assetName(a),
     group: "Images",
     assets: [a],
     sourceLabel: a.label,

@@ -1,4 +1,4 @@
-import { type Catalog, presetRefs, searchCatalog } from "./catalog.ts";
+import { type Catalog, catalogProfiles, kindIds, presetRefs, rendererConsumes, resolveKind, searchCatalog } from "./catalog.ts";
 import { StudioApiError, type StudioClient } from "./client.ts";
 import { type IntentTable, resolveIntent } from "./intents.ts";
 import type { BootStudioArgs, GetStudioStateArgs, OfferStudioArgs, PatchStudioArgs, SearchCatalogArgs } from "./schemas.ts";
@@ -15,7 +15,25 @@ export interface StudioToolDeps {
   intents: IntentTable;
   /** The project a session is bound to (the in-app agent); `projectId` in the args wins otherwise. */
   projectId?: string;
+  /** todo19 D12: the item open in the Studio (the in-app agent's latest snapshot), for get_studio_state. */
+  activeItem?: () => { id: string; kind?: string } | undefined;
 }
+
+type Profile = Record<string, unknown> & { renderer?: string; profile?: string };
+
+/** `data.kinds` of a spec, with the one-kind shorthand (`data.kind` + first viewport) folded in (todo19 D3). */
+function kindsOf(env: Record<string, any> | null | undefined): Record<string, Profile> {
+  const data = env?.data ?? {};
+  const kinds: Record<string, Profile> = { ...(data.kinds ?? {}) };
+  if (typeof data.kind === "string" && !kinds[data.kind]) {
+    const vp = Array.isArray(env?.viewports) ? env.viewports[0] : undefined;
+    kinds[data.kind] = { ...(vp?.renderer ? { renderer: vp.renderer } : {}), ...(vp?.config ? { config: vp.config } : {}) };
+  }
+  return kinds;
+}
+
+const KIND_PATH = /^\/data\/kinds\/([^/]+)(?:\/(.*))?$/;
+const unescapePointer = (s: string) => s.replaceAll("~1", "/").replaceAll("~0", "~");
 
 /** Per-call context: `seed` makes the derived bootId stable across retries of one call (run id + call id). */
 export interface CallContext {
@@ -68,6 +86,31 @@ const randomBootId = () => `boot_${crypto.randomUUID().replaceAll("-", "").slice
 export function createStudioHandlers(deps: StudioToolDeps) {
   const { client, catalog, intents } = deps;
   const known = new Set(presetRefs(catalog));
+  const profiles = catalogProfiles(catalog);
+  const intentOrder = intents.intents.map((e) => e.preset);
+  /** The default profile for a kind: the first preset in the intent table that profiles it. */
+  const defaultProfile = (kind: string) => {
+    const cands = profiles.filter((p) => p.kind === kind).map((p) => p.preset);
+    return cands.sort((a, b) => rank(a) - rank(b))[0];
+  };
+  const rank = (preset: string) => {
+    const i = intentOrder.indexOf(preset);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const kindsOfPreset = (preset: string) => profiles.filter((p) => p.preset === preset).map((p) => p.kind);
+
+  /** `accepts` as full kind ids; unknown or ambiguous refs are a 422 with paths. */
+  function acceptedKinds(refs: string[]): string[] {
+    const errors: { path: string; code: string; message: string }[] = [];
+    const out: string[] = [];
+    refs.forEach((ref, i) => {
+      const k = resolveKind(catalog, ref);
+      if (!k) errors.push({ path: `/accepts/${i}`, code: "reference", message: `Unknown data kind ${ref}. Known: ${kindIds(catalog).join(", ")}.` });
+      else if (!out.includes(k)) out.push(k);
+    });
+    if (errors.length) throw new StudioToolError("Unknown data kind in `accepts`; use search_catalog with kind dataKinds.", { status: 422, errors });
+    return out;
+  }
   const project = (id?: string) => {
     const p = id ?? deps.projectId;
     if (!p) throw new StudioToolError("projectId is required here (this client isn't bound to a project).");
@@ -92,10 +135,51 @@ export function createStudioHandlers(deps: StudioToolDeps) {
     return { preset: m.preset, from: "intent", matched: m.matched };
   }
 
+  /** todo19 D12: ops on /data/kinds/<kind> name a known kind, and a renderer they set consumes it. */
+  function checkKindOps(patch: PatchStudioArgs["patch"]) {
+    const errors: { path: string; code: string; message: string }[] = [];
+    patch.forEach((op, i) => {
+      const m = KIND_PATH.exec(op.path);
+      if (!m) return;
+      const kind = unescapePointer(m[1]!);
+      if (!kindIds(catalog).includes(kind)) {
+        errors.push({ path: `/${i}`, code: "reference", message: `Unknown data kind ${kind} at ${op.path}. Use a full id from search_catalog (kind dataKinds).` });
+        return;
+      }
+      if (op.op === "remove") return;
+      const rest = m[2] ?? "";
+      const renderer = rest === "" ? (op.value as Profile | undefined)?.renderer : rest === "renderer" ? op.value : undefined;
+      if (typeof renderer !== "string") return;
+      const consumes = rendererConsumes(catalog, renderer);
+      if (!consumes) errors.push({ path: `/${i}`, code: "reference", message: `Unknown renderer ${renderer}.` });
+      else if (!consumes.includes(kind)) {
+        const fits = catalog.contributions.filter((c) => c.type === "renderers" && ((c.consumes as string[] | undefined) ?? []).includes(kind)).map((c) => c.id);
+        errors.push({ path: `/${i}`, code: "renderer-data-mismatch", message: `${renderer} doesn't open ${kind}. Renderers for it: ${fits.join(", ") || "none"}.` });
+      }
+    });
+    if (errors.length) throw new StudioToolError("The change doesn't validate. Fix each error at its path and try again.", { status: 422, errors });
+  }
+
   return {
     async boot_studio(args: BootStudioArgs, ctx: CallContext = {}) {
       const projectId = project(args.projectId);
-      const { preset, from, matched } = pickPreset(args);
+      const accepts = args.accepts?.length ? acceptedKinds(args.accepts) : undefined;
+      // With `accepts` and no preset, the intent's preset leads, else the first kind's default profile.
+      // A name or intent that matches no preset is fine then (an explicit unknown preset never is).
+      const picked = accepts && !args.preset ? (() => { try { return pickPreset(args); } catch { return undefined; } })() : pickPreset(args);
+      const lead = picked?.preset ?? defaultProfile(accepts![0]!);
+      if (!lead) throw new StudioToolError(`No preset is a profile for ${accepts![0]}. Pass \`preset\`.`, { status: 422 });
+      const { preset, from, matched } = picked ?? { preset: lead, from: "accepts" as const, matched: undefined };
+      // todo19 D4: one profile per accepted kind; the picked preset covers its own kinds.
+      const chosen: Record<string, string> = {};
+      if (accepts) {
+        const leadKinds = kindsOfPreset(preset);
+        for (const k of accepts) {
+          const p = leadKinds.includes(k) ? preset : defaultProfile(k);
+          if (p) chosen[k] = p;
+        }
+      }
+      const extendsList = accepts ? [...new Set([preset, ...Object.values(chosen)])] : undefined;
       const bootId = args.bootId ?? (ctx.seed ? await deriveBootId(`${projectId}\n${ctx.seed}`) : randomBootId());
       const accepted = await wrap(() =>
         client.boot(
@@ -103,6 +187,8 @@ export function createStudioHandlers(deps: StudioToolDeps) {
           {
             bootId,
             preset,
+            ...(extendsList ? { extends: extendsList, accepts } : {}),
+            ...(args.filter && Object.keys(args.filter).length ? { filter: args.filter } : {}),
             ...(args.patch?.length ? { patch: args.patch } : {}),
             ...(args.files?.length ? { files: args.files } : {}),
             ...(args.folders?.length ? { folders: args.folders } : {}),
@@ -121,6 +207,7 @@ export function createStudioHandlers(deps: StudioToolDeps) {
         preset: accepted.preset ?? preset,
         presetFrom: from,
         ...(matched ? { matched } : {}),
+        ...(accepts ? { accepts, profiles: chosen } : {}),
         taskIds: accepted.taskIds,
         ...(taskId ? { taskId } : {}),
         ...(revision !== undefined ? { revision } : {}),
@@ -132,12 +219,30 @@ export function createStudioHandlers(deps: StudioToolDeps) {
 
     async patch_studio(args: PatchStudioArgs, ctx: CallContext = {}) {
       if (!args.patch.length) throw new StudioToolError("Empty patch: nothing to change.");
+      checkKindOps(args.patch);
       const saved = await wrap(() => client.patchEnvironment(args.taskId, args.patch, args.revision, ctx.signal));
       return { taskId: args.taskId, revision: saved.revision, ...(saved.contentHash ? { contentHash: saved.contentHash } : {}), ...(saved.author ? { author: saved.author } : {}), ops: args.patch.length };
     },
 
     async get_studio_state(args: GetStudioStateArgs, ctx: CallContext = {}) {
       const [env, task] = await Promise.all([wrap(() => client.getEnvironment(args.taskId, ctx.signal)), client.getTask(args.taskId, ctx.signal).catch(() => undefined)]);
+      // todo19 D12: per-kind profiles from the resolved spec (presets fill them), summarised.
+      const resolved = (env.effective ?? env.environment) as Record<string, any> | null;
+      const all = kindsOf(resolved);
+      const kinds = Object.fromEntries(Object.entries(all).map(([k, p]) => [k, { ...(p.renderer ? { renderer: p.renderer } : {}), ...(p.profile ? { profile: p.profile } : {}) }]));
+      const accepts: string[] = Array.isArray(resolved?.accepts) ? resolved!.accepts : Object.keys(all);
+      const open = deps.activeItem?.();
+      const itemId = args.itemId ?? open?.id;
+      const rawKind = args.itemKind ?? (open && open.id === itemId ? open.kind : undefined);
+      const itemKind = rawKind ? (resolveKind(catalog, rawKind) ?? rawKind) : undefined;
+      const profile = itemKind ? kinds[itemKind] : undefined;
+      const activeItem = itemId
+        ? {
+            id: itemId,
+            ...(itemKind ? { kind: itemKind, profile: profile ?? null } : {}),
+            ...(itemKind && !profile ? { note: "No profile maps this kind: it opens in the generic file view. Add one with patch_studio at /data/kinds/<kind>." } : {}),
+          }
+        : undefined;
       return {
         taskId: args.taskId,
         revision: env.revision,
@@ -146,6 +251,8 @@ export function createStudioHandlers(deps: StudioToolDeps) {
         ...(env.savedAt ? { savedAt: env.savedAt } : {}),
         // The stored spec (small: it `extends` a preset); the resolved one stays server-side.
         environment: env.environment ?? null,
+        ...(Object.keys(kinds).length ? { accepts, kinds } : {}),
+        ...(activeItem ? { activeItem } : {}),
         ...(env.environment ? {} : { note: "Nothing saved yet: the task runs its default setup. Patch at revision 0 to start one." }),
       };
     },

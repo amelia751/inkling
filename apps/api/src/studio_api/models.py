@@ -1251,7 +1251,7 @@ class IdempotencyKey(Base):
 class Derivative(Base):
     """A browser-viewable file made from a source node: `video-mp4` (`derived/<sha>.mp4`) or
     `slide-dzi` (`derived/<sha>.dzi` + tiles). States: pending → processing (progress 0–100) →
-    ready | failed (`error` is shown on the item). Purged with its source node."""
+    ready | failed | waiting (no worker has the converter yet, todo19 P0-2) (`error` is shown on the item). Purged with its source node."""
 
     __tablename__ = "derivatives"
     __table_args__ = (UniqueConstraint("source_node_id", "kind", name="uq_derivatives_node_kind"),)
@@ -1269,6 +1269,17 @@ class Derivative(Base):
     meta: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class WorkerCapability(Base):
+    """What a worker can convert (todo19 D10): `{ffmpeg: "7.1", openslide: "4.0.1", …}`, reported at
+    start and refreshed while it runs. A row past `expires_at` no longer counts (migration 0028)."""
+
+    __tablename__ = "worker_capabilities"
+    worker_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    capabilities: Mapped[dict] = mapped_column(JSON, default=dict)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
 
 

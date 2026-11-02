@@ -27,10 +27,20 @@ export interface CatalogContribution {
   [key: string]: unknown;
 }
 
+/** todo19 D12: one preset as the profile for one data kind. */
+export interface CatalogProfile {
+  kind: string;
+  preset: string;
+  renderer?: string;
+  description?: string;
+}
+
 export interface Catalog {
   version: number;
   modules: CatalogModule[];
   contributions: CatalogContribution[];
+  /** Presets as per-kind profiles (kind → preset); older catalogues lack it (derived from the presets then). */
+  profiles?: CatalogProfile[];
 }
 
 const PRESET_SEGMENT = ".presets.";
@@ -46,6 +56,35 @@ export const presetRefs = (catalog: Catalog): string[] =>
     .filter((c) => c.type === "presets")
     .map((c) => presetRef(c.id))
     .sort();
+
+/** Data kind ids in the catalogue. */
+export const kindIds = (catalog: Catalog): string[] => catalog.contributions.filter((c) => c.type === "dataKinds").map((c) => c.id);
+
+/** A full kind id from a full id or its last segment ("raster"), or undefined if unknown or ambiguous. */
+export function resolveKind(catalog: Catalog, ref: string): string | undefined {
+  const ids = kindIds(catalog);
+  if (ids.includes(ref)) return ref;
+  const short = ids.filter((id) => id.slice(id.lastIndexOf(".") + 1) === ref);
+  return short.length === 1 ? short[0] : undefined;
+}
+
+/** Every per-kind profile: the catalogue's `profiles`, else each preset's `data.kind` / `data.kinds`. */
+export function catalogProfiles(catalog: Catalog): CatalogProfile[] {
+  if (catalog.profiles) return catalog.profiles;
+  return catalog.contributions
+    .filter((c) => c.type === "presets")
+    .flatMap((c) => {
+      const data = (c.example as { data?: { kind?: string; kinds?: Record<string, unknown> } } | undefined)?.data;
+      const kinds = [...new Set([...(data?.kind ? [data.kind] : []), ...Object.keys(data?.kinds ?? {})])];
+      return kinds.map((kind) => ({ kind, preset: presetRef(c.id), description: c.description }));
+    });
+}
+
+/** The kinds a renderer consumes (empty when it isn't a known renderer). */
+export function rendererConsumes(catalog: Catalog, renderer: string): string[] | undefined {
+  const r = catalog.contributions.find((c) => c.type === "renderers" && c.id === renderer);
+  return r ? ((r.consumes as string[] | undefined) ?? []) : undefined;
+}
 
 /** First sentence-ish line, at most `max` characters. */
 export function oneLine(text: string | undefined, max = 160): string {
@@ -63,10 +102,20 @@ export function compactPresetIndex(catalog: Catalog): string {
     .map((c) => [presetRef(c.id), oneLine(c.description, 120)] as const)
     .sort(([a], [b]) => a.localeCompare(b));
   const modules = [...catalog.modules].sort((a, b) => a.id.localeCompare(b.id));
+  const byKind = new Map<string, string[]>();
+  for (const p of catalogProfiles(catalog)) byKind.set(p.kind, [...(byKind.get(p.kind) ?? []), p.preset]);
+  const profiles = [...byKind].sort(([a], [b]) => a.localeCompare(b));
   return [
     "## Presets (`extends` / boot_studio `preset`)",
     ...presets.map(([id, d]) => `- ${id}: ${d}`),
     "",
+    ...(profiles.length
+      ? [
+          "## Profiles (data kind → presets; a Studio is one task over many kinds, boot_studio `accepts`, each kind's view at /data/kinds/<kind>)",
+          ...profiles.map(([k, ps]) => `- ${k}: ${ps.join(", ")}`),
+          "",
+        ]
+      : []),
     "## Modules",
     ...modules.map((m) => `- ${m.id}: ${oneLine(m.title && m.description ? `${m.title}. ${m.description}` : (m.description ?? m.title), 80)}`),
     "",

@@ -92,6 +92,18 @@ if (signin) {
 }
 
 console.log(`[dev] ${notes.join("; ")}`);
+
+// ---- Worker converters (todo19 D10, §2 F): say which kinds will wait, without delaying start ----
+{
+  const probe = spawn("uv", ["run", "--quiet", "--package", "studio-worker", "python", "-c",
+    "from studio_worker import capabilities as c; print('\\n'.join(c.missing(c.detect())))"], { cwd: repo, stdio: ["ignore", "pipe", "ignore"] });
+  let out = "";
+  probe.stdout.on("data", (b) => (out += b));
+  probe.on("close", () => {
+    for (const line of out.split("\n").filter(Boolean)) console.log(`[dev] worker: ${line} (pnpm doctor checks everything)`);
+  });
+  probe.on("error", () => {});
+}
 const args = ["turbo", "run", "dev", "--env-mode=loose", ...["web", "api", "agent", "worker"].map((a) => `--filter=@studio/${a}`), ...extra];
 const child = spawn("pnpm", ["exec", ...args], { cwd: repo, env, stdio: "inherit" });
 for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => child.kill(sig));

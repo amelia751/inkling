@@ -7,6 +7,7 @@ import { MeasurementsConfigSchema, StripChartConfigSchema, TIMESERIES } from "./
 import { geometries } from "./geometries";
 import { WfdbExportConfigSchema } from "./wfdbCodes";
 import { ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 export { TIMESERIES } from "./config";
 const ON_STRIP = `renderer == ${TIMESERIES}.renderers.strip-chart`;
@@ -17,7 +18,7 @@ const codeOption = (list: string) => z.object({ code: z.string().default("").des
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
-    name: a.record ?? a.name ?? a.path,
+    name: assetName(a, a.record),
     group: "Recordings",
     assets: [a],
     sourceLabel: a.dx,

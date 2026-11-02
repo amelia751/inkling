@@ -3,6 +3,7 @@ import { defineModule } from "@studio/plugin-ui-sdk/module";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { videoGeometries } from "./geometries";
 import { NS, ns } from "@studio/contracts/naming";
+import { assetName } from "@studio/plugin-ui-sdk/assets";
 
 export const VIDEO = ns("video");
 const core = (n: string) => `${NS}.core.commands.${n}`;
@@ -10,7 +11,7 @@ const core = (n: string) => `${NS}.core.commands.${n}`;
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
-    name: a.path.split("/").pop() ?? a.path,
+    name: assetName(a),
     group: a.label ? a.label[0].toUpperCase() + a.label.slice(1) : "Videos",
     assets: [a],
     sourceLabel: a.label,

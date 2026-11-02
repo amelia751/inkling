@@ -187,3 +187,64 @@ def tile_slide(
         return Derived("slide-dzi", f"derived/{sha}.dzi", files, meta)
     finally:
         slide.close()
+
+
+# ---- The worker loop: claim → read source → convert → upload → complete ------------------------
+
+
+class DeriveWorker:
+    """Claims derivative rows from the kernel (`/api/v1/worker/derivatives/*`), converts them and
+    uploads the files. `convert` is injectable for tests."""
+
+    def __init__(self, http: Any, scratch: Path, limits: DeriveLimits = DeriveLimits(), convert: Callable[..., Derived] | None = None):
+        self.http, self.scratch, self.limits = http, scratch, limits
+        self.convert = convert or self._convert
+
+    def _convert(self, kind: str, src: Path, out: Path, sha: str, progress: Progress) -> Derived:
+        if kind == "video-mp4":
+            return transcode_video(src, out, sha, limits=self.limits, progress=progress)
+        return tile_slide(src, out, sha, progress=progress)
+
+    def tick(self) -> int:
+        r = self.http.post("/api/v1/worker/derivatives/claim", json={"limit": 1, "maxAttempts": self.limits.max_attempts})
+        r.raise_for_status()
+        rows = r.json().get("derivatives") or []
+        for row in rows:
+            self.handle(row)
+        return len(rows)
+
+    def handle(self, row: dict) -> str:
+        import hashlib
+        import tempfile
+
+        did = row["id"]
+        with tempfile.TemporaryDirectory(dir=self.scratch) as tmp:
+            src = Path(tmp) / "source"
+            h = hashlib.sha256()
+            with self.http.stream("GET", f"/api/v1/worker/inspect/nodes/{row['nodeId']}/content") as resp:
+                resp.raise_for_status()
+                with src.open("wb") as f:
+                    for chunk in resp.iter_bytes():
+                        h.update(chunk)
+                        f.write(chunk)
+            sha = h.hexdigest()
+
+            def progress(pct: int) -> None:
+                self.http.post(f"/api/v1/worker/derivatives/{did}/progress", json={"progress": pct})
+
+            try:
+                d = self.convert(row["kind"], src, Path(tmp) / "out", sha, progress)
+            except DeriveError as e:
+                self.http.post(f"/api/v1/worker/derivatives/{did}/fail", json={"reason": e.reason, "retry": e.retry, "maxAttempts": self.limits.max_attempts})
+                return "failed"
+            keys = []
+            main = ""
+            for rel, path in d.files.items():
+                ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
+                up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=path.read_bytes(), headers={"Content-Type": ctype})
+                up.raise_for_status()
+                keys.append(up.json()["key"])
+                if rel == d.key:
+                    main = keys[-1]
+            self.http.post(f"/api/v1/worker/derivatives/{did}/complete", json={"sha": sha, "key": main, "keys": keys, "meta": d.meta}).raise_for_status()
+            return "ready"

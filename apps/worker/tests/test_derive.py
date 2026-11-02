@@ -141,3 +141,67 @@ def test_real_ffmpeg_transcode_when_installed(tmp_path):
     subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=duration=1:size=64x48:rate=5", "-c:v", "mjpeg", str(src)], check=True)
     d = derive.transcode_video(src, tmp_path / "out", "sha1")
     assert d.files[d.key].stat().st_size > 0 and d.meta["sourceCodec"] == "mjpeg"
+
+
+class _Resp:
+    def __init__(self, body=None, chunks=()):
+        self._body, self._chunks = body or {}, chunks
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._body
+
+    def iter_bytes(self):
+        yield from self._chunks
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_a):
+        return False
+
+
+class _FakeKernel:
+    def __init__(self):
+        self.calls: list[tuple[str, object]] = []
+
+    def post(self, url, json=None):
+        self.calls.append((url, json))
+        if url.endswith("/claim"):
+            return _Resp({"derivatives": [{"id": "drv-1", "nodeId": "nod-1", "kind": "video-mp4"}]})
+        return _Resp({})
+
+    def put(self, url, content=b"", headers=None):
+        self.calls.append((url, headers))
+        return _Resp({"key": "uploads/p/" + url.split("/files/")[1]})
+
+    def stream(self, _m, _url):
+        return _Resp(chunks=[b"avi-bytes"])
+
+
+def test_worker_loop_uploads_and_completes(tmp_path):
+    k = _FakeKernel()
+
+    def convert(kind, src, out, sha, progress):
+        out.mkdir(parents=True)
+        (out / "x.mp4").write_bytes(b"m")
+        progress(50)
+        return derive.Derived(kind, f"derived/{sha}.mp4", {f"derived/{sha}.mp4": out / "x.mp4"}, {"codec": "h264"})
+
+    assert derive.DeriveWorker(k, tmp_path, convert=convert).tick() == 1
+    urls = [u for u, _ in k.calls]
+    assert any(u.endswith("/progress") for u in urls) and urls[-1].endswith("/complete")
+    done = k.calls[-1][1]
+    assert done["key"].startswith("uploads/p/derived/") and done["key"].endswith(".mp4")
+
+
+def test_worker_loop_reports_the_codec_failure(tmp_path):
+    k = _FakeKernel()
+
+    def convert(*_a):
+        raise derive.DeriveError("ffmpeg can't decode cinepak video")
+
+    derive.DeriveWorker(k, tmp_path, convert=convert).tick()
+    assert k.calls[-1] == ("/api/v1/worker/derivatives/drv-1/fail", {"reason": "ffmpeg can't decode cinepak video", "retry": False, "maxAttempts": 3})

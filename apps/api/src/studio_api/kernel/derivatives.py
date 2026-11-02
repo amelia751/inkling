@@ -97,3 +97,37 @@ def derived_keys(db: Session, node_ids: list[str]) -> list[str]:
     for r in db.scalars(select(Derivative).where(Derivative.source_node_id.in_(node_ids))):
         keys.extend(r.blob_keys or ([r.blob_key] if r.blob_key else []))
     return list(dict.fromkeys(keys))
+
+
+# ---- Worker API helpers ------------------------------------------------------------------------
+
+MAX_FILE_BYTES = 256 << 20
+
+
+def get(db: Session, did: str) -> Derivative:
+    from fastapi import HTTPException
+
+    row = db.get(Derivative, did)
+    if row is None:
+        raise HTTPException(404, "no such derivative")
+    return row
+
+
+def public(row: Derivative) -> dict:
+    return {"id": row.id, "projectId": row.project_id, "nodeId": row.source_node_id, "kind": row.kind, "state": row.state, "attempts": row.attempts, "progress": row.progress}
+
+
+def put_file(db: Session, row: Derivative, rel: str, data: bytes, media_type: str) -> str:
+    """Store one derivative file at `uploads/<project>/derived/<rel>` (content-hash keyed by the worker)."""
+    from fastapi import HTTPException
+
+    from .. import blobstore
+    from . import assets
+
+    if not rel.startswith(("derived/",)) or ".." in rel.split("/") or len(data) > MAX_FILE_BYTES:
+        raise HTTPException(422, "derivative files are derived/<sha>… and at most 256 MB")
+    key = f"{assets.UPLOAD_PREFIX}{row.project_id}/{rel}"
+    store = blobstore.data()
+    if store.stat(key) is None:
+        store.put(key, data, media_type or "application/octet-stream")
+    return key

@@ -81,6 +81,9 @@ SDK's own unprefixed `WORKOS_*` variables are never read.
 | API_SESSION_MAX_HOURS     | 12                               | the session cookie's lifetime; set it to the WorkOS environment's maximum session length (Sessions tab), which is environment-wide and shown read-only on Organization › Security |
 | API_SIGNIN_METHODS        | password,google                  | the AuthKit sign-in methods turned on in the WorkOS environment (`password`, `google`, `microsoft`, `github`, `apple`, `magic_auth`, `passkey`), shown read-only on Organization › Security; the API can't read them |
 | API_WORKOS_SYNC_INTERVAL_S | 5                               | workos mode: how often the Events API sync polls (`auth/sync.py`; one replica at a time; 0 = off) |
+| API_OAUTH_AUDIENCE        | (none; dev: `mcp-dev`)           | todo17 D12: the remote MCP server's public URL (`MCP_PUBLIC_URL`): the `aud` outside agents' OAuth tokens must carry. Unset in workos mode: OAuth tokens are refused |
+| API_OAUTH_ISSUER          | (none; dev: `dev`)               | todo17 D12: the AuthKit domain that issues those tokens (`https://<subdomain>.authkit.app`) |
+| API_OAUTH_JWKS_URL        | `<issuer>/oauth2/jwks`           | todo17 D12: where the tokens' signing keys are. dev mode also accepts HS256 tokens signed with `API_SECRET_KEY` (minted by `POST /api/v1/dev/oauth/tokens`) |
 
 Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
 gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
@@ -259,6 +262,10 @@ class Settings(BaseModel):
     workos_base_url: str | None = None
     workos_sync_interval_s: float = 5.0
     public_url: str | None = None
+    # todo17 D12: outside agents' OAuth access tokens (WorkOS AuthKit, audience = the MCP server).
+    oauth_audience: str | None = None
+    oauth_issuer: str | None = None
+    oauth_jwks_url: str | None = None
     # Organization › Security (todo9 Phase 9): environment-wide in WorkOS, so read-only there.
     session_max_hours: int = 12
     signin_methods: str = "password,google"
@@ -377,6 +384,9 @@ _KEYS: dict[str, str] = {
     "workos_base_url": "API_WORKOS_BASE_URL",
     "workos_sync_interval_s": "API_WORKOS_SYNC_INTERVAL_S",
     "public_url": "API_PUBLIC_URL",
+    "oauth_audience": "API_OAUTH_AUDIENCE",
+    "oauth_issuer": "API_OAUTH_ISSUER",
+    "oauth_jwks_url": "API_OAUTH_JWKS_URL",
     "session_max_hours": "API_SESSION_MAX_HOURS",
     "signin_methods": "API_SIGNIN_METHODS",
     # Sample templates (todo14 §3).

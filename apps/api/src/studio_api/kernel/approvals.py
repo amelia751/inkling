@@ -75,8 +75,16 @@ def claims_of(token: str | None) -> dict:
 
 
 def verify(db: Session, ctx: RequestContext, *, operation: str, project_id: str, targets: Iterable[str] = ()) -> None:
-    """Refuse (403) unless the request carries a valid, unused approval for exactly this."""
+    """Refuse (403) unless the request carries a valid, unused approval for exactly this. An
+    outside agent (OAuth, todo17 D12) gets 202 and an approval link for its person instead."""
     if not ctx.scopes:
+        return
+    from ..context import AUTH_OAUTH
+
+    if ctx.auth == AUTH_OAUTH:
+        from ..auth import oauth
+
+        oauth.verify_destroy(db, ctx, operation=operation, project_id=project_id, targets=[str(t) for t in targets])
         return
     c = claims_of(ctx.approval_id)
     aid = c.get("aid")

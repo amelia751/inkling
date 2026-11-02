@@ -768,6 +768,10 @@ def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
     ops = body.get("ops")
     purges = [o for o in ops if isinstance(o, dict) and o.get("kind") == "purge"] if isinstance(ops, list) else []
     only_people(ctx, destroy=bool(purges))
+    if isinstance(ops, list) and any(isinstance(o, dict) and o.get("kind") == "trash" for o in ops):
+        from ..auth import scopes
+
+        scopes.require_tier(ctx, "trash", "Moving files to the Trash")  # todo17 D12 (tokens only)
     if purges:
         approvals.verify(db, ctx, operation="source.purge", project_id=p.id, targets=[str(i) for o in purges for i in (o.get("nodeIds") if isinstance(o.get("nodeIds"), list) else [])])
     if not isinstance(ops, list) or not ops:

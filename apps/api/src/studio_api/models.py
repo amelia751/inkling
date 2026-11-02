@@ -1256,3 +1256,42 @@ class ChangeRequestComment(Base):
     author: Mapped[str] = mapped_column(String(256))
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# todo17 agents-api (D12): outside agents connected over MCP OAuth, and the approvals a person
+# gives for their destroy operations.
+
+
+class AgentConnection(Base):
+    """An outside agent (an MCP OAuth client) a person signed in: one row per person and client
+    until revoked. Tokens are WorkOS AuthKit's; revoking here makes every token issued before
+    `revoked_at` answer 401 (`auth/oauth.py`). A later sign-in makes a new row."""
+
+    __tablename__ = "agent_connections"
+    __table_args__ = (Index("ix_agent_connections_person", "person_id", "client_id"),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    org_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    person_id: Mapped[str] = mapped_column(String(256))
+    client_name: Mapped[str] = mapped_column(String(256))
+    client_id: Mapped[str] = mapped_column(String(256))
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AgentApproval(Base):
+    """A destroy an outside agent asked for (202): a person approves or denies it from the link;
+    the agent then retries with `X-Approval-Id: <id>` (single use, `approvals_used`)."""
+
+    __tablename__ = "agent_approvals"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    connection_id: Mapped[str] = mapped_column(String(64), index=True)
+    person_id: Mapped[str] = mapped_column(String(256), index=True)
+    project_id: Mapped[str] = mapped_column(String(128))
+    operation: Mapped[str] = mapped_column(String(64))
+    targets: Mapped[list] = mapped_column(JSON, default=list)
+    state: Mapped[str] = mapped_column(String(16), default="pending")  # pending | approved | denied
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -36,15 +36,56 @@ export const roleName = (slug: string) => [...ORG_ROLES, ...PROJECT_ROLES].find(
 export const ORG_PERMISSIONS = ["org:manage", "members:manage", "billing:manage", "apikeys:manage", "audit:read", "project:create"] as const;
 export type OrgPermission = (typeof ORG_PERMISSIONS)[number];
 
-/** Scopes an organization API key may carry (Phase 8); they map to kernel scopes. */
-export const API_KEY_SCOPES = [
-  { id: "datasets:read", label: "Read datasets and exports" },
-  { id: "annotations:write", label: "Write annotations" },
-  { id: "environments:write", label: "Change Studio environments" },
-  { id: "studio:tools", label: "Run Studio tools (MCP, agents)" },
-  { id: "admin", label: "Manage the organization" },
+/**
+ * Token scopes (todo17 D12), following the operation tiers (`operations.ts`): what an outside
+ * agent's OAuth token or an API key may do. Any `project:*` scope implies `project:read`. A
+ * destroy by an agent always answers 202 with an approval link for a person.
+ */
+export const TOKEN_SCOPES = [
+  { id: "project:read", label: "Read projects, datasets and Studios" },
+  { id: "project:write", label: "Make changes (reversible)" },
+  { id: "project:trash", label: "Move things to the Trash" },
+  { id: "project:destroy", label: "Delete forever (a person approves each time)" },
+  { id: "rules:propose", label: "Propose changes to the project's rules" },
 ] as const;
+export type TokenScope = (typeof TOKEN_SCOPES)[number]["id"];
+
+/** Scopes an organization API key is made with: the token scopes, plus `admin` (Phase 8). */
+export const API_KEY_SCOPES = [...TOKEN_SCOPES, { id: "admin", label: "Manage the organization" }] as const;
 export type ApiKeyScope = (typeof API_KEY_SCOPES)[number]["id"];
+
+/** Old key scope names (todo9 Phase 8), still accepted: what each maps to (`auth/scopes.py` LEGACY). */
+export const LEGACY_API_KEY_SCOPES: Record<string, readonly TokenScope[]> = {
+  "datasets:read": ["project:read"],
+  "annotations:write": ["project:read", "project:write"],
+  "environments:write": ["project:read", "project:write"],
+  "studio:tools": ["project:read", "project:write"],
+  admin: ["project:read", "project:write", "project:trash", "project:destroy", "rules:propose"],
+};
+
+/** Settings › Connected agents (`GET /api/v1/me/connected-agents`). */
+export interface ConnectedAgent {
+  id: string;
+  clientName: string;
+  clientId: string;
+  scopes: TokenScope[];
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** An outside agent's destroy waiting for a person (`202` body `approval`; `GET /api/v1/approvals/{id}`). */
+export interface AgentApproval {
+  id: string;
+  state: "pending" | "approved" | "denied";
+  operation: string;
+  projectId: string;
+  targets: string[];
+  connectionId: string;
+  url: string;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+}
 
 // ---- Session (`GET /api/auth/session`) -----------------------------------------------------------
 

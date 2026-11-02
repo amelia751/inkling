@@ -149,6 +149,10 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/merge"),
         ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/close"),
         ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/comments"),
+        # todo17 D3/D12: the project's rules (writes stay people's; agents propose changes), and
+        # an outside agent polling the approval a person gives for its destroy (202 + link).
+        ("GET", f"{P}/projects/{{project_id}}/rules/history"),
+        ("GET", f"{P}/approvals/{{approval_id}}"),
     }
 )
 

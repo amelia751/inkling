@@ -463,6 +463,7 @@
       "method": "POST",
       "path": "/projects/{pid}/datasets/{datasetId}/add-followed",
       "description": "Add files or folders from Sources to a dataset.",
+      "published": "change-request",
       "input": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -642,7 +643,8 @@
       "tier": "write",
       "method": "PATCH",
       "path": "/api/environments/{pid}",
-      "description": "Patch the Studio's environment (undoable through its history).",
+      "description": "Patch the Studio's environment (undoable through its history). On a published Studio, an agent's patch opens a change request.",
+      "published": "change-request",
       "input": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -732,19 +734,24 @@
       "id": "rules.update",
       "tool": "rules_update",
       "tier": "write",
-      "method": "PUT",
+      "method": "PATCH",
       "path": "/projects/{pid}/rules",
-      "description": "Replace the project's rules (people only; refused with label.in-use if it would orphan annotations).",
+      "description": "Change the project's rules with a JSON Patch. From an agent this opens a change request that a person reviews (or that merges itself when every check passes).",
+      "published": "change-request",
       "input": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-          "rules": {
-            "type": "object",
-            "propertyNames": {
-              "type": "string"
-            },
-            "additionalProperties": {}
+          "ops": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
           },
           "baseRevision": {
             "type": "integer",
@@ -753,7 +760,7 @@
           }
         },
         "required": [
-          "rules",
+          "ops",
           "baseRevision"
         ]
       }

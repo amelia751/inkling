@@ -384,6 +384,8 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
     if body["revision"] != cur["revision"]:
         return _json(409, {"error": "revision conflict", "current": cur})
     prov = studio_defs.provenance(ctx, request.headers, body)
+    if request.method == "PATCH" and (deferred := _change_request(db, ctx, c, body, prov)) is not None:
+        return deferred
 
     base = cur["environment"] if cur["environment"] is not None else _base_environment(db, c)
     is_patch = request.method == "PATCH"
@@ -405,6 +407,31 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
         db.rollback()
         return _json(409, {"error": "revision conflict", "current": _doc(db.get(WorkspaceEnvironment, (c.workspace_id, c.task)))})
     return saved
+
+
+def _change_request(db: Session, ctx: RequestContext, c: RequestContext, body: dict, prov: studio_defs.Provenance) -> JSONResponse | dict | None:
+    """todo17 D7: an agent's patch to a published Studio opens (or adds to) its change request
+    (202 `{changeRequest}`); drafts and the agent's scratch fall through and apply directly. When
+    it auto-merged at once, the answer is the saved revision as before, plus `changeRequest`."""
+    from ..kernel import change_requests as crs
+
+    p = db.get(ProjectRow, c.workspace_id)
+    if p is None or not crs.is_agent(ctx):
+        return None
+    inp = {"taskId": c.task, "patch": body.get("patch"), "provenance": {"author": prov.author, "kind": prov.kind, "runId": prov.run_id, "promptHash": prov.prompt_hash}}
+    if not crs.needs_change_request(db, ctx, p, "studio.patch", inp):
+        return None
+    cr = crs.open_or_append(db, ctx, "studio.patch", inp, project=p)
+    if cr["state"] == "merged":
+        return {**_doc_revision(db, c), "changeRequest": cr}
+    return _json(202, {"changeRequest": cr})
+
+
+def _doc_revision(db: Session, c: RequestContext) -> dict:
+    from sqlalchemy import select
+
+    r = db.scalars(select(WorkspaceEnvironmentRevision).where(WorkspaceEnvironmentRevision.workspace_id == c.workspace_id, WorkspaceEnvironmentRevision.task_id == c.task).order_by(WorkspaceEnvironmentRevision.revision.desc()).limit(1)).first()
+    return _revision(r) if r is not None else {}
 
 
 def _save(db: Session, ctx: RequestContext, row: WorkspaceEnvironment | None, seen: int, environment, prov: studio_defs.Provenance, parent: str, patch: list | None = None) -> dict | None:

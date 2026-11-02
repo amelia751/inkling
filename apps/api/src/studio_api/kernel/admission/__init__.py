@@ -40,6 +40,9 @@ class Admitted:
     value: Any
     findings: list[Violation] = field(default_factory=list)
     dry_run: bool = False
+    # todo17 D7: not applied; an agent's write to something published became a change request
+    # (`value` is `{"changeRequest": CR}`; routes answer 202).
+    deferred: bool = False
 
     def findings_json(self) -> list[dict[str, Any]]:
         return [f.to_json() for f in self.findings]
@@ -56,6 +59,12 @@ class Ctx:
     scopes: frozenset[str] | None = None  # None: not a token-scoped caller
     rules: Mapping[str, Any] | Callable[[str | None], Mapping[str, Any]] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    # todo17 D7: the writer is an agent (assistant, MCP/OAuth client, non-admin API key); whether
+    # an operation's target is published; and how to hand it to a change request instead.
+    # `kernel.change_requests.admission_ctx` fills all three for a request.
+    agent: bool = False
+    targets_published: Callable[[Operation, dict[str, Any], Ctx], bool] | None = None
+    open_change_request: Callable[[str, dict[str, Any]], Any] | None = None
 
     def load_rules(self) -> Mapping[str, Any]:
         if callable(self.rules):
@@ -66,16 +75,24 @@ class Ctx:
 
 
 def _default_rules(project_id: str | None) -> Mapping[str, Any]:
+    """The project's rules (saved, else its preset's), read in a session of its own; callers in a
+    request pass `ctx.rules` bound to theirs (`change_requests.admission_ctx`)."""
     if project_id is None:
         return {}
-    try:  # kernel/rules.py lands in a parallel slice of todo17 Milestone 1
-        from .. import rules as rules_mod  # type: ignore[attr-defined]
-    except ImportError:
-        return {}
-    return rules_mod.get_rules(project_id) or {}
+    from ... import db as kdb
+    from ...models import ProjectRow
+    from .. import rules as rules_mod
+
+    with kdb.session_scope() as db:
+        p = db.get(ProjectRow, project_id)
+        return rules_mod.get(db, p)["rules"] if p is not None else {}
 
 
 Persist = Callable[[Any, Ctx], Any]
+
+# `published` value (packages/contracts/src/operations.ts): an agent's write to a published thing
+# opens a change request instead of applying (todo17 D7).
+CHANGE_REQUEST = "change-request"
 
 
 @dataclass
@@ -89,6 +106,7 @@ class Operation:
     persist: Persist | None = None
     prepare: Callable[[dict[str, Any], Ctx], None] | None = None  # e.g. look up existing names
     idempotent: bool = False
+    published: str | None = None  # CHANGE_REQUEST: agents' writes to published targets are reviewed
 
 
 OPERATIONS: dict[str, Operation] = {}
@@ -144,6 +162,12 @@ def permit(op: Operation, ctx: Ctx) -> None:
         raise PermissionDenied(f"Role '{ctx.role}' may not run {op.id}.")
 
 
+def needs_change_request(op: Operation, value: dict[str, Any], ctx: Ctx) -> bool:
+    """Permit, D7: an agent's change-request operation on a published target (people, drafts and
+    an agent's own scratch apply directly)."""
+    return bool(ctx.agent and op.published == CHANGE_REQUEST and ctx.open_change_request is not None and ctx.targets_published is not None and ctx.targets_published(op, value, ctx))
+
+
 # --- admit -------------------------------------------------------------------------------
 
 
@@ -160,6 +184,9 @@ def admit(op_id: str | Operation, data: Mapping[str, Any], ctx: Ctx | None = Non
         raise WriteRejected(blocking + [v for v in fixes + found if v not in blocking])
     permit(op, ctx)
     findings = [f for f in fixes + found if f.severity != "off"]
+    if not dry_run and needs_change_request(op, value, ctx):
+        assert ctx.open_change_request is not None
+        return Admitted(value={"changeRequest": ctx.open_change_request(op.id, value)}, findings=findings, deferred=True)
     if dry_run or op.persist is None:
         return Admitted(value=value, findings=findings, dry_run=dry_run)
     return Admitted(value=op.persist(value, ctx), findings=findings)
@@ -167,4 +194,4 @@ def admit(op_id: str | Operation, data: Mapping[str, Any], ctx: Ctx | None = Non
 
 FAMILIES = {"labels": lint_labels.check, "layout": lint_layout.check, "datasets": lint_datasets.check}
 
-__all__ = ["FAMILIES", "OPERATIONS", "Admitted", "Ctx", "Operation", "PermissionDenied", "WriteRejected", "admit", "normalise", "operation", "permit", "register"]
+__all__ = ["CHANGE_REQUEST", "FAMILIES", "OPERATIONS", "Admitted", "Ctx", "Operation", "PermissionDenied", "WriteRejected", "admit", "needs_change_request", "normalise", "operation", "permit", "register"]

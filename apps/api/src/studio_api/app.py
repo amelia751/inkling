@@ -17,6 +17,7 @@ from .auth import routes as auth_routes
 from .auth.session import session_middleware
 from .kernel import service_scope
 from .routes import audit as audit_routes
+from .routes import changes as changes_routes
 from .routes import me as me_routes
 from .routes import org as org_routes
 from .routes import org_security
@@ -117,6 +118,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(rules_routes.router)
     app.include_router(labels_routes.router)
     app.include_router(findings_routes.router)
+    app.include_router(changes_routes.router)
     app.include_router(trash_routes.router)  # before files: it owns /trash now
     app.include_router(files.router)
     app.include_router(explore.router)

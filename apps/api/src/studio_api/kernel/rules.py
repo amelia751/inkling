@@ -64,7 +64,7 @@ class Annotations(_M):
 
 
 class Merge(_M):
-    auto: bool | dict[str, Any] | str = False
+    auto: bool | dict[str, Any] | str = "write-tier"  # "write-tier" | "never" (todo17 D7)
 
 
 class RulesV1(_M):

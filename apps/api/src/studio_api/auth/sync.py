@@ -586,6 +586,7 @@ def reconcile(c: Any | None = None) -> dict[str, int]:
     event): every user, every mirrored org's name and memberships. People gone from WorkOS are
     tombstoned; memberships gone are deleted and their tokens revoked. Logs the counts."""
     c = c or sync_client()
+    started = datetime.now(UTC)
     counts = {"users": 0, "usersTombstoned": 0, "orgs": 0, "memberships": 0, "membershipsRemoved": 0}
     fx: Effects = []
     seen_users: set[str] = set()
@@ -596,7 +597,8 @@ def reconcile(c: Any | None = None) -> dict[str, int]:
             apply_user(db, d, _dt(d.get("updated_at")), fx)
         counts["users"] += 1
     with session_scope() as db:
-        gone = [r for r in db.scalars(select(User).where(User.deleted_at.is_(None))) if r.workos_user_id not in seen_users]
+        # Rows written after the listing began (a sign-up meanwhile) aren't drift.
+        gone = [r for r in db.scalars(select(User).where(User.deleted_at.is_(None))) if r.workos_user_id not in seen_users and _before(r.created_at, started)]
         for r in gone:
             if tombstone_user(db, r.workos_user_id, now(), fx):
                 counts["usersTombstoned"] += 1
@@ -621,7 +623,7 @@ def reconcile(c: Any | None = None) -> dict[str, int]:
                 counts["memberships"] += 1
         with session_scope() as db:
             for row in db.scalars(select(OrganizationMember).where(OrganizationMember.org_id == oid, OrganizationMember.workos_membership_id.is_not(None))):
-                if row.workos_membership_id not in seen_m:
+                if row.workos_membership_id not in seen_m and _before(row.created_at, started) and _before(row.workos_updated_at, started):
                     fx.append(_revoke(row.principal, oid))
                     db.delete(row)
                     counts["membershipsRemoved"] += 1
@@ -634,6 +636,10 @@ def reconcile(c: Any | None = None) -> dict[str, int]:
         _set_cursor(db, None, RECONCILE_CONSUMER)
     log.info("workos_sync.reconciled", extra={"event": "workos_sync.reconciled", **counts})
     return counts
+
+
+def _before(t: datetime | None, at: datetime) -> bool:
+    return t is None or _aware(t) < at  # type: ignore[operator]
 
 
 def reconcile_due(at: datetime | None = None) -> bool:

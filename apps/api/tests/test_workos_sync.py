@@ -271,7 +271,7 @@ def test_reconcile_fixes_drift_and_logs_counts(client, stats, caplog):
         ev("user.created", user("user_keep")),
         ev("user.created", user("user_gone")),
         ev("organization_membership.created", membership("om_keep", "user_keep", "org_R")),
-        ev("organization_membership.created", membership("om_gone", "user_gone_m", "org_R")),
+        ev("organization_membership.created", membership("om_gone", "user_gone_m", "org_R", at="2026-10-01T00:00:00Z")),
     ], stats)
     fake = SimpleNamespace(
         user_management=SimpleNamespace(list_users=lambda **kw: _Paged([user("user_keep", "Kept", at="2026-11-02T00:00:00Z"), user("user_gone_m")])),

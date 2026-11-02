@@ -127,10 +127,29 @@ def validate_annotation(a: Any) -> dict:
     return a
 
 
-def put_document(db: Session, ctx: RequestContext, doc: dict) -> dict:
-    """Save the whole document (the Studio's autosave). Bumps the revision, like the dev seed server."""
+def document_errors(annotations: list, labels: set[str] | None) -> list[dict]:
+    """Every violation in a whole document at once (todo17 M0): each item's shape
+    (`validate_annotation`) and, when the Studio declares a label set, its label."""
+    errors: list[dict] = []
+    for i, a in enumerate(annotations):
+        try:
+            validate_annotation(_canonical(a) if isinstance(a, dict) else a)
+        except ValueError as e:
+            errors.append({"path": f"/annotations/{i}", "code": "schema", "message": str(e)})
+            continue
+        if labels and a["label"] not in labels:
+            errors.append({"path": f"/annotations/{i}/label", "code": "label", "message": f"label {a['label']!r} isn't in this Studio's label set"})
+    return errors
+
+
+def put_document(db: Session, ctx: RequestContext, doc: dict, labels: set[str] | None = None) -> dict:
+    """Save the whole document (the Studio's autosave). Bumps the revision, like the dev seed server.
+    Rejects the whole save with 422 listing every invalid item; `labels` empty or None skips the label check."""
     if not isinstance(doc, dict) or not isinstance(doc.get("annotations"), list):
         raise HTTPException(400, "invalid annotation document")
+    errors = document_errors(doc["annotations"], labels)
+    if errors:
+        raise HTTPException(422, {"ok": False, "errors": errors})
     row = _row(db, ctx)
     row.annotations = [_canonical(a) for a in doc["annotations"]]
     row.annotations_version = doc.get("annotationsVersion")

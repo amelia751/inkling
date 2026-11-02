@@ -468,7 +468,7 @@ def fail(db: Session, j: PluginJob, error_cls: str, recoverable: bool) -> Plugin
 # ---- Filtered annotations (§6.3) -----------------------------------------------------------
 
 
-def _vocabulary(db: Session, ctx: RequestContext) -> set[str]:
+def vocabulary(db: Session, ctx: RequestContext) -> set[str]:
     """Labels the task's environment declares (any `labels` / `classes` / `vocabulary` list)."""
     row = db.get(WorkspaceEnvironment, (ctx.workspace_id, ctx.task))
     out: set[str] = set()
@@ -508,7 +508,7 @@ def _geometry(v: Any, depth: int = 0) -> Any:
 def filtered_annotations(db: Session, ctx: RequestContext, item_id: str | None, label: str | None, limit: int) -> dict:
     from . import annotations
 
-    vocab = _vocabulary(db, ctx)
+    vocab = vocabulary(db, ctx)
     rows = annotations.list_annotations(db, ctx, item_id, label, 100_000)
     out, redacted = [], 0
     for a in rows[: max(1, min(limit, 1000))]:

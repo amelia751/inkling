@@ -13,6 +13,7 @@ import { remountsOnItemSwitch, ViewportHost } from "@/studio/components/studio/V
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@studio/ui/ui/alert-dialog";
 import { mergeAnnotations, resolveConflict, useSaveConflicts } from "@/studio/lib/annotation-merge";
 import { toProblem } from "@/studio/lib/problem";
 import { retryDelayMs, useSaveProblem } from "@/studio/lib/save-problem";
@@ -445,6 +446,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       </ShellTransition>
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
       <SaveConflictNotice />
+      <UnsavedLeaveGuard save={save} />
       <ShellTransition>
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
@@ -606,6 +608,50 @@ function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
   }, [env]);
 }
 
+/**
+ * todo18 §2 C: leaving the Studio inside the app with unsaved edits saves first; only if that
+ * fails does the person choose (an in-app dialog, never `window.confirm`, so automation can't hang).
+ * Leaving anyway keeps the edits in this tab's stash; they come back when the Studio reopens.
+ */
+function UnsavedLeaveGuard({ save }: { save: () => Promise<void> }) {
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => useStudio.getState().dirty && currentLocation.pathname !== nextLocation.pathname);
+  const [ask, setAsk] = useState(false);
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    let live = true;
+    void save().then(() => {
+      if (!live || blocker.state !== "blocked") return;
+      if (!useStudio.getState().dirty) blocker.proceed();
+      else setAsk(true);
+    });
+    return () => {
+      live = false;
+    };
+  }, [blocker, save]);
+  const close = (leave: boolean) => {
+    setAsk(false);
+    if (blocker.state !== "blocked") return;
+    if (leave) {
+      stashUnsaved();
+      blocker.proceed();
+    } else blocker.reset();
+  };
+  return (
+    <AlertDialog open={ask} onOpenChange={(o) => !o && close(false)}>
+      <AlertDialogContent data-testid="unsaved-leave-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Your latest annotations aren't saved</AlertDialogTitle>
+          <AlertDialogDescription>We couldn't save them just now. If you leave, they're kept in this tab and come back when you reopen this Studio.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid="unsaved-leave-stay" onClick={() => close(false)}>Stay</AlertDialogCancel>
+          <AlertDialogAction data-testid="unsaved-leave-go" onClick={() => close(true)}>Leave anyway</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 /** todo18 P0-4: the same annotation was changed here and by someone else; the person picks Theirs or Mine. */
 function SaveConflictNotice() {
   const conflicts = useSaveConflicts((s) => s.conflicts);
@@ -697,24 +743,6 @@ function useAutosave(projectId: string) {
     return () => clearTimeout(t);
   }, [annotations, dirty, save]);
 
-  // todo18 §2 C: leaving the Studio inside the app with unsaved edits saves first; only if that
-  // fails does the person choose to leave anyway (the edits stay in this tab's stash).
-  const blocker = useBlocker(({ currentLocation, nextLocation }) => useStudio.getState().dirty && currentLocation.pathname !== nextLocation.pathname);
-  useEffect(() => {
-    if (blocker.state !== "blocked") return;
-    let live = true;
-    void save().then(() => {
-      if (!live || blocker.state !== "blocked") return;
-      if (!useStudio.getState().dirty) return blocker.proceed();
-      if (window.confirm("Your latest annotations aren't saved yet. Leave anyway? They're kept in this tab and come back when you reopen the Studio.")) {
-        stashUnsaved();
-        blocker.proceed();
-      } else blocker.reset();
-    });
-    return () => {
-      live = false;
-    };
-  }, [blocker, save]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {

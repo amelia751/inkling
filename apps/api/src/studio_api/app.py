@@ -13,6 +13,8 @@ from studio_observability import RequestContextMiddleware, setup_service
 from .config import SettingsError, env, settings
 from .db import create_all, session_scope
 from .naming import naming
+from .auth import routes as auth_routes
+from .auth.session import session_middleware
 from .kernel import service_scope
 from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
 
@@ -83,6 +85,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     if init_db:
         _seed_projects()
     app.include_router(ops.router)
+    app.include_router(auth_routes.router)
     app.include_router(environments.router)
     app.include_router(kernel.router)
     app.include_router(plugins.router)
@@ -105,6 +108,10 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     @app.get("/api/v1/health")
     def health():
         return {"ok": True}
+
+    # Innermost: the WorkOS session cookie (workos mode) → request.state.auth_session, refreshed
+    # cookie written back, CSRF header checked (auth/session.py).
+    app.middleware("http")(session_middleware)
 
     @app.middleware("http")
     async def correlation(request: Request, call_next):

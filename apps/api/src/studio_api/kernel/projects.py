@@ -22,7 +22,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..context import RequestContext, ensure_workspace
+from ..config import settings
+from ..context import ALL, RequestContext, ensure_workspace
 from ..dbutil import insert_ignore
 from ..models import (
     AnnotationDocumentRow,
@@ -32,6 +33,7 @@ from ..models import (
     NodeVersion,
     Organization,
     OrganizationMember,
+    ProjectMember,
     ProjectResume,
     ProjectRow,
     Proposal,
@@ -76,14 +78,19 @@ def personal_org_id(principal: str) -> str:
 
 
 def ensure_principal(db: Session, principal: str) -> str | None:
-    """A person's personal organization (dev creates one per `user:` principal), plus
-    editor access to the samples. Returns the personal org id."""
+    """A person's personal organization; returns its id.
+
+    dev mode: created here on first use for any `user:` principal, plus membership of the shared
+    samples (as before todo9, so the seed e2e suite keeps its projects). workos mode: sign-in
+    creates it (`auth.bootstrap`, no samples membership: todo14 D2); this only looks it up."""
     if not principal.startswith("user:"):
         return None
     org = personal_org_id(principal)
+    if settings().workos:
+        return org if db.get(Organization, org) is not None else None
     if db.get(OrganizationMember, (org, principal)) is None:
         insert_ignore(db, Organization, [{"id": org, "name": "Personal", "kind": "personal", "created_at": now()}, {"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
-        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "owner"}, {"org_id": SAMPLES_ORG, "principal": principal, "role": "editor"}])
+        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "admin", "created_at": now()}, {"org_id": SAMPLES_ORG, "principal": principal, "role": "member", "created_at": now()}])
     return org
 
 
@@ -92,9 +99,47 @@ def role_in(db: Session, org_id: str, principal: str) -> str | None:
     return m.role if m else None
 
 
+ORG_ADMIN_ROLES = ("admin", "owner")  # `owner`: rows from before todo9 (dev)
+
+
+def is_org_admin(ctx: RequestContext) -> bool:
+    """todo9 D5: org Admins are project admins everywhere. Checked by permission, never role slug."""
+    return "members:manage" in ctx.permissions or ALL in ctx.permissions
+
+
+def project_role(db: Session, ctx: RequestContext, p: ProjectRow) -> str | None:
+    """The person's role in a project (`owner | reviewer | annotator | viewer`), None = no access.
+
+    Signed in (workos mode): the project must be in the request's organization (another org's
+    project doesn't exist for you), then org Admin → owner, else the `project_members` row.
+    dev mode: membership of the project's organization as before todo9 (admin → owner, legacy
+    `viewer` → viewer, other members → annotator), refined by a `project_members` row."""
+    who = person(ctx)
+    if not who.startswith("user:"):
+        return None
+    if settings().workos or ctx.org_id is not None:
+        if ctx.org_id is None or p.org_id != ctx.org_id:
+            return None
+        if is_org_admin(ctx):
+            return "owner"
+        pm = db.get(ProjectMember, (p.id, who))
+        return pm.role if pm else None
+    ensure_principal(db, who)
+    org_role = role_in(db, p.org_id, who)
+    if org_role is None:
+        return None
+    if org_role in ORG_ADMIN_ROLES:
+        return "owner"
+    pm = db.get(ProjectMember, (p.id, who))
+    if pm is not None:
+        return pm.role
+    return "viewer" if org_role == "viewer" else "annotator"
+
+
 def require_project(db: Session, ctx: RequestContext, project_id: str, *, write: bool = False) -> ProjectRow:
-    """The project, if the caller may see it (404 otherwise, so ids don't leak). Session tokens
-    are bound to one workspace, which is one project."""
+    """The project, if the caller may see it (404 otherwise, so ids don't leak, including a
+    project of another organization). Session tokens are bound to one workspace, which is one
+    project."""
     p = db.get(ProjectRow, project_id) if ID_RE.fullmatch(project_id or "") else None
     if p is None:
         raise HTTPException(404, "no such project")
@@ -102,8 +147,7 @@ def require_project(db: Session, ctx: RequestContext, project_id: str, *, write:
         raise HTTPException(404, "no such project")
     who = person(ctx)
     if who.startswith("user:"):
-        ensure_principal(db, who)
-        role = role_in(db, p.org_id, who)
+        role = project_role(db, ctx, p)
         if role is None:
             raise HTTPException(404, "no such project")
         if write and role == "viewer":
@@ -279,7 +323,7 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "resume": resume_dict(db, _resume_row(db, p.id, person(ctx))),
         "attested": db.scalar(select(ImportSession.id).where(ImportSession.project_id == p.id, ImportSession.attested_by == person(ctx)).limit(1)) is not None,
         # todo13 D14: viewers can't drop; the composer reads this to disable attach.
-        "role": role_in(db, p.org_id, person(ctx)) if person(ctx).startswith("user:") else None,
+        "role": project_role(db, ctx, p),
     }
     if p.seed and (raw := seed_entry(p.id)):
         out["license"] = raw.get("license")
@@ -290,9 +334,15 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
 def list_projects(db: Session, ctx: RequestContext, q: str | None = None, sort: str = "recent", include_archived: bool = False) -> list[dict]:
     ensure_seeds_once(db)
     who = person(ctx)
-    ensure_principal(db, who)
-    orgs = select(OrganizationMember.org_id).where(OrganizationMember.principal == who)
-    query = select(ProjectRow).where(ProjectRow.org_id.in_(orgs))
+    if settings().workos or ctx.org_id is not None:
+        # Signed in: the request's organization only; members see the projects they belong to.
+        query = select(ProjectRow).where(ProjectRow.org_id == (ctx.org_id or ""))
+        if not is_org_admin(ctx):
+            query = query.where(ProjectRow.id.in_(select(ProjectMember.project_id).where(ProjectMember.principal == who)))
+    else:
+        ensure_principal(db, who)
+        orgs = select(OrganizationMember.org_id).where(OrganizationMember.principal == who)
+        query = select(ProjectRow).where(ProjectRow.org_id.in_(orgs))
     if ctx.scopes:
         query = query.where(ProjectRow.id == ctx.workspace_id)
     if not include_archived:
@@ -311,8 +361,15 @@ def list_projects(db: Session, ctx: RequestContext, q: str | None = None, sort: 
 
 def create_project(db: Session, ctx: RequestContext, title: str, description: str = "", visibility: str = "private") -> ProjectRow:
     who = person(ctx)
-    org = ensure_principal(db, who)
-    if org is None or ctx.scopes:
+    if ctx.scopes or not who.startswith("user:"):
+        raise HTTPException(403, "only people create projects")
+    if settings().workos or ctx.org_id is not None:
+        org = ctx.org_id
+        if org is None or not ctx.can("project:create"):
+            raise HTTPException(403, "you can't create projects in this organization")
+    else:
+        org = ensure_principal(db, who)
+    if org is None:
         raise HTTPException(403, "only people create projects")
     title = (title or "").strip()[:256]
     if not title:
@@ -323,6 +380,8 @@ def create_project(db: Session, ctx: RequestContext, title: str, description: st
     # The kernel workspace (plugin activation) is the project (todo6 D1), in the same transaction.
     ensure_workspace(db, p.id, title)
     db.add(p)
+    db.flush()
+    db.add(ProjectMember(project_id=p.id, principal=who, role="owner", added_by=who, added_at=now()))
     db.flush()
     audit.record(db, ctx.for_scope(p.id, None), "project.created", target=p.id, after={"title": title})
     return p

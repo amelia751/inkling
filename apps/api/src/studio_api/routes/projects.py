@@ -165,6 +165,23 @@ def create_task(project_id: str, dataset_id: str, body: dict = Body(...), ctx: R
     return projects.task_dict(db, projects.create_task(db, ctx, d, str(body.get("title") or ""), str(body.get("kind") or "annotate"), env))
 
 
+def _gone_if_trashed(db: Session, ctx: RequestContext, task_id: str) -> None:
+    """todo18: a Studio in Trash answers 410 with the batch that restores it (not a bare 404),
+    so the web can say "moved to Trash" and link there."""
+    from ..kernel import trash
+    from ..models import INCLUDE_TRASHED, TaskRow
+
+    t = db.get(TaskRow, task_id, execution_options=INCLUDE_TRASHED)
+    if t is None:
+        return
+    batch = trash.dataset_trash_batch(db, t)
+    if t.trashed_at is None and batch is None:
+        return
+    batch = batch or t.trash_batch_id
+    projects.require_project(db, ctx, t.project_id)
+    raise HTTPException(410, {"code": "trashed", "message": "This Studio is in Trash", "trashBatchId": batch, "projectId": t.project_id})
+
+
 @router.get("/tasks/{task_id}")
 def get_task(task_id: str, includeTrashed: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):  # noqa: N803
     """`includeTrashed=true` (the Studio page): a Studio in Trash with its dataset still answers, with
@@ -178,6 +195,8 @@ def get_task(task_id: str, includeTrashed: bool = False, ctx: RequestContext = D
         if t is not None and t.trashed_at is not None:
             projects.require_project(db, ctx, t.project_id)
             return {**projects.task_dict(db, t), "trashed": True, "datasetTrashed": True, "datasetTrashBatchId": trash.dataset_trash_batch(db, t) or t.trash_batch_id}
+    else:
+        _gone_if_trashed(db, ctx, task_id)
     t, _ = projects.require_task(db, ctx, task_id)
     return projects.task_dict(db, t)
 
@@ -185,6 +204,7 @@ def get_task(task_id: str, includeTrashed: bool = False, ctx: RequestContext = D
 @router.get("/tasks/{task_id}/document")
 def task_document(task_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     projects.ensure_seeds_once(db)
+    _gone_if_trashed(db, ctx, task_id)
     t, _ = projects.require_task(db, ctx, task_id)
     return projects.task_document(db, t)
 

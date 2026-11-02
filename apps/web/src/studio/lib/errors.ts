@@ -54,6 +54,8 @@ export function describeError(e: unknown, what = "page"): DescribedError {
 
   if (e instanceof NeedsApiError)
     return { ...base, name: "needs-api", illustration: "error", title: "Needs the full stack", description: "The dev seed server can't do this. Start the API: see docs/running.md.", retry: false };
+  if (status === 410)
+    return { ...base, name: "not-found", illustration: "not-found", title: "Moved to Trash", description: `This ${what} is in Trash. Restore it from the project's Trash to open it again.`, retry: false };
   if (status === 404)
     return { ...base, name: "not-found", illustration: "not-found", title: "Not found", description: `We couldn't find this ${what}. It may have been deleted, or the link is wrong.`, retry: false };
   if (status === 401 || status === 403)

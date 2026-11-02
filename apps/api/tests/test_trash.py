@@ -51,7 +51,10 @@ def test_dataset_goes_to_trash_with_its_collections_and_studios_and_comes_back(c
     assert out["batchId"] and len(out["impact"]["items"]) == 3
     assert client.get(f"/api/v1/projects/{p}/datasets/{ds['id']}").status_code == 404
     assert ds["id"] not in [d["id"] for d in client.get(f"/api/v1/projects/{p}/datasets").json()["datasets"]]
-    assert client.get(f"/api/v1/tasks/{task_id}").status_code == 404
+    gone = client.get(f"/api/v1/tasks/{task_id}")  # todo18: 410 with the batch that restores it
+    assert gone.status_code == 410 and gone.json()["detail"]["trashBatchId"] == out["batchId"], gone.text
+    assert client.get(f"/api/v1/tasks/{task_id}/document").status_code == 410
+    assert client.get(f"/api/v1/tasks/{task_id}", params={"includeTrashed": "true"}).json()["trashed"] is True
     # The files a dataset uses stay in Sources (D3).
     assert _trash(client, p, "sources")["count"] == 0
 
@@ -247,7 +250,7 @@ def test_a_studio_offers_restore_explore_shows_files_in_trash_and_names_are_peop
     p, ds, task_id = _setup(client)
     assert client.get(f"/api/v1/tasks/{task_id}").json()["datasetTrashBatchId"] is None
     out = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()
-    assert client.get(f"/api/v1/tasks/{task_id}").status_code == 404  # hidden by default
+    assert client.get(f"/api/v1/tasks/{task_id}").status_code == 410  # hidden by default: gone, with its batch (todo18)
     st = client.get(f"/api/v1/tasks/{task_id}", params={"includeTrashed": "true"}).json()
     assert st["trashed"] is True and st["datasetTrashed"] is True and st["datasetTrashBatchId"] == out["batchId"]
     with kdb.session_scope() as db:

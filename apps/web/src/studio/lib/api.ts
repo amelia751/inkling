@@ -146,6 +146,7 @@ export async function fetchTaskDocument(taskId: string): Promise<Project | undef
     if (!listed.projects.some((p) => p.id === taskId)) return (await fetchProjects()).find((p) => p.id === taskId);
   }
   const res = await apiFetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
-  if (res.status === 404) return undefined;
+  // 410: the Studio is in Trash (todo18); the page reads `trashed` from GET /tasks/{id}?includeTrashed=true.
+  if (res.status === 404 || res.status === 410) return undefined;
   return normalizeProject(await json<RawProject>(res));
 }

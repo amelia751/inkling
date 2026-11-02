@@ -12,6 +12,8 @@ moves its folder to the Trash (undoable) while no dataset uses it.
     GET   /api/v1/projects/{id}/imports                  import sessions, newest first
     POST  /api/v1/projects/{id}/imports                  start (or resume) a session: file list + attestation
     PUT   /api/v1/uploads/{session}/files/{fileId}       the bytes (`?offset=` for 64 MB chunks)
+    POST  /api/v1/projects/{id}/imports/url             import one file from an https:// or gs:// link (todo16 D10)
+    POST  /api/v1/projects/{id}/imports/copy            copy from a sample or another project you can read
     POST  /api/v1/imports/{id}/complete | /cancel | /retry
     GET   /api/v1/imports/{id}
 """
@@ -25,7 +27,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import audit, events, fs, imports, projects, tree
+from ..kernel import audit, events, fs, imports, projects, tree, url_imports
 from ..models import DatasetRow, ImportSession, SourceNode, now
 
 router = APIRouter(prefix="/api/v1")
@@ -124,6 +126,18 @@ def list_imports(project_id: str, ctx: RequestContext = Depends(get_context), db
 def start_import(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.require_project(db, ctx, project_id, write=True)
     return imports.create_session(db, ctx, p, body)
+
+
+@router.post("/projects/{project_id}/imports/url", status_code=201)
+def import_from_url(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    p = projects.require_project(db, ctx, project_id, write=True)
+    return url_imports.import_url(db, ctx, p, body)
+
+
+@router.post("/projects/{project_id}/imports/copy", status_code=201)
+def copy_into_project(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    p = projects.require_project(db, ctx, project_id, write=True)
+    return url_imports.copy_into(db, ctx, p, body)
 
 
 @router.put("/uploads/{session_id}/files/{file_id}")

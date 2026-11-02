@@ -103,8 +103,10 @@ def _publish(db: Session, ctx: RequestContext, s: ImportSession) -> None:
     events.publish(db, ctx.for_scope(s.project_id, None), "import.updated", {"projectId": s.project_id, "importId": s.id, "state": s.state}, source="kernel")
 
 
-def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
-    if ctx.scopes:
+def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, internal: bool = False) -> dict:
+    """`internal`: the kernel's own fetch or copy (todo16 D10, `url_imports`), which may run
+    for the assistant's delegated token; the bytes never pass through the caller."""
+    if ctx.scopes and not internal:
         raise HTTPException(403, "only people add data to a project")
     files = body.get("files")
     if not isinstance(files, list) or not files:

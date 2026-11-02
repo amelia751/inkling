@@ -211,6 +211,7 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    url_import_max_bytes: int = 5 * 1024**3  # todo16 D10: largest import from a link
     # ---- Chat drops (todo13-drops, §7.1) ----
     drop_max_files: int = 10_000
     drop_max_bytes: int = 50 * 1024**3
@@ -325,6 +326,7 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "url_import_max_bytes": "API_URL_IMPORT_MAX_BYTES",
     # Chat drops (todo13-drops)
     "drop_max_files": "API_DROP_MAX_FILES",
     "drop_max_bytes": "API_DROP_MAX_BYTES",

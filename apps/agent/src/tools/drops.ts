@@ -118,5 +118,57 @@ export function createDropTools(k: KernelClient): ToolDefinition<any, any, any>[
       return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: `${s.total} file${s.total === 1 ? "" : "s"}${kinds ? ` · ${kinds}` : ""}` } };
     },
   });
-  return [getDrop];
+  return [getDrop, ...createAddDataTools(k)];
+}
+
+/** What an import from a link or a copy tells the model (todo16 D10): file facts, never bytes or links. */
+export function safeImport(raw: any): { importId: string; state?: string; files: { name: string; size: number; state?: string; reason?: string }[]; committed: number } {
+  const files = (Array.isArray(raw?.files) ? raw.files : []).slice(0, 200).map((f: any) => ({
+    name: typeof f?.name === "string" && SAFE_NAME.test(posixBase(f.name)) && !UNSAFE.test(f.name) ? posixBase(f.name) : "file",
+    size: num(f?.size),
+    ...(str(f?.state) ? { state: f.state } : {}),
+    ...(str(f?.reason, 200) ? { reason: f.reason } : {}),
+  }));
+  return { importId: String(raw?.importId ?? ""), ...(str(raw?.state) ? { state: raw.state } : {}), files, committed: num(raw?.totals?.committed) };
+}
+
+const posixBase = (n: string) => n.split("/").pop() ?? n;
+const importSummary = (r: ReturnType<typeof safeImport>) => `${r.committed} file${r.committed === 1 ? "" : "s"} added`;
+
+export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, any>[] {
+  const pid = () => encodeURIComponent(k.workspaceId);
+  const importFromUrl = defineTool({
+    name: "import_from_url",
+    label: "Importing from a link",
+    description:
+      "Import one file from a public https:// link or a gs:// object this project can read into the project's Sources. The kernel fetches it and inspects it; you get only its name, size and state, never its contents. Private and local addresses are refused; the size limit is set by the deployment.",
+    promptSnippet: "Add a file to Sources from an https:// or gs:// link (facts only)",
+    parameters: Type.Object({
+      url: Type.String({ description: "The https:// or gs:// link the user gave." }),
+      folderId: Type.Optional(Type.String({ description: "A folder id from list_folder to land in (optional)." })),
+    }),
+    async execute(_id, args, signal) {
+      const r = safeImport(await k.post(`/projects/${pid()}/imports/url`, { url: args.url, ...(args.folderId ? { folderId: args.folderId } : {}) }, signal));
+      return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: { summary: importSummary(r) } };
+    },
+  });
+  const copyInto = defineTool({
+    name: "copy_into_project",
+    label: "Copying files",
+    description:
+      "Copy files into this project's Sources from a sample (sampleId) or from another project the user can read (fromProjectId), optionally only some nodes (nodeIds). The files are inspected as for an upload; you get only names, sizes and states.",
+    promptSnippet: "Copy files from a sample or another readable project into Sources",
+    parameters: Type.Object({
+      sampleId: Type.Optional(Type.String({ description: "A sample's id." })),
+      fromProjectId: Type.Optional(Type.String({ description: "Another project's id." })),
+      nodeIds: Type.Optional(Type.Array(Type.String(), { description: "Files or folders of that project to copy (default: all)." })),
+      folderId: Type.Optional(Type.String({ description: "A folder id of this project to land in (optional)." })),
+    }),
+    async execute(_id, args, signal) {
+      if (!args.sampleId === !args.fromProjectId) throw new Error("Give exactly one of sampleId or fromProjectId.");
+      const r = safeImport(await k.post(`/projects/${pid()}/imports/copy`, args, signal));
+      return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: { summary: importSummary(r) } };
+    },
+  });
+  return [importFromUrl, copyInto];
 }

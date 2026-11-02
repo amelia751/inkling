@@ -18,6 +18,7 @@ import { useShell } from "@/studio/stores/shell";
 import { fetchNode, projectKeys } from "@/studio/lib/projects-api";
 import { planNodeIds, planSnapshot, planSummary, planToDiffOps, planToFsOps, reorgError, undoReorgBatch, type DiffNodeInfo } from "@/studio/lib/agent/reorg";
 import { useFsOps } from "@/studio/lib/files/api";
+import { UploadCard } from "@/studio/core/panels/upload-card";
 import { useTabUndo } from "@/studio/lib/files/undo";
 import { ReorgDiff } from "@/studio/components/files/reorg-diff";
 import { useReorgPlans } from "@/studio/stores/reorg-plans";
@@ -48,6 +49,7 @@ export function AgentCardView({ studio, ...rest }: CardProps) {
   if (card.kind === "location") return <LocationCard {...rest} card={card} />;
   if (card.kind === "document") return <DocumentCard {...rest} card={card} />;
   if (card.kind === "reorg-plan") return <ReorgPlanCard {...rest} card={card} />;
+  if (card.kind === "upload-request") return <UploadCard projectId={rest.projectId} card={card} />;
   if (STUDIO_ONLY.has(card.kind) && !studio)
     return (
       <Shell icon={InfoIcon} title="Open the Studio to use this">

@@ -84,7 +84,9 @@ export type AgentCard =
   /** open_location: a button that opens a project place; the agent never navigates by itself. */
   | { kind: "location"; label: string; target: LocationTarget; reason?: string }
   /** propose_reorganization (todo7 Phase 8): a plan for the project's Files; Apply sends it as the user. */
-  | { kind: "reorg-plan"; plan: ReorgPlan };
+  | { kind: "reorg-plan"; plan: ReorgPlan }
+  /** request_upload (todo16 D10): a drop zone in the chat; the person picks the files, the bytes go the normal import path. */
+  | { kind: "upload-request"; reason: string; folderId?: string };
 
 /**
  * A reorganization plan the assistant proposes for the project's Files (todo7 Phase 8). Ids only

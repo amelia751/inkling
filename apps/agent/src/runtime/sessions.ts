@@ -9,7 +9,8 @@ import type { RunEventBus } from "../bus/types.ts";
 import { MemoryRunEventBus } from "../bus/memory.ts";
 import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
 import { fileStore } from "../store/index.ts";
-import type { SessionStore, StoredMeta } from "../store/types.ts";
+import type { RunRecord, SessionStore, StoredMeta } from "../store/types.ts";
+import { buildThread, titleFrom, titleFromTranscript } from "./thread.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
 import { type StudioCatalog, loadStudioCatalog } from "../agent/catalog.ts";
@@ -26,7 +27,7 @@ import type {
   SendMessageRequest,
   SessionInfo,
 } from "@studio/agent-protocol";
-import { REFRESH_TOKEN_TOOL } from "@studio/agent-protocol";
+import { REFRESH_TOKEN_TOOL, type ChatSessionSummary, type ThreadResponse } from "@studio/agent-protocol";
 import { NAMING } from "../naming.ts";
 import { type EgressPolicy, SANDBOX_CWD } from "../sandbox/defaults.ts";
 import { DaytonaProvider, type SandboxProvider } from "../sandbox/provider.ts";
@@ -59,13 +60,13 @@ export class HttpError extends Error {
   }
 }
 
-/** One row of `GET /v1/sessions`. */
-export interface SessionSummary {
-  id: string;
-  projectId: string;
-  profile: ProfileName;
-  createdAt: number;
-}
+/** One row of `GET /v1/sessions` (todo20 W3: a project's chat). */
+export type SessionSummary = ChatSessionSummary;
+
+/** Session ids: the service's `ses_<uuid>`, or the browser's conversation id `conv-<uuid>` (todo20 W3). */
+export const SESSION_ID = /^(ses_|conv-)[A-Za-z0-9-]{8,64}$/;
+/** pi's own session id (its transcript header): the id without its prefix. */
+const piId = (id: string) => id.replace(/^(ses_|conv-)/, "");
 
 /** What survives a restart (`.data/sessions/<id>.meta.json`); the transcript is `<id>.jsonl`. */
 interface SessionMeta {
@@ -80,6 +81,10 @@ interface SessionMeta {
   /** Legacy: sessions stored before todo11 may carry the browser's catalogue; it is never injected. */
   catalogPrompt?: string;
   createdAt: number;
+  /** todo20 W3: the last message sent (list order); unset before the first one. */
+  updatedAt?: number;
+  /** todo20 W3: from the first user message; unset before it (legacy sessions: read from the transcript). */
+  title?: string | null;
   sandboxId?: string;
   artifacts: (ArtifactInfo & { hostPath: string })[];
 }
@@ -324,8 +329,20 @@ export class SessionService {
     const profileName = req.profile ?? "assistant";
     const profile = PROFILES[profileName];
     if (profile.sandbox === true && !this.sandboxes) throw new HttpError(409, `The ${profileName} profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.`);
+    if (req.sessionId) {
+      // todo20 W3: the browser names the conversation; creating it twice returns the first one.
+      if (!SESSION_ID.test(req.sessionId)) throw new HttpError(400, "sessionId must look like ses_… or conv-…");
+      const existing = await this.readMeta(req.sessionId);
+      if (existing) {
+        if (existing.owner !== owner || (orgId ?? undefined) !== (existing.orgId ?? undefined) || existing.projectId !== req.projectId)
+          throw new HttpError(409, "that session id is taken");
+        const ctx = await this.get(req.sessionId, owner, orgId);
+        if (req.kernelToken) ctx.kernelToken = req.kernelToken;
+        return ctx;
+      }
+    }
     const meta: SessionMeta = {
-      id: `ses_${randomUUID()}`,
+      id: req.sessionId ?? `ses_${randomUUID()}`,
       projectId: req.projectId,
       owner,
       ...(orgId ? { orgId } : {}),
@@ -338,7 +355,7 @@ export class SessionService {
     // Accepted for compatibility, no longer injected (todo11): the compact preset index plus
     // search_catalog replace the ~30 KB catalogue the browser sends.
     if (req.catalogPrompt) this.deps.log.debug({ chars: req.catalogPrompt.length, profile: profileName }, "catalogPrompt ignored (compact preset index + search_catalog)");
-    const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: meta.id.slice(4) })).catch((err) => {
+    const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: piId(meta.id) })).catch((err) => {
       throw err instanceof ClientToolError ? new HttpError(400, err.message) : err;
     });
     ctx.kernelToken = req.kernelToken;
@@ -376,7 +393,7 @@ export class SessionService {
     const meta = await this.readMeta(id);
     if (!meta) throw new HttpError(404, "no such session");
     const entries = (await this.store.readTranscript(id)) as FileEntry[];
-    const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: id.slice(4) }, entries));
+    const ctx = await this.build(meta, SessionManager.inMemory(SANDBOX_CWD, { id: piId(id) }, entries));
     ctx.persisted = Math.max(0, entries.length - 1);
     this.deps.log.info({ sessionId: id, entries: ctx.persisted }, "session restored");
     return ctx;
@@ -572,9 +589,25 @@ export class SessionService {
   /** The owner's sessions in one organization (none = dev mode's org-less sessions), newest first. */
   async list(owner = this.deps.principal ?? "local", orgId?: string, projectId?: string): Promise<SessionSummary[]> {
     const metas = await this.store.listSessions({ owner, orgId, projectId });
-    return metas
-      .map((m) => ({ id: m.id, projectId: m.projectId, profile: m.profile as ProfileName, createdAt: Number(m.createdAt) || 0 }))
-      .sort((a, b) => b.createdAt - a.createdAt);
+    const rows = await Promise.all(metas.map((m) => this.summarize(m as unknown as SessionMeta)));
+    return rows.sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt);
+  }
+
+  /** A `GET /v1/sessions` row. Sessions stored before todo20 have no title yet: read it from the transcript. */
+  async summarize(m: SessionMeta): Promise<SessionSummary> {
+    const createdAt = Number(m.createdAt) || 0;
+    const title = m.title !== undefined ? m.title : titleFromTranscript(await this.store.readTranscript(m.id).catch(() => []));
+    return { id: m.id, projectId: m.projectId, title: title ?? null, createdAt, updatedAt: Number(m.updatedAt) || createdAt, profile: m.profile };
+  }
+
+  /** todo20 W3: the visible thread, rebuilt from the stored transcript and the session's runs. */
+  async thread(ctx: SessionContext): Promise<ThreadResponse> {
+    this.persist(ctx);
+    await this.cluster.settled(ctx.id);
+    const entries = await this.store.readTranscript(ctx.id);
+    const runIds = await this.store.runIdsForSessions([ctx.id]);
+    const runs = (await Promise.all(runIds.map((id) => this.store.getRun(id)))).filter((r): r is RunRecord => !!r);
+    return { sessionId: ctx.id, messages: buildThread(entries, runs, toolTitles(ctx)) };
   }
 
   async delete(id: string, owner?: string, orgId?: string): Promise<void> {
@@ -643,6 +676,10 @@ export class SessionService {
     // never from the browser; the model gets that summary, never bytes, names or links.
     const drop = req.drop ? await this.readDrop(ctx, req.drop.dropId) : undefined;
     const userText = [drop?.block, req.text].filter(Boolean).join("\n\n");
+    // todo20 W3: the chat list's order and title.
+    ctx.meta.updatedAt = Date.now();
+    if (!ctx.meta.title) ctx.meta.title = titleFrom(req.text) ?? ctx.meta.title ?? null;
+    this.writeMeta(ctx.meta);
     const text = req.context?.trim() ? `<studio_context>\n${req.context.trim()}\n</studio_context>\n\n${userText}` : userText;
     const active = ctx.activeRun;
     if (active && !active.done) {

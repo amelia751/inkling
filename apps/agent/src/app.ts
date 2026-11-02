@@ -10,9 +10,9 @@ import { type AccessTokenVerifier, type AppEnv, authenticate, serviceOnly, worko
 import { streamRunEvents } from "./http/events.ts";
 import { registerServiceRoutes } from "./http/service.ts";
 import type { Logger } from "./log.ts";
-import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse } from "@studio/agent-protocol";
+import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse, ThreadResponse } from "@studio/agent-protocol";
 import { sanitizeError } from "./runtime/events.ts";
-import { HttpError, type SessionService } from "./runtime/sessions.ts";
+import { HttpError, SESSION_ID, type SessionService } from "./runtime/sessions.ts";
 
 export interface ReadyCheck {
   ok: boolean;
@@ -66,17 +66,25 @@ const snapshotSchema = z.object({
   unsavedChanges: z.boolean(),
 });
 
+const sessionFields = {
+  projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "projectId must be a slug"),
+  profile: z.enum(Object.keys(PROFILES) as [ProfileName, ...ProfileName[]]).optional(),
+  clientTools: z.array(clientToolSchema).max(64).optional(),
+  catalogPrompt: z.string().max(200_000).optional(),
+  restricted: z.boolean().optional(),
+};
+
 const schemas = {
   createSession: z.object({
-    projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "projectId must be a slug"),
-    profile: z.enum(Object.keys(PROFILES) as [ProfileName, ...ProfileName[]]).optional(),
-    clientTools: z.array(clientToolSchema).max(64).optional(),
-    catalogPrompt: z.string().max(200_000).optional(),
-    restricted: z.boolean().optional(),
+    ...sessionFields,
     kernelToken: z.string().min(16).max(512).optional(),
+    // todo20 W3: the conversation id is the session id.
+    sessionId: z.string().regex(SESSION_ID, "sessionId must look like ses_… or conv-…").optional(),
   }),
   message: z
     .object({
+      // todo20 W3: create-on-first-use when the session in the path doesn't exist yet.
+      session: z.object(sessionFields).optional(),
       text: z.string().max(32_000),
       context: z.string().max(200_000).optional(),
       snapshot: snapshotSchema.optional(),
@@ -169,7 +177,12 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
     const req = await body(c, schemas.createSession);
     const { principal, orgId } = c.get("caller");
     const ctx = await sessions.create(req, principal, orgId);
-    const res: CreateSessionResponse = { sessionId: ctx.id, profile: ctx.meta.profile, model: `${config.model.provider}:${config.model.id}` };
+    const res: CreateSessionResponse = {
+      sessionId: ctx.id,
+      profile: ctx.meta.profile,
+      model: `${config.model.provider}:${config.model.id}`,
+      session: await sessions.summarize(ctx.meta),
+    };
     return c.json(res, 201);
   });
 
@@ -184,6 +197,13 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
     return c.json(await sessions.describe(await sessions.get(c.req.param("id"), principal, orgId)));
   });
 
+  // todo20 W3: the visible thread, rebuilt from the transcript and the session's runs.
+  app.get("/v1/sessions/:id/thread", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    const res: ThreadResponse = await sessions.thread(await sessions.get(c.req.param("id"), principal, orgId));
+    return c.json(res);
+  });
+
   app.delete("/v1/sessions/:id", async (c) => {
     const { principal, orgId } = c.get("caller");
     await sessions.delete(c.req.param("id"), principal, orgId);
@@ -192,8 +212,14 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
 
   app.post("/v1/sessions/:id/messages", async (c) => {
     const { principal, orgId } = c.get("caller");
-    const ctx = await sessions.get(c.req.param("id"), principal, orgId);
-    const { run, steered } = await sessions.send(ctx, await body(c, schemas.message));
+    const id = c.req.param("id");
+    const req = await body(c, schemas.message);
+    const ctx = await sessions.get(id, principal, orgId).catch(async (err) => {
+      // todo20 W3: a conversation the browser named but never created (or one from before W3).
+      if (!(err instanceof HttpError) || err.status !== 404 || !req.session || !SESSION_ID.test(id)) throw err;
+      return sessions.create({ ...req.session, sessionId: id, kernelToken: req.kernelToken }, principal, orgId);
+    });
+    const { run, steered } = await sessions.send(ctx, req);
     const res: SendMessageResponse = { runId: run.id, steered };
     return c.json(res, 202);
   });

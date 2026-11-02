@@ -174,12 +174,57 @@ export interface CreateSessionRequest {
    * it. Kept in memory only; refreshed with each message.
    */
   kernelToken?: string;
+  /**
+   * todo20 W3: the conversation id the browser already uses (`conv-…`) or a known `ses_…` id. The
+   * session is created with this id; when it already exists and is the caller's, it is returned
+   * as is (idempotent). Omitted: the service picks a `ses_…` id.
+   */
+  sessionId?: string;
+}
+
+/** todo20 W3: one chat of a project (`GET /v1/sessions?projectId=`), newest `updatedAt` first. */
+export interface ChatSessionSummary {
+  id: string;
+  projectId: string;
+  /** The first user message, one line, at most ~60 characters; null before the first message. */
+  title: string | null;
+  createdAt: number;
+  updatedAt: number;
+  profile: ProfileName;
 }
 
 export interface CreateSessionResponse {
   sessionId: string;
   profile: ProfileName;
   model: string;
+  /** todo20 W3: the same row `GET /v1/sessions` lists. */
+  session: ChatSessionSummary;
+}
+
+/** todo20 W3: a message part of a rebuilt thread; the subset of the web's `MessagePart` the transcript holds. */
+export type ThreadPart =
+  | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
+  | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
+  | { type: "drop"; id: string };
+
+/** todo20 W3: same shape as the web's `ChatMessage` (apps/web/src/studio/stores/agent.ts). */
+export interface ThreadMessage {
+  id: string;
+  role: "user" | "assistant";
+  parts: ThreadPart[];
+  model?: string;
+  runId?: string;
+  runStatus?: RunStatus;
+  error?: string;
+  stopped?: boolean;
+  usage?: { inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number };
+}
+
+/** todo20 W3: `GET /v1/sessions/{id}/thread`. */
+export interface ThreadResponse {
+  sessionId: string;
+  messages: ThreadMessage[];
 }
 
 /**
@@ -209,6 +254,11 @@ export interface SendMessageRequest {
   snapshot?: DatasetSnapshot;
   /** A fresh kernel token, replacing the session's previous one. */
   kernelToken?: string;
+  /**
+   * todo20 W3: create-on-first-use. When the session in the path doesn't exist yet, it is created
+   * with that id from these fields (as `POST /v1/sessions` would); ignored when it exists.
+   */
+  session?: Omit<CreateSessionRequest, "sessionId" | "kernelToken">;
 }
 
 export interface SendMessageResponse {

@@ -293,3 +293,38 @@ def test_capabilities_detect_and_kinds():
     assert capabilities.kinds_for({"ffmpeg": "7.1", "ffprobe": "7.1", "openslide": "4.0.1"}) == ["video-mp4", "slide-dzi"]
     assert capabilities.kinds_for({}) == []
     assert capabilities.missing({}) and "OpenSlide" in " ".join(capabilities.missing({"ffmpeg": "7"}))
+
+
+def test_mat_signals_pair_with_their_header_like_dat():
+    from studio_worker import inspect as insp
+    from studio_worker.inspect import detect
+
+    kind, _ = detect.detect("HR00001.hea", b"HR00001 12 500 5000\nHR00001.mat 16+24 1000/mV 16 0 0 0 0 I\nHR00001.mat 16+24 1000/mV 16 0 0 0 0 II\n")
+    assert kind == "waveform"
+    stems = {"ptbxl/HR00001"}
+    assert insp.wfdb_signal("ptbxl/HR00001.mat", stems) and insp.wfdb_signal("ptbxl/HR00001.dat", stems)
+    assert not insp.wfdb_signal("other/x.mat", stems)
+
+
+def test_info_cfg_is_a_hidden_sidecar_slot_of_its_group():
+    from studio_worker import inspect as insp
+
+    fact = insp.sidecar_slot("patient001/Info.cfg", ["nod-a", "nod-b"])
+    assert fact == {"role": "info", "slot": "info", "group": "patient001", "hidden": True, "consumedBy": ["nod-a", "nod-b"]}
+
+
+def test_dicom_series_orders_by_position_along_the_normal_and_flags_2d():
+    from studio_worker.inspect import dicom
+
+    ax = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)  # normal +z
+    f = {"dicom": {"modality": "CT", "rows": 4, "columns": 4, "pixelSpacing": [0.5, 0.5]}}
+    # instance numbers disagree with the geometry: position wins
+    sl = [dicom.Instance(f"n{z}", f"{z}.dcm", "st", "se", 10 - z, ax, (0.0, 0.0, float(z) * 2.5), f) for z in (2, 0, 1)]
+    [g] = dicom.group_series(sl)
+    assert g["nodeIds"] == ["n0", "n1", "n2"] and g["orderedBy"] == "position" and g.get("opensAs") != "2d"
+    assert g["sliceSpacing"] == pytest.approx(2.5)
+    # no geometry: falls back to InstanceNumber and opens as 2D images
+    bare = [dicom.Instance(f"m{i}", f"{i}.dcm", "st", "se2", i, None, None, {"dicom": {"modality": "CR"}}) for i in (3, 1, 2)]
+    [h] = dicom.group_series(bare)
+    assert h["nodeIds"] == ["m1", "m2", "m3"] and h["orderedBy"] == "instance" and h["opensAs"] == "2d"
+    assert any("opens as 2D images" in q for q in h["quality"])

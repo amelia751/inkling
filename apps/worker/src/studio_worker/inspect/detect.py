@@ -171,12 +171,13 @@ def _mask_hint(low_name: str, kind: str) -> str:
 
 
 def _wfdb_header(text: str) -> bool:
-    """`<record> <signals> <freq> <samples>` then one line per signal naming a `.dat` file."""
+    """`<record> <signals> <freq> <samples>` then one line per signal naming a `.dat` or `.mat`
+    file (PTB-XL and PhysioNet 2020 store signals as `.mat`, todo19 §2 A)."""
     lines = [line for line in text.splitlines() if line.strip() and not line.startswith("#")]
     if len(lines) < 2:
         return False
     first = lines[0].split()
-    return len(first) >= 2 and first[1].isdigit() and any(".dat" in line.split()[0] for line in lines[1:3] if line.split())
+    return len(first) >= 2 and first[1].isdigit() and any(line.split()[0].lower().endswith((".dat", ".mat")) for line in lines[1:3] if line.split())
 
 
 def _json_kind(text: str, full: bytes | None) -> tuple[str, dict] | None:

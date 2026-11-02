@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from ..context import RequestContext
 from ..models import AnnotationDocumentRow, DatasetRow, ImportSession, PluginAudit, ProjectRow, Proposal, Source, SourceNode, TaskRow, UploadFile, WorkspaceEnvironmentRevision
 from . import projects
+from .kinds import wfdb_parts
 
 SEVERITY = {"high": 0, "medium": 1, "low": 2}
 
@@ -172,7 +173,8 @@ def review_queue(db: Session, p: ProjectRow) -> list[dict]:
             title = f"{n} {'file' if n == 1 else 'files'} didn't upload" if n else "An import failed"
             items.append({"id": f"import:{s.id}", "type": "import", "severity": "high", "title": title, "detail": s.error or (failed[0].reason if failed else ""), "target": {"section": "sources", "importId": s.id}, "at": projects.iso(s.started_at)})
     # Files nobody can open yet, as one row.
-    unknown = [n for n in files if n.detected_kind == "unknown"]
+    signal_of = wfdb_parts([(n.id, n.parent_id, n.name) for n in files])  # WFDB signal files are part of their recording
+    unknown = [n for n in files if n.detected_kind == "unknown" and n.id not in signal_of]
     if unknown:
         items.append({"id": "quality:unsupported", "type": "quality", "severity": "low", "title": f"{len(unknown)} {'file' if len(unknown) == 1 else 'files'} we can't read yet", "detail": ", ".join(n.name for n in unknown[:3]), "target": {"section": "sources", "status": "unsupported", "nodeId": unknown[0].id}, "at": projects.iso(unknown[0].created_at)})
     for pr in db.scalars(select(Proposal).where(Proposal.project_id == p.id, Proposal.status == "proposed").order_by(Proposal.created_at)):

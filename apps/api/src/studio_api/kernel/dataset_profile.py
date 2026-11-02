@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..models import DatasetRow, Proposal
 from . import projects
-from .kinds import VIEWABLE
+from .kinds import VIEWABLE, wfdb_parts
 
 RULES_VERSION = 1
 
@@ -187,7 +187,11 @@ def build(db: Session, d: DatasetRow) -> dict:
     flags_by: dict[str, list[tuple[str, str, dict]]] = defaultdict(list)  # flag → (node id, collection, flag value)
     checking: list[str] = []
     table_nodes: dict[str, str] = {}
+    # A WFDB header's signal files (.mat/.dat beside it) belong to its recording, not "can't read".
+    signal_of = wfdb_parts([(n.id, n.parent_id, n.name) for n, _ in pairs])
     for n, ref in pairs:
+        if n.id in signal_of:
+            continue
         kind, facts, flags, *_ = projects.pinned_view(db, n, ref)
         if kind is None:
             checking.append(n.id)

@@ -55,7 +55,6 @@ export const NAV: NavEntry[] = [
     ],
   },
   { label: "Why us", href: "#why" },
-  { label: "Developers", href: "#news" },
   { label: "Pricing", href: "#start" },
 ];
 

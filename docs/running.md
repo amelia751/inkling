@@ -38,6 +38,7 @@ pnpm infra:down     # stop the deps (add `-v` to the compose command to drop the
 | Redis 7 | 6379 | none |
 | S3-compatible store (RustFS) | 9000 (API), 9001 (console) | access key `dev-only-s3-access`, secret `dev-only-s3-secret` |
 | `s3-init` (one-shot) | | creates the buckets `assets`, `inkling-objects`, `inkling-manifests` |
+| WorkOS Emulate (`workos-emulate`) | 4100 | key `sk_test_default`, any client id; users and orgs from `infra/workos/emulate.yaml` ([Signing in](#signing-in)) |
 
 MinIO's images are no longer published on Docker Hub, so the stack uses RustFS (already pinned
 by `apps/versioning`'s integration tests). Any S3-compatible endpoint works.
@@ -181,7 +182,7 @@ from the git-ignored `secrets/*.env` files when present (a later file wins):
 | Service | Loads |
 |---|---|
 | api, api-migrate | `env/api.env`, `secrets/api.env` |
-| worker | `env/worker.env` |
+| worker | `env/worker.env`, `secrets/worker.env` |
 | agent | `env/agent.env`, `secrets/agent.env`, `secrets/models.env`, `secrets/daytona.env` |
 | web | `env/web.env`, `secrets/agent.env` (only `INKLING_AGENT_TOKEN`) |
 | versioning, versioning-* | `env/versioning.env` |
@@ -274,3 +275,64 @@ Notes:
 - Tear down: `kind delete cluster --name studio`.
 
 Staging and prod overlays, Secrets, scaling knobs and adding an app: `infra/k8s/README.md`.
+
+## Signing in
+
+People sign in with WorkOS AuthKit (todo/todo9.md). The api has two modes,
+`INKLING_API_AUTH_MODE`:
+
+| Mode | Who you are | Where |
+|---|---|---|
+| `dev` (default) | the dev principal, from trusted dev headers (`INKLING_API_DEV_TRUST_HEADERS=1`); no sign-in page, `GET /api/auth/session` answers with every permission | `pnpm dev`, the seed-mode e2e suite, `stack:up`, the k8s `dev` and `staging` overlays, GKE until the flip |
+| `workos` | whoever signed in through AuthKit; organization roles and permissions come from WorkOS, project roles from the api | WorkOS Emulate locally and in CI, WorkOS staging by hand, the `prod` overlay |
+
+`workos` mode refuses to start without `INKLING_API_WORKOS_API_KEY`, `…_CLIENT_ID`,
+`…_COOKIE_PASSWORD` (a Fernet key) and `…_REDIRECT_URI`, or with dev headers trusted. The web,
+agent and api must agree: the SPA's mode is `INKLING_WEB_AUTH_MODE` (Vite) or `/config.json`'s
+`auth.mode` (images), the agent's `INKLING_AGENT_AUTH_MODE`. Never set the SDKs' unprefixed
+`WORKOS_*` variables. Key names: `secrets/workos.env.example`; roles and permissions:
+`infra/workos/`.
+
+### Dev mode
+
+Nothing to do. Everything in sections 1 to 3 runs this way.
+
+### WorkOS Emulate (offline, no account)
+
+`pnpm infra:up` starts Emulate on :4100 with `infra/workos/emulate.yaml`: `admin@example.com`,
+`member@example.com` and `billing@example.com` (passwords in `infra/workos/README.md`) in two
+organizations. Point the api at it (in `secrets/api.env`, or `secrets/workos.env`):
+
+```sh
+INKLING_API_AUTH_MODE=workos
+INKLING_API_DEV_TRUST_HEADERS=0
+INKLING_API_WORKOS_BASE_URL=http://localhost:4100/
+INKLING_API_WORKOS_API_KEY=sk_test_default
+INKLING_API_WORKOS_CLIENT_ID=client_emulated
+INKLING_API_WORKOS_ISSUER=http://localhost:4100/user_management/client_emulated
+INKLING_API_WORKOS_REDIRECT_URI=http://localhost:5173/api/auth/callback
+INKLING_API_PUBLIC_URL=http://localhost:5173
+INKLING_API_WORKOS_COOKIE_PASSWORD=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+```
+
+and start the web with `INKLING_API_URL=http://localhost:8000 INKLING_WEB_AUTH_MODE=workos pnpm
+dev` (the callback reaches the api through Vite's `/api` proxy, so it is same-origin). For the
+agent, add `INKLING_AGENT_AUTH_MODE=workos`, `INKLING_AGENT_WORKOS_CLIENT_ID=client_emulated`,
+`INKLING_AGENT_WORKOS_BASE_URL=http://localhost:4100` and the same issuer to `secrets/agent.env`.
+In `stack:up`, use `http://workos-emulate:4100/` as the base URL and `localhost:8080` for the
+redirect and public URLs (commented in `infra/docker/env/api.env`); the issuer stays
+`localhost:4100`.
+
+Emulate signs anyone in as any seeded user and keeps everything in memory: a restart forgets
+invitations and keys made since, and rotates its signing key (restart the api and agent too).
+Tests sign in by password through the api, never through a login page (todo9 Phase 13).
+
+### WorkOS staging (real AuthKit)
+
+For checking hosted pages, emails, SSO and Radar by hand. Copy `secrets/workos.env.example` to
+`secrets/workos.env` and fill in the **staging** key (`sk_test_…`) and client id; leave
+`INKLING_API_WORKOS_BASE_URL` unset. The staging environment's Redirects tab lists
+`http://localhost:5173/api/auth/callback` (and `:5175`), so keep that redirect URI and port. Use
+your own test users; staging is shared, so don't delete organizations you didn't create. Roles
+and permissions come from `infra/workos/seed.yml`; change them there, not on the dashboard.
+Production keys (`sk_live_…`) never go on a laptop.

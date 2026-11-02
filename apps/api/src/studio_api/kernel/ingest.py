@@ -232,10 +232,27 @@ def claim(db: Session, limit: int = 4) -> list[dict]:
             ti.state, ti.meta = "failed", {**(ti.meta or {}), "error": "We couldn't process this image"}
             _publish(db, ti, "failed", {"error": ti.meta["error"]})
             continue
-        ti.lease_until, ti.attempts = at + timedelta(seconds=LEASE_S), ti.attempts + 1
+        if not _take(db, ti, at):
+            continue  # another worker leased it between our read and this write
         out.append({"id": ti.id, "taskId": ti.task_id, "projectId": ti.project_id, "itemId": ti.item_id, "nodeId": ti.node_id, "kind": ti.kind, "name": ti.name, "relPath": ti.rel_path, "size": ti.size, "state": ti.state})
     db.flush()
     return out
+
+
+def _take(db: Session, ti: TaskItem, at) -> bool:  # noqa: ANN001
+    """Lease one item with a conditional update (the attempts we read, still unleased), like
+    plugin jobs: on SQLite, where there is no SKIP LOCKED, two workers can't take the same item."""
+    until, attempts = at + timedelta(seconds=LEASE_S), ti.attempts
+    r = db.execute(
+        update(TaskItem)
+        .where(TaskItem.id == ti.id, TaskItem.attempts == attempts, TaskItem.state.in_(CLAIMABLE), (TaskItem.lease_until.is_(None)) | (TaskItem.lease_until < at))
+        .values(lease_until=until, attempts=attempts + 1)
+        .execution_options(synchronize_session=False)
+    )
+    if int(getattr(r, "rowcount", 0) or 0) != 1:
+        return False
+    ti.lease_until, ti.attempts = until, attempts + 1
+    return True
 
 
 def require_item(db: Session, id_: int) -> TaskItem:

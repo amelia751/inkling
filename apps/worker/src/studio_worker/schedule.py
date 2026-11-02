@@ -16,7 +16,7 @@ import httpx
 
 log = logging.getLogger("studio_worker.schedule")
 
-JOBS = ("files.empty_trash", "files.screen_names")
+JOBS = ("files.empty_trash", "files.screen_names", "blobs.retry")  # blobs.retry: todo18 D8, daily in the kernel
 # Seconds between asks per job (default: the scheduler's interval).
 INTERVALS = {"files.screen_names": 60.0}
 

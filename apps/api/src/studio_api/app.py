@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse
 from studio_observability import RequestContextMiddleware, setup_service
 
 from .config import SettingsError, env, settings
-from .db import create_all, session_scope
+from .db import session_scope
 from .naming import naming
 from .auth import routes as auth_routes
 from .auth.session import session_middleware
@@ -95,7 +95,9 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     # A service principal's token reaches only its own routes (kernel/service_scope.py).
     app = FastAPI(title=f"{naming()['displayName']} kernel", version=ops.service_version(), lifespan=lifespan, dependencies=[Depends(service_scope.guard)])
     if init_db and settings().create_tables:
-        create_all()
+        from .devdb import migrate_dev
+
+        migrate_dev()  # file SQLite: alembic upgrade head (todo18 P0-6); else create_all()
     if init_db:
         _seed_projects()
     from .kernel.admission import http as admission_http

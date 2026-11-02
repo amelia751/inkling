@@ -65,7 +65,6 @@ that are missing or invalid, never their values.
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
 | API_DROP_UNDO_SECONDS     | 30                               | todo13 D6: how long an applied drop plan can be undone |
 | API_IDEMPOTENCY_TTL_HOURS | 24                               | todo17 D13: how long an `Idempotency-Key` replays its first answer |
-| API_RULES_SCAN_HOUR       | 3                                | todo17 D10: hour (UTC, 0-23) of the daily `rules.scan` |
 
 Accounts (todo9 Phase 1). `dev` keeps today's header identity; `workos` signs people in with
 WorkOS AuthKit (`studio_api/auth/`). `workos` mode requires the four keys marked *, needs
@@ -249,9 +248,8 @@ class Settings(BaseModel):
     # todo13 D6 (§7.1): how long an applied drop plan can be undone. The `API_FEATURE_*` flags
     # are todo13-entry's (`kernel/features.py`); drop plans read them through `drop_flags`.
     drop_undo_seconds: int = 30
-    # todo17 D13 / D10: idempotency-key retention and the daily rules scan's hour (UTC).
+    # todo17 D13: idempotency-key retention (the D10 daily `rules.scan` setting returns with its worker route).
     idempotency_ttl_hours: int = Field(default=24, ge=1)
-    rules_scan_hour: int = Field(default=3, ge=0, le=23)
     # todo18 D6: an import `inspecting` longer than this fails with a reason (0 = never).
     import_stall_minutes: int = Field(default=15, ge=0)
     # todo18 D6: a scheduled run stuck `running` / an idempotency key `in_progress` this long is released.
@@ -377,7 +375,6 @@ _KEYS: dict[str, str] = {
     "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
     "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
     "idempotency_ttl_hours": "API_IDEMPOTENCY_TTL_HOURS",
-    "rules_scan_hour": "API_RULES_SCAN_HOUR",
     "import_stall_minutes": "API_IMPORT_STALL_MINUTES",
     "scheduled_reclaim_minutes": "API_SCHEDULED_RECLAIM_MINUTES",
     "idempotency_stall_minutes": "API_IDEMPOTENCY_STALL_MINUTES",

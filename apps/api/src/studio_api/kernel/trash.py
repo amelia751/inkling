@@ -20,7 +20,6 @@ from fastapi import HTTPException
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from .. import aftercommit, blobstore
 from ..auth.audit import record_event
 from ..config import settings
 from ..context import RequestContext
@@ -39,7 +38,7 @@ from ..models import (
     Workspace,
     now,
 )
-from . import approvals, fs, tree
+from . import approvals, fs, purge, tree
 from .projects import person, project_role, require_project
 
 VIEWER_DENIED = "You can view this project but not delete from it"
@@ -228,6 +227,7 @@ def drop_purged(db: Session, ctx: RequestContext, p: ProjectRow, node_ids: set[s
     them, and a versioned dataset commits their removal as a new version on the purger's work
     branch (`main` is protected: it reaches main through the usual review), so its history still
     has them (D5). `[{id, name, items, commitOid}]`."""
+    purge.run(db, "files", sorted(node_ids), project_id=p.id)  # derived blobs (todo18 D8)
     out: list[dict] = []
     if not node_ids:
         return out
@@ -405,6 +405,7 @@ def _destroy_rows(db: Session, rows: dict[str, list[Any]]) -> int:
     for m, rs in ((TaskRow, rows["studio"]), (DatasetCollectionRow, rows["collection"])):
         if rs:
             db.execute(delete(m).where(m.id.in_([r.id for r in rs])))
+    purge.run(db, "datasets", ds_ids)  # their versioning repos (todo18 D8)
     if ds_ids:
         # Studios and collections of the dataset that weren't in this batch go too (FKs).
         _delete_by(db, "task_id", list(db.scalars(select(TaskRow.id).where(TaskRow.dataset_id.in_(ds_ids)).execution_options(**INCLUDE_TRASHED))))
@@ -432,6 +433,7 @@ def _destroy_project(db: Session, pid: str) -> None:
     for i in range(0, len(plist), 500):
         shared |= set(db.scalars(select(Asset.path).where(Asset.path.in_(plist[i : i + 500]), Asset.workspace_id != pid)))
     keys = sorted(paths - shared)
+    purge.run(db, "project", [pid])  # versioning repos, transcodes and tiles (todo18 D8)
     for t in reversed(Base.metadata.sorted_tables):
         if t.name in ("projects", "workspaces"):
             continue
@@ -446,17 +448,7 @@ def _destroy_project(db: Session, pid: str) -> None:
                 db.execute(delete(t).where(fk.parent.in_(select(fk.column).where(pown == pid))))
     db.execute(delete(ProjectRow).where(ProjectRow.id == pid))
     db.execute(delete(Workspace).where(Workspace.id == pid))
-    if keys:
-        aftercommit.defer(db, _delete_blobs, keys)
-
-
-def _delete_blobs(keys: list[str]) -> None:
-    store = blobstore.data()
-    for k in keys:
-        try:
-            store.delete(k)
-        except Exception:  # noqa: BLE001 - a missing blob is already gone
-            pass
+    purge.defer_blob_deletes(db, keys)  # a failed delete is retried by blobs.retry
 
 
 @_publishes_change

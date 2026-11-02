@@ -15,6 +15,12 @@ def run() -> None:
         with context.begin_transaction():
             context.run_migrations()
         return
+    given = context.config.attributes.get("connection")  # studio_api.devdb passes its own
+    if given is not None:
+        context.configure(connection=given, target_metadata=target_metadata, render_as_batch=True)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     with engine().connect() as conn:
         context.configure(connection=conn, target_metadata=target_metadata, render_as_batch=True)
         with context.begin_transaction():

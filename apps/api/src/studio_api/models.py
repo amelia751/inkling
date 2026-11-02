@@ -863,6 +863,20 @@ class NodeRecent(Base):
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class BlobDeleteRetry(Base):
+    """todo18 D8: an after-commit delete that failed (`kind` blob: a BlobStore key; repo: a
+    versioning repo id), retried by the daily `blobs.retry` worker route until it succeeds."""
+
+    __tablename__ = "blob_delete_retries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    target: Mapped[str] = mapped_column(String(2048))
+    attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class ScheduledRun(Base):
     """Periodic kernel work (`files.empty_trash`): one row per (job, period), inserted with
     ON CONFLICT DO NOTHING, so a period runs once whichever replica or worker asks first."""

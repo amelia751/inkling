@@ -353,6 +353,28 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
     return {"ran": True, "period": period, "result": result}
 
 
+@router.post("/scheduled/blobs.retry", dependencies=[Depends(_auth)])
+def blobs_retry_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    """todo18 D8: once a day, retry the after-commit blob and repo deletes that failed
+    (`blob_delete_retries`). `force` runs it again the same day."""
+    from datetime import UTC, datetime
+
+    from ..dbutil import insert_ignore
+    from ..kernel import purge
+    from ..models import ScheduledRun
+
+    period = datetime.now(UTC).strftime("%Y-%m-%d")
+    if not body.get("force"):
+        insert_ignore(db, ScheduledRun, [{"name": "blobs.retry", "period": period, "at": datetime.now(UTC)}])
+        claimed = db.execute(update(ScheduledRun).where(ScheduledRun.name == "blobs.retry", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"})).rowcount  # type: ignore[attr-defined]
+        if not claimed:
+            return {"ran": False, "period": period}
+    result = purge.sweep(db)
+    if not body.get("force"):
+        db.execute(update(ScheduledRun).where(ScheduledRun.name == "blobs.retry", ScheduledRun.period == period).values(result=result))
+    return {"ran": True, "period": period, "result": result}
+
+
 @router.post("/scheduled/files.screen_names", dependencies=[Depends(_auth)])
 def screen_names_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
     """todo13 D13: the name-screening backfill, a slice at a time (every worker asks about once a

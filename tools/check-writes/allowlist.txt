@@ -127,6 +127,7 @@ POST /api/v1/worker/jobs/{job_id}/complete
 POST /api/v1/worker/jobs/{job_id}/fail
 POST /api/v1/worker/jobs/{job_id}/progress
 POST /api/v1/worker/jobs/{job_id}/release
+POST /api/v1/worker/scheduled/blobs.retry
 POST /api/v1/worker/scheduled/files.empty_trash
 POST /api/v1/worker/scheduled/files.screen_names
 POST /api/v1/worker/scheduled/trash.purge

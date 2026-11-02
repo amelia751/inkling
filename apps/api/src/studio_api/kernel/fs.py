@@ -32,7 +32,6 @@ from fastapi import HTTPException
 from sqlalchemy import String, cast, delete, func, select, update
 from sqlalchemy.orm import Session
 
-from .. import aftercommit, blobstore
 from ..config import settings
 from ..context import RequestContext
 from ..dbutil import insert_ignore
@@ -668,18 +667,13 @@ def purge_apply(b: Batch, plan: PurgePlan) -> None:
         keys.append(a.path)
         db.delete(a)
     db.expire_all()
-    if keys:
-        aftercommit.defer(db, _delete_blobs, keys)
+    from . import purge
+
+    purge.defer_blob_deletes(db, keys)  # a failed delete is retried by blobs.retry (todo18 D8)
     b.counts["purge"] += len(plan.roots)
     b.purged += len(plan.node_ids)
     b.kept.extend(plan.kept)
     b.undoable = False
-
-
-def _delete_blobs(keys: list[str]) -> None:
-    store = blobstore.data()
-    for k in keys:
-        store.delete(k)
 
 
 # ---- Versions (D6) -----------------------------------------------------------------------------

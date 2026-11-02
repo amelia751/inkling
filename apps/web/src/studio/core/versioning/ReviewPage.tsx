@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Alert } from "@studio/ui/ui/alert";
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeftIcon, CheckIcon, DoneIcon, ErrorIcon, MergeIcon, TodoIcon, WarningIcon } from "@studio/ui/icons";
@@ -55,7 +55,21 @@ function ReviewBody({ datasetId, projectId, reviewId }: { datasetId: string; pro
     onError: (e) => setError(e instanceof Error ? e.message : String(e)),
   });
 
-  if (!r) return <AppLayout><p className="flex items-center gap-2 p-8 text-sm text-muted-foreground">{review.error ? String(review.error) : <><Loader size="s" /> Loading review</>}</p></AppLayout>;
+  if (!r)
+    return (
+      <AppLayout>
+        {review.error ? (
+          <p className="p-8 text-sm text-muted-foreground">{String(review.error)}</p>
+        ) : (
+          <div className="flex flex-col gap-4 p-8" role="status" aria-busy aria-label="Loading review">
+            <SkeletonText variant="subheader" className="w-64" />
+            <SkeletonText className="w-40" />
+            <Skeleton className="h-24 w-full rounded-lg" />
+            <Skeleton className="h-48 w-full rounded-lg" />
+          </div>
+        )}
+      </AppLayout>
+    );
   const approvedHere = r.approvals.filter((a) => a.approved_source_oid === r.source_oid);
   const open = !["MERGED", "CLOSED"].includes(r.status);
   return (
@@ -190,7 +204,12 @@ function DiffBySample({ changes, loading }: { changes: DiffChange[]; loading: bo
     }
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [changes]);
-  if (loading) return <p className="text-sm text-muted-foreground">Computing the diff…</p>;
+  if (loading)
+    return (
+      <div className="flex flex-col gap-2" aria-busy aria-label="Computing the diff">
+        {Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
+      </div>
+    );
   if (!groups.length) return <p className="text-sm text-muted-foreground">No changes.</p>;
   return (
     <div className="space-y-3" data-testid="review-diff">

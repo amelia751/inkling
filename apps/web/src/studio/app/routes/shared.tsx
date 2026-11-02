@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { buttonVariants } from "@studio/ui/ui/button";
 import type { IllustrationName } from "@studio/ui/illustrations";
 import { EmptyState } from "@studio/ui/ui/empty-state";
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { fetchAnnotations, fetchProjects } from "@/studio/lib/api";
 
 /**
@@ -41,15 +41,8 @@ export function useSavedAnnotations(id: string, enabled = true) {
  * ErrorState). Errors with a thrown value should use `ErrorView` (routes/errors.tsx) instead,
  * which also chooses the title and the next step.
  */
-export function FullPageMessage({ title, body, loading = false, kind }: { title: string; body?: string; loading?: boolean; kind?: IllustrationName }) {
-  if (loading)
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-        <Loader className="mb-2" />
-        <h1 className="text-body-2 font-semibold">{title}</h1>
-        {body && <p className="max-w-md text-sm text-muted-foreground">{body}</p>}
-      </div>
-    );
+export function FullPageMessage({ title, body, loading = false, kind, shape = "page" }: { title: string; body?: string; loading?: boolean; kind?: IllustrationName; shape?: "page" | "studio" }) {
+  if (loading) return <PageSkeleton label={title} shape={shape} />;
   return (
     <EmptyState
       variant="page"
@@ -63,5 +56,43 @@ export function FullPageMessage({ title, body, loading = false, kind }: { title:
         </Link>
       }
     />
+  );
+}
+
+/**
+ * A whole-page loading state shaped like what loads: a page header plus rows (`page`), or the
+ * Studio's toolbar, item list and canvas (`studio`). `label` is for screen readers only.
+ */
+export function PageSkeleton({ label, shape = "page" }: { label: string; shape?: "page" | "studio" }) {
+  if (shape === "studio")
+    return (
+      <div className="flex h-full min-h-0 flex-col" role="status" aria-busy aria-label={label}>
+        <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+          <Skeleton className="h-6 w-32" />
+          <div className="flex-1" />
+          {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="size-7 rounded-md" />)}
+        </div>
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-60 shrink-0 flex-col gap-2 border-r p-3">
+            {Array.from({ length: 8 }, (_, i) => <SkeletonText key={i} className={i % 3 === 2 ? "w-1/2" : "w-4/5"} />)}
+          </div>
+          <div className="flex-1 p-3"><Skeleton className="size-full rounded-lg" /></div>
+          <div className="hidden w-64 shrink-0 flex-col gap-3 border-l p-3 lg:flex">
+            <SkeletonText variant="subheader" className="w-24" />
+            {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-8 w-full rounded-md" />)}
+          </div>
+        </div>
+      </div>
+    );
+  return (
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-8" role="status" aria-busy aria-label={label}>
+      <div className="flex flex-col gap-2">
+        <SkeletonText variant="subheader" className="w-56" />
+        <SkeletonText className="w-80" />
+      </div>
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="h-12 w-full rounded-lg" />)}
+      </div>
+    </div>
   );
 }

@@ -5,7 +5,7 @@ import { Alert } from "@studio/ui/ui/alert";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton } from "@studio/ui/ui/skeleton";
 import { api, type StudioSetup } from "./api";
 import { useVersioning } from "./session";
 import { comparable, studioChanges, type StudioChange } from "./studio-diff";
@@ -38,7 +38,11 @@ export function StudioSetupTab({ datasetId, initialRef }: { datasetId: string; i
           </Button>
         ))}
       </div>
-      {setup.isLoading && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader size="s" /> Loading</p>}
+      {setup.isLoading && (
+        <div className="flex flex-col gap-2" aria-busy>
+          {Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-10 w-full rounded-md" />)}
+        </div>
+      )}
       {setup.error && <Alert theme="danger">{String(setup.error)}</Alert>}
       {setup.data && <Setup s={setup.data} changes={changes} />}
     </div>

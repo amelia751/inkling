@@ -68,6 +68,10 @@ export INKLING_S3_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=dev-only-s3-a
 pnpm seeds:upload                              # or: uv run tools/fetch-seeds.py --upload-only
 ```
 
+Google Cloud takes the target as a URL and gets public templates only
+(`--upload-only=gs://<bucket>/samples/`, `--dry-run` to preview); see "Sample templates" in
+`docs/deployment-gcp.md`.
+
 ### Seed mode, or the API and worker
 
 The web app runs in one of two modes. Which one depends on whether the Vite dev server knows

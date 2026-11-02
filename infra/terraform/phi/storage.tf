@@ -1,8 +1,9 @@
 # Every bucket: CMEK, uniform access, public access prevented, object versioning on.
 locals {
   buckets = merge({
-    # apps/api BlobStore: seed and uploaded assets at the root, kernel-written data under .data/
-    # (INKLING_GCS_BUCKET).
+    # apps/api BlobStore (INKLING_GCS_BUCKET): sample template bytes under samples/
+    # (INKLING_API_SAMPLES_PREFIX; public data copied in by tools/fetch-seeds.py, todo14 §3),
+    # uploads and kernel-written data under .data/.
     objects = { retention_days = 0, locked = false }
     # Plugin bundles, content-addressed (artifacts/sha256/<digest>, todo10 Phase 3): objects
     # can't be changed or deleted while retained.
@@ -61,6 +62,7 @@ resource "google_storage_bucket" "this" {
 }
 
 # The api reads and writes assets and derived data; it may add bundles, never change them.
+# Bucket-wide, so it covers samples/ too: no separate grant for sample templates.
 resource "google_storage_bucket_iam_member" "api_objects" {
   bucket = google_storage_bucket.this["objects"].name
   role   = "roles/storage.objectUser"

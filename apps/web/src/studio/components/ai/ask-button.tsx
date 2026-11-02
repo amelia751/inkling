@@ -26,7 +26,7 @@ export function AskButton({ open, onToggle, labelClassName, tooltip, testId }: {
           <span className="echo-glint inline-flex size-4 shrink-0 items-center justify-center">
             <AiIcon className="size-4 text-ai-text" />
           </span>
-          <span className={labelClassName}>Ask {NAMING.displayName}</span>
+          <span className={labelClassName}>Assistant</span>
         </button>
       </TooltipTrigger>
       {tooltip ?? <TooltipContent>{open ? "Close Assistant" : "Launch Assistant"}</TooltipContent>}

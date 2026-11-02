@@ -128,7 +128,7 @@ export function AiPanel({ project, items, item }: PanelProps) {
       taskId={params.taskId}
       onUndo={(m, p) => void undo(m, p)}
       bareSnapshot={() => inProject(bareSnapshot(project), projectId)}
-      placeholder={(profile) => (profile === "assistant" ? `Ask about ${project.title}…` : `Ask ${NAMING.displayName} to change this environment…`)}
+      placeholder={(profile) => (profile === "assistant" ? `Ask about ${project.title}…` : "Ask the assistant to change this environment…")}
       empty={(profile) => ({
         title: "How can I help with this dataset?",
         body: `I can check progress, find gaps, explain warnings, and draft label definitions or documentation for ${project.title}${PROFILE_BLURB[profile]}`,

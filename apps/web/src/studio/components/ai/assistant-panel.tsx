@@ -25,7 +25,7 @@ import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
-import { AiNotice, useAckAiNotice, useAiAssistOff } from "./ai-notice";
+import { useAckAiNotice, useAiAssistOff } from "./ai-notice";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import type { StudioCardContext } from "./cards";
 import { usePendingAsk } from "@/studio/app/entry/pending-ask";
@@ -342,7 +342,6 @@ function Conversation({
           setPending(undefined);
         }}
       />
-      {thread.length === 0 && <AiNotice className="block px-4 pb-3 text-caption text-hint" />}
     </div>
   );
 }
@@ -508,10 +507,11 @@ function Composer({
           )}
         </div>
       </div>
-      <p className="px-1 text-center text-caption text-hint">
-        {studio ? "Sees a text summary only, never images. Can be wrong. Changes need your approval or can be undone." : "Sees project metadata only, never file contents. Can be wrong. It proposes; you confirm."}
-        {!!project.heldFiles && <span data-testid="agent-held-note"> {project.heldFiles === 1 ? "1 file held for privacy review isn't" : `${project.heldFiles} files held for privacy review aren't`} shared with it.</span>}
-      </p>
+      {!!project.heldFiles && (
+        <p className="px-1 text-center text-caption text-hint">
+          <span data-testid="agent-held-note">{project.heldFiles === 1 ? "1 file held for privacy review isn't" : `${project.heldFiles} files held for privacy review aren't`} shared with the assistant.</span>
+        </p>
+      )}
     </div>
   );
 }

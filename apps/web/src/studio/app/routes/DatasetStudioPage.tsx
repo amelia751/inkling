@@ -40,7 +40,7 @@ import { rememberTool } from "@/studio/stores/tool-prefs";
 import { nextTodoIndex } from "@/studio/lib/items";
 import { studioItems } from "@/studio/lib/item-folders";
 import { useTaskItems } from "@/studio/lib/task-items";
-import type { Annotation, AnnotationDocument, Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
+import type { AnnotationDocument, Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
@@ -185,6 +185,8 @@ function StudioPage() {
       // Edits kept across a sign-in redirect (session expired mid-work) come back unsaved.
       const kept = takeUnsaved(project.id);
       load(project.id, kept?.annotations ?? saved.data.annotations, kept?.revision ?? saved.data.revision, regionLabelNames(boot.env.labels)[0] ?? null);
+      useSaveConflicts.getState().setBase(project.id, saved.data.annotations); // todo18 P0-4 merge base
+      useSaveConflicts.getState().set([]);
       if (kept) useStudio.setState({ dirty: true, saveState: "idle" });
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
@@ -628,8 +630,6 @@ function useAutosave(projectId: string) {
   const annotations = useStudio((s) => s.annotations);
   const dirty = useStudio((s) => s.dirty);
   const inFlight = useRef(false);
-  // The document as last loaded or saved: the merge base when a save gets 409 (todo18 P0-4).
-  const base = useRef<{ projectId: string; annotations: Annotation[] } | null>(null);
 
   const save = useCallback(async () => {
     const run = async (): Promise<void> => {
@@ -644,9 +644,8 @@ function useAutosave(projectId: string) {
           useStudio.getState().markSaved(await saveVersioned(projectId, snapshot), snapshot);
         } else {
           const v2 = !snapshot.some((a) => LEGACY_TYPES.test(a.geometry.type));
-          if (base.current?.projectId !== projectId) base.current = { projectId, annotations: s.past[0] ?? [] };
           const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot, ...(v2 ? { annotationsVersion: ANNOTATIONS_VERSION } : {}) });
-          base.current = { projectId, annotations: snapshot };
+          useSaveConflicts.getState().setBase(projectId, snapshot);
           useStudio.getState().markSaved(doc.revision, snapshot);
         }
       } catch (e) {
@@ -654,8 +653,9 @@ function useAutosave(projectId: string) {
         const current = p.current as AnnotationDocument | undefined;
         if (p.kind === "conflict" && current && Array.isArray(current.annotations)) {
           // Someone saved since we loaded: merge per annotation id, then save the merge on their revision.
-          const { merged, conflicts } = mergeAnnotations(base.current?.annotations ?? [], useStudio.getState().annotations, current.annotations);
-          base.current = { projectId, annotations: current.annotations };
+          const b = useSaveConflicts.getState();
+          const { merged, conflicts } = mergeAnnotations(b.baseProject === projectId ? b.base : [], useStudio.getState().annotations, current.annotations);
+          b.setBase(projectId, current.annotations);
           useStudio.setState({ annotations: merged, revision: current.revision, dirty: true, saveState: "saving" });
           if (conflicts.length) useSaveConflicts.getState().set(conflicts);
           inFlight.current = false;

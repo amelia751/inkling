@@ -44,8 +44,19 @@ export function resolveConflict(annotations: Annotation[], c: AnnotationConflict
 }
 
 /** Open Theirs / Mine conflicts after a merged save (shown by the Studio's save notice). */
-export const useSaveConflicts = create<{ conflicts: AnnotationConflict[]; set: (c: AnnotationConflict[]) => void; drop: (id: string) => void }>((set) => ({
+export const useSaveConflicts = create<{
+  conflicts: AnnotationConflict[];
+  /** The document as last loaded or saved for `baseProject`: the merge base on a 409. */
+  base: Annotation[];
+  baseProject: string | null;
+  setBase: (projectId: string, annotations: Annotation[]) => void;
+  set: (c: AnnotationConflict[]) => void;
+  drop: (id: string) => void;
+}>((set) => ({
   conflicts: [],
+  base: [],
+  baseProject: null,
+  setBase: (baseProject, base) => set({ baseProject, base }),
   set: (conflicts) => set({ conflicts }),
   drop: (id) => set((s) => ({ conflicts: s.conflicts.filter((c) => c.id !== id) })),
 }));

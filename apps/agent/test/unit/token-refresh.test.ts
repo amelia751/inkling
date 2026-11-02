@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { StudioClient } from "@studio/studio-tools";
 import { KernelClient, KernelError } from "../../src/tools/kernel.ts";
 
 const res = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -25,5 +26,15 @@ describe("todo18 D delegated token refresh inside a run", () => {
     const k = new KernelClient({ baseUrl: "http://k", workspaceId: "w", token: () => "old", refresh, fetchImpl });
     await expect(k.get("/x")).rejects.toBeInstanceOf(KernelError);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("the Studio client (boots, environments) refreshes the same way", async () => {
+    let token = "old";
+    const fetchImpl = vi.fn(async (_u: unknown, init?: RequestInit) =>
+      (init!.headers as Record<string, string>).Authorization === "Bearer new" ? res(200, { ok: 1 }) : res(401, { detail: "expired" }),
+    ) as unknown as typeof fetch;
+    const c = new StudioClient({ baseUrl: "http://k", token: () => token, refresh: async () => ((token = "new"), true), fetch: fetchImpl });
+    await expect(c.request("GET", "/api/v1/x")).resolves.toEqual({ ok: 1 });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });

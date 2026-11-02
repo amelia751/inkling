@@ -103,6 +103,8 @@ export class SessionContext {
   onClientToolSettled: ((callId: string) => void) | undefined;
   /** Kernel session token (builder / task); memory only, the Studio refreshes it per message. */
   kernelToken: string | undefined;
+  /** todo18 D: ask the browser for a fresh delegated token mid-run (set with the kernel client). */
+  refreshToken?: () => Promise<boolean>;
   /** The kernel client the project tools use (set in build), also for reading a message's drop. */
   kernel: KernelClient | undefined;
   private unsubscribe: (() => void) | undefined;
@@ -400,14 +402,14 @@ export class SessionService {
       // todo16 D9: the run is the turn; the kernel journals every write under it (X-Turn-Id).
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
       // todo18 D: a long run outlives the delegated token; ask the browser for a fresh one.
-      refresh: async () => {
+      refresh: (ctx.refreshToken = async () => {
         if (!ctx.activeRun) return false;
         const r = await ctx.bridge.request(`tok_${randomUUID()}`, REFRESH_TOKEN_TOOL, {}).catch(() => undefined);
         const token = r?.ok ? (r.output as { token?: unknown } | null)?.token : undefined;
         if (typeof token !== "string" || !token) return false;
         ctx.kernelToken = token;
         return true;
-      },
+      }),
       fetchImpl: this.deps.fetchImpl,
     });
     ctx.kernel = kernel;
@@ -425,6 +427,7 @@ export class SessionService {
       const studioClient = new StudioClient({
         baseUrl: this.config.kernelUrl,
         token: () => ctx.kernelToken,
+        refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false),
         headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
         fetch: this.deps.fetchImpl,
       });

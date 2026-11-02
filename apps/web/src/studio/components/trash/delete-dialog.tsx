@@ -8,6 +8,7 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Input } from "@studio/ui/ui/input";
 import { Skeleton } from "@studio/ui/ui/skeleton";
+import { nameProblem } from "@/studio/lib/files/names";
 import { projectTrashUrl } from "@/studio/lib/routes";
 import { canConfirmDelete, deleteResource, usedByLine, invalidateAfterTrash, KIND_LABEL, messageOf, movedToTrashToast, previewDelete, useRename, type DeletableKind, type Impact } from "@/studio/lib/trash-api";
 
@@ -115,8 +116,11 @@ export function RenameInPlace({ projectId, kind, id, name, className, canEdit = 
   const [value, setValue] = useState(name);
   const rename = useRename(projectId, kind);
   useEffect(() => setValue(name), [name]);
+  const problem = nameProblem(value);
   const save = () => {
     const next = value.trim();
+    // An invalid name never saves, not even on blur (todo18 B): the field stays open with why.
+    if (next !== name.trim() && problem) return;
     setEditing(false);
     if (next && next !== name) rename.mutate({ id, name: next });
     else setValue(name);
@@ -138,8 +142,9 @@ export function RenameInPlace({ projectId, kind, id, name, className, canEdit = 
     );
   return (
     <span className={className}>
-      <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} onBlur={save} aria-label={`New name for ${name}`} className="h-7" data-testid="rename-input" />
-      <Button variant="ghost-secondary" size="icon-sm" aria-label="Save name" onMouseDown={(e) => e.preventDefault()} onClick={save}>
+      <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} onBlur={save} aria-label={`New name for ${name}`} className="h-7" aria-invalid={!!problem} title={problem ?? undefined} data-testid="rename-input" />
+      {problem && <span className="text-xs text-danger" data-testid="rename-error">{problem}</span>}
+      <Button variant="ghost-secondary" size="icon-sm" aria-label="Save name" disabled={!!problem} onMouseDown={(e) => e.preventDefault()} onClick={save}>
         <CheckIcon />
       </Button>
       <Button variant="ghost-secondary" size="icon-sm" aria-label="Cancel rename" onMouseDown={(e) => e.preventDefault()} onClick={() => (setValue(name), setEditing(false))}>

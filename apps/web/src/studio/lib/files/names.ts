@@ -131,3 +131,18 @@ export function copyName(name: string, siblings: Iterable<string> = []): string 
     if (!taken.has(candidate.toLowerCase())) return candidate;
   }
 }
+
+/**
+ * todo18 B: the one name rule for datasets, collections and Studios (the api's
+ * `kernel/names.py` `problem`, same sentences). `slash`: "/" is not allowed (file paths).
+ */
+export function nameProblem(name: string, { slash = false }: { slash?: boolean } = {}): string | null {
+  const raw = name.trim();
+  if (raw === "." || raw === "..") return `“${raw}” can't be used as a name`;
+  const n = raw.replace(/[\s.]+$/u, "");
+  if (!n) return "A name can't be empty";
+  if (slash && n.includes("/")) return "A name can't contain “/”";
+  if (CONTROL.test(n)) return "A name can't contain control characters";
+  if (encoder.encode(n).length > 255) return "A name can be at most 255 bytes long";
+  return null;
+}

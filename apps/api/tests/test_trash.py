@@ -319,3 +319,17 @@ def test_restore_takes_several_batches_in_one_request(client):
     assert sorted(x["name"] for x in r.json()["restored"]) == ["a.png", "b.png"]
     assert _trash(client, p)["count"] == 0
     assert client.post(f"/api/v1/projects/{p}/trash/{ids[0]}/restore", json={"batchIds": "x"}).status_code == 422
+
+
+def test_renames_use_the_shared_name_rule(client):
+    """todo18 B: `.`, `..`, blank and over 255 bytes are refused; the same rule as files."""
+    from studio_api.kernel import names
+
+    p, ds, _ = _setup(client)
+    url = f"/api/v1/projects/{p}/datasets/{ds['id']}"
+    for bad in [".", "..", "   ", "a\x01b", "é" * 128]:
+        r = client.patch(url, json={"name": bad})
+        assert r.status_code == 422, bad
+        assert r.json()["detail"] == names.problem(bad)
+    assert client.patch(url, json={"name": "Scans v2. "}).json()["name"] == "Scans v2"
+    assert names.problem("a/b", slash=True) and not names.problem("a/b")

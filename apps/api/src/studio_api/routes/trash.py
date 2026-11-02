@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import projects, trash, turns
+from ..kernel import names, projects, trash, turns
 from ..models import DatasetCollectionRow, DatasetRow, ProjectRow, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -91,12 +91,13 @@ def _patch(db: Session, ctx: RequestContext, project_id: str, what: str, id_: st
     kind, r = _row(db, p, what, id_)
     name = body.get("name")
     if name is not None:
-        if not isinstance(name, str) or not name.strip() or len(name) > 256:
-            raise HTTPException(422, "name must be 1 to 256 characters")
+        if not isinstance(name, str):
+            raise HTTPException(422, "A name is text")
+        clean = names.clean(name)
         if kind == "collection":
-            r.name = name.strip()
+            r.name = clean
         else:
-            r.title = name.strip()
+            r.title = clean
     desc = body.get("description")
     if desc is not None:
         if kind != "dataset" or not isinstance(desc, str):

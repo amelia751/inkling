@@ -404,7 +404,11 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
             created["collections"].append(c.id)
             group_collection[a["groupId"]] = c.id
             pin(d, c, nodes)
-            preset = fast_preset if (fast_preset and t == "new_dataset") else a.get("preset")
+            # The fast path's preset is one for the whole drop; it only takes this collection when
+            # it can show its kind (a mixed drop of MRI volumes and ECGs must not open the ECGs in
+            # the volume viewer). Otherwise the collection's own preset.
+            fast = fast_preset if (fast_preset and t == "new_dataset" and intents.serves_kind(fast_preset, kind)) else None
+            preset = fast or a.get("preset")
             if preset and c.kind in collections.VIEWABLE_COLLECTIONS:
                 patch = structure.label_patch(labels) if labels and t == "new_dataset" else None
                 ids = _boot(db, ctx, p, row.drop_id, c, preset, a.get("name") or c.name, patch)

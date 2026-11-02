@@ -178,3 +178,12 @@ def test_term_matching_is_word_bounded_and_plural_tolerant():
     assert intents.term_pattern("x-ray").search("X Ray")
     assert not intents.term_pattern("mr").search("Mrs Smith")
     assert not intents.term_pattern("ct").search("project")
+
+
+def test_fast_preset_only_takes_a_kind_it_can_show():
+    # A mixed drop (MRI volumes, a mask, ECGs) resolves to the volume preset by count; the ECG
+    # collection must keep its own preset, not open in the volume viewer.
+    assert intents.unambiguous(None, ["waveform", "volume", "mask"], TABLE).preset == "preset:volume-3d"
+    assert not intents.serves_kind("preset:volume-3d", "waveform", TABLE)
+    assert intents.serves_kind("preset:volume-3d", "mask", TABLE)
+    assert intents.serves_kind("preset:ecg", "waveform", TABLE)

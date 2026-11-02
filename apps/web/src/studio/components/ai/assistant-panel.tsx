@@ -206,6 +206,7 @@ function Conversation({
   empty,
   bareSnapshot,
   thread,
+  status,
   running,
   busy,
   onScrolled,

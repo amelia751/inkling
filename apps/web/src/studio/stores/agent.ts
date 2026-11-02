@@ -6,8 +6,7 @@ import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import { api } from "@/studio/lib/projects-api";
-import { REFRESH_TOKEN_TOOL } from "@studio/agent-protocol";
-import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
+import type { RefreshTokenTool, AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
 export type CardState = "open" | "applied" | "dismissed" | "undone";
@@ -135,6 +134,8 @@ let toolAbort: AbortController | null = null;
 const TAB_ID = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random());
 const followChannel: BroadcastChannel | null = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`${RES}-agent-follow`) : null;
 let handedOff: AbortController | null = null;
+/** The protocol package is types-only here (run-events.test); the type pins the literal. */
+const REFRESH_TOKEN_TOOL: RefreshTokenTool = "__refresh_kernel_token";
 
 export const STUDIO_CLOSED = "The Studio isn't open, so this tool can't run. Ask the person to open it, or use open_location.";
 export const BLOCKED_PREFIX = "Waiting for the assistant in project ";

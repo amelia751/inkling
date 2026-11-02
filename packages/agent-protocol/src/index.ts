@@ -218,6 +218,7 @@ export interface SendMessageResponse {
  * delegated kernel token expired mid-run; the browser answers `{ token }`, panel open or not.
  */
 export const REFRESH_TOKEN_TOOL = "__refresh_kernel_token";
+export type RefreshTokenTool = typeof REFRESH_TOKEN_TOOL;
 
 export interface ClientToolResultRequest {
   ok: boolean;

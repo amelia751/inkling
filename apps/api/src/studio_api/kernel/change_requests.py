@@ -395,6 +395,8 @@ APPLIERS: dict[str, Applier] = {
 for _op in APPLIERS:  # registered with admit (validation families come with todo17 M1 slices)
     if _op not in admission.OPERATIONS:
         admission.register(admission.Operation(id=_op, tier="write", published=admission.CHANGE_REQUEST))
+    elif _op in CHANGE_REQUEST_OPS_FALLBACK:  # catalogue ops with published: change-request
+        admission.OPERATIONS[_op].published = admission.CHANGE_REQUEST
 
 
 def needs_change_request(db: Session, ctx: RequestContext, p: ProjectRow, op_id: str, inp: dict) -> bool:

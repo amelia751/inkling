@@ -116,6 +116,12 @@ OPERATIONS: dict[str, Operation] = {}
 
 
 def register(op: Operation) -> Operation:
+    """Register (or re-register) an operation. Several modules declare the same op id (a route's
+    validation families, the change-request appliers); a later registration without `published`
+    keeps the earlier one's, so the catalogue's change-request flag is never lost."""
+    prev = OPERATIONS.get(op.id)
+    if prev is not None and op.published is None:
+        op.published = prev.published
     OPERATIONS[op.id] = op
     return op
 

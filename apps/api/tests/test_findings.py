@@ -105,9 +105,9 @@ def test_would_have_rejected_counts_evaluate_mode_errors_from_writes(client, mon
         findings.record(db, p, "dataset", "d1", [mixed], "write")
         findings.record(db, p, "dataset", "d2", [mixed], "write")
         findings.record(db, p, "dataset", "d3", [mixed], "scan")  # scans are not writes
-        findings.record(db, p, "dataset", "d4", [violation("dataset.metadata-missing", "/dataset/metadata/x", "x")], "write")  # enforced: really rejected
+        findings.record(db, p, "dataset", "d4", [violation("dataset.metadata-missing", "/dataset/metadata/x", "x")], "write")  # evaluate mode since wire-b (D5): counted
     out = client.get(f"/api/v1/projects/{p}/findings").json()
-    assert out["wouldHaveRejected"] == {"dataset.mixed-modality": 2}
+    assert out["wouldHaveRejected"] == {"dataset.mixed-modality": 2, "dataset.metadata-missing": 1}
     assert {f["mode"] for f in out["findings"] if f["rule"] == "dataset.mixed-modality"} == {"evaluate"}
     # Promotion is a rules edit (history) and ends evaluate mode.
     r = client.post(f"/api/v1/projects/{p}/rules/promote", json={"rule": "dataset.mixed-modality", "severity": "error"})
@@ -116,7 +116,7 @@ def test_would_have_rejected_counts_evaluate_mode_errors_from_writes(client, mon
     hist = client.get(f"/api/v1/projects/{p}/rules/history").json()["history"]
     assert hist[0]["revision"] == r.json()["revision"] == 1
     out = client.get(f"/api/v1/projects/{p}/findings").json()
-    assert out["wouldHaveRejected"] == {} and {f["mode"] for f in out["findings"] if f["rule"] == "dataset.mixed-modality"} == {"enforce"}
+    assert out["wouldHaveRejected"] == {"dataset.metadata-missing": 1} and {f["mode"] for f in out["findings"] if f["rule"] == "dataset.mixed-modality"} == {"enforce"}
     assert client.post(f"/api/v1/projects/{p}/rules/promote", json={"rule": "nope", "severity": "error"}).status_code == 422
 
 
@@ -145,7 +145,8 @@ def test_scan_finds_a_synonym_and_a_misplaced_file_and_clears_them_later(client,
     client.put(f"/api/v1/projects/{p}/rules", json={"rules": {**cur["rules"], "layout": {}}, "baseRevision": cur["revision"]})
     out = client.post(f"/api/v1/projects/{p}/scan").json()
     assert out["jobId"] and out["state"] == "done" and out["result"]["resolved"] >= 2
-    assert {f["rule"] for f in _open(client, p)} == {"label.synonym", "dataset.metadata-missing"}
+    # "Bad Name.png" reads like a person's name, so name.phi-suspect stays until it's renamed.
+    assert {f["rule"] for f in _open(client, p)} == {"label.synonym", "dataset.metadata-missing", "name.phi-suspect"}
 
 
 def test_daily_scan_runs_once_a_day_from_the_hour(client, monkeypatch):

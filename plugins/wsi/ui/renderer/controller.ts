@@ -3,7 +3,7 @@ import { OverlayEngine } from "@studio/renderers/overlay2d/OverlayEngine";
 import type { ToolContext, Units } from "@studio/renderers/overlay2d/tools";
 import { View } from "@studio/renderers/overlay2d/transform";
 import { resolveToken } from "@studio/plugin-ui-sdk/labels";
-import type { Pt, SeedAsset, StudioItem } from "@studio/contracts/types";
+import { viewPath, type Pt, type SeedAsset, type StudioItem } from "@studio/contracts/types";
 import { formatArea, formatLength, lengthStats } from "../measure";
 import { syncViewFromOSD } from "./osdView";
 import { lastWandRunner, NEUTRAL_ADJUST, wandRegion, wandTool, type Adjustments } from "./wand";
@@ -83,7 +83,7 @@ export class WsiController {
     const navW = 220;
     this.viewer = OpenSeadragon({
       element: o.host,
-      tileSources: assetUrl(o.asset.path),
+      tileSources: assetUrl(viewPath(o.asset)),
       // OSD 6: WebGL where available, canvas otherwise.
       drawer: "auto",
       showNavigationControl: false,
@@ -134,6 +134,12 @@ export class WsiController {
       this.engine.setReady();
     });
     this.viewer.addHandler("open-failed", () => this.setUi({ error: "This slide's tile pyramid could not be opened." }));
+    // todo18: missing tiles are one error, not holes in the slide.
+    let tileErrors = 0;
+    this.viewer.addHandler("tile-load-failed", () => {
+      tileErrors += 1;
+      if (tileErrors === 1) this.setUi({ error: tileErrorText(tileErrors) });
+    });
     // Fires inside OSD's animation frame, before tiles are drawn: redraw synchronously so overlays never lag.
     this.viewer.addHandler("update-viewport", () => {
       this.syncView();
@@ -271,4 +277,9 @@ export class WsiController {
       ctx.setBusy(false);
     }
   }
+}
+
+/** One message for missing tiles (todo18 §2 C). */
+export function tileErrorText(n: number): string {
+  return n === 1 ? "Some tiles of this slide are missing (the pyramid is incomplete)." : `${n} tiles of this slide are missing (the pyramid is incomplete).`;
 }

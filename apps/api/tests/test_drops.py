@@ -115,10 +115,10 @@ def test_a_chat_origin_without_a_drop_makes_one_and_duplicates_link(client):
     assert s["dropId"].startswith("drp-")
     client.put(s["files"][0]["uploadUrl"], content=img)
     client.post(f"/api/v1/imports/{s['id']}/complete")
-    # The same bytes again in another drop: "Already in Files", no upload.
+    # The same bytes again in another drop: "Already in Sources", no upload.
     d, imp = _drop(client, pid, {"copy.png": img}, conv="c9")
     f = client.get(f"/api/v1/drops/{d['id']}").json()["files"][0]
-    assert f["reason"] == "Already in Files" and imp["files"][0]["received"] == len(img)
+    assert f["reason"] == "Already in Sources" and imp["files"][0]["received"] == len(img)
 
 
 # ---- Name screening and the agent's view (D3, D13) ------------------------------------------
@@ -277,7 +277,7 @@ def test_limits_and_rate_limit(make_client):
     client = make_client(drop_max_files=3, drop_max_bytes=1000, drop_rate_per_minute=2)
     pid = _project(client)
     r = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": "c", "files": 4})
-    assert r.status_code == 413 and "Files" in r.json()["detail"]
+    assert r.status_code == 413 and "Sources" in r.json()["detail"]
     assert client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": "c", "bytes": 2000}).status_code == 413
     d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": "c", "files": 1}).json()
     # The actual files count too: 4 files in one session is over the drop's limit.

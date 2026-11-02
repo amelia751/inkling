@@ -360,7 +360,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
     name: "list_folder",
     label: "Listing folder",
     description:
-      "One folder of the project's Files (the drive): its subfolders and files by current name, with kind, status and counts. Leave nodeId out for the top of the drive. " +
+      "One folder of the project's Sources (the drive): its subfolders and files by current name, with kind, status and counts. Leave nodeId out for the top of the drive. " +
       "Never file contents or the names files were uploaded with. Numbered runs (scan001–scan120.dcm) are one row; list the run's id to see its files. Use the ids with propose_reorganization.",
     promptSnippet: "One Files folder: names, kinds and counts",
     parameters: Type.Object({ nodeId: Type.Optional(Type.String({ description: "A folder (or numbered run) id from an earlier listing or find_files. Default: the top of the drive." })) }),
@@ -379,7 +379,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
       } else {
         const drive = await k.get<{ rootNodeId: string; writable: boolean }>(`/projects/${pid()}/fs`, signal);
         writable = drive.writable;
-        folder = { id: drive.rootNodeId, name: "Files", kind: "folder", root: true };
+        folder = { id: drive.rootNodeId, name: "Sources", kind: "folder", root: true };
       }
       const q = new URLSearchParams({ limit: String(LIST_MAX), ...(args.nodeId ? { node: args.nodeId } : {}) });
       const r = await k.get<{ items: (Node & { parentId?: string | null; locked?: boolean })[]; total: number }>(`/projects/${pid()}/fs/children?${q}`, signal);
@@ -395,7 +395,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
     name: "find_files",
     label: "Finding files",
     description:
-      "Search the project's Files by name (part of the current name, any case) and/or detected kind (image, dicom, dicom-series, volume, video, waveform, slide, table, document, mask, annotations, archive, unknown). " +
+      "Search the project's Sources by name (part of the current name, any case) and/or detected kind (image, dicom, dicom-series, volume, video, waveform, slide, table, document, mask, annotations, archive, unknown). " +
       "Returns ids, current names, kinds and the parent folder id (to group by folder), at most 200. Never contents or the names files were uploaded with.",
     promptSnippet: "Find files by name or kind",
     parameters: Type.Object({

@@ -160,8 +160,8 @@ def main() -> int:
         side = page.locator("[data-testid=project-sidebar]")
         side.wait_for(timeout=20000)
         labels = [t.strip() for t in side.locator("nav > ul").first.locator("a").all_inner_texts()]
-        check("sidebar: Overview, Files, Datasets, Studio, Review, Activity", labels == ["Overview", "Files", "Datasets", "Studio", "Review", "Activity"], str(labels))
-        check("Files keeps the sources route", side.get_by_role("link", name="Files", exact=True).get_attribute("href") == f"/projects/{P}/sources")
+        check("sidebar: Overview, Sources, Datasets, Studio, Review, Activity", labels == ["Overview", "Sources", "Datasets", "Studio", "Review", "Activity"], str(labels))
+        check("Sources keeps the sources route", side.get_by_role("link", name="Sources", exact=True).get_attribute("href") == f"/projects/{P}/sources")
         ctx.close()
         ctx, page, errors = fresh()
         page.route("**/api/v1/features", json_route({"chatDrops": False, "autoApply": False, "fastPath": False, "datasetsTab": False}))
@@ -169,7 +169,7 @@ def main() -> int:
         side = page.locator("[data-testid=project-sidebar]")
         side.wait_for(timeout=20000)
         labels = [t.strip() for t in side.locator("nav > ul").first.locator("a").all_inner_texts()]
-        check("flags off: no Datasets in the sidebar (J12)", "Datasets" not in labels and "Files" in labels, str(labels))
+        check("flags off: no Datasets in the sidebar (J12)", "Datasets" not in labels and "Sources" in labels, str(labels))
         check("flags off: the Datasets route still opens", (page.goto(f"{base}/projects/{P}/datasets"), page.wait_for_selector("[data-testid=datasets-page]", timeout=10000))[1] is not None)
         ctx.close()
 

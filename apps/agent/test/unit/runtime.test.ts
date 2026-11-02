@@ -154,7 +154,7 @@ describe("approvals", () => {
       const a = broker.request({ toolCallId: "t", toolName: "run_command", summary: "s", inputPreview: "{}" });
       expect(broker.decide(seen[0]!, { decision: "approve" })).toBe(true);
       expect(broker.decide(seen[0]!, { decision: "reject" })).toBe(false);
-      await expect(a).resolves.toEqual({ decision: "approve" });
+      await expect(a).resolves.toMatchObject({ decision: "approve" });
       const b = broker.request({ toolCallId: "t2", toolName: "bash", summary: "s", inputPreview: "{}" });
       vi.advanceTimersByTime(10_001);
       await expect(b).resolves.toMatchObject({ decision: "reject", note: "approval expired" });

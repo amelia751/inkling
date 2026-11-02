@@ -13,12 +13,12 @@ import { personSuffix } from "@/studio/lib/person-key";
  * user in the install review, never by the agent.
  */
 export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
-  assistant: ["proposals.write"],
+  assistant: ["proposals.write", "project.write"],
   "environment-designer": ["proposals.write"],
   // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints and fixtures; builders also verify and probe.
   coder: ["proposals.write", "samples.inspect"],
   builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
-  task: ["proposals.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+  task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 };
 
 const TTL_S = 3600;

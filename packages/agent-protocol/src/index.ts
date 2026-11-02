@@ -19,7 +19,9 @@ export type ProfileName = "assistant" | "environment-designer" | "coder" | "buil
  */
 export type ApprovalDetail =
   | { kind: "plugin-install"; requestId: string; workspaceId: string }
-  | { kind: "proposal"; proposalKind: "mapping" | "relationship"; workspaceId: string };
+  | { kind: "proposal"; proposalKind: "mapping" | "relationship"; workspaceId: string }
+  /** todo16 D8: a project operation from the catalogue that asks first (big trash, or destroy). */
+  | { kind: "operation"; opId: string; tier: "trash" | "destroy"; irreversible: boolean; impact: { items: { kind: string; id: string; name?: string }[]; files?: number } };
 
 export type RunStatus = "queued" | "running" | "awaiting_approval" | "completed" | "failed" | "cancelled" | "expired";
 
@@ -84,7 +86,9 @@ export type AgentCard =
   /** open_location: a button that opens a project place; the agent never navigates by itself. */
   | { kind: "location"; label: string; target: LocationTarget; reason?: string }
   /** propose_reorganization (todo7 Phase 8): a plan for the project's Files; Apply sends it as the user. */
-  | { kind: "reorg-plan"; plan: ReorgPlan };
+  | { kind: "reorg-plan"; plan: ReorgPlan }
+  /** request_upload (todo16 D10): a drop zone in the chat; the person picks the files, the bytes go the normal import path. */
+  | { kind: "upload-request"; reason: string; folderId?: string };
 
 /**
  * A reorganization plan the assistant proposes for the project's Files (todo7 Phase 8). Ids only

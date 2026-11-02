@@ -42,12 +42,12 @@ export interface KernelAccess {
 /** Scopes the Studio mints for each profile's token; the kernel enforces them. */
 export const KERNEL_SCOPES = {
   // Every profile reads its project (Overview, Sources, Explore) and may propose (never confirm).
-  assistant: ["proposals.write"],
+  assistant: ["proposals.write", "project.write"],
   "environment-designer": ["proposals.write"],
   coder: ["proposals.write", "samples.inspect"],
   // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints, fixtures, verify, probes.
   builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
-  task: ["proposals.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+  task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
 } as const;
 
 export class KernelClient {
@@ -57,10 +57,10 @@ export class KernelClient {
     return this.access.workspaceId;
   }
 
-  async request<T = any>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean } = {}): Promise<T> {
+  async request<T = any>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean; headers?: Record<string, string> } = {}): Promise<T> {
     const token = this.access.token();
     if (!token) throw new KernelError(401, "This session has no kernel access. Ask the user to reopen the assistant panel (the Studio passes a fresh token with each message).");
-    const headers: Record<string, string> = { ...this.access.headers?.(), Authorization: `Bearer ${token}`, "X-Workspace-Id": this.access.workspaceId };
+    const headers: Record<string, string> = { ...this.access.headers?.(), ...opts.headers, Authorization: `Bearer ${token}`, "X-Workspace-Id": this.access.workspaceId };
     if (opts.json !== undefined) headers["Content-Type"] = "application/json";
     if (opts.body) headers["Content-Type"] = opts.contentType ?? "application/octet-stream";
     if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;

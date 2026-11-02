@@ -171,6 +171,7 @@ Upload limits, read by the API (`apps/api/src/studio_api/config.py`):
 | Env var | Default | Meaning |
 |---|---|---|
 | `INKLING_API_UPLOAD_MAX_FILE_BYTES` | 2147483648 (2 GB) | largest file an import session accepts |
+| `INKLING_API_URL_IMPORT_MAX_BYTES` | 5368709120 (5 GB) | largest file an import from a link (`POST …/imports/url`) accepts |
 | `INKLING_API_UPLOAD_MAX_SESSION_FILES` | 20000 | most files in one import session |
 
 Uploaded bytes go to the API's data BlobStore (`INKLING_API_DATA_DIR` locally, the `assets`

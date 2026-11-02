@@ -450,7 +450,10 @@ export interface FsUndoResult extends FsOpsResult {
 
 export interface TrashItem extends SourceNode {
   trashedAt: string;
-  trashedBy: string;
+  /** Who deleted it; `viaAssistant` when their assistant did (todo16). */
+  trashedBy: { id: string; name: string; viaAssistant: boolean } | string;
+  /** Legacy display name of who deleted it. */
+  trashedByName?: string;
   /** "MRI/patient_002" (current path of the folder it was in), or null if that folder is gone. */
   originalLocation: string | null;
   /** Days left before the purge job deletes it. */

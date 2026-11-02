@@ -14,6 +14,13 @@ const strList = (description: string) => ({ type: "array", items: { type: "strin
 
 export const CARD_TOOLS: ClientToolSpec[] = [
   {
+    name: "request_upload",
+    title: "Asking for files",
+    description:
+      "Ask the user to add files: shows a drop zone in the chat bound to this project (and optionally a folder). They pick or drop the files; you never see the bytes, only the drop's facts on their next message. Use when they want to add data they have on their computer.",
+    input_schema: obj({ reason: str("One sentence on what to add, e.g. 'Drop the chest X-ray folder here'."), folderId: str("Optional: a folder id from list_folder to land in.") }, ["reason"]),
+  },
+  {
     name: "show_items",
     title: "Preparing item list",
     description: "Show the expert a clickable list of items (e.g. unannotated scans) so they can jump to each one. Use after list_items or run_validation.",
@@ -53,11 +60,11 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     name: "open_location",
     title: "Pointing to a place",
     description:
-      "Show the user a button that opens a place in the project, e.g. 'Open Files › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
+      "Show the user a button that opens a place in the project, e.g. 'Open Sources › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
     input_schema: obj(
       {
         section: { type: "string", enum: ["overview", "sources", "explore", "datasets", "studio", "review", "activity"], description: "The project section." },
-        label: str("Button text naming the place, e.g. 'Files › MRI/patient_002'."),
+        label: str("Button text naming the place, e.g. 'Sources › MRI/patient_002'."),
         nodeId: str("Data: a file or folder id."),
         proposalId: str("Explore: a proposal id."),
         tab: str("Explore: summary, relationships, mappings or quality."),
@@ -72,7 +79,7 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     name: "propose_reorganization",
     title: "Drafting a reorganization",
     description:
-      "Propose reorganizing the project's Files: new folders (mkdir), moves and renames, each with a one-line reason. Shown as a card with a before/after diff; nothing changes until the user clicks Apply, which they can undo in one step. " +
+      "Propose reorganizing the project's Sources: new folders (mkdir), moves and renames, each with a one-line reason. Shown as a card with a before/after diff; nothing changes until the user clicks Apply, which they can undo in one step. " +
       "You can't change files yourself. Use ids from list_folder or find_files, never paths. Give each new folder a short ref (e.g. \"p1\") and use that ref as parentId to move things into it. Keep names free of dates of birth and personal names.",
     input_schema: obj({
       title: str("One line, e.g. 'Group by patient: 47 folders → patient_001…047'."),
@@ -183,6 +190,10 @@ export function runCardTool(name: string, input: Json, ctx?: AgentContext): Card
           summary: `${action === "accept" ? "Accept" : "Reject"} ${plural(chosen.length, "suggestion")}`,
           card: { kind: "review-suggestions", action, annotationIds: chosen, reason: String(input.reason ?? "") },
         };
+      }
+      case "request_upload": {
+        const folderId = typeof input.folderId === "string" && /^[A-Za-z0-9:_.-]{1,128}$/.test(input.folderId) ? input.folderId : undefined;
+        return { ok: true, output: { shown: true }, summary: "Asked for files", card: { kind: "upload-request", reason: String(input.reason ?? "").slice(0, 300), ...(folderId ? { folderId } : {}) } };
       }
       case "propose_reorganization": {
         const r = parseReorgPlan(input);

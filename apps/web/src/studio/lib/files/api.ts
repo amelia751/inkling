@@ -114,6 +114,8 @@ export const fetchFsChildren = (projectId: string, nodeId: string | null, sort: 
 
 export const postFsOps = (projectId: string, body: FsOpsRequest) => fsApi<FsOpsResult>(`/projects/${P(projectId)}/fs/ops`, { method: "POST", json: body });
 export const postUndo = (projectId: string, batchId?: string) => fsApi<FsUndoResult>(`/projects/${P(projectId)}/fs/undo`, { method: "POST", json: batchId ? { batchId } : {} });
+/** todo16: restore everything deleted together in one Trash batch (any kind). */
+export const restoreTrashBatch = (projectId: string, batchId: string) => fsApi<{ restored: unknown[]; relocatedToRoot: boolean }>(`/projects/${P(projectId)}/trash/${encodeURIComponent(batchId)}/restore`, { method: "POST", json: {} });
 export const postRedo = (projectId: string, batchId?: string) => fsApi<FsUndoResult>(`/projects/${P(projectId)}/fs/redo`, { method: "POST", json: batchId ? { batchId } : {} });
 
 export interface FsHistory {
@@ -639,4 +641,22 @@ export function useAddFollowed(projectId: string, datasetId: string) {
       void qc.invalidateQueries({ queryKey: projectKeys.activity(projectId) });
     },
   });
+}
+
+/**
+ * How many things are in the project's Trash, for the sidebar's Trash item (todo16 Milestone 0).
+ * Reads `count` (the all-kinds Trash API) and falls back to the file Trash's `total`; undefined
+ * while loading or when the Trash can't be read (seed mode, no access), so the item shows no badge.
+ * Its key sits under `filesKeys.trash`, so every invalidation of the Trash refreshes it.
+ */
+export function useTrashCount(projectId: string | undefined): number | undefined {
+  const q = useQuery({
+    queryKey: [...filesKeys.trash(projectId ?? ""), "count"] as const,
+    queryFn: () => fetchTrash(projectId!) as Promise<TrashPage & { count?: number }>,
+    enabled: !!projectId,
+    retry: false,
+    staleTime: 30_000,
+    select: (d) => (typeof d.count === "number" ? d.count : typeof d.total === "number" ? d.total : undefined),
+  });
+  return q.isError ? undefined : q.data;
 }

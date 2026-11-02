@@ -607,7 +607,7 @@ class Suite:
         chips = page.get_by_test_id("user-drop").last.get_by_test_id("drop-chip")
         text = " ".join(chips.all_inner_texts()[:3]) if chips.count() else ""
         card_text = page.get_by_test_id("user-drop").last.inner_text() if page.get_by_test_id("user-drop").count() else ""
-        check("J6: the card says Already in Files", "Already in Files" in card_text or "Already in Files" in text, card_text[:200])
+        check("J6: the card says Already in Sources", "Already in Sources" in card_text or "Already in Sources" in text, card_text[:200])
         time.sleep(2)
         check("J6: no duplicate items", task_items(task) == before, f"{len(before)} → {len(task_items(task))}")
         _ = d, last
@@ -652,7 +652,7 @@ class Suite:
             check("J9: remove from the chat", False, repr(e)[:200])
             return
         detail = ok("GET", f"/api/v1/source-nodes/{node}")
-        check("J9: removed from the chat, still in Files", chip.get_attribute("data-state") == "removed" and detail["trash"] is None, str(detail.get("trash")))
+        check("J9: removed from the chat, still in Sources", chip.get_attribute("data-state") == "removed" and detail["trash"] is None, str(detail.get("trash")))
         page.get_by_label("Assistant options").click()
         page.get_by_test_id("agent-shared-files").click()
         page.get_by_test_id("chat-files").or_(page.get_by_test_id("chat-files-empty")).first.wait_for(timeout=10000)

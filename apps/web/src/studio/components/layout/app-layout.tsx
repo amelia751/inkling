@@ -16,6 +16,7 @@ import {
   ReviewIcon,
   SidebarIcon,
   SourcesIcon,
+  TrashIcon,
   type IconComponent,
 } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
@@ -33,7 +34,8 @@ import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
-import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, type ProjectSection } from "@/studio/lib/routes";
+import { useTrashCount } from "@/studio/lib/files/api";
+import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
@@ -61,10 +63,10 @@ interface Section {
  */
 export const PROJECT_SECTIONS: Section[] = [
   { section: "overview", label: "Overview", icon: OverviewIcon },
-  // todo13 D10: the drive is "Files" in every label; the route (and so the section, the
+  // todo13 D10: the drive is "Sources" in every label (todo16 D1); the route (and so the section, the
   // `when` context and the testids) stays `sources`. Sources live inside it as provenance.
-  { section: "sources", label: "Files", icon: SourcesIcon },
-  // docs/datasets.md §1: Datasets explains, Files stores, the Studio works.
+  { section: "sources", label: "Sources", icon: SourcesIcon },
+  // docs/datasets.md §1: Datasets explains, Sources stores, the Studio works.
   { section: "datasets", label: "Datasets", icon: DatasetsIcon },
   { section: "studio", label: "Studio", icon: AnnotateIcon },
   { section: "review", label: "Review", icon: ReviewIcon },
@@ -249,6 +251,7 @@ export function PageHeading({ title, description, actions }: { title: ReactNode;
 function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
   const recent = useShell((s) => s.recent);
   const sections = visibleSections({ datasetsTab: useFeature("datasetsTab") });
+  const trashCount = useTrashCount(project?.id);
   if (!project) {
     return (
       <nav className={cn("flex flex-col", rail ? "items-center gap-1" : "gap-5")} aria-label="Workspace">
@@ -297,7 +300,9 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
           <NavItem key={s.section} to={projectUrl(project.id, s.section)} icon={s.icon} label={s.label} rail={rail} />
         ))}
       </ul>
-      <ul className={cn("mt-auto pt-4", rail && "flex flex-col items-center")}>
+      <ul className={cn("mt-auto pt-4", rail && "flex flex-col items-center gap-1")}>
+        {/* todo16 Milestone 0: the Trash is a sidebar item so it's findable (the tree footer link stays). */}
+        <NavItem to={projectTrashUrl(project.id)} icon={TrashIcon} label="Trash" rail={rail} count={trashCount} testId="nav-trash" />
         <NavItem to={projectUrl(project.id, "settings")} icon={SETTINGS.icon} label={SETTINGS.label} rail={rail} />
       </ul>
     </nav>
@@ -391,10 +396,11 @@ function NavSection({ heading, rail, children }: { heading: string; rail: boolea
 
 /** 32px row inside a 40px slot; the current page gets a generic fill and a gradient icon.
  * In the rail: an icon button with a tooltip, the current one marked with a 2px bar. */
-function NavItem({ icon: Icon, label, to, end, rail }: { icon: IconComponent; label: string; to: string; end?: boolean; rail: boolean }) {
-  if (rail) return <li><RailLink to={to} end={end} icon={Icon} label={label} /></li>;
+function NavItem({ icon: Icon, label, to, end, rail, count, testId }: { icon: IconComponent; label: string; to: string; end?: boolean; rail: boolean; count?: number; testId?: string }) {
+  const badge = count ? (count > 999 ? "999+" : count.toLocaleString()) : null;
+  if (rail) return <li data-testid={testId}><RailLink to={to} end={end} icon={Icon} label={badge ? `${label} (${badge})` : label} /></li>;
   return (
-    <li className="py-1">
+    <li className="py-1" data-testid={testId}>
       <NavLink
         to={to}
         end={end}
@@ -404,6 +410,7 @@ function NavItem({ icon: Icon, label, to, end, rail }: { icon: IconComponent; la
           <>
             <Icon className={cn("size-4 shrink-0", isActive ? "icon-gradient" : "text-hint group-hover:text-complementary")} />
             <span className="truncate">{label}</span>
+            {badge && <span className="ml-auto text-xs tabular-nums text-hint" data-testid={testId ? `${testId}-count` : undefined}>{badge}</span>}
           </>
         )}
       </NavLink>

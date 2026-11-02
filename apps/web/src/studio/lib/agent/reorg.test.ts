@@ -61,7 +61,7 @@ describe("reorganization plans", () => {
 
   it("names conflicts from a 409 in a sentence", () => {
     const text = applyErrorText(409, { message: "x", conflicts: [{ nodeId: "a", name: "patient_001", parentId: "p", parentName: "scans", existingId: "e", kind: "folder", identical: false }] });
-    expect(text).toBe('An item named "patient_001" in scans already exists. Edit the plan in Files to decide.');
+    expect(text).toBe('An item named "patient_001" in scans already exists. Edit the plan in Sources to decide.');
     expect(applyErrorText(403, "agents can't")).toMatch(/can't change files/);
   });
 

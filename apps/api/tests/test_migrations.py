@@ -69,7 +69,7 @@ def test_0005_builds_one_drive_per_project_and_freezes_datasets(tmp_path):
     with db.engine().begin() as c:
         nodes = {r.id: r for r in c.execute(sa.text("SELECT * FROM source_nodes"))}
         root = next(n for n in nodes.values() if n.project_id == "p1" and n.parent_id is None)
-        assert root.name == "Files" and root.source_id is None
+        assert root.name == "Sources" and root.source_id is None  # 0005 made it "Files"; 0017 (todo16 D1) renamed it
         # Both imports are top-level folders now, with unique names.
         assert {nodes["r-s1"].name, nodes["r-s2"].name} == {"study", "study (2)"}
         assert nodes["r-s1"].parent_id == nodes["r-s2"].parent_id == root.id
@@ -233,5 +233,47 @@ def test_0016_adds_user_prefs_and_downgrades(tmp_path):
     assert "user_prefs" in sa.inspect(db.engine()).get_table_names()
     command.downgrade(cfg, "0015")
     assert "user_prefs" not in sa.inspect(db.engine()).get_table_names()
+    command.upgrade(cfg, "head")
+    db.reset_engine()
+
+
+def test_0017_renames_drive_roots_only(tmp_path):
+    """todo16 D1: a drive root named "Files" becomes "Sources"; a folder someone named "Files" stays."""
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0016")
+    t = "2026-11-02 10:00:00"
+    with db.engine().begin() as c:
+        c.execute(sa.text("INSERT INTO organizations (id, name, kind, created_at) VALUES ('o', 'O', 'team', :t)"), {"t": t})
+        c.execute(sa.text("INSERT INTO projects (id, org_id, title, description, visibility, seed, archived, created_by, created_at, updated_at) VALUES ('p1', 'o', 'p1', '', 'private', 0, 0, 'user:a', :t, :t)"), {"t": t})
+        for nid, parent, name in (("root", None, "Files"), ("sub", "root", "Files")):
+            c.execute(sa.text("INSERT INTO source_nodes (id, source_id, project_id, project_root, parent_id, name, original_path, is_dir, facts, flags, child_count, descendant_count, created_at) VALUES (:id, NULL, 'p1', 'root', :parent, :n, '', 1, '{}', '{}', 0, 0, :t)"), {"id": nid, "parent": parent, "n": name, "t": t})
+    command.upgrade(cfg, "0017")
+    with db.engine().begin() as c:
+        names = dict(c.execute(sa.text("SELECT id, name FROM source_nodes")).all())
+    assert names == {"root": "Sources", "sub": "Files"}
+    command.downgrade(cfg, "0016")
+    with db.engine().begin() as c:
+        assert dict(c.execute(sa.text("SELECT id, name FROM source_nodes")).all())["root"] == "Files"
+    command.upgrade(cfg, "head")
+    db.reset_engine()
+
+
+def test_0018_adds_trash_columns_and_downgrades(tmp_path):
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0018")
+    cols = lambda t: {c["name"] for c in sa.inspect(db.engine()).get_columns(t)}  # noqa: E731
+    for t in ("datasets", "dataset_collections", "tasks", "projects"):
+        assert {"trashed_at", "trashed_by", "trash_batch_id"} <= cols(t)
+    assert "resource" in cols("fs_batches")
+    command.downgrade(cfg, "0017")
+    assert "trashed_at" not in cols("datasets") and "resource" not in cols("fs_batches")
     command.upgrade(cfg, "head")
     db.reset_engine()

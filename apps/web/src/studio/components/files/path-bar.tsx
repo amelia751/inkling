@@ -25,7 +25,7 @@ export interface PathSegment {
 }
 
 export interface PathBarProps {
-  /** The root's label, e.g. "Files". */
+  /** The root's label, e.g. "Sources". */
   rootLabel?: string;
   /** The root folder's id: makes the root a drop target and gives it a subfolder chevron. */
   rootId?: string | null;
@@ -65,7 +65,7 @@ type Load = { state: "loading" } | { state: "error" } | { state: "ready"; folder
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 export function PathBar(props: PathBarProps) {
-  const { rootLabel = "Files", rootId, segments, hrefFor, loading, searching, onCopyPath, loadSubfolders, onDropOnSegment, acceptsDrop, folderMenu, maxSegments = 4, dropAttrs, dropHighlightId } = props;
+  const { rootLabel = "Sources", rootId, segments, hrefFor, loading, searching, onCopyPath, loadSubfolders, onDropOnSegment, acceptsDrop, folderMenu, maxSegments = 4, dropAttrs, dropHighlightId } = props;
   const [ownOver, setOver] = useState<string | null>(null);
   const over = dropHighlightId ?? ownOver;
   const [loads, setLoads] = useState<Record<string, Load>>({});

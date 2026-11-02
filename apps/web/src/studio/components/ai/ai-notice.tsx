@@ -31,7 +31,7 @@ export function AiNotice({ className }: { className?: string }) {
   if (off) {
     return (
       <span className={className} data-testid="ai-off-notice">
-        The assistant is off for this organization. Dropped files still go to the project's Files.
+        The assistant is off for this organization. Dropped files still go to the project's Sources.
       </span>
     );
   }

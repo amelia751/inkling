@@ -11,7 +11,7 @@ Rules, in order (the first that applies wins for a file):
 
 | Group | Default action |
 |---|---|
-| Already in Files (same SHA-256)                     | link_existing |
+| Already in Sources (same SHA-256)                     | link_existing |
 | Unknown, unsupported, audio or failed inspection    | keep_unsupported (offer: Find a plugin) |
 | Archive                                             | unpack (then classified again as a child drop) |
 | Document (PDF, DOCX, TXT, MD), annotation files     | keep_reference (offer: attach as documentation) |

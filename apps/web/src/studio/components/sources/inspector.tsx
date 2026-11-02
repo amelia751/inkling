@@ -30,7 +30,7 @@ export interface InspectorActions {
   onReplace?: (n: SourceNode) => void;
   onRestoreVersion?: (n: SourceNode, version: number) => void;
   onDownloadVersion?: (n: SourceNode, version: number, current: boolean) => void;
-  /** The project's root folder ("Files"). */
+  /** The project's root folder ("Sources"). */
   rootId?: string | null;
 }
 
@@ -59,8 +59,8 @@ export function Inspector({ projectId, item, items, onClose, actions = {} }: { p
         ) : n && actions.onRename ? (
           <RenameableTitle
             key={n.id}
-            name={isRoot ? "Files" : n.name}
-            displayName={isRoot ? "Files" : (n.displayPath ?? n.name)}
+            name={isRoot ? "Sources" : n.name}
+            displayName={isRoot ? "Sources" : (n.displayPath ?? n.name)}
             kind={n.kind}
             disabledReason={reason}
             validate={actions.validate ? (name) => actions.validate!(name, n) : undefined}

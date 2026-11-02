@@ -3,7 +3,7 @@
 | Doc | What it covers |
 |---|---|
 | [`product.md`](product.md) | What the product is: users, data types, the Studio, the backend split (was `inkling.md` at the root). |
-| [`ux.md`](ux.md) | The product's information architecture: projects, their sections (Overview, Data (the Files drive), Explore, Datasets, Studio, Review, Activity) and the assistant. |
+| [`ux.md`](ux.md) | The product's information architecture: projects, their sections (Overview, Sources (the drive), Explore, Datasets, Studio, Review, Activity) and the assistant. |
 | [`ui.md`](ui.md) | Studio rules: layout, provenance colours, saving states, keyboard. |
 | [`modules.md`](modules.md) | The modular Studio: environments, modules (a plugin's UI half), contributions, presets. |
 | [`modules-reference.md`](modules-reference.md) | Generated reference of every contribution (`pnpm emit:schemas`). Don't edit by hand. |
@@ -32,12 +32,12 @@ the word in the right-hand column.
 | **Organization** | the account level: a person's or a team's projects and members (`organizations`, `org_id`). UI copy may call it "Workspace" | the kernel's workspace |
 | **Project** | a durable research goal, the container for sources, datasets and tasks (`projects`) | a dataset, or a seed entry in `manifest.json` (each seed is one project, dataset and task with the same id) |
 | **Workspace** | the kernel's per-project plugin activation and settings (`workspace.v1.json`). The kernel `Workspace` row is 1:1 with a project: `workspace_id` is the project id | the organization, even where UI copy says "Workspace"; a pnpm or uv workspace: say **repo workspace** |
-| **Files** | the project's drive (todo7): one tree of folders and files per project (`DriveInfo.rootNodeId`, `source_nodes`), shown in the **Data** section. Bytes never change; names and folders do, through journaled, undoable `fs/ops` batches (`docs/files-api.md`) | a source (where a file came from); the Studio's Files tab (a task's items) |
-| **Source** | an import's provenance: who brought which files in, when and from where (an upload or a seed, `sources`). Shown in the inspector and the Imports list; no longer a tree root since todo7 (each source became a top-level folder in Files) | the drive (say **Files**), or a dataset |
+| **Sources** | everything added to a project, and the section that shows it (todo16 D1): the project's drive (todo7), one tree of folders and files per project (`DriveInfo.rootNodeId`, `source_nodes`), root folder "Sources", route `/projects/:p/sources`. Bytes never change; names and folders do, through journaled, undoable `fs/ops` batches (`docs/files-api.md`) | a source (where a file came from); the Studio's Files tab (a task's items) |
+| **Import** | one upload or import's provenance: who brought which files in, when and from where (an upload, a link or a seed; the `sources` table keeps its name internally). Shown in the inspector and the Imports list; no longer a tree root since todo7 (each became a top-level folder in Sources) | the section or drive (say **Sources**), or a dataset |
 | **Trash** | where deleted files and folders wait 30 days before the `files.empty_trash` job purges them (`trashed_at`); Restore puts them back. Bytes are deleted only when nothing else uses them | a purge (Delete forever), or removing an import |
 | **Import session** | one upload into a project: its files, the rights attestation and its state (`uploading → inspecting → needs_review` or `ready → imported`, or `failed`, `cancelled`) | an upload of a single file (that's an upload file) |
 | **Dataset** | a logical set of items built from one or more sources: which source nodes, how they group, a preset | a source, a project or a version |
-| **Collection** | a coherent group within a dataset (MRI studies, echo recordings). Not stored on its own yet: a dataset's definition says how items group | a folder in Files |
+| **Collection** | a coherent group within a dataset (MRI studies, echo recordings). Not stored on its own yet: a dataset's definition says how items group | a folder in Sources |
 | **Task** | work on a dataset (classification, segmentation, event marking). It owns one environment and one annotation document, both keyed by `task_id` | a plugin job |
 | **Proposal** | something the inspection worker or the assistant suggests (a group, relationship, mapping, dataset or task), with evidence and a strength. It changes nothing until a person confirms it | a confirmed relationship or dataset |
 | **Version** | an immutable snapshot of a dataset in `apps/versioning` (Datasets › Versions) | an environment revision, or an annotation document save |

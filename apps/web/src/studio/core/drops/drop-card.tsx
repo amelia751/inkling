@@ -16,7 +16,7 @@ import { resumeDrop } from "./start";
 
 /**
  * A drop's card (todo13 §3.2): one chip per file with its live state (uploading, checking, ready,
- * kept, failed, "Already in Files", "Deleted file") and, for images the person dropped in this
+ * kept, failed, "Already in Sources", "Deleted file") and, for images the person dropped in this
  * browser, a thumbnail from their own file. In a sent message a file can be removed from the
  * chat (the reference only: the File stays in Files, D4). After a reload an unfinished drop asks
  * for the same files again and resumes from the server's offset.
@@ -27,9 +27,9 @@ const STATE_TEXT: Record<DropFileState | "preparing", string> = {
   uploading: "Uploading",
   checking: "Checking",
   ready: "Ready",
-  kept: "Kept in Files",
+  kept: "Kept in Sources",
   failed: "Didn't upload",
-  duplicate: "Already in Files",
+  duplicate: "Already in Sources",
   removed: "Removed from chat",
   deleted: "Deleted file",
 };
@@ -84,7 +84,7 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
             {local.overLimit && (
               <>
                 {" "}
-                <Link to={filesUrl(projectId)} className="text-brand hover:underline">Open Files</Link>
+                <Link to={filesUrl(projectId)} className="text-brand hover:underline">Open Sources</Link>
               </>
             )}
           </span>
@@ -177,7 +177,7 @@ function DropChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
               <CloseIcon className="size-3" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>Remove from chat (stays in Files)</TooltipContent>
+          <TooltipContent>Remove from chat (stays in Sources)</TooltipContent>
         </Tooltip>
       )}
     </li>

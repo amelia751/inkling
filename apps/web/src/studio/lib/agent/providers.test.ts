@@ -29,14 +29,14 @@ const node = (over: Partial<SourceNode> = {}): SourceNode => ({
 describe("agent context providers", () => {
   it("Sources: the selected node and its facts, labelled for the chip", () => {
     const p = sourceNodeContext(project, node());
-    expect(p.label).toBe("Files › MRI / patient_002");
+    expect(p.label).toBe("Sources › MRI / patient_002");
     expect(p.turnContext()).toContain("T1 knee");
     expect(p.turnContext()).toContain("240 files");
   });
 
   it("never shares anything about a privacy-held node", () => {
     const p = sourceNodeContext(project, node({ name: "John_Doe.pdf", displayPath: undefined, kind: "file", status: "privacy", flags: { privacy: { reason: "name" } } }));
-    expect(p.label).toBe("Files › a held file");
+    expect(p.label).toBe("Sources › a held file");
     expect(p.turnContext()).not.toMatch(/John_Doe|T1 knee/);
   });
 
@@ -52,7 +52,7 @@ describe("agent context providers", () => {
 
   it("restricted projects share kinds and numbers, not names", () => {
     const p = sourceNodeContext({ ...project, restricted: true }, node());
-    expect(p.label).toBe("Files › a folder");
+    expect(p.label).toBe("Sources › a folder");
     expect(p.turnContext()).not.toMatch(/patient_002|T1 knee/);
     expect(p.turnContext()).toContain('"series":2');
   });
@@ -96,8 +96,8 @@ describe("agent context providers", () => {
 
 describe("open_location", () => {
   it("builds a location card from ids", () => {
-    const r = runCardTool("open_location", { section: "sources", nodeId: "nod-1", label: "Files › MRI/patient_002" });
-    expect(r).toMatchObject({ ok: true, card: { kind: "location", label: "Files › MRI/patient_002", target: { section: "sources", nodeId: "nod-1" } } });
+    const r = runCardTool("open_location", { section: "sources", nodeId: "nod-1", label: "Sources › MRI/patient_002" });
+    expect(r).toMatchObject({ ok: true, card: { kind: "location", label: "Sources › MRI/patient_002", target: { section: "sources", nodeId: "nod-1" } } });
   });
   it("rejects paths and unknown sections", () => {
     expect(runCardTool("open_location", { section: "sources", nodeId: "MRI/patient 002", label: "x" }).ok).toBe(false);

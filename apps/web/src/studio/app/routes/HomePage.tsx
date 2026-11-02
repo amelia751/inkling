@@ -7,7 +7,7 @@ import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { TrySample } from "@/studio/app/entry/sample-picker";
-import { projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
+import { projectsUrl, projectUrl, studioUrl, deletedProjectsUrl } from "@/studio/lib/routes";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { cn } from "@studio/ui/utils";
@@ -45,6 +45,9 @@ export function HomePage() {
                   <ProjectCard key={p.id} project={p} />
                 ))}
               </div>
+              <p className="mt-3 text-sm">
+                <Link to={deletedProjectsUrl()} className="text-muted-foreground hover:underline" data-testid="deleted-projects-link">Deleted projects</Link>
+              </p>
             </section>
           )}
         </HomeComposer>

@@ -6,9 +6,7 @@
     POST   /api/v1/projects/{id}/fs/undo | fs/redo          { batchId? } → FsUndoResult
     GET    /api/v1/projects/{id}/fs/history                 { undo, redo } hints
     POST   /api/v1/projects/{id}/fs/zip                     { nodeIds } → streamed application/zip
-    GET    /api/v1/projects/{id}/trash?cursor=              TrashPage
-    POST   /api/v1/projects/{id}/trash/empty                { purged, keptBytes }
-    GET    /api/v1/projects/{id}/trash/empty/preview        the same, without doing it
+    (Trash: routes/trash.py)
     GET    /api/v1/projects/{id}/starred | recent           { items: FsShortcut[] }
     POST   /api/v1/source-nodes/{id}/star   DELETE …/star   { starred }
     GET    /api/v1/source-nodes/{id}/versions               { versions }
@@ -121,23 +119,7 @@ def history(project_id: str, ctx: RequestContext = Depends(get_context), db: Ses
 # ---- Trash -------------------------------------------------------------------------------------
 
 
-@router.get("/projects/{project_id}/trash")
-def trash(project_id: str, cursor: str | None = None, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return fs.trash_page(db, _project(db, ctx, project_id), cursor)
-
-
-@router.get("/projects/{project_id}/trash/empty/preview")
-def empty_preview(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    p = _project(db, ctx, project_id)
-    return fs.empty_trash(db, ctx, p, dry_run=True)
-
-
-@router.post("/projects/{project_id}/trash/empty")
-def empty(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return fs.empty_trash(db, ctx, _project(db, ctx, project_id, write=True))
-
-
-# ---- Starred and recent ------------------------------------------------------------------------
+# Trash listing and emptying moved to routes/trash.py (todo16: every kind, not only files).
 
 
 @router.get("/projects/{project_id}/starred")
@@ -318,10 +300,10 @@ def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = 
     db.commit()
     note = None
     if held:
-        lines = ["These files were left out because they are held for privacy review.", "Clear the hold in Files (or rename the file) to include them.", ""]
+        lines = ["These files were left out because they are held for privacy review.", "Clear the hold in Sources (or rename the file) to include them.", ""]
         lines += [f"{path}\t{reason}" for path, reason in held]
         note = ("\n".join(lines) + "\n").encode()
-    name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Files"
+    name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Sources"
     stamp = datetime.fromtimestamp(time.time(), UTC)
     return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store", "X-Held-Files": str(len(held))})
 

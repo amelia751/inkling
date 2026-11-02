@@ -21,7 +21,7 @@ A researcher should be able to answer, without understanding backend architectur
 6. **Can I change it safely?** Can I propose new fields, relink items, edit labels, and change structures without destroying history or surprising downstream pipelines?
 7. **What can I publish or share?** Which immutable snapshot is approved, what changed from the last release, and who may access it?
 
-**Do not introduce a new top-level tab named “Data Model.”** All of the structure and format capabilities below live inside **Datasets**. Keep the existing project navigation (todo13 D10: Overview, Files, Datasets, Studio, Review, Activity; Files is the `sources` route, Explore opens from Datasets' "Needs attention", Datasets shows while `API_FEATURE_DATASETS_TAB` is on); pipeline runs live under Files.
+**Do not introduce a new top-level tab named “Data Model.”** All of the structure and format capabilities below live inside **Datasets**. Keep the existing project navigation (todo13 D10: Overview, Sources, Datasets, Studio, Review, Activity; Sources is the `sources` route (todo16 D1), Explore opens from Datasets' "Needs attention", Datasets shows while `API_FEATURE_DATASETS_TAB` is on); pipeline runs live under Sources.
 
 ### Distinguish adjacent features
 

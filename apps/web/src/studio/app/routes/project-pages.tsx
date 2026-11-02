@@ -119,7 +119,7 @@ export function SectionFrame({ title, description, children }: { title: string; 
         <PageHeading title={title} description={description} />
         {children ?? (
           <p className="text-sm text-muted-foreground">
-            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Files</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
+            Nothing here yet. <Link className="underline" to={sourcesUrl(projectId)}>Open Sources</Link> or <Link className="underline" to={projectUrl(projectId, "studio")}>the Studio</Link>.
           </p>
         )}
       </div>

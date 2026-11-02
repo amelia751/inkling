@@ -23,3 +23,4 @@ export * from "./dataset-structure";
 export * from "./accounts";
 /** Pipeline contracts; also importable directly as `@studio/contracts/pipeline`. */
 export * as pipeline from "./pipeline";
+export * from "./operations";

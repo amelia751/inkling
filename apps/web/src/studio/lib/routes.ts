@@ -9,10 +9,14 @@ export const homeUrl = () => "/";
 export const projectsUrl = () => "/projects";
 /** `"files"` is the old name of `"sources"` (todo7 D11, reverted) and gives the same URL. */
 export const projectUrl = (projectId: string, section: ProjectSection = "overview") => `/projects/${encodeURIComponent(projectId)}/${section === "files" ? "sources" : section}`;
-/** The project's drive: `/projects/:p/sources/:nodeId?`. The nav label is "Sources"; the root folder is "Files". */
+/** The project's drive: `/projects/:p/sources/:nodeId?`. The nav label and the root folder are both "Sources". */
 export const filesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "sources")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
 /** The Trash view (todo7 Phase 4). */
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;
+/** The project-wide Trash (todo16 M2): sources, datasets, collections and Studios. */
+export const projectTrashUrl = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/trash`;
+/** Deleted projects (todo16 D6), kept 30 days. */
+export const deletedProjectsUrl = () => "/deleted-projects";
 /** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */
 export const pipelinesUrl = (projectId: string, runId?: string) => `${projectUrl(projectId, "sources")}/pipelines${runId ? `/${encodeURIComponent(runId)}` : ""}`;
 /** An alias of `filesUrl` (`/files/*` redirects there too). */

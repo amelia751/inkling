@@ -136,7 +136,7 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
             <DialogTitle>{choice?.kind === "drop" ? `Add to ${last?.title ?? "your last project"}?` : `Ask in ${last?.title ?? "your last project"}?`}</DialogTitle>
             <DialogDescription>
               {choice?.kind === "drop"
-                ? `${choice.picked.files.length.toLocaleString()} ${choice.picked.files.length === 1 ? "file goes" : "files go"} to that project's Files, or to a new project.`
+                ? `${choice.picked.files.length.toLocaleString()} ${choice.picked.files.length === 1 ? "file goes" : "files go"} to that project's Sources, or to a new project.`
                 : "Continue in the project you worked on last, or start a new one for this."}
             </DialogDescription>
           </DialogHeader>

@@ -190,7 +190,7 @@ export function pipelineAttention(problems: { runs: PipelineRunSummary[]; detail
     const base = { id: `pipeline:${r.run_id}`, kind: "pipeline" as const, datasetId: detail.get(r.run_id)?.candidate?.dataset_id ?? null, count: Math.max(1, held), at: r.finished_at ?? r.started_at ?? r.created_at, action: { label: "Open run", target: { section: "pipelines" as const, runId: r.run_id } } };
     if (r.state === "failed") return { ...base, severity: "high" as const, blocking: false, title: `${runTitle(r)} run failed`, detail: r.error?.message ?? "A step failed; files it didn't reach weren't processed." };
     if (r.state === "awaiting_review") return { ...base, severity: "medium" as const, blocking: false, title: `${runTitle(r)} run is waiting for review`, detail: held ? `${held.toLocaleString()} ${held === 1 ? "file was" : "files were"} held back by validation.` : "Its output becomes part of the dataset once someone approves it." };
-    return { ...base, severity: "medium" as const, blocking: false, title: `${held.toLocaleString()} ${held === 1 ? "file" : "files"} held back by pipeline validation`, detail: `In the ${runTitle(r)} run. Quarantined files stay in Files and can be retried.` };
+    return { ...base, severity: "medium" as const, blocking: false, title: `${held.toLocaleString()} ${held === 1 ? "file" : "files"} held back by pipeline validation`, detail: `In the ${runTitle(r)} run. Quarantined files stay in Sources and can be retried.` };
   });
 }
 

@@ -8,7 +8,7 @@ import { statusIcon } from "./source-tree";
 
 /**
  * The drive tree (todo7 D1, Phases 2, 3 and 5): the children of the project's one root
- * ("Files"), each folder's pages loaded with `useFsChildren` when it opens (the same cache as
+ * ("Sources"), each folder's pages loaded with `useFsChildren` when it opens (the same cache as
  * the listing, so optimistic moves and renames show in both), sorted server-side. Compact
  * single-child chains and numbered runs as the kernel sends them. Rename, multi-select, row
  * actions, drag and drop into folders, the filter and recursive expand come from `FileTree`;
@@ -156,7 +156,7 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
 
   // A drop of OS files on a file row goes to its folder.
   const dropOf = (folderId: string) => {
-    if (folderId === rootId) return { id: rootId, label: "Files" };
+    if (folderId === rootId) return { id: rootId, label: "Sources" };
     const f = known.current.get(folderId);
     return f && f.kind === "folder" ? { id: f.id, label: f.name } : undefined;
   };
@@ -213,7 +213,7 @@ export const DriveTree = forwardRef<DriveTreeHandle, Props>(function DriveTree(p
         data={data}
         selectedIds={selectedIds}
         initialOpen={initialOpen}
-        aria-label="Files"
+        aria-label="Sources"
         onToggle={toggled}
         onSelect={onSelect}
         onActivate={onActivate}

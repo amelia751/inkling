@@ -211,6 +211,7 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    url_import_max_bytes: int = 5 * 1024**3  # todo16 D10: largest import from a link
     # ---- Chat drops (todo13-drops, §7.1) ----
     drop_max_files: int = 10_000
     drop_max_bytes: int = 50 * 1024**3
@@ -276,6 +277,10 @@ class Settings(BaseModel):
     # ---- Sample templates (todo14 §3): key prefix of the seed assets in s3/gcs. ----
     samples_prefix: str = ""
 
+    # ---- Trash (todo16 D2/D5): days in Trash before purge; the assistant asks above this many items. ----
+    trash_days: int = 30
+    agent_trash_ask_over: int = 100
+
     @property
     def production(self) -> bool:
         return self.env == "production"
@@ -325,6 +330,7 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "url_import_max_bytes": "API_URL_IMPORT_MAX_BYTES",
     # Chat drops (todo13-drops)
     "drop_max_files": "API_DROP_MAX_FILES",
     "drop_max_bytes": "API_DROP_MAX_BYTES",
@@ -361,6 +367,9 @@ _KEYS: dict[str, str] = {
     "signin_methods": "API_SIGNIN_METHODS",
     # Sample templates (todo14 §3).
     "samples_prefix": "API_SAMPLES_PREFIX",
+    # Trash (todo16).
+    "trash_days": "API_TRASH_DAYS",
+    "agent_trash_ask_over": "API_AGENT_TRASH_ASK_OVER",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

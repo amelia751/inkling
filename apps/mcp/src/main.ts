@@ -13,6 +13,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { authHeaders, loadConfig, NAMING } from "./config.js";
 import { createViewers } from "./viewers.js";
+import { kernelRequest, kernelTools } from "./kernel-tools.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -91,7 +92,21 @@ const TOOLS = [
   },
 ];
 
+/** Kernel operations (todo16 D7) on the API with the person token. */
+async function kernel(method: string, path: string, body?: unknown): Promise<Result> {
+  const token = config.personToken ?? config.apiKey;
+  const res = await fetch(`${config.apiUrl}${path}`, {
+    method,
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
 async function call(name: string, args: Record<string, any>): Promise<Result> {
+  const k = kernelRequest(name, args);
+  if (k) return "error" in k ? { ok: false, data: { error: k.error } } : kernel(k.method, k.path, k.body);
   switch (name) {
     case "list_projects": {
       const r = await http("GET", "/seed/manifest.json");
@@ -133,7 +148,7 @@ async function call(name: string, args: Record<string, any>): Promise<Result> {
 }
 
 const server = new Server({ name: NAMING.resourcePrefix, version: "1.0.0" }, { capabilities: { tools: { listChanged: false }, resources: {} }, instructions: `${NAMING.displayName} Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. Fix errors using their path and suggestion. view_* tools show a file in a sandboxed viewer to the user.` });
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...TOOLS, ...(await viewers.tools())] }));
+server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...TOOLS, ...kernelTools(), ...(await viewers.tools())] }));
 server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: await viewers.resources() }));
 server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
   const r = await viewers.read(req.params.uri);

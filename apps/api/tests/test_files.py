@@ -81,7 +81,7 @@ def test_one_drive_per_project_with_imports_as_top_level_folders(client):
     assert tree.NEW_ID.fullmatch(nodes["a.png"].id) and nodes["a.png"].original_path == "MRI/a.png"
     detail = client.get(f"/api/v1/source-nodes/{nodes['a.png'].id}").json()
     assert detail["pathText"] == "study/MRI/a.png" and detail["originalPath"] == "MRI/a.png" and detail["version"] == 1
-    assert [x["name"] for x in detail["path"]] == ["Files", "study", "MRI"]
+    assert [x["name"] for x in detail["path"]] == ["Sources", "study", "MRI"]
     # The source alias still lists a source's folder.
     src = client.get(f"/api/v1/projects/{p}/sources").json()["sources"][0]
     assert {i["name"] for i in client.get(f"/api/v1/sources/{src['id']}/children").json()["items"]} == {"MRI", "b.csv"}
@@ -109,8 +109,8 @@ def test_mkdir_rename_and_case_insensitive_conflicts(client):
     clash = _ops(client, p, [{"kind": "mkdir", "parentId": root, "name": "mri", "id": "nod-" + "a" * 32}])
     assert clash.status_code == 409
     detail = clash.json()["detail"]
-    assert detail["conflicts"][0] | {"existingId": None} == {"nodeId": "nod-" + "a" * 32, "name": "mri", "parentId": root, "parentName": "Files", "existingId": None, "kind": "folder", "identical": False}
-    assert 'An item named "mri" already exists in Files' == detail["message"]
+    assert detail["conflicts"][0] | {"existingId": None} == {"nodeId": "nod-" + "a" * 32, "name": "mri", "parentId": root, "parentName": "Sources", "existingId": None, "kind": "folder", "identical": False}
+    assert 'An item named "mri" already exists in Sources' == detail["message"]
     both = _ops(client, p, [{"kind": "mkdir", "parentId": root, "name": "mri", "id": "nod-" + "a" * 32}], resolutions={"*": "keep_both"}).json()
     assert [n["name"] for n in both["nodes"]] == ["mri (2)"] and both["nodes"][0]["id"] == "nod-" + "a" * 32
     for bad, why in (("a/b", "/"), ("", "empty"), ("..", "empty"), ("x" * 256, "255"), ("a\x01", "control")):
@@ -157,7 +157,7 @@ def test_moving_a_10k_file_folder_touches_o_depth_rows(client):
     after = _by_name(p)
     assert (after["dest"].descendant_count, after["dest"].total_bytes, after["dest"].child_count) == (10_000, 100_000, 1)
     assert after["er"].descendant_count == 1 and after["study"].descendant_count == 1
-    assert after["Files"].descendant_count == 10_001
+    assert after["Sources"].descendant_count == 10_001
     assert after["f00042.dcm"].parent_id == big_id  # children untouched
 
 
@@ -218,7 +218,7 @@ def test_copy_is_free_and_duplicates_in_place(client):
         copies = list(db.scalars(select(SourceNode).where(SourceNode.project_id == p, SourceNode.name == "b.png")))
         assert len(copies) == 2 and copies[0].asset_id == copies[1].asset_id and copies[0].id != copies[1].id
         assert db.query(Asset).filter(Asset.workspace_id == p).count() == 2  # no bytes copied (D5)
-    assert after["Files"].descendant_count == 4
+    assert after["Sources"].descendant_count == 4
     # Identical bytes into a folder that has them: skipped silently.
     r = _ops(client, p, [{"kind": "copy", "nodeIds": [n["b.png"].id], "parentId": r["nodes"][0]["id"]}]).json()
     assert r["skipped"]["identical"] == 1
@@ -261,15 +261,15 @@ def test_undo_of_a_copy_and_of_trash(client):
     p, root, _ = _new(client, {"study/sub/a.png": png(4, 4), "study/sub/b.png": png(5, 5)})
     n = _by_name(p)
     c = _ops(client, p, [{"kind": "copy", "nodeIds": [n["sub"].id], "parentId": root}]).json()
-    assert _by_name(p)["Files"].descendant_count == 4
+    assert _by_name(p)["Sources"].descendant_count == 4
     client.post(f"/api/v1/projects/{p}/fs/undo", json={"batchId": c["batchId"]})
     with kdb.session_scope() as db:
         assert db.query(SourceNode).filter(SourceNode.project_id == p, SourceNode.name == "a.png").count() == 1
-    assert _by_name(p)["Files"].descendant_count == 2
+    assert _by_name(p)["Sources"].descendant_count == 2
     t = _ops(client, p, [{"kind": "trash", "nodeIds": [n["sub"].id]}]).json()
-    assert _by_name(p)["Files"].descendant_count == 0
+    assert _by_name(p)["Sources"].descendant_count == 0
     client.post(f"/api/v1/projects/{p}/fs/undo", json={"batchId": t["batchId"]})
-    assert _by_name(p)["Files"].descendant_count == 2 and _by_name(p)["sub"].trashed_at is None
+    assert _by_name(p)["Sources"].descendant_count == 2 and _by_name(p)["sub"].trashed_at is None
 
 
 # ---- Trash (D8) --------------------------------------------------------------------------------
@@ -284,7 +284,7 @@ def test_trash_restores_to_the_original_folder_or_the_root(client):
     assert _by_name(p)["MRI"].descendant_count == 1
     page = client.get(f"/api/v1/projects/{p}/trash").json()
     assert page["total"] == 1 and page["items"][0]["originalLocation"] == "study/MRI" and page["items"][0]["purgeInDays"] == 30
-    assert page["items"][0]["trashedBy"] == ALICE and page["items"][0]["trashed"] is True
+    assert page["items"][0]["trashedBy"]["id"] == ALICE and page["items"][0]["trashedByName"] == ALICE and page["items"][0]["trashed"] is True
     assert client.get(f"/api/v1/projects/{p}/fs").json()["trashCount"] == 1
     # Ops on something in Trash are refused (only restore and purge apply).
     assert _ops(client, p, [{"kind": "rename", "nodeId": n["x.png"].id, "name": "z.png"}]).status_code == 422
@@ -655,3 +655,22 @@ def test_stars_recent_and_the_fs_changed_event(client):
 def test_bad_requests_are_422(client, bad):
     p, root, _ = _new(client, {"study/a.png": png(4, 4)})
     assert client.post(f"/api/v1/projects/{p}/fs/ops", json=bad).status_code == 422
+
+
+def test_delegated_assistant_writes_and_trashes_but_destroy_needs_approval(client):
+    """todo16 D8: with `project.write` the assistant acts with the person's rights."""
+    from studio_api.context import issue_session
+
+    p, root, _ = _new(client, {"study/a.png": png(4, 4)})
+    n = _by_name(p)["a.png"]
+    with kdb.session_scope() as db:
+        token = issue_session(db, "agent:run_2", p, ["proposals.write", "project.write"], on_behalf_of=ALICE)
+    agent = {"Authorization": f"Bearer {token}"}
+    r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "rename", "nodeId": n.id, "name": "b.png"}]}, headers=agent)
+    assert r.status_code == 200, r.text
+    r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "trash", "nodeIds": [n.id]}]}, headers=agent)
+    assert r.status_code == 200, r.text
+    r = client.post(f"/api/v1/projects/{p}/trash/empty", headers=agent)
+    assert r.status_code == 403 and "approval" in r.json()["detail"]
+    r = client.post(f"/api/v1/projects/{p}/trash/empty", headers={**agent, "X-Approval-Id": "appr_1"})
+    assert r.status_code == 200, r.text

@@ -193,11 +193,11 @@ export function actionLabel(a: DropAction): string {
     case "unpack":
       return `${what}: unpacked, then sorted like any drop`;
     case "keep_reference":
-      return `${what}: kept in Files as reference`;
+      return `${what}: kept in Sources as reference`;
     case "keep_unsupported":
-      return `${what}: kept in Files, can't use yet`;
+      return `${what}: kept in Sources, can't use yet`;
     case "link_existing":
-      return `${what}: already in Files, linked (nothing re-uploaded)`;
+      return `${what}: already in Sources, linked (nothing re-uploaded)`;
     default:
       return what;
   }
@@ -205,7 +205,7 @@ export function actionLabel(a: DropAction): string {
 
 export const QUESTION_COPY: Record<string, { question: string; yes: string; no: string; noChange: Partial<DropAction> }> = {
   labels_table: { question: "Is this a labels table for these images?", yes: "Yes, use it as labels", no: "No, keep it as reference", noChange: { type: "keep_reference" } },
-  tabular_collection: { question: "Add this table to the dataset as its own collection?", yes: "Add it", no: "Keep it in Files", noChange: { type: "keep_reference" } },
+  tabular_collection: { question: "Add this table to the dataset as its own collection?", yes: "Add it", no: "Keep it in Sources", noChange: { type: "keep_reference" } },
   which_dataset: { question: "Add these to this dataset, or start a separate one?", yes: "Add to this dataset", no: "Start a separate dataset", noChange: { type: "new_dataset", datasetId: null as unknown as undefined } },
 };
 

@@ -59,7 +59,7 @@ describe("drop plans store (project drop.* events)", () => {
   it("words each action without file names", () => {
     expect(actionLabel(PLAN.actions[0])).toBe("2 images → a new draft dataset (“Images”)");
     expect(actionLabel(PLAN.actions[1])).toBe("1 table: labels or metadata for these items?");
-    expect(actionLabel(PLAN.actions[2])).toBe("1 file: kept in Files, can't use yet");
+    expect(actionLabel(PLAN.actions[2])).toBe("1 file: kept in Sources, can't use yet");
     expect(QUESTION_COPY.labels_table.noChange).toEqual({ type: "keep_reference" });
   });
 });

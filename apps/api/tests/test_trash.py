@@ -93,7 +93,7 @@ def test_studio_and_collection_delete_and_rename(client):
     assert client.delete(f"/api/v1/projects/{p}/trash/{s['batchId']}").json() == {"purged": 1}
     with kdb.session_scope() as db:
         assert db.get(TaskRow, task_id, execution_options=INCLUDE_TRASHED) is None
-    assert client.post(f"/api/v1/projects/{p}/trash/{s['batchId']}/restore").status_code == 404
+    assert client.post(f"/api/v1/projects/{p}/trash/{s['batchId']}/restore").status_code == 409  # todo18: already deleted forever
     # Empty Trash takes every kind.
     assert client.post(f"/api/v1/projects/{p}/trash/empty").json()["purged"] == 1
     assert _trash(client, p)["count"] == 0
@@ -286,3 +286,21 @@ def test_sources_empty_trash_purges_files_only_and_preview_counts_per_kind(clien
     t = _trash(client, p)
     assert [i["kind"] for i in t["items"]] == ["dataset"]  # the dataset is still in Trash
     assert client.post(f"/api/v1/projects/{p}/trash/empty", params={"kind": "bogus"}).status_code == 422
+
+
+def test_a_batch_restored_or_destroyed_twice_gets_409_not_404(client):
+    """todo18 B: the batch lock. The second restore or destroy of a batch loses with 409."""
+    p, ds, _ = _setup(client)
+    b = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.post(f"/api/v1/projects/{p}/trash/{b}/restore").status_code == 200
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409 and "already restored" in r.text
+    assert client.delete(f"/api/v1/projects/{p}/trash/{b}").status_code == 409
+    b2 = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.delete(f"/api/v1/projects/{p}/trash/{b2}").status_code == 200
+    assert client.post(f"/api/v1/projects/{p}/trash/{b2}/restore").status_code == 409
+    with kdb.session_scope() as db:
+        from studio_api.models import FsBatch
+
+        assert db.get(FsBatch, b2).state == "destroyed"
+    assert client.post(f"/api/v1/projects/{p}/trash/nope/restore").status_code == 404

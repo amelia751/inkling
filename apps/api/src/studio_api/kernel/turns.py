@@ -56,7 +56,9 @@ def summary(rows: list[FsBatch]) -> str:
 
 
 def _open(r: FsBatch) -> bool:
-    return r.kind == "trash" or (r.undoable and not r.undone_by)
+    if r.kind == "trash":
+        return r.state is None  # todo18: restored / destroyed batches stay as rows with a state
+    return r.undoable and not r.undone_by
 
 
 def is_latest(db: Session, project_id: str, rows: list[FsBatch]) -> bool:
@@ -91,6 +93,8 @@ def undo(db: Session, ctx: RequestContext, p: ProjectRow, turn_id: str) -> dict:
     done: list[str] = []
     for r in rows:
         if r.kind == "trash":
+            if r.state is not None:
+                continue
             trash.restore(db, ctx, p, r.id)
         elif not r.undone_by:
             fs.undo(db, ctx, p, r.id)

@@ -253,7 +253,21 @@ function Conversation({
   // A message typed (or files dropped) on Home before this project existed (todo13 D1) is sent once, here.
   // todo16 round 2: a drop from the assistant's upload card comes the same way; while a run is
   // going it waits in the composer and goes with the next message.
-  usePendingAsk(project.id, (text, drop) => (drop && (busy || running) ? setPending(drop) : ask(text, drop)));
+  // todo18 D: it says so, and goes by itself when the current reply finishes.
+  const [deferred, setDeferred] = useState<{ text: string; drop: { dropId: string; messageId: string } } | null>(null);
+  usePendingAsk(project.id, (text, drop) => {
+    if (drop && (busy || running)) {
+      setPending(drop);
+      setDeferred({ text, drop });
+    } else ask(text, drop);
+  });
+  useEffect(() => {
+    if (!deferred || busy || running) return;
+    setDeferred(null);
+    ask(deferred.text, deferred.drop);
+    setPending(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deferred, busy, running]);
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
@@ -339,9 +353,11 @@ function Conversation({
         fresh={thread.length === 0}
         attach={attach}
         pending={pending?.dropId}
+        deferred={!!deferred}
         onCancelDrop={() => {
           if (pending) void cancelDrop(pending.dropId);
           setPending(undefined);
+          setDeferred(null);
         }}
       />
     </div>
@@ -387,6 +403,7 @@ function Composer({
   fresh,
   attach,
   pending,
+  deferred,
   onCancelDrop,
 }: {
   project: AssistantProject;
@@ -399,6 +416,7 @@ function Composer({
   fresh: boolean;
   attach: Attach;
   pending?: string;
+  deferred?: boolean;
   onCancelDrop: () => void;
 }) {
   const [text, setText] = useState("");
@@ -439,6 +457,11 @@ function Composer({
         {pending && (
           <div className="mb-2">
             <DropCard dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />
+            {deferred && (
+              <p className="mt-1 text-hint text-muted-foreground" data-testid="agent-drop-deferred">
+                Will send when the current reply finishes.
+              </p>
+            )}
           </div>
         )}
         <textarea

@@ -4,7 +4,7 @@
   says what each dataset holds at a stated level (criterion 2) and lists what needs attention
   (here: the sample's inferred collection to confirm), linking to Structure.
 - With no datasets it shows the §3.1 empty state (`datasets-empty`, old `no-datasets` too) with
-  Drop files, Ask the assistant and Create dataset; Ask opens the assistant.
+  Create dataset and Ask the assistant; Ask opens the assistant.
 - A dataset's Add data opens the assistant scoped to the dataset.
 - Structure: Confirm suggested collections; the seed server can't store a structure and says so.
 - History without versioning shows the working draft's changes in words.
@@ -133,8 +133,8 @@ def main() -> int:
         empty = page.get_by_test_id("datasets-empty")
         empty.wait_for(timeout=20000)
         check("no datasets: the empty state, under both test ids", page.get_by_test_id("no-datasets").count() == 1)
-        check("the empty state says what will appear", "once you add data" in empty.inner_text())
-        check("it offers Drop files, Ask the assistant and Create dataset", all(page.get_by_test_id(t).count() == 1 for t in ("composer-add-files", "composer-ask", "datasets-empty-create")))
+        check("the empty state says what will appear", "when you add data" in empty.inner_text())
+        check("it offers Create dataset and Ask the assistant", all(page.get_by_test_id(t).count() == 1 for t in ("composer-ask", "datasets-empty-create")))
         page.screenshot(path=str(shots / "empty.png"), full_page=True)
         page.get_by_test_id("composer-ask").click()
         page.get_by_test_id("agent-drawer").wait_for(timeout=5000)

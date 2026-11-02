@@ -48,11 +48,11 @@ export function StudioEntry() {
   const o = overview.data;
   if (o?.resume) return <Navigate to={studioUrl(projectId, o.resume.taskId)} state={{ resume: true }} replace />;
   if (o && o.tasks.length === 1) return <Navigate to={studioUrl(projectId, o.tasks[0].id)} replace />;
-  // todo13 §3.1: no Studio yet says so here, with the composer, instead of sending people away.
+  // todo13 §3.1: no Studio yet is a blank canvas here, instead of sending people away.
   if (o && o.tasks.length === 0)
     return (
       <AppLayout>
-        <div className="mx-auto w-full max-w-3xl px-4 py-5 md:px-6 md:py-6">
+        <div className="flex h-full min-h-[480px] p-3">
           <StudioEntryEmptyState projectId={projectId} />
         </div>
       </AppLayout>

@@ -165,18 +165,17 @@ function LandingSkeleton() {
 }
 
 /**
- * No datasets yet (todo13 §3.1): what will appear here and the composer's two actions, not a
- * link to another page. `no-datasets` is the old test id, kept working beside `datasets-empty`.
+ * No datasets yet (todo13 §3.1): the standard empty state, Create dataset first; the page
+ * takes a file drop. `no-datasets` is the old test id, kept working beside `datasets-empty`.
  */
 function DatasetsEmpty({ projectId, canEdit, onCreate }: { projectId: string; canEdit: boolean; onCreate: () => void; onAdd?: (intent: "drop" | "ask") => void }) {
-  // todo13 §3.1: the one composer empty state (drop files, ask), Create dataset beside it.
   return (
     <div data-testid="no-datasets">
       <DatasetsEmptyState
         projectId={projectId}
         actions={
           canEdit ? (
-            <Button variant="outline" size="lg" onClick={onCreate} data-testid="datasets-empty-create">
+            <Button size="lg" onClick={onCreate} data-testid="datasets-empty-create">
               Create dataset
             </Button>
           ) : (

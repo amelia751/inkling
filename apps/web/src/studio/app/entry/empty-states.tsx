@@ -1,7 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { NAMING } from "@studio/contracts/naming";
-import { AiIcon } from "@studio/ui/icons";
+import { AddDataIcon, AiIcon, FolderIcon, PlusIcon } from "@studio/ui/icons";
+import { Button } from "@studio/ui/ui/button";
 import { ComposerEmptyState, type ComposerFiles } from "@studio/ui/ui/composer-empty-state";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
+import { EmptyState } from "@studio/ui/ui/empty-state";
+import { cn } from "@studio/ui/utils";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { startTimeline, type TimelineOrigin } from "@/studio/lib/drop-timeline";
 import { useProjectSummary } from "@/studio/lib/projects-api";
@@ -11,9 +15,9 @@ import { pickedFrom, useDropFiles, type DropOrigin } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
 
 /**
- * The empty states of todo13 §3.1, every one a `ComposerEmptyState` (one way in, principle 1).
- * Each says what will appear there and offers the composer's two actions: drop files, or ask
- * the assistant. Copy and test ids follow the §3.1 table; the old ids stay where tests use them
+ * The empty states of todo13 §3.1. The project Overview keeps the composer; the Studio entry and
+ * an empty Studio are a blank canvas (one "+" tile); Files and Datasets are the standard
+ * `EmptyState` over a silent drop target. Copy and test ids follow the §3.1 table; the old ids stay where tests use them
  * (`empty-project`, `tell-assistant`, `drop-zone`, `pick-files`, `pick-folder`).
  */
 
@@ -82,23 +86,165 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
   );
 }
 
+/** Files dropped on a surface: the whole area takes a file drag and lights up while it's over. */
+function useDropArea(onFiles: (files: ComposerFiles) => void, enabled: boolean) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const isFiles = (dt: DataTransfer | null) => !!dt && [...dt.types].includes("Files");
+  const props = {
+    onDragEnter: (e: DragEvent) => {
+      if (!enabled || !isFiles(e.dataTransfer)) return;
+      depth.current++;
+      setOver(true);
+    },
+    onDragLeave: () => {
+      if (--depth.current <= 0) {
+        depth.current = 0;
+        setOver(false);
+      }
+    },
+    onDragOver: (e: DragEvent) => {
+      if (enabled && isFiles(e.dataTransfer)) e.preventDefault();
+    },
+    onDrop: (e: DragEvent) => {
+      if (!enabled || !isFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      depth.current = 0;
+      setOver(false);
+      onFiles(e.dataTransfer);
+    },
+  };
+  return { over, props };
+}
+
+function DropOverlay({ label }: { label: string }) {
+  return (
+    <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-ring bg-background/80" aria-hidden>
+      <span className="flex items-center gap-2 rounded-lg bg-float px-3 py-2 text-sm font-medium shadow-float-lg">
+        <AddDataIcon className="size-4" /> {label}
+      </span>
+    </div>
+  );
+}
+
+/** The hidden file and folder inputs (`pick-files`, `pick-folder`: tests set files on them). */
+function usePickers(onFiles: (files: ComposerFiles) => void, enabled: boolean) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const dirRef = useRef<HTMLInputElement>(null);
+  const take = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length && enabled) onFiles(e.target.files);
+    e.target.value = "";
+  };
+  const inputs = (
+    <>
+      <input ref={fileRef} type="file" multiple hidden onChange={take} data-testid="pick-files" />
+      <input ref={dirRef} type="file" multiple hidden onChange={take} data-testid="pick-folder" {...{ webkitdirectory: "", directory: "" }} />
+    </>
+  );
+  return { inputs, pickFiles: () => fileRef.current?.click(), pickFolder: () => dirRef.current?.click() };
+}
+
+/** "Add files" with the files-or-folder choice. */
+function AddFilesButton({ pickFiles, pickFolder, disabledReason }: { pickFiles: () => void; pickFolder: () => void; disabledReason?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" size="lg" disabled={!!disabledReason} title={disabledReason} data-testid="composer-add-files">
+          <AddDataIcon /> Add files
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center">
+        <DropdownMenuItem onSelect={pickFiles}>
+          <AddDataIcon /> Files…
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={pickFolder}>
+          <FolderIcon /> Folder…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** A quiet dotted grid, like a fresh design or workflow canvas. */
+const DOTS: CSSProperties = {
+  backgroundImage: "radial-gradient(var(--color-border-hover) 1px, transparent 1.2px)",
+  backgroundSize: "20px 20px",
+  backgroundPosition: "-10px -10px",
+};
+
+/**
+ * A blank canvas (Studio entry, an empty Studio): dotted grid, one dashed "+" tile in the middle
+ * that opens the file picker, one line under it and a quiet link to the assistant. The whole
+ * canvas takes a file drop.
+ */
+function BlankCanvas({
+  onFiles,
+  blocked,
+  label,
+  onAsk,
+  askLabel,
+  dropLabel,
+  testId,
+  className,
+}: {
+  onFiles: (files: ComposerFiles) => void;
+  blocked?: string;
+  label: string;
+  onAsk?: () => void;
+  askLabel: string;
+  dropLabel: string;
+  testId: string;
+  className?: string;
+}) {
+  const { over, props } = useDropArea(onFiles, !blocked);
+  const { inputs, pickFiles } = usePickers(onFiles, !blocked);
+  return (
+    <div className={cn("relative flex h-full min-h-[360px] w-full flex-col items-center justify-center gap-4 rounded-xl border border-border bg-background p-6 text-center", className)} style={DOTS} data-testid={testId} {...props}>
+      {inputs}
+      <button
+        type="button"
+        onClick={pickFiles}
+        disabled={!!blocked}
+        title={blocked ?? label}
+        aria-label={label}
+        className="flex size-28 items-center justify-center rounded-2xl border-2 border-dashed border-border-hover bg-background text-muted-foreground transition-colors hover:border-ring hover:text-foreground focus-visible:border-ring focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        data-testid="drop-zone"
+      >
+        <PlusIcon className="size-8" />
+      </button>
+      <div className="flex flex-col items-center gap-1.5">
+        <p className="text-sm font-medium">{blocked ?? label}</p>
+        {onAsk && (
+          <button type="button" onClick={onAsk} className="text-sm text-muted-foreground hover:text-foreground hover:underline" data-testid="composer-ask">
+            {askLabel}
+          </button>
+        )}
+      </div>
+      {over && <DropOverlay label={dropLabel} />}
+    </div>
+  );
+}
+
 /** The drive with nothing in it (Files' root). */
 export function FilesEmptyState({ projectId, disabledReason }: { projectId: string; disabledReason?: string | null }) {
   const onFiles = useEntryFiles(projectId, "files", "files");
-  const ask = useAskInDrawer(projectId);
+  const blocked = disabledReason ?? undefined;
+  const { over, props } = useDropArea((f) => void onFiles(f), !blocked);
+  const { inputs, pickFiles, pickFolder } = usePickers((f) => void onFiles(f), !blocked);
   return (
-    <ComposerEmptyState
-      variant="page"
-      title="Add the files you have"
-      description="Everything you add or share in chat lives here. Drop a folder as it is: DICOM exports, spreadsheets, videos, PDFs. Originals are kept exactly as they arrive."
-      onFiles={(f) => void onFiles(f)}
-      filesDisabledReason={disabledReason ?? undefined}
-      onAsk={() => ask()}
-      filesLabel="Add files"
-      dropLabel="Drop to add these files"
-      testId="files-empty"
-      dropTestId="drop-zone"
-    />
+    <div className="relative flex min-h-[420px] w-full" data-testid="files-empty" {...props}>
+      {inputs}
+      <EmptyState
+        variant="page"
+        art="files"
+        title="No files yet"
+        description={blocked ?? "Drop files or folders anywhere here."}
+        actions={<AddFilesButton pickFiles={pickFiles} pickFolder={pickFolder} disabledReason={blocked} />}
+        data-testid="drop-zone"
+      />
+      {over && <DropOverlay label="Drop to add these files" />}
+    </div>
   );
 }
 
@@ -107,45 +253,48 @@ export function DatasetsEmptyState({ projectId, actions }: { projectId: string; 
   const onFiles = useEntryFiles(projectId, "files", "datasets");
   const ask = useAskInDrawer(projectId);
   const blocked = useFilesBlocked(projectId);
+  const { over, props } = useDropArea((f) => void onFiles(f), !blocked);
   return (
-    <ComposerEmptyState
-      variant="page"
-      title="No datasets yet"
-      description="Your datasets will appear here once you add data. Drop files, or describe what you need."
-      onFiles={(f) => void onFiles(f)}
-      filesDisabledReason={blocked}
-      onAsk={() => ask()}
-      filesLabel="Drop files"
-      actions={actions}
-      testId="datasets-empty"
-    />
+    <div className="relative flex min-h-[420px] w-full" data-testid="datasets-empty" {...props}>
+      <EmptyState
+        variant="page"
+        art="dataset"
+        title="No datasets yet"
+        description="Datasets appear when you add data."
+        actions={
+          <>
+            {actions}
+            <Button type="button" variant="ghost" size="lg" onClick={() => ask()} data-testid="composer-ask">
+              <AiIcon className="text-ai-text" /> Ask the assistant
+            </Button>
+          </>
+        }
+      />
+      {over && <DropOverlay label="Drop to add these files" />}
+    </div>
   );
 }
 
-/** The Studio entry of a project with no Studio (task) yet. */
+/** The Studio entry of a project with no Studio (task) yet: a blank canvas. */
 export function StudioEntryEmptyState({ projectId }: { projectId: string }) {
   const onFiles = useEntryFiles(projectId, "studio", "studio");
   const ask = useAskInDrawer(projectId);
   const blocked = useFilesBlocked(projectId);
   return (
-    <ComposerEmptyState
-      variant="page"
-      composer
-      title="No Studio yet"
-      description="Drop files or describe your task, and one will open here."
-      placeholder="“Classify chest X-rays into five labels”, or drop files here"
-      onSend={(t) => ask(t)}
+    <BlankCanvas
       onFiles={(f) => void onFiles(f)}
-      filesDisabledReason={blocked}
+      blocked={blocked}
+      label="Add data to open a Studio"
+      onAsk={() => ask()}
+      askLabel="or describe it to the assistant"
       dropLabel="Drop to start a Studio with these files"
       testId="studio-empty"
-      inputTestId="studio-empty-input"
     />
   );
 }
 
 /**
- * The Studio canvas with no item (todo13 D11): a drop target that adds the files to this
+ * The Studio canvas with no item (todo13 D11): a blank canvas whose drop adds the files to this
  * Studio's task (same-kind files become items live, todo11), and the way to the chat.
  */
 export function CanvasEmptyState({ projectId, taskId }: { projectId: string; taskId: string }) {
@@ -154,20 +303,16 @@ export function CanvasEmptyState({ projectId, taskId }: { projectId: string; tas
   const aiOpen = useStudio((s) => s.aiOpen);
   const blocked = useFilesBlocked(projectId);
   return (
-    <div className="flex h-full items-center justify-center overflow-auto">
-      <ComposerEmptyState
-        variant="canvas"
-        title="Nothing here yet"
-        description="Drop files here to start, or ask the assistant."
-        onFiles={(f) => void onFiles(f)}
-        filesDisabledReason={blocked}
-        onAsk={aiOpen ? undefined : toggleAi}
-        askLabel="Open the chat"
-        filesLabel="Add files"
-        dropLabel="Drop to add these files to this Studio"
-        testId="studio-canvas-empty"
-      />
-    </div>
+    <BlankCanvas
+      onFiles={(f) => void onFiles(f)}
+      blocked={blocked}
+      label="Add files"
+      onAsk={aiOpen ? undefined : toggleAi}
+      askLabel="or ask the assistant"
+      dropLabel="Drop to add these files to this Studio"
+      testId="studio-canvas-empty"
+      className="rounded-none border-0"
+    />
   );
 }
 

@@ -198,7 +198,7 @@ def main() -> int:
         page.goto(f"{base}/projects/{P}/sources")
         page.wait_for_selector("[data-testid=files-empty]", timeout=20000)
         check("Files: files-empty keeps drop-zone and the pickers", page.locator("[data-testid=files-empty] [data-testid=drop-zone]").count() == 1 and page.locator("[data-testid=files-empty] [data-testid=pick-folder]").count() == 1)
-        check("Files: Ask the assistant", page.locator("[data-testid=files-empty] [data-testid=composer-ask]").count() == 1)
+        check("Files: one Add files action", page.locator("[data-testid=files-empty] [data-testid=composer-add-files]").count() == 1)
         shot(page, "files-empty")
         ctx.close()
 
@@ -207,7 +207,7 @@ def main() -> int:
         page.goto(f"{base}/projects/{P}/datasets")
         page.wait_for_selector("[data-testid=datasets-empty]", timeout=20000)
         t = page.locator("[data-testid=datasets-empty]").inner_text()
-        check("Datasets: datasets-empty with drop, ask and create", "Drop files" in t and "Ask the assistant" in t and "Create dataset" in t, t)
+        check("Datasets: datasets-empty with create and ask", "Ask the assistant" in t and "Create dataset" in t, t)
         shot(page, "datasets-empty")
         ctx.close()
 
@@ -222,7 +222,7 @@ def main() -> int:
         page.goto(f"{base}/projects/{P}/studio/{P}")
         page.wait_for_selector("[data-testid=studio-canvas-empty]", timeout=30000)
         t = page.locator("[data-testid=studio-canvas-empty]").inner_text()
-        check("an empty canvas says how to start", "Drop files here to start" in t, t)
+        check("an empty canvas says how to start", "Add files" in t and page.locator("[data-testid=studio-canvas-empty] [data-testid=drop-zone]").count() == 1, t)
         shot(page, "studio-canvas-empty")
         check("no page errors (studio)", not errors, "; ".join(errors))
         ctx.close()

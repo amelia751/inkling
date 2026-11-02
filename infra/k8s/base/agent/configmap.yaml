@@ -20,5 +20,8 @@ data:
   # The seed and environment APIs (/seed, /api/…): apps/api serves them under the same paths.
   INKLING_WEB_URL: http://api
   INKLING_AGENT_DATA_DIR: /tmp/agent
+  # Sign-in (todo9 Phase 5): `workos` verifies the person's access token on proxied calls and
+  # needs INKLING_AGENT_WORKOS_CLIENT_ID (overlays/prod; gke/ai when the Studio flips).
+  INKLING_AGENT_AUTH_MODE: dev
   INKLING_AGENT_SHUTDOWN_GRACE_S: "100"
   INKLING_LOG_LEVEL: info

@@ -51,6 +51,21 @@ spec:
                 name: worker-config
             - secretRef:
                 name: worker-secrets
+          # WorkOS event sync (todo9 D6): the api's key and client id, under the api's names (the
+          # worker reads them so). Not the cookie password. Optional: unset means no sync.
+          env:
+            - name: INKLING_API_WORKOS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: workos-secrets
+                  key: INKLING_API_WORKOS_API_KEY
+                  optional: true
+            - name: INKLING_API_WORKOS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: workos-secrets
+                  key: INKLING_API_WORKOS_CLIENT_ID
+                  optional: true
           resources:
             requests:
               cpu: 500m

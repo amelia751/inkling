@@ -8,8 +8,10 @@ import { apiFetch } from "@/extension-host/http";
  * sidebar doesn't change under the person). Each flag gates its UI here and its routes there.
  * Not the extension host's experimental flags (`extension-host/flags.ts`).
  *
- * Without an answer (no api, an error, a slow start) every flag is off: the product behaves as
- * before todo13 (§6 J12). The dev seed server answers with every flag on, as dev runs (§7.4).
+ * An error (no api, a 5xx) settles every flag off: the product behaves as before todo13 (§6 J12).
+ * A slow answer is not "off" (todo15 D5): `loaded` stays false and what depends on a flag waits
+ * (the composer's attach shows a skeleton) until it arrives. The dev seed server answers with
+ * every flag on, as dev runs (§7.4).
  */
 export interface Features {
   /** Composer drop, paste and attach; the Shared files view. */
@@ -33,7 +35,7 @@ export function parseFeatures(raw: unknown): Features {
 }
 
 interface FeaturesState extends Features {
-  /** True once the api answered (false: the defaults, all off). */
+  /** True once the api answered or failed (false: still waiting; the flags read off meanwhile). */
   loaded: boolean;
 }
 
@@ -46,13 +48,13 @@ export const useFeature = (f: Feature): boolean => useFeatures((s) => s[f]);
 export const feature = (f: Feature): boolean => useFeatures.getState()[f];
 
 /**
- * Fetch the flags once. Resolves within `timeoutMs` whatever happens; a late answer still
- * applies when it arrives.
+ * Fetch the flags once. Resolves within `timeoutMs` (so the app isn't held up), but only the
+ * api's answer (or its failure) sets `loaded`: a late answer applies when it arrives.
  */
 export function loadFeatures(timeoutMs = 1500): Promise<void> {
   const req = apiFetch(apiUrl("/v1/features"), { headers: { Accept: "application/json" } })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
     .then((body: unknown) => useFeatures.setState({ ...parseFeatures(body), loaded: true }))
-    .catch(() => undefined);
+    .catch(() => useFeatures.setState({ ...FEATURES_OFF, loaded: true }));
   return Promise.race([req, new Promise<void>((resolve) => setTimeout(resolve, timeoutMs))]);
 }

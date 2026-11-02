@@ -7,7 +7,8 @@ import { NAMING, configureNaming } from "@studio/contracts/naming";
  * loads. When it's absent (the Vite dev server, tests) the same-origin defaults below apply,
  * plus what the dev server passes in: `import.meta.env.DEV_API` (true when it was started with
  * `<envPrefix>API_URL`, vite.config.ts), `import.meta.env.AUTH_MODE` (`<envPrefix>WEB_AUTH_MODE`,
- * default `dev`) and `VITE_<envPrefix>FLAGS`.
+ * default `dev`), `import.meta.env.INSPECTION_STALL_SECONDS`
+ * (`<envPrefix>WEB_INSPECTION_STALL_SECONDS`) and `VITE_<envPrefix>FLAGS`.
  */
 export interface RuntimeConfig {
   /** Base of the kernel API (apps/api); the SPA appends `/v1/…`, `/annotations/…`. */
@@ -33,11 +34,23 @@ export interface RuntimeConfig {
    * visitors to `/api/auth/login`. Nothing secret.
    */
   auth: { mode: AuthMode };
+  /**
+   * Seconds an upload may sit in "Checking files" before the tray says inspection is slow or
+   * unavailable (todo15 D5). `/config.json`'s `inspectionStallSeconds`, or on the dev server
+   * `<envPrefix>WEB_INSPECTION_STALL_SECONDS`; default 120.
+   */
+  inspectionStallSeconds: number;
 }
 
 export type AuthMode = "dev" | "workos";
 const AUTH_MODES: readonly AuthMode[] = ["dev", "workos"];
 const authMode = (v: unknown): AuthMode | undefined => (AUTH_MODES.includes(v as AuthMode) ? (v as AuthMode) : undefined);
+
+const DEFAULT_INSPECTION_STALL_SECONDS = 120;
+const positive = (v: unknown): number | undefined => {
+  const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+};
 
 const viteEnv = (): Record<string, unknown> => (import.meta as { env?: Record<string, unknown> }).env ?? {};
 
@@ -52,6 +65,7 @@ function defaults(): RuntimeConfig {
     displayName: NAMING.displayName,
     sandboxOrigin: "",
     auth: { mode: authMode(env.AUTH_MODE) ?? "dev" },
+    inspectionStallSeconds: positive(env.INSPECTION_STALL_SECONDS) ?? DEFAULT_INSPECTION_STALL_SECONDS,
   };
 }
 
@@ -78,6 +92,7 @@ export function applyRuntimeConfig(doc: unknown): RuntimeConfig {
     displayName: str(d.displayName) ?? base.displayName,
     sandboxOrigin: trimSlash(str(d.sandboxOrigin) ?? base.sandboxOrigin),
     auth: { mode: authMode((d.auth as Record<string, unknown> | undefined)?.mode) ?? base.auth.mode },
+    inspectionStallSeconds: positive(d.inspectionStallSeconds) ?? base.inspectionStallSeconds,
   };
   if (current.displayName !== NAMING.displayName) {
     const old = NAMING.displayName;

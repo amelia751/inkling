@@ -1,4 +1,4 @@
-import { useFeature } from "@/studio/lib/features";
+import { useFeature, useFeatures } from "@/studio/lib/features";
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/react/shallow";
@@ -26,7 +26,10 @@ const SETTLED: DropFileState[] = ["ready", "kept", "failed", "duplicate", "remov
 export function useChatDropsEnabled(projectId: string | undefined) {
   // The flag from `GET /api/v1/features` (read once at start), on the full stack only.
   const on = useFeature("chatDrops");
-  return { data: !!projectId && runtimeConfig().kernel && on };
+  const loaded = useFeatures((s) => s.loaded);
+  const full = !!projectId && runtimeConfig().kernel;
+  // `pending`: `/features` hasn't answered yet (todo15 D5): show a skeleton, not "off".
+  return { data: full && on, pending: full && !loaded };
 }
 
 /** Follow `drop.*` (and import progress) for the drops of a project: their queries refetch. */

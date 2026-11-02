@@ -39,8 +39,6 @@ interface ShellState {
   /** The `toggleAssistant` command outside the Studio; Phase 6's drawer reads `assistantOpen`. */
   toggleAssistant: () => void;
   /** Create project as a dialog, from anywhere (todo6 §3.2). */
-  newProjectOpen: boolean;
-  setNewProject: (open: boolean) => void;
   setAssistantWidth: (px: number) => void;
   setNav: (nav: NavPreference) => void;
   toggleStudioRail: () => void;
@@ -97,8 +95,6 @@ export const useShell = create<ShellState>((set, get) => ({
     set((s) => ({ assistantOpen: open, assistantFocus: focus ? s.assistantFocus + 1 : s.assistantFocus }));
   },
   toggleAssistant: () => get().setAssistant(!get().assistantOpen, !get().assistantOpen),
-  newProjectOpen: false,
-  setNewProject: (newProjectOpen) => set({ newProjectOpen }),
   setNav: (nav) => {
     write(NAV_KEY(), nav);
     set({ nav });

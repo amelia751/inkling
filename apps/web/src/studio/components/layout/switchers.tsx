@@ -114,7 +114,6 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
   const { data: projects } = useProjectList();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const setNewProject = useShell((s) => s.setNewProject);
   const section = (/^\/projects\/[^/]+\/([^/]+)/.exec(pathname)?.[1] ?? "overview") as ProjectSection;
 
   return (
@@ -144,7 +143,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
             <ProjectsIcon className="text-muted-foreground" /> All projects
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => setNewProject(true)} data-testid="switcher-new-project">
+        <DropdownMenuItem onSelect={() => navigate("/")} data-testid="switcher-new-project">
           <AddDataIcon className="text-muted-foreground" /> New project
         </DropdownMenuItem>
       </DropdownMenuContent>

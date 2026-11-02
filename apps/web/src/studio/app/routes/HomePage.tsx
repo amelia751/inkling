@@ -7,7 +7,7 @@ import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { TrySample } from "@/studio/app/entry/sample-picker";
-import { newProjectUrl, projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
+import { projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { cn } from "@studio/ui/utils";
@@ -16,7 +16,7 @@ import { cn } from "@studio/ui/utils";
  * Home (todo6 Phase 3.1, todo13 D1 and §3.1): "What are you working on?" as the composer. A
  * send or a drop (anywhere on the page) starts a project, or adds to the last one, and opens
  * it with the assistant. Below it, the recent projects with a single Resume action each. No
- * metrics. `/projects/new` stays for people who want the form.
+ * metrics. There is no form: this composer is how a project starts.
  */
 export function HomePage() {
   const { data: projects, isLoading, error } = useProjectList();
@@ -29,13 +29,6 @@ export function HomePage() {
         <HomeComposer
           projects={projects}
           className="flex-1"
-          actions={
-            <Button variant="ghost-secondary" size="lg" asChild>
-              <Link to={newProjectUrl()} data-testid="new-project">
-                Or create a project with a form
-              </Link>
-            </Button>
-          }
         >
           {/* todo14 §4.1: one quiet line instead of Recent projects, only when the api offers samples. */}
           {empty && <TrySample className="mt-6" />}

@@ -1,14 +1,12 @@
 import { useState } from "react";
 import { NoResults } from "@studio/ui/ui/empty-state";
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { AddDataIcon, SearchIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
-import { NewProjectForm, type NewProjectState } from "@/studio/components/projects/new-project";
 import { Button } from "@studio/ui/ui/button";
 import { Input } from "@studio/ui/ui/input";
 import { SegmentedControl } from "@studio/ui/ui/segmented-control";
 import { useProjectList } from "@/studio/lib/projects-api";
-import { newProjectUrl } from "@/studio/lib/routes";
 import { ProjectCard, ProjectCardSkeleton } from "./HomePage";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import { TrySample } from "@/studio/app/entry/sample-picker";
@@ -25,7 +23,7 @@ export function ProjectsPage() {
           title="Projects"
           actions={
             <Button size="lg" asChild>
-              <Link to={newProjectUrl()}><AddDataIcon /> New project</Link>
+              <Link to="/" data-testid="projects-new-project"><AddDataIcon /> New project</Link>
             </Button>
           }
         />
@@ -59,20 +57,6 @@ export function ProjectsPage() {
               <TrySample className="mt-4" />
             </>
           ))}
-      </div>
-    </AppLayout>
-  );
-}
-
-/** Create project as a page (`/projects/new`): Home hands it a goal sentence and dropped files. */
-export function NewProjectPage() {
-  const state = (useLocation().state ?? {}) as NewProjectState;
-  const navigate = useNavigate();
-  return (
-    <AppLayout>
-      <div className="mx-auto w-full max-w-2xl px-4 py-5 md:px-6 md:py-8">
-        <PageHeading title="New project" />
-        <NewProjectForm initial={state} onCancel={() => navigate(-1)} />
       </div>
     </AppLayout>
   );

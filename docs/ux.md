@@ -96,8 +96,8 @@ Avoid making users define labels, JSON schemas, medical modality or export forma
 pasted screenshot) creates the project through the person's API, named from the goal or from
 what the files are (“12 images”, never a file name), and opens it with the assistant drawer,
 the message delivered or the files uploading. With projects already, it asks first: add to the
-last project, or start a new one. Projects with none shows the same composer; `/projects/new`
-keeps the form. Every empty surface (Overview, Files, Datasets, the Studio entry, the empty
+last project, or start a new one. Projects with none shows the same composer. There is no project form: every "New project"
+goes to this composer, and `/projects/new` redirects to it. Every empty surface (Overview, Files, Datasets, the Studio entry, the empty
 Studio canvas) is the same `ComposerEmptyState` (`@studio/ui`): what will appear there, plus
 drop files and ask the assistant. The Studio canvas takes drops at any time; files join the
 open Studio. `?timeline=1` shows the drop timeline (gesture → first interactive item), which is

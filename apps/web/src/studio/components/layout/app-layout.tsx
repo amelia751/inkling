@@ -29,7 +29,6 @@ import { UploadLayer } from "@/studio/components/uploads/uploads";
 import { AssistantToggle, PersistentAgentDrawer } from "@/studio/components/ai/agent-drawer";
 import { BootNavigator, BootPill } from "@/studio/components/layout/boot-status";
 import { useStudio } from "@/studio/stores/studio";
-import { NewProjectDialog } from "@/studio/components/projects/new-project";
 import { setShellContext, useCommands } from "@/extension-host/commands";
 import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
@@ -168,7 +167,6 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
         <div className="flex min-w-0 flex-1 flex-col">{children}</div>
         <BootNavigator />
         <UploadLayer />
-        <NewProjectDialog />
         <TimelineOverlay />
       </div>
     );
@@ -193,7 +191,6 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
       </div>
       <BootNavigator />
       <UploadLayer />
-      <NewProjectDialog />
       <TimelineOverlay />
       {!desktop && (
         <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>

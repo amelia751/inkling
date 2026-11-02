@@ -87,7 +87,7 @@ def main() -> int:
         check("with no projects, one centered composer", True)
         check("Home shows the composer", page.locator("[data-testid=home-composer] h2").first.inner_text() == "What are you working on?")
         check("Home keeps the goal field and examples", page.locator("[data-testid=goal]").count() == 1 and page.locator("[data-testid=goal-example]").count() == 3)
-        check("the form stays one click away", page.locator("[data-testid=new-project]").get_attribute("href") == "/projects/new")
+        check("no project form on Home", page.locator("[data-testid=new-project]").count() == 0)
         shot(page, "home-empty")
         page.locator("[data-testid=goal-example]").first.click()
         check("an example fills the field", page.locator("[data-testid=goal]").input_value() == "Segment liver CT")

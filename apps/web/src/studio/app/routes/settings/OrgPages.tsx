@@ -31,7 +31,7 @@ import {
   useSetMfaRequired,
 } from "@/studio/lib/org-api";
 import { useProjectList } from "@/studio/lib/projects-api";
-import { newProjectUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
+import { projectUrl, settingsUrl } from "@/studio/lib/routes";
 import { API_KEY_SCOPES, type AdminPortalIntent, type ApiKey, type AuditEvent, type ProjectSummary } from "@studio/contracts";
 
 /** Organization › Projects: every project in the org, with who's in it. */
@@ -80,13 +80,13 @@ export function OrgProjectsPage() {
       filters={<SearchField value={q} onChange={setQ} placeholder="Search by name or ID" />}
       actions={
         <Button size="lg" asChild>
-          <Link to={newProjectUrl()}>
+          <Link to="/">
             <TopUpIcon /> Create project
           </Link>
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : <EmptyState art="folder" title="No projects yet" description="A project holds your files, the datasets you build from them and the annotation work on them." actions={<Button variant="outline" size="lg" asChild><Link to={newProjectUrl()}>Create project</Link></Button>} />} testId="org-projects-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : <EmptyState art="folder" title="No projects yet" description="A project holds your files, the datasets you build from them and the annotation work on them." actions={<Button variant="outline" size="lg" asChild><Link to="/">Create project</Link></Button>} />} testId="org-projects-table" />
     </SettingsPage>
   );
 }

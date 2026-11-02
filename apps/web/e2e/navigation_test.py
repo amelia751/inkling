@@ -79,20 +79,21 @@ def main() -> int:
 
         # Breadcrumb switchers: workspace (one personal org) and project (same section).
         page.locator("[data-testid=workspace-switcher]").click()
-        check("workspace switcher lists the personal workspace", page.get_by_role("menuitem", name="Personal").count() == 1)
+        # todo14: the personal workspace is "<First name>'s workspace" (or "Personal" for the mock account).
+        check("workspace switcher lists the personal workspace", page.locator("[data-testid^=switch-org-][aria-current=true]").count() == 1)
         page.keyboard.press("Escape")
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switch-project-ecg-waveform]").click()
         page.wait_for_url("**/projects/ecg-waveform/sources")
         check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/sources"))
-        # Create project from anywhere: the switcher's "New project" opens it as a dialog.
+        # A project starts from Home's composer: the switcher's "New project" goes there (no form).
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switcher-new-project]").click()
-        dialog = page.locator("[data-testid=new-project-dialog]")
-        dialog.wait_for(timeout=5000)
-        check("New project opens as a dialog", dialog.locator("[data-testid=project-title-input]").count() == 1 and page.url.endswith("/sources"))
-        dialog.get_by_role("button", name="Cancel").click()
-        dialog.wait_for(state="detached", timeout=5000)
+        page.wait_for_selector("[data-testid=home-composer]", timeout=10000)
+        check("New project goes to Home's composer", page.url.rstrip("/") == base.rstrip("/"))
+        page.goto(f"{base}/projects/new")
+        page.wait_for_selector("[data-testid=home-composer]", timeout=10000)
+        check("/projects/new lands on Home", page.url.rstrip("/") == base.rstrip("/"))
 
         # The Studio: the project nav is a rail, the top bar has the breadcrumb, and the same
         # command hides the rail to give the canvas the space.

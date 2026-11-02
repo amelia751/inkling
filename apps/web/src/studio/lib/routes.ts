@@ -7,7 +7,6 @@ export type ProjectSection = "overview" | "files" | "sources" | "explore" | "dat
 
 export const homeUrl = () => "/";
 export const projectsUrl = () => "/projects";
-export const newProjectUrl = () => "/projects/new";
 /** `"files"` is the old name of `"sources"` (todo7 D11, reverted) and gives the same URL. */
 export const projectUrl = (projectId: string, section: ProjectSection = "overview") => `/projects/${encodeURIComponent(projectId)}/${section === "files" ? "sources" : section}`;
 /** The project's drive: `/projects/:p/sources/:nodeId?`. The nav label is "Sources"; the root folder is "Files". */

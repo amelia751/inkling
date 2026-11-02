@@ -11,7 +11,7 @@ import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
 import { TaskSetupPage } from "./routes/TaskSetupPage";
 import { NotFoundPage, RouteError } from "./routes/errors";
 import { HomePage } from "./routes/HomePage";
-import { NewProjectPage, ProjectsPage } from "./routes/ProjectsPage";
+import { ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
 import { FilesPage } from "./routes/FilesPage";
@@ -36,7 +36,8 @@ const studio = (
 const routes = [
   { path: "/", element: <HomePage /> },
   { path: "/projects", element: <ProjectsPage /> },
-  { path: "/projects/new", element: <NewProjectPage /> },
+  // A project starts from Home's composer (a sentence or a drop); old links land there.
+  { path: "/projects/new", element: <Navigate to="/" replace /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.

@@ -2,8 +2,18 @@ import type { ProjectSummary } from "@studio/contracts/types";
 import { api } from "@/studio/lib/projects-api";
 import { guessKind } from "@/studio/lib/file-kinds";
 import { KINDS } from "@/studio/lib/file-kinds";
-import { titleFromGoal } from "@/studio/components/projects/new-project";
 import type { Picked } from "@/studio/lib/uploads/walk";
+
+/** A title from a goal sentence: "Help me classify chest X-rays." → "Classify chest X-rays". */
+export function titleFromGoal(goal: string): string {
+  const s = goal
+    .trim()
+    .replace(/^(please\s+)?(help me( to)?|i want to|i'd like to|i would like to|we want to|let's|lets)\s+/i, "")
+    .replace(/[.!?]+$/, "")
+    .split(/\n/)[0];
+  const t = s.length > 60 ? `${s.slice(0, 57).replace(/\s+\S*$/, "")}…` : s;
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 /**
  * Home's first send or drop creates a project on the person's behalf (todo13 D1): in the

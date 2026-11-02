@@ -515,7 +515,13 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     const list = nodes.filter((n) => !isRootId(n.id));
     if (!list.length) return;
     if (!confirmed) {
-      const impact = await fetchFilesImpact(projectId, list.map((n) => n.id));
+      let impact: Impact | null;
+      try {
+        impact = await fetchFilesImpact(projectId, list.map((n) => n.id));
+      } catch {
+        // Never trash blind: without the impact we can't warn that datasets use these (todo18 B).
+        return void notify("Couldn't check which datasets use these files, so nothing moved to Trash", { tone: "error", action: { label: "Retry", onClick: () => void trashNodes(nodes) } });
+      }
       if (impact?.datasetsLosingItems.length) return setUsedBy({ nodes: list, impact });
     }
     const res = await ops.run([{ kind: "trash", nodeIds: list.map((n) => n.id) }], { fallback: list.length === 1 ? `Moved “${list[0].name}” to Trash` : `Moved ${plural(list.length, "item")} to Trash` });

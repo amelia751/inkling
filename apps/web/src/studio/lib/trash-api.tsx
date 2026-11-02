@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, projectKeys } from "@/studio/lib/projects-api";
+import { api, ApiError, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 
 /**
  * Project-wide Trash and delete (todo16 D2–D6, the shared contract): every resource a project
@@ -270,16 +270,23 @@ export function movedToTrashToast(opts: { qc: QueryClient; projectId: string; ba
 
 /**
  * What trashing these Sources nodes takes from datasets (`GET /projects/{pid}/trash/impact`).
- * Resolves `null` when the api doesn't have the endpoint yet, so the delete still goes ahead.
+ * Resolves `null` only when the api doesn't have the endpoint (404 / 501). Any other failure
+ * throws: the delete must not go ahead without the "used by datasets" warning (todo18 B).
  */
 export async function fetchFilesImpact(projectId: string, nodeIds: string[]): Promise<Impact | null> {
   try {
     const r = await api<{ impact?: Partial<Impact> } & Partial<Impact>>(`/projects/${P(projectId)}/trash/impact?nodeIds=${nodeIds.map(P).join(",")}`);
     const i = r.impact ?? r;
     return { items: i.items ?? [], files: i.files ?? 0, datasetsLosingItems: i.datasetsLosingItems ?? [] };
-  } catch {
-    return null;
+  } catch (e) {
+    if (e instanceof NeedsApiError || (e instanceof ApiError && e.status === 404)) return null;
+    throw e;
   }
+}
+
+/** The delete dialog's Confirm: only once the impact preview has loaded (todo18 B). */
+export function canConfirmDelete(impact: Impact | null, previewError: string | null): boolean {
+  return !!impact && !previewError;
 }
 
 /** "Used by 2 datasets (340 items)", or "" when no dataset loses an item. */

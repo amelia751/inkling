@@ -3,7 +3,10 @@
 Needs the API in workos mode (INKLING_API_AUTH_MODE=workos, against WorkOS Emulate or staging),
 the agent in workos mode (INKLING_AGENT_AUTH_MODE=workos, INKLING_AGENT_WORKOS_CLIENT_ID, and for
 Emulate INKLING_AGENT_WORKOS_BASE_URL=http://localhost:4100), and the web proxy in workos mode
-(Vite: INKLING_WEB_AUTH_MODE=workos with INKLING_API_URL; nginx: the same env var). Sign in as two
+(Vite: INKLING_WEB_AUTH_MODE=workos with INKLING_API_URL; nginx: the same env var).
+`python3 tests/e2e/auth/stack.py up` starts Emulate, the api and Vite that way and prints the env
+below (tests/e2e/auth/README.md); with INKLING_E2E_WORKOS_EMULATE_URL set and no cookies, this test
+signs member@example.com (Acme) and admin@example.com (Globex) in itself. Otherwise sign in as two
 people in two organizations once (browser or Emulate), then hand their session cookies over:
 
     INKLING_E2E_COOKIE_A='<naming id>_session=…'   # person A, org A
@@ -70,8 +73,20 @@ def workos_stack(base: str) -> str | None:
         return "the API has no /api/auth routes yet"
     if status != 401:
         return f"unexpected /api/auth/session answer {status}"
+    if (not os.environ.get(f"{P}E2E_COOKIE_A") or not os.environ.get(f"{P}E2E_COOKIE_B")) and os.environ.get(f"{P}E2E_WORKOS_EMULATE_URL"):
+        # Against WorkOS Emulate (tests/e2e/auth): sign both people in by password.
+        sys.path.insert(0, str(ROOT / "tests" / "e2e" / "auth"))
+        from stack import GLOBEX, USERS, sign_in
+
+        emulate = os.environ[f"{P}E2E_WORKOS_EMULATE_URL"]
+        os.environ[f"{P}E2E_COOKIE_A"] = sign_in(*USERS["member"], base=base, emulate_url=emulate)
+        os.environ[f"{P}E2E_COOKIE_B"] = sign_in(*USERS["admin"], base=base, emulate_url=emulate, organization=GLOBEX)
+        if not os.environ.get(f"{P}E2E_PROJECT_B"):
+            status, made = call(base, "POST", "/api/v1/projects", cookie=os.environ[f"{P}E2E_COOKIE_B"], body={"title": "Globex e2e"})
+            if status == 201 and isinstance(made, dict):
+                os.environ[f"{P}E2E_PROJECT_B"] = made["id"]
     if not os.environ.get(f"{P}E2E_COOKIE_A") or not os.environ.get(f"{P}E2E_COOKIE_B"):
-        return f"set {P}E2E_COOKIE_A and {P}E2E_COOKIE_B to two signed-in sessions"
+        return f"set {P}E2E_COOKIE_A and {P}E2E_COOKIE_B to two signed-in sessions, or {P}E2E_WORKOS_EMULATE_URL (tests/e2e/auth/README.md)"
     return None
 
 

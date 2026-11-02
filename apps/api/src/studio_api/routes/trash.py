@@ -5,6 +5,7 @@
     DELETE /api/v1/projects/{pid}/trash/{batchId}             destroy (owners) → { purged }
     POST   /api/v1/projects/{pid}/trash/empty                 every kind → { purged, keptBytes }
     GET    /api/v1/projects/{pid}/trash/empty/preview         the same, without doing it
+    GET    /api/v1/projects/{pid}/trash/impact?nodeIds=a,b    a file delete's { items, files, datasetsLosingItems }
     PATCH  /api/v1/projects/{pid}/datasets/{id}               { name?, description? }
     DELETE /api/v1/projects/{pid}/datasets/{id}?dryRun=       { impact } | { batchId, impact }
     PATCH|DELETE /api/v1/projects/{pid}/collections/{id}      the same
@@ -56,6 +57,15 @@ def empty(project_id: str, ctx: RequestContext = Depends(get_context), db: Sessi
 def empty_preview(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
     return trash.empty(db, ctx, p, dry_run=True)
+
+
+@router.get("/projects/{project_id}/trash/impact")
+def file_impact(project_id: str, nodeIds: str = "", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):  # noqa: N803
+    p = projects.require_project(db, ctx, project_id)
+    ids = [x for x in nodeIds.split(",") if x.strip()]
+    if not ids:
+        raise HTTPException(422, "nodeIds lists at least one file or folder")
+    return {"impact": trash.file_impact(db, p, [x.strip() for x in ids])}
 
 
 @router.post("/projects/{project_id}/trash/{batch_id}/restore")

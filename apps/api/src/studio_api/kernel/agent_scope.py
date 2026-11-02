@@ -126,6 +126,7 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/projects/{{project_id}}/datasets"),
         ("PATCH", f"{P}/projects/{{project_id}}"),
         ("GET", f"{P}/projects/{{project_id}}/trash"),
+        ("GET", f"{P}/projects/{{project_id}}/trash/impact"),
         ("POST", f"{P}/projects/{{project_id}}/trash/empty"),
     }
 )

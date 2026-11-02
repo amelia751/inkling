@@ -100,6 +100,7 @@ POST /api/v1/projects/{project_id}/proposals
 POST /api/v1/projects/{project_id}/restore
 POST /api/v1/projects/{project_id}/trash/empty
 POST /api/v1/projects/{project_id}/trash/{batch_id}/restore
+POST /api/v1/projects/{project_id}/turns/{turn_id}/undo
 POST /api/v1/proposals/{proposal_id}/confirm
 POST /api/v1/proposals/{proposal_id}/dismiss
 POST /api/v1/proposals/{proposal_id}/recompute
@@ -118,6 +119,7 @@ POST /api/v1/worker/boundary/jobs/{job_id}/complete
 POST /api/v1/worker/boundary/jobs/{job_id}/fail
 POST /api/v1/worker/claim
 POST /api/v1/worker/events/deliver
+POST /api/v1/worker/imports/jobs/{job_id}/run
 POST /api/v1/worker/inspect/imports/{import_id}/report
 POST /api/v1/worker/items/claim
 POST /api/v1/worker/items/{item_id}/report

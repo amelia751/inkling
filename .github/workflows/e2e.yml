@@ -1,14 +1,10 @@
 # End-to-end (todo/done/todo3.md F): the compose `full` stack from images, then the cross-service
-# tests (tests/e2e) and the web browser tests (apps/web/e2e). Daytona-live tests run only on a
-# schedule or by hand, with the key from repository secrets, and always sweep afterwards.
+# tests (tests/e2e) and the web browser tests (apps/web/e2e). Slow (about 30 minutes), so it runs
+# only by hand (`gh workflow run e2e.yml`); `ci` gates every push. Daytona-live tests run with it,
+# with the key from repository secrets, and always sweep afterwards.
 name: e2e
 
 on:
-  pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -128,7 +124,7 @@ jobs:
 
   daytona-live:
     name: agent live (Daytona)
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

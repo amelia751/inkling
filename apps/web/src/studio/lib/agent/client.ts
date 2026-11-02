@@ -9,6 +9,7 @@ import type {
   SendMessageResponse,
 } from "@studio/agent-protocol";
 import { runtimeConfig } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * HTTP client for the agent service, through a proxy that maps <agentBase> (`/api/agent`) to the
@@ -26,7 +27,7 @@ export class AgentHttpError extends Error {
 }
 
 async function call<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(`${BASE()}${path}`, {
+  const res = await apiFetch(`${BASE()}${path}`, {
     method,
     headers: body === undefined ? undefined : { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -60,7 +61,7 @@ export async function followRun(runId: string, after: number, onEvent: (e: Agent
   let last = after;
   for (let attempt = 0; ; attempt++) {
     try {
-      const res = await fetch(`${BASE()}/runs/${runId}/events?after=${last}`, { headers: { Accept: "text/event-stream" }, signal });
+      const res = await apiFetch(`${BASE()}/runs/${runId}/events?after=${last}`, { headers: { Accept: "text/event-stream" }, signal });
       if (res.status === 404) throw new AgentHttpError(404, "This run is no longer available.");
       if (!res.ok || !res.body) throw new AgentHttpError(res.status, `Event stream failed (${res.status}).`);
       attempt = 0;

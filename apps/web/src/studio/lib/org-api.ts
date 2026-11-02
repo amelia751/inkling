@@ -19,6 +19,7 @@ import type {
 import { apiUrl } from "@/extension-host/runtime-config";
 import { notify } from "./files/announce";
 import { api, ApiError } from "./projects-api";
+import { fetchSession, sessionQuery } from "./session";
 
 /**
  * Organization, members, API keys, security, audit and profile (todo/todo9.md Phases 6, 8–11):
@@ -99,11 +100,8 @@ export const deleteMySession = (id: string) => api<void>(`/me/sessions/${enc(id)
 export const revokeOtherSessions = () => api<void>("/me/sessions/revoke-others", { method: "POST" });
 export const fetchMfaUrl = () => api<{ url: string }>("/me/mfa-url").then((r) => r.url);
 
-export async function fetchAuthSession(): Promise<Session> {
-  const res = await fetch(apiUrl("/auth/session"), { credentials: "same-origin" });
-  if (!res.ok) throw new ApiError(res.status, `${res.status} ${res.statusText}`);
-  return res.json() as Promise<Session>;
-}
+/** `GET /api/auth/session` through lib/session.ts (its dev-mode fallback and sign-in redirect). */
+export const fetchAuthSession: () => Promise<Session> = fetchSession;
 
 // ---- Errors --------------------------------------------------------------------------------------
 
@@ -138,7 +136,8 @@ export const orgQueries = {
   security: () => ({ queryKey: orgKeys.security(), queryFn: fetchSecurity, staleTime: stale }),
   me: () => ({ queryKey: orgKeys.me(), queryFn: fetchMe, staleTime: stale }),
   mySessions: () => ({ queryKey: orgKeys.mySessions(), queryFn: fetchMySessions, staleTime: stale }),
-  authSession: () => ({ queryKey: orgKeys.authSession(), queryFn: fetchAuthSession, staleTime: 60_000, retry: false }),
+  // One query per key: the same options as lib/session.ts's useSession.
+  authSession: () => sessionQuery(),
 };
 
 /** Every write lands in the audit log, so it's refreshed after each one. */
@@ -314,7 +313,7 @@ export const sessionCan = (session: Pick<Session, "permissions"> | undefined, p:
 /**
  * Gates a control on an organization permission (D5). Reads `GET /api/auth/session`; while it
  * loads, or when it fails (seed mode, dev without the API), everything is allowed and the API
- * still enforces. To be pointed at `useSession().can` from lib/session.ts.
+ * still enforces. The session is lib/session.ts's (`useSession().can` reads the same entry).
  */
 export function usePermission(p: OrgPermission): boolean {
   const { data } = useAuthSession();

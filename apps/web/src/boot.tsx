@@ -9,8 +9,13 @@ import { Toaster } from "@studio/ui/ui/sonner";
 import { LiveRegion } from "@/studio/lib/files/announce";
 import "@/extension-host/bundled";
 import { AppShell } from "@/studio/app/AppShell";
+import { SessionGate } from "@/studio/components/layout/session-gate";
+import { installSessionHandlers, sessionCaches } from "@/studio/lib/session";
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
+// A 401 from any API call (the shared fetch) or any query or mutation sends a signed-out person
+// to sign in again (workos mode only; todo9 Phase 4).
+installSessionHandlers();
+const queryClient = new QueryClient({ ...sessionCaches(), defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
 /** One toaster for the whole app (todo7 §2 Feedback), following the theme. */
 function ThemedToaster() {
@@ -22,7 +27,9 @@ createRoot(document.getElementById("root")!).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300}>
-          <AppShell />
+          <SessionGate>
+            <AppShell />
+          </SessionGate>
           <ThemedToaster />
           <LiveRegion />
         </TooltipProvider>

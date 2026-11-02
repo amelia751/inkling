@@ -18,6 +18,7 @@ import type {
   TaskSummary,
 } from "@studio/contracts/types";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * The project API (apps/api routes/projects.py, sources.py, explore.py; the dev seed server's
@@ -45,7 +46,7 @@ export class ApiError extends Error {
 
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
   const { json, ...rest } = init ?? {};
-  const res = await fetch(apiUrl(`/v1${path}`), {
+  const res = await apiFetch(apiUrl(`/v1${path}`), {
     ...rest,
     headers: { ...(json !== undefined ? { "Content-Type": "application/json" } : {}), ...(rest.headers ?? {}) },
     body: json !== undefined ? JSON.stringify(json) : rest.body,

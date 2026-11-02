@@ -1222,3 +1222,37 @@ class IdempotencyKey(Base):
     status: Mapped[str] = mapped_column(String(16))
     response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+
+
+# ---- todo17 cr: change requests (D7; migration 0022) ------------------------------------------
+
+
+class ChangeRequest(Base):
+    """An actor's operations on published things, checked, then merged (auto or by a person)."""
+
+    __tablename__ = "change_requests"
+    __table_args__ = (Index("ix_change_requests_project_state", "project_id", "state"),)
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: uuid.uuid4().hex)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"))
+    title: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    actor: Mapped[str] = mapped_column(String(256))
+    on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    agent: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # open | checking | passed | failed | needs-update | merged | closed
+    state: Mapped[str] = mapped_column(String(16))
+    base: Mapped[dict] = mapped_column(JSON, default=dict)  # resource -> revision when first touched
+    operations: Mapped[list] = mapped_column(JSON, default=list)  # [{op, input, base_revision?}]
+    findings: Mapped[list] = mapped_column(JSON, default=list)  # Violation json
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    merged_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    merged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ChangeRequestComment(Base):
+    __tablename__ = "change_request_comments"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: uuid.uuid4().hex)
+    change_request_id: Mapped[str] = mapped_column(ForeignKey("change_requests.id"), index=True)
+    author: Mapped[str] = mapped_column(String(256))
+    body: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

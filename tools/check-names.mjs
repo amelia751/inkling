@@ -67,6 +67,7 @@ const CONFIG_MODULES = new Set([
   "apps/versioning/internal/config/config.go",
   "apps/pipeline/internal/config/config.go",
   "apps/web/vite.config.ts",
+  "apps/site/vite.config.ts",
   "apps/mcp/src/main.ts",
   "packages/plugin-sdk/src/studio_plugin_sdk/naming.py", // the SDK's env() for plugin code
 ]);

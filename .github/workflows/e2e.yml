@@ -53,7 +53,7 @@ jobs:
           if [ -z "$KAGGLE_USERNAME" ] || [ -z "$KAGGLE_KEY" ]; then
             echo "::error::Repository secrets KAGGLE_USERNAME and KAGGLE_KEY are not set"; exit 1
           fi
-          uv tool install kaggle
+          uv tool install kaggle==2.2.2 --with six
           PATH="$(uv tool dir --bin):$PATH" pnpm seeds
       - name: Stack up (compose full profile)
         run: GIT_SHA="${GITHUB_SHA::7}" pnpm stack:up

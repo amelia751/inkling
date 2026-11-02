@@ -15,6 +15,8 @@ export interface StoredMeta {
   id: string;
   owner: string;
   projectId: string;
+  /** WorkOS organization of the owner when the session was created (todo9 Phase 5); unset in dev mode. */
+  orgId?: string;
   [key: string]: unknown;
 }
 
@@ -78,6 +80,8 @@ export interface SessionStore {
   /** Insert or replace. Returns the session's new revision (undefined when not tracked). */
   putMeta(meta: StoredMeta): Promise<number | undefined>;
   listSessionIds(): Promise<Set<string>>;
+  /** Sessions of one owner in one organization (`orgId` unset: sessions without one), optionally one project. */
+  listSessions(filter: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]>;
   countSessions(): Promise<number>;
   /** Meta, transcript, runs and inputs. */
   deleteSession(id: string): Promise<void>;

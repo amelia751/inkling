@@ -1,5 +1,4 @@
 import { createReadStream, existsSync, statSync } from "node:fs";
-import { timingSafeEqual } from "node:crypto";
 import { Readable } from "node:stream";
 import { Hono, type Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -7,6 +6,7 @@ import { z } from "zod";
 import { PROFILES, profileAvailable } from "./agent/profiles.ts";
 import { SERVICE_NAME, SERVICE_VERSION } from "./cluster/naming.ts";
 import type { Config } from "./config.ts";
+import { type AccessTokenVerifier, type AppEnv, authenticate, workosVerifier } from "./http/auth.ts";
 import { streamRunEvents } from "./http/events.ts";
 import { registerServiceRoutes } from "./http/service.ts";
 import type { Logger } from "./log.ts";
@@ -25,6 +25,8 @@ export interface AppDeps {
   log: Logger;
   /** Cached readiness (Daytona reachability, egress tier); never called on the liveness path. */
   ready?: () => Promise<ReadyCheck>;
+  /** WorkOS access-token verification (`workos` auth mode); built from config when omitted. Tests pass a fake JWKS. */
+  verifier?: AccessTokenVerifier;
 }
 
 const clientToolSchema = z.object({
@@ -99,18 +101,14 @@ async function body<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer
   return parsed.data;
 }
 
-function tokenMatches(header: string | undefined, token: string): boolean {
-  const got = Buffer.from(header?.replace(/^Bearer\s+/i, "") ?? "");
-  const want = Buffer.from(token);
-  return got.length === want.length && timingSafeEqual(got, want);
-}
-
 /**
- * Private HTTP API (todo1 §6). Every /v1 route needs the service bearer token (probes and /version don't); the
- * Vite proxy (dev) or apps/api (prod) adds it, so the browser never holds it.
+ * Private HTTP API (todo1 §6). Every /v1 route needs the service token (probes and /version don't); the
+ * Vite proxy (dev) or the web nginx adds it, so the browser never holds it. In `workos` auth mode the
+ * proxies also forward the person's WorkOS access token and every session is theirs (http/auth.ts).
  */
-export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
-  const app = new Hono();
+export function createApp({ config, sessions, log, ready, verifier }: AppDeps): Hono<AppEnv> {
+  const app = new Hono<AppEnv>();
+  const verify = verifier ?? (config.auth.mode === "workos" ? workosVerifier(config.auth) : undefined);
 
   registerServiceRoutes(app, {
     log,
@@ -130,10 +128,7 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
     return c.json(r, r.ok ? 200 : 503);
   });
 
-  app.use("/v1/*", async (c, next) => {
-    if (!config.serviceToken || !tokenMatches(c.req.header("authorization"), config.serviceToken)) return c.json({ error: "unauthorized" }, 401);
-    await next();
-  });
+  app.use("/v1/*", authenticate(config, verify, log));
   app.use("/v1/*", bodyLimit({ maxSize: 8 * 1024 * 1024, onError: (c) => c.json({ error: "body too large" }, 413) }));
 
   app.get("/v1/status", (c) => {
@@ -149,20 +144,32 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
 
   app.post("/v1/sessions", async (c) => {
     const req = await body(c, schemas.createSession);
-    const ctx = await sessions.create(req);
+    const { principal, orgId } = c.get("caller");
+    const ctx = await sessions.create(req, principal, orgId);
     const res: CreateSessionResponse = { sessionId: ctx.id, profile: ctx.meta.profile, model: `${config.model.provider}:${config.model.id}` };
     return c.json(res, 201);
   });
 
-  app.get("/v1/sessions/:id", async (c) => c.json(await sessions.describe(await sessions.get(c.req.param("id")))));
+  // The caller's conversations in their current organization (todo9 Phase 5, todo14 §4), newest first.
+  app.get("/v1/sessions", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    return c.json({ sessions: await sessions.list(principal, orgId, c.req.query("projectId") || undefined) });
+  });
+
+  app.get("/v1/sessions/:id", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    return c.json(await sessions.describe(await sessions.get(c.req.param("id"), principal, orgId)));
+  });
 
   app.delete("/v1/sessions/:id", async (c) => {
-    await sessions.delete(c.req.param("id"));
+    const { principal, orgId } = c.get("caller");
+    await sessions.delete(c.req.param("id"), principal, orgId);
     return c.body(null, 204);
   });
 
   app.post("/v1/sessions/:id/messages", async (c) => {
-    const ctx = await sessions.get(c.req.param("id"));
+    const { principal, orgId } = c.get("caller");
+    const ctx = await sessions.get(c.req.param("id"), principal, orgId);
     const { run, steered } = await sessions.send(ctx, await body(c, schemas.message));
     const res: SendMessageResponse = { runId: run.id, steered };
     return c.json(res, 202);
@@ -170,7 +177,7 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
 
   app.get("/v1/runs/:runId/events", async (c) => {
     const runId = c.req.param("runId");
-    const run = await sessions.lookupRun(runId);
+    const run = await sessions.lookupRun(runId, c.get("caller").principal);
     const fromHeader = Number(c.req.header("last-event-id"));
     const fromQuery = Number(c.req.query("after"));
     const after = Math.max(Number.isFinite(fromHeader) ? fromHeader : 0, Number.isFinite(fromQuery) ? fromQuery : 0);
@@ -178,25 +185,28 @@ export function createApp({ config, sessions, log, ready }: AppDeps): Hono {
   });
 
   app.post("/v1/runs/:runId/cancel", async (c) => {
-    const run = await sessions.cancel(c.req.param("runId"));
+    const run = await sessions.cancel(c.req.param("runId"), c.get("caller").principal);
     return c.json({ runId: run.id, status: run.status });
   });
 
   app.post("/v1/runs/:runId/client-tools/:callId", async (c) => {
-    const accepted = await sessions.answerClientTool(c.req.param("runId"), c.req.param("callId"), await body(c, schemas.clientTool));
+    const accepted = await sessions.answerClientTool(c.req.param("runId"), c.req.param("callId"), await body(c, schemas.clientTool), c.get("caller").principal);
     return accepted ? c.json({ ok: true }) : c.json({ error: "no pending call with that id (already answered, timed out or cancelled)" }, 409);
   });
 
   app.post("/v1/approvals/:approvalId", async (c) => {
-    const accepted = await sessions.decideApproval(c.req.param("approvalId"), await body(c, schemas.approval));
+    const accepted = await sessions.decideApproval(c.req.param("approvalId"), await body(c, schemas.approval), c.get("caller").principal);
     return accepted ? c.json({ ok: true }) : c.json({ error: "no pending approval with that id" }, 404);
   });
 
-  app.get("/v1/sessions/:id/artifacts", async (c) => c.json((await sessions.get(c.req.param("id"))).info().artifacts));
+  app.get("/v1/sessions/:id/artifacts", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    return c.json((await sessions.get(c.req.param("id"), principal, orgId)).info().artifacts);
+  });
 
   app.get("/v1/artifacts/:artifactId", async (c) => {
     if (config.env === "production") return c.json({ error: "artifact downloads use signed object-store URLs in production" }, 404);
-    const a = await sessions.findArtifact(c.req.param("artifactId"));
+    const a = await sessions.findArtifact(c.req.param("artifactId"), c.get("caller").principal);
     if (!a || !existsSync(a.hostPath)) return c.json({ error: "no such artifact" }, 404);
     c.header("Content-Type", "application/octet-stream");
     c.header("Content-Length", String(statSync(a.hostPath).size));

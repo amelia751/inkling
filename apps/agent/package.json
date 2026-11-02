@@ -41,6 +41,7 @@
     "@types/node": "^24",
     "@types/pg": "8.23.1",
     "esbuild": "0.28.2",
+    "jose": "6.2.12",
     "tsx": "4.23.15",
     "typescript": "^5",
     "vitest": "5.0.5"

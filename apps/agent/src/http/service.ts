@@ -1,5 +1,5 @@
 import { contextFromHeaders, runWithContext } from "@studio/observability-ts";
-import type { Hono } from "hono";
+import type { Env, Hono } from "hono";
 import type { Logger } from "../log.ts";
 
 export interface ServiceInfo {
@@ -25,7 +25,7 @@ const QUIET = new Set(["/healthz", "/readyz", "/version", "/health/live", "/heal
  * - One JSON access-log line per request, except the probe paths above.
  * - GET /healthz (process up), /readyz (dependencies reachable and not draining), /version.
  */
-export function registerServiceRoutes(app: Hono, deps: { log: Logger; info: ServiceInfo; readiness: () => Promise<Readiness> }): void {
+export function registerServiceRoutes<E extends Env>(app: Hono<E>, deps: { log: Logger; info: ServiceInfo; readiness: () => Promise<Readiness> }): void {
   app.use("*", async (c, next) => {
     const ctx = contextFromHeaders((name) => c.req.header(name));
     c.header("X-Request-Id", ctx.requestId!);

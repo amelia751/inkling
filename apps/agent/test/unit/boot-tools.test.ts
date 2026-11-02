@@ -5,7 +5,7 @@ import { STUDIO_TOOL_NAMES } from "@studio/studio-tools";
 import { loadStudioCatalog } from "../../src/agent/catalog.ts";
 import { PROFILES, systemPrompt } from "../../src/agent/profiles.ts";
 import { NAMING } from "../../src/naming.ts";
-import { ENV_TOOLS, harness } from "./harness.ts";
+import { ENV_TOOLS, harness, snapshot } from "./harness.ts";
 
 /**
  * todo11 Milestone 2 item 6: the Studio tools are server tools that call the API's boot and
@@ -58,9 +58,16 @@ function fakeApi(mode: "ok" | "422" | "403" | "ai-off" | "empty-project" = "ok")
 const BOOT = { toolCalls: [{ name: "boot_studio", arguments: { intent: "chest x-ray", name: "CXR triage", patch: [{ op: "add", path: "/labels", value: [{ name: "finding", control: "Choices", classes: [{ id: "normal" }] }] }] } }] };
 const FIXTURE = {
   scripts: [
+    {
+      when: "^create one studio",
+      turns: [{ toolCalls: [{ name: "boot_studio", arguments: { name: "Mixed review", accepts: ["studio.image2d.dataKinds.raster", "studio.timeseries.dataKinds.multichannel-timeseries"], filter: { folders: ["fld-1"] } } }] }, { text: "One Studio for both." }],
+    },
     { when: "^create", turns: [BOOT, { text: "Your chest X-ray Studio is ready." }] },
     { when: "^retry", turns: [{ toolCalls: [{ name: "boot_studio", arguments: { preset: "preset:image-2d", bootId: "boot_fixed" } }] }, { toolCalls: [{ name: "boot_studio", arguments: { preset: "preset:image-2d", bootId: "boot_fixed" } }] }, { text: "Done." }] },
-    { when: "^could", turns: [BOOT, { toolCalls: [{ name: "offer_studio", arguments: { preset: "preset:image-2d", title: "Create X-ray Studio", reason: "Triage chest X-rays" } }] }, { text: "Click to create it." }] },
+    { when: "^could we make a new studio", turns: [{ toolCalls: [{ name: "boot_studio", arguments: { preset: "preset:image-2d" } }] }, { toolCalls: [{ name: "offer_studio", arguments: { preset: "preset:image-2d", title: "Create X-ray Studio", reason: "Triage chest X-rays" } }] }, { text: "Click to create it." }] },
+    { when: "^could", turns: [BOOT, { toolCalls: [{ name: "get_studio_state", arguments: { taskId: "tsk-0" } }] }, { text: "Added them to this Studio." }] },
+    { when: "^what is open", turns: [{ toolCalls: [{ name: "get_studio_state", arguments: { taskId: "tsk-1" } }] }, { text: "An ECG." }] },
+    { when: "^ecg view", turns: [{ toolCalls: [{ name: "patch_studio", arguments: { taskId: "tsk-1", revision: 1, patch: [{ op: "add", path: "/data/kinds/studio.timeseries.dataKinds.multichannel-timeseries/config", value: { leads: 12 } }] } }] }, { text: "Done." }] },
     { when: "^stale", turns: [{ toolCalls: [{ name: "patch_studio", arguments: { taskId: "tsk-1", revision: 0, patch: [{ op: "replace", path: "/title", value: "X" }] } }] }, { text: "Stale." }] },
     { when: "^chest", turns: [BOOT, { text: "Your chest X-ray Studio is ready." }] },
     { when: "^find", turns: [{ toolCalls: [{ name: "search_catalog", arguments: { query: "polygon tool" } }] }, { text: "Found." }] },
@@ -144,12 +151,73 @@ describe("Studio server tools", () => {
   it("an idea floated as a question gets no boot: the policy refuses and the model offers a card", async () => {
     const api = fakeApi();
     const id = await session(api);
-    await say(id, "could we make a chest X-ray Studio?");
+    await say(id, "could we make a new Studio?");
     expect(api.seen.filter((s) => s.method === "POST")).toHaveLength(0);
     const [denied, offer] = await toolResults(id);
     expect(denied!.isError).toBe(true);
     expect(denied!.text).toMatch(/offer_studio/);
     expect(JSON.parse(offer!.text).offer).toEqual({ preset: "preset:image-2d", title: "Create X-ray Studio", reason: "Triage chest X-rays" });
+  });
+
+  it("a floated task in a project that has a Studio gets no second Studio: the model is sent to patch the open one (todo15 M2, todo19 D5)", async () => {
+    const api = fakeApi();
+    const id = await session(api);
+    await say(id, "could we make a chest X-ray Studio?");
+    expect(api.seen.filter((s) => s.method === "POST")).toHaveLength(0);
+    const [denied, state] = await toolResults(id);
+    expect(denied!.isError).toBe(true);
+    expect(denied!.text).toMatch(/already has a Studio/);
+    expect(denied!.text).toMatch(/patch_studio/);
+    expect(denied!.text).not.toMatch(/offer_studio/);
+    expect(state!.name).toBe("get_studio_state");
+  });
+
+  it("boot_studio over several kinds: accepts + filter, one Studio extending one profile per kind (todo19 D12)", async () => {
+    const api = fakeApi();
+    const id = await session(api);
+    await say(id, "Create one Studio for the X-rays and the ECGs");
+    const posts = api.seen.filter((s) => s.method === "POST");
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.body).toMatchObject({
+      accepts: ["studio.image2d.dataKinds.raster", "studio.timeseries.dataKinds.multichannel-timeseries"],
+      extends: ["preset:image-2d", "preset:ecg"],
+      filter: { folders: ["fld-1"] },
+      name: "Mixed review",
+    });
+    const [r] = await toolResults(id);
+    expect(JSON.parse(r!.text).profiles).toEqual({ "studio.image2d.dataKinds.raster": "preset:image-2d", "studio.timeseries.dataKinds.multichannel-timeseries": "preset:ecg" });
+  });
+
+  it("get_studio_state reports the open item's kind and profile from the Studio's snapshot", async () => {
+    const ECG = "studio.timeseries.dataKinds.multichannel-timeseries";
+    const effective = { accepts: [ECG], data: { kinds: { [ECG]: { renderer: "studio.timeseries.renderers.strip-chart", profile: "preset:ecg" } } } };
+    const base = fakeApi();
+    const api = {
+      ...base,
+      fetchImpl: (async (input: string | URL | Request, init?: RequestInit) =>
+        (init?.method ?? "GET") === "GET" && new URL(String(input)).pathname.startsWith("/api/environments/")
+          ? new Response(JSON.stringify({ revision: 3, environment: { extends: ["preset:ecg"] }, effective }), { status: 200 })
+          : base.fetchImpl(input, init)) as typeof fetch,
+    };
+    const id = await session(api);
+    const snap = snapshot("demo", { items: [{ id: "rec-1", name: "00001_hr.hea", group: "ecg", kind: ECG }], currentItemId: "rec-1" });
+    const r0 = await h!.json("POST", `/v1/sessions/${id}/messages`, { text: "what is open?", snapshot: snap });
+    expect(r0.status).toBe(202);
+    await h!.drive(r0.body.runId);
+    const [r] = await toolResults(id);
+    const state = JSON.parse(r!.text);
+    expect(state.kinds).toEqual({ [ECG]: { renderer: "studio.timeseries.renderers.strip-chart", profile: "preset:ecg" } });
+    expect(state.activeItem).toEqual({ id: "rec-1", kind: ECG, profile: { renderer: "studio.timeseries.renderers.strip-chart", profile: "preset:ecg" } });
+  });
+
+  it("patch_studio edits one kind's profile at /data/kinds/<kind>", async () => {
+    const api = fakeApi();
+    const id = await session(api);
+    await say(id, "ecg view: show 12 leads");
+    const patch = api.seen.find((s) => s.method === "PATCH")!;
+    expect(patch.body.patch[0].path).toBe("/data/kinds/studio.timeseries.dataKinds.multichannel-timeseries/config");
+    const [r] = await toolResults(id);
+    expect(r!.isError).toBe(false);
   });
 
   it.each(["422", "403"] as const)("a %s is a tool error the model can read (status, errors with paths)", async (mode) => {

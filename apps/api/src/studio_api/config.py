@@ -88,6 +88,14 @@ in production, on in development and test (todo13 §7.4: dev runs with every fla
 | API_FEATURE_FAST_PATH     | false / true                     | boot a Studio from a drop before the agent answers |
 | API_FEATURE_DATASETS_TAB  | false / true                     | Datasets in the project sidebar |
 
+Sample templates (todo14 §3): on `s3`/`gcs` the seed assets (`assets()` keys, `manifest.json`,
+`<template>/workspace.json`) sit under this prefix, inside `S3_PREFIX`/`GCS_PREFIX`; derived data
+stays under `.data/`. Local stores read `API_SEED_ROOT` and ignore it.
+
+| Key (without prefix)      | Default                          | Meaning |
+|---------------------------|----------------------------------|---------|
+| API_SAMPLES_PREFIX        | (none: the bucket root)          | `samples` on Google Cloud: the phi bucket's copy of the public sample set (`tools/fetch-seeds.py --upload-only=gs://…/samples/`) |
+
 S3 credentials are the standard `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (unprefixed;
 or the default AWS credential chain). Cloud Storage uses Application Default Credentials only
 (Workload Identity on GKE; `gcloud auth application-default login` locally), never a key file. `NAMING_FILE` (unprefixed: the prefix is read from it) is
@@ -250,6 +258,9 @@ class Settings(BaseModel):
         v = getattr(self, f"feature_{name}")
         return (not self.production) if v is None else bool(v)
 
+    # ---- Sample templates (todo14 §3): key prefix of the seed assets in s3/gcs. ----
+    samples_prefix: str = ""
+
     @property
     def production(self) -> bool:
         return self.env == "production"
@@ -330,6 +341,8 @@ _KEYS: dict[str, str] = {
     "public_url": "API_PUBLIC_URL",
     "session_max_hours": "API_SESSION_MAX_HOURS",
     "signin_methods": "API_SIGNIN_METHODS",
+    # Sample templates (todo14 §3).
+    "samples_prefix": "API_SAMPLES_PREFIX",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

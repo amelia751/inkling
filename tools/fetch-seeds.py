@@ -1,6 +1,6 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["numpy", "scipy", "openslide-python", "openslide-bin", "pillow", "boto3"]
+# dependencies = ["numpy", "scipy", "openslide-python", "openslide-bin", "pillow", "boto3", "google-cloud-storage"]
 # ///
 """Fetch a small, license-tracked sample of each development seed dataset.
 
@@ -33,6 +33,13 @@ the download. Objects already present with the same size and sha256 are skipped.
 credentials from ``AWS_ACCESS_KEY_ID`` / ``AWS_SECRET_ACCESS_KEY``.
 
         uv run tools/fetch-seeds.py --upload-only [--include-raw] [--create-bucket] [project-id ...]
+
+Sample templates on Google Cloud (todo14 §3, docs/deployment-gcp.md "Sample templates"): give
+the target as a URL. A ``gs://`` target gets public templates only: restricted ones (and their
+entries in ``manifest.json``) are never uploaded. ``--dry-run`` lists what would be uploaded
+and writes nothing. Credentials: Application Default Credentials.
+
+        uv run tools/fetch-seeds.py --upload-only=gs://spurby-phi-objects/samples/ [--dry-run]
 """
 
 from __future__ import annotations
@@ -50,6 +57,7 @@ import tempfile
 import time
 import zipfile
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -399,7 +407,7 @@ def with_environment(project: dict) -> dict:
     return {**project, "environment": {k: v for k, v in env.items() if v is not None}}
 
 
-# ---- Upload to object storage (todo/done/todo3.md E.3) -------------------------------------------
+# ---- Upload to object storage (todo/done/todo3.md E.3, todo14 §3) ------------------------------
 
 
 def env(name: str, default: str | None = None) -> str | None:
@@ -409,79 +417,230 @@ def env(name: str, default: str | None = None) -> str | None:
     return os.environ.get(prefix + name) or default
 
 
-def upload_keys(manifest: dict, only: set[str] | None, include_raw: bool) -> list[str]:
+@dataclass(frozen=True)
+class Target:
+    """Where an upload goes: `s3` (dev MinIO / any S3) or `gs` (Cloud Storage)."""
+
+    scheme: str
+    bucket: str
+    prefix: str = ""
+
+    @property
+    def url(self) -> str:
+        return f"{self.scheme}://{self.bucket}/{self.prefix + '/' if self.prefix else ''}"
+
+    @property
+    def public_only(self) -> bool:
+        # Restricted templates (Hyper-Kvasir, ACDC, TCGA) are local development only: they
+        # never go to Cloud Storage (todo14 §4.3), whatever the flags say.
+        return self.scheme == "gs"
+
+    def key(self, key: str) -> str:
+        return f"{self.prefix}/{key}" if self.prefix else key
+
+
+def parse_target(url: str | None) -> Target:
+    """`--upload` alone: the S3 bucket from env (`S3_BUCKET`, `S3_PREFIX`). With a URL:
+    `gs://<bucket>/<prefix>/` or `s3://<bucket>/<prefix>/`."""
+    if not url:
+        return Target("s3", env("S3_BUCKET", "assets") or "assets", (env("S3_PREFIX") or "").strip("/"))
+    scheme, sep, rest = url.partition("://")
+    bucket, _, prefix = rest.partition("/")
+    if not sep or scheme not in ("gs", "s3") or not bucket:
+        raise ValueError(f"upload target must be gs://<bucket>/<prefix>/ or s3://<bucket>/<prefix>/, got {url!r}")
+    prefix = prefix.strip("/")
+    if prefix and any(part in ("", ".", "..") for part in prefix.split("/")):
+        raise ValueError(f"bad prefix in {url!r}")
+    return Target(scheme, bucket, prefix)
+
+
+def public_manifest(manifest: dict) -> dict:
+    """The manifest without restricted templates: what the api in `spurby-phi` reads as
+    `samples/manifest.json`, so it never offers a template whose bytes aren't there."""
+    return {**manifest, "projects": [p for p in manifest.get("projects", []) if not p.get("restricted")]}
+
+
+def upload_keys(manifest: dict, only: set[str] | None, include_raw: bool, seed: Path | None = None) -> list[str]:
     """Keys (= seed-data relative paths) the Studio and the kernel read for these projects."""
+    seed = seed or SEED
     keys: list[str] = ["manifest.json"]
     for p in manifest.get("projects", []):
         if only and p["id"] not in only:
             continue
-        if (SEED / p["id"] / "workspace.json").is_file():
+        if (seed / p["id"] / "workspace.json").is_file():
             keys.append(f"{p['id']}/workspace.json")
         for a in p.get("assets", []):
             keys.append(a["path"])
             if a["path"].endswith(".dzi"):  # the tile pyramid lives next to the descriptor
-                tiles = SEED / (a["path"][: -len(".dzi")] + "_files")
-                keys += sorted(str(f.relative_to(SEED)) for f in tiles.rglob("*") if f.is_file())
+                tiles = seed / (a["path"][: -len(".dzi")] + "_files")
+                keys += sorted(str(f.relative_to(seed)) for f in tiles.rglob("*") if f.is_file())
             if include_raw:
                 keys += a.get("raw") or []
     return list(dict.fromkeys(keys))
 
 
-def upload(only: set[str] | None, include_raw: bool, create_bucket: bool) -> int:
-    import boto3
-    from botocore.config import Config
-    from botocore.exceptions import ClientError
+@dataclass
+class Item:
+    key: str  # seed-data relative path (the api's asset key)
+    action: str  # "upload", "skip" (same size and sha256 there), "missing" (not in seed-data/)
+    path: Path | None = None
+    data: bytes | None = None  # in-memory body (the filtered manifest)
+    sha256: str | None = None
+    size: int = 0
 
+
+@dataclass
+class Plan:
+    target: Target
+    items: list[Item]
+    skipped_restricted: list[str]
+
+    def count(self, action: str) -> int:
+        return sum(1 for i in self.items if i.action == action)
+
+
+def plan_upload(target: Target, manifest: dict, remote, *, only: set[str] | None = None, include_raw: bool = False, seed: Path | None = None) -> Plan:
+    """What an upload would do, without writing anything. `remote.head(key)` returns
+    `(size, sha256 metadata)` or None for the full object name. Objects already there with the
+    same size and sha256 are skipped, so a second run uploads nothing."""
+    seed = seed or SEED
+    restricted = sorted(p["id"] for p in manifest.get("projects", []) if p.get("restricted") and (not only or p["id"] in only))
+    skipped = restricted if target.public_only else []
+    sent = public_manifest(manifest) if target.public_only else manifest
+    known = {a["path"]: a.get("sha256") for p in sent.get("projects", []) for a in p.get("assets", [])}
+    items: list[Item] = []
+    for key in upload_keys(sent, only, include_raw, seed):
+        if key == "manifest.json" and target.public_only:
+            data = (json.dumps(sent, indent=2) + "\n").encode()
+            item = Item(key, "upload", data=data, sha256=hashlib.sha256(data).hexdigest(), size=len(data))
+        else:
+            f = seed / key
+            if not f.is_file():
+                items.append(Item(key, "missing"))
+                continue
+            # The manifest records each asset's sha256; tiles and side files are hashed here.
+            item = Item(key, "upload", path=f, sha256=known.get(key) or sha256(f), size=f.stat().st_size)
+        if remote.head(target.key(key)) == (item.size, item.sha256):
+            item.action = "skip"
+        items.append(item)
+    return Plan(target, items, skipped)
+
+
+class S3Remote:
+    def __init__(self, target: Target, client=None, create_bucket: bool = False):
+        from botocore.exceptions import ClientError
+
+        self.ClientError = ClientError
+        self.bucket = target.bucket
+        if client is None:
+            import boto3
+            from botocore.config import Config
+
+            endpoint = env("S3_ENDPOINT")
+            client = boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                region_name=env("S3_REGION", "us-east-1"),
+                config=Config(signature_version="s3v4", s3={"addressing_style": "path" if endpoint else "auto"}),
+            )
+        self.client = client
+        try:
+            client.head_bucket(Bucket=self.bucket)
+        except ClientError:
+            if not create_bucket:
+                raise SystemExit(f"bucket {self.bucket!r} doesn't exist (or isn't readable); pass --create-bucket to create it") from None
+            client.create_bucket(Bucket=self.bucket)
+
+    def head(self, name: str) -> tuple[int, str | None] | None:
+        try:
+            h = self.client.head_object(Bucket=self.bucket, Key=name)
+        except self.ClientError as e:
+            if str(e.response.get("Error", {}).get("Code")) in ("404", "NoSuchKey", "NotFound"):
+                return None
+            raise
+        return int(h["ContentLength"]), h.get("Metadata", {}).get("sha256")
+
+    def put(self, name: str, item: Item, content_type: str | None) -> None:
+        extra: dict = {"Metadata": {"sha256": item.sha256}}
+        if content_type:
+            extra["ContentType"] = content_type
+        if item.data is not None:
+            self.client.put_object(Bucket=self.bucket, Key=name, Body=item.data, **extra)
+        else:
+            self.client.upload_file(str(item.path), self.bucket, name, ExtraArgs=extra)
+
+
+class GCSRemote:
+    """Cloud Storage with Application Default Credentials (a person's `gcloud auth
+    application-default login`, or the deploy identity in CI). The bucket is Terraform's
+    (`infra/terraform/phi`), never created here."""
+
+    def __init__(self, target: Target, client=None):
+        if client is None:
+            from google.cloud import storage
+
+            client = storage.Client(project=env("GCS_PROJECT"))
+        self.bucket = client.bucket(target.bucket)
+
+    def head(self, name: str) -> tuple[int, str | None] | None:
+        b = self.bucket.get_blob(name)
+        return None if b is None else (int(b.size), (b.metadata or {}).get("sha256"))
+
+    def put(self, name: str, item: Item, content_type: str | None) -> None:
+        b = self.bucket.blob(name)
+        b.metadata = {"sha256": item.sha256}
+        ct = content_type or "application/octet-stream"
+        if item.data is not None:
+            b.upload_from_string(item.data, content_type=ct)
+        else:
+            b.upload_from_filename(str(item.path), content_type=ct)
+
+
+def content_type_of(key: str) -> str | None:
+    import mimetypes
+
+    if key.endswith(".json"):
+        return "application/json"
+    return mimetypes.guess_type(key)[0]
+
+
+def run_plan(plan: Plan, remote, *, dry_run: bool = False) -> int:
+    todo = [i for i in plan.items if i.action == "upload"]
+    if not dry_run:
+        # The manifest goes last: the api only offers templates whose bytes are already there.
+        rest, last = [i for i in todo if i.key != "manifest.json"], [i for i in todo if i.key == "manifest.json"]
+        with ThreadPoolExecutor(8) as pool:
+            list(pool.map(lambda i: remote.put(plan.target.key(i.key), i, content_type_of(i.key)), rest))
+        for i in last:
+            remote.put(plan.target.key(i.key), i, content_type_of(i.key))
+    for i in plan.items:
+        if i.action == "missing":
+            print(f"  missing locally: {i.key}")
+        elif dry_run and i.action == "upload":
+            print(f"  would upload {i.key} ({i.size} bytes)")
+    if plan.skipped_restricted:
+        print(f"  not uploaded (restricted, local development only): {', '.join(plan.skipped_restricted)}")
+    verb = "would upload" if dry_run else "uploaded"
+    print(f"{plan.target.url}: {plan.count('upload')} {verb}, {plan.count('skip')} unchanged, {plan.count('missing')} missing")
+    return 1 if plan.count("missing") else 0
+
+
+def upload(only: set[str] | None, include_raw: bool, create_bucket: bool, target_url: str | None = None, dry_run: bool = False) -> int:
     manifest_path = SEED / "manifest.json"
     if not manifest_path.is_file():
         print("seed-data/manifest.json is missing: fetch the seeds first")
         return 2
-    endpoint, bucket = env("S3_ENDPOINT"), env("S3_BUCKET", "assets")
-    prefix = (env("S3_PREFIX") or "").strip("/")
-    s3 = boto3.client(
-        "s3",
-        endpoint_url=endpoint,
-        region_name=env("S3_REGION", "us-east-1"),
-        config=Config(signature_version="s3v4", s3={"addressing_style": "path" if endpoint else "auto"}),
-    )
     try:
-        s3.head_bucket(Bucket=bucket)
-    except ClientError:
-        if not create_bucket:
-            print(f"bucket {bucket!r} doesn't exist (or isn't readable); pass --create-bucket to create it")
-            return 2
-        s3.create_bucket(Bucket=bucket)
-    keys = upload_keys(json.loads(manifest_path.read_text()), only, include_raw)
-    known = {a["path"]: a.get("sha256") for p in json.loads(manifest_path.read_text()).get("projects", []) for a in p.get("assets", [])}
-
-    def one(key: str) -> str:
-        f = SEED / key
-        if not f.is_file():
-            return "missing"
-        size = f.stat().st_size
-        digest = known.get(key) or sha256(f)  # the manifest records each asset's sha256 (tiles are hashed here)
-        full = f"{prefix}/{key}" if prefix else key
-        try:
-            head = s3.head_object(Bucket=bucket, Key=full)
-            if head["ContentLength"] == size and head.get("Metadata", {}).get("sha256") == digest:
-                return "skipped"
-        except ClientError as e:
-            if str(e.response.get("Error", {}).get("Code")) not in ("404", "NoSuchKey", "NotFound"):
-                raise
-        extra = {"Metadata": {"sha256": digest}}
-        if key.endswith(".json"):
-            extra["ContentType"] = "application/json"
-        s3.upload_file(str(f), bucket, full, ExtraArgs=extra)
-        return "uploaded"
-
-    with ThreadPoolExecutor(8) as pool:
-        results = list(pool.map(one, keys))
-    counts = {k: results.count(k) for k in ("uploaded", "skipped", "missing")}
-    for key, r in zip(keys, results):
-        if r == "missing":
-            print(f"  missing locally: {key}")
-    print(f"s3://{bucket}/{prefix + '/' if prefix else ''}: {counts['uploaded']} uploaded, {counts['skipped']} unchanged, {counts['missing']} missing")
-    return 1 if counts["missing"] else 0
+        target = parse_target(target_url)
+    except ValueError as e:
+        print(e)
+        return 2
+    if target.scheme == "gs" and create_bucket:
+        print("--create-bucket is for S3 only: Cloud Storage buckets come from infra/terraform")
+        return 2
+    remote = GCSRemote(target) if target.scheme == "gs" else S3Remote(target, create_bucket=create_bucket and not dry_run)
+    plan = plan_upload(target, json.loads(manifest_path.read_text()), remote, only=only, include_raw=include_raw)
+    return run_plan(plan, remote, dry_run=dry_run)
 
 
 def check() -> int:
@@ -498,19 +657,26 @@ def check() -> int:
 
 
 def main(argv: list[str]) -> int:
-    flags = {a for a in argv if a.startswith("--")}
+    # `--upload` / `--upload-only` take an optional target: `--upload-only=gs://<bucket>/samples/`.
+    opts = dict((a.split("=", 1) + [""])[:2] for a in argv if a.startswith("--"))
+    flags = set(opts)
     argv = [a for a in argv if not a.startswith("--")]
-    unknown_flags = flags - {"--upload", "--upload-only", "--include-raw", "--create-bucket", "--check"}
+    unknown_flags = flags - {"--upload", "--upload-only", "--include-raw", "--create-bucket", "--dry-run", "--check"}
     if unknown_flags:
         print(f"Unknown option(s): {', '.join(sorted(unknown_flags))}")
         return 2
+
+    def up() -> int:
+        target = opts.get("--upload-only") or opts.get("--upload") or None
+        return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags, target, "--dry-run" in flags)
+
     if "--check" in flags:
         return check()
     if "--upload-only" in flags:
-        return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags)
+        return up()
     code = fetch(argv)
     if code == 0 and "--upload" in flags:
-        return upload(set(argv) or None, "--include-raw" in flags, "--create-bucket" in flags)
+        return up()
     return code
 
 

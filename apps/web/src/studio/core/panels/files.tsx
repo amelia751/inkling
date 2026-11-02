@@ -19,7 +19,8 @@ import { itemKind, KINDS } from "@/studio/lib/file-kinds";
 import { itemNoun, plural, pluralWord } from "@/studio/lib/format";
 import { filesUrl } from "@/studio/lib/routes";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
-import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState } from "@/studio/lib/item-folders";
+import { dirsAbove, disambiguate, folderCount, inFolder, inQueue, itemTree, mixesKinds, QUEUE_FILTERS, showFilePaths, showSourceLabels, type ItemDir, type ItemState, type QueueFilter } from "@/studio/lib/item-folders";
+import { kindFolder, queueCountsByKind } from "@/studio/lib/per-kind";
 import { bundleCount, HOVER_DELAY_MS, ItemHoverCard } from "./item-hover-card";
 import { ItemThumb } from "./item-thumb";
 import { DropOverlay, usePickers } from "@/studio/components/uploads/uploads";
@@ -211,6 +212,12 @@ export function FilesPanel({ items, env, project }: PanelProps) {
     for (const f of QUEUE_FILTERS) out[f.id] = matching.filter((i) => inQueue(stateOf(items[i]), f.id)).length;
     return out;
   }, [matching, items, stateOf]);
+  // todo19 D8: the same counts per kind (item counts only; throughput units never add up across kinds).
+  const byKind = useMemo(
+    () => (mixed ? queueCountsByKind(matching.map((i) => items[i]), (k) => stateOf(items[matching[k]]), env.dataKind.id).byKind : {}),
+    [mixed, matching, items, stateOf, env.dataKind.id],
+  );
+  const kindTitle = (f: QueueFilter) => Object.entries(byKind).map(([k, c]) => `${kindFolder(k)} ${c[f]}`).join(" · ") || undefined;
   const queued = matching.filter((i) => inQueue(stateOf(items[i]), queueFilter));
 
   const hovered = hover ? items[hover.index] : undefined;
@@ -265,6 +272,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
                 )}
                 data-testid="queue-chip"
                 data-filter={f.id}
+                title={kindTitle(f.id)}
               >
                 {f.label}
                 <span className="tnum text-hint">{counts[f.id]}</span>

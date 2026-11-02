@@ -13,8 +13,10 @@ import { ActionTooltipContent, Tooltip, TooltipTrigger } from "@studio/ui/ui/too
 import type { ShortcutId } from "@studio/ui/shortcuts";
 import { labelColor } from "@studio/plugin-ui-sdk/labels";
 import { cn } from "@studio/ui/utils";
-import { labelNames } from "@studio/contracts/environment";
-import type { Registered } from "@/extension-host/registry";
+import { labelNames, type LabelGroup } from "@studio/contracts/environment";
+import { registry, type Registered } from "@/extension-host/registry";
+import { labelsForItem, toolsForItem } from "@/studio/lib/per-kind";
+
 import { execute } from "@/extension-host/commands";
 import { visibleToolbarCommands } from "@/extension-host/contributions-loader";
 import type { ResolvedEnv } from "@/extension-host/resolve";
@@ -23,6 +25,8 @@ import { rememberTool, useToolPrefs } from "@/studio/stores/tool-prefs";
 import { GROUP_TITLES, toolbarLayout } from "./toolbar-layout";
 import type { Project, StudioItem } from "@studio/contracts/types";
 import { SlotTabs } from "./LeftSidebar";
+
+const labelControlOf = (g: LabelGroup) => registry.list("labelControls", (x) => x.name === g.control || x.id === g.control)[0];
 
 /**
  * Tools, undo/redo, the active tool's options and the active label. Everything comes from the
@@ -38,8 +42,9 @@ export function CanvasToolbar({ env, project, items, item }: { env: ResolvedEnv;
   const redo = useStudio((s) => s.redo);
   const canUndo = useStudio((s) => s.past.length > 0);
   const canRedo = useStudio((s) => s.future.length > 0);
-  const tools = env.tools;
-  const labels = labelNames(env.labels);
+  // todo19 D7: a drawing tool shows only when a label that applies to this item's kind uses its geometry.
+  const tools = useMemo(() => toolsForItem(env, item, labelControlOf), [env, item]);
+  const labels = labelNames(labelsForItem(env, item));
   const active = tools.find((t) => t.name === tool);
   const drawing = active?.creates !== undefined;
   const lastUsed = useToolPrefs((s) => s.lastUsed[env.id]);

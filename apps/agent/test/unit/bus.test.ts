@@ -54,6 +54,20 @@ describe("memory bus", () => {
   });
 });
 
+describe("memory bus: deleteRuns", () => {
+  it("forgets the runs' logs", async () => {
+    const bus = new MemoryRunEventBus(20);
+    for (const id of ["run_a", "run_b"]) {
+      const log = new EventLog(id);
+      bus.attach(log);
+      log.push({ type: "text", delta: "x" });
+    }
+    await bus.deleteRuns(["run_a"]);
+    expect(await bus.oldestSeq("run_a")).toBeUndefined();
+    expect(await bus.oldestSeq("run_b")).toBe(1);
+  });
+});
+
 describe.skipIf(!REDIS)("redis bus", () => {
   const prefix = `agenttest${randomUUID().slice(0, 8)}`;
   const buses: RunEventBus[] = [];
@@ -123,6 +137,17 @@ describe.skipIf(!REDIS)("redis bus", () => {
       [3, "error"],
       [4, "done"],
     ]);
+  });
+
+  it("deleteRuns drops the runs' streams and nothing else (todo14 D9)", async () => {
+    const bus = await make();
+    const [gone1, gone2, kept] = [1, 2, 3].map(() => `run_${randomUUID()}`);
+    for (const id of [gone1, gone2, kept]) await bus.publish(ev(id!, 1));
+    await bus.deleteRuns([gone1!, gone2!]);
+    await bus.deleteRuns([]);
+    expect(await bus.oldestSeq(gone1!)).toBeUndefined();
+    expect(await bus.oldestSeq(gone2!)).toBeUndefined();
+    expect(await bus.oldestSeq(kept!)).toBe(1);
   });
 
   it("signals reach every instance", async () => {

@@ -61,6 +61,11 @@ server {
   # token as the bearer (and in X-Agent-Service-Token), `workos` forwards the person's access
   # token as the bearer and the service token in X-Agent-Service-Token only.
   # SSE run streams: no buffering, no compression, hour-long timeouts.
+  # Service-only agent routes (todo14 D9: deleting an org's or a member's conversations) are
+  # never reachable from the browser. nginx matches the decoded, normalized URI. Same rule as
+  # dev/agent-internal.ts for the Vite proxy.
+  location ^~ /api/agent/internal { return 404; }
+
   location /api/agent/ {
     include /tmp/nginx/conf.d/agent-auth/${INKLING_WEB_AUTH_MODE}.inc;
     set $agent_upstream ${INKLING_AGENT_URL};

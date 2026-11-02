@@ -33,10 +33,19 @@ export interface VolumeSource {
 /** Sequence of a subject's reference (ground-truth) segmentation, shown read-only. */
 export const REFERENCE_SEQUENCE = "seg";
 
+/** BraTS `_seg` / `_gt` names are reference segmentations even when untagged (todo18 P1). */
+export function isReferencePath(path: string): boolean {
+  return /_(seg|gt)\.(nii\.gz|nii)$/i.test(path);
+}
+
+function isReference(a: Pick<SeedAsset, "path" | "sequence">): boolean {
+  return a.sequence === REFERENCE_SEQUENCE || (!a.sequence && isReferencePath(a.path)) || a.sequence?.toLowerCase() === "seg";
+}
+
 export function volumeSources(assets: Pick<SeedAsset, "path" | "sequence">[]): VolumeSource[] {
   const groups = new Map<string, VolumeSource>();
   for (const a of assets) {
-    if (a.sequence === REFERENCE_SEQUENCE) continue;
+    if (isReference(a)) continue;
     const dicom = isDicomPath(a.path);
     const key = a.sequence ?? (dicom ? "series" : a.path);
     const g = groups.get(key) ?? { key, label: a.sequence ?? (dicom ? "Series" : a.path.split("/").pop()!), kind: dicom ? "dicom" : "nifti", paths: [] };
@@ -51,6 +60,6 @@ export function initialSource(sources: VolumeSource[], preferred?: string): Volu
   return sources.find((s) => s.key === preferred) ?? sources[0];
 }
 
-export function referenceAsset<A extends Pick<SeedAsset, "sequence">>(assets: A[]): A | undefined {
-  return assets.find((a) => a.sequence === REFERENCE_SEQUENCE);
+export function referenceAsset<A extends Pick<SeedAsset, "sequence" | "path">>(assets: A[]): A | undefined {
+  return assets.find((a) => a.sequence === REFERENCE_SEQUENCE) ?? assets.find((a) => isReference(a));
 }

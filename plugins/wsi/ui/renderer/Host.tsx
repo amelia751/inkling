@@ -4,6 +4,7 @@ import { regionOf } from "@studio/renderers/overlay2d/regions";
 import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
 import { cn } from "@studio/ui/utils";
 import { labelNames } from "@studio/contracts/environment";
+import { derivativeNotice } from "@studio/contracts/types";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import { useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { fromGeoJSON } from "../io";
@@ -23,7 +24,21 @@ const IMPORT = `${WSI}.commands.importGeoJSON`;
  * `mpp` to the runtime and binds keys through commands; colour adjustments arrive from
  * the `adjust` viewport-bar panel through the runtime (`adjust`).
  */
-export function OsdRenderer({ project, item, config, runtime }: RendererProps) {
+export function OsdRenderer(props: RendererProps) {
+  // todo18 D4: an uploaded SVS/NDPI/MRXS opens from its DZI once the worker tiled it.
+  const asset = props.item.assets.find((a) => a.path.endsWith(".dzi")) ?? props.item.assets[0];
+  const notice = asset ? derivativeNotice(asset) : null;
+  if (notice) {
+    return (
+      <div className="relative h-full w-full" data-testid="wsi-derivative-notice">
+        <CanvasNotice loading={notice.busy}>{notice.text}</CanvasNotice>
+      </div>
+    );
+  }
+  return <OsdHost {...props} />;
+}
+
+function OsdHost({ project, item, config, runtime }: RendererProps) {
   const cfg = config as WsiConfig;
   const asset = item.assets.find((a) => a.path.endsWith(".dzi")) ?? item.assets[0];
   const stageRef = useRef<HTMLDivElement>(null);

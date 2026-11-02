@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { labelNames } from "@studio/contracts/environment";
 import type { RendererProps } from "@studio/plugin-ui-sdk/module";
-import type { Annotation } from "@studio/contracts/types";
+import { derivativeNotice, viewPath, type Annotation } from "@studio/contracts/types";
 import { useViewport2D } from "@studio/renderers/overlay2d/useViewport2D";
 import { CanvasNotice } from "@studio/renderers/viewport-chrome/CanvasNotice";
 import { formatTime } from "@studio/renderers/viewport-chrome/format";
@@ -23,13 +23,22 @@ let perFrameDefault = false;
 
 /** Remount per item so decoder, clock and camera state never leak between videos. */
 export function VideoRenderer(props: RendererProps) {
+  // todo18 D4: an AVI/MOV/MKV plays from its MP4 once the worker converted it.
+  const notice = derivativeNotice(props.item.assets[0] ?? {});
+  if (notice) {
+    return (
+      <div className="relative h-full w-full" data-testid="video-derivative-notice">
+        <CanvasNotice loading={notice.busy}>{notice.text}</CanvasNotice>
+      </div>
+    );
+  }
   return <VideoHost key={props.item.id} {...props} />;
 }
 
 function VideoHost({ project, item, runtime }: RendererProps) {
   const asset = item.assets[0];
   const fps = asset.fps ?? 25;
-  const url = assetUrl(asset.path);
+  const url = assetUrl(viewPath(asset));
   const labels = useMemo(() => labelNames(project.labels), [project.labels]);
 
   const [engine] = useState(() => new VideoEngine({ url, fps, frames: asset.frames, duration: asset.duration, width: asset.width, height: asset.height }));

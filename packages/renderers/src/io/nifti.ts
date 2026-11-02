@@ -1,5 +1,6 @@
 import * as nifti from "nifti-reader-js";
 import { assetUrl } from "@studio/plugin-ui-sdk";
+import { chooseAffine, isLabelVolume } from "./niftiChecks";
 
 export interface Volume {
   dims: [number, number, number];
@@ -15,6 +16,27 @@ export interface Volume {
   data: Float32Array;
   /** Display window [low, high] from robust percentiles. */
   window: [number, number];
+  /** todo18: an integer volume with ≤ 16 distinct values: a label map, shown as a mask. */
+  labelMap?: boolean;
+  /** todo18: the header's qform and sform disagree (orientation follows the sform). */
+  orientationWarning?: string;
+}
+
+/** NIfTI integer datatypes (uint8, int16, int32, int8, uint16, uint32, int64, uint64). */
+const INTEGER_TYPES = new Set([2, 4, 8, 256, 512, 768, 1024, 1280]);
+
+interface NiftiAffineHeader {
+  qform_code?: number;
+  sform_code?: number;
+  affine?: number[][];
+  getQformMat?: () => number[][];
+}
+
+/** The qform/sform check on a header (nifti-reader-js: `affine` is the sform when sform_code > 0). */
+export function headerOrientationWarning(h: NiftiAffineHeader): string | undefined {
+  const q = h.getQformMat?.();
+  if (!q || !h.affine) return undefined;
+  return chooseAffine({ code: h.qform_code ?? 0, affine: q.flat() }, { code: h.sform_code ?? 0, affine: h.affine.flat() }).warning;
 }
 
 const cache = new Map<string, Promise<Volume>>();
@@ -54,6 +76,8 @@ async function fetchVolume(path: string): Promise<Volume> {
     calibrated: header.pixDims[1] > 0 && header.pixDims[2] > 0,
     data,
     window: robustWindow(data),
+    labelMap: INTEGER_TYPES.has(header.datatypeCode) && slope === 1 && inter === 0 && isLabelVolume(true, sampleValues(data)),
+    orientationWarning: headerOrientationWarning(header as unknown as NiftiAffineHeader),
   };
 }
 
@@ -91,4 +115,9 @@ function robustWindow(data: Float32Array): [number, number] {
   const lo = sample[Math.floor(sample.length * 0.005)];
   const hi = sample[Math.floor(sample.length * 0.995)];
   return [lo, hi > lo ? hi : lo + 1];
+}
+
+/** Every value (stopping early inside isLabelVolume once there are more than 16). */
+function* sampleValues(data: Float32Array): Generator<number> {
+  for (let i = 0; i < data.length; i++) yield data[i];
 }

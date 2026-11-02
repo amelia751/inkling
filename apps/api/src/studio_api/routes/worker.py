@@ -215,6 +215,75 @@ def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends
     return inspection.report(db, import_id, body)
 
 
+# ---- Media derivatives (todo18 D4): video → MP4, slide → DZI.
+
+
+@router.post("/derivatives/claim", dependencies=[Depends(_auth)])
+def claim_derivatives(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    from ..kernel import derivatives
+
+    rows = derivatives.claim(db, int(body.get("limit") or 1), int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS))
+    db.commit()
+    return {"derivatives": [derivatives.public(r) for r in rows]}
+
+
+@router.post("/derivatives/{did}/progress", dependencies=[Depends(_auth)])
+def derivative_progress(did: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import derivatives
+
+    derivatives.progress(db, derivatives.get(db, did), int(body.get("progress") or 0))
+    db.commit()
+    return {"ok": True}
+
+
+@router.put("/derivatives/{did}/files/{rel:path}", dependencies=[Depends(_auth)])
+async def derivative_file(did: str, rel: str, request: Request, db: Session = Depends(get_session)):
+    from ..kernel import derivatives
+
+    from .. import blobstore
+
+    row = derivatives.get(db, did)
+    key = derivatives.file_key(row, rel)
+    ctype = request.headers.get("Content-Type") or "application/octet-stream"
+    # Spooled to /tmp and handed to the BlobStore as a file (a converted video can be
+    # gigabytes): never held in memory.
+    import os
+    import tempfile
+
+    size = 0
+    with tempfile.NamedTemporaryFile(prefix="derive-", delete=False) as f:
+        async for chunk in request.stream():
+            size += len(chunk)
+            f.write(chunk)
+    try:
+        blobstore.data().put_file(key, f.name, ctype)
+    finally:
+        os.unlink(f.name)
+    derivatives.register_file(db, row, key, ctype, size)
+    db.commit()
+    return {"key": key}
+
+
+@router.post("/derivatives/{did}/complete", dependencies=[Depends(_auth)])
+def derivative_complete(did: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import derivatives
+
+    row = derivatives.get(db, did)
+    derivatives.complete(db, row, sha=str(body["sha"]), key=str(body["key"]), keys=[str(k) for k in body.get("keys") or []], meta=body.get("meta") or {})
+    db.commit()
+    return derivatives.public(row)
+
+
+@router.post("/derivatives/{did}/fail", dependencies=[Depends(_auth)])
+def derivative_fail(did: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import derivatives
+
+    row = derivatives.get(db, did)
+    derivatives.fail(db, row, str(body.get("reason") or "Conversion failed"), retry=bool(body.get("retry")), max_attempts=int(body.get("maxAttempts") or derivatives.DEFAULT_MAX_ATTEMPTS))
+    db.commit()
+    return derivatives.public(row)
+
+
 # ---- Item derivatives (todo11 D8): the worker's built-in `items` processor claims uploaded
 # items (visible first), reads their bytes, stores a thumbnail and a preview, and reports stages.
 

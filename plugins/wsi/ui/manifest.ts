@@ -46,7 +46,7 @@ export default defineModule({
   requires: [ns("overlay2d")],
   contributes: {
     dataKinds: [
-      { id: "raster-pyramid", label: "Whole-slide", icon: SlideIcon, itemNoun: "slide", match: { ext: [".dzi", ".svs", ".tiff"] }, fileKinds: ["slide"], groupItems, description: "One item per pyramid (slide); thumbnails are skipped" },
+      { id: "raster-pyramid", label: "Whole-slide", icon: SlideIcon, itemNoun: "slide", match: { ext: [".dzi", ".svs", ".tiff", ".tif", ".ndpi", ".mrxs"] }, fileKinds: ["slide"], groupItems, description: "One item per pyramid (slide); thumbnails are skipped" },
     ],
     renderers: [
       {

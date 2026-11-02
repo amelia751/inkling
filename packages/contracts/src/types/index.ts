@@ -31,6 +31,35 @@ export interface SeedAsset {
   folder?: string[];
   /** todo11 D8: an item dropped into a Studio, while (and after) it ingests. */
   ingest?: AssetIngest;
+  /** todo18 D5: per-item meta from a sidecar (ACDC Info.cfg: `ed`/`es` 0-based frames, group, height, weight). */
+  meta?: Record<string, string | number | null>;
+  /** todo18 D4: the browser-viewable file the worker made (video → MP4, slide → DZI). */
+  derivative?: AssetDerivative;
+}
+
+export interface AssetDerivative {
+  kind: "video-mp4" | "slide-dzi" | string;
+  state: "processing" | "ready" | "failed";
+  progress?: number;
+  /** "Converting video" / "Preparing slide". */
+  label?: string;
+  error?: string;
+  /** Asset path of the derivative when ready (sign with `assetUrl`). */
+  src?: string;
+}
+
+/** The path a viewer opens: the derivative when one is ready, else the file itself. */
+export function viewPath(asset: Pick<SeedAsset, "path" | "derivative">): string {
+  return asset.derivative?.state === "ready" && asset.derivative.src ? asset.derivative.src : asset.path;
+}
+
+/** What to show instead of the viewer while a derivative is made or after it failed; null when the file can open. */
+export function derivativeNotice(asset: Pick<SeedAsset, "derivative">): { busy: boolean; text: string } | null {
+  const d = asset.derivative;
+  if (!d || d.state === "ready") return null;
+  if (d.state === "failed") return { busy: false, text: d.error || "This file couldn't be converted" };
+  const label = d.label || (d.kind === "slide-dzi" ? "Preparing slide" : "Converting video");
+  return { busy: true, text: d.kind === "slide-dzi" ? `${label} (${Math.round(d.progress ?? 0)} %)` : `${label}…` };
 }
 
 /** Item lifecycle (todo11 §6): `item.<state>` events on the project stream move an item along. */

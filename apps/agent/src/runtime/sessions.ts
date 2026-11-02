@@ -26,6 +26,7 @@ import type {
   SendMessageRequest,
   SessionInfo,
 } from "@studio/agent-protocol";
+import { REFRESH_TOKEN_TOOL } from "@studio/agent-protocol";
 import { NAMING } from "../naming.ts";
 import { type EgressPolicy, SANDBOX_CWD } from "../sandbox/defaults.ts";
 import { DaytonaProvider, type SandboxProvider } from "../sandbox/provider.ts";
@@ -398,6 +399,15 @@ export class SessionService {
       token: () => ctx.kernelToken,
       // todo16 D9: the run is the turn; the kernel journals every write under it (X-Turn-Id).
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
+      // todo18 D: a long run outlives the delegated token; ask the browser for a fresh one.
+      refresh: async () => {
+        if (!ctx.activeRun) return false;
+        const r = await ctx.bridge.request(`tok_${randomUUID()}`, REFRESH_TOKEN_TOOL, {}).catch(() => undefined);
+        const token = r?.ok ? (r.output as { token?: unknown } | null)?.token : undefined;
+        if (typeof token !== "string" || !token) return false;
+        ctx.kernelToken = token;
+        return true;
+      },
       fetchImpl: this.deps.fetchImpl,
     });
     ctx.kernel = kernel;

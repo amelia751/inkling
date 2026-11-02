@@ -67,14 +67,27 @@ const RETRY_MS = [500, 1000, 2000, 4000, 8000];
  * seen) when the connection drops; a 404 means the run is gone (e.g. the service restarted).
  * Uses fetch rather than EventSource so it can stop on `done`, report HTTP errors and abort.
  */
-export async function followRun(runId: string, after: number, onEvent: (e: AgentEvent) => void | Promise<void>, signal: AbortSignal): Promise<void> {
+export const RUN_GONE = "This reply ended on the server; your chat is still here.";
+
+export async function followRun(
+  runId: string,
+  after: number,
+  onEvent: (e: AgentEvent) => void | Promise<void>,
+  signal: AbortSignal,
+  onConnection?: (state: "reconnecting" | "connected") => void,
+): Promise<void> {
   let last = after;
+  let reconnecting = false;
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await apiFetch(`${BASE()}/runs/${runId}/events?after=${last}`, { headers: { Accept: "text/event-stream" }, signal });
-      if (res.status === 404) throw new AgentHttpError(404, "This run is no longer available.");
+      if (res.status === 404) throw new AgentHttpError(404, RUN_GONE);
       if (!res.ok || !res.body) throw new AgentHttpError(res.status, `Event stream failed (${res.status}).`);
       attempt = 0;
+      if (reconnecting) {
+        reconnecting = false;
+        onConnection?.("connected");
+      }
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buf = "";
       for (;;) {
@@ -103,6 +116,10 @@ export async function followRun(runId: string, after: number, onEvent: (e: Agent
       if (attempt >= RETRY_MS.length) throw err;
     }
     // The stream ended without `done` (proxy hiccup, service restart): reconnect from `last`.
+    if (!reconnecting) {
+      reconnecting = true;
+      onConnection?.("reconnecting");
+    }
     await new Promise((r) => setTimeout(r, RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)]));
     if (signal.aborted) throw new DOMException("aborted", "AbortError");
   }

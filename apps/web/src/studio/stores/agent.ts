@@ -6,6 +6,7 @@ import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
 import { AgentHttpError, answerClientTool, cancelRun, createSession, decideApproval, deleteSession, followRun, sendMessage } from "@/studio/lib/agent/client";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import { api } from "@/studio/lib/projects-api";
+import { REFRESH_TOKEN_TOOL } from "@studio/agent-protocol";
 import type { AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
@@ -17,7 +18,7 @@ export type MessagePart =
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
   | { type: "card"; id: string; card: AgentCard; state: CardState }
-  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail }
+  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail; toolCallId?: string; failed?: string }
   | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
   | { type: "artifact"; id: string; name: string; bytes: number }
   | { type: "status"; text: string }
@@ -38,6 +39,8 @@ export interface ChatMessage {
   runStatus?: RunStatus;
   error?: string;
   stopped?: boolean;
+  /** todo18 D: the event stream dropped and is reconnecting (not persisted meaning: cleared on reconnect or end). */
+  reconnecting?: boolean;
   usage?: { inputTokens: number; outputTokens: number; cachedTokens: number; costUsd: number };
   sandbox?: SandboxState;
 }
@@ -156,7 +159,7 @@ const plainSummary = (output: unknown): string | undefined => {
   return undefined;
 };
 
-function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
+export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
   const parts = [...m.parts];
   const last = parts[parts.length - 1];
   const at = (pred: (p: MessagePart) => boolean) => parts.findIndex(pred);
@@ -188,10 +191,15 @@ function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
         // A summary the browser already set (card and environment tools) is more specific than the service's.
         parts[i] = { ...p, status: e.ok ? "done" : "error", summary: p.summary ?? e.summary, input: e.input };
       }
+      // todo18 D: approved, then the tool failed (target gone): the card says so.
+      if (!e.ok) {
+        const j = at((p) => p.type === "approval" && p.toolCallId === e.id && p.state === "approved");
+        if (j >= 0) parts[j] = { ...(parts[j] as Extract<MessagePart, { type: "approval" }>), failed: e.summary || "The change didn't apply." };
+      }
       return { ...m, parts };
     }
     case "approval":
-      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt, detail: e.detail });
+      parts.push({ type: "approval", id: e.approvalId, toolName: e.toolName, summary: e.summary, inputPreview: e.inputPreview, state: "pending", expiresAt: e.expiresAt, detail: e.detail, toolCallId: e.toolCallId });
       return { ...m, parts };
     case "approval-resolved": {
       const i = at((p) => p.type === "approval" && p.id === e.approvalId);
@@ -243,6 +251,13 @@ export const useAgent = create<AgentState>()(
         a.answered.push(e.callId);
         set({ active: { ...a } });
         let outcome: ClientToolOutcome;
+        if (e.name === REFRESH_TOKEN_TOOL) {
+          // todo18 D: the service's delegated token expired mid-run; mint a fresh one (no host needed).
+          const profile = get().sessions[a.projectId]?.profile ?? get().profile;
+          const token = await kernelToken(a.projectId, profile).catch(() => undefined);
+          await answerClientTool(a.runId, e.callId, token ? { ok: true, output: { token } } : { ok: false, output: { error: "Could not refresh access" } }).catch(() => {});
+          return;
+        }
         if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: STUDIO_CLOSED }, summary: "The Studio isn't open" };
         else {
           try {
@@ -291,6 +306,7 @@ export const useAgent = create<AgentState>()(
               set({ active: { ...cur, lastSeq: e.seq } });
             },
             ctl.signal,
+            (state) => patchMessage(a.projectId, a.messageId, (m) => ({ ...m, reconnecting: state === "reconnecting" })),
           );
         } catch (err) {
           if (!ctl.signal.aborted) {
@@ -303,6 +319,7 @@ export const useAgent = create<AgentState>()(
             // Tools still marked running when a run ends were cut off.
             patchMessage(a.projectId, a.messageId, (m) => ({
               ...m,
+              reconnecting: false,
               parts: m.parts.map((p) =>
                 p.type === "tool" && p.status === "running" ? { ...p, status: "error" as const, summary: p.summary ?? "Stopped" } : p.type === "approval" && p.state === "pending" ? { ...p, state: "expired" as const } : p,
               ),

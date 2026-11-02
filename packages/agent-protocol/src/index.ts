@@ -213,6 +213,12 @@ export interface SendMessageResponse {
   steered: boolean;
 }
 
+/**
+ * todo18 D: a reserved browser call (never a model tool). The service asks for it when the
+ * delegated kernel token expired mid-run; the browser answers `{ token }`, panel open or not.
+ */
+export const REFRESH_TOKEN_TOOL = "__refresh_kernel_token";
+
 export interface ClientToolResultRequest {
   ok: boolean;
   output: unknown;

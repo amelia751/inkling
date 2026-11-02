@@ -6,7 +6,7 @@ vi.mock("@/studio/lib/agent/client", async (orig) => ({ ...(await orig<object>()
 import { AgentHttpError } from "@/studio/lib/agent/client";
 import { findItem, runCardTool } from "@/studio/lib/agent/card-tools";
 import { secondsLeft } from "@/studio/lib/agent/approval";
-import { BLOCKED_PREFIX, raceAbort, TOOL_STOPPED, useAgent, type ChatMessage } from "./agent";
+import { BLOCKED_PREFIX, raceAbort, reduce, TOOL_STOPPED, useAgent, type ChatMessage } from "./agent";
 
 const approval = (expiresAt: number): ChatMessage => ({
   id: "m1",
@@ -79,5 +79,13 @@ describe("todo18 D assistant store", () => {
     const r = runCardTool("show_items", { itemIds: ["scan"] }, ctx);
     expect(r.ok).toBe(false);
     expect(r.summary).toBe("Which item?");
+  });
+
+  it("approved, then the tool failed: the card is patched with the failure", () => {
+    let m: ChatMessage = { id: "m", role: "assistant", parts: [] };
+    m = reduce(m, { type: "approval", approvalId: "a1", toolCallId: "c1", toolName: "trash", summary: "s", inputPreview: "{}", expiresAt: Date.now() + 1e5 } as never);
+    m = reduce(m, { type: "approval-resolved", approvalId: "a1", decision: "approve" } as never);
+    m = reduce(m, { type: "tool-result", id: "c1", ok: false, summary: "Target is gone", input: {} } as never);
+    expect(m.parts[0]).toMatchObject({ state: "approved", failed: "Target is gone" });
   });
 });

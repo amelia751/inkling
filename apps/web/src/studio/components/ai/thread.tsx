@@ -12,7 +12,7 @@ import { artifactUrl } from "@/studio/lib/agent/client";
 import { approveInstall, getInstallRequest, rejectInstall, type InstallRequest } from "@/studio/lib/plugins-api";
 import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
-import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
+import { BLOCKED_PREFIX, useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import { exploreUrl, trashUrl } from "@/studio/lib/routes";
 import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
@@ -167,11 +167,17 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
         </p>
       )}
       {idle && <Pending queued={message.runStatus === "queued"} />}
+      {message.reconnecting && !message.error && (
+        <p className="text-hint text-warning" data-testid="agent-reconnecting">
+          Reconnecting…
+        </p>
+      )}
       {message.error && (
         <div className="self-start" role="alert">
           <Meta />
           <p className="text-chat break-words text-muted-foreground italic">{message.error}</p>
-          {onRetry && (
+          {message.error.startsWith(BLOCKED_PREFIX) && <BlockedStop />}
+          {onRetry && !message.error.startsWith(BLOCKED_PREFIX) && (
             <Button variant="outline" size="sm" className="mt-2" onClick={onRetry}>
               <RetryIcon /> Retry
             </Button>
@@ -334,6 +340,18 @@ function ApprovalAlert({ title, children }: { title: string; children: ReactNode
   );
 }
 
+/** todo18 D: a send refused because another project's run is active; Stop it from here. */
+function BlockedStop() {
+  const running = useAgent((s) => s.running);
+  const stop = useAgent((s) => s.stop);
+  if (!running) return <p className="text-hint">That reply has finished; send again.</p>;
+  return (
+    <Button variant="outline" size="sm" className="mt-2" onClick={stop} data-testid="agent-blocked-stop">
+      <CloseIcon /> Stop it
+    </Button>
+  );
+}
+
 function Decided({ state, approved = "Approved", children }: { state: "approved" | "rejected" | "expired" | "pending"; approved?: string; children?: ReactNode }) {
   return (
     <div className="flex h-6 items-center gap-1.5 text-hint">
@@ -405,6 +423,11 @@ function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart
         </>
       ) : (
         <Decided state={part.state === "pending" ? "expired" : part.state}>
+          {part.failed && (
+            <span className="text-destructive" data-testid="agent-approval-failed">
+              Approved, but it failed: {part.failed}
+            </span>
+          )}
           {proposal && part.state === "approved" && (
             <Link to={exploreUrl(projectId, proposal.proposalKind === "mapping" ? "mappings" : "relationships")} className="ml-auto text-brand underline-offset-2 hover:underline" data-testid="agent-proposal-link">
               Review in Explore

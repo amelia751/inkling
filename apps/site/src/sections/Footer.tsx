@@ -3,13 +3,24 @@ import { APP_URL, FOOTER, NAME } from "@/content";
 import { stagger, useReveal } from "@/lib/motion";
 import { Logo } from "./Header";
 
+const LANE_COLORS = ["var(--color-lime)", "var(--color-violet)", "var(--color-sky)", "white", "var(--color-lilac)"];
+
+/** The hero's labelled lanes, frozen: five rows of tiles with gaps, denser toward the right. */
+const TILES = Array.from({ length: 5 * 30 }, (_, i) => {
+  const row = Math.floor(i / 30);
+  const col = i % 30;
+  const hash = Math.sin(i * 12.9898) * 43758.5453;
+  const r = hash - Math.floor(hash);
+  return [col * 25, 20 + row * 44, LANE_COLORS[row], r < col / 34 ? 0.2 : 0] as const;
+}).filter((t) => t[3] > 0);
+
 export function Footer() {
   const ref = useReveal<HTMLElement>();
   return (
     <footer id="start" ref={ref} className="relative overflow-hidden bg-ink text-white">
-      <svg aria-hidden className="pointer-events-none absolute -top-40 right-0 h-[520px] w-[900px] opacity-[0.18] [mask-image:linear-gradient(90deg,transparent,black_45%)]" viewBox="0 0 900 520" fill="none">
-        {Array.from({ length: 22 }, (_, i) => (
-          <path key={i} d={`M0 ${380 - i * 6} C 260 ${120 + i * 9}, 520 ${520 - i * 11}, 900 ${160 + i * 4}`} stroke="var(--color-lime)" strokeWidth="1.2" />
+      <svg aria-hidden className="pointer-events-none absolute top-10 right-0 h-[240px] w-[760px] [mask-image:linear-gradient(90deg,transparent,black_60%)]" viewBox="0 0 760 240" fill="none">
+        {TILES.map(([x, y, c, o], i) => (
+          <rect key={i} x={x} y={y} width="14" height="14" rx="3" fill={c} opacity={o} />
         ))}
       </svg>
       <div className="relative shell pt-24 pb-16">

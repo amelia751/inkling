@@ -14,6 +14,13 @@ const strList = (description: string) => ({ type: "array", items: { type: "strin
 
 export const CARD_TOOLS: ClientToolSpec[] = [
   {
+    name: "request_upload",
+    title: "Asking for files",
+    description:
+      "Ask the user to add files: shows a drop zone in the chat bound to this project (and optionally a folder). They pick or drop the files; you never see the bytes, only the drop's facts on their next message. Use when they want to add data they have on their computer.",
+    input_schema: obj({ reason: str("One sentence on what to add, e.g. 'Drop the chest X-ray folder here'."), folderId: str("Optional: a folder id from list_folder to land in.") }, ["reason"]),
+  },
+  {
     name: "show_items",
     title: "Preparing item list",
     description: "Show the expert a clickable list of items (e.g. unannotated scans) so they can jump to each one. Use after list_items or run_validation.",
@@ -183,6 +190,10 @@ export function runCardTool(name: string, input: Json, ctx?: AgentContext): Card
           summary: `${action === "accept" ? "Accept" : "Reject"} ${plural(chosen.length, "suggestion")}`,
           card: { kind: "review-suggestions", action, annotationIds: chosen, reason: String(input.reason ?? "") },
         };
+      }
+      case "request_upload": {
+        const folderId = typeof input.folderId === "string" && /^[A-Za-z0-9:_.-]{1,128}$/.test(input.folderId) ? input.folderId : undefined;
+        return { ok: true, output: { shown: true }, summary: "Asked for files", card: { kind: "upload-request", reason: String(input.reason ?? "").slice(0, 300), ...(folderId ? { folderId } : {}) } };
       }
       case "propose_reorganization": {
         const r = parseReorgPlan(input);

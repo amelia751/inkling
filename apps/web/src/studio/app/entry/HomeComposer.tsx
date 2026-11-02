@@ -111,8 +111,8 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
         align={projects && !projects.length ? "center" : "start"}
         composer
         title="What are you working on?"
-        description={<>Drop files here, or describe it: “Label 200 chest X-rays as normal or pneumonia.”</>}
-        placeholder="Describe what you're making, or drop files here"
+        description="Describe the task or drop your data. The assistant sets up the rest."
+        placeholder="Label 200 chest X-rays as normal or pneumonia…"
         value={text}
         onValueChange={setText}
         onSend={(t) => begin({ kind: "send", text: t })}

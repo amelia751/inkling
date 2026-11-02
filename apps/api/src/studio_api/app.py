@@ -16,6 +16,9 @@ from .naming import naming
 from .auth import routes as auth_routes
 from .auth.session import session_middleware
 from .kernel import service_scope
+from .routes import audit as audit_routes
+from .routes import me as me_routes
+from .routes import org_security
 from .routes import boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
 
 log = logging.getLogger(__name__)
@@ -104,6 +107,9 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(drops.router)
     app.include_router(organize.router)
     app.include_router(unpack.router)
+    app.include_router(org_security.router)
+    app.include_router(audit_routes.router)
+    app.include_router(me_routes.router)
 
     @app.get("/api/v1/health")
     def health():

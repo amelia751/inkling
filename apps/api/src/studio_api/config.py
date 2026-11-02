@@ -74,6 +74,8 @@ SDK's own unprefixed `WORKOS_*` variables are never read.
 | API_WORKOS_ISSUER         | (none: not checked)              | expected `iss` of access tokens |
 | API_WORKOS_BASE_URL       | https://api.workos.com/          | WorkOS API base; WorkOS Emulate (`http://localhost:4100/`) in dev and CI |
 | API_PUBLIC_URL            | (none: from the redirect URI)    | the Studio's origin, for `return_to` checks and Admin Portal return URLs |
+| API_SESSION_MAX_HOURS     | 12                               | the session cookie's lifetime; set it to the WorkOS environment's maximum session length (Sessions tab), which is environment-wide and shown read-only on Organization › Security |
+| API_SIGNIN_METHODS        | password,google                  | the AuthKit sign-in methods turned on in the WorkOS environment (`password`, `google`, `microsoft`, `github`, `apple`, `magic_auth`, `passkey`), shown read-only on Organization › Security; the API can't read them |
 
 Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
 gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
@@ -229,6 +231,9 @@ class Settings(BaseModel):
     workos_issuer: str | None = None
     workos_base_url: str | None = None
     public_url: str | None = None
+    # Organization › Security (todo9 Phase 9): environment-wide in WorkOS, so read-only there.
+    session_max_hours: int = 12
+    signin_methods: str = "password,google"
 
     @property
     def workos(self) -> bool:
@@ -323,6 +328,8 @@ _KEYS: dict[str, str] = {
     "workos_issuer": "API_WORKOS_ISSUER",
     "workos_base_url": "API_WORKOS_BASE_URL",
     "public_url": "API_PUBLIC_URL",
+    "session_max_hours": "API_SESSION_MAX_HOURS",
+    "signin_methods": "API_SIGNIN_METHODS",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

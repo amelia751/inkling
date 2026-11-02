@@ -66,6 +66,15 @@ Image digests are not in `local.env`: CI pushes to each project's `images` regis
 | 3 | `phi/components/pipeline-connectors`: Workload Identity for the pipeline, its Pub/Sub settings, `pipeline` in the `google-apis` policy | apply phi with `pipeline_connectors_enabled=true`, then add the component to `phi/kustomization.yaml` before `values` |
 | 4 | `phi/components/gpu-worker`: `worker-gpu` on L4 + gVisor + Spot, its ScaledObject, PDB and policies | L4 quota granted (`gpu_workers_enabled=true` files the request; a person's step), then add the component |
 
+## Sign-in with WorkOS (todo9 Phase 14)
+
+The ExternalSecret `workos-secrets` is always on (it reports `SecretSyncedError` until the Secret
+Manager secret has a version; api and worker reference it as optional). Everything else is
+`phi/components/workos`, off: api in `workos` mode with `DEV_TRUST_HEADERS=0`, the redirect URI
+and public URL from `STUDIO_HOST`, web's `INKLING_WEB_AUTH_MODE=workos`, and NetworkPolicy
+`workos-egress` (api and worker, TCP 443 to public addresses through Cloud NAT). The flip steps
+are in `infra/k8s/README.md` ("WorkOS runbook"); keep `STUDIO_ALLOW_CIDRS` until a sign-in works.
+
 ## Installed once per cluster (Helm, not in this repo)
 
 - ingress-nginx (settings above), cert-manager with a `letsencrypt` ClusterIssuer.

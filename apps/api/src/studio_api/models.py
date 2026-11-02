@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DDL, JSON, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
+from sqlalchemy import DDL, JSON, false, true, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -474,10 +474,14 @@ class SessionDelegation(Base):
 
     __tablename__ = "session_delegations"
     token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    on_behalf_of: Mapped[str] = mapped_column(String(256))
+    on_behalf_of: Mapped[str] = mapped_column(String(256), index=True)
     # The task the person had open when they minted it (todo11 D2.1): an agent may write that
     # task's environment, besides the drafts it booted. Never taken from a later request header.
     task_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # todo9: the minter's organization and permissions at mint time. An agent's `ctx.can()` is
+    # these AND the token's scopes; revocation deletes the token (auth.session.revoke_sessions_for).
+    org_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    permissions: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
 
 class VersionedAnnotationPayload(Base):
@@ -510,20 +514,151 @@ class EventConsumption(Base):
 
 
 class Organization(Base):
-    """The account level ("Workspace" in UI copy, todo6 D1)."""
+    """The account level ("Workspace" in UI copy, todo6 D1). todo9 D4: 1:1 with a WorkOS
+    organization (`workos_org_id`; the WorkOS org's `external_id` is our id)."""
 
     __tablename__ = "organizations"
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     name: Mapped[str] = mapped_column(String(256))
     kind: Mapped[str] = mapped_column(String(16))  # personal | team
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    workos_org_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    workos_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Organization › Settings (todo9 Phase 6): our own flags, not WorkOS's.
+    zero_retention: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    ai_assist: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
 
 
 class OrganizationMember(Base):
+    """A mirror of WorkOS organization memberships (todo9 D5: WorkOS is the authority for org
+    roles). Roles are `admin | member | billing`; rows from before todo9 may still say
+    `owner | editor | viewer` (dev seeds), read as admin, member and member-read-only."""
+
     __tablename__ = "organization_members"
     org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), primary_key=True)
     principal: Mapped[str] = mapped_column(String(256), primary_key=True)
-    role: Mapped[str] = mapped_column(String(16))  # owner | editor | viewer
+    role: Mapped[str] = mapped_column(String(16))  # admin | member | billing (legacy: owner | editor | viewer)
+    workos_membership_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="active", server_default="active")  # pending | active | inactive
+    role_slugs: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    workos_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=now, nullable=True)
+
+
+# ---- Accounts (todo9 Phase 2) ------------------------------------------------------------------
+
+
+class User(Base):
+    """A person, mirrored from WorkOS (callback upsert + event sync). `id` is the principal
+    `user:<workos user id>`; dev principals (`user:local-expert`) have no row."""
+
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(256), primary_key=True)
+    workos_user_id: Mapped[str] = mapped_column(String(64), unique=True)
+    email: Mapped[str] = mapped_column(String(320), index=True)  # lower-cased
+    first_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    marketing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    last_sign_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    workos_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ProjectMember(Base):
+    """Project roles (todo9 D5): `owner` (shown as "Project admin") | reviewer | annotator |
+    viewer. Org admins are implicitly owners everywhere and need no row."""
+
+    __tablename__ = "project_members"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True, index=True)
+    role: Mapped[str] = mapped_column(String(16))
+    added_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class PendingProjectGrant(Base):
+    """A project role promised in an invitation; becomes a `project_members` row when the
+    invitation is accepted (todo9 Phase 6)."""
+
+    __tablename__ = "pending_project_grants"
+    invitation_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    role: Mapped[str] = mapped_column(String(16))
+    added_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class OrgInvitation(Base):
+    """Invitations, mirrored (workos mode: `workos_invitation_id`) or local (dev: `inv_<ulid>`)."""
+
+    __tablename__ = "org_invitations"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    role: Mapped[str] = mapped_column(String(64))
+    state: Mapped[str] = mapped_column(String(16), default="pending")  # pending | accepted | expired | revoked
+    inviter: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    workos_invitation_id: Mapped[str | None] = mapped_column(String(64), unique=True, nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    workos_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OrgApiKey(Base):
+    """Organization API keys kept locally (dev mode; workos mode uses WorkOS API keys). Only a
+    hash of the secret is stored."""
+
+    __tablename__ = "org_api_keys"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    org_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
+    name: Mapped[str] = mapped_column(String(256))
+    prefix: Mapped[str] = mapped_column(String(64))
+    secret_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    scopes: Mapped[list] = mapped_column(JSON, default=list)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuditEvent(Base):
+    """The organization audit log (todo9 Phases 3–10): account events (sign-in, members, keys).
+    Ids and non-clinical labels only. Workspace plugin actions stay in `plugin_audit`."""
+
+    __tablename__ = "audit_events"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    org_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    actor: Mapped[str] = mapped_column(String(256))
+    on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    action: Mapped[str] = mapped_column(String(128))
+    target: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    ip: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    __table_args__ = (Index("ix_audit_events_org_at", "org_id", "at"),)
+
+
+class WorkosEventCursor(Base):
+    """The Events API consumer's position (todo9 D6, Phase 7)."""
+
+    __tablename__ = "workos_event_cursor"
+    consumer: Mapped[str] = mapped_column(String(64), primary_key=True)
+    last_event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+
+
+class WorkosEventProcessed(Base):
+    """Events already applied: replaying them changes nothing."""
+
+    __tablename__ = "workos_events_processed"
+    event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class ProjectRow(Base):

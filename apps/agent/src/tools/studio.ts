@@ -24,20 +24,22 @@ export interface StudioToolsDeps {
   projectId: string;
   /** The active run, for idempotent bootIds. */
   runId: () => string | undefined;
+  /** The item open in the Studio (latest snapshot), for get_studio_state (todo19 D12). */
+  activeItem?: () => { id: string; kind?: string } | undefined;
 }
 
 const out = (value: unknown, summary: string) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }], details: { summary } });
 
 const SUMMARY: Record<StudioToolName, (r: any) => string> = {
-  boot_studio: (r) => `Studio ${r.state === "failed" ? "failed" : r.state === "ready" ? "ready" : "setting up"} (${r.preset})`,
+  boot_studio: (r) => `Studio ${r.state === "failed" ? "failed" : r.state === "ready" ? "ready" : "setting up"} (${r.accepts ? `${r.accepts.length} kinds` : r.preset})`,
   patch_studio: (r) => `Studio updated (revision ${r.revision})`,
-  get_studio_state: (r) => `Studio at revision ${r.revision}`,
+  get_studio_state: (r) => `Studio at revision ${r.revision}${r.activeItem?.kind ? ` (open item: ${r.activeItem.kind.split(".").pop()})` : ""}`,
   search_catalog: (r) => `${r.results.length} match${r.results.length === 1 ? "" : "es"}`,
   offer_studio: (r) => `Offered: ${r.offer.title}`,
 };
 
 export function createStudioTools(deps: StudioToolsDeps): ToolDefinition<any, any, any>[] {
-  const handlers = createStudioHandlers({ client: deps.client, catalog: deps.studio.catalog, intents: deps.studio.intents, projectId: deps.projectId });
+  const handlers = createStudioHandlers({ client: deps.client, catalog: deps.studio.catalog, intents: deps.studio.intents, projectId: deps.projectId, activeItem: deps.activeItem });
   // STUDIO_TOOLS has a fixed order (prompt caching).
   return STUDIO_TOOLS.map((spec) =>
     defineTool({

@@ -161,6 +161,45 @@ heading it gets in the shortcuts sheet. Declarative plugins' toolbar actions
 
 ## Environment spec
 
+A Studio is one task over a set of items, which can be of many kinds. Its environment says which
+kinds it **accepts** and, per kind, the **profile** that shows it (todo19 D2–D4):
+
+```jsonc
+{
+  "extends": ["preset:image-2d", "preset:ecg"],          // one profile per kind, deep-merged
+  "accepts": ["studio.image2d.dataKinds.raster", "studio.timeseries.dataKinds.multichannel-timeseries"],
+  "data": {
+    "kinds": {
+      "studio.image2d.dataKinds.raster": { "renderer": "studio.image2d.renderers.cornerstone-stack", "profile": "preset:image-2d" },
+      "studio.timeseries.dataKinds.multichannel-timeseries": {
+        "renderer": "studio.timeseries.renderers.strip-chart",
+        "tools": ["studio.core.tools.select"],
+        "profile": "preset:ecg"
+      }
+    }
+  },
+  "labels": [
+    { "name": "finding", "control": "Choices", "classes": [{ "id": "normal" }, { "id": "pneumonia" }],
+      "appliesTo": ["studio.image2d.dataKinds.raster"] }
+  ]
+}
+```
+
+- `data.kinds` maps a data kind id to its `KindProfile` (`renderer`, `config`, `viewports`, `tools`,
+  `panels`, `exporters`, `reviewRules`, `profile`). The renderer must consume that kind. Unset
+  `tools` / `panels` / `exporters` fall back to the environment's own.
+- The active item's kind picks the profile: viewport, toolbar, panels and keyboard scope follow it.
+  A kind without a profile opens in the generic file view, so nothing disappears.
+- `accepts` defaults to the keys of `data.kinds`; the task's items are the dataset ∩ `accepts`.
+- A label group's `appliesTo` lists the kinds it is for (default: all).
+- Every preset is the profile for its kind; the catalogue lists them as `profiles` (kind → preset)
+  in `/catalog.json` and under "profiles" in `/catalog.md`.
+- The one-kind form below (`data.kind` + `viewports`) stays valid shorthand. `normalizeEnvironment`
+  in `packages/contracts/src/environment.ts` folds it into `data.kinds` on load (no stored rewrite);
+  `profileFor(env, kind)` and `labelsFor(labels, kind)` are the pure lookups.
+
+One kind, the shorthand:
+
 ```jsonc
 {
   "$schema": "studio://schema/environment/v1",
@@ -259,6 +298,13 @@ The assistant (`studio.core.panels.ai`) and the dev API expose: `list_modules`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
 `patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.
+`get_environment` also returns `accepts` and `kinds` (each kind's renderer and preset).
+
+The in-app assistant's Studio tools (`packages/studio-tools`) speak the same shape (todo19 D12):
+`boot_studio` takes `accepts` (kind ids; each gets its default profile from the intent table) and
+an optional `filter` (`folders`, `files`, `nameContains`); `patch_studio` edits one kind's profile
+at `/data/kinds/<kind>` (agents may patch that path, `packages/environment-core/reference-slots.json`);
+`get_studio_state` reports `accepts`, `kinds` and the open item's `kind` and `profile`.
 
 ```bash
 claude mcp add studio -- pnpm --dir /abs/path/to/repo mcp

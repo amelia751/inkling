@@ -21,14 +21,15 @@ the word in the right-hand column.
 
 | Term | Means | Not (say this instead) |
 |---|---|---|
-| **Studio** | the annotation editor for one task (`/projects/:projectId/studio/:taskId`). Its code is in `apps/web/src/studio/`, which also holds the rest of the web shell | the whole product (say the product name), the other project sections, or the code scope `@studio` |
+| **Studio** | one labelling task over a set of items, and the editor that shows it (`/projects/:projectId/studio/:taskId`). It **accepts** a set of data kinds (todo19 D2); a mixed drop gets one Studio, never one per kind. Its code is in `apps/web/src/studio/`, which also holds the rest of the web shell | the whole product (say the product name), the other project sections, or the code scope `@studio` |
 | **Plugin** | an installable unit: `plugin.yaml` + optional `ui/` + optional worker code | — |
 | **Module** | a plugin's UI half (`ModuleManifest`, `ui/manifest.ts`) | a plugin |
 | **Extension host** | the registry, resolver, commands and catalogue in the web app (`apps/web/src/extension-host/`) | the API's plugin control plane |
 | **API** (service) | `apps/api`, configured and deployed as `api` | the kernel |
 | **Kernel** | the stable core inside the API (`studio_api/kernel/`, `plugins.md` §6) | the API service |
 | **Environment** | a JSON spec of what one Studio shows (`environment.v1.json`) | a deployment target: dev, staging and prod are **stages** (`infra/k8s/overlays/<stage>`) |
-| **Preset** | an environment shipped in `registry/presets/` | — |
+| **Preset** | an environment shipped in `registry/presets/`. Each one is the default **profile** for its data kind | — |
+| **Profile** | one data kind's view inside a Studio: renderer, config, tools, panels, exporters (`data.kinds.<kind>`, todo19 D3). The open item's kind picks it; a kind without one opens in the generic file view | a preset (a preset is where a profile usually comes from) |
 | **Organization** | the account level: a person's or a team's projects and members (`organizations`, `org_id`). UI copy may call it "Workspace" | the kernel's workspace |
 | **Project** | a durable research goal, the container for sources, datasets and tasks (`projects`) | a dataset, or a seed entry in `manifest.json` (each seed is one project, dataset and task with the same id) |
 | **Workspace** | the kernel's per-project plugin activation and settings (`workspace.v1.json`). The kernel `Workspace` row is 1:1 with a project: `workspace_id` is the project id | the organization, even where UI copy says "Workspace"; a pnpm or uv workspace: say **repo workspace** |

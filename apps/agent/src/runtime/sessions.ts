@@ -432,7 +432,7 @@ export class SessionService {
         headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
         fetch: this.deps.fetchImpl,
       });
-      tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: meta.projectId, runId: () => ctx.activeRun?.id }));
+      tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: meta.projectId, runId: () => ctx.activeRun?.id, activeItem: () => ctx.dataset.current() }));
     }
     if (profile.kernel) {
       tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));

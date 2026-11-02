@@ -23,12 +23,28 @@ export type JsonPatchOp = Type.Static<typeof JsonPatchOp>;
 
 const presetRef = Type.String({ pattern: "^preset:[a-z0-9-]+$", description: "From the preset index, e.g. preset:image-2d." });
 const patchList = (description: string) => Type.Array(JsonPatchOp, { maxItems: 64, description });
+const kindRef = Type.String({ minLength: 1, maxLength: 200, description: "Data kind id, e.g. studio.image2d.dataKinds.raster (or its last segment, e.g. raster)." });
+
+/** todo19 D2: which of the dataset's items the task takes, on top of `accepts`. */
+export const ItemFilter = Type.Object(
+  {
+    folders: Type.Optional(Type.Array(Type.String(), { maxItems: 50, description: "Folder node ids; items under them." })),
+    files: Type.Optional(Type.Array(Type.String(), { maxItems: 500, description: "File node ids." })),
+    nameContains: Type.Optional(Type.String({ maxLength: 200, description: "Case-insensitive substring of the item name." })),
+  },
+  { additionalProperties: false },
+);
+export type ItemFilter = Type.Static<typeof ItemFilter>;
 
 export const BootStudioArgs = Type.Object(
   {
     projectId: Type.Optional(Type.String({ description: "Omit in the app (the session has one project)." })),
     preset: Type.Optional(presetRef),
     intent: Type.Optional(Type.String({ maxLength: 500, description: "The person's words; picks the preset if `preset` is omitted." })),
+    accepts: Type.Optional(
+      Type.Array(kindRef, { minItems: 1, maxItems: 32, description: "Data kinds the Studio's task takes (one Studio over all of them; each kind gets its profile). Omit: every kind the project's data has." }),
+    ),
+    filter: Type.Optional(ItemFilter),
     patch: Type.Optional(patchList("JSON Patch on top of the preset: labels, title, layout.")),
     files: Type.Optional(Type.Array(Type.String(), { maxItems: 500, description: "File node ids for the task's data." })),
     folders: Type.Optional(Type.Array(Type.String(), { maxItems: 50, description: "Folder node ids for the task's data." })),
@@ -50,7 +66,11 @@ export const PatchStudioArgs = Type.Object(
 export type PatchStudioArgs = Type.Static<typeof PatchStudioArgs>;
 
 export const GetStudioStateArgs = Type.Object(
-  { taskId: Type.String() },
+  {
+    taskId: Type.String(),
+    itemId: Type.Optional(Type.String({ description: "An item to report (default: the item open in the Studio)." })),
+    itemKind: Type.Optional(kindRef),
+  },
   { additionalProperties: false },
 );
 export type GetStudioStateArgs = Type.Static<typeof GetStudioStateArgs>;
@@ -94,19 +114,20 @@ export const STUDIO_TOOLS = [
     name: "boot_studio",
     label: "Setting up Studio",
     description:
-      "Create a draft Studio (task) from a preset, only when the person explicitly asks for one. Returns the task id and revision. Put labels and title in `patch`.",
+      "Create a draft Studio (a task over a set of items) only when the person explicitly asks for one. One Studio takes many kinds: list them in `accepts` and each gets its profile (preset); narrow the items with `filter`. Returns the task id and revision. Put labels and title in `patch`.",
     parameters: BootStudioArgs,
   },
   {
     name: "patch_studio",
     label: "Changing Studio",
-    description: "Apply a small JSON Patch to a task's Studio setup at the revision you read; errors come back with paths.",
+    description:
+      "Apply a small JSON Patch to a task's Studio setup at the revision you read; errors come back with paths. A kind's view (renderer, config, tools, panels) is at /data/kinds/<kind id>.",
     parameters: PatchStudioArgs,
   },
   {
     name: "get_studio_state",
     label: "Reading Studio",
-    description: "Read a task's Studio setup and its current revision.",
+    description: "Read a task's Studio setup and revision: the kinds it accepts, each kind's profile, and the open item's kind and profile.",
     parameters: GetStudioStateArgs,
   },
   {

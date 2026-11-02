@@ -192,6 +192,15 @@ describe("catalog", () => {
     expect(c.contributions.find((x) => x.id === "test.core.tools.box")!.creates).toBe("box");
     expect(catalogPrompt(reg())).toContain("`preset:image`");
   });
+  it("lists presets as per-kind profiles (todo19 D4/D12)", () => {
+    const c = describeCatalog(reg());
+    expect(c.profiles).toEqual([{ kind: "test.image.dataKinds.raster", preset: "preset:image", renderer: "test.image.renderers.canvas", description: "Image boxes" }]);
+    expect(c.contributions.find((x) => x.id.endsWith(".presets.image"))!.profileOf).toEqual(["test.image.dataKinds.raster"]);
+    const md = catalogPrompt(reg());
+    expect(md).toContain("## profiles");
+    expect(md).toContain("- `test.image.dataKinds.raster` → `preset:image`");
+    expect(md).toContain("data.kinds");
+  });
   it("builds a JSON Schema whose id fields are enums of registered ids", () => {
     const s = environmentJsonSchema(reg()) as any;
     const root = s.$defs?.EnvironmentSpec ?? s;

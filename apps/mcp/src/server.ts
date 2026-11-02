@@ -8,6 +8,7 @@ import { NAMING } from "./config.js";
 import { writeEnvironment } from "./environment-write.js";
 import { CONTEXT_URI_TEMPLATE, type Caller, callOperationTool, hints, operationTools, projectContextTool, readContextResource, type ToolDef } from "./operations.js";
 import { createViewers } from "./viewers.js";
+import { studioKinds } from "./profiles.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -23,7 +24,7 @@ const REVISION = { type: "integer", description: "The revision you edited (from 
 /** Environment and catalogue tools (todo10), kept alongside the generated operation tools. */
 export const ENV_TOOLS: ToolDef[] = [
   { name: "list_projects", description: `Datasets in this ${NAMING.displayName} workspace with their environment presets.`, inputSchema: obj({}), annotations: READ },
-  { name: "catalog", description: "Markdown catalogue of every module and contribution id (data kinds, renderers, tools, panels, exporters, label controls, presets). Read this before writing an environment.", inputSchema: obj({}), annotations: READ },
+  { name: "catalog", description: "Markdown catalogue of every module and contribution id (data kinds, renderers, tools, panels, exporters, label controls, presets) and the per-kind profiles (kind → preset). Read this before writing an environment.", inputSchema: obj({}), annotations: READ },
   { name: "list_modules", description: "Registered modules with versions and descriptions.", inputSchema: obj({}), annotations: READ },
   {
     name: "describe_contribution",
@@ -40,7 +41,8 @@ export const ENV_TOOLS: ToolDef[] = [
   },
   {
     name: "get_environment",
-    description: "A project's environment: `source` (what patches apply to), its saved revision and the merged (`resolved`) form.",
+    description:
+      "A project's Studio environment: `source` (what patches apply to), its saved revision, the merged (`resolved`) form, and `accepts` / `kinds`: the data kinds the Studio's task takes and each kind's profile (renderer, preset). A Studio is one task over many kinds.",
     inputSchema: obj({ projectId: { type: "string" } }, ["projectId"]),
     annotations: READ,
   },
@@ -52,7 +54,8 @@ export const ENV_TOOLS: ToolDef[] = [
   },
   {
     name: "patch_environment",
-    description: "Apply a JSON Patch to a project's environment. Validated first; nothing is saved on error. The Studio shows it on its next load of the project.",
+    description:
+      "Apply a JSON Patch to a project's environment. Validated first; nothing is saved on error. One kind's view (renderer, config, tools, panels) is at /data/kinds/<kind id>; a label group's `appliesTo` lists its kinds. The Studio shows it on its next load of the project.",
     inputSchema: obj({ projectId: { type: "string" }, patch: PATCH, revision: REVISION }, ["projectId", "patch"]),
     annotations: hints("write", "PATCH"),
   },
@@ -124,7 +127,7 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
         const r = await http("GET", `/api/environments/${encodeURIComponent(args.projectId)}`);
         if (!r.ok) return r;
         const v = await http("POST", "/api/environments/validate", r.data.effective);
-        return { ok: true, data: { revision: r.data.revision, source: r.data.effective, resolved: v.data.resolved, errors: v.data.errors } };
+        return { ok: true, data: { revision: r.data.revision, source: r.data.effective, resolved: v.data.resolved, errors: v.data.errors, ...studioKinds(v.data.resolved ?? r.data.effective) } };
       }
       case "validate_environment":
         return http("POST", "/api/environments/validate", args.spec);

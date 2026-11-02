@@ -364,6 +364,89 @@
    }
   },
   {
+   "name": "agent edits a kind profile (todo19 D12: patch_studio edits data.kinds.<kind>)",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "data": {
+     "kind": "studio.image2d.dataKinds.raster",
+     "kinds": {
+      "studio.image2d.dataKinds.raster": {
+       "renderer": "studio.image2d.renderers.canvas-raster"
+      }
+     }
+    }
+   },
+   "patch": [
+    {
+     "op": "add",
+     "path": "/data/kinds/studio.image2d.dataKinds.raster/config",
+     "value": {
+      "fit": "contain"
+     }
+    }
+   ],
+   "expect": {
+    "status": 200,
+    "errors": []
+   }
+  },
+  {
+   "name": "agent may not replace every kind profile at once",
+   "principal": "agent",
+   "base": {
+    "extends": "preset:image-2d",
+    "task": "classification",
+    "labels": [
+     {
+      "name": "finding",
+      "control": "Choices",
+      "classes": [
+       {
+        "id": "normal"
+       }
+      ]
+     }
+    ],
+    "data": {
+     "kind": "studio.image2d.dataKinds.raster",
+     "kinds": {
+      "studio.image2d.dataKinds.raster": {
+       "renderer": "studio.image2d.renderers.canvas-raster"
+      }
+     }
+    }
+   },
+   "patch": [
+    {
+     "op": "replace",
+     "path": "/data/kinds",
+     "value": {}
+    }
+   ],
+   "expect": {
+    "status": 403,
+    "errors": [
+     {
+      "path": "/0",
+      "code": "scope"
+     }
+    ]
+   }
+  },
+  {
    "name": "agent may not swap the renderer",
    "principal": "agent",
    "base": {

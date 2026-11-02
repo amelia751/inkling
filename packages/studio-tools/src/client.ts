@@ -43,6 +43,11 @@ export type BootState = "running" | "ready" | "failed";
 export interface BootRequest {
   bootId: string;
   preset: string;
+  /** todo19 D4: one profile per accepted kind, deep-merged into `data.kinds`. */
+  extends?: string[];
+  /** todo19 D2: data kind ids the task takes. */
+  accepts?: string[];
+  filter?: { folders?: string[]; files?: string[]; nameContains?: string };
   patch?: JsonPatchOp[];
   files?: string[];
   folders?: string[];

@@ -94,7 +94,8 @@ def main() -> int:
         check("empty Home: the composer asks what you're working on", page.locator("[data-testid=home-composer] h2").first.inner_text() == "What are you working on?")
         check("empty Home: no project cards", page.locator("[data-testid=project-card]").count() == 0)
         check("empty Home: no Recent projects", page.get_by_text("Recent projects").count() == 0)
-        check("try-sample stays hidden while the api offers no samples", page.locator("[data-testid=try-sample]").count() == 0)
+        page.wait_for_selector("[data-testid=try-sample]", timeout=10000)
+        check("empty Home: one quiet 'Or try a sample project' line", page.locator("[data-testid=try-sample]").inner_text().strip() == "Or try a sample project")
         side = page.locator("[data-testid=project-sidebar]")
         headings = [t.strip() for t in side.locator("h2").all_inner_texts()]
         check("empty sidebar: Workspace and Settings, no Recent or conversations", headings == ["Workspace", "Settings"], str(headings))
@@ -111,25 +112,37 @@ def main() -> int:
         r = page.request.get(f"{base}/api/v1/projects/{P}")
         check("…and still opens for local-expert", r.status == 200, str(r.status))
 
-        # Projects with none: the same composer.
+        # Projects with none: the same composer, and the same sample entry.
         page.goto(f"{base}/projects")
         page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
         check("Projects with none shows Home's composer", page.locator("[data-testid=project-card]").count() == 0)
+        check("Projects with none offers samples too", bool(page.wait_for_selector("[data-testid=try-sample]", timeout=10000)))
         check("the principal survives navigation in the tab", page.evaluate(f"async () => (await import('{DEV_PRINCIPAL}')).devPrincipal()") == principal)
 
-        # Once the api offers samples (M1), the quiet line appears under the empty composer.
-        page.route("**/api/v1/samples", json_route({"enabled": True, "samples": [{"id": P, "title": "Chest X-rays", "modality": "X-ray", "license": "CC BY 4.0", "restricted": False}]}))
+        # The line follows GET /v1/samples: disabled, or an api without the route, hides it.
+        for name, body, status in (("disabled", {"enabled": False, "samples": []}, 200), ("404", {"detail": "Not Found"}, 404)):
+            page.route("**/api/v1/samples", json_route(body, status))
+            page.goto(f"{base}/")
+            page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
+            page.wait_for_load_state("networkidle")
+            check(f"try-sample hidden when samples are {name}", page.locator("[data-testid=try-sample]").count() == 0)
+            page.unroute("**/api/v1/samples")
+
+        # ---- The sample picker (M1): title, modality, license; "Use this sample" copies ----------------
         page.goto(f"{base}/")
-        page.wait_for_selector("[data-testid=try-sample]", timeout=10000)
-        check("try-sample shows when GET /v1/samples is enabled", page.locator("[data-testid=try-sample]").inner_text().strip() == "Or try a sample project")
-        shot(page, "first-run-home-samples-enabled")
-        page.unroute("**/api/v1/samples")
-        page.route("**/api/v1/samples", json_route({"enabled": False, "samples": []}))
-        page.goto(f"{base}/")
-        page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
-        page.wait_for_load_state("networkidle")
-        check("…and hides when it says disabled", page.locator("[data-testid=try-sample]").count() == 0)
-        page.unroute("**/api/v1/samples")
+        page.locator("[data-testid=try-sample]").click()
+        picker = page.locator("[data-testid=sample-picker]")
+        picker.wait_for(timeout=10000)
+        options = picker.locator("[data-testid=sample-option]")
+        check("the picker lists the templates", options.count() >= 2, str(options.count()))
+        first = picker.locator(f"[data-testid=sample-option][data-sample-id='{P}']")
+        check("…each with title, modality and license", "Chest X-ray" in first.inner_text() and "2D images" in first.inner_text() and "CC BY 4.0" in first.inner_text(), first.inner_text())
+        check("…restricted ones say Local dev only", picker.get_by_text("Local dev only").count() >= 1)
+        shot(page, "first-run-sample-picker")
+        # The seed stand-in can't copy (501): the picker says so and stays open.
+        first.locator("[data-testid=use-sample]").click()
+        page.wait_for_selector("[data-testid=sample-error]", timeout=10000)
+        check("without the api, copying says it needs the full stack", "full stack" in page.locator("[data-testid=sample-error]").inner_text())
 
         # ---- First send: the project opens empty with the drawer (todo13 D1) -----------------------
         # The stand-in can't create projects (501): answer as the api would, and let the new person
@@ -161,6 +174,38 @@ def main() -> int:
         page.unroute(f"**/api/v1/projects/{P}/**")
         page.unroute(f"**/api/v1/projects/{P}")
         page.unroute("**/api/v1/projects")
+
+        # ---- Use this sample, answered as the api would: the copy opens on its Overview ----------------
+        copies: list[dict] = []
+        LICENSE = "CC BY 4.0 per original description"
+
+        def from_sample(route):
+            copies.append(route.request.post_data_json)
+            json_route({"id": P, "title": "Chest X-ray · Pneumonia", "sample": True, "sampleOf": P, "license": LICENSE}, 201)(route)
+
+        def copy_owner(route):
+            headers = {k: v for k, v in route.request.headers.items() if k.lower() != "x-dev-principal"}
+            res = route.fetch(headers=headers)
+            if route.request.url.split("?")[0].endswith(f"/projects/{P}"):
+                route.fulfill(response=res, body=json.dumps({**res.json(), "sample": True, "sampleOf": P, "license": LICENSE}))
+            else:
+                route.fulfill(response=res)
+
+        page.route("**/api/v1/projects/from-sample", from_sample)
+        page.route(f"**/api/v1/projects/{P}/**", copy_owner)
+        page.route(f"**/api/v1/projects/{P}", copy_owner)
+        page.goto(f"{base}/")
+        page.locator("[data-testid=try-sample]").click()
+        page.locator(f"[data-testid=sample-option][data-sample-id='{P}'] [data-testid=use-sample]").click()
+        page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
+        check("Use this sample posts the template id", copies == [{"sampleId": P}], json.dumps(copies))
+        page.wait_for_selector("[data-testid=sample-badge]", timeout=10000)
+        check("the copy shows the Sample badge", page.locator("[data-testid=sample-badge]").count() == 1)
+        check("…and its license line", LICENSE in page.locator("[data-testid=sample-license]").inner_text())
+        shot(page, "first-run-sample-copy")
+        page.unroute("**/api/v1/projects/from-sample")
+        page.unroute(f"**/api/v1/projects/{P}/**")
+        page.unroute(f"**/api/v1/projects/{P}")
 
         # ---- Back to local-expert: the samples return -----------------------------------------------
         menu_action(page, "dev-default-person")

@@ -5,7 +5,8 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
-import { useProjectList, useSamples } from "@/studio/lib/projects-api";
+import { useProjectList } from "@/studio/lib/projects-api";
+import { TrySample } from "@/studio/app/entry/sample-picker";
 import { newProjectUrl, projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
@@ -21,7 +22,6 @@ export function HomePage() {
   const { data: projects, isLoading, error } = useProjectList();
   const recent = (projects ?? []).slice(0, 6);
   const empty = !isLoading && !error && recent.length === 0;
-  const samples = useSamples().data;
 
   return (
     <AppLayout>
@@ -38,14 +38,7 @@ export function HomePage() {
           }
         >
           {/* todo14 §4.1: one quiet line instead of Recent projects, only when the api offers samples. */}
-          {empty && samples?.enabled && (
-            <p className="mt-6 text-center">
-              {/* TODO(todo14 M1): open the sample picker (title, modality, license) and copy the pick. */}
-              <Button variant="ghost-secondary" size="sm" data-testid="try-sample">
-                Or try a sample project
-              </Button>
-            </p>
-          )}
+          {empty && <TrySample className="mt-6" />}
           {!empty && (
             <section className="mt-6" aria-labelledby="recent-heading">
               <div className="mb-3 flex items-baseline justify-between gap-4">
@@ -110,7 +103,7 @@ export function ProjectCard({ project: p }: { project: ProjectSummary }) {
           </h3>
           {p.description && <p className="mt-0.5 truncate text-sm text-muted-foreground">{p.description}</p>}
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {p.sample && <Badge theme="info">Sample</Badge>}
+            {(p.sample || p.sampleOf) && <Badge theme="info" data-testid="sample-badge">Sample</Badge>}
             {p.restricted && (
               <Badge theme="warning" title="The source license restricts commercial use or redistribution">
                 <LockIcon />Local dev only
@@ -127,10 +120,10 @@ export function ProjectCard({ project: p }: { project: ProjectSummary }) {
           </Button>
         )}
       </div>
-      {p.sample && p.license && (
+      {(p.sample || p.sampleOf) && p.license && (
         <div className={cn("mt-2 flex items-start gap-1.5 border-t border-border pt-2 text-xs text-muted-foreground")}>
           <LicenseIcon className="mt-0.5 size-3 shrink-0" />
-          <span className="line-clamp-1">{p.license}</span>
+          <span className="line-clamp-1" data-testid="sample-license">{p.license}</span>
         </div>
       )}
     </Card>

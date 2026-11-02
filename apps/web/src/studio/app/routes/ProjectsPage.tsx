@@ -11,6 +11,7 @@ import { useProjectList } from "@/studio/lib/projects-api";
 import { newProjectUrl } from "@/studio/lib/routes";
 import { ProjectCard, ProjectCardSkeleton } from "./HomePage";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
+import { TrySample } from "@/studio/app/entry/sample-picker";
 
 /** All projects (`/projects`): search and sort, in the same cards as Home. */
 export function ProjectsPage() {
@@ -53,7 +54,10 @@ export function ProjectsPage() {
             <NoResults what="projects" onClear={() => setQ("")} />
           ) : (
             // todo13 §3.1: the same composer as Home, not a second, different empty state.
-            <HomeComposer projects={data} surface="projects" className="mt-2" />
+            <>
+              <HomeComposer projects={data} surface="projects" className="mt-2" />
+              <TrySample className="mt-4" />
+            </>
           ))}
       </div>
     </AppLayout>

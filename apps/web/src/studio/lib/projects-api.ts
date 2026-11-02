@@ -121,6 +121,12 @@ export interface SampleTemplate {
   restricted: boolean;
 }
 
+/** A sample template itself (read-only, D7), as opposed to a person's editable copy of one (`sampleOf` set). */
+export const isSampleTemplate = (p: Pick<ProjectSummary, "sample" | "sampleOf">) => p.sample && !p.sampleOf;
+
+/** `POST /v1/projects/from-sample`: a private copy of the template in the caller's current organization (todo14 D2). */
+export const copySample = (sampleId: string) => api<ProjectSummary>("/projects/from-sample", { method: "POST", json: { sampleId } });
+
 /**
  * The sample templates, or `enabled: false` when the api doesn't offer them: turned off
  * (`API_SAMPLES_ENABLED`), an api without the route, or the seed stand-in (404), or any error.

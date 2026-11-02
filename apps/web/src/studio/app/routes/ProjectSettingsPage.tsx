@@ -13,7 +13,7 @@ import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Textarea } from "@studio/ui/ui/textarea";
 import { cn } from "@studio/ui/utils";
 import type { ProjectSummary } from "@studio/contracts/types";
-import { NeedsApiError, patchProject, projectKeys, useProjectDetail } from "@/studio/lib/projects-api";
+import { isSampleTemplate, NeedsApiError, patchProject, projectKeys, useProjectDetail } from "@/studio/lib/projects-api";
 import { projectsUrl, settingsUrl } from "@/studio/lib/routes";
 import { PluginsPage } from "./PluginsPage";
 import { ProjectMembers } from "./settings/ProjectMembers";
@@ -92,7 +92,8 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
     },
   });
   const dirty = title.trim() !== project.title || description !== project.description || visibility !== project.visibility;
-  const readOnly = project.sample;
+  // A template is read-only (todo14 D7); a person's copy of one is theirs to change.
+  const readOnly = isSampleTemplate(project);
   const error = save.error ?? archive.error;
 
   return (

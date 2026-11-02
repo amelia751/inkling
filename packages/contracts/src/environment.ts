@@ -36,6 +36,10 @@ export const LabelGroupSchema = z
     multiple: z.boolean().optional().describe("Choices only: allow several classes per item"),
     classes: z.array(LabelClassSchema),
     attributes: z.record(z.string(), AttributeSchema).optional().describe("Attributes every class in the group carries"),
+    appliesTo: z
+      .array(z.string())
+      .optional()
+      .describe("Data kind ids this group applies to (todo19 D7); unset: every kind the Studio accepts"),
   })
   .meta({ id: "LabelGroup" });
 
@@ -77,6 +81,23 @@ export const StudioViewSchema = z.object({
     .describe('What one item is called in this task, singular ("case", "clip", "document"). Unset: "item"; the Studio never assumes a data type'),
 });
 
+/**
+ * One kind's view inside a Studio (todo19 D3): the renderer, tools and panels used when the
+ * active item has this kind. A Studio is a task over many kinds; the item picks its profile.
+ */
+export const KindProfileSchema = z
+  .object({
+    renderer: z.string().describe("Renderer contribution id; must consume this kind"),
+    config: z.record(z.string(), z.unknown()).optional().describe("Renderer config"),
+    viewports: z.array(ViewportSpecSchema).optional().describe("Several viewports for this kind; wins over renderer/config"),
+    tools: z.array(z.string()).optional().describe("Tool ids for this kind, in toolbar order; unset: the environment's tools"),
+    panels: PanelSlotsSchema.optional().describe("Panels for this kind; unset: the environment's panels"),
+    exporters: z.array(z.string()).optional(),
+    reviewRules: z.array(z.string()).optional(),
+    profile: z.string().optional().describe("The preset this profile came from, e.g. preset:ecg"),
+  })
+  .meta({ id: "KindProfile" });
+
 export const EnvironmentSpecSchema = z
   .object({
     $schema: z.string().optional(),
@@ -86,7 +107,19 @@ export const EnvironmentSpecSchema = z
     extends: z.union([z.string(), z.array(z.string())]).optional().describe("Preset id(s), e.g. preset:pathology, deep-merged first"),
     task: z.string().optional().describe("Free-form task name shown on dataset cards (classification, segmentation…)"),
     modules: z.record(z.string(), z.string()).optional().describe("Module id → semver range"),
-    data: z.object({ kind: z.string().describe("Data kind contribution id") }).optional(),
+    data: z
+      .object({
+        kind: z.string().optional().describe("Data kind contribution id (one-kind shorthand; normalised into kinds)"),
+        kinds: z
+          .record(z.string(), KindProfileSchema)
+          .optional()
+          .describe("Data kind id → its profile (todo19 D3). The active item's kind picks the profile"),
+      })
+      .optional(),
+    accepts: z
+      .array(z.string())
+      .optional()
+      .describe("Data kind ids this Studio's task accepts (todo19 D2); unset: the keys of data.kinds"),
     collectionId: z.string().optional().describe("The dataset collection this Studio works on (todo13 D7); the task's own collection wins when they differ"),
     labels: z.array(LabelGroupSchema).optional(),
     viewports: z.array(ViewportSpecSchema).optional(),
@@ -105,6 +138,7 @@ export type Attribute = z.infer<typeof AttributeSchema>;
 export type LabelClass = z.infer<typeof LabelClassSchema>;
 export type LabelGroup = z.infer<typeof LabelGroupSchema>;
 export type ViewportSpec = z.infer<typeof ViewportSpecSchema>;
+export type KindProfile = z.infer<typeof KindProfileSchema>;
 export type EnvironmentSpec = z.infer<typeof EnvironmentSpecSchema>;
 export type PanelSlots = z.infer<typeof PanelSlotsSchema>;
 export type StudioView = z.infer<typeof StudioViewSchema>;
@@ -130,4 +164,36 @@ export function labelClasses(labels: LabelGroup[] | undefined): LabelClass[] {
   const seen = new Map<string, LabelClass>();
   for (const g of labels ?? []) for (const c of g.classes) if (!seen.has(c.id)) seen.set(c.id, c);
   return [...seen.values()];
+}
+
+/**
+ * The one-kind shorthand (`data.kind` + `viewports`) as `data.kinds` (todo19 D3). Pure, no
+ * stored rewrite: `data.kind`, `viewports` etc. are kept so old readers still work. Idempotent.
+ */
+export function normalizeEnvironment(env: EnvironmentSpec): EnvironmentSpec {
+  const data = env.data;
+  if (!data) return env;
+  const kinds: Record<string, KindProfile> = { ...(data.kinds ?? {}) };
+  if (data.kind && !kinds[data.kind]) {
+    const vps = env.viewports ?? [];
+    const first = vps[0];
+    kinds[data.kind] = {
+      renderer: first?.renderer ?? "",
+      ...(first?.config ? { config: first.config } : {}),
+      ...(vps.length > 1 ? { viewports: vps } : {}),
+    };
+  }
+  const accepts = env.accepts ?? Object.keys(kinds);
+  return { ...env, data: { ...data, kinds }, accepts };
+}
+
+/** The profile for an item kind, or undefined (→ the generic file view). */
+export function profileFor(env: EnvironmentSpec, kind: string | undefined): KindProfile | undefined {
+  if (!kind) return undefined;
+  return normalizeEnvironment(env).data?.kinds?.[kind];
+}
+
+/** Label groups that apply to a kind (todo19 D7). */
+export function labelsFor(labels: LabelGroup[] | undefined, kind: string | undefined): LabelGroup[] {
+  return (labels ?? []).filter((g) => !g.appliesTo || !kind || g.appliesTo.includes(kind));
 }

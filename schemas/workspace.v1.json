@@ -114,13 +114,27 @@
           "type": "object",
           "properties": {
             "kind": {
-              "type": "string",
-              "description": "Data kind contribution id"
+              "description": "Data kind contribution id (one-kind shorthand; normalised into kinds)",
+              "type": "string"
+            },
+            "kinds": {
+              "description": "Data kind id → its profile (todo19 D3). The active item's kind picks the profile",
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/KindProfile"
+              }
             }
-          },
-          "required": [
-            "kind"
-          ]
+          }
+        },
+        "accepts": {
+          "description": "Data kind ids this Studio's task accepts (todo19 D2); unset: the keys of data.kinds",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "collectionId": {
           "description": "The dataset collection this Studio works on (todo13 D7); the task's own collection wins when they differ",
@@ -279,6 +293,107 @@
         }
       }
     },
+    "KindProfile": {
+      "type": "object",
+      "properties": {
+        "renderer": {
+          "type": "string",
+          "description": "Renderer contribution id; must consume this kind"
+        },
+        "config": {
+          "description": "Renderer config",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "viewports": {
+          "description": "Several viewports for this kind; wins over renderer/config",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "renderer": {
+                "type": "string",
+                "description": "Renderer contribution id"
+              },
+              "config": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "name",
+              "renderer"
+            ]
+          }
+        },
+        "tools": {
+          "description": "Tool ids for this kind, in toolbar order; unset: the environment's tools",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "panels": {
+          "description": "Panels for this kind; unset: the environment's panels",
+          "type": "object",
+          "properties": {
+            "left": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "right": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "bottom": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "viewport-bar": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "exporters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "reviewRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "profile": {
+          "description": "The preset this profile came from, e.g. preset:ecg",
+          "type": "string"
+        }
+      },
+      "required": [
+        "renderer"
+      ]
+    },
     "LabelGroup": {
       "type": "object",
       "properties": {
@@ -312,6 +427,13 @@
           },
           "additionalProperties": {
             "$ref": "#/$defs/Attribute"
+          }
+        },
+        "appliesTo": {
+          "description": "Data kind ids this group applies to (todo19 D7); unset: every kind the Studio accepts",
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       },

@@ -24,3 +24,18 @@ describe("todo18: delete is blocked when the impact preview fails", () => {
     expect(canConfirmDelete({ items: [], files: 0, datasetsLosingItems: [] }, null)).toBe(true);
   });
 });
+
+describe("todo18: Restore all is one request", () => {
+  it("posts every batch in one call", async () => {
+    const calls: { url: string; body: unknown }[] = [];
+    vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+      calls.push({ url, body: init?.body ? JSON.parse(String(init.body)) : undefined });
+      return new Response(JSON.stringify({ restored: [], relocatedToRoot: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const { restoreBatches } = await import("./trash-api");
+    await restoreBatches("p", ["b1", "b2", "b3"]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toContain("/trash/b1/restore");
+    expect(calls[0]!.body).toEqual({ batchIds: ["b2", "b3"] });
+  });
+});

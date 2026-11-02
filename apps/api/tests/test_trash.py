@@ -304,3 +304,18 @@ def test_a_batch_restored_or_destroyed_twice_gets_409_not_404(client):
 
         assert db.get(FsBatch, b2).state == "destroyed"
     assert client.post(f"/api/v1/projects/{p}/trash/nope/restore").status_code == 404
+
+
+def test_restore_takes_several_batches_in_one_request(client):
+    """todo18 B: "Restore all" is one request restoring every batch, not parallel restores."""
+    p, _, _ = _new(client, {"study/a.png": png(4, 4), "study/b.png": png(5, 5)})
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["a.png"].id]}])
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["b.png"].id]}])
+    ids = [i["batchId"] for i in _trash(client, p)["items"]]
+    assert len(set(ids)) == 2
+    r = client.post(f"/api/v1/projects/{p}/trash/{ids[0]}/restore", json={"batchIds": ids[1:]})
+    assert r.status_code == 200, r.text
+    assert sorted(x["name"] for x in r.json()["restored"]) == ["a.png", "b.png"]
+    assert _trash(client, p)["count"] == 0
+    assert client.post(f"/api/v1/projects/{p}/trash/{ids[0]}/restore", json={"batchIds": "x"}).status_code == 422

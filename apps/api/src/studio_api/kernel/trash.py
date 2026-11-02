@@ -350,6 +350,17 @@ def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> d
     return {"restored": items, "relocatedToRoot": relocated}
 
 
+def restore_many(db: Session, ctx: RequestContext, p: ProjectRow, batch_ids: list[str]) -> dict:
+    """Restore several batches at once, all or nothing (the request's one transaction)."""
+    ids = list(dict.fromkeys(batch_ids))
+    out: dict = {"restored": [], "relocatedToRoot": False}
+    for b in ids:
+        r = restore(db, ctx, p, b)
+        out["restored"].extend(r["restored"])
+        out["relocatedToRoot"] = out["relocatedToRoot"] or r["relocatedToRoot"]
+    return out
+
+
 def _delete_by(db: Session, column: str, values: list[str]) -> None:
     """Delete rows of every table keyed by `column` in `values` (children before parents)."""
     if not values:

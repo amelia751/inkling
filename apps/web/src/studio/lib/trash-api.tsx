@@ -159,6 +159,9 @@ export async function fetchProjectTrash(projectId: string, filter: TrashFilter =
 }
 
 export const restoreBatch = (projectId: string, batchId: string) => api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST" });
+/** Several batches in one request (todo18 B "Restore all"): the first in the path, the rest in the body. */
+export const restoreBatches = (projectId: string, batchIds: string[]) =>
+  api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchIds[0] ?? "")}/restore`, { method: "POST", json: { batchIds: batchIds.slice(1) } });
 export const destroyBatch = (projectId: string, batchId: string) => api<{ purged: number }>(`/projects/${P(projectId)}/trash/${P(batchId)}`, { method: "DELETE" });
 export const emptyProjectTrash = (projectId: string) => api<unknown>(`/projects/${P(projectId)}/trash/empty?kind=all`, { method: "POST" });
 
@@ -196,6 +199,18 @@ export function useRestoreBatch(projectId: string) {
     onSuccess: (r) => {
       invalidateAfterTrash(qc, projectId);
       toast(r.relocatedToRoot ? "Restored to Sources: the folder it was in is gone" : "Restored");
+    },
+    onError: (e) => toast(`Couldn't restore: ${messageOf(e)}`),
+  });
+}
+
+export function useRestoreBatches(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (batchIds: string[]) => restoreBatches(projectId, batchIds),
+    onSuccess: (r) => {
+      invalidateAfterTrash(qc, projectId); // todo18 D1: invalidateFor
+      toast(r.relocatedToRoot ? "Restored to Sources: some folders are gone" : "Restored");
     },
     onError: (e) => toast(`Couldn't restore: ${messageOf(e)}`),
   });

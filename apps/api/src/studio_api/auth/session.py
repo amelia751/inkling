@@ -23,6 +23,7 @@ from typing import Any
 
 import anyio
 import jwt
+from jwt.types import Options
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import delete, select
@@ -88,7 +89,7 @@ def decode_access_token(token: str, *, verify_exp: bool = True) -> dict[str, Any
     `jwt.ExpiredSignatureError`, `jwt.InvalidTokenError`, or `jwt.PyJWKClientError` (key set
     unreachable)."""
     issuer = settings().workos_issuer or None
-    options: dict[str, Any] = {"verify_aud": False, "verify_exp": verify_exp}
+    options: Options = {"verify_aud": False, "verify_exp": verify_exp}
     if issuer is None:
         options["verify_iss"] = False
     return jwt.decode(token, wclient.signing_key(token), algorithms=["RS256"], options=options, issuer=issuer, leeway=5)

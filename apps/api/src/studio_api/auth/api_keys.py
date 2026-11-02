@@ -25,7 +25,7 @@ import json
 import logging
 import secrets as pysecrets
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
@@ -91,13 +91,13 @@ def key_permissions(key_scopes: list[str] | tuple[str, ...]) -> tuple[str, ...]:
     return PERMISSIONS if "admin" in key_scopes else ()
 
 
-def _sync(make: Callable[[], Awaitable[T]]) -> T:
+def _sync(make: Callable[[], Coroutine[Any, Any, T]]) -> T:
     """Run a WorkOS (async client) call from sync code: on the app's event loop when called from a
     worker thread (sync routes and dependencies), else on a fresh loop."""
     try:
         return anyio.from_thread.run(make)
     except RuntimeError:
-        return asyncio.run(make())  # type: ignore[arg-type]
+        return asyncio.run(make())
 
 
 def _iso(d: datetime | None) -> str | None:

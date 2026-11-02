@@ -275,7 +275,7 @@ async def switch_org(request: Request, body: dict = Body(...)):
     with session_scope() as db:
         row = db.get(Organization, target) or db.scalar(select(Organization).where(Organization.workos_org_id == target))
         our_id, workos_id = (row.id, row.workos_org_id) if row is not None else (None, None)
-    if not workos_id:
+    if not workos_id or not our_id:
         raise HTTPException(404, "no such organization")
     ip, ua = client_ip(request), request.headers.get("User-Agent")
     try:

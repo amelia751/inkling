@@ -271,7 +271,7 @@ def _on_org(db: Session, ev: dict[str, Any], fx: Effects) -> None:
 
 
 def _slugs(d: dict[str, Any]) -> list[str]:
-    roles = [r.get("slug") for r in (d.get("roles") or []) if isinstance(r, dict) and r.get("slug")]
+    roles = [str(r["slug"]) for r in (d.get("roles") or []) if isinstance(r, dict) and r.get("slug")]
     if not roles and isinstance(d.get("role"), dict) and d["role"].get("slug"):
         roles = [d["role"]["slug"]]
     return roles
@@ -354,7 +354,9 @@ def _on_invitation(db: Session, ev: dict[str, Any], fx: Effects) -> None:
 def _on_audit(db: Session, ev: dict[str, Any], fx: Effects) -> None:
     """One `audit_events` row: ids, kinds and states only (never the email in the payload)."""
     d = ev.get("data") or {}
-    owner = d.get("owner") if isinstance(d.get("owner"), dict) else {}
+    owner = d.get("owner")
+    if not isinstance(owner, dict):
+        owner = {}
     workos_org = d.get("organization_id") or (owner.get("id") if owner.get("type") == "organization" else None)
     user_id = d.get("user_id") or (owner.get("id") if owner.get("type") == "user" else None)
     ctx = ev.get("context") or {}
@@ -571,7 +573,7 @@ def _paged(page: Any) -> Iterable[Any]:
     return page.auto_paging_iter() if hasattr(page, "auto_paging_iter") else page.data
 
 
-def reconcile(c: Any | None = None) -> dict[str, int]:
+def reconcile(c: Any = None) -> dict[str, int]:
     """Fix drift the events missed (a gap longer than the 90 days WorkOS keeps, a skipped
     event): every user, every mirrored org's name and memberships. People gone from WorkOS are
     tombstoned; memberships gone are deleted and their tokens revoked. Logs the counts."""

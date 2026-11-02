@@ -214,7 +214,7 @@ def _mirror_invitation(db: Session, org_id: str, w: Any, *, role: str | None = N
     if inv is None:
         inv = OrgInvitation(id=w.id, org_id=org_id, email=str(w.email).strip().lower(), role=getattr(w, "role_slug", None) or role or "member", inviter=inviter, workos_invitation_id=w.id, created_at=_dt(getattr(w, "created_at", None)) or now())
         db.add(inv)
-    elif updated is not None and inv.workos_updated_at is not None and _aware(inv.workos_updated_at) > updated:
+    elif updated is not None and (held := _aware(inv.workos_updated_at)) is not None and held > updated:
         return inv  # what we hold is newer
     inv.state = str(getattr(w, "state", None) or inv.state or "pending")
     inv.expires_at = _dt(getattr(w, "expires_at", None)) or inv.expires_at

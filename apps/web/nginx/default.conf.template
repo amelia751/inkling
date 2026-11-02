@@ -4,7 +4,10 @@
 #                                  resolver can answer without search domains (k8s: the FQDN)
 #   NGINX_LOCAL_RESOLVERS          the nameservers in /etc/resolv.conf (set by the image's
 #                                  entrypoint, NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1)
-#   INKLING_AGENT_TOKEN            bearer the proxy adds; it never reaches the browser
+#   INKLING_AGENT_TOKEN            service token the proxy adds; it never reaches the browser
+#   INKLING_WEB_AUTH_MODE          `dev` (default) or `workos`: picks agent-auth/<mode>.inc (todo9 Phase 5)
+#   INKLING_API_URL                the API (default http://api:8000); `workos` mode asks its
+#                                  /api/auth/verify for the person's access token
 #   GIT_SHA                        build revision for /version
 server {
   listen 8080;
@@ -31,15 +34,30 @@ server {
     try_files /config.json =404;
   }
 
-  # The agent service: /api/agent/* → <agent>/v1/* with the service bearer (what the Vite
-  # proxy does in dev). SSE run streams: no buffering, no compression, hour-long timeouts.
+  # workos mode: auth_request subrequest. The API reads the session cookie and answers 200 with
+  # `X-Access-Token: <WorkOS access token>` (refreshed if needed) or 401. Never routed from outside.
+  location = /_auth {
+    internal;
+    set $api_upstream ${INKLING_API_URL};
+    proxy_pass $api_upstream/api/auth/verify;
+    proxy_pass_request_body off;
+    proxy_set_header Content-Length "";
+    proxy_set_header Cookie $http_cookie;
+    proxy_set_header X-Request-Id $request_id;
+  }
+
+  # The agent service: /api/agent/* → <agent>/v1/* with the service token (what the Vite
+  # proxy does in dev). agent-auth/<mode>.inc sets the identity headers: `dev` sends the service
+  # token as the bearer (and in X-Agent-Service-Token), `workos` forwards the person's access
+  # token as the bearer and the service token in X-Agent-Service-Token only.
+  # SSE run streams: no buffering, no compression, hour-long timeouts.
   location /api/agent/ {
+    include /tmp/nginx/conf.d/agent-auth/${INKLING_WEB_AUTH_MODE}.inc;
     set $agent_upstream ${INKLING_AGENT_URL};
     rewrite ^/api/agent/(.*)$ /v1/$1 break;
     proxy_pass $agent_upstream;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
-    proxy_set_header Authorization "Bearer ${INKLING_AGENT_TOKEN}";
     proxy_set_header X-Request-Id $request_id;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;

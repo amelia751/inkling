@@ -66,7 +66,16 @@ export class FileSessionStore implements SessionStore {
     );
   }
 
-  async countSessions(): Promise<number> {
+  async listSessions({ owner, orgId, projectId }: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]> {
+    const out: StoredMeta[] = [];
+    for (const id of await this.listSessionIds()) {
+      const m = await this.getMeta(id);
+      if (m && m.owner === owner && m.orgId === orgId && (projectId === undefined || m.projectId === projectId)) out.push(m);
+    }
+    return out;
+  }
+
+    async countSessions(): Promise<number> {
     return (await this.listSessionIds()).size;
   }
 

@@ -112,15 +112,25 @@ export class PostgresSessionStore implements SessionStore {
 
   async putMeta(meta: StoredMeta): Promise<number> {
     const r = await this.pool.query<{ rev: string }>(
-      `INSERT INTO agent_sessions (id, owner, project_id, meta, rev) VALUES ($1, $2, $3, $4, 1)
+      `INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev) VALUES ($1, $2, $3, $4, $5, 1)
        ON CONFLICT (id) DO UPDATE SET meta = EXCLUDED.meta, rev = agent_sessions.rev + 1, updated_at = now()
        RETURNING rev`,
-      [meta.id, meta.owner, meta.projectId, JSON.stringify(meta)],
+      [meta.id, meta.owner, meta.projectId, meta.orgId ?? null, JSON.stringify(meta)],
     );
     return Number(r.rows[0]!.rev);
   }
 
-  async listSessionIds(): Promise<Set<string>> {
+  async listSessions({ owner, orgId, projectId }: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]> {
+    const r = await this.pool.query<{ meta: string }>(
+      `SELECT meta FROM agent_sessions
+       WHERE owner = $1 AND org_id IS NOT DISTINCT FROM $2 AND ($3::text IS NULL OR project_id = $3)
+       ORDER BY created_at DESC`,
+      [owner, orgId ?? null, projectId ?? null],
+    );
+    return r.rows.map((x) => JSON.parse(x.meta) as StoredMeta);
+  }
+
+    async listSessionIds(): Promise<Set<string>> {
     const r = await this.pool.query<{ id: string }>("SELECT id FROM agent_sessions");
     return new Set(r.rows.map((x) => x.id));
   }

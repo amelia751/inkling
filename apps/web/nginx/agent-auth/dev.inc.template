@@ -1,0 +1,4 @@
+# INKLING_WEB_AUTH_MODE=dev: one local principal. The service token goes in both headers, so an
+# agent from before todo9 (Authorization only) and after (either header) both accept it.
+proxy_set_header Authorization "Bearer ${INKLING_AGENT_TOKEN}";
+proxy_set_header X-Agent-Service-Token "${INKLING_AGENT_TOKEN}";

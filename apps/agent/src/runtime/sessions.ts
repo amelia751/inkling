@@ -53,11 +53,21 @@ export class HttpError extends Error {
   }
 }
 
+/** One row of `GET /v1/sessions`. */
+export interface SessionSummary {
+  id: string;
+  projectId: string;
+  profile: ProfileName;
+  createdAt: number;
+}
+
 /** What survives a restart (`.data/sessions/<id>.meta.json`); the transcript is `<id>.jsonl`. */
 interface SessionMeta {
   id: string;
   projectId: string;
   owner: string;
+  /** The caller's organization when the session was created (WorkOS `org_id`); unset in dev mode. */
+  orgId?: string;
   profile: ProfileName;
   restricted: boolean;
   clientTools: ClientToolSpec[];
@@ -153,7 +163,7 @@ export interface SessionServiceDeps {
   /** Where sandboxes come from (AGENT_SANDBOX); defaults to Daytona when `daytona` is given. */
   provider?: SandboxProvider;
   egress?: () => EgressPolicy;
-  /** Single local principal in dev; apps/api passes the authenticated user later. */
+  /** Single local principal in dev mode; in `workos` mode the app passes the verified user per call. */
   principal?: string;
   /** Extra tools for tests (appended to the profile's). */
   extraTools?: ToolDefinition<any, any, any>[];
@@ -297,7 +307,7 @@ export class SessionService {
 
   // ---- sessions ------------------------------------------------------------------------------
 
-  async create(req: CreateSessionRequest, owner = this.deps.principal ?? "local"): Promise<SessionContext> {
+  async create(req: CreateSessionRequest, owner = this.deps.principal ?? "local", orgId?: string): Promise<SessionContext> {
     if ((await this.store.countSessions()) >= this.config.limits.maxSessions && this.sessions.size >= this.config.limits.maxSessions)
       throw new HttpError(429, `session limit (${this.config.limits.maxSessions}) reached; delete a session first`);
     const profileName = req.profile ?? "assistant";
@@ -307,6 +317,7 @@ export class SessionService {
       id: `ses_${randomUUID()}`,
       projectId: req.projectId,
       owner,
+      ...(orgId ? { orgId } : {}),
       profile: profileName,
       restricted: !!req.restricted,
       clientTools: req.clientTools ?? [],
@@ -326,8 +337,11 @@ export class SessionService {
     return ctx;
   }
 
-  /** Live session, or rebuilt from JSONL after a restart. Ownership is checked against `owner`. */
-  async get(id: string, owner = this.deps.principal ?? "local"): Promise<SessionContext> {
+  /**
+   * Live session, or rebuilt from JSONL after a restart. Ownership is checked against `owner`, and
+   * against `orgId` when one is given (a session from another organization is a 404).
+   */
+  async get(id: string, owner = this.deps.principal ?? "local", orgId?: string): Promise<SessionContext> {
     let ctx = this.sessions.get(id);
     // Another replica ran a turn (or deleted the session) since this one loaded it: rebuild.
     if (ctx && !this.loading.has(id) && !(await this.cluster.isFresh(ctx))) {
@@ -342,7 +356,7 @@ export class SessionService {
       }
       ctx = await p;
     }
-    if (ctx.meta.owner !== owner) throw new HttpError(404, "no such session");
+    if (ctx.meta.owner !== owner || (orgId !== undefined && ctx.meta.orgId !== orgId)) throw new HttpError(404, "no such session");
     return ctx;
   }
 
@@ -519,8 +533,16 @@ export class SessionService {
     return undefined;
   }
 
-  async delete(id: string, owner?: string): Promise<void> {
-    const ctx = await this.get(id, owner);
+  /** The owner's sessions in one organization (none = dev mode's org-less sessions), newest first. */
+  async list(owner = this.deps.principal ?? "local", orgId?: string, projectId?: string): Promise<SessionSummary[]> {
+    const metas = await this.store.listSessions({ owner, orgId, projectId });
+    return metas
+      .map((m) => ({ id: m.id, projectId: m.projectId, profile: m.profile as ProfileName, createdAt: Number(m.createdAt) || 0 }))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async delete(id: string, owner?: string, orgId?: string): Promise<void> {
+    const ctx = await this.get(id, owner, orgId);
     if (ctx.activeRun && !ctx.activeRun.done) await this.cancel(ctx.activeRun.id, owner);
     else {
       const remote = await this.cluster.activeElsewhere(id);
@@ -568,7 +590,7 @@ export class SessionService {
       return { run: { id: elsewhere.id } as Run, steered: true };
     }
     if (this.cluster.draining) throw new HttpError(503, "the agent service is restarting; retry in a moment");
-    const run = new Run(ctx.id);
+    const run = new Run(ctx.id, { principal: ctx.meta.owner, orgId: ctx.meta.orgId });
     run.pending.push(text);
     const taken = await this.cluster.startRun(ctx, run);
     if (taken) {
@@ -617,7 +639,7 @@ export class SessionService {
       return;
     }
 
-    const log = this.deps.log.child({ sessionId: ctx.id, runId: run.id });
+    const log = this.deps.log.child({ sessionId: ctx.id, runId: run.id, principal: run.principal, orgId: run.orgId });
     this.transition(ctx, "running", run);
     ctx.policy.toolCalls = 0;
     ctx.policy.spendUsd = 0;

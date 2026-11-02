@@ -25,6 +25,7 @@ import { AttentionLine } from "./shared";
 import { TaskList } from "./DatasetOverview";
 import { NewDatasetDialog } from "./NewDatasetDialog";
 import { DatasetsEmptyState } from "@/studio/app/entry/empty-states";
+import { RenameInPlace, ResourceMenu } from "@/studio/components/trash/delete-dialog";
 
 type View = "cards" | "list";
 
@@ -139,7 +140,7 @@ export function DatasetsPage() {
                 <NoResults what="datasets" onClear={filtered ? clear : undefined} />
               ) : view === "cards" ? (
                 <div className="grid gap-4 md:grid-cols-2" data-view="cards">
-                  {shown.map((d) => <DatasetCard key={d.id} projectId={projectId} dataset={d} profile={profileOf(d.id)} />)}
+                  {shown.map((d) => <DatasetCard key={d.id} projectId={projectId} dataset={d} profile={profileOf(d.id)} canEdit={canEdit} />)}
                 </div>
               ) : (
                 <Card className="divide-y divide-border overflow-hidden" data-view="list">
@@ -298,18 +299,22 @@ function StatusBadge({ dataset, profile }: { dataset: DatasetSummary; profile?: 
 }
 
 /** §2.1's card: name, purpose, modalities, content at a stated level, structure, freshness. */
-function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string; dataset: DatasetSummary; profile?: DatasetLandingSummary }) {
+function DatasetCard({ projectId, dataset: d, profile: p, canEdit = false }: { projectId: string; dataset: DatasetSummary; profile?: DatasetLandingSummary; canEdit?: boolean }) {
+  const [renaming, setRenaming] = useState(false);
   const held = Array.isArray(d.definition.heldNodeIds) ? d.definition.heldNodeIds.length : 0;
   const changed = p?.lastChangedAt ?? d.createdAt;
   return (
     <Card className="flex flex-col overflow-hidden" data-testid="dataset-card" data-dataset-id={d.id}>
       <div className="flex flex-1 flex-col gap-1 px-4 pb-3 pt-4">
         <div className="flex items-start gap-2">
-          <Link to={datasetUrl(projectId, d.id)} className="min-w-0 flex-1 truncate text-body-2 font-semibold hover:underline" data-testid="dataset-link">
-            {d.title}
-          </Link>
+          <RenameInPlace projectId={projectId} kind="dataset" id={d.id} name={d.title} editing={renaming} onEditingChange={setRenaming} className="flex min-w-0 flex-1 items-center gap-1">
+            <Link to={datasetUrl(projectId, d.id)} className="min-w-0 flex-1 truncate text-body-2 font-semibold hover:underline" data-testid="dataset-link">
+              {d.title}
+            </Link>
+          </RenameInPlace>
           {d.definition.seed && <Badge theme="unknown" size="xs">Sample</Badge>}
           <StatusBadge dataset={d} profile={p} />
+          <ResourceMenu projectId={projectId} kind="dataset" id={d.id} name={d.title} canEdit={canEdit && !d.definition.seed} onRename={() => setRenaming(true)} />
         </div>
         {d.description && <p className="line-clamp-2 text-sm text-muted-foreground">{d.description}</p>}
         {p ? (
@@ -343,7 +348,7 @@ function DatasetCard({ projectId, dataset: d, profile: p }: { projectId: string;
       </div>
       {d.tasks.length > 0 && (
         <div className="border-t border-border">
-          <TaskList projectId={projectId} tasks={d.tasks} />
+          <TaskList projectId={projectId} tasks={d.tasks} canEdit={canEdit} />
         </div>
       )}
       <div className="flex justify-end border-t border-border px-4 py-2.5">

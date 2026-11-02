@@ -17,6 +17,7 @@ import { isSampleTemplate, NeedsApiError, patchProject, projectKeys, useProjectD
 import { projectsUrl, settingsUrl } from "@/studio/lib/routes";
 import { PluginsPage } from "./PluginsPage";
 import { ProjectMembers } from "./settings/ProjectMembers";
+import { DeleteProjectDialog } from "./DeletedProjectsPage";
 
 type SettingsTab = "general" | "members" | "plugins";
 
@@ -180,11 +181,27 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
           </AlertDialog>
         )}
       </Card>
+      <DangerZone projectId={project.id} name={project.title} disabled={readOnly} />
       {error && (
         <Alert theme="danger">
           {error instanceof NeedsApiError ? "Changing a project needs the full stack: see docs/running.md" : error.message}
         </Alert>
       )}
     </div>
+  );
+}
+
+/** Settings › Danger zone (todo16 D6): Delete project moves it to Deleted projects for 30 days. */
+function DangerZone({ projectId, name, disabled }: { projectId: string; name: string; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3 border-danger/40 p-4" data-testid="danger-zone">
+      <div className="max-w-xl">
+        <h2 className="text-sm font-medium">Delete this project</h2>
+        <p className="text-sm text-muted-foreground">Moves it to Deleted projects for 30 days, with its sources, datasets, Studios and annotations. Then it's gone.</p>
+      </div>
+      <Button variant="destructive" disabled={disabled} onClick={() => setOpen(true)} data-testid="delete-project">Delete project</Button>
+      <DeleteProjectDialog projectId={projectId} name={name} open={open} onOpenChange={setOpen} />
+    </Card>
   );
 }

@@ -15,6 +15,8 @@ import { ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
 import { FilesPage } from "./routes/FilesPage";
+import { TrashPage } from "./routes/TrashPage";
+import { DeletedProjectsPage } from "./routes/DeletedProjectsPage";
 import { LEGACY, LegacyRedirect, SectionFrame, FilesRedirect, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
 import { PipelineRunPage, PipelineRunsPage } from "@/studio/core/pipelines";
@@ -36,11 +38,13 @@ const studio = (
 const routes = [
   { path: "/", element: <HomePage /> },
   { path: "/projects", element: <ProjectsPage /> },
+  { path: "/deleted-projects", element: <DeletedProjectsPage /> },
   // A project starts from Home's composer (a sentence or a drop); old links land there.
   { path: "/projects/new", element: <Navigate to="/" replace /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.
+  { path: "/projects/:projectId/trash", element: <TrashPage /> },
   { path: "/projects/:projectId/sources/trash", element: <FilesPage trash /> },
   // todo12 M1: pipeline runs live under Data (static segments win over `:nodeId`, as Trash does).
   { path: "/projects/:projectId/sources/pipelines", element: <PipelineRunsPage /> },

@@ -65,9 +65,10 @@ def main() -> int:
                     consent.or_(p.get_by_label(f"Message {display} AI")).first.wait_for(timeout=20000)
                     if consent.count():
                         consent.click()
-                    p.get_by_label("Assistant options").click()
-                    p.get_by_role("menuitemradio", name="Plugin builder").click()
-                    p.keyboard.press("Escape")
+                    # No mode picker any more: the builder is reached through the assistant's
+                    # offer_specialist card; here we start from that hand-off directly.
+                    p.evaluate("async () => { const m = await import('/src/studio/stores/agent.ts'); m.useAgent.getState().setProfile('builder'); }")
+                    p.get_by_test_id("agent-specialist-back").wait_for(timeout=10000)
                     ask(p, "Add segmentation to this workspace")
                     card = p.get_by_test_id("agent-install-approval")
                     card.wait_for(timeout=30000)

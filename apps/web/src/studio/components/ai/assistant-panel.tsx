@@ -8,8 +8,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
@@ -21,7 +19,7 @@ import type { AgentStatus, ProfileName } from "@studio/agent-protocol";
 import { NAMING } from "@studio/contracts/naming";
 import { agentUnavailable, fetchAgentStatus } from "@/studio/lib/agent/client";
 import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/agent/providers";
-import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
+import { sessionTools } from "@/studio/lib/agent/session";
 import { useStudio } from "@/studio/stores/studio";
 import { MAX_ANNOTATIONS, snapshotTruncation } from "@/studio/lib/agent/context";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
@@ -29,7 +27,7 @@ import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
 import { useAckAiNotice, useAiAssistOff } from "./ai-notice";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
-import type { StudioCardContext } from "./cards";
+import { SPECIALIST_LABEL, type StudioCardContext } from "./cards";
 import { usePendingAsk } from "@/studio/app/entry/pending-ask";
 import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, whenRegistered } from "@/studio/core/drops";
 import { useProjectSummary } from "@/studio/lib/projects-api";
@@ -101,7 +99,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const profile = useAgent((s) => s.profile);
   const setProfile = useAgent((s) => s.setProfile);
   const ready = !!status.data?.configured && !aiOff;
-  const profiles = PROFILES.filter((p) => status.data?.profiles.includes(p.id) ?? p.id !== "coder");
+  const specialist = profile === "builder" || profile === "coder" ? profile : undefined;
   const [scrolled, setScrolled] = useState(false);
   const [view, setView] = useState<"chat" | "files">("chat");
   const drops = useChatDropsEnabled(project.id);
@@ -127,6 +125,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
               Scripted model
             </span>
           )}
+          {ready && specialist && (
+            <Button variant="ghost-secondary" size="sm" className="h-6 px-1.5 text-caption text-hint" onClick={() => setProfile("assistant")} disabled={!!running} title="Leave the specialist and go back to the assistant" data-testid="agent-specialist-back">
+              {SPECIALIST_LABEL[specialist]} · Back to assistant
+            </Button>
+          )}
           {ready && thread.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -142,18 +145,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">
                 {status.data?.model && <DropdownMenuLabel className="truncate font-normal text-hint">Model: {status.data.model}</DropdownMenuLabel>}
-                <DropdownMenuLabel>Mode</DropdownMenuLabel>
-                <DropdownMenuRadioGroup value={profile} onValueChange={(v) => setProfile(v as ProfileName)}>
-                  {profiles.map((p) => (
-                    <DropdownMenuRadioItem key={p.id} value={p.id} disabled={!!running}>
-                      <div className="flex flex-col">
-                        <span>{p.label}</span>
-                        <span className="text-caption text-hint">{p.hint}</span>
-                      </div>
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-                <DropdownMenuSeparator />
+                {status.data?.model && <DropdownMenuSeparator />}
                 {dropsOn && (
                   <DropdownMenuItem onSelect={() => setView(view === "files" ? "chat" : "files")} data-testid="agent-shared-files">
                     {view === "files" ? "Back to the chat" : "Shared files"}

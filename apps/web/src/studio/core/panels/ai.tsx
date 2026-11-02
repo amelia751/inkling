@@ -51,15 +51,14 @@ function studioPrompts(profile: ProfileName, noun: string): Prompt[] {
     { icon: RegionIcon, text: "Suggest a contour" },
     { icon: DocumentIcon, text: "Prepare dataset documentation" },
   ];
-  if (envProfile(profile) && profile !== "builder") prompts.splice(2, 0, { icon: SettingsIcon, text: "Add a polygon tool and a “car” class in red" });
   if (profile === "builder") prompts.splice(0, 2, { icon: SettingsIcon, text: "Add segmentation to this workspace" }, { icon: SearchIcon, text: "Which plugins are installed here?" });
-  if (profile === "task") prompts.splice(0, 0, { icon: RegionIcon, text: `Segment objects in three ${noun}` });
-  if (profile === "coder") prompts.splice(0, 0, { icon: DocumentIcon, text: `Compute basic statistics for three ${noun} in the sandbox` });
+  else if (profile === "coder") prompts.splice(0, 0, { icon: DocumentIcon, text: `Compute basic statistics for three ${noun} in the sandbox` });
+  else if (envProfile(profile)) prompts.splice(2, 0, { icon: SettingsIcon, text: "Add a polygon tool and a “car” class in red" });
   return prompts;
 }
 
 const PROFILE_BLURB: Record<ProfileName, string> = {
-  assistant: ".",
+  assistant: ", reshape this workspace (tools, panels, labels) and run its installed capabilities; you approve each run.",
   coder: ". I can also reshape this workspace and run analysis code in a private sandbox.",
   builder: ". I can also find, install and build plugins for this workspace; you approve every install.",
   task: ". I can also run this workspace's installed capabilities; you approve each run.",
@@ -128,7 +127,7 @@ export function AiPanel({ project, items, item }: PanelProps) {
       taskId={params.taskId}
       onUndo={(m, p) => void undo(m, p)}
       bareSnapshot={() => inProject(bareSnapshot(project), projectId)}
-      placeholder={(profile) => (profile === "assistant" ? `Ask about ${project.title}…` : "Ask the assistant to change this environment…")}
+      placeholder={(profile) => (profile === "builder" ? "Ask the plugin builder…" : profile === "coder" ? "Ask the code sandbox…" : `Ask about ${project.title}…`)}
       empty={(profile) => ({
         title: "How can I help with this dataset?",
         body: `I can check progress, find gaps, explain warnings, and draft label definitions or documentation for ${project.title}${PROFILE_BLURB[profile]}`,

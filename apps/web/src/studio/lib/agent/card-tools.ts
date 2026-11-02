@@ -107,6 +107,20 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     description: "Offer to select and reveal specific annotations in the viewer (e.g. the ones a validation issue refers to).",
     input_schema: obj({ annotationIds: strList("Annotation ids."), reason: str("What they have in common.") }),
   },
+  {
+    name: "offer_specialist",
+    title: "Offering a specialist",
+    description:
+      "Offer to continue the request with a specialist the user must approve: `builder` finds, installs and builds plugins (installs need the user's approval); `coder` runs code in a private sandbox. Use it instead of attempting either yourself.",
+    input_schema: obj(
+      {
+        specialist: { type: "string", enum: ["builder", "coder"], description: "Who continues the request." },
+        request: str("The user's request, restated in one or two sentences for the specialist."),
+        reason: str("One sentence the user sees: why this needs the specialist."),
+      },
+      ["specialist", "request", "reason"],
+    ),
+  },
 ];
 
 export const CARD_TOOL_NAMES = new Set(CARD_TOOLS.map((t) => t.name));
@@ -188,6 +202,13 @@ export function runCardTool(name: string, input: Json, ctx?: AgentContext): Card
       case "draft_document": {
         const filename = String(input.filename ?? "document.md").replace(/[^\w.-]+/g, "-");
         return { ok: true, output: { shown: true }, summary: filename, card: { kind: "document", title: String(input.title ?? filename), filename, markdown: String(input.markdown ?? "") } };
+      }
+      case "offer_specialist": {
+        const specialist = String(input.specialist ?? "");
+        if (specialist !== "builder" && specialist !== "coder") return fail(`Unknown specialist "${specialist}": use builder or coder.`, "Unknown specialist");
+        const request = String(input.request ?? "").trim().slice(0, 2000);
+        if (!request) return fail("request is required: restate what the user asked.", "No request");
+        return { ok: true, output: { shown: true }, summary: specialist === "builder" ? "Plugin builder" : "Code sandbox", card: { kind: "specialist", specialist, request, reason: String(input.reason ?? "").slice(0, 300) } };
       }
       case "suggest_tool": {
         const tool = String(input.tool ?? "");

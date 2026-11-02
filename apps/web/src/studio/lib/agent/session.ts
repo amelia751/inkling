@@ -20,12 +20,15 @@ const ENV_TITLES: Record<string, string> = {
 export const ENV_TOOLS: ClientToolSpec[] = AGENT_TOOLS.map((t) => ({ ...t, title: ENV_TITLES[t.name] }));
 export const ENV_TOOL_NAMES = new Set(ENV_TOOLS.map((t) => t.name));
 
+/**
+ * The one assistant, plus the specialists it hands off to with an offer_specialist card (the
+ * user clicks to continue there). No mode picker: environment-designer and task are folded into
+ * `assistant` and stay in the protocol only for older clients.
+ */
 export const PROFILES: { id: ProfileName; label: string; hint: string }[] = [
-  { id: "assistant", label: "Dataset assistant", hint: "Questions, checks, label sets, docs" },
-  { id: "environment-designer", label: "Environment designer", hint: "Also edits tools, panels, labels" },
-  { id: "coder", label: "Coder (sandbox)", hint: "Also runs code in a private sandbox" },
+  { id: "assistant", label: "Assistant", hint: "Questions, checks, labels, environment edits, installed capabilities" },
+  { id: "coder", label: "Code sandbox", hint: "Runs code in a private sandbox" },
   { id: "builder", label: "Plugin builder", hint: "Finds, installs and builds plugins; you approve installs" },
-  { id: "task", label: "Task runner", hint: "Runs installed capabilities, e.g. segmentation" },
 ];
 
 /** The builder gets these from the kernel (workspace installs) and may not run Studio commands. */
@@ -33,14 +36,14 @@ const BUILDER_EXCLUDED = new Set(["run_command", "list_capabilities", "inspect_p
 
 /** Tools the browser registers for a profile; the service checks them against its own allowlist. */
 export const clientToolsFor = (profile: ProfileName) =>
-  profile === "assistant" || profile === "task"
+  profile === "task"
     ? CARD_TOOLS
     : profile === "builder"
       ? [...CARD_TOOLS, ...ENV_TOOLS.filter((t) => !BUILDER_EXCLUDED.has(t.name))]
       : [...CARD_TOOLS, ...ENV_TOOLS];
 
 /** Profiles that see (and may edit) the environment. */
-export const envProfile = (profile: ProfileName) => profile !== "assistant" && profile !== "task";
+export const envProfile = (profile: ProfileName) => profile !== "task";
 
 /** Session options for a profile (the catalogue comes from the registry, loaded at boot). */
 export const sessionTools = (profile: ProfileName) => ({

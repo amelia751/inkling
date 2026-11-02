@@ -366,7 +366,8 @@ export const useAgent = create<AgentState>()(
         notes: {},
         conversations: {},
         active: null,
-        profile: "environment-designer",
+        // One assistant (the specialists, builder and coder, are reached through offer_specialist cards).
+        profile: "assistant",
         running: null,
         followedElsewhere: null,
         blockedBy: null,
@@ -463,7 +464,8 @@ export const useAgent = create<AgentState>()(
             delete sessions[projectId];
             const conversations = { ...s.conversations };
             delete conversations[projectId];
-            return { sessions, conversations, threads: { ...s.threads, [projectId]: [] }, notes: { ...s.notes, [projectId]: [] } };
+            // A new chat starts with the assistant, not with a specialist the last one handed off to.
+            return { sessions, conversations, profile: "assistant", threads: { ...s.threads, [projectId]: [] }, notes: { ...s.notes, [projectId]: [] } };
           });
         },
         addNote: (projectId, note) => set((s) => ({ notes: { ...s.notes, [projectId]: [...(s.notes[projectId] ?? []), note] } })),
@@ -517,9 +519,10 @@ export const useAgent = create<AgentState>()(
       name: `${RES}-ai`,
       // Per person (todo15 D1): the name is suffixed with the person at each read and write.
       storage: createJSONStorage(() => personStorage(() => localStorage)),
-      version: 2,
+      version: 3,
       // v1 threads were for the old stateless loop; their shape is compatible, sessions start fresh.
-      migrate: (persisted) => ({ ...(persisted as object), sessions: {}, notes: {}, active: null }) as never,
+      // v3: the mode picker is gone; everyone starts on the one assistant.
+      migrate: (persisted) => ({ ...(persisted as object), sessions: {}, notes: {}, active: null, profile: "assistant" }) as never,
       partialize: (s) => ({ threads: s.threads, sessions: s.sessions, notes: s.notes, active: s.active, profile: s.profile, conversations: s.conversations }),
     },
   ),

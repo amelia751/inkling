@@ -23,6 +23,8 @@ import { useTabUndo } from "@/studio/lib/files/undo";
 import { ReorgDiff } from "@/studio/components/files/reorg-diff";
 import { useReorgPlans } from "@/studio/stores/reorg-plans";
 import { Markdown } from "./markdown";
+import { useAgent } from "@/studio/stores/agent";
+import { usePendingAsks } from "@/studio/app/entry/pending-ask";
 
 /** What Studio-only cards act on: the open dataset and its items. */
 export interface StudioCardContext {
@@ -50,6 +52,7 @@ export function AgentCardView({ studio, ...rest }: CardProps) {
   if (card.kind === "document") return <DocumentCard {...rest} card={card} />;
   if (card.kind === "reorg-plan") return <ReorgPlanCard {...rest} card={card} />;
   if (card.kind === "upload-request") return <UploadCard projectId={rest.projectId} card={card} />;
+  if (card.kind === "specialist") return <SpecialistCard {...rest} card={card} />;
   if (STUDIO_ONLY.has(card.kind) && !studio)
     return (
       <Shell icon={InfoIcon} title="Open the Studio to use this">
@@ -336,6 +339,31 @@ function LocationCard({ card, setState, projectId }: CardProps & { card: Extract
       {card.reason && <p className="text-muted-foreground">{card.reason}</p>}
       <Button variant="outline" size="sm" className="self-start" onClick={go}>
         {label}
+        <ArrowRightIcon />
+      </Button>
+    </div>
+  );
+}
+
+export const SPECIALIST_LABEL = { builder: "Plugin builder", coder: "Code sandbox" } as const;
+
+/**
+ * offer_specialist: the assistant can't install plugins or run code itself; on the user's click
+ * the conversation continues with that specialist (its own session and narrower token), starting
+ * from the restated request. "Back to assistant" in the header returns.
+ */
+function SpecialistCard({ card, state, setState, projectId }: CardProps & { card: Extract<AgentCard, { kind: "specialist" }> }) {
+  const label = SPECIALIST_LABEL[card.specialist];
+  const go = () => {
+    setState("applied");
+    useAgent.getState().setProfile(card.specialist);
+    usePendingAsks.getState().queue(projectId, card.request);
+  };
+  return (
+    <div className="flex flex-col gap-1 self-start" data-testid="agent-specialist">
+      {card.reason && <p className="text-muted-foreground">{card.reason}</p>}
+      <Button variant="outline" size="sm" className="self-start" onClick={go} disabled={state !== "open"}>
+        {state === "applied" ? `Continued with ${label}` : `Continue with ${label}`}
         <ArrowRightIcon />
       </Button>
     </div>

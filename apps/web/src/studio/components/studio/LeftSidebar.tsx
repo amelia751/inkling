@@ -17,7 +17,7 @@ export function SlotTabs({ slot, only, env, project, items, item }: SlotProps & 
   if (panels.length === 1) {
     return (
       <div className="flex h-full flex-col bg-[var(--bg-primary)]">
-        <PanelHost id={panels[0].id} env={env} project={project} items={items} item={item} />
+        <PanelHost id={panels[0].id} env={env} project={project} items={items} item={item} standalone={slot === "right"} />
       </div>
     );
   }

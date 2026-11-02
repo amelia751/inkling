@@ -77,6 +77,8 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
       const title = projectTitle({ goal, picked: g.kind === "drop" ? g.picked : undefined });
       const p = await createProject(title, goal && title !== goal ? goal : "");
       markTimeline("project-created");
+      // Its name is known now: the project's breadcrumb and sidebar show it at once, not its id.
+      useShell.getState().visited({ id: p.id, title: p.title });
       void qc.invalidateQueries({ queryKey: projectKeys.all });
       // §3.5 fast path: a request that names a preset boots its Studio now (the person lands in
       // it); the message still goes to the assistant, which refines it (labels, structure).

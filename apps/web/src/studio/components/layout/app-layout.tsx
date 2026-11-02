@@ -37,6 +37,7 @@ import { useProjectEvents } from "@/studio/lib/use-project-events";
 import { useTrashCount } from "@/studio/lib/files/api";
 import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
 import { useFeature, type Features } from "@/studio/lib/features";
@@ -47,6 +48,7 @@ const FULL_NAV_MIN = 1280;
 
 export interface ProjectRef {
   id: string;
+  /** Empty while the name is still loading (shown as skeleton text, never the raw id). */
   title: string;
 }
 
@@ -84,7 +86,11 @@ export function useCurrentProject(fallback?: ProjectRef): ProjectRef | undefined
   const { projectId } = useParams();
   const summary = useProjectSummary(projectId);
   const visited = useShell((s) => s.visited);
-  const ref = projectId ? { id: projectId, title: summary.data?.title ?? fallback?.title ?? projectId } : fallback;
+  const recent = useShell((s) => (projectId ? s.recent.find((r) => r.id === projectId)?.title : undefined));
+  // The name from the list, the page, or this browser's recents; while none has it, empty
+  // (skeleton text), or the id only once the list answered without it (a manifest project).
+  const title = summary.data?.title ?? fallback?.title ?? recent ?? (summary.isLoading || summary.isFetching ? "" : projectId);
+  const ref = projectId ? { id: projectId, title: title ?? "" } : fallback;
   useEffect(() => {
     if (projectId && summary.data) visited({ id: projectId, title: summary.data.title });
   }, [projectId, summary.data, visited]);
@@ -291,7 +297,11 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
             <span className="tile-gradient flex size-8 shrink-0 items-center justify-center rounded-lg" aria-hidden>
               <ProjectsIcon className="size-4" />
             </span>
-            <span className="min-w-0 truncate text-body-2 font-semibold" title={project.title} data-testid="project-title">{project.title}</span>
+            {project.title ? (
+              <span className="min-w-0 truncate text-body-2 font-semibold" title={project.title} data-testid="project-title">{project.title}</span>
+            ) : (
+              <SkeletonText variant="subheader" className="w-28" aria-label="Loading project name" />
+            )}
           </div>
         </div>
       )}

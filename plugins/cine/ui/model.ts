@@ -200,7 +200,9 @@ export function resolvePhases(annotations: Annotation[], itemId: string, assets:
     if (marked) return { frame: marked.geometry.frame, source: "marked", id: marked.id };
     const ref = assets.find((a) => a.role === "reference" && a.phase === phase && a.frame !== undefined);
     if (ref) return { frame: ref.frame!, source: "reference" };
-    const m = meta?.[phase.toLowerCase()];
+    // todo18 D5: the item's own meta (an uploaded ACDC Info.cfg) before the project's.
+    const own = assets.find((a) => a.meta && typeof a.meta[phase.toLowerCase()] === "number")?.meta?.[phase.toLowerCase()];
+    const m = own ?? meta?.[phase.toLowerCase()];
     return typeof m === "number" ? { frame: m, source: "meta" } : null;
   };
   return Object.fromEntries(ids.map((id) => [id, pick(id)]));

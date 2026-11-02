@@ -205,3 +205,7 @@ def test_worker_loop_reports_the_codec_failure(tmp_path):
 
     derive.DeriveWorker(k, tmp_path, convert=convert).tick()
     assert k.calls[-1] == ("/api/v1/worker/derivatives/drv-1/fail", {"reason": "ffmpeg can't decode cinepak video", "retry": False, "maxAttempts": 3})
+
+
+def test_acdc_item_meta_is_zero_based():
+    assert sidecars.item_meta({"ed": 1, "es": 12, "group": "DCM", "weight": 95.0}) == {"ed": 0, "es": 11, "group": "DCM", "weight": 95.0}

@@ -114,6 +114,14 @@ class InspectSubscriber:
             need = derive.derivative_kind(f["relPath"], n.get("detectedKind"))
             if need:
                 n["facts"]["derivative"] = {"kind": need, "state": "processing", "progress": 0}
+        # ACDC Info.cfg (ED/ES, height, weight) → meta of the volumes in its folder (0-based frames).
+        for f in files:
+            if posixpath.basename(f["relPath"]).lower() == "info.cfg" and 0 < int(f.get("size") or 0) <= 64 * 1024:
+                info = sidecars.parse_acdc_info(self._all(f["nodeId"], int(f["size"])).decode("utf-8", "replace"))
+                folder = posixpath.dirname(f["relPath"])
+                for g, n in zip(files, nodes):
+                    if g is not f and posixpath.dirname(g["relPath"]) == folder and n.get("detectedKind") in ("volume", "mask"):
+                        n["facts"]["acdc"] = sidecars.item_meta(info)
         groups = dicom.group_series(instances)
         by_id = {n["nodeId"]: n for n in nodes}
         for g in groups:

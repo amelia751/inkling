@@ -31,6 +31,8 @@ export interface SeedAsset {
   folder?: string[];
   /** todo11 D8: an item dropped into a Studio, while (and after) it ingests. */
   ingest?: AssetIngest;
+  /** todo18 D5: per-item meta from a sidecar (ACDC Info.cfg: `ed`/`es` 0-based frames, group, height, weight). */
+  meta?: Record<string, string | number | null>;
   /** todo18 D4: the browser-viewable file the worker made (video → MP4, slide → DZI). */
   derivative?: AssetDerivative;
 }

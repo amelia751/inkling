@@ -82,3 +82,12 @@ def segmentation_role(name: str) -> dict | None:
     if stem.endswith("_gt"):
         return {"role": "reference"}
     return None
+
+
+def item_meta(info: dict) -> dict:
+    """Info.cfg values as item meta: ED/ES become 0-based frames (as the seeds' meta)."""
+    out = {k: v for k, v in info.items() if k in ("group", "frames", "height", "weight")}
+    for k in ("ed", "es"):
+        if isinstance(info.get(k), int):
+            out[k] = info[k] - 1
+    return out

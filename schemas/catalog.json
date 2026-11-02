@@ -4859,7 +4859,10 @@
         "reviewRules": [
           "studio.core.reviewRules.unlabeled-items"
         ]
-      }
+      },
+      "profileOf": [
+        "studio.text-spans.dataKinds.text"
+      ]
     },
     {
       "id": "studio.presets.presets.cine-4d",
@@ -4926,7 +4929,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.cine.dataKinds.volume-time"
+      ]
     },
     {
       "id": "studio.presets.presets.drone-video-tracks",
@@ -4994,7 +5000,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.video.dataKinds.video"
+      ]
     },
     {
       "id": "studio.presets.presets.ecg",
@@ -5582,7 +5591,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.timeseries.dataKinds.multichannel-timeseries"
+      ]
     },
     {
       "id": "studio.presets.presets.generic-image",
@@ -5632,7 +5644,10 @@
           }
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.image2d.dataKinds.raster"
+      ]
     },
     {
       "id": "studio.presets.presets.image-2d",
@@ -5694,7 +5709,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.image2d.dataKinds.raster"
+      ]
     },
     {
       "id": "studio.presets.presets.pathology",
@@ -5751,7 +5769,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.wsi.dataKinds.raster-pyramid"
+      ]
     },
     {
       "id": "studio.presets.presets.satellite-tiles",
@@ -5831,7 +5852,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.wsi.dataKinds.raster-pyramid"
+      ]
     },
     {
       "id": "studio.presets.presets.sensor-timeseries-events",
@@ -5934,7 +5958,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.timeseries.dataKinds.multichannel-timeseries"
+      ]
     },
     {
       "id": "studio.presets.presets.video",
@@ -5982,7 +6009,10 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.video.dataKinds.video"
+      ]
     },
     {
       "id": "studio.presets.presets.volume-3d",
@@ -6042,7 +6072,78 @@
           "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
-      }
+      },
+      "profileOf": [
+        "studio.volume.dataKinds.volume"
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "kind": "studio.text-spans.dataKinds.text",
+      "preset": "preset:ner",
+      "renderer": "studio.text-spans.renderers.reader",
+      "description": "Person / organisation / location spans on plain text, JSONL export."
+    },
+    {
+      "kind": "studio.cine.dataKinds.volume-time",
+      "preset": "preset:cine-4d",
+      "renderer": "studio.cine.renderers.slice-frame-canvas",
+      "description": "Cardiac cine MRI: spline contours and masks per slice and frame, copy-forward, ED/ES phases, function metrics; ACDC NIfTI export."
+    },
+    {
+      "kind": "studio.video.dataKinds.video",
+      "preset": "preset:drone-video-tracks",
+      "renderer": "studio.video.renderers.frame-canvas",
+      "description": "Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export."
+    },
+    {
+      "kind": "studio.timeseries.dataKinds.multichannel-timeseries",
+      "preset": "preset:ecg",
+      "renderer": "studio.timeseries.renderers.strip-chart",
+      "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export."
+    },
+    {
+      "kind": "studio.image2d.dataKinds.raster",
+      "preset": "preset:generic-image",
+      "renderer": "studio.image2d.renderers.canvas-raster",
+      "description": "Natural images (photos, scans, screenshots) on a light canvas renderer: boxes, polygons and keypoints with select / move / resize; COCO export. No Cornerstone, no window/level."
+    },
+    {
+      "kind": "studio.image2d.dataKinds.raster",
+      "preset": "preset:image-2d",
+      "renderer": "studio.image2d.renderers.cornerstone-stack",
+      "description": "Radiographs and photos on a Cornerstone3D stack: window/level, ROI shapes, measurements, masks; COCO and DICOM export."
+    },
+    {
+      "kind": "studio.wsi.dataKinds.raster-pyramid",
+      "preset": "preset:pathology",
+      "renderer": "studio.wsi.renderers.osd",
+      "description": "Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export."
+    },
+    {
+      "kind": "studio.wsi.dataKinds.raster-pyramid",
+      "preset": "preset:satellite-tiles",
+      "renderer": "studio.wsi.renderers.osd",
+      "description": "Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel."
+    },
+    {
+      "kind": "studio.timeseries.dataKinds.multichannel-timeseries",
+      "preset": "preset:sensor-timeseries-events",
+      "renderer": "studio.timeseries.renderers.strip-chart",
+      "description": "Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall)."
+    },
+    {
+      "kind": "studio.video.dataKinds.video",
+      "preset": "preset:video",
+      "renderer": "studio.video.renderers.frame-canvas",
+      "description": "Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export."
+    },
+    {
+      "kind": "studio.volume.dataKinds.volume",
+      "preset": "preset:volume-3d",
+      "renderer": "studio.volume.renderers.cornerstone-mpr",
+      "description": "MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export."
     }
   ]
 }

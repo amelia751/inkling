@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { FsConflict, FsResolution } from "@studio/contracts/types";
@@ -188,6 +189,7 @@ export const destroyDeletedProject = (projectId: string) => api<unknown>(`/org/d
 
 /** Everything a trash or restore can change: lists, the drive, datasets, Studios, the trash itself. */
 export function invalidateAfterTrash(qc: QueryClient, projectId: string) {
+  invalidateFor(qc, projectId, "trash.changed"); // todo18 D1: one map for every page
   void qc.invalidateQueries({ queryKey: trashKeys.all(projectId) });
   void qc.invalidateQueries({ queryKey: projectKeys.one(projectId) });
   void qc.invalidateQueries({ queryKey: ["files", projectId] });

@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -35,7 +36,7 @@ export function ImportLinkDialog({ open, onOpenChange, projectId, folderId }: { 
       if (r) {
         toast.success("Importing from the link", { description: "It shows under Imports while it downloads." });
         setUrl("");
-        void qc.invalidateQueries({ queryKey: projectKeys.imports(projectId) }); // todo18 D1: invalidateFor
+        invalidateFor(qc, projectId, "import.updated");
       }
     } catch (e) {
       setError(problemMessage(e));

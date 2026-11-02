@@ -270,6 +270,26 @@ def drop_purged(db: Session, ctx: RequestContext, p: ProjectRow, node_ids: set[s
 # ---- Trash, restore, destroy -------------------------------------------------------------------
 
 
+
+def _publishes_change(fn):
+    """todo18 D1: every Trash change tells open pages (`trash.changed`), so a Studio or dataset
+    trashed in another tab switches to its Trash state without a reload."""
+    import functools
+
+    @functools.wraps(fn)
+    def run(db, ctx, p, *a, **kw):
+        out = fn(db, ctx, p, *a, **kw)
+        if not kw.get("dry_run"):
+            from . import events
+
+            batch = out.get("batchId") if isinstance(out, dict) else None
+            events.publish(db, ctx, "trash.changed", {"projectId": p.id, "action": fn.__name__, "batchId": batch or (a[0] if a and isinstance(a[0], str) else None)}, source="kernel")
+        return out
+
+    return run
+
+
+@_publishes_change
 def trash(db: Session, ctx: RequestContext, p: ProjectRow, kind: str, row: Any) -> dict:
     """Move `row` and its dependents to Trash in one batch."""
     deps = _dependents(db, kind, row)
@@ -321,6 +341,7 @@ def _source_roots(db: Session, p: ProjectRow, batch_id: str) -> list[SourceNode]
     return list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.trash_batch_id == batch_id, SourceNode.trashed_at.is_not(None))))
 
 
+@_publishes_change
 def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str, resolutions: dict[str, str] | None = None) -> dict:
     lock = _claim(db, p, batch_id, "restoring")
     roots = _source_roots(db, p, batch_id)
@@ -356,6 +377,7 @@ def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str, reso
     return {"restored": items, "relocatedToRoot": relocated}
 
 
+@_publishes_change
 def restore_many(db: Session, ctx: RequestContext, p: ProjectRow, batch_ids: list[str], resolutions: dict[str, str] | None = None) -> dict:
     """Restore several batches at once, all or nothing (the request's one transaction)."""
     ids = list(dict.fromkeys(batch_ids))
@@ -437,6 +459,7 @@ def _delete_blobs(keys: list[str]) -> None:
             pass
 
 
+@_publishes_change
 def destroy(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> dict:
     lock = _claim(db, p, batch_id, "destroying")
     roots = _source_roots(db, p, batch_id)
@@ -460,6 +483,7 @@ def destroy(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> d
     return {"purged": n}
 
 
+@_publishes_change
 def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None, kind: str = "all") -> dict:
     """Empty Trash. `kind="all"` (the project Trash page) purges every kind; `kind="sources"`
     (Sources › Trash) purges files only and never touches datasets, collections or Studios

@@ -2,7 +2,7 @@
 (video → H.264 MP4, slide → DZI pyramid), keyed by content hash, purged with the source.
 
 Revision ID: 0023
-Revises: 0021
+Revises: 0022
 Create Date: 2026-11-02 20:00:00.000000
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = '0023'
-down_revision = '0021'  # todo18: 0022 (W1) lands first at merge; rebase this to '0022' then
+down_revision = '0022'
 branch_labels = None
 depends_on = None
 

@@ -117,7 +117,6 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
         onValueChange={setText}
         onSend={(t) => begin({ kind: "send", text: t })}
         onFiles={(f) => void onFiles(f)}
-        examples={HOME_EXAMPLES}
         dropLabel={last ? "Drop to add these files" : "Drop to start a project with these files"}
         busy={busy}
         error={error}

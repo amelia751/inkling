@@ -223,7 +223,7 @@ def main() -> int:
         page.wait_for_selector("[data-testid=agent-empty]", timeout=10000)
         page.wait_for_selector("[data-testid=first-run-hints]", timeout=10000)
         notice = page.locator("[data-testid=agent-drawer] [data-testid=ai-notice]")
-        check("D2: no consent wall; the empty chat says what goes to the provider", notice.count() == 1 and "File contents never do" in notice.inner_text() and "scripted" in notice.inner_text(), notice.all_inner_texts().__str__())
+        check("D2: no consent wall; the empty chat says what goes to the provider", notice.count() == 1 and "never go to the assistant" in notice.inner_text() and notice.locator("a[href='/privacy']").count() == 1, notice.all_inner_texts().__str__())
         prompts = [t.strip() for t in page.locator("[data-testid=agent-empty] li button").all_inner_texts()]
         check("first-run hints: the three todo13 examples", prompts == ["Segment liver CT", "Classify skin lesions", "Annotate ultrasound video"], str(prompts))
         shot(page, "first-run-drawer-hints")

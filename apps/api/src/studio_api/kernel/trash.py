@@ -256,7 +256,11 @@ def drop_purged(db: Session, ctx: RequestContext, p: ProjectRow, node_ids: set[s
             status, res = run(db, vctx, "branch", d.id, {})
             if status < 300:
                 status, res = run(db, vctx, "commit", d.id, body)
-            oid = res.get("commit_oid") if status < 300 else None
+            if status >= 300:
+                # todo18: never drop files from a versioned dataset's definition without the commit
+                # that records it; the request's transaction rolls back and nothing is purged.
+                raise HTTPException(503, f"Couldn't record the removal in {d.title}'s history, so nothing was deleted forever. Try again.")
+            oid = res.get("commit_oid")
         record_event(db, org_id=p.org_id, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, action="dataset.files_purged", target=d.id, detail={"projectId": p.id, "files": len(gone), "commitOid": oid})
         out.append({"id": d.id, "name": d.title, "items": len(gone), "commitOid": oid})
     db.flush()

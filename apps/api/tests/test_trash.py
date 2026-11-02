@@ -343,3 +343,30 @@ def test_empty_trash_takes_each_batch_lock(client):
     assert client.post(f"/api/v1/projects/{p}/trash/empty").json()["purged"] >= 1
     r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
     assert r.status_code == 409 and "deleted forever" in r.text
+
+
+def test_purge_rolls_back_when_the_versioning_commit_fails(client, monkeypatch):
+    """todo18 B: a versioned dataset's files aren't dropped (nor the file purged) without the commit."""
+    from studio_api.kernel import versioning
+    from studio_api.kernel.versioning import client as vclient, service
+    from studio_api.kernel.versioning.fake import FakeVersioning
+
+    from .conftest import ws
+
+    vclient.set_client(FakeVersioning())
+    service.clear_cache()
+    try:
+        p, ds, _ = _setup(client)
+        assert client.post("/api/v1/datasets", json={"id": ds["id"]}, headers=ws(p)).status_code == 201
+        a = _by_name(p)["a.png"].id
+        _ops(client, p, [{"kind": "trash", "nodeIds": [a]}])
+        real = versioning.run
+        monkeypatch.setattr(versioning, "run", lambda db, c, op, *x, **k: (503, {}) if op == "commit" else real(db, c, op, *x, **k))
+        r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "purge", "nodeIds": [a]}]})
+        assert r.status_code == 503, r.text
+        d = client.get(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()
+        assert [f["nodeId"] for f in d["definition"]["files"]] == [a]
+        assert _trash(client, p, "sources")["count"] == 1  # still in Trash, not purged
+    finally:
+        vclient.set_client(None)
+        service.clear_cache()

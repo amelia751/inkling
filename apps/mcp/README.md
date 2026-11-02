@@ -9,8 +9,11 @@ pnpm mcp                                   # from the repo root; talks to http:/
 claude mcp add <resourcePrefix> -- pnpm --dir /abs/path/to/repo mcp
 ```
 
-Env vars use the naming config's `envPrefix` (`schemas/naming.json`): `<envPrefix>WEB_URL`,
-`<envPrefix>MCP_AUTHOR`.
+Env vars use the naming config's `envPrefix` (`schemas/naming.json`): `<envPrefix>MCP_STUDIO_URL`
+(environments, catalogue, seeds; default the api's dev URL `http://127.0.0.1:8000`; `<envPrefix>WEB_URL`
+is still honoured, and `list_capabilities` / `inspect_plugin` need it: the api answers 501),
+`<envPrefix>MCP_AUTHOR`. `patch_environment` / `set_environment` send the `revision` you edited
+(fetched when omitted); a stale one comes back as a conflict error.
 
 The catalogue and environment routes (`/api/catalog`, `/api/environments`) are still served by
 the web dev server (`apps/web/dev/seed-server.ts`). When `apps/api` serves them, point
@@ -25,8 +28,8 @@ With `<envPrefix>MCP_WORKSPACE` set, every active rung-4 viewer in that workspac
 document the Studio renders: `schemas/viewer-runtime.v1.json`) plus a `view_<plugin>__<renderer>`
 tool pointing at it. The View's host tools (`viewer_read_asset`, …) are app-only, so file bytes
 never enter the model's context; `viewer_read_asset` serves only files a view tool opened in
-this session, from `<envPrefix>WEB_URL/seed/`. Outside the Studio viewers are read-only.
-`<envPrefix>API_URL` is the kernel (default: the web URL, which proxies `/api`).
+this session, from `<Studio URL>/seed/`. Outside the Studio viewers are read-only.
+`<envPrefix>API_URL` is the kernel (default: the Studio URL above).
 
 `test/apps-host/` is a minimal MCP Apps host built on the official SDK (MCP client +
 `@modelcontextprotocol/ext-apps` AppBridge, the reference sandbox proxy); `tests/e2e/mcp_apps_host_test.py`

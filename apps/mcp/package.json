@@ -9,7 +9,8 @@
     "start": "node dist/main.js",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test:apps-host": "node test/apps-host/run.mjs"
+    "test:apps-host": "node test/apps-host/run.mjs",
+    "test": "tsx --test test/unit/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2"

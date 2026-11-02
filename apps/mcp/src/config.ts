@@ -6,9 +6,13 @@ export type Naming = { envPrefix: string; resourcePrefix: string; displayName: s
 export const NAMING: Naming = JSON.parse(readFileSync(new URL("../../../schemas/naming.json", import.meta.url), "utf8"));
 
 export interface McpConfig {
-  /** The Studio (web dev server or the deployed web), which serves /api/environments and the catalogue. */
+  /**
+   * Where /api/environments, /api/catalog and /seed are read (todo17 M0): `<envPrefix>MCP_STUDIO_URL`,
+   * else `<envPrefix>WEB_URL` (older setups pointed at the web dev server, which proxies /api), else
+   * `<envPrefix>API_URL`, else the api's dev URL (http://127.0.0.1:8000).
+   */
   webUrl: string;
-  /** The kernel's Workspace and Plugin APIs (default: the web URL, which proxies /api). */
+  /** The kernel's Workspace and Plugin APIs (default: `<envPrefix>API_URL`, else the URL above). */
   apiUrl: string;
   /** Kernel workspace whose active plugins are offered as MCP Apps viewers. */
   workspace: string | undefined;
@@ -23,9 +27,12 @@ export interface McpConfig {
   author: string;
 }
 
+/** The api's dev URL (`pnpm dev`, docs/running.md). */
+export const DEFAULT_STUDIO_URL = "http://127.0.0.1:8000";
+
 export function loadConfig(raw: NodeJS.ProcessEnv = process.env): McpConfig {
   const env = (key: string) => raw[`${NAMING.envPrefix}${key}`] || undefined;
-  const webUrl = (env("WEB_URL") ?? "http://localhost:5173").replace(/\/$/, "");
+  const webUrl = (env("MCP_STUDIO_URL") ?? env("WEB_URL") ?? env("API_URL") ?? DEFAULT_STUDIO_URL).replace(/\/$/, "");
   return {
     webUrl,
     apiUrl: (env("API_URL") ?? webUrl).replace(/\/$/, ""),

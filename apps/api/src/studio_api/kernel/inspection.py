@@ -23,11 +23,11 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile
-from . import assets, audit, drops, events, explore, imports, projects
+from . import assets, audit, derivatives, drops, events, explore, imports, projects
 
 INSPECTOR = "worker:inspect"
 KINDS = {"image", "dicom", "volume", "video", "waveform", "slide", "table", "document", "mask", "annotations", "archive", "unknown"}
-FLAG_KEYS = {"privacy", "unsupported", "quality"}
+FLAG_KEYS = {"privacy", "unsupported", "quality", "pair"}
 MAX_FACTS_BYTES = 64 * 1024
 DERIVED = {"thumbnail": (".png", {"image/png"}), "table-csv": (".csv", {"text/csv"})}
 MAX_DERIVED_BYTES = 64 * 1024 * 1024
@@ -179,6 +179,9 @@ def report(db: Session, import_id: str, body: dict) -> dict:
                 continue  # never overwrite a hold (or a person's clearance) already on the node
             flags[k] = v
         n.flags = flags
+        need = facts.get("derivative") if isinstance(facts.get("derivative"), dict) else None
+        if need and need.get("kind"):
+            derivatives.request(db, n, str(need["kind"]))  # todo18 D4: the worker converts it
         updated.append(n.id)
     # Files the worker didn't report (it crashed on them, or they arrived after it read the list).
     for nid, n in nodes.items():

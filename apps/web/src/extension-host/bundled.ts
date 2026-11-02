@@ -9,6 +9,7 @@ import { resolveDefaults } from "./resolve";
 import cornerstone from "@studio/renderers/cornerstone/manifest";
 import overlay2d from "@studio/renderers/overlay2d/manifest";
 import timeline from "@studio/renderers/timeline/manifest";
+import fileView from "@studio/renderers/file-view/manifest";
 import cardiacMetrics from "@plugins/cardiac-metrics/manifest";
 import cine from "@plugins/cine/manifest";
 import core from "@/studio/core/manifest";
@@ -47,7 +48,7 @@ export const presets = defineModule({
 });
 
 /** Studio built-ins: always present, not plugins (no plugin.yaml, never installed per workspace). */
-export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, generic, presets];
+export const BUILTIN_MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, fileView, generic, presets];
 
 // Trusted renderers shipped with the build that declarative plugins may name (fail closed otherwise).
 registerTrustedRenderer("studio.mask-review.v1", { component: MaskReview, configSchema: MaskReviewConfig, description: "Review AI-suggested masks: accept, reject or edit each instance" });
@@ -61,7 +62,7 @@ export const DECLARATIVE_MODULES: ModuleManifest[] = PLUGIN_PACKAGES.packages
   .map((p) => declarativeModule(p.manifest, p.contributions!));
 if (PLUGIN_PACKAGES.problems.length && import.meta.env?.DEV) console.warn("[plugins] invalid plugin manifests (not registered):", PLUGIN_PACKAGES.problems);
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, generic, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, fileView, generic, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
 
 const replace = import.meta.env.DEV;
 for (const m of MODULES) registry.registerModule(m, { replace });

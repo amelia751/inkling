@@ -32,7 +32,7 @@ def task_ctx(db: Session, ctx: RequestContext, task_id: str) -> RequestContext:
     if not re.fullmatch(r"[a-z0-9-]+", task_id):
         raise HTTPException(400, "bad project id")
     workspace, task = scope_of(db, task_id)
-    if ctx.scopes and ctx.workspace_id != workspace:
+    if ctx.workspace_bound and ctx.workspace_id != workspace:
         raise HTTPException(403, "session token is bound to another workspace")
     c = ctx.for_scope(workspace, task)
     ensure_workspace(db, workspace)

@@ -2,24 +2,17 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AddDataIcon, CloseIcon } from "@studio/ui/icons";
-import { NAMING } from "@studio/contracts/naming";
 import { DropZone, useRefreshProject } from "@/studio/components/uploads/uploads";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
 import { Input } from "@studio/ui/ui/input";
-import { Label } from "@studio/ui/ui/label";
-import { Textarea } from "@studio/ui/ui/textarea";
 import { api, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 import { projectUrl } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { useUploads } from "@/studio/stores/uploads";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import type { ProjectSummary } from "@studio/contracts/types";
-
-/** The chips fill the field; they don't run anything (todo6 §3.1). */
-/** Starting points across kinds of data, so the first screen doesn't read as one domain's tool. */
-export const EXAMPLE_GOALS = ["Sort photos into categories", "Outline structures in 3D scans", "Mark events in recordings", "Tag topics in documents"];
 
 /** What New project receives from Home: a goal sentence and/or files dropped on Home. */
 export interface NewProjectState {
@@ -39,10 +32,11 @@ export function titleFromGoal(goal: string): string {
 }
 
 /**
- * Create project (docs/ux.md §3): a name or a goal sentence, an optional description and the
- * drop area. Create works with no files at all; attached files ask for the rights attestation
- * (the upload layer's dialog), then upload while Overview opens. Used by `/projects/new` and by
- * the dialog the shell opens from anywhere (`useShell().setNewProject`).
+ * Create project (docs/ux.md §3): a name, and optionally files. Nothing else: the description and
+ * the goal come later, from the conversation or Settings. A goal sentence handed over from Home
+ * still becomes the description, unseen. Create works with no files at all; attached files ask for
+ * the rights attestation (the upload layer's dialog), then upload while Overview opens. Used by
+ * `/projects/new` and by the dialog the shell opens from anywhere (`useShell().setNewProject`).
  */
 export function NewProjectForm({ initial = {}, onCancel, onCreated }: { initial?: NewProjectState; onCancel: () => void; onCreated?: () => void }) {
   const navigate = useNavigate();
@@ -50,7 +44,7 @@ export function NewProjectForm({ initial = {}, onCancel, onCreated }: { initial?
   const add = useUploads((s) => s.add);
   const refresh = useRefreshProject();
   const [title, setTitle] = useState(() => (initial.goal ? titleFromGoal(initial.goal) : ""));
-  const [description, setDescription] = useState(() => (initial.goal && titleFromGoal(initial.goal) !== initial.goal ? initial.goal : ""));
+  const [description] = useState(() => (initial.goal && titleFromGoal(initial.goal) !== initial.goal ? initial.goal : ""));
   const [picked, setPicked] = useState<Picked | undefined>(initial.picked);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,14 +76,7 @@ export function NewProjectForm({ initial = {}, onCancel, onCreated }: { initial?
       }}
       data-testid="new-project-form"
     >
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="project-title">Name or goal</Label>
-        <Input id="project-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder={EXAMPLE_GOALS[0]} autoFocus data-testid="project-title-input" />
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="project-description">Description <span className="text-hint">(optional)</span></Label>
-        <Textarea id="project-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="What the data is, and what you want from it" />
-      </div>
+      <Input id="project-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Project name" aria-label="Project name" autoFocus data-testid="project-title-input" />
       {picked?.files.length ? (
         <Card className="flex items-center gap-3 px-4 py-3 text-sm" data-testid="attached">
           <AddDataIcon className="size-4 text-hint" />
@@ -102,7 +89,7 @@ export function NewProjectForm({ initial = {}, onCancel, onCreated }: { initial?
           </Button>
         </Card>
       ) : (
-        <DropZone onPick={setPicked} title="Drop files or folders here" hint={`Optional. Originals are kept exactly as they are; ${NAMING.displayName} reads them to find out what's there.`} />
+        <DropZone onPick={setPicked} title="Drop files or folders (optional)" className="py-5" />
       )}
       {error && <p className="text-sm text-danger" role="alert">{error}</p>}
       <div className="flex justify-end gap-2">
@@ -122,7 +109,7 @@ export function NewProjectDialog() {
       <DialogContent className="max-w-xl" data-testid="new-project-dialog">
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
-          <DialogDescription>Name it, or say what you're trying to build. You can add data now or later.</DialogDescription>
+          <DialogDescription className="sr-only">Name the project; dropping files is optional.</DialogDescription>
         </DialogHeader>
         {open && <NewProjectForm onCancel={() => setOpen(false)} onCreated={() => setOpen(false)} />}
       </DialogContent>

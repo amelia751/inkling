@@ -71,7 +71,7 @@ export function NewProjectPage() {
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-2xl px-4 py-5 md:px-6 md:py-8">
-        <PageHeading title="New project" description="Name it, or say what you're trying to build. You can add data now or later." />
+        <PageHeading title="New project" />
         <NewProjectForm initial={state} onCancel={() => navigate(-1)} />
       </div>
     </AppLayout>

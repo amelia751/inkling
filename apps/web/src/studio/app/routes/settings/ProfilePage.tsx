@@ -1,59 +1,73 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FingerprintIcon, SignOutIcon } from "@studio/ui/icons";
+import { Alert } from "@studio/ui/ui/alert";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Checkbox } from "@studio/ui/ui/checkbox";
 import { Input } from "@studio/ui/ui/input";
-import { CopyId, DataTable, Field, invalidProps, SettingsPage, type Column } from "@/studio/components/settings/kit";
-import { ACCOUNT, useAccount } from "@/studio/lib/account-mock";
+import { Loader } from "@studio/ui/ui/loader";
+import type { MySession } from "@studio/contracts";
+import { CopyId, DataTable, Field, fmtDateTime, invalidProps, SettingsPage, type Column } from "@/studio/components/settings/kit";
+import { errorText, toastDone, toastError, useMe, useMfaUrl, useMySessions, usePatchMe, useRevokeOtherSessions, useRevokeSession } from "@/studio/lib/org-api";
 
-interface Session {
-  id: string;
-  device: string;
-  where: string;
-  seen: string;
-  current?: boolean;
+/** "Chrome on macOS" from a user agent; the raw string when it isn't recognised. */
+function deviceName(ua: string | null): string {
+  if (!ua) return "Unknown device";
+  const browser = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : null;
+  const os = /iPad/.test(ua) ? "iPad" : /iPhone/.test(ua) ? "iPhone" : /Android/.test(ua) ? "Android" : /Mac OS X|Macintosh/.test(ua) ? "macOS" : /Windows/.test(ua) ? "Windows" : /Linux/.test(ua) ? "Linux" : null;
+  return browser && os ? `${browser} on ${os}` : browser ?? os ?? ua;
 }
-
-const SESSIONS: Session[] = [
-  { id: "s1", device: "Chrome on macOS", where: "203.0.113.24", seen: "Now", current: true },
-  { id: "s2", device: "Safari on iPad", where: "198.51.100.12", seen: "2 days ago" },
-];
 
 /** User settings › Your profile (Nebius /settings/profile), plus sign-in security and sessions. */
 export function ProfilePage() {
-  const log = useAccount((s) => s.log);
-  const [first, setFirst] = useState(ACCOUNT.firstName);
-  const firstError = first.trim() ? null : "Enter your first name";
-  const [last, setLast] = useState(ACCOUNT.lastName);
-  const [marketing, setMarketing] = useState(ACCOUNT.marketing);
-  const [sessions, setSessions] = useState(SESSIONS);
-  const dirty = first !== ACCOUNT.firstName || last !== ACCOUNT.lastName || marketing !== ACCOUNT.marketing;
+  const { data: me, isError, error } = useMe();
+  const patch = usePatchMe();
+  const sessions = useMySessions();
+  const revoke = useRevokeSession();
+  const revokeOthers = useRevokeOtherSessions();
+  const mfa = useMfaUrl();
+  const [first, setFirst] = useState("");
+  const [last, setLast] = useState("");
+  const [marketing, setMarketing] = useState(false);
+  // The form starts from the saved profile, and again after each save.
+  useEffect(() => {
+    if (!me) return;
+    setFirst(me.firstName ?? "");
+    setLast(me.lastName ?? "");
+    setMarketing(me.marketing);
+  }, [me]);
+  const managed = !!me?.ssoManaged;
+  const firstError = me && !managed && !first.trim() ? "Enter your first name" : null;
+  const dirty = !!me && (first !== (me.firstName ?? "") || last !== (me.lastName ?? "") || marketing !== me.marketing);
   const save = () => {
-    Object.assign(ACCOUNT, { firstName: first, lastName: last, name: `${first} ${last}`.trim(), marketing });
-    log("user.profile_updated", ACCOUNT.name);
-    setFirst(first);
+    if (!me) return;
+    const body = managed ? { marketing } : { firstName: first.trim(), lastName: last.trim(), marketing };
+    patch.mutate(body, { onSuccess: () => toastDone("Profile saved"), onError: toastError });
   };
-  const columns: Column<Session>[] = [
+  // Hosted MFA enrollment (AuthKit): the link is fetched on click and opened in this tab.
+  const setUpMfa = () => mfa.mutate(undefined, { onSuccess: (url) => window.location.assign(url), onError: toastError });
+  const rows = sessions.data ?? [];
+  const others = rows.filter((s) => !s.current).length;
+  const columns: Column<MySession>[] = [
     {
       key: "device",
       label: "Device",
       render: (s) => (
-        <span className="flex items-center gap-2 font-semibold">
-          {s.device}
+        <span className="flex items-center gap-2 font-semibold" title={s.userAgent ?? undefined}>
+          {deviceName(s.userAgent)}
           {s.current && <Badge theme="info">This device</Badge>}
         </span>
       ),
     },
-    { key: "where", label: "IP address", render: (s) => <span className="font-mono text-code text-muted-foreground">{s.where}</span> },
-    { key: "seen", label: "Last active", render: (s) => <span className="text-muted-foreground">{s.seen}</span> },
+    { key: "where", label: "IP address", render: (s) => <span className="font-mono text-code text-muted-foreground">{s.ipAddress ?? "—"}</span> },
+    { key: "since", label: "Signed in", render: (s) => <span className="text-muted-foreground">{fmtDateTime(s.createdAt)}</span> },
     {
       key: "end",
       label: <span className="sr-only">Actions</span>,
       className: "w-28 text-right",
       render: (s) =>
         s.current ? null : (
-          <Button variant="ghost-secondary" onClick={() => setSessions(sessions.filter((x) => x.id !== s.id))}>
+          <Button variant="ghost-secondary" disabled={revoke.isPending && revoke.variables === s.id} onClick={() => revoke.mutate(s.id, { onError: toastError })}>
             Sign out
           </Button>
         ),
@@ -62,23 +76,22 @@ export function ProfilePage() {
   return (
     <SettingsPage scope="personal" title="Your profile" testId="profile-page">
       <div className="flex max-w-[458px] flex-col gap-6">
-        <Field label="User ID">
-          <CopyId id={ACCOUNT.id} />
+        {isError && <Alert theme="danger">Couldn't load your profile: {errorText(error)}</Alert>}
+        <Field label="User ID">{me ? <CopyId id={me.id} /> : <span className="text-sm text-muted-foreground">—</span>}</Field>
+        <Field label="Email" description={managed ? "Managed by your organization." : undefined}>
+          <span className="text-sm">{me?.email ?? "—"}</span>
         </Field>
-        <Field label="Email">
-          <span className="text-sm">{ACCOUNT.email}</span>
-        </Field>
-        <Field label="First name" htmlFor="first-name" required error={firstError}>
-          <Input id="first-name" inputSize="lg" value={first} onChange={(e) => setFirst(e.target.value)} {...invalidProps("first-name", firstError)} />
+        <Field label="First name" htmlFor="first-name" required={!managed} error={firstError} description={managed ? "Your name comes from your organization's identity provider." : undefined}>
+          <Input id="first-name" inputSize="lg" value={first} disabled={!me || managed} onChange={(e) => setFirst(e.target.value)} {...invalidProps("first-name", firstError)} />
         </Field>
         <Field label="Last name" htmlFor="last-name">
-          <Input id="last-name" inputSize="lg" value={last} onChange={(e) => setLast(e.target.value)} />
+          <Input id="last-name" inputSize="lg" value={last} disabled={!me || managed} onChange={(e) => setLast(e.target.value)} />
         </Field>
         <label className="flex items-center gap-2.5 text-sm">
-          <Checkbox checked={marketing} onCheckedChange={(v) => setMarketing(v === true)} />
+          <Checkbox checked={marketing} disabled={!me} onCheckedChange={(v) => setMarketing(v === true)} data-testid="profile-marketing" />
           Product updates and research programs by email
         </label>
-        <Button size="lg" className="w-fit" disabled={!dirty || !first.trim()} onClick={save}>
+        <Button size="lg" className="w-fit" disabled={!dirty || !!firstError || patch.isPending} onClick={save} data-testid="profile-save">
           Save changes
         </Button>
       </div>
@@ -90,20 +103,46 @@ export function ProfilePage() {
             <FingerprintIcon className="mt-0.5 size-4 text-muted-foreground" />
             <div>
               <div className="text-body-3 font-semibold">Authenticator app</div>
-              <p className="mt-1 text-sm text-muted-foreground">Ask for a code from an authenticator app when you sign in with a password.</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {managed ? "You sign in with your organization's SSO, which handles multi-factor authentication." : "Ask for a code from an authenticator app when you sign in with a password."}
+              </p>
             </div>
           </div>
-          <Button variant="outline" size="lg" onClick={() => log("user.mfa_enrollment_started", ACCOUNT.email)}>
-            Set up
-          </Button>
+          {!managed && (
+            <Button variant="outline" size="lg" disabled={!me || mfa.isPending} onClick={setUpMfa} data-testid="mfa-setup">
+              {mfa.isPending ? <Loader size="s" /> : null} Set up
+            </Button>
+          )}
         </div>
         <div className="flex items-center justify-between gap-4">
           <h3 className="text-body-3 font-semibold">Active sessions</h3>
-          <Button variant="outline" size="lg" disabled={sessions.length < 2} onClick={() => setSessions(sessions.filter((s) => s.current))}>
+          <Button
+            variant="outline"
+            size="lg"
+            disabled={others === 0 || revokeOthers.isPending}
+            onClick={() => revokeOthers.mutate(undefined, { onSuccess: () => toastDone("Signed out of your other sessions"), onError: toastError })}
+            data-testid="sessions-revoke-others"
+          >
             <SignOutIcon /> Sign out other sessions
           </Button>
         </div>
-        <DataTable columns={columns} rows={sessions} rowKey={(s) => s.id} testId="sessions-table" />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(s) => s.id}
+          empty={
+            sessions.isLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader size="s" /> Loading sessions
+              </span>
+            ) : sessions.isError ? (
+              `Couldn't load your sessions: ${errorText(sessions.error)}`
+            ) : (
+              "No active sessions."
+            )
+          }
+          testId="sessions-table"
+        />
       </div>
     </SettingsPage>
   );

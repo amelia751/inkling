@@ -20,5 +20,6 @@ export * from "./boundary";
 export * from "./drops";
 export * from "./drop-plan";
 export * from "./dataset-structure";
+export * from "./accounts";
 /** Pipeline contracts; also importable directly as `@studio/contracts/pipeline`. */
 export * as pipeline from "./pipeline";

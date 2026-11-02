@@ -17,6 +17,8 @@ export interface McpConfig {
    * then knows who edits, so `author` is no longer sent.
    */
   apiKey: string | undefined;
+  /** todo16: a person's token for the kernel tools (default: the API key). The kernel applies their project role. */
+  personToken: string | undefined;
   /** Dev fallback without a key: the author name saved with environment edits. */
   author: string;
 }
@@ -29,6 +31,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): McpConfig {
     apiUrl: (env("API_URL") ?? webUrl).replace(/\/$/, ""),
     workspace: env("MCP_WORKSPACE"),
     apiKey: env("MCP_API_KEY"),
+    personToken: env("MCP_PERSON_TOKEN"),
     author: env("MCP_AUTHOR") ?? "agent:mcp",
   };
 }

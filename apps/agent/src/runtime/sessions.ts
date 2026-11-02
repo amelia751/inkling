@@ -35,6 +35,7 @@ import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/c
 import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "../tools/dataset.ts";
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
+import { TurnJournal, createOperationTools, operationForTool } from "../tools/operations.ts";
 import { createDropTools, dropBlock, dropPart, fetchDropSummary } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
@@ -87,6 +88,10 @@ export class SessionContext {
   piSession!: AgentSession;
   readonly bridge: ClientToolBridge;
   readonly approvals: ApprovalBroker;
+  /** todo16 D9: what each run changed, so "Undo these changes" reverses one turn. */
+  readonly journal = new TurnJournal();
+  /** todo16 D8: approval ids by tool call, sent as `X-Approval-Id` by destroy operations. */
+  readonly approvalIds = new Map<string, string>();
   readonly dataset: SessionDatasetSource;
   activeRun: Run | undefined;
   readonly runs = new Map<string, Run>();
@@ -397,6 +402,10 @@ export class SessionService {
     });
     ctx.kernel = kernel;
     tools.push(...createProjectTools(kernel));
+    // todo16 D7-D9: write, trash and destroy tools from the operations catalogue, with the
+    // person's delegated token; one journal per session so a turn undoes as one step.
+    ctx.policy.trashAskOver = this.config.trashAskOver;
+    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, journal: ctx.journal, runId: () => ctx.activeRun?.id, approvalFor: (id) => ctx.approvalIds.get(id) }));
     // todo13: files dropped in the chat (screened names and facts only).
     tools.push(...createDropTools(kernel));
     if (profile.studio) {
@@ -447,6 +456,7 @@ export class SessionService {
           },
           onAwaiting: (waiting) => this.transition(ctx, waiting ? "awaiting_approval" : "running"),
           facts: (name, input) => this.facts(ctx, name, input),
+          onApproved: (callId, approvalId) => ctx.approvalIds.set(callId, approvalId),
         }),
       ],
     });
@@ -504,6 +514,13 @@ export class SessionService {
   }
 
   private async facts(ctx: SessionContext, toolName: string, input: Record<string, unknown>): Promise<CallFacts> {
+    // todo16 D8: how many files a catalogue trash moves (a folder counts its descendants).
+    if (operationForTool(toolName)?.removes === "files" && Array.isArray(input.nodeIds) && ctx.kernel) {
+      const ids = input.nodeIds.slice(0, 50).map(String);
+      const nodes = await Promise.all(ids.map((id) => ctx.kernel!.get<{ kind?: string; descendantCount?: number }>(`/source-nodes/${encodeURIComponent(id)}`).catch(() => null)));
+      const counted = nodes.reduce((n, x) => n + (x?.kind === "folder" ? Math.max(x.descendantCount ?? 0, 1) : 1), 0);
+      return { files: counted + Math.max(0, input.nodeIds.length - ids.length) };
+    }
     if (toolName !== "export_artifact" || typeof input.path !== "string") return {};
     const sb: Sandbox | undefined = this.sandboxes?.peek(ctx.id);
     if (!sb) return {};

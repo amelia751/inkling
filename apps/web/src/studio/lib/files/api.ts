@@ -114,6 +114,8 @@ export const fetchFsChildren = (projectId: string, nodeId: string | null, sort: 
 
 export const postFsOps = (projectId: string, body: FsOpsRequest) => fsApi<FsOpsResult>(`/projects/${P(projectId)}/fs/ops`, { method: "POST", json: body });
 export const postUndo = (projectId: string, batchId?: string) => fsApi<FsUndoResult>(`/projects/${P(projectId)}/fs/undo`, { method: "POST", json: batchId ? { batchId } : {} });
+/** todo16: restore everything deleted together in one Trash batch (any kind). */
+export const restoreTrashBatch = (projectId: string, batchId: string) => fsApi<{ restored: unknown[]; relocatedToRoot: boolean }>(`/projects/${P(projectId)}/trash/${encodeURIComponent(batchId)}/restore`, { method: "POST", json: {} });
 export const postRedo = (projectId: string, batchId?: string) => fsApi<FsUndoResult>(`/projects/${P(projectId)}/fs/redo`, { method: "POST", json: batchId ? { batchId } : {} });
 
 export interface FsHistory {

@@ -32,20 +32,20 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/commands"),
         # Dataset versioning: the kernel confines agents to work/agent-* branches and refuses
         # approve/merge/release for them; contents (document, checkouts, artifacts) stay out.
-        ("GET", f"{P}/datasets/{{dataset_id}}"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/branches"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/branches"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/commits"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/commits"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/commits/{{oid}}"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/diff"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/reviews"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/reviews"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/approve"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/merge"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/resolutions"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/releases"),
+        ("GET", f"{P}/datasets/{{item_id}}"),
+        ("GET", f"{P}/datasets/{{item_id}}/branches"),
+        ("POST", f"{P}/datasets/{{item_id}}/branches"),
+        ("GET", f"{P}/datasets/{{item_id}}/commits"),
+        ("POST", f"{P}/datasets/{{item_id}}/commits"),
+        ("GET", f"{P}/datasets/{{item_id}}/commits/{{oid}}"),
+        ("GET", f"{P}/datasets/{{item_id}}/diff"),
+        ("GET", f"{P}/datasets/{{item_id}}/reviews"),
+        ("POST", f"{P}/datasets/{{item_id}}/reviews"),
+        ("GET", f"{P}/datasets/{{item_id}}/reviews/{{review_id}}"),
+        ("POST", f"{P}/datasets/{{item_id}}/reviews/{{review_id}}/approve"),
+        ("POST", f"{P}/datasets/{{item_id}}/reviews/{{review_id}}/merge"),
+        ("POST", f"{P}/datasets/{{item_id}}/reviews/{{review_id}}/resolutions"),
+        ("POST", f"{P}/datasets/{{item_id}}/releases"),
         # Environment control plane
         ("GET", "/api/environments/{project_id}"),
         ("PATCH", "/api/environments/{project_id}"),
@@ -57,8 +57,8 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", "/api/environments/{project_id}/last-known-good"),
         ("GET", "/api/environments/{project_id}/audit"),
         ("PUT", "/api/environments/{project_id}/readme"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/studio"),
-        ("POST", f"{P}/datasets/{{dataset_id}}/studio/commits"),
+        ("GET", f"{P}/datasets/{{item_id}}/studio"),
+        ("POST", f"{P}/datasets/{{item_id}}/studio/commits"),
         ("GET", "/api/catalog"),
         ("GET", "/api/catalog/schema"),
         ("GET", "/api/catalog/{rest:path}"),
@@ -66,7 +66,7 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # task stays a person's (POST /tasks/{id}/publish is not here, so agents get 403).
         ("POST", f"{P}/projects/{{project_id}}/boots"),
         ("GET", f"{P}/boots/{{boot_id}}"),
-        ("GET", f"{P}/tasks/{{task_id}}"),
+        ("GET", f"{P}/tasks/{{item_id}}"),
         # Plugin control plane
         ("GET", f"{P}/plugins"),
         ("GET", f"{P}/plugins/{{plugin_id}}"),
@@ -110,11 +110,46 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/drops/{{drop_id}}/plan"),
         ("PUT", f"{P}/drops/{{drop_id}}/plan"),
         ("POST", f"{P}/drops/{{drop_id}}/apply"),
-        ("GET", f"{P}/datasets/{{dataset_id}}/structure"),
-        ("PUT", f"{P}/datasets/{{dataset_id}}/structure"),
-        ("GET", f"{P}/projects/{{project_id}}/datasets/{{dataset_id}}/collections"),
+        ("GET", f"{P}/datasets/{{item_id}}/structure"),
+        ("PUT", f"{P}/datasets/{{item_id}}/structure"),
+        ("GET", f"{P}/projects/{{project_id}}/datasets/{{item_id}}/collections"),
+        # todo16 D7/D8: the operations catalogue's write and trash routes
+        # (packages/contracts/src/operations.ts). The kernel applies the delegating person's role
+        # and needs the `project.write` scope; destroy routes also need `X-Approval-Id`.
+        ("POST", f"{P}/projects/{{project_id}}/fs/ops"),
+        ("POST", f"{P}/projects/{{project_id}}/fs/undo"),
+        ("GET", f"{P}/projects/{{project_id}}/fs/history"),
+        ("POST", f"{P}/source-nodes/{{node_id}}/star"),
+        ("DELETE", f"{P}/source-nodes/{{node_id}}/star"),
+        ("POST", f"{P}/imports/{{session_id}}/cancel"),
+        ("POST", f"{P}/imports/{{session_id}}/retry"),
+        ("GET", f"{P}/projects/{{project_id}}/datasets"),
+        ("PATCH", f"{P}/projects/{{project_id}}"),
+        ("GET", f"{P}/projects/{{project_id}}/trash"),
+        ("POST", f"{P}/projects/{{project_id}}/trash/empty"),
     }
 )
+
+
+# todo16: the rest of the catalogue's write and trash routes, built by routes/trash.py and the
+# dataset/collection/studio PATCH+DELETE routes. Move them into AGENT_ROUTES when those land
+# (test_boundary checks every allowlisted route exists).
+TODO16_PENDING_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("PATCH", f"{P}/projects/{{project_id}}/datasets/{{item_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/datasets/{{item_id}}"),
+        ("PATCH", f"{P}/projects/{{project_id}}/collections/{{item_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/collections/{{item_id}}"),
+        ("PATCH", f"{P}/projects/{{project_id}}/studios/{{item_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/studios/{{item_id}}"),
+        ("POST", f"{P}/projects/{{project_id}}/trash/{{batch_id}}/restore"),
+        ("DELETE", f"{P}/projects/{{project_id}}/trash/{{batch_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}"),
+        ("POST", f"{P}/projects/{{project_id}}/restore"),
+    }
+)
+# todo16: the trash routes have landed, so they are agent routes now.
+AGENT_ROUTES = AGENT_ROUTES | TODO16_PENDING_ROUTES
 
 
 def is_agent(principal: str) -> bool:

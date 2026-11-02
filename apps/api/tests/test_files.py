@@ -655,3 +655,22 @@ def test_stars_recent_and_the_fs_changed_event(client):
 def test_bad_requests_are_422(client, bad):
     p, root, _ = _new(client, {"study/a.png": png(4, 4)})
     assert client.post(f"/api/v1/projects/{p}/fs/ops", json=bad).status_code == 422
+
+
+def test_delegated_assistant_writes_and_trashes_but_destroy_needs_approval(client):
+    """todo16 D8: with `project.write` the assistant acts with the person's rights."""
+    from studio_api.context import issue_session
+
+    p, root, _ = _new(client, {"study/a.png": png(4, 4)})
+    n = _by_name(p)["a.png"]
+    with kdb.session_scope() as db:
+        token = issue_session(db, "agent:run_2", p, ["proposals.write", "project.write"], on_behalf_of=ALICE)
+    agent = {"Authorization": f"Bearer {token}"}
+    r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "rename", "nodeId": n.id, "name": "b.png"}]}, headers=agent)
+    assert r.status_code == 200, r.text
+    r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "trash", "nodeIds": [n.id]}]}, headers=agent)
+    assert r.status_code == 200, r.text
+    r = client.post(f"/api/v1/projects/{p}/trash/empty", headers=agent)
+    assert r.status_code == 403 and "approval" in r.json()["detail"]
+    r = client.post(f"/api/v1/projects/{p}/trash/empty", headers={**agent, "X-Approval-Id": "appr_1"})
+    assert r.status_code == 200, r.text

@@ -111,6 +111,8 @@ const schema = z.object({
   AGENT_MAX_SESSIONS: int(50),
   AGENT_MAX_CONCURRENT_RUNS: int(2),
   AGENT_APPROVAL_TIMEOUT_S: int(600),
+  // todo16 D8: the assistant asks before trashing more files than this (shared with the api).
+  API_AGENT_TRASH_ASK_OVER: int(100),
 
   /** The Studio (Vite dev server) for the seed API fallback. */
   WEB_URL: z.string().url().default("http://localhost:5173"),
@@ -192,6 +194,8 @@ export interface Config {
   budgets: { maxToolCalls: number; maxRunSeconds: number; maxSpendUsd: number };
   clientToolTimeoutS: number;
   approvalTimeoutS: number;
+  /** todo16 D8: trashing more files than this asks first. */
+  trashAskOver: number;
   limits: { maxSessions: number; maxConcurrentRuns: number };
   studioUrl: string;
   kernelUrl: string;
@@ -315,6 +319,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       },
       clientToolTimeoutS: e.AGENT_CLIENT_TOOL_TIMEOUT_S,
       approvalTimeoutS: e.AGENT_APPROVAL_TIMEOUT_S,
+      trashAskOver: e.API_AGENT_TRASH_ASK_OVER,
       limits: { maxSessions: e.AGENT_MAX_SESSIONS, maxConcurrentRuns: e.AGENT_MAX_CONCURRENT_RUNS },
       studioUrl: e.WEB_URL,
       kernelUrl: e.API_URL,

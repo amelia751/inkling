@@ -19,7 +19,9 @@ export type ProfileName = "assistant" | "environment-designer" | "coder" | "buil
  */
 export type ApprovalDetail =
   | { kind: "plugin-install"; requestId: string; workspaceId: string }
-  | { kind: "proposal"; proposalKind: "mapping" | "relationship"; workspaceId: string };
+  | { kind: "proposal"; proposalKind: "mapping" | "relationship"; workspaceId: string }
+  /** todo16 D8: a project operation from the catalogue that asks first (big trash, or destroy). */
+  | { kind: "operation"; opId: string; tier: "trash" | "destroy"; irreversible: boolean; impact: { items: { kind: string; id: string; name?: string }[]; files?: number } };
 
 export type RunStatus = "queued" | "running" | "awaiting_approval" | "completed" | "failed" | "cancelled" | "expired";
 

@@ -486,3 +486,21 @@ def test_an_import_stuck_inspecting_fails_with_a_reason_after_the_stall_minutes(
     assert s["state"] == "failed" and s["error"] == kimports.stall_reason(15)
     with kdb.session_scope() as db:
         assert kimports.fail_stalled(db, at=now() + timedelta(minutes=30)) == 0
+
+
+def test_an_import_that_keeps_crashing_inspection_is_dead_lettered(client):
+    """todo18 D6: the worker reads the import and dies without reporting, again and again. After
+    `API_INSPECT_MAX_ATTEMPTS` deliveries the kernel sets its files aside as unsupported, with the
+    reason, and settles the session, so the worker acks instead of retrying forever."""
+    from studio_api.kernel import inspection
+
+    pid = _project(client)
+    _, imp = _drop(client, pid, {"a.png": png(8, 8)})
+    for _ in range(3):
+        assert client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["state"] == "inspecting"
+    assert client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["state"] != "inspecting"
+    s = client.get(f"/api/v1/imports/{imp['id']}").json()
+    assert s["state"] == "needs_review"
+    with kdb.session_scope() as db:
+        nodes = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == imp["id"], SourceNode.is_dir.is_(False))))
+        assert nodes and all((n.flags or {}).get("unsupported") == inspection.POISON_REASON for n in nodes)

@@ -47,8 +47,13 @@ KERNEL = os.environ.get(f"{P}E2E_API_URL", "http://127.0.0.1:8226")
 SCRIPT = Path(os.environ.get(f"{P}E2E_AGENT_SCRIPT") or ROOT / "tests" / "e2e" / "fixtures" / "journey-script.json")
 TOKEN = "e2e-agent-token"
 AI = f"{NAMING['displayName']} AI"
-GOAL = "Chest X-ray classification with five labels"
 LABELS = ("normal", "pneumonia", "effusion", "cardiomegaly", "pneumothorax")
+# todo15 M2: <envPrefix>E2E_AGENT_MODEL=<provider:model> runs the agent on that real model instead
+# of the script (by hand only, never in `pnpm test`; the provider key comes from the shell). A real
+# model has to be told the label names, so the goal names them.
+MODEL = os.environ.get(f"{P}E2E_AGENT_MODEL", "")
+GOAL = f"Chest X-ray classification with five labels: {', '.join(LABELS)}" if MODEL else "Chest X-ray classification with five labels"
+TIMES: dict[str, float] = {}
 # Anything the old consent wall showed (todo15 gap 2): none of it may appear.
 CONSENT = "[data-testid=agent-consent], [data-testid=assistant-consent], [data-testid=consent]"
 
@@ -110,7 +115,8 @@ def project_ids(principal: str) -> set[str]:
 
 
 def start_agent(data_dir: str) -> subprocess.Popen:
-    settings = {"ENV": "test", "AGENT_MODEL": "scripted", "AGENT_SCRIPT": str(SCRIPT), "AGENT_SANDBOX": "off", "AGENT_PORT": str(AGENT_PORT), "AGENT_DATA_DIR": data_dir, "AGENT_TOKEN": TOKEN, "API_URL": KERNEL, "LOG_LEVEL": "warn"}
+    model = {"AGENT_MODEL": MODEL, "AGENT_MAX_TOOL_CALLS": "12", "AGENT_MAX_SPEND_USD": "0.5"} if MODEL else {"AGENT_MODEL": "scripted", "AGENT_SCRIPT": str(SCRIPT)}
+    settings = {"ENV": "test", **model, "AGENT_SANDBOX": "off", "AGENT_PORT": str(AGENT_PORT), "AGENT_DATA_DIR": data_dir, "AGENT_TOKEN": TOKEN, "API_URL": KERNEL, "LOG_LEVEL": "warn"}
     env = {**os.environ, **{P + k: v for k, v in settings.items()}}
     proc = subprocess.Popen(["pnpm", "--filter", "@studio/agent", "start:dev"], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -186,10 +192,11 @@ def main() -> int:
         del sys.argv[i : i + 2]
     args = parse_args()
     base = f"http://localhost:{args.port}"
-    agent = start_agent(tempfile.mkdtemp(prefix="first-run-agent-e2e-"))
+    agent_dir = tempfile.mkdtemp(prefix="first-run-agent-e2e-")
+    agent = start_agent(agent_dir)
     try:
         status = json.loads(urllib.request.urlopen(f"{base}/api/agent/status", timeout=5).read())
-        if status.get("provider") != "scripted":
+        if (status.get("provider") == "scripted") == bool(MODEL):
             print(f"FAIL the dev server proxies /api/agent elsewhere ({status}); start it with {P}AGENT_URL=http://127.0.0.1:{AGENT_PORT} {P}AGENT_TOKEN={TOKEN}")
             return 1
         with sync_playwright() as pw:
@@ -211,6 +218,12 @@ def main() -> int:
         agent.wait(timeout=20)
     failed = [r for r in results if not r[1]]
     print(f"\n{len(results) - len(failed)}/{len(results)} passed")
+    if MODEL:
+        print("TIMES " + json.dumps({k: round(v, 1) for k, v in TIMES.items()}))
+        for f in sorted(Path(agent_dir).rglob("*.json")):
+            rec = json.loads(f.read_text())
+            if isinstance(rec, dict) and rec.get("usage"):
+                print("RUN " + json.dumps({"status": rec.get("status"), "toolCalls": rec.get("toolCalls"), "usage": rec["usage"]}))
     return 1 if failed else 0
 
 
@@ -222,6 +235,7 @@ def run(page, base: str) -> None:
     before = project_ids(first)
     box = page.get_by_test_id("goal")
     box.fill(GOAL)
+    t0 = time.time()
     box.press("Enter")
     made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
     check("J2: the send creates a project", bool(made), str(made))
@@ -232,13 +246,15 @@ def run(page, base: str) -> None:
     except Exception:  # noqa: BLE001
         shot(page, "j2-no-studio")
     task = studio_task(page)
+    TIMES["J2 studio s"] = time.time() - t0
     check("J2: a Studio opens", bool(task), page.url)
     check("J2: no consent screen after the first send", no_consent(page))
     if task:
         env_of = lambda: json.dumps(kernel("GET", f"/api/environments/{task}", first)[1])  # noqa: E731
-        wait(lambda: all(f'"{x}"' in env_of() for x in LABELS), timeout=60)
+        wait(lambda: all(f'"{x}"' in env_of().lower() for x in LABELS), timeout=120 if MODEL else 60)
+        TIMES["J2 labels s"] = time.time() - t0
         env = env_of()
-        labels = [x for x in LABELS if f'"{x}"' in env]
+        labels = [x for x in LABELS if f'"{x}"' in env.lower()]
         check("J2: the Studio has the five labels", len(labels) == 5, str(labels))
     log = page.get_by_test_id("agent-log")
     if log.count():
@@ -250,6 +266,7 @@ def run(page, base: str) -> None:
     page.goto(f"{base}/")
     page.get_by_test_id("home-composer").wait_for(timeout=30000)
     files = [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": base64.b64encode(png(i)).decode()} for i in range(12)]
+    t1 = time.time()
     page.evaluate(DROP_JS, ["[data-testid=home-composer]", files])
     target = page.get_by_test_id("home-target-new")
     try:
@@ -268,6 +285,7 @@ def run(page, base: str) -> None:
     except Exception:  # noqa: BLE001
         shot(page, "j1-no-studio")
     task = studio_task(page)
+    TIMES["J1 studio s"] = time.time() - t1
     check("J1: the Studio opens on the first ready image", bool(task), page.url)
     check("J1: no consent screen", no_consent(page))
     if task:
@@ -277,7 +295,9 @@ def run(page, base: str) -> None:
         summaries = kernel("GET", f"/api/v1/projects/{pid}/dataset-summaries", first)[1]
         check("J1: the dataset is in Datasets", bool(ds_id) and ds_id in json.dumps(summaries), json.dumps(summaries)[:200])
     # The empty-text drop message is sent: the drop card and an assistant reply in the chat.
-    if not page.get_by_test_id("agent-log").count():
+    # Home opens the project with the drawer; open it only if it really isn't there (a click on an
+    # open drawer's toggle would close it).
+    if not wait(lambda: page.get_by_test_id("agent-log").count() > 0, timeout=10):
         page.get_by_label(f"{AI} panel").click()
     card = page.get_by_test_id("user-drop").get_by_test_id("drop-card")
     try:
@@ -285,8 +305,10 @@ def run(page, base: str) -> None:
         check("J1: the chat shows the drop card", card.get_by_test_id("drop-chip").count() == 12, str(card.get_by_test_id("drop-chip").count()))
     except Exception:  # noqa: BLE001
         check("J1: the chat shows the drop card", False)
-    reply = page.get_by_test_id("agent-log").locator("[data-role=assistant], [data-testid=assistant-message]")
-    check("J1: the assistant replies to the drop", bool(wait(lambda: reply.count() > 0, timeout=45)), str(reply.count()))
+    # A finished assistant turn carries its usage line (model · tokens) under the reply.
+    reply = page.get_by_test_id("agent-log").get_by_test_id("agent-usage")
+    check("J1: the assistant replies to the drop", bool(wait(lambda: reply.count() > 0, timeout=120 if MODEL else 45)), str(reply.count()))
+    TIMES["J1 reply s"] = time.time() - t1
     check("J1: still no consent screen", no_consent(page))
     shot(page, "j1-studio")
 

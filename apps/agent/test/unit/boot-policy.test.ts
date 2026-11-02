@@ -50,4 +50,11 @@ describe("boot policy (todo15 D3)", () => {
   it("profiles without the Studio intent check are not gated", () => {
     expect(bootAllowed({ ...state({}), creationIntent: undefined })).toBe(true);
   });
+
+  it("a described task in a project that already has a Studio is told to patch it, not to offer another", () => {
+    const d = boot({ userText: "Chest X-ray classification with five labels: normal, pneumonia", projectHasTask: true });
+    expect(d.kind).toBe("deny");
+    expect(JSON.stringify(d)).toContain("patch_studio");
+    expect(JSON.stringify(boot({ userText: "hello", projectHasTask: true }))).toContain("offer_studio");
+  });
 });

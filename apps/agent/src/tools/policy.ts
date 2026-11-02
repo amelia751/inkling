@@ -137,7 +137,12 @@ export function decide(
     return {
       kind: "deny",
       reason:
-        "The person hasn't explicitly asked to create a Studio in this turn. Answer them; if a Studio would help, call offer_studio so they can click to create it.",
+        // todo15 M2: Home's fast path often boots the Studio before the first turn reads the
+        // project, so a described task meets a project that already has one: finish the request
+        // in that Studio instead of offering another.
+        s.projectHasTask && s.namesTask?.(s.userText)
+          ? "This project already has a Studio (the person is in it). Don't boot or offer another: get_studio_state, then patch_studio to add the labels and structure they asked for."
+          : "The person hasn't explicitly asked to create a Studio in this turn. Answer them; if a Studio would help, call offer_studio so they can click to create it.",
       // The model's next step is the offer card in the same turn.
       soft: true,
     };

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { AnnotateIcon, DatasetsIcon, DeleteIcon, RestoreIcon, SourcesIcon } from "@studio/ui/icons";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@studio/ui/ui/alert-dialog";
 import { Badge } from "@studio/ui/ui/badge";
@@ -43,6 +43,11 @@ const ICON: Record<TrashKind, typeof SourcesIcon> = { source: SourcesIcon, datas
 
 const NO_CONFLICTS: FsConflict[] = [];
 
+/** `?kind=sources` (Sources › Trash) preselects that chip; anything else shows everything. */
+export function initialTrashFilter(kind: string | null): Exclude<TrashFilter, "collections"> {
+  return FILTERS.find((f) => f.value === kind)?.value ?? "all";
+}
+
 export const TRASH_EMPTY = "Nothing in Trash. Deleted things stay here for 30 days, then they're gone.";
 
 /**
@@ -52,7 +57,8 @@ export const TRASH_EMPTY = "Nothing in Trash. Deleted things stay here for 30 da
  */
 export function TrashPage() {
   const { projectId = "" } = useParams();
-  const [filter, setFilter] = useState<Exclude<TrashFilter, "collections">>("all");
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState<Exclude<TrashFilter, "collections">>(() => initialTrashFilter(params.get("kind")));
   const trash = useProjectTrash(projectId, "all");
   const [conflict, setConflict] = useState<{ batchId: string; conflicts: FsConflict[] } | null>(null);
   const restore = useRestoreBatch(projectId, (batchId, conflicts) => setConflict({ batchId, conflicts }));

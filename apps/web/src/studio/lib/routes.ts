@@ -14,7 +14,8 @@ export const filesUrl = (projectId: string, nodeId?: string | null, query?: Reco
 /** The Trash view (todo7 Phase 4). */
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;
 /** The project-wide Trash (todo16 M2): sources, datasets, collections and Studios. */
-export const projectTrashUrl = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/trash`;
+/** The one Trash; `kind` preselects its filter chip (`?kind=sources` from Sources › Trash, todo18 B). */
+export const projectTrashUrl = (projectId: string, kind?: "sources" | "datasets" | "studios") => `/projects/${encodeURIComponent(projectId)}/trash${kind ? `?kind=${kind}` : ""}`;
 /** Deleted projects (todo16 D6), kept 30 days. */
 export const deletedProjectsUrl = () => "/deleted-projects";
 /** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */

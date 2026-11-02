@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { NAMING } from "@studio/contracts/naming";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { ComposerEmptyState, type ComposerFiles } from "@studio/ui/ui/composer-empty-state";
 import { Button } from "@studio/ui/ui/button";
@@ -18,6 +17,7 @@ import { presetFor, studioName } from "@/studio/lib/studio-boot";
 import { useBoots } from "@/studio/stores/boots";
 import { useDropFiles, pickedFrom } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
+import { AiNotice, useAckAiNotice } from "@/studio/components/ai/ai-notice";
 import { createProject, projectTitle } from "./start-project";
 
 /** Starting points across kinds of data, so the first screen doesn't read as one domain's tool. */
@@ -38,6 +38,7 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
   const drop = useDropFiles();
   const setAssistant = useShell((s) => s.setAssistant);
   const queue = usePendingAsks((s) => s.queue);
+  const ackAiNotice = useAckAiNotice();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +92,8 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
 
   const begin = (g: Gesture) => {
     startTimeline(g.kind === "send" ? "send" : surface);
+    // D2: the first send is the acknowledgement of the notice under the composer.
+    ackAiNotice();
     if (last) setChoice(g);
     else void startNew(g);
   };
@@ -118,7 +121,7 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
         dropLabel={last ? "Drop to add these files" : "Drop to start a project with these files"}
         busy={busy}
         error={error}
-        footnote={`Files go to your project's Files. ${NAMING.displayName}'s assistant sees their kinds and technical facts, never their contents.`}
+        footnote={<AiNotice />}
         autoFocus
         actions={actions}
         className={className}

@@ -213,16 +213,17 @@ def main() -> int:
         # ---- D8: the drawer's empty conversation shows the three todo13 examples, until dismissed ------
         puts: list[tuple[str, str | None]] = []
         page.on("request", lambda r: r.method == "PUT" and "/api/v1/me/prefs/" in r.url and puts.append((r.url.rsplit("/", 1)[-1], r.post_data)))
-        # No agent service in seed mode: say one is configured (nothing is sent to it) and that this
-        # person agreed to share project context, so the drawer shows its empty conversation.
+        # No agent service in seed mode: say one is configured (nothing is sent to it), so the
+        # drawer shows its empty conversation (todo15 D2: no consent wall, an inline notice).
         page.route("**/api/agent/status", json_route({"configured": True, "provider": "scripted", "model": None, "sandbox": "off", "profiles": ["assistant"]}))
-        page.evaluate("async () => (await import('/src/studio/stores/agent.ts')).useAgent.getState().setConsent(true)")
         page.reload()
         page.wait_for_selector("[data-testid=sample-badge]", timeout=20000)
         if page.locator("[data-testid=agent-drawer]").count() == 0:
             page.locator("[data-testid=assistant-toggle]").click()
         page.wait_for_selector("[data-testid=agent-empty]", timeout=10000)
         page.wait_for_selector("[data-testid=first-run-hints]", timeout=10000)
+        notice = page.locator("[data-testid=agent-drawer] [data-testid=ai-notice]")
+        check("D2: no consent wall; the empty chat says what goes to the provider", notice.count() == 1 and "File contents never do" in notice.inner_text() and "scripted" in notice.inner_text(), notice.all_inner_texts().__str__())
         prompts = [t.strip() for t in page.locator("[data-testid=agent-empty] li button").all_inner_texts()]
         check("first-run hints: the three todo13 examples", prompts == ["Segment liver CT", "Classify skin lesions", "Annotate ultrasound video"], str(prompts))
         shot(page, "first-run-drawer-hints")

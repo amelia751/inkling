@@ -5,7 +5,7 @@ import { create } from "zustand";
  * A message typed before its conversation existed (todo13 D1: Home's first send or drop). Home
  * creates the project, queues the text (and, for a drop, the drop it already started in the
  * project's conversation) here and opens the project with the drawer; the drawer's
- * conversation sends it once it's ready (agent configured, consent given). The files don't
+ * conversation sends it once it's ready (agent configured), even with no text (D4). The files don't
  * wait for that: they upload and land in Shared in chat at once. Held in memory only: a
  * reload drops the message, as it would drop an unsent draft (the drop stays in Files).
  */

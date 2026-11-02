@@ -24,6 +24,7 @@ import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
+import { AiNotice, useAckAiNotice, useAiAssistOff } from "./ai-notice";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import type { StudioCardContext } from "./cards";
 import { usePendingAsk } from "@/studio/app/entry/pending-ask";
@@ -63,7 +64,7 @@ export interface AssistantPanelProps {
   /** Runs the client tools the agent asks for (cards; in the Studio, environment tools too). */
   runTool: (name: string, input: Record<string, unknown>) => Promise<ClientToolOutcome>;
   onClose: () => void;
-  /** The Studio: its cards act on these items, and its consent lists the dataset snapshot. */
+  /** The Studio: its cards act on these items. */
   studio?: StudioCardContext;
   /** Undo an environment change from the thread (the Studio). */
   onUndo?: (messageId: string, partId: string) => void;
@@ -88,14 +89,13 @@ interface Attach {
 export function AssistantPanel(props: AssistantPanelProps) {
   const { project, onClose } = props;
   const status = useQuery({ queryKey: ["agent-status"], queryFn: fetchAgentStatus, staleTime: 60_000, retry: false });
-  const consent = useAgent((s) => s.consent);
-  const setConsent = useAgent((s) => s.setConsent);
+  const aiOff = useAiAssistOff();
   const thread = useAgent((s) => s.threads[project.id] ?? EMPTY);
   const running = useAgent((s) => s.running);
   const reset = useAgent((s) => s.reset);
   const profile = useAgent((s) => s.profile);
   const setProfile = useAgent((s) => s.setProfile);
-  const ready = !!status.data?.configured && consent;
+  const ready = !!status.data?.configured && !aiOff;
   const profiles = PROFILES.filter((p) => status.data?.profiles.includes(p.id) ?? p.id !== "coder");
   const [scrolled, setScrolled] = useState(false);
   const [view, setView] = useState<"chat" | "files">("chat");
@@ -124,7 +124,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
               <TooltipContent>New chat</TooltipContent>
             </Tooltip>
           )}
-          {consent && (
+          {ready && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost-secondary" size="icon-sm" className="text-hint" aria-label="Assistant options"><MoreIcon /></Button>
@@ -149,7 +149,6 @@ export function AssistantPanel(props: AssistantPanelProps) {
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem disabled={!thread.length} onSelect={() => reset(project.id)}>Clear conversation</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setConsent(false)}>Stop sharing with {status.data?.provider ?? "the model"}</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -165,8 +164,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
           {/* Drop plans are the kernel's: they show (and apply) without the assistant. */}
           <DropPlanCards projectId={project.id} />
         </>
-      ) : !consent ? (
-        <Consent provider={status.data.provider} model={status.data.model ?? ""} project={project} studio={!!props.studio} onAccept={() => setConsent(true)} />
+      ) : aiOff ? (
+        <>
+          <AiOff />
+          <DropPlanCards projectId={project.id} />
+        </>
       ) : view === "files" ? (
         <SharedFiles projectId={project.id} conversationId={conversationId} canEdit={canEdit} />
       ) : (
@@ -196,6 +198,7 @@ function Conversation({
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
+  const ackAiNotice = useAckAiNotice();
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
   const tools = useRef(runTool);
@@ -229,6 +232,7 @@ function Conversation({
     if (!withDrop && STUDIO_COMMAND.test(t)) return runStudioCommand(project.id, t);
     const shared = !dismissed;
     if (!drop) setPending(undefined);
+    ackAiNotice();
     void send(project.id, t, {
       ...sessionTools(profile),
       restricted: project.restricted,
@@ -329,6 +333,7 @@ function Conversation({
           setPending(undefined);
         }}
       />
+      {thread.length === 0 && <AiNotice className="block px-4 pb-3 text-caption text-hint" />}
     </div>
   );
 }
@@ -538,45 +543,13 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
   );
 }
 
-function Consent({ provider, model, project, studio, onAccept }: { provider: string; model: string; project: AssistantProject; studio: boolean; onAccept: () => void }) {
+/** D2: an org admin turned the assistant off (`aiAssist`); drops and their plans still work. */
+function AiOff() {
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 pt-6 pb-4" data-testid="agent-consent">
-      <span className="echo-star flex size-10 items-center justify-center text-ai-text" aria-hidden><AiIcon className="size-7" /></span>
-      <div>
-        <h3 className="text-body-3 font-semibold">Turn on {NAMING.displayName} AI</h3>
-        <p className="mt-1 text-muted-foreground">Answers come from {model} by {provider}. To answer, it receives a text summary of {studio ? "the open dataset" : "the open project"}:</p>
-      </div>
-      {studio ? (
-        <ul className="flex list-disc flex-col gap-1 pl-5 marker:text-hint">
-          <li>Title, licence and label set</li>
-          <li>File names and how they're grouped</li>
-          <li>Each annotation's label, shape type and review status</li>
-          <li>The workspace setup (tools, panels, label classes)</li>
-        </ul>
-      ) : (
-        <ul className="flex list-disc flex-col gap-1 pl-5 marker:text-hint">
-          <li>Title, tasks and what needs attention</li>
-          <li>What you imported: kinds, counts, file and folder names, detected facts</li>
-          <li>Proposals in Explore and the section you're in</li>
-        </ul>
-      )}
-      <p className="rounded-lg bg-generic px-3 py-2">
-        It never receives images, signals, video or any file contents unless you approve copying files into its private sandbox, and it can't change annotations or confirm anything. You approve every suggestion.
-      </p>
-      {!!project.heldFiles && (
-        <p className="text-warning" data-testid="agent-consent-held">
-          This project contains {project.heldFiles === 1 ? "a file" : `${project.heldFiles} files`} held for privacy review; the assistant won't see {project.heldFiles === 1 ? "it" : "them"}.
-        </p>
-      )}
-      {project.restricted && (
-        <p className="text-warning">
-          {studio ? "This dataset's licence restricts redistribution. Only its metadata is shared, but check the licence allows that." : "This project's licence restricts redistribution: outside the Studio the assistant sees kinds, counts and statuses only, never file or folder names."}
-        </p>
-      )}
-      <div className="mt-auto flex flex-col gap-2">
-        <Button size="lg" onClick={onAccept}>Turn on for this browser</Button>
-        <p className="text-caption text-hint">{studio ? "Annotation works the same with it off." : "Everything works the same with it off."}</p>
-      </div>
+    <div className="flex flex-col gap-3 px-4 pt-6" data-testid="agent-off">
+      <span className="flex size-8 items-center justify-center rounded-lg bg-generic text-hint"><AiIcon className="size-4" /></span>
+      <h3 className="text-body-2 font-semibold">The assistant is off for this organization</h3>
+      <p className="text-muted-foreground">An admin can turn it on in Organization settings. Dropped files still go to the project's Files.</p>
     </div>
   );
 }

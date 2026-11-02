@@ -1,11 +1,9 @@
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
-import { CheckIcon, ChevronDownIcon, CopyIcon, InfoIcon, TopUpIcon } from "@studio/ui/icons";
+import { CheckIcon, ChevronDownIcon, CopyIcon } from "@studio/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
-import { ORG } from "@/studio/lib/account-mock";
 import { DEFAULT_DEV_PRINCIPAL, backToDefaultPrincipal, devPrincipal, devPrincipalAvailable, startAsNewPerson } from "@/studio/lib/dev-principal";
 import { logout, useSession } from "@/studio/lib/session";
 import { billingUrl, orgUrl, profileUrl, settingsUrl } from "@/studio/lib/routes";
@@ -88,21 +86,7 @@ export function UserMenu({ className }: { className?: string }) {
 
         <section className="flex flex-col gap-3 border-t border-border px-5 py-4">
           <p className="truncate text-[14px] font-semibold leading-[22px]" data-testid="user-menu-org">Organization {organization.name}</p>
-          <div className="flex items-center justify-between">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="flex cursor-help items-center gap-1 text-sm leading-5 text-complementary">
-                  Account balance <InfoIcon className="size-3 text-foreground" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Credits for AI suggestions and inspection jobs in this organization</TooltipContent>
-            </Tooltip>
-            {/* Billing stays mocked until a billing provider is chosen (todo9 Phase 12). */}
-            <span className="tnum text-[14px] font-semibold leading-[22px]">${ORG.balance.toFixed(2)}</span>
-          </div>
-          <Link to={billingUrl("details")} className="press flex h-7 w-full items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-generic">
-            <TopUpIcon className="size-4" /> Top up account balance
-          </Link>
+          {/* D9: no balance until a billing provider exists (todo9 Phase 12). */}
         </section>
 
         <ul className="flex flex-col gap-1 border-t border-border py-3">

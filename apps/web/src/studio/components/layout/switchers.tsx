@@ -100,9 +100,6 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             </DropdownMenuItem>
           );
         })}
-        <DropdownMenuSeparator />
-        {/* TODO(todo14 Q2, todo9): team organizations; creating one isn't wired yet. */}
-        <DropdownMenuItem disabled data-testid="workspace-create">Create organization</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

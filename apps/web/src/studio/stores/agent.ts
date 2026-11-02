@@ -97,12 +97,9 @@ interface AgentState {
   conversation: (projectId: string) => { id: string; title?: string };
   /** The run being followed; persisted so a reload reattaches with `after=lastSeq`. */
   active: ActiveRun | null;
-  /** The expert agreed to share this dataset's text context with the model provider. */
-  consent: boolean;
   profile: ProfileName;
   /** Dataset whose run is streaming in this tab, if any. */
   running: string | null;
-  setConsent: (v: boolean) => void;
   setProfile: (p: ProfileName) => void;
   setHost: (host: AgentHost | null) => void;
   send: (projectId: string, text: string, opts: SendOptions) => Promise<void>;
@@ -311,10 +308,8 @@ export const useAgent = create<AgentState>()(
         notes: {},
         conversations: {},
         active: null,
-        consent: false,
         profile: "environment-designer",
         running: null,
-        setConsent: (consent) => set({ consent }),
         setProfile: (profile) => set({ profile }),
         setHost: (h) => {
           host = h;
@@ -430,7 +425,7 @@ export const useAgent = create<AgentState>()(
       version: 2,
       // v1 threads were for the old stateless loop; their shape is compatible, sessions start fresh.
       migrate: (persisted) => ({ ...(persisted as object), sessions: {}, notes: {}, active: null }) as never,
-      partialize: (s) => ({ consent: s.consent, threads: s.threads, sessions: s.sessions, notes: s.notes, active: s.active, profile: s.profile, conversations: s.conversations }),
+      partialize: (s) => ({ threads: s.threads, sessions: s.sessions, notes: s.notes, active: s.active, profile: s.profile, conversations: s.conversations }),
     },
   ),
 );

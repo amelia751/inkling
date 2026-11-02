@@ -849,7 +849,7 @@ def finish(b: Batch, *, label: str | None = None, summary: str | None = None, re
     if not b.ops:
         return
     seq = max(op.id for op in b.ops)
-    db.add(FsBatch(id=b.id, project_id=b.project.id, actor=b.actor, kind=b.kind, label=label or _label(b), summary=b.summary[:2000], undoable=b.undoable, reverts_batch_id=reverts, seq=seq, at=b.at))
+    db.add(FsBatch(id=b.id, project_id=b.project.id, actor=b.actor, kind=b.kind, label=label or _label(b), summary=b.summary[:2000], undoable=b.undoable, reverts_batch_id=reverts, seq=seq, on_behalf_of=b.ctx.on_behalf_of, turn_id=b.ctx.turn_id, at=b.at))
     db.flush()
     after_names(b)
     scoped = b.ctx.for_scope(b.project.id, None)

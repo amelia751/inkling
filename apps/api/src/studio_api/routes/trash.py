@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import projects, trash
+from ..kernel import projects, trash, turns
 from ..models import DatasetCollectionRow, DatasetRow, ProjectRow, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -162,3 +162,16 @@ def deleted_projects(ctx: RequestContext = Depends(get_context), db: Session = D
 def destroy_project(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id, include_trashed=True)
     return trash.destroy_project(db, ctx, p)
+
+
+# ---- todo16 D9: an assistant turn (kernel/turns.py) --------------------------------------------
+
+
+@router.get("/projects/{project_id}/turns/{turn_id}")
+def get_turn(project_id: str, turn_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    return turns.get(db, ctx, projects.require_project(db, ctx, project_id), turn_id)
+
+
+@router.post("/projects/{project_id}/turns/{turn_id}/undo")
+def undo_turn(project_id: str, turn_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    return turns.undo(db, ctx, trash.require_trash(db, ctx, project_id), turn_id)

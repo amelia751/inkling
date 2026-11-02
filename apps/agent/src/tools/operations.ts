@@ -15,9 +15,10 @@ import { approvalToken, operationTargets } from "./approval-token.ts";
  * the reason). Reads stay hand-written in project.ts (metadata only); this module generates the
  * write, trash and destroy tools, plus `trash_list` and `undo_turn`.
  *
- * Every write in one run (assistant turn) is journaled in `TurnJournal`, so "Undo these
- * changes" (`undo_turn`, or the chat card) reverses the whole turn: fs batches through
- * `fs/undo`, trashed things through `trash/{batchId}/restore`.
+ * The kernel journals every write of a run (assistant turn): the kernel client sends the run id
+ * as `X-Turn-Id` and each `fs_batches` row records it (todo16 D9). "Undo these changes"
+ * (`undo_turn`, or the chat card) asks the kernel to undo the whole turn
+ * (`POST /projects/{pid}/turns/{turnId}/undo`); nothing is kept in this process.
  */
 
 /** Operations served by hand-written tools (boot_studio, patch_studio, propose_structure, reads). */
@@ -28,35 +29,6 @@ export const OPERATION_TOOL_NAMES = [...OPERATION_TOOLS.map((o) => operationTool
 const BY_TOOL = new Map(OPERATION_TOOLS.map((o) => [operationToolName(o.id), o]));
 
 export const operationForTool = (toolName: string): Operation | undefined => BY_TOOL.get(toolName);
-
-/** What one run changed, newest last. */
-export interface JournalEntry {
-  opId: string;
-  tier: Operation["tier"];
-  batchId: string;
-  /** fs batches undo through `fs/undo`; the rest restore from the Trash. */
-  via: "fs" | "trash";
-  summary: string;
-}
-
-export class TurnJournal {
-  private readonly byRun = new Map<string, JournalEntry[]>();
-  add(runId: string, e: JournalEntry): void {
-    const list = this.byRun.get(runId) ?? [];
-    list.push(e);
-    this.byRun.set(runId, list);
-  }
-  entries(runId: string): JournalEntry[] {
-    return [...(this.byRun.get(runId) ?? [])];
-  }
-  clear(runId: string): void {
-    this.byRun.delete(runId);
-  }
-  /** The newest run with changes, other than `except` (the run asking to undo). */
-  lastRunWithChanges(except?: string): string | undefined {
-    return [...this.byRun.keys()].reverse().find((r) => r !== except && (this.byRun.get(r)?.length ?? 0) > 0);
-  }
-}
 
 /** Facts the policy needs for a catalogue call (looked up before deciding). */
 export interface OperationFacts {
@@ -97,8 +69,6 @@ const text = (value: unknown, summary: string, details: Record<string, unknown> 
 export interface OperationToolDeps {
   kernel: KernelClient;
   projectId: string;
-  journal: TurnJournal;
-  runId: () => string | undefined;
   /** The approval id the person gave for this tool call (set by the policy extension). */
   approvalFor: (toolCallId: string) => string | undefined;
   /** The person's delegated kernel token and the key approvals are signed with (todo16 D8). */
@@ -143,9 +113,6 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
           throw e;
         }
         const batchId = batchOf(res);
-        const runId = d.runId();
-        if (batchId && runId && (op.tier === "write" || op.tier === "trash") && op.id !== "source.undo" && op.id !== "trash.restore")
-          d.journal.add(runId, { opId: op.id, tier: op.tier, batchId, via: op.fsOp ? "fs" : "trash", summary: op.description });
         if (op.tier === "trash")
           return text({ movedToTrash: true, batchId, result: res, note: "Tell the person it went to the Trash and can be undone (Undo or Open Trash)." }, "Moved to Trash", { card: "trash", batchId, opId: op.id });
         if (op.tier === "destroy") return text({ deletedForever: true, result: res }, "Deleted forever", { opId: op.id });
@@ -160,15 +127,18 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
     description: "Undo every change you made in one turn (default: your previous turn that changed something): restores what you trashed and reverses renames, moves and new folders.",
     parameters: Type.Object({ runId: Type.Optional(Type.String()) }),
     async execute(_callId: string, params: { runId?: string }, signal: AbortSignal | undefined) {
-      const runId = params.runId ?? d.journal.lastRunWithChanges(d.runId());
-      if (!runId) return text({ undone: 0, note: "Nothing to undo." }, "Nothing to undo");
-      const entries = d.journal.entries(runId).reverse();
-      for (const e of entries) {
-        if (e.via === "fs") await d.kernel.request("POST", `/projects/${encodeURIComponent(d.projectId)}/fs/undo`, { json: { batchId: e.batchId }, signal });
-        else await d.kernel.request("POST", `/projects/${encodeURIComponent(d.projectId)}/trash/${encodeURIComponent(e.batchId)}/restore`, { json: {}, signal });
+      // "latest": the kernel picks this person's newest turn other than the one asking.
+      const turn = encodeURIComponent(params.runId ?? "latest");
+      let res: { undone?: number };
+      try {
+        res = await d.kernel.request("POST", `/projects/${encodeURIComponent(d.projectId)}/turns/${turn}/undo`, { json: {}, signal });
+      } catch (e) {
+        if (e instanceof KernelError && e.status === 404) return text({ undone: 0, note: "Nothing to undo." }, "Nothing to undo");
+        if (e instanceof KernelError && e.status === 409) throw new Error(`Can't undo: ${e.message}`);
+        throw e;
       }
-      d.journal.clear(runId);
-      return text({ undone: entries.length }, `Undid ${entries.length} change${entries.length === 1 ? "" : "s"}`);
+      const n = res?.undone ?? 0;
+      return text(res, `Undid ${n} change${n === 1 ? "" : "s"}`);
     },
   } satisfies ToolDefinition<any, any, any>);
   return tools;

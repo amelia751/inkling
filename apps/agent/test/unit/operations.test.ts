@@ -17,19 +17,23 @@ interface Seen {
   method: string;
   path: string;
   approval: string | null;
+  turn: string | null;
   body?: any;
 }
 
 function fakeApi(role: "editor" | "viewer" = "editor") {
   const seen: Seen[] = [];
   const trashed = new Set<string>();
+  // The kernel's journal (todo16 D9): what each turn (X-Turn-Id) changed, oldest first.
+  const turns: [string, () => void][] = [];
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const h = new Headers(init?.headers);
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     const p = url.pathname.replace(/^\/api\/v1/, "");
-    seen.push({ method, path: p + url.search, approval: h.get("x-approval-id"), body });
+    const turn = h.get("x-turn-id");
+    seen.push({ method, path: p + url.search, approval: h.get("x-approval-id"), turn, body });
     const send = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
     if (h.get("authorization") !== `Bearer ${KTOKEN}`) return send(401, { detail: "bad token" });
     if (p.startsWith("/source-nodes/")) return send(200, { id: p.split("/")[2], kind: "folder", descendantCount: 12 });
@@ -37,14 +41,19 @@ function fakeApi(role: "editor" | "viewer" = "editor") {
     if (writes && role === "viewer") return send(403, { detail: "You can view this project but not delete from it" });
     if (method === "POST" && p === "/projects/demo/fs/ops") {
       for (const op of body.ops) if (op.kind === "trash") for (const id of op.nodeIds) trashed.add(id);
+      if (turn) turns.push([turn, () => trashed.clear()]);
       return send(200, { batchId: "fsb_1", nodes: [] });
     }
-    if (method === "POST" && p === "/projects/demo/fs/undo") {
-      trashed.clear();
-      return send(200, { undo: null });
+    if (method === "POST" && p === "/projects/demo/turns/latest/undo") {
+      const last = [...turns].reverse().find(([t]) => t !== turn);
+      if (!last) return send(404, { detail: "Nothing to undo" });
+      const mine = turns.filter(([t]) => t === last[0]);
+      for (const [, undo] of mine.reverse()) undo();
+      return send(200, { turnId: last[0], undone: mine.length });
     }
     if (method === "DELETE" && p === "/projects/demo/datasets/ds-1") {
       trashed.add("ds-1");
+      if (turn) turns.push([turn, () => trashed.delete("ds-1")]);
       return send(200, { batchId: "tb_ds", impact: { items: [{ kind: "dataset", id: "ds-1", name: "X" }], files: 0, datasetsLosingItems: [] } });
     }
     if (method === "POST" && p === "/projects/demo/trash/tb_ds/restore") {
@@ -135,7 +144,12 @@ describe("assistant operates the project (scripted model)", () => {
     expect(JSON.parse(r.text)).toMatchObject({ movedToTrash: true, batchId: "fsb_1" });
     expect(api.trashed.has("nod-pneu")).toBe(true);
     await say(id, "undo these changes");
-    expect(api.seen.some((s) => s.method === "POST" && s.path === "/projects/demo/fs/undo" && s.body.batchId === "fsb_1")).toBe(true);
+    // Every kernel call names its turn; undo asks the kernel to undo the previous one.
+    const write = api.seen.find((s) => s.path === "/projects/demo/fs/ops")!;
+    const undo = api.seen.find((s) => s.path === "/projects/demo/turns/latest/undo")!;
+    expect(write.turn).toMatch(/\S/);
+    expect(undo.turn).toMatch(/\S/);
+    expect(undo.turn).not.toBe(write.turn);
     expect(api.trashed.size).toBe(0);
   });
 

@@ -65,6 +65,8 @@ class RequestContext:
     approval_id: str | None = None
     # The bearer session token's hash (a signed approval names the delegation it was given in).
     token_hash: str | None = None
+    # todo16 D9: the assistant turn (run) a request belongs to (X-Turn-Id), journaled on batches.
+    turn_id: str | None = None
 
     @property
     def task(self) -> str:
@@ -174,6 +176,7 @@ def _session_token_context(request: Request, db: Session, row: SessionToken, cor
         org_id=delegation.org_id if delegation else None, permissions=perms, auth=AUTH_TOKEN,
         client_ip=client_ip(request), user_agent=request.headers.get("User-Agent"),
         approval_id=request.headers.get("X-Approval-Id") or None, token_hash=row.token_hash,
+        turn_id=(request.headers.get("X-Turn-Id") or "")[:64] or None,
     )
 
 

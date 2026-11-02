@@ -272,7 +272,7 @@ def trash(db: Session, ctx: RequestContext, p: ProjectRow, kind: str, row: Any) 
         for r in rows:
             if r.trashed_at is None:
                 r.trashed_at, r.trashed_by, r.trash_batch_id = at, who, batch
-    db.add(FsBatch(id=batch, project_id=p.id, actor=ctx.principal, kind="trash", resource=kind, label=_name(row)[:256], summary=f"Moved to Trash: {kind}", undoable=False, at=at))
+    db.add(FsBatch(id=batch, project_id=p.id, actor=ctx.principal, kind="trash", resource=kind, label=_name(row)[:256], summary=f"Deleted {kind} {_name(row)}"[:2000], undoable=False, on_behalf_of=ctx.on_behalf_of, turn_id=ctx.turn_id, at=at))
     db.flush()
     _audit(db, ctx, p, "trash", kind, row.id, batch, out)
     return {"batchId": batch, "impact": out}

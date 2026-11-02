@@ -35,7 +35,7 @@ import { ClientToolBridge, ClientToolError, createClientTools } from "../tools/c
 import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "../tools/dataset.ts";
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
-import { TurnJournal, createOperationTools, operationForTool } from "../tools/operations.ts";
+import { createOperationTools, operationForTool } from "../tools/operations.ts";
 import { createDropTools, dropBlock, dropPart, fetchDropSummary } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
@@ -89,7 +89,6 @@ export class SessionContext {
   readonly bridge: ClientToolBridge;
   readonly approvals: ApprovalBroker;
   /** todo16 D9: what each run changed, so "Undo these changes" reverses one turn. */
-  readonly journal = new TurnJournal();
   /** todo16 D8: approval ids by tool call, sent as `X-Approval-Id` by destroy operations. */
   readonly approvalIds = new Map<string, string>();
   readonly dataset: SessionDatasetSource;
@@ -397,15 +396,16 @@ export class SessionService {
       baseUrl: this.config.kernelUrl,
       workspaceId: meta.projectId,
       token: () => ctx.kernelToken,
-      headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}),
+      // todo16 D9: the run is the turn; the kernel journals every write under it (X-Turn-Id).
+      headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
       fetchImpl: this.deps.fetchImpl,
     });
     ctx.kernel = kernel;
     tools.push(...createProjectTools(kernel));
     // todo16 D7-D9: write, trash and destroy tools from the operations catalogue, with the
-    // person's delegated token; one journal per session so a turn undoes as one step.
+    // person's delegated token; the kernel journals each turn (X-Turn-Id), so a turn undoes as one step.
     ctx.policy.trashAskOver = this.config.trashAskOver;
-    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, journal: ctx.journal, runId: () => ctx.activeRun?.id, approvalFor: (id) => ctx.approvalIds.get(id), kernelToken: () => ctx.kernelToken, approvalSecret: this.config.approvalSecret }));
+    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, approvalFor: (id) => ctx.approvalIds.get(id), kernelToken: () => ctx.kernelToken, approvalSecret: this.config.approvalSecret }));
     // todo13: files dropped in the chat (screened names and facts only).
     tools.push(...createDropTools(kernel));
     if (profile.studio) {
@@ -415,7 +415,7 @@ export class SessionService {
       const studioClient = new StudioClient({
         baseUrl: this.config.kernelUrl,
         token: () => ctx.kernelToken,
-        headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id } : {}) }),
+        headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
         fetch: this.deps.fetchImpl,
       });
       tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: meta.projectId, runId: () => ctx.activeRun?.id }));

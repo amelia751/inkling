@@ -1,13 +1,13 @@
 import { Link, useParams } from "react-router";
 import { EmptyState } from "@studio/ui/ui/empty-state";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ActivityIcon, AiIcon, ChevronRightIcon, HumanIcon } from "@studio/ui/icons";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import type { ActivityActor, ActivityEntry } from "@studio/contracts/types";
-import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
+import { fetchActivity, projectKeys, undoTurn } from "@/studio/lib/projects-api";
 import { targetUrl } from "@/studio/lib/routes";
 
 /**
@@ -55,6 +55,7 @@ export function ActivityPage() {
 }
 
 function Entry({ projectId, entry: e }: { projectId: string; entry: ActivityEntry }) {
+  if (e.kind === "batch") return <TurnEntry projectId={projectId} entry={e} />;
   const who = e.who ?? actorOf(e.actor, e.onBehalfOf);
   const Icon = who.kind === "assistant" ? AiIcon : who.kind === "person" ? HumanIcon : ActivityIcon;
   const body = (
@@ -75,6 +76,27 @@ function Entry({ projectId, entry: e }: { projectId: string; entry: ActivityEntr
     </Link>
   ) : (
     <div {...common}>{body}</div>
+  );
+}
+
+/** todo16 D9: "Ana's assistant: renamed 3 items, deleted dataset X", with Undo while it's the latest change. */
+function TurnEntry({ projectId, entry: e }: { projectId: string; entry: ActivityEntry }) {
+  const qc = useQueryClient();
+  const undo = useMutation({ mutationFn: () => undoTurn(projectId, e.turnId!), onSettled: () => void qc.invalidateQueries({ queryKey: projectKeys.activity(projectId) }) });
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5" data-testid="activity-entry" data-action={e.action} data-actor-kind="assistant" data-turn-id={e.turnId}>
+      <AiIcon className="size-4 shrink-0 text-ai-text" />
+      <p className="min-w-0 flex-1 text-sm">
+        <span className="font-medium" data-testid="activity-actor">{e.actorLabel ?? "Assistant"}</span>: <span data-testid="activity-label">{e.summary ?? e.label}</span>
+        {undo.error && <span className="text-muted-foreground"> · Couldn't undo: {String((undo.error as Error).message ?? undo.error)}</span>}
+      </p>
+      <time className="tnum shrink-0 text-sm text-muted-foreground" dateTime={e.at ?? undefined}>{e.at ? new Date(e.at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : ""}</time>
+      {e.undoable && e.turnId && (
+        <Button size="sm" variant="outline" onClick={() => undo.mutate()} disabled={undo.isPending} data-testid="activity-undo-turn">
+          Undo
+        </Button>
+      )}
+    </div>
   );
 }
 

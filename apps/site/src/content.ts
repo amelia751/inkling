@@ -55,7 +55,6 @@ export const NAV: NavEntry[] = [
     ],
   },
   { label: "Why us", href: "#why" },
-  { label: "Pricing", href: "#start" },
 ];
 
 export type Step = { title: string; text: string };

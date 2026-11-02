@@ -144,8 +144,8 @@ def main() -> int:
 
             # 4. One Save.
             page.get_by_test_id("setup-save").click()
-            toast = page.locator("[data-sonner-toast]", has_text="Task setup changed")
-            check("toast: Task setup changed · Undo", bool(wait(lambda: toast.count() == 1 and toast.locator("button", has_text="Undo").count() == 1, 15)))
+            toast = page.locator("[data-sonner-toast]", has_text="Studio settings changed")
+            check("toast: Studio settings changed · Undo", bool(wait(lambda: toast.count() == 1 and toast.locator("button", has_text="Undo").count() == 1, 15)))
             env_after = st.store("s => ({ classes: s.env.labels[0].classes.map(c => [c.id, c.hotkey ?? null]), tools: s.env.tools.map(t => t.name) })")
             check("saved through patchEnvironment: class added, paint tools off", ["effusion", "3"] in env_after["classes"] and not (PAINT & set(env_after["tools"])), str(env_after))
             check("saved as an environment revision (PUT) with an author", len(puts) == 1 and puts[0]["environment"]["labels"][0]["classes"][-1]["id"] == "effusion" and bool(puts[0].get("author")), str(puts[-1:])[:300])
@@ -183,7 +183,7 @@ def main() -> int:
             row.get_by_test_id("class-key").fill("3")
             page.locator("[data-testid=tool-group-toggle][data-group=mask]").click()
             page.get_by_test_id("setup-save").click()
-            toast = page.locator("[data-sonner-toast]", has_text="Task setup changed")
+            toast = page.locator("[data-sonner-toast]", has_text="Studio settings changed")
             wait(lambda: toast.count() == 1, 15)
             toast.locator("button", has_text="Undo").click()
             restored = wait(lambda: (lambda e: e if e and "effusion" not in e["classes"] and PAINT <= set(e["tools"]) else None)(st.store("s => s.env && ({ classes: s.env.labels[0].classes.map(c => c.id), tools: s.env.tools.map(t => t.name) })")), 10)

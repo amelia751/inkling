@@ -54,7 +54,7 @@ function Setup({ s, changes }: { s: StudioSetup; changes: StudioChange[] }) {
   if (!s.studioTree)
     return (
       <Card className="px-4 py-3 text-sm text-muted-foreground" data-testid="studio-setup-none">
-        This version carries no Studio setup. Saving Task setup, or requesting a review from the Studio, commits it.
+        This version carries no Studio setup. Saving Studio settings, or requesting a review from the Studio, commits it.
       </Card>
     );
   return (

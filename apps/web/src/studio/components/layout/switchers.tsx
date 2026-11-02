@@ -158,7 +158,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
 
 /**
  * The Studio header's task switcher (todo8 D1): names the open task and lists the project's
- * other tasks with their progress, plus "Task setup…". The preset's title (`2D image`) is the
+ * other Studios with their progress, plus "Studio settings…" (todo20 D6: one word, Studio). The preset's title (`2D image`) is the
  * subtitle of the current task here, not a header status. With `compact` (the task has the
  * project's title, which the header already shows) the trigger is the chevron alone.
  */
@@ -170,21 +170,22 @@ export function TaskSwitcher({ projectId, taskId, title, subtitle, compact = fal
   const { data: datasets } = useDatasets(projectId, { enabled: listed });
   // Progress is items with at least one annotation (a dataset's file count isn't its item count:
   // a CT study is one item and hundreds of files).
-  const tasks: { id: string; title: string; annotatedItems?: number }[] = datasets?.flatMap((d) => d.tasks) ?? [];
+  // A draft whose dataset has no files yet isn't a Studio anyone can work in: hidden (todo20 D6).
+  const tasks: { id: string; title: string; annotatedItems?: number }[] = datasets?.flatMap((d) => d.tasks.filter((t) => t.id === taskId || t.state !== "draft" || d.fileCount > 0)) ?? [];
   if (!tasks.some((t) => t.id === taskId)) tasks.unshift({ id: taskId, title });
 
   return (
     <DropdownMenu key={taskId}>
       <DropdownMenuTrigger
         className={cn(compact ? "press flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]" : cn(TRIGGER, "max-w-[min(280px,32cqw)] bg-transparent"), className)}
-        aria-label={`Task: ${title}. Switch task`}
+        aria-label={`Studio: ${title}. Switch Studio`}
         data-testid="task-switcher"
       >
         {!compact && <span className="truncate">{title}</span>}
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[300px]">
-        <DropdownMenuLabel className="font-normal text-hint">Tasks</DropdownMenuLabel>
+        <DropdownMenuLabel className="font-normal text-hint">Studios</DropdownMenuLabel>
         {tasks.slice(0, 20).map((t) => {
           const current = t.id === taskId;
           return (
@@ -206,7 +207,7 @@ export function TaskSwitcher({ projectId, taskId, title, subtitle, compact = fal
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to={taskSetupUrl(projectId, taskId)} data-testid="switcher-task-setup">
-            <SettingsIcon className="text-muted-foreground" /> Task setup…
+            <SettingsIcon className="text-muted-foreground" /> Studio settings…
           </Link>
         </DropdownMenuItem>
       </DropdownMenuContent>

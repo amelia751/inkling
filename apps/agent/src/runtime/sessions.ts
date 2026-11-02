@@ -37,7 +37,7 @@ import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
-import { createDropTools, dropBlock, dropPart, fetchDropSummary } from "../tools/drops.ts";
+import { createDropTools, dropBlock, dropPart, waitForDrop } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
@@ -711,7 +711,9 @@ export class SessionService {
   private async readDrop(ctx: SessionContext, dropId: string) {
     if (!ctx.kernel) return { block: dropBlock(undefined, dropId, "no kernel access"), part: undefined };
     try {
-      const summary = await fetchDropSummary(ctx.kernel, dropId);
+      // todo20 D8: give a fresh drop a few seconds to finish uploading before the model reads it
+      // (its block then says "Still checking …", never "0 files").
+      const { summary } = await waitForDrop(ctx.kernel, dropId, { timeoutMs: 8_000, done: (s) => s.state !== "uploading" });
       return { block: dropBlock(summary, dropId), part: dropPart(summary) };
     } catch (err) {
       this.deps.log.warn({ sessionId: ctx.id, dropId, err: sanitizeError(String(err)) }, "drop not readable");

@@ -25,6 +25,13 @@ export interface DropSummary {
   groups: { groupId: string; kind: string; count: number; shape?: string; suggestedAction?: string }[];
   files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
   nextOffset?: number;
+  /** Files the browser declared (todo20 D8): "still uploading (12 of 35)". */
+  expected?: number;
+  /** Grouped findings (rule, outcome, count): never file names. */
+  findings?: { rule: string; outcome: string; count: number; message?: string }[];
+  failure?: { step?: string; reason: string };
+  /** One line for the model and the tool row: where the drop is ("Still uploading (12 of 35)"). */
+  status?: string;
 }
 
 /** Strings that may carry bytes or a way to fetch them: never in the model's context. */
@@ -76,7 +83,75 @@ export function safeSummary(raw: any): DropSummary {
     groups,
     files,
     ...(typeof raw?.nextOffset === "number" ? { nextOffset: raw.nextOffset } : {}),
+    ...(num(raw?.expected) ? { expected: num(raw.expected) } : {}),
+    ...(Array.isArray(raw?.findings) && raw.findings.length
+      ? { findings: raw.findings.slice(0, 20).map((g: any) => ({ rule: str(g?.rule) ?? "rule", outcome: str(g?.outcome) ?? "reported", count: num(g?.count), ...(str(g?.message, 200) ? { message: g.message } : {}) })) }
+      : {}),
+    ...(raw?.failure && str(raw.failure.reason, 300) ? { failure: { reason: raw.failure.reason, ...(str(raw.failure.step) ? { step: raw.failure.step } : {}) } } : {}),
   };
+}
+
+/** States a drop ends in (todo20 D8); the classifier's own states count as settled too. */
+export const SETTLED_DROP_STATES = new Set(["ready", "partly_ready", "duplicate", "failed", "classified", "planned", "applied"]);
+
+const plural = (n: number, one = "file") => `${n.toLocaleString("en-US")} ${n === 1 ? one : `${one}s`}`;
+
+/** Where the drop is, in one line: never "0 files" while it's still uploading. */
+export function dropStatus(s: DropSummary): string {
+  const st = s.state ?? "uploading";
+  const total = s.total;
+  const failed = s.states.failed ?? 0;
+  const findings = (s.findings ?? []).map((g) => `${plural(g.count)}: ${g.rule} (${g.outcome})`).join("; ");
+  switch (st) {
+    case "uploading": {
+      const of = Math.max(s.expected ?? 0, total);
+      const arrived = total - (s.states.uploading ?? 0);
+      return of ? `Still uploading (${arrived.toLocaleString("en-US")} of ${of.toLocaleString("en-US")})` : "Still uploading: no file has arrived yet";
+    }
+    case "inspecting": {
+      const checking = s.states.checking ?? 0;
+      return checking ? `Still checking (${(total - checking).toLocaleString("en-US")} of ${total.toLocaleString("en-US")} checked)` : `Still checking ${plural(total)}`;
+    }
+    case "duplicate": {
+      const n = s.states.duplicate ?? total;
+      return `These ${plural(n)} are already in this project`;
+    }
+    case "failed":
+      return `The drop failed: ${s.failure?.reason ?? (failed ? `${plural(failed)} didn't upload` : "nothing was added")}${findings ? ` (${findings})` : ""}`;
+    case "partly_ready":
+      return `${plural(total - failed)} ready, ${failed.toLocaleString("en-US")} failed`;
+    default:
+      return `${plural(total)} ready`;
+  }
+}
+
+export interface WaitOptions {
+  /** Give up after this long and report where the drop is (default 20 s). */
+  timeoutMs?: number;
+  intervalMs?: number;
+  signal?: AbortSignal;
+  sleep?: (ms: number) => Promise<void>;
+  now?: () => number;
+  /** Stop waiting once this holds (default: the drop settled). */
+  done?: (s: DropSummary) => boolean;
+}
+
+const realSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * todo20 D5/D8: read a drop once it has settled (ready, partly ready, duplicate, failed, or
+ * classified), polling at most `timeoutMs`. A drop still uploading after that comes back with
+ * `settled: false` and a status such as "Still uploading (12 of 35)".
+ */
+export async function waitForDrop(k: KernelClient, dropId: string, opts: WaitOptions = {}): Promise<{ summary: DropSummary; settled: boolean }> {
+  const { timeoutMs = 20_000, intervalMs = 1_000, signal, sleep = realSleep, now = Date.now, done } = opts;
+  const until = now() + timeoutMs;
+  for (;;) {
+    const summary = await fetchDropSummary(k, dropId, 0, signal);
+    const settled = SETTLED_DROP_STATES.has(summary.state ?? "");
+    if (settled || done?.(summary) || now() + intervalMs > until || signal?.aborted) return { summary: { ...summary, status: dropStatus(summary) }, settled };
+    await sleep(intervalMs);
+  }
 }
 
 export async function fetchDropSummary(k: KernelClient, dropId: string, offset = 0, signal?: AbortSignal): Promise<DropSummary> {
@@ -96,6 +171,7 @@ export function dropBlock(s: DropSummary | undefined, dropId: string, error?: st
   return [
     `<drop id="${s.dropId}">`,
     "The user dropped files into the chat. They are in the project's Files (Shared in chat). Names are screened; read more with get_drop.",
+    `Status: ${s.status ?? dropStatus(s)}.${SETTLED_DROP_STATES.has(s.state ?? "") ? "" : " The drop hasn't settled: call get_drop (it waits) before saying how many files there are."}`,
     JSON.stringify(s),
     "</drop>",
   ].join("\n");
@@ -113,9 +189,13 @@ export function createDropTools(k: KernelClient): ToolDefinition<any, any, any>[
       offset: Type.Optional(Type.Integer({ minimum: 0, description: "Skip this many files (for drops of more than 50)." })),
     }),
     async execute(_id, args, signal) {
-      const s = await fetchDropSummary(k, args.dropId, args.offset ?? 0, signal);
+      // todo20 D8: wait (bounded) for the drop to settle; never report "0 files" mid-upload.
+      const s = args.offset ? { ...(await fetchDropSummary(k, args.dropId, args.offset, signal)) } : (await waitForDrop(k, args.dropId, { signal })).summary;
+      s.status ??= dropStatus(s);
       const kinds = Object.entries(s.byKind).map(([kind, n]) => `${n} ${kind}`).join(", ");
-      return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: `${s.total} file${s.total === 1 ? "" : "s"}${kinds ? ` · ${kinds}` : ""}` } };
+      const settled = SETTLED_DROP_STATES.has(s.state ?? "");
+      const label = settled && s.state !== "duplicate" && s.state !== "failed" ? `${s.status}${kinds ? ` · ${kinds}` : ""}` : s.status;
+      return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: label } };
     },
   });
   return [getDrop, ...createAddDataTools(k)];

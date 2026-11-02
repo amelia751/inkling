@@ -670,6 +670,8 @@ class ProjectRow(Base):
     visibility: Mapped[str] = mapped_column(String(16), default="private")  # private | shared
     # Seed projects: the manifest entry they came from (license, restricted badge).
     seed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # todo14 D2: the Samples template this project is a copy of (its assets share the blob keys).
+    sample_of: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     archived: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

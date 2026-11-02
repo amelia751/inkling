@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import command
 
 from studio_api import db
-from studio_api.models import ProjectRow, SourceNode, Workspace
+from studio_api.models import SourceNode, Workspace
 
 from .test_migrations import _alembic_at
 
@@ -26,8 +26,9 @@ def test_0012_backfills_collections_and_task_collections_then_downgrades(tmp_pat
         c.execute(sa.text("INSERT INTO organizations (id, name, kind, created_at) VALUES ('o', 'O', 'team', :t)"), {"t": T})
     with db.session_scope() as s:
         s.add(Workspace(id="p1", name="p1"))
-        s.flush()
-        s.add(ProjectRow(id="p1", org_id="o", title="P", created_by="user:a"))
+    with db.engine().begin() as c:  # raw SQL: the ProjectRow model has todo14's sample_of
+        c.execute(sa.text("INSERT INTO projects (id, org_id, title, description, visibility, seed, archived, created_by, created_at, updated_at) VALUES ('p1', 'o', 'P', '', 'private', 0, 0, 'user:a', :t, :t)"), {"t": T})
+    with db.session_scope() as s:
         s.add(SourceNode(id="root", project_id="p1", name="Files", is_dir=True, original_path=""))
         for n in [_node("img1", "image"), _node("img2", "image"), _node("ct1", "dicom", {"series": {"seriesUidHash": "s"}}), _node("csv1", "table"), _node("cr1", "dicom")]:
             s.add(n)
@@ -48,7 +49,9 @@ def test_0012_backfills_collections_and_task_collections_then_downgrades(tmp_pat
         assert tasks == {"t-single": single_image, "t-mixed": None, "t-empty": None}
         assert {"drop_plans", "dataset_structures"} <= set(sa.inspect(c).get_table_names())
 
-    # Every pre-existing Studio opens on the same items (task_document, the kernel's own code).
+    # Every pre-existing Studio opens on the same items (task_document, the kernel's own code,
+    # which reads today's models: so at head, with the later revisions' columns).
+    command.upgrade(cfg, "head")
     from studio_api.kernel import projects
     from studio_api.models import Asset, TaskRow
 

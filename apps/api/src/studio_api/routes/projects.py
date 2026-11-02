@@ -2,6 +2,8 @@
 
     GET/POST    /api/v1/projects                     list (with lastActivityAt + resume) / create
     GET/PATCH   /api/v1/projects/{id}
+    GET         /api/v1/samples                      {enabled, samples: [{id, title, modality, license, restricted}]} (todo14 D2)
+    POST        /api/v1/projects/from-sample         {sampleId, orgId?} → 201, a private copy (the project dict)
     GET         /api/v1/projects/{id}/overview       resume, data cards, attention (blocks omitted when empty)
     GET         /api/v1/projects/{id}/review         the whole review queue (Overview shows its top 5)
     GET/POST    /api/v1/projects/{id}/datasets
@@ -31,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session, session_scope
-from ..kernel import dataset_profile, datasets_views, events, overview, projects
+from ..kernel import dataset_profile, datasets_views, events, overview, projects, samples
 from ..models import DatasetRow, PluginEvent, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -45,6 +47,27 @@ def list_projects(q: str | None = None, sort: str = "recent", archived: bool = F
 @router.post("/projects", status_code=201)
 def create_project(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.create_project(db, ctx, str(body.get("title") or ""), str(body.get("description") or ""), str(body.get("visibility") or "private"))
+    return projects.project_dict(db, ctx, p)
+
+
+@router.get("/samples")
+def list_samples(ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """The sample templates a person may copy (todo14 §4.3): `status: available`, restricted
+    ones only in dev. `enabled: false` and no samples when API_SAMPLES_ENABLED=0."""
+    return samples.list_samples(db)
+
+
+@router.post("/projects/from-sample", status_code=201)
+def project_from_sample(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """A private copy of a sample in the caller's organization (todo14 D2): 404 for an unknown,
+    unavailable or (outside dev) restricted sample, or when samples are off; 403 for agents."""
+    sample_id = body.get("sampleId")
+    org_id = body.get("orgId")
+    if not isinstance(sample_id, str) or not sample_id:
+        raise HTTPException(422, "sampleId is required")
+    if org_id is not None and not isinstance(org_id, str):
+        raise HTTPException(422, "orgId must be a string")
+    p = samples.copy_sample(db, ctx, sample_id, org_id)
     return projects.project_dict(db, ctx, p)
 
 

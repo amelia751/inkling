@@ -206,3 +206,19 @@ def test_0014_makes_samples_members_viewers_and_downgrades(tmp_path):
     assert ("org-samples", "user:a", "member") in roles()
     command.upgrade(cfg, "head")
     db.reset_engine()
+
+
+def test_0015_adds_sample_of_and_downgrades(tmp_path):
+    """todo14 D2: additive; downgrade drops the column."""
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0015")
+    assert "sample_of" in {c["name"] for c in sa.inspect(db.engine()).get_columns("projects")}
+    command.downgrade(cfg, "0014")
+    assert "sample_of" not in {c["name"] for c in sa.inspect(db.engine()).get_columns("projects")}
+    command.upgrade(cfg, "head")
+    db.reset_engine()
+

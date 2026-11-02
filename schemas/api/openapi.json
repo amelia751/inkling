@@ -4677,6 +4677,45 @@
         "summary": "Create Project"
       }
     },
+    "/api/v1/projects/from-sample": {
+      "post": {
+        "description": "A private copy of a sample in the caller's organization (todo14 D2): 404 for an unknown,\nunavailable or (outside dev) restricted sample, or when samples are off; 403 for agents.",
+        "operationId": "project_from_sample_api_v1_projects_from_sample_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Project From Sample"
+      }
+    },
     "/api/v1/projects/{project_id}": {
       "get": {
         "operationId": "get_project_api_v1_projects__project_id__get",
@@ -7024,6 +7063,23 @@
           }
         },
         "summary": "Recompute"
+      }
+    },
+    "/api/v1/samples": {
+      "get": {
+        "description": "The sample templates a person may copy (todo14 \u00a74.3): `status: available`, restricted\nones only in dev. `enabled: false` and no samples when API_SAMPLES_ENABLED=0.",
+        "operationId": "list_samples_api_v1_samples_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Samples"
       }
     },
     "/api/v1/secrets": {

@@ -85,7 +85,6 @@ def seed_file(path: str, request: Request):
 # ---- Environments ----------------------------------------------------------------------------
 
 # The manifest environment moved to the kernel (projects.py) with the seed backfill.
-manifest_environment = projects.manifest_environment
 
 
 def _doc(row: WorkspaceEnvironment | None) -> dict:
@@ -127,7 +126,7 @@ def _project(project_id: str, ctx: RequestContext, db: Session, *, write: bool =
 
 def _base_environment(db: Session, c: RequestContext) -> dict | None:
     """What a task boots with when nothing is saved: its seed's manifest environment."""
-    return manifest_environment(c.task)
+    return projects.base_environment(db, c.task)
 
 
 @router.post("/api/environments/validate")

@@ -297,6 +297,12 @@ agent and api must agree: the SPA's mode is `INKLING_WEB_AUTH_MODE` (Vite) or `/
 `WORKOS_*` variables. Key names: `secrets/workos.env.example`; roles and permissions:
 `infra/workos/`.
 
+In `workos` mode the api also pulls the WorkOS Events API every 5 s
+(`INKLING_API_WORKOS_SYNC_INTERVAL_S`, 0 = off) into its mirror of users, organizations,
+memberships and invitations, on one replica at a time, and reconciles everything once a day
+(`apps/api/src/studio_api/auth/sync.py`). By hand: `uv run python -m studio_api.auth.sync
+status|once|reconcile` from `apps/api`.
+
 ### Dev mode
 
 Nothing to do. Everything in sections 1 to 3 runs this way.

@@ -61,12 +61,17 @@ async def lifespan(app: FastAPI):
     if settings().needs_redis and settings().housekeeping_interval_s > 0:
         t = threading.Thread(target=_housekeeping, args=(stop,), name="housekeeping", daemon=True)
         t.start()
+    # The WorkOS Events API sync (todo9 Phase 7): workos mode only, one replica at a time.
+    from .auth import sync as workos_sync
+
+    sync_thread = workos_sync.start(stop)
     try:
         yield
     finally:
         stop.set()
-        if t is not None:
-            t.join(timeout=5)
+        for th in (t, sync_thread):
+            if th is not None:
+                th.join(timeout=5)
 
 
 def _seed_projects() -> None:

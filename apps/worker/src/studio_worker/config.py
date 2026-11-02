@@ -24,9 +24,6 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_UNPACK_MAX_RATIO  | 100                                       | uncompressed / compressed, per entry and in total (entries under 1 MiB are exempt per entry) |
 | WORKER_UNPACK_MAX_DEPTH  | 2                                         | archives inside archives |
 | WORKER_UNPACK_TMP_BYTES  | 6442450944 (6 GB)                         | scratch under the data dir for the archive itself (the pod's /tmp is 8 GiB) |
-| API_WORKOS_API_KEY       | (none)                                    | todo9: the api's WorkOS key (same secret, same name), for the WorkOS event sync; unset = no sync |
-| API_WORKOS_CLIENT_ID     | (none)                                    | the api's WorkOS client id; required with the key |
-| API_WORKOS_BASE_URL      | https://api.workos.com/                   | WorkOS API base; WorkOS Emulate in dev and CI |
 | REPO_ROOT                | derived                                   | where schemas/, registry/, plugins/ are (/app in images) |
 | ENV                      | development                               | shared by every service: `development`, `test` or `production` |
 | LOG_LEVEL / LOG_FORMAT   | INFO / json                               | shared by every service; `LOG_FORMAT=text` for humans |
@@ -125,10 +122,6 @@ class WorkerSettings:
     resource_classes: list[str] = field(default_factory=lambda: list(DEFAULT_RESOURCE_CLASSES))
     # Archive unpack (todo13 §7.1), sized to the pod: 4 GiB memory, 8 GiB `/tmp`.
     unpack: "UnpackLimits" = field(default_factory=lambda: UnpackLimits())
-    # WorkOS (todo9): the api's key and client id, read under the api's names (one secret).
-    workos_api_key: str | None = None
-    workos_client_id: str | None = None
-    workos_base_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -193,12 +186,7 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
             max_depth=num("WORKER_UNPACK_MAX_DEPTH", "2", int),
             tmp_bytes=num("WORKER_UNPACK_TMP_BYTES", str(6 * 1024**3), int),
         ),
-        workos_api_key=env("API_WORKOS_API_KEY"),
-        workos_client_id=env("API_WORKOS_CLIENT_ID"),
-        workos_base_url=env("API_WORKOS_BASE_URL"),
     )
-    if bool(s.workos_api_key) != bool(s.workos_client_id):
-        missing.append(key_name("API_WORKOS_CLIENT_ID" if s.workos_api_key else "API_WORKOS_API_KEY"))
     if s.signer not in ("local", "gcpkms"):
         invalid.append(key_name("WORKER_SIGNER"))
     if s.signer == "gcpkms" and not s.kms_key:

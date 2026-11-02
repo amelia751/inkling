@@ -376,6 +376,11 @@ def revoke_key(db: Session, org_id: str, key_id: str) -> None:
         _sync(lambda: wclient.client().api_keys.delete_api_key(key_id))
     except Exception as e:  # noqa: BLE001
         raise _workos_error(e) from None
-    # This replica's (or Redis's) cached validation goes now; others expire within CACHE_TTL_S.
+    forget_key(key_id)
+
+
+def forget_key(key_id: str) -> None:
+    """Drop a key's cached validation: this replica's (or Redis's) goes now; others expire within
+    CACHE_TTL_S. Also called by the event sync on `api_key.revoked` (a dashboard revocation)."""
     digest = _cache_get(_by_id_key(key_id))
     _cache_del(_by_id_key(key_id), *([_validation_key(digest)] if digest else []))

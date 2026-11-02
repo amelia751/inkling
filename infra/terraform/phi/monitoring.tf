@@ -10,6 +10,9 @@
 #   drop.planned | drop.applied | drop.undone | drop.failed {step, errorClass} | drop.stuck
 #   drop.timeline {origin, outcome, elapsed_ms = first interactive item, steps_ms}  (the browser's)
 #   name_screen.batch {names, flagged} | name_screen.error {error, names}
+#   workos_sync.batch {events, seen, failures, lag_ms, events_per_s} | workos_sync.failed
+#   {eventId, eventType, errorClass} | workos_sync.lagging {lag_ms} | workos_sync.reconciled
+#   (todo9 Phase 7, apps/api `auth/sync.py`: the WorkOS Events API sync, ids only)
 
 variable "alert_notification_channels" {
   description = "Cloud Monitoring notification channel ids (projects/…/notificationChannels/…) for the todo13 drop alerts. Empty: the alerts open incidents without notifying anyone."
@@ -180,6 +183,58 @@ resource "google_logging_metric" "drop_auto_undone" {
   depends_on = [google_project_service.this]
 }
 
+# The WorkOS event sync (todo9 Phase 7): events applied per poll (events/s on a chart),
+# failures, and the once-a-minute line while it's over 5 minutes behind.
+resource "google_logging_metric" "workos_sync_events" {
+  name        = "workos_sync_events"
+  description = "todo9 Phase 7: WorkOS events applied per sync poll (workos_sync.batch)."
+  filter      = "${local.api_logs} AND jsonPayload.msg=\"workos_sync.batch\""
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "DISTRIBUTION"
+    unit        = "1"
+  }
+  value_extractor = "EXTRACT(jsonPayload.events)"
+  bucket_options {
+    exponential_buckets {
+      num_finite_buckets = 20
+      growth_factor      = 2
+      scale              = 1
+    }
+  }
+
+  depends_on = [google_project_service.this]
+}
+
+resource "google_logging_metric" "workos_sync_failures" {
+  name        = "workos_sync_failures"
+  description = "todo9 Phase 7: a WorkOS event that failed to apply (retried, skipped after 5 attempts)."
+  filter      = "${local.api_logs} AND jsonPayload.msg=\"workos_sync.failed\""
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+
+  depends_on = [google_project_service.this]
+}
+
+resource "google_logging_metric" "workos_sync_lagging" {
+  name        = "workos_sync_lagging"
+  description = "todo9 Phase 7: the WorkOS event sync is over 5 minutes behind (logged once a minute while it lasts)."
+  filter      = "${local.api_logs} AND jsonPayload.msg=\"workos_sync.lagging\""
+
+  metric_descriptor {
+    metric_kind = "DELTA"
+    value_type  = "INT64"
+    unit        = "1"
+  }
+
+  depends_on = [google_project_service.this]
+}
+
 # ---- Alerts -----------------------------------------------------------------------------------
 
 # Monitoring refuses an alert on a log-based metric until the metric has propagated (up to 10
@@ -191,6 +246,7 @@ resource "time_sleep" "metrics_visible" {
     google_logging_metric.name_screen_errors,
     google_logging_metric.name_screen_batches,
     google_logging_metric.drops_stuck,
+    google_logging_metric.workos_sync_lagging,
   ]
 }
 
@@ -275,5 +331,36 @@ resource "google_monitoring_alert_policy" "drop_stuck_inspecting" {
   documentation {
     mime_type = "text/markdown"
     content   = "A drop has been `inspecting` for over 10 minutes (`drop.stuck`, with its `dropId`). Usually the worker isn't claiming inspection jobs: check the worker Deployment and KEDA, the kernel job queue in Redis, then the drop's `drop.*` lines."
+  }
+}
+
+resource "google_monitoring_alert_policy" "workos_sync_lagging" {
+  depends_on            = [time_sleep.metrics_visible]
+  display_name          = "Accounts: WorkOS event sync over 5 min behind"
+  combiner              = "OR"
+  notification_channels = var.alert_notification_channels
+  severity              = "WARNING"
+
+  conditions {
+    display_name = "any workos_sync.lagging line in 5 min"
+    condition_threshold {
+      filter          = "resource.type=\"k8s_container\" AND metric.type=\"logging.googleapis.com/user/${google_logging_metric.workos_sync_lagging.name}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period     = "300s"
+        per_series_aligner   = "ALIGN_DELTA"
+        cross_series_reducer = "REDUCE_SUM"
+      }
+      trigger {
+        count = 1
+      }
+    }
+  }
+
+  documentation {
+    mime_type = "text/markdown"
+    content   = "The api's WorkOS Events API sync (todo9 Phase 7) hasn't caught up for over 5 minutes, so name, role and membership changes made in WorkOS aren't reaching the product. Look at `workos_sync.poll_failed` (WorkOS unreachable, egress, key) and `workos_sync.failed` lines (one event failing, with `eventId`; it's skipped after 5 attempts). `uv run python -m studio_api.auth.sync status` in an api pod shows the cursor. infra/k8s/README.md, \"WorkOS outage\"."
   }
 }

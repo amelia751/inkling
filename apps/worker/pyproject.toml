@@ -13,7 +13,6 @@ dependencies = [
     "wasmtime>=38.0",
     "studio-observability",
     "studio-signing",
-    "workos>=10.6,<11",
 ]
 
 [project.optional-dependencies]

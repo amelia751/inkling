@@ -109,8 +109,8 @@ services:
   # in dev and CI, seeded with infra/workos/emulate.yaml (users, orgs, roles, permissions; see
   # infra/workos/README.md). Environment key sk_test_default, any client id. `iss` is pinned to
   # the host URL so it's the same for apps on the host and in containers; the signing key is
-  # generated per start, so restart a workos-mode api after restarting this. Only the api (and
-  # worker) use it, and only with INKLING_API_AUTH_MODE=workos (docs/running.md, "Signing in").
+  # generated per start, so restart a workos-mode api after restarting this. Only the api uses it
+  # (sign-in and the event sync), and only with INKLING_API_AUTH_MODE=workos (docs/running.md, "Signing in").
   workos-emulate:
     image: ghcr.io/workos/emulate:0.18.0
     profiles: [deps, full]

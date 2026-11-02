@@ -2,10 +2,12 @@
 
 Two namespaces, both behind the same interface:
 
-- `assets()`: seed and uploaded assets. Keys are seed-data relative paths, exactly the
+- `assets()`: seed (sample template) assets. Keys are seed-data relative paths, exactly the
   `path`s in `manifest.json` (plus `manifest.json` itself and `<project>/workspace.json`).
   Local: files under `API_SEED_ROOT` (seed-data/). S3: the `S3_BUCKET` bucket
-  (`tools/fetch-seeds.py --upload` fills it). Cloud Storage: the `GCS_BUCKET` bucket.
+  (`tools/fetch-seeds.py --upload` fills it). Cloud Storage: the `GCS_BUCKET` bucket. Both
+  under `API_SAMPLES_PREFIX` when set: `samples/` of the phi bucket on Google Cloud (todo14 §3),
+  so a sample copy's asset rows, which share the template's keys, resolve there too.
 - `data()`: what the kernel writes (derived artifacts). Local: `API_DATA_DIR`. S3 / Cloud
   Storage: the same bucket under `.data/`; dot-prefixed keys are never served by `/seed/*`.
 
@@ -348,6 +350,11 @@ def _gcs(s: Settings, prefix: str) -> GCSBlobStore:
     return GCSBlobStore(s.gcs_bucket, prefix, project=s.gcs_project)
 
 
+def assets_prefix(base: str, s: Settings) -> str:
+    """The assets namespace's key prefix inside the bucket: `<S3_PREFIX|GCS_PREFIX>/<API_SAMPLES_PREFIX>`."""
+    return "/".join(p.strip("/") for p in (base, s.samples_prefix) if p.strip("/"))
+
+
 def _store(name: str) -> BlobStore:
     s = settings()
     hit = _cache.get(name)
@@ -360,9 +367,9 @@ def _store(name: str) -> BlobStore:
             assert bucket and s.blob_store in ("s3", "gcs")
             store = GCSBlobStore(bucket, "", project=s.gcs_project) if s.blob_store == "gcs" else S3BlobStore(bucket, "", endpoint=s.s3_endpoint, region=s.s3_region, access_key_id=s.s3_access_key_id, secret_access_key=s.s3_secret_access_key)
         elif s.blob_store == "s3":
-            store = _s3(s, s.s3_prefix if name == "assets" else posixpath.join(s.s3_prefix, DATA_PREFIX))
+            store = _s3(s, assets_prefix(s.s3_prefix, s) if name == "assets" else posixpath.join(s.s3_prefix, DATA_PREFIX))
         elif s.blob_store == "gcs":
-            store = _gcs(s, s.gcs_prefix if name == "assets" else posixpath.join(s.gcs_prefix, DATA_PREFIX))
+            store = _gcs(s, assets_prefix(s.gcs_prefix, s) if name == "assets" else posixpath.join(s.gcs_prefix, DATA_PREFIX))
         else:
             store = LocalBlobStore(s.seed_root) if name == "assets" else LocalBlobStore(s.data_dir, create=True)
         hit = _cache[name] = (s, store)

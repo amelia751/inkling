@@ -21,6 +21,14 @@ spec:
     - host: agent-api.example.com
       http:
         paths:
+          # The API's nginx auth_request endpoint (todo9) is internal: web's nginx answers 404.
+          - path: /api/auth/verify
+            pathType: Exact
+            backend:
+              service:
+                name: web
+                port:
+                  name: http
           - path: /api
             pathType: Prefix
             backend:

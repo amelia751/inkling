@@ -543,18 +543,49 @@ export class SessionService {
 
   async delete(id: string, owner?: string, orgId?: string): Promise<void> {
     const ctx = await this.get(id, owner, orgId);
-    if (ctx.activeRun && !ctx.activeRun.done) await this.cancel(ctx.activeRun.id, owner);
-    else {
+    await this.remove(id, ctx.meta, ctx);
+  }
+
+  /**
+   * todo14 D9: delete every conversation in an organization (the org is being deleted), or only
+   * `owner`'s there (they were removed from it). Each goes the same way as a single delete (active
+   * run cancelled, sandbox released, rows, artifacts and run-event streams gone) without rebuilding
+   * sessions that aren't loaded. Returns how many were deleted.
+   */
+  async deleteForOrg(orgId: string, owner?: string): Promise<number> {
+    let deleted = 0;
+    for (const meta of await this.store.listOrgSessions({ orgId, owner })) {
+      if (meta.orgId !== orgId || (owner !== undefined && meta.owner !== owner)) continue;
+      await this.remove(meta.id, meta as unknown as SessionMeta, this.sessions.get(meta.id));
+      deleted++;
+    }
+    this.deps.log.info({ orgId, owner, deleted }, owner ? "member conversations deleted" : "organization conversations deleted");
+    return deleted;
+  }
+
+  /** Cancel the session's active run (here or on another replica), then delete everything it left. */
+  private async remove(id: string, meta: SessionMeta, ctx: SessionContext | undefined): Promise<void> {
+    if (ctx?.activeRun && !ctx.activeRun.done) {
+      this.abortRun(ctx, ctx.activeRun, "cancelled");
+      // Let the loop write its terminal record and last events before they're deleted.
+      await this.cluster.waitForSessionRuns(id, Date.now() + 5000);
+    } else {
+      // A run on another replica: the cancel command is best-effort (the delete below removes it);
+      // that replica's heartbeat then finds the run gone and stops the loop.
       const remote = await this.cluster.activeElsewhere(id);
       if (remote) await this.cluster.cancel(remote);
     }
-    ctx.dispose();
-    this.sessions.delete(id);
-    for (const [runId, c] of this.runIndex) if (c === ctx) this.runIndex.delete(runId);
-    if (this.sandboxes && ctx.meta.sandboxId) {
+    if (ctx) {
+      ctx.dispose();
+      if (this.sessions.get(id) === ctx) this.sessions.delete(id);
+      for (const [runId, c] of this.runIndex) if (c === ctx) this.runIndex.delete(runId);
+    }
+    if (this.sandboxes && meta.sandboxId) {
       await this.sandboxes.release(id, "delete").catch((err) => this.deps.log.error({ sessionId: id, err: sanitizeError(String(err)) }, "sandbox delete failed"));
     }
+    const runIds = await this.store.runIdsForSessions([id]);
     await this.cluster.deleteSession(id);
+    await this.cluster.bus.deleteRuns(runIds);
     rmSync(this.artifactsDir(id), { recursive: true, force: true });
     this.deps.log.info({ sessionId: id }, "session deleted");
   }

@@ -1,6 +1,7 @@
 import type { HostStore } from "@studio/plugin-ui-sdk";
 import { setGatewayTransport, type GatewayResult } from "./gateway";
 import { apiUrl, runtimeConfig } from "./runtime-config";
+import { apiFetch } from "./http";
 
 /**
  * Talking to the kernel (apps/api, todo2 Phase 4). Enabled by the runtime config (`kernel` in
@@ -27,7 +28,7 @@ let urlToken: UrlToken | null = null;
 /** Fetch (or refresh) the workspace URL token; call when a project opens. */
 export async function prepareAssetUrls(workspaceId: string): Promise<void> {
   if (!kernelEnabled()) return;
-  const res = await fetch(apiUrl("/v1/assets/url-token"), { method: "POST", headers: headers(workspaceId) });
+  const res = await apiFetch(apiUrl("/v1/assets/url-token"), { method: "POST", headers: headers(workspaceId) });
   if (res.ok) urlToken = (await res.json()) as UrlToken;
   const ttl = urlToken ? urlToken.exp * 1000 - Date.now() : 0;
   if (ttl > 0) setTimeout(() => urlToken?.workspaceId === workspaceId && void prepareAssetUrls(workspaceId), Math.max(10_000, ttl - 60_000));
@@ -51,7 +52,7 @@ async function waitForJob(workspaceId: string, job: Job, onProgress?: (j: Job) =
   let j = job;
   for (let delay = 300; j.state === "queued" || j.state === "running"; delay = Math.min(delay * 1.5, 3000)) {
     await new Promise((r) => setTimeout(r, delay));
-    const res = await fetch(apiUrl(`/v1/jobs/${j.jobId}`), { headers: headers(workspaceId) });
+    const res = await apiFetch(apiUrl(`/v1/jobs/${j.jobId}`), { headers: headers(workspaceId) });
     if (!res.ok) throw new Error(`job ${j.jobId}: ${res.status}`);
     j = (await res.json()) as Job;
     onProgress?.(j);
@@ -62,7 +63,7 @@ async function waitForJob(workspaceId: string, job: Job, onProgress?: (j: Job) =
 /** Pull annotations a job committed into the Studio store (one undo step). */
 async function mergeCommitted(store: HostStore, workspaceId: string, ids: string[]): Promise<void> {
   if (!ids.length) return;
-  const res = await fetch(apiUrl(`/annotations/${encodeURIComponent(workspaceId)}`), { headers: headers(workspaceId) });
+  const res = await apiFetch(apiUrl(`/annotations/${encodeURIComponent(workspaceId)}`), { headers: headers(workspaceId) });
   if (!res.ok) return;
   const doc = (await res.json()) as { annotations: { id: string }[] };
   const want = new Set(ids);
@@ -78,7 +79,7 @@ export function connectKernel(store: HostStore): void {
     const workspaceId = store.getState().projectId;
     if (!workspaceId) return { ok: false, error: "no project is open" };
     const body = { tool: command, input: { ...input, ...(ctx.assetIds?.[0] && !("asset_id" in input) ? { asset_id: ctx.assetIds[0] } : {}), ...(ctx.itemId && !("item_id" in input) ? { item_id: ctx.itemId } : {}) } };
-    const res = await fetch(apiUrl("/v1/commands"), { method: "POST", headers: { ...headers(workspaceId), "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify(body) });
+    const res = await apiFetch(apiUrl("/v1/commands"), { method: "POST", headers: { ...headers(workspaceId), "Idempotency-Key": crypto.randomUUID() }, body: JSON.stringify(body) });
     const out = (await res.json().catch(() => ({}))) as { job?: Job; detail?: unknown };
     if (!res.ok && res.status !== 202) return { ok: false, status: res.status, error: typeof out.detail === "string" ? out.detail : JSON.stringify(out.detail ?? out) };
     const done = out.job ? await waitForJob(workspaceId, out.job, (j) => store.getState().setViewerStatus(`${command}: ${Math.round(j.progress * 100)}%`)) : undefined;

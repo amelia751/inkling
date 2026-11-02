@@ -83,6 +83,13 @@ export interface SessionStore {
   /** Sessions of one owner in one organization (`orgId` unset: sessions without one), optionally one project. */
   listSessions(filter: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]>;
   countSessions(): Promise<number>;
+  /**
+   * Sessions in one organization, or only `owner`'s there (todo14 D9: deleting an org, removing a
+   * member). Served by the `(org_id, owner)` index; never scans other organizations.
+   */
+  listOrgSessions(filter: { orgId: string; owner?: string }): Promise<StoredMeta[]>;
+  /** Every run id (any status) of these sessions, so their run-event streams can be dropped too. */
+  runIdsForSessions(sessionIds: string[]): Promise<string[]>;
   /** Meta, transcript, runs and inputs. */
   deleteSession(id: string): Promise<void>;
   /** Bumped by every putMeta/appendTranscript; lets a replica notice its cached session is stale. */

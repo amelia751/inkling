@@ -1,5 +1,6 @@
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import type { ProfileName } from "@studio/agent-protocol";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Kernel session tokens for the agent (docs/plugins.md §8). The Studio, acting as the signed-in
@@ -31,7 +32,7 @@ export async function kernelToken(workspaceId: string, profile: ProfileName): Pr
   const hit = cache.get(key);
   if (hit && hit.expiresAt - Date.now() > 10 * 60_000) return hit.token;
   try {
-    const res = await fetch(apiUrl("/v1/sessions"), {
+    const res = await apiFetch(apiUrl("/v1/sessions"), {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Workspace-Id": workspaceId },
       body: JSON.stringify({ agent: profile, profile, scopes, ttlSeconds: TTL_S }),

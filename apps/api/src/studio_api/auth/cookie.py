@@ -24,7 +24,6 @@ from fastapi import Request, Response
 from ..config import settings
 from ..naming import naming
 
-SESSION_MAX_AGE_S = 12 * 3600
 STATE_MAX_AGE_S = 600
 STATE_PATH = "/api/auth"
 
@@ -47,7 +46,7 @@ def read_session(request: Request) -> str | None:
 
 
 def set_session(response: Response, sealed: str) -> None:
-    response.set_cookie(session_cookie_name(), sealed, max_age=SESSION_MAX_AGE_S, path="/", secure=_secure(), httponly=True, samesite="lax")
+    response.set_cookie(session_cookie_name(), sealed, max_age=settings().session_max_hours * 3600, path="/", secure=_secure(), httponly=True, samesite="lax")
 
 
 def clear_session(response: Response) -> None:

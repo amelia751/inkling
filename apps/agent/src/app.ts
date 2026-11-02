@@ -6,7 +6,7 @@ import { z } from "zod";
 import { PROFILES, profileAvailable } from "./agent/profiles.ts";
 import { SERVICE_NAME, SERVICE_VERSION } from "./cluster/naming.ts";
 import type { Config } from "./config.ts";
-import { type AccessTokenVerifier, type AppEnv, authenticate, workosVerifier } from "./http/auth.ts";
+import { type AccessTokenVerifier, type AppEnv, authenticate, serviceOnly, workosVerifier } from "./http/auth.ts";
 import { streamRunEvents } from "./http/events.ts";
 import { registerServiceRoutes } from "./http/service.ts";
 import type { Logger } from "./log.ts";
@@ -101,6 +101,14 @@ async function body<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer
   return parsed.data;
 }
 
+const ORG_ID = /^[A-Za-z0-9_.-]{1,128}$/;
+const PRINCIPAL = /^user:[A-Za-z0-9_.@-]{1,200}$/;
+
+function internalParam(value: string, pattern: RegExp, name: string): string {
+  if (!pattern.test(value)) throw new HttpError(400, `${name} is malformed`);
+  return value;
+}
+
 /**
  * Private HTTP API (todo1 §6). Every /v1 route needs the service token (probes and /version don't); the
  * Vite proxy (dev) or the web nginx adds it, so the browser never holds it. In `workos` auth mode the
@@ -130,6 +138,21 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
 
   app.use("/v1/*", authenticate(config, verify, log));
   app.use("/v1/*", bodyLimit({ maxSize: 8 * 1024 * 1024, onError: (c) => c.json({ error: "body too large" }, 413) }));
+
+  app.use("/v1/internal/*", serviceOnly(config));
+
+  // todo14 D9: the API deletes an organization's conversations (org deleted) or one member's there
+  // (member removed). Service token only; the browser proxies never forward /v1/internal.
+  app.delete("/v1/internal/orgs/:orgId/sessions", async (c) => {
+    const orgId = internalParam(c.req.param("orgId"), ORG_ID, "orgId");
+    return c.json({ deleted: await sessions.deleteForOrg(orgId) });
+  });
+
+  app.delete("/v1/internal/orgs/:orgId/members/:principal/sessions", async (c) => {
+    const orgId = internalParam(c.req.param("orgId"), ORG_ID, "orgId");
+    const principal = internalParam(c.req.param("principal"), PRINCIPAL, "principal");
+    return c.json({ deleted: await sessions.deleteForOrg(orgId, principal) });
+  });
 
   app.get("/v1/status", (c) => {
     const status: AgentStatus = {

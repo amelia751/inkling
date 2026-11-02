@@ -7,6 +7,7 @@ import { registry, type ActivationResult } from "./registry";
 import { MODULES } from "./bundled";
 import { firstPartyIds, type PluginsLock } from "@studio/contracts/lockfile";
 import { apiUrl } from "./runtime-config";
+import { apiFetch } from "./http";
 
 /**
  * Per-workspace activation (todo2 Phase 3, docs/plugins.md §14 #1): the registry knows every
@@ -15,7 +16,7 @@ import { apiUrl } from "./runtime-config";
  * server (seed-data/<project>/workspace.json); no state means "all bundled plugins".
  */
 export async function fetchWorkspaceState(workspaceId: string): Promise<WorkspaceStateT | null> {
-  const res = await fetch(apiUrl(`/v1/workspaces/${encodeURIComponent(workspaceId)}/state`), { headers: { "X-Workspace-Id": workspaceId } });
+  const res = await apiFetch(apiUrl(`/v1/workspaces/${encodeURIComponent(workspaceId)}/state`), { headers: { "X-Workspace-Id": workspaceId } });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`workspace state: ${res.status} ${res.statusText}`);
   const parsed = WorkspaceState.safeParse(await res.json());
@@ -52,12 +53,12 @@ export async function loadRemotePlugins(state: WorkspaceStateT | null): Promise<
     const inst = state.plugins.find((p) => p.pluginId === id);
     // Fetch-and-hash (todo10 Phase 3): only bytes that hash to the workspace's pin are used.
     const headers = { "X-Workspace-Id": state.workspaceId };
-    const res = await fetch(apiUrl(`/v1/plugins/${encodeURIComponent(id)}/files?version=${encodeURIComponent(inst?.version ?? "")}&include=plugin.yaml`), { headers });
+    const res = await apiFetch(apiUrl(`/v1/plugins/${encodeURIComponent(id)}/files?version=${encodeURIComponent(inst?.version ?? "")}&include=plugin.yaml`), { headers });
     if (!res.ok) continue;
     const checked = await verifyPackage((await res.json()) as PackageFiles, inst?.artifactDigest);
     if (!checked.ok) {
       console.warn(`[plugins] refused ${id}@${inst?.version}: ${checked.reason}`);
-      void fetch(apiUrl(`/v1/workspaces/${encodeURIComponent(state.workspaceId)}/plugins/load-refused`), {
+      void apiFetch(apiUrl(`/v1/workspaces/${encodeURIComponent(state.workspaceId)}/plugins/load-refused`), {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ pluginId: id, version: inst?.version, reason: checked.reason, expected: checked.expected, got: checked.got }),

@@ -23,7 +23,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
-from ..context import ALL, RequestContext, ensure_workspace
+from ..context import ALL, AUTH_API_KEY, RequestContext, ensure_workspace
 from ..dbutil import insert_ignore
 from ..models import (
     AnnotationDocumentRow,
@@ -149,8 +149,15 @@ def require_project(db: Session, ctx: RequestContext, project_id: str, *, write:
     p = db.get(ProjectRow, project_id) if ID_RE.fullmatch(project_id or "") else None
     if p is None:
         raise HTTPException(404, "no such project")
-    if ctx.scopes and ctx.workspace_id != p.id:
+    if ctx.workspace_bound and ctx.workspace_id != p.id:
         raise HTTPException(404, "no such project")
+    if ctx.auth == AUTH_API_KEY:
+        # An organization API key: any project of its organization; writing needs a write scope.
+        if ctx.org_id is None or p.org_id != ctx.org_id:
+            raise HTTPException(404, "no such project")
+        if write and not ctx.allows("annotations.write"):
+            raise HTTPException(403, "this API key can read this project but not change it")
+        return p
     who = person(ctx)
     if who.startswith("user:"):
         role = project_role(db, ctx, p)

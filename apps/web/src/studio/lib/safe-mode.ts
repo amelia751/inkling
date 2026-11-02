@@ -1,6 +1,7 @@
 import type { EnvironmentSpec } from "@studio/contracts/environment";
 import type { PluginsLock } from "@studio/contracts/lockfile";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Safe mode and rollback (todo10 §3.4, Phase 4). `?safe` boots the task from its
@@ -32,7 +33,7 @@ export function safeHref(on: boolean): string {
 }
 
 const env = (id: string, sub: string) => apiUrl(`/environments/${encodeURIComponent(id)}/${sub}`);
-const send = (url: string, method: string, body?: unknown) => fetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+const send = (url: string, method: string, body?: unknown) => apiFetch(url, { method, headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
 
 async function json<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as { error?: unknown; detail?: unknown };
@@ -42,7 +43,7 @@ async function json<T>(res: Response): Promise<T> {
 
 /** The task's last-known-good setup, or null when it has none (or nothing serves it). */
 export async function fetchKnownGood(taskId: string): Promise<KnownGood | null> {
-  const res = await fetch(env(taskId, "last-known-good"));
+  const res = await apiFetch(env(taskId, "last-known-good"));
   if (res.status === 404 || !(res.headers.get("content-type") ?? "").includes("json")) return null;
   return json<KnownGood>(res);
 }

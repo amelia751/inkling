@@ -24,6 +24,7 @@ import { hashFiles } from "@/studio/lib/uploads/hash";
 import { beginLocalOp, guardNow, loadIsCurrent } from "./guard";
 import { DEFAULT_SORT, foldersTouched, patchFolder, patchStar, rowsOf, type ChildrenData, type FsSort } from "./optimistic";
 import { useTabUndo } from "./undo";
+import { apiFetch } from "@/extension-host/http";
 
 export { NeedsApiError, ApiError };
 export type { FsSort, FsSortKey, ChildrenData } from "./optimistic";
@@ -200,7 +201,7 @@ export async function downloadZip(
     if (e instanceof DOMException && e.name === "AbortError") throw e;
     return null;
   }) : null;
-  const res = await fetch(apiUrl(`/v1/projects/${P(projectId)}/fs/zip`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nodeIds }), signal });
+  const res = await apiFetch(apiUrl(`/v1/projects/${P(projectId)}/fs/zip`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ nodeIds }), signal });
   if (res.status === 501) throw new NeedsApiError();
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown };
@@ -254,7 +255,7 @@ export async function replaceFile(nodeId: string, file: File, { onProgress, sign
   if (!entry || entry.state === "pending") {
     let offset = entry?.received ?? 0;
     do {
-      const res = await fetch(apiUrl(`/v1/uploads/${session.id}/files/f0?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + CHUNK), signal });
+      const res = await apiFetch(apiUrl(`/v1/uploads/${session.id}/files/f0?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + CHUNK), signal });
       const body = (await res.json().catch(() => ({}))) as { received?: number; state?: string; detail?: string };
       if (!res.ok) throw toFsError(new ApiError(res.status, body.detail ?? `${res.status}`, body));
       offset = body.received ?? offset + Math.min(CHUNK, file.size - offset);

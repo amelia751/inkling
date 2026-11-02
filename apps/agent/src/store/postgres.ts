@@ -130,7 +130,21 @@ export class PostgresSessionStore implements SessionStore {
     return r.rows.map((x) => JSON.parse(x.meta) as StoredMeta);
   }
 
-    async listSessionIds(): Promise<Set<string>> {
+  async listOrgSessions({ orgId, owner }: { orgId: string; owner?: string }): Promise<StoredMeta[]> {
+    const r = await this.pool.query<{ meta: string }>(
+      "SELECT meta FROM agent_sessions WHERE org_id = $1 AND ($2::text IS NULL OR owner = $2)",
+      [orgId, owner ?? null],
+    );
+    return r.rows.map((x) => JSON.parse(x.meta) as StoredMeta);
+  }
+
+  async runIdsForSessions(sessionIds: string[]): Promise<string[]> {
+    if (!sessionIds.length) return [];
+    const r = await this.pool.query<{ id: string }>("SELECT id FROM agent_runs WHERE session_id = ANY($1::text[])", [sessionIds]);
+    return r.rows.map((x) => x.id);
+  }
+
+  async listSessionIds(): Promise<Set<string>> {
     const r = await this.pool.query<{ id: string }>("SELECT id FROM agent_sessions");
     return new Set(r.rows.map((x) => x.id));
   }

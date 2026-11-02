@@ -66,6 +66,14 @@ ALTER TABLE agent_sessions ADD COLUMN org_id text;
 CREATE INDEX agent_sessions_owner_org ON agent_sessions (owner, org_id);
 `,
   },
+  {
+    // todo14 D9: deleting an org's conversations (and a removed member's) selects by org_id first,
+    // which the (owner, org_id) index can't serve.
+    version: 3,
+    sql: `
+CREATE INDEX agent_sessions_org_owner ON agent_sessions (org_id, owner);
+`,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS.at(-1)!.version;

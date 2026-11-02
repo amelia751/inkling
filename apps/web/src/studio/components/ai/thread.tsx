@@ -13,7 +13,8 @@ import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
-import { exploreUrl } from "@/studio/lib/routes";
+import { exploreUrl, trashUrl } from "@/studio/lib/routes";
+import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
 import { AgentCardView, type StudioCardContext } from "./cards";
 import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
@@ -121,7 +122,9 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
               <ToolSteps parts={g.parts} live={streaming} />
               {g.parts.map((t) => {
                 const offer = studioOffer(t);
-                return offer && <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
+                if (offer) return <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
+                const trashed = movedToTrash(t);
+                return trashed && <TrashCard key={t.id} projectId={projectId} name={t.name} batchId={trashed} />;
               })}
             </Fragment>
           );
@@ -209,6 +212,49 @@ function studioOffer(t: Extract<MessagePart, { type: "tool" }>): { preset: strin
   if (t.name !== "offer_studio" || t.status !== "done" || !t.input || typeof t.input !== "object") return null;
   const o = t.input as { preset?: unknown; title?: unknown; reason?: unknown };
   return typeof o.preset === "string" && typeof o.title === "string" ? { preset: o.preset, title: o.title, ...(typeof o.reason === "string" ? { reason: o.reason } : {}) } : null;
+}
+
+/** todo16 D8: a catalogue trash tool's result carries the batch to undo. */
+function movedToTrash(t: Extract<MessagePart, { type: "tool" }>): string | null {
+  if (t.status !== "done" || !t.output) return null;
+  try {
+    const o = JSON.parse(t.output) as { movedToTrash?: unknown; batchId?: unknown };
+    return o.movedToTrash === true && typeof o.batchId === "string" ? o.batchId : null;
+  } catch {
+    return null;
+  }
+}
+
+const TRASHED_WHAT: Record<string, string> = { source_trash: "files", dataset_delete: "a dataset", collection_delete: "a collection", studio_delete: "a Studio", project_delete: "the project" };
+
+/** "Moved to Trash: files · Undo · Open Trash" (todo16 D8). */
+function TrashCard({ projectId, name, batchId }: { projectId: string; name: string; batchId: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "undone" | "failed">("idle");
+  const qc = useQueryClient();
+  const undo = async () => {
+    setState("busy");
+    try {
+      await (name === "source_trash" ? postUndo(projectId, batchId) : restoreTrashBatch(projectId, batchId));
+      await qc.invalidateQueries();
+      setState("undone");
+    } catch {
+      setState("failed");
+    }
+  };
+  return (
+    <div className="flex items-center gap-2 self-start rounded-lg border border-border bg-background px-3 py-2" data-testid="agent-trash-card">
+      <span>{state === "undone" ? "Restored" : `Moved to Trash: ${TRASHED_WHAT[name] ?? "items"}`}</span>
+      {state !== "undone" && (
+        <Button variant="ghost" size="sm" onClick={undo} disabled={state === "busy"} data-testid="agent-trash-undo">
+          <UndoIcon /> Undo
+        </Button>
+      )}
+      <Link to={trashUrl(projectId)} className="text-brand underline-offset-2 hover:underline" data-testid="agent-trash-open">
+        Open Trash
+      </Link>
+      {state === "failed" && <span className="text-warning">Couldn't undo; restore it from the Trash</span>}
+    </div>
+  );
 }
 
 type Group = { kind: "tools"; parts: Extract<MessagePart, { type: "tool" }>[] } | { kind: "part"; part: Exclude<MessagePart, { type: "tool" }> };
@@ -315,12 +361,23 @@ function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart
   const pending = part.state === "pending";
   // A proposal (propose_schema / propose_relationship) is confirmed by a person in Explore.
   const proposal = part.detail?.kind === "proposal" ? part.detail : undefined;
+  // todo16 D8: a catalogue operation that asks first: what goes, and whether it can be undone.
+  const operation = part.detail?.kind === "operation" ? part.detail : undefined;
   return (
     <section className="flex flex-col gap-4" data-testid="agent-approval">
-      <ToolCode name={part.toolName} code={part.inputPreview} />
+      {!operation && <ToolCode name={part.toolName} code={part.inputPreview} />}
       {pending ? (
         <>
-          <ApprovalAlert title="Approval required">{part.summary}</ApprovalAlert>
+          <ApprovalAlert title={operation ? (operation.irreversible ? "Delete forever?" : "Move to Trash?") : "Approval required"}>
+            {part.summary}
+            {operation && (
+              <span className="mt-1 block text-hint" data-testid="agent-operation-impact">
+                {operation.impact.files !== undefined && `${operation.impact.files.toLocaleString()} file${operation.impact.files === 1 ? "" : "s"}. `}
+                {operation.impact.items.length > 0 && `${operation.impact.items.length} item${operation.impact.items.length === 1 ? "" : "s"}. `}
+                {operation.irreversible ? "This can't be undone." : "You can restore it from the Trash for 30 days."}
+              </span>
+            )}
+          </ApprovalAlert>
           <DecideButtons
             onReject={() => onDecide("reject")}
             approve={

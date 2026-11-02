@@ -67,10 +67,21 @@ def person(ctx: RequestContext) -> str:
     return ctx.on_behalf_of or ctx.principal
 
 
-def only_people(ctx: RequestContext) -> None:
-    """The assistant proposes reorganizations; only a person applies them (Phase 8)."""
-    if ctx.scopes:
+# todo16 D8: the session scope an assistant token needs to write and trash (operations catalogue).
+PROJECT_WRITE = "project.write"
+
+
+def only_people(ctx: RequestContext, *, destroy: bool = False) -> None:
+    """Who may change files (todo16 D8): people, and an assistant acting with the delegated token
+    of the person who sent the message (the person's project role still applies). Other scoped
+    tokens propose only. A *destroy* (purge) by an assistant needs the approval id the person gave
+    in chat (`X-Approval-Id`)."""
+    if not ctx.scopes:
+        return
+    if not ctx.on_behalf_of or not ctx.allows(PROJECT_WRITE):
         raise HTTPException(403, "Only people change files and folders; the assistant can propose a reorganization")
+    if destroy and not ctx.approval_id:
+        raise HTTPException(403, "Deleting forever needs the person's approval in chat (X-Approval-Id)")
 
 
 # ---- The drive (D1) ----------------------------------------------------------------------------
@@ -752,8 +763,8 @@ def _iso(d: datetime | None) -> str | None:
 
 def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
     """`POST /v1/projects/:id/fs/ops`: all or nothing."""
-    only_people(ctx)
     ops = body.get("ops")
+    only_people(ctx, destroy=isinstance(ops, list) and any(isinstance(o, dict) and o.get("kind") == "purge" for o in ops))
     if not isinstance(ops, list) or not ops:
         raise HTTPException(422, "ops must list at least one operation")
     if len(ops) > 1000:
@@ -1159,6 +1170,8 @@ def trash_page(db: Session, p: ProjectRow, cursor: str | None = None, limit: int
 
 
 def empty_trash(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None) -> dict:
+    if not dry_run and older_than is None:
+        only_people(ctx, destroy=True)
     q = select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.trashed_at.is_not(None))
     if older_than is not None:
         q = q.where(SourceNode.trashed_at < older_than)

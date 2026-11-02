@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import type { ExtensionFactory } from "@earendil-works/pi-coding-agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import type { ApprovalBroker } from "../runtime/approvals.ts";
+import { decideOperation, operationForTool } from "./operations.ts";
 
 /** `soft` denials let the model carry on in the same turn (it gets the reason as a tool error); others end the run. */
 export type Decision = { kind: "allow" } | { kind: "deny"; reason: string; soft?: boolean } | { kind: "ask"; summary: string; detail?: ApprovalDetail };
@@ -40,6 +41,8 @@ export interface PolicyState {
   namesTask?: (text: string) => boolean;
   /** todo15 D3: the project has a task (Studio) already; `false` only when the kernel said none. */
   projectHasTask?: boolean;
+  /** todo16 D8: trashing more files than this asks first (`INKLING_API_AGENT_TRASH_ASK_OVER`). */
+  trashAskOver?: number;
 }
 
 /**
@@ -84,6 +87,8 @@ const PY_NETWORK_RE = /\b(requests|urllib|httpx|socket|subprocess|os\.system)\b|
 export interface CallFacts {
   /** Size of the file `export_artifact` would copy. */
   bytes?: number;
+  /** Files a catalogue trash would move (folders count their descendants). */
+  files?: number;
 }
 
 export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
@@ -109,6 +114,10 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | list_folder, find_files, propose_reorganization (a card the person applies) | allow: the agent can't write files (fs/ops 403) |
  * | sandbox file tools outside `pathRoot` (builder)                          | deny |
  * | boot_studio unless the person's own words ask to create one (todo11 D5)  | deny, soft (the model offers a card instead) |
+ * | catalogue read / write tools (todo16 D8; the kernel applies the person's role) | allow |
+ * | catalogue trash: files up to trashAskOver                                | allow (the chat shows Undo) |
+ * | catalogue trash: more files, a dataset, a Studio or the project          | ask |
+ * | catalogue destroy (purge, empty trash, delete forever)                  | ask, "can't be undone" |
  * | anything after a budget is exhausted                                     | deny |
  */
 export function decide(
@@ -200,8 +209,10 @@ export function decide(
     case "run_command":
       // Studio commands can create or change annotations (e.g. detectBeats); the expert confirms each one.
       return { kind: "ask", summary: `Run the Studio command ${str("id") || "(unnamed)"}` };
-    default:
-      return { kind: "allow" };
+    default: {
+      const op = operationForTool(call.toolName);
+      return op ? decideOperation(op, call.input, s.trashAskOver ?? 100, { files: facts.files }) : { kind: "allow" };
+    }
   }
 }
 
@@ -219,6 +230,8 @@ export function policyExtension(opts: {
   onCall?: (toolName: string) => void;
   onAwaiting?: (waiting: boolean) => void;
   facts?: (toolName: string, input: Record<string, unknown>) => Promise<CallFacts>;
+  /** An approved call's approval id (destroy operations send it as `X-Approval-Id`). */
+  onApproved?: (toolCallId: string, approvalId: string) => void;
 }): ExtensionFactory {
   return (pi) => {
     pi.on("tool_call", async (e) => {
@@ -234,6 +247,7 @@ export function policyExtension(opts: {
           .request({ toolCallId: e.toolCallId, toolName: e.toolName, summary: d.summary, inputPreview: previewInput(e.input as Record<string, unknown>), detail: d.detail }, opts.signal())
           .finally(() => opts.onAwaiting?.(false));
         if (res.decision !== "approve") return { block: true, reason: `The user declined this action${res.note ? `: ${res.note}` : ""}.` };
+        if (res.approvalId) opts.onApproved?.(e.toolCallId, res.approvalId);
       }
       opts.onCall?.(e.toolName);
       return undefined;

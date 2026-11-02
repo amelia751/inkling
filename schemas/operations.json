@@ -1,0 +1,903 @@
+{
+  "$id": "inkling://schema/operations/v1",
+  "operations": [
+    {
+      "id": "source.list",
+      "tool": "source_list",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/fs/children",
+      "description": "List a folder's children in Sources by current names (no contents).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "trashed": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "id": "source.search",
+      "tool": "source_search",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/search",
+      "description": "Find files and folders in Sources by name.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "q"
+        ]
+      }
+    },
+    {
+      "id": "source.mkdir",
+      "tool": "source_mkdir",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Create a folder in Sources.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "parentId",
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "source.rename",
+      "tool": "source_rename",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Rename a file or folder.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "nodeId",
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "source.move",
+      "tool": "source_move",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Move files or folders into another folder.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "nodeIds",
+          "parentId"
+        ]
+      }
+    },
+    {
+      "id": "source.copy",
+      "tool": "source_copy",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Copy files or folders into another folder.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "parentId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "nodeIds",
+          "parentId"
+        ]
+      }
+    },
+    {
+      "id": "source.trash",
+      "tool": "source_trash",
+      "tier": "trash",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Move files or folders to the Trash (restorable for 30 days).",
+      "removes": "files",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "nodeIds"
+        ]
+      }
+    },
+    {
+      "id": "source.restore",
+      "tool": "source_restore",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Restore files or folders from the Trash.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "nodeIds"
+        ]
+      }
+    },
+    {
+      "id": "source.purge",
+      "tool": "source_purge",
+      "tier": "destroy",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/ops",
+      "description": "Delete files or folders in the Trash forever. Can't be undone.",
+      "removes": "files",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "nodeIds"
+        ]
+      }
+    },
+    {
+      "id": "source.versions_restore",
+      "tool": "source_versions_restore",
+      "tier": "write",
+      "method": "POST",
+      "path": "/source-nodes/{nodeId}/versions/{version}/restore",
+      "description": "Make an earlier version of a file the current one.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "nodeId",
+          "version"
+        ]
+      }
+    },
+    {
+      "id": "source.star",
+      "tool": "source_star",
+      "tier": "write",
+      "method": "POST",
+      "path": "/source-nodes/{nodeId}/star",
+      "description": "Star a file or folder.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      }
+    },
+    {
+      "id": "source.unstar",
+      "tool": "source_unstar",
+      "tier": "write",
+      "method": "DELETE",
+      "path": "/source-nodes/{nodeId}/star",
+      "description": "Remove a star.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "nodeId"
+        ]
+      }
+    },
+    {
+      "id": "source.undo",
+      "tool": "source_undo",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/fs/undo",
+      "description": "Undo a batch of changes (this turn's, by default the latest).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "import.list",
+      "tool": "import_list",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/imports",
+      "description": "List the project's imports and their status.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "import.cancel",
+      "tool": "import_cancel",
+      "tier": "write",
+      "method": "POST",
+      "path": "/imports/{importId}/cancel",
+      "description": "Cancel an import that is still running.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "importId"
+        ]
+      }
+    },
+    {
+      "id": "import.retry",
+      "tool": "import_retry",
+      "tier": "write",
+      "method": "POST",
+      "path": "/imports/{importId}/retry",
+      "description": "Retry a failed import.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "importId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "importId"
+        ]
+      }
+    },
+    {
+      "id": "dataset.list",
+      "tool": "dataset_list",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/datasets",
+      "description": "List the project's datasets (names, counts).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "dataset.create",
+      "tool": "dataset_create",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/datasets",
+      "description": "Create a dataset, optionally from files or folders in Sources.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "dataset.rename",
+      "tool": "dataset_rename",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}/datasets/{datasetId}",
+      "description": "Rename a dataset or change its description.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "datasetId"
+        ]
+      }
+    },
+    {
+      "id": "dataset.add_files",
+      "tool": "dataset_add_files",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/datasets/{datasetId}/add-followed",
+      "description": "Add files or folders from Sources to a dataset.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nodeIds": {
+            "minItems": 1,
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "datasetId",
+          "nodeIds"
+        ]
+      }
+    },
+    {
+      "id": "dataset.delete",
+      "tool": "dataset_delete",
+      "tier": "trash",
+      "method": "DELETE",
+      "path": "/projects/{pid}/datasets/{datasetId}",
+      "description": "Move a dataset (with its collections and Studios) to the Trash. Its files stay in Sources.",
+      "removes": "dataset",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "datasetId"
+        ]
+      }
+    },
+    {
+      "id": "collection.rename",
+      "tool": "collection_rename",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}/collections/{collectionId}",
+      "description": "Rename a collection.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "collectionId",
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "collection.delete",
+      "tool": "collection_delete",
+      "tier": "trash",
+      "method": "DELETE",
+      "path": "/projects/{pid}/collections/{collectionId}",
+      "description": "Move a collection to the Trash.",
+      "removes": "collection",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "collectionId"
+        ]
+      }
+    },
+    {
+      "id": "structure.propose",
+      "tool": "structure_propose",
+      "tier": "write",
+      "method": "PUT",
+      "path": "/datasets/{datasetId}/structure",
+      "description": "Propose a dataset structure on the assistant's own branch; the person accepts it.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "structure": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "datasetId",
+          "structure"
+        ]
+      }
+    },
+    {
+      "id": "studio.boot",
+      "tool": "studio_boot",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/boots",
+      "description": "Create a draft Studio.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "intent": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    {
+      "id": "studio.rename",
+      "tool": "studio_rename",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}/studios/{taskId}",
+      "description": "Rename a Studio.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "taskId",
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "studio.patch",
+      "tool": "studio_patch",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/api/environments/{pid}",
+      "description": "Patch the Studio's environment (undoable through its history).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "patch": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          }
+        },
+        "required": [
+          "patch"
+        ]
+      }
+    },
+    {
+      "id": "studio.publish",
+      "tool": "studio_publish",
+      "tier": "write",
+      "method": "POST",
+      "path": "/tasks/{taskId}/publish",
+      "description": "Publish a draft Studio so annotators can use it.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      }
+    },
+    {
+      "id": "studio.delete",
+      "tool": "studio_delete",
+      "tier": "trash",
+      "method": "DELETE",
+      "path": "/projects/{pid}/studios/{taskId}",
+      "description": "Move a Studio (its environment and annotations) to the Trash.",
+      "removes": "studio",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "taskId"
+        ]
+      }
+    },
+    {
+      "id": "labels.export",
+      "tool": "labels_export",
+      "tier": "read",
+      "method": "POST",
+      "path": "/boundary/annotations/export",
+      "description": "Export labels (summaries only reach the assistant).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "datasetId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "format": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      }
+    },
+    {
+      "id": "project.overview",
+      "tool": "project_overview",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/overview",
+      "description": "The project at a glance: sources, datasets, Studios, counts.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "project.rename",
+      "tool": "project_rename",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}",
+      "description": "Rename the project.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    },
+    {
+      "id": "project.describe",
+      "tool": "project_describe",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}",
+      "description": "Change the project's description.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "description"
+        ]
+      }
+    },
+    {
+      "id": "project.archive",
+      "tool": "project_archive",
+      "tier": "write",
+      "method": "PATCH",
+      "path": "/projects/{pid}",
+      "description": "Archive or unarchive the project (hidden but kept).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ]
+      }
+    },
+    {
+      "id": "project.delete",
+      "tool": "project_delete",
+      "tier": "trash",
+      "method": "DELETE",
+      "path": "/projects/{pid}",
+      "description": "Move the whole project to Deleted projects (restorable for 30 days).",
+      "removes": "project",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "id": "trash.list",
+      "tool": "trash_list",
+      "tier": "read",
+      "method": "GET",
+      "path": "/projects/{pid}/trash",
+      "description": "What is in the project's Trash: who deleted it, when, days left.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "all",
+              "sources",
+              "datasets",
+              "collections",
+              "studios"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "trash.restore",
+      "tool": "trash_restore",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/trash/{batchId}/restore",
+      "description": "Restore everything deleted together in one batch.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "batchId"
+        ]
+      }
+    },
+    {
+      "id": "trash.destroy",
+      "tool": "trash_destroy",
+      "tier": "destroy",
+      "method": "DELETE",
+      "path": "/projects/{pid}/trash/{batchId}",
+      "description": "Delete one batch in the Trash forever. Can't be undone.",
+      "removes": "trash",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "batchId"
+        ]
+      }
+    },
+    {
+      "id": "trash.empty",
+      "tool": "trash_empty",
+      "tier": "destroy",
+      "method": "POST",
+      "path": "/projects/{pid}/trash/empty",
+      "description": "Empty the project's Trash: everything in it is deleted forever. Can't be undone.",
+      "removes": "trash",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

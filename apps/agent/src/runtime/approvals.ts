@@ -14,6 +14,8 @@ export interface ApprovalRequest {
 export interface ApprovalDecision {
   decision: "approve" | "reject";
   note?: string;
+  /** The request's id, set on the decision `request` resolves with (destroy operations send it as `X-Approval-Id`). */
+  approvalId?: string;
 }
 
 /** Pending approvals with expiry; an expired or cancelled approval counts as a rejection. */
@@ -37,7 +39,7 @@ export class ApprovalBroker {
         this.pending.delete(approvalId);
         signal?.removeEventListener("abort", onAbort);
         this.opts.onResolved?.(approvalId, d);
-        resolve(d);
+        resolve({ ...d, approvalId });
       };
       const onAbort = () => finish({ decision: "reject", note: "run cancelled" });
       const timer = setTimeout(() => finish({ decision: "reject", note: "approval expired" }), this.opts.expiresS * 1000);

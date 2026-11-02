@@ -113,6 +113,37 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("GET", f"{P}/datasets/{{dataset_id}}/structure"),
         ("PUT", f"{P}/datasets/{{dataset_id}}/structure"),
         ("GET", f"{P}/projects/{{project_id}}/datasets/{{dataset_id}}/collections"),
+        # todo16 D7/D8: the operations catalogue's write and trash routes
+        # (packages/contracts/src/operations.ts). The kernel applies the delegating person's role
+        # and needs the `project.write` scope; destroy routes also need `X-Approval-Id`.
+        ("POST", f"{P}/projects/{{project_id}}/fs/ops"),
+        ("POST", f"{P}/projects/{{project_id}}/fs/undo"),
+        ("GET", f"{P}/projects/{{project_id}}/fs/history"),
+        ("POST", f"{P}/source-nodes/{{node_id}}/star"),
+        ("DELETE", f"{P}/source-nodes/{{node_id}}/star"),
+        ("POST", f"{P}/imports/{{session_id}}/cancel"),
+        ("POST", f"{P}/imports/{{session_id}}/retry"),
+        ("GET", f"{P}/projects/{{project_id}}/datasets"),
+        ("PATCH", f"{P}/projects/{{project_id}}"),
+        ("GET", f"{P}/projects/{{project_id}}/trash"),
+        ("POST", f"{P}/projects/{{project_id}}/trash/empty"),
+    }
+)
+
+
+# todo16: the rest of the catalogue's write and trash routes, built by routes/trash.py and the
+# dataset/collection/studio PATCH+DELETE routes. Move them into AGENT_ROUTES when those land
+# (test_boundary checks every allowlisted route exists).
+TODO16_PENDING_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("PATCH", f"{P}/projects/{{project_id}}/datasets/{{dataset_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/datasets/{{dataset_id}}"),
+        ("PATCH", f"{P}/projects/{{project_id}}/collections/{{collection_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/collections/{{collection_id}}"),
+        ("PATCH", f"{P}/projects/{{project_id}}/studios/{{task_id}}"),
+        ("DELETE", f"{P}/projects/{{project_id}}/studios/{{task_id}}"),
+        ("POST", f"{P}/projects/{{project_id}}/trash/{{batch_id}}/restore"),
+        ("DELETE", f"{P}/projects/{{project_id}}/trash/{{batch_id}}"),
     }
 )
 

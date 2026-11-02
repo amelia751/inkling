@@ -5,6 +5,7 @@
  */
 import * as z from "zod";
 import { imageSegment } from "@studio/contracts/capabilities";
+import { operationsDocument } from "@studio/contracts/operations";
 import { annotationRevisionJsonSchema } from "@studio/contracts/annotation-revision";
 import { ConversionSummary, ConverterManifest, ConverterOutput } from "@studio/contracts/converter";
 import { NAMING } from "@studio/contracts/naming";
@@ -118,6 +119,8 @@ export function contractSchemas(): Record<string, unknown> {
     // todo13 §5: the dataset structure the kernel validates `structure.json` writes against, and the drop plan.
     "dataset-structure.v1.json": js(DatasetStructure, "dataset-structure/v1"),
     "drop-plan.v1.json": js(DropPlan, "drop-plan/v1"),
+    // todo16 D7: the operations catalogue, read by apps/mcp and the kernel's tests.
+    "operations.json": { $id: `${NAMING.schemaPrefix}://schema/operations/v1`, ...operationsDocument() },
   };
 }
 

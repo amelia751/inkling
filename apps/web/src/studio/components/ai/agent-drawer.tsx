@@ -128,14 +128,12 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
         section === "sources"
           ? {
               title: "How can I help with these files?",
-              body: "I can find files and propose a tidier layout: new folders, moves and renames. Nothing changes until you apply the plan, and one undo reverts it.",
+              body: "Find files or tidy folders. Nothing moves until you apply.",
               prompts: FILES_PROMPTS,
             }
           : {
               title: "How can I help with this project?",
-              body: drops
-                ? `Drop files, paste a screenshot, or tell me what you're making. I can also tell you what's in ${ref.title} and what needs your attention; you confirm what I propose.`
-                : `I can tell you what's in ${ref.title}, what needs your attention and how your files might fit together. I point you to places and propose; you confirm.`,
+              body: drops ? "Ask about this project, or drop files." : "Ask about this project.",
               ...(hints.show
                 ? {
                     // todo14 D8: a first run gets the three todo13 examples, once, until dismissed.

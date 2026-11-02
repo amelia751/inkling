@@ -355,7 +355,6 @@ function EmptyState({ title, body, prompts, footer, onAsk, drops }: { title: str
         </span>
         <h3 className="text-body-3 font-semibold">{title}</h3>
         <p className="mt-1.5 max-w-80 text-muted-foreground">{body}</p>
-        {drops && <p className="mt-1.5 max-w-80 text-hint">Drop files, paste a screenshot, or tell me what you're making.</p>}
       </div>
       <ul className="flex w-full max-w-82 flex-col gap-3">
         {prompts.map(({ icon: I, text }) => (

@@ -1,5 +1,6 @@
 import { MutationCache, QueryCache, useQuery, type QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
+import { ORG_PERMISSIONS, type OrgPermission, type Session, type SessionOrg } from "@studio/contracts";
 import { apiFetch, onUnauthorized } from "@/extension-host/http";
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import { ACCOUNT, ORG } from "@/studio/lib/account-mock";
@@ -13,39 +14,11 @@ import { ACCOUNT, ORG } from "@/studio/lib/account-mock";
  * unsaved annotations (`onBeforeSignIn`).
  */
 
-export interface SessionUser {
-  /** The principal, `user:<workos id>`. */
-  id: string;
-  workosUserId: string;
-  email: string;
-  firstName: string | null;
-  lastName: string | null;
-  name: string;
-  avatarUrl: string | null;
-}
-
-export interface SessionOrg {
-  /** Our organization id. */
-  id: string;
-  workosOrgId: string | null;
-  name: string;
-}
-
-export interface Session {
-  mode: "dev" | "workos";
-  user: SessionUser;
-  organization: SessionOrg;
-  /** Role slug in the current organization. */
-  role: string;
-  permissions: string[];
-  organizations: SessionOrg[];
-  impersonator: { email: string; reason: string | null } | null;
-  expiresAt: string | null;
-}
+export type { Session, SessionOrg, SessionUser } from "@studio/contracts";
 
 /** Organization permissions (todo9 D5). The API enforces each one; the UI only hides or disables. */
-export const PERMISSIONS = ["org:manage", "members:manage", "billing:manage", "apikeys:manage", "audit:read", "project:create"] as const;
-export type Permission = (typeof PERMISSIONS)[number];
+export const PERMISSIONS = ORG_PERMISSIONS;
+export type Permission = OrgPermission;
 
 export const sessionKey = ["auth", "session"] as const;
 
@@ -99,16 +72,18 @@ export async function fetchSession(): Promise<Session> {
 export type Can = (permission: Permission | string) => boolean;
 export const can = (session: Pick<Session, "permissions"> | undefined, permission: Permission | string): boolean => !!session?.permissions.includes(permission);
 
+/** The one query on `/api/auth/session` (lib/org-api.ts reads the same entry). */
+export const sessionQuery = () => ({
+  queryKey: sessionKey,
+  queryFn: fetchSession,
+  staleTime: 60_000,
+  retry: (n: number, e: unknown) => !isUnauthorized(e) && n < 1,
+});
+
 /** The session query. `data` is always there in `dev` mode; in `workos` mode `SessionGate` waits for it. */
 export function useSessionQuery() {
   const dev = runtimeConfig().auth.mode === "dev";
-  return useQuery({
-    queryKey: sessionKey,
-    queryFn: fetchSession,
-    staleTime: 60_000,
-    retry: (n, e) => !isUnauthorized(e) && n < 1,
-    ...(dev ? { placeholderData: mockSession } : {}),
-  });
+  return useQuery({ ...sessionQuery(), ...(dev ? { placeholderData: mockSession } : {}) });
 }
 
 /** The signed-in person, their current organization and permissions, plus `can(permission)`. */

@@ -176,8 +176,8 @@ export default defineConfig({
     },
   },
   // runtime-config.ts reads these as the dev defaults for `kernel` and `auth.mode` (/config.json
-  // decides in images). <envPrefix>WEB_AUTH_MODE=workos needs <envPrefix>API_URL (the API signs people in).
-  define: { "import.meta.env.DEV_API": JSON.stringify(kernel), "import.meta.env.AUTH_MODE": JSON.stringify(env("WEB_AUTH_MODE") ?? "dev") },
+  // decides in images). `auth.mode` is the same <envPrefix>WEB_AUTH_MODE the agent proxy reads above.
+  define: { "import.meta.env.DEV_API": JSON.stringify(kernel), "import.meta.env.AUTH_MODE": JSON.stringify(agentAuthMode) },
   resolve: {
     alias: [
       ...aliases,

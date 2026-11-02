@@ -103,6 +103,9 @@ interface AgentState {
   profile: ProfileName;
   /** Dataset whose run is streaming in this tab, if any. */
   running: string | null;
+  /** todo18 D: the run another tab is following now (this tab stopped streaming it). */
+  followedElsewhere?: string | null;
+  takeOver: () => void;
   /** The last send refused because another project's run is active (one run per tab). */
   blockedBy?: { projectId: string; waitingOn: string } | null;
   setProfile: (p: ProfileName) => void;
@@ -127,6 +130,11 @@ let host: AgentHost | null = null;
 let controller: AbortController | null = null;
 /** Browser-side tool work of the run being followed: Stop aborts it and posts the failure at once. */
 let toolAbort: AbortController | null = null;
+
+/** todo18 D: one tab follows a run; the others say so and can take over. */
+const TAB_ID = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : String(Math.random());
+const followChannel: BroadcastChannel | null = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel(`${RES}-agent-follow`) : null;
+let handedOff: AbortController | null = null;
 
 export const STUDIO_CLOSED = "The Studio isn't open, so this tool can't run. Ask the person to open it, or use open_location.";
 export const BLOCKED_PREFIX = "Waiting for the assistant in project ";
@@ -293,7 +301,8 @@ export const useAgent = create<AgentState>()(
         const ctl = new AbortController();
         controller = ctl;
         streamed.set(a.runId, { projectId: a.projectId, messageId: a.messageId });
-        set({ running: a.projectId, active: a });
+        set({ running: a.projectId, active: a, followedElsewhere: null });
+        followChannel?.postMessage({ type: "follow", runId: a.runId, tab: TAB_ID });
         try {
           await followRun(
             a.runId,
@@ -309,12 +318,16 @@ export const useAgent = create<AgentState>()(
             (state) => patchMessage(a.projectId, a.messageId, (m) => ({ ...m, reconnecting: state === "reconnecting" })),
           );
         } catch (err) {
-          if (!ctl.signal.aborted) {
+          if (!ctl.signal.aborted && handedOff !== ctl) {
             const message = err instanceof Error ? err.message : String(err);
             patchMessage(a.projectId, a.messageId, (m) => ({ ...m, error: m.error ?? message }));
           }
         } finally {
-          if (controller === ctl) {
+          if (handedOff === ctl) {
+            // Another tab follows it now: leave the message as it is; that tab finishes it.
+            handedOff = null;
+            if (controller === ctl) controller = null;
+          } else if (controller === ctl) {
             controller = null;
             // Tools still marked running when a run ends were cut off.
             patchMessage(a.projectId, a.messageId, (m) => ({
@@ -325,6 +338,7 @@ export const useAgent = create<AgentState>()(
               ),
             }));
             set((s) => ({ running: null, active: s.active?.runId === a.runId ? null : s.active }));
+            followChannel?.postMessage({ type: "ended", runId: a.runId, tab: TAB_ID });
           }
         }
       }
@@ -353,6 +367,7 @@ export const useAgent = create<AgentState>()(
         active: null,
         profile: "environment-designer",
         running: null,
+        followedElsewhere: null,
         blockedBy: null,
         setProfile: (profile) => set({ profile }),
         setHost: (h) => {
@@ -412,9 +427,14 @@ export const useAgent = create<AgentState>()(
             set({ running: null });
           }
         },
+        takeOver: () => {
+          const a = get().active;
+          if (!a || controller) return;
+          void follow(a);
+        },
         reattach: (projectId) => {
           const a = get().active;
-          if (!a || a.projectId !== projectId || controller) return;
+          if (!a || a.projectId !== projectId || controller || get().followedElsewhere === a.runId) return;
           void follow(a);
         },
         stop: () => {
@@ -503,6 +523,25 @@ export const useAgent = create<AgentState>()(
     },
   ),
 );
+
+// todo18 D: another tab started following this run: stop streaming here and say so.
+followChannel?.addEventListener("message", (ev: MessageEvent<{ type?: string; runId?: string; tab?: string }>) => {
+  const d = ev.data;
+  if (!d || d.tab === TAB_ID) return;
+  const a = useAgent.getState().active;
+  if (d.type === "ended") {
+    // The tab that followed it saw it end; this tab's copy of the thread is older (reload to see it).
+    if (a?.runId === d.runId) useAgent.setState({ running: null, active: null, followedElsewhere: null });
+    return;
+  }
+  if (d.type !== "follow") return;
+  if (!a || a.runId !== d.runId) return;
+  if (controller) {
+    handedOff = controller;
+    controller.abort();
+  }
+  useAgent.setState({ followedElsewhere: d.runId });
+});
 
 // Another person (or organization) signed in: load theirs, or start empty (todo15 D1).
 followPerson(useAgent, () => localStorage);

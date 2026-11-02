@@ -4,6 +4,7 @@ const decideApproval = vi.fn();
 vi.mock("@/studio/lib/agent/client", async (orig) => ({ ...(await orig<object>()), decideApproval: (...a: unknown[]) => decideApproval(...a) }));
 
 import { AgentHttpError } from "@/studio/lib/agent/client";
+import { RES } from "@studio/contracts/naming";
 import { findItem, runCardTool } from "@/studio/lib/agent/card-tools";
 import { secondsLeft } from "@/studio/lib/agent/approval";
 import { BLOCKED_PREFIX, raceAbort, reduce, TOOL_STOPPED, useAgent, type ChatMessage } from "./agent";
@@ -87,5 +88,16 @@ describe("todo18 D assistant store", () => {
     m = reduce(m, { type: "approval-resolved", approvalId: "a1", decision: "approve" } as never);
     m = reduce(m, { type: "tool-result", id: "c1", ok: false, summary: "Target is gone", input: {} } as never);
     expect(m.parts[0]).toMatchObject({ state: "approved", failed: "Target is gone" });
+  });
+
+  it("second tab: another tab following the run shows Take over here; its end clears this tab", async () => {
+    useAgent.setState({ running: "p", active: { projectId: "p", runId: "r1", messageId: "m", lastSeq: 0, answered: [] } as never });
+    const other = new BroadcastChannel(`${RES}-agent-follow`);
+    other.postMessage({ type: "follow", runId: "r1", tab: "other" });
+    await vi.waitFor(() => expect(useAgent.getState().followedElsewhere).toBe("r1"));
+    other.postMessage({ type: "ended", runId: "r1", tab: "other" });
+    await vi.waitFor(() => expect(useAgent.getState().active).toBeNull());
+    expect(useAgent.getState().running).toBeNull();
+    other.close();
   });
 });

@@ -180,7 +180,10 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : view === "files" ? (
         <SharedFiles projectId={project.id} conversationId={conversationId} canEdit={canEdit} />
       ) : (
-        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+        <>
+          <FollowedElsewhere />
+          <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+        </>
       )}
     </aside>
   );
@@ -623,6 +626,21 @@ function NotConfigured({ status, studio }: { status: AgentStatus | undefined; st
         </p>
       )}
       <p className="text-muted-foreground">{studio ? "Everything else in the Studio works without it." : "Everything else works without it."}</p>
+    </div>
+  );
+}
+
+/** todo18 D: another tab streams this run; this one can take it back. */
+function FollowedElsewhere() {
+  const elsewhere = useAgent((s) => !!s.followedElsewhere && s.active?.runId === s.followedElsewhere);
+  const takeOver = useAgent((s) => s.takeOver);
+  if (!elsewhere) return null;
+  return (
+    <div className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-hint" data-testid="agent-followed-elsewhere">
+      Following in another tab
+      <Button variant="ghost" size="sm" onClick={takeOver} data-testid="agent-take-over">
+        Take over
+      </Button>
     </div>
   );
 }

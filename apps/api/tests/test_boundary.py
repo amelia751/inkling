@@ -67,9 +67,9 @@ def test_every_agent_route_exists_and_the_rest_are_refused(client):
                 routes.add((m, sub.path))
     # Included routers are flattened differently across FastAPI versions; fall back to the modules.
     if len(routes) < 50:
-        from studio_api.routes import boots, boundary, drops, environments, explore, files, kernel, org, organize, plugins, projects, sources, versioning
+        from studio_api.routes import boots, boundary, drops, environments, explore, files, kernel, org, organize, plugins, projects, sources, trash, versioning
 
-        for mod in (boots, boundary, drops, environments, explore, files, kernel, org, organize, plugins, projects, sources, versioning):
+        for mod in (boots, boundary, drops, environments, explore, files, kernel, org, organize, plugins, projects, sources, trash, versioning):
             for r in mod.router.routes:
                 routes |= {(m, r.path) for m in r.methods}
     missing = agent_scope.AGENT_ROUTES - routes

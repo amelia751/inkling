@@ -1,6 +1,7 @@
 import type { DropOrigin, DropOriginKind } from "@studio/contracts/drops";
 import type { SeedAsset } from "@studio/contracts/types";
 import { ApiError } from "@/studio/lib/projects-api";
+import { toProblem } from "@/studio/lib/problem";
 import { fromFileList, type Picked } from "@/studio/lib/uploads/walk";
 import { useUploads } from "@/studio/stores/uploads";
 import { hashFiles } from "@/studio/lib/uploads/hash";
@@ -149,7 +150,9 @@ function ensureCreated(id: string, o: StartDropOptions, picked: Picked): Promise
       .then(() => true)
       .catch((e) => {
         const status = e instanceof ApiError ? e.status : 0;
-        useDrops.getState().patch(id, { error: e instanceof Error ? e.message : String(e), overLimit: status === 413 });
+        const problem = toProblem(e);
+        const retryAt = problem.kind === "rate-limited" && problem.retryAfter ? Date.now() + problem.retryAfter * 1000 : undefined;
+        useDrops.getState().patch(id, { error: retryAt ? "Too many drops at once" : e instanceof Error ? e.message : String(e), overLimit: status === 413, retryAt });
         created.delete(id);
         return false;
       });

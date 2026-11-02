@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { CloseIcon, ErrorIcon, WarningIcon } from "@studio/ui/icons";
@@ -104,7 +104,7 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
       {local?.error && !local.overLimit && !interrupted && (
         <p className="flex items-start gap-1.5 px-0.5 text-caption text-danger" data-testid="drop-error">
           <ErrorIcon className="mt-0.5 size-3.5 shrink-0" />
-          <span>{failureText(local.error, [])}</span>
+          <span>{local.retryAt ? <RetryCountdown at={local.retryAt} /> : failureText(local.error, [])}</span>
         </p>
       )}
       {paused && local && (
@@ -200,4 +200,20 @@ function DropChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
       )}
     </li>
   );
+}
+
+/** "Too many drops at once. Try again in 12 s" (a 429's `Retry-After`, todo18). */
+export function retryLine(at: number, now: number): string {
+  const s = Math.max(0, Math.ceil((at - now) / 1000));
+  return s ? `Too many drops at once. Try again in ${s} s` : "Too many drops at once. Try again now";
+}
+
+function RetryCountdown({ at }: { at: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (now >= at) return;
+    const t = setTimeout(() => setNow(Date.now()), 1000);
+    return () => clearTimeout(t);
+  }, [now, at]);
+  return <span data-testid="drop-retry-countdown">{retryLine(at, now)}</span>;
 }

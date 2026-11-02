@@ -100,6 +100,22 @@ def header_facts(ds, node_id: str, name: str) -> tuple[dict, dict | None, Instan
     return facts, flag, inst
 
 
+def _order(members: list[Instance]) -> tuple[str, float | None]:
+    """Sort a series in place: by ImagePositionPatient projected on the slice normal
+    (row × column of ImageOrientationPatient) when every slice has one orientation and a position,
+    else by InstanceNumber. Returns how it was ordered and the median slice spacing (mm)."""
+    orients = {i.orientation for i in members if i.orientation}
+    if len(orients) == 1 and all(i.position and len(i.position) == 3 for i in members) and len(next(iter(orients))) == 6:
+        r, c = next(iter(orients))[:3], next(iter(orients))[3:]
+        n = (r[1] * c[2] - r[2] * c[1], r[2] * c[0] - r[0] * c[2], r[0] * c[1] - r[1] * c[0])
+        depth = {i.node_id: sum(a * b for a, b in zip(i.position or (), n)) for i in members}
+        members.sort(key=lambda i: (depth[i.node_id], i.instance or 0, i.name))
+        steps = sorted(abs(depth[b.node_id] - depth[a.node_id]) for a, b in zip(members, members[1:]))
+        return "position", (round(steps[len(steps) // 2], 4) if steps else None)
+    members.sort(key=lambda i: (i.instance is None, i.instance or 0, i.name))
+    return "instance", None
+
+
 def _ranges(nums: list[int]) -> str:
     out, start, prev = [], None, None
     for n in nums:
@@ -123,7 +139,7 @@ def group_series(instances: list[Instance]) -> list[dict]:
             by.setdefault((i.study, i.series), []).append(i)
     out = []
     for (study, series), members in by.items():
-        members.sort(key=lambda i: (i.instance is None, i.instance or 0, i.name))
+        ordered_by, spacing_z = _order(members)
         numbers = [i.instance for i in members if i.instance is not None]
         quality: list[str] = []
         missing: list[int] = []
@@ -139,6 +155,11 @@ def group_series(instances: list[Instance]) -> list[dict]:
         if len(orients) > 1:
             quality.append("Slices don't share one orientation: this may be more than one volume")
         first = members[0].facts.get("dicom", {})
+        # A volume needs pixel spacing, an orientation and a position per slice (todo19 §2 A).
+        opens_2d = len(members) > 1 and (ordered_by != "position" or not first.get("pixelSpacing"))
+        if opens_2d:
+            gaps = [n for n, ok in (("pixel spacing", first.get("pixelSpacing")), ("orientation", all(i.orientation for i in members)), ("slice positions", all(i.position for i in members))) if not ok]
+            quality.append(f"Missing {', '.join(gaps) or 'slice geometry'}: this series opens as 2D images")
         modality = first.get("modality")
         noun = MODALITY_NOUN.get(modality or "", modality or "DICOM")
         size = f"{first['columns']}×{first['rows']}" if first.get("rows") and first.get("columns") else None
@@ -159,6 +180,9 @@ def group_series(instances: list[Instance]) -> list[dict]:
             "missingInstances": missing[:200],
             "duplicateInstances": dupes[:200],
             "orientationConsistent": len(orients) <= 1,
+            "orderedBy": ordered_by,
+            "sliceSpacing": spacing_z,
+            **({"opensAs": "2d"} if opens_2d else {}),
             "quality": quality,
             "summary": summary,
         })

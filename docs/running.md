@@ -14,7 +14,20 @@ modes 2 and 3 and `infra:up`. Then:
 ```sh
 pnpm install && uv sync
 pnpm seeds                  # sample datasets into seed-data/ (see seed-data/README.md)
+pnpm doctor                 # checks the converters, the database and the seeds; prints each fix
 ```
+
+The worker's converters are capabilities it reports to the api at start
+(`POST /api/v1/workers/capabilities`, kept in the database with a TTL; its `/readyz` lists them).
+A file whose converter no worker has stays **Waiting for a converter** (not failed) and converts
+by itself once a worker that has it starts. `pnpm dev` prints what's missing.
+
+| Converter | For | Install | Required |
+|---|---|---|---|
+| ffmpeg + ffprobe | AVI/MOV/MKV → MP4 (constant frame rate at the source fps) | `brew install ffmpeg` / `apt-get install ffmpeg` (in the worker image) | for video |
+| OpenSlide (`openslide-python` + `openslide-bin`) | slide header (mpp, levels), fallback tiling | `uv sync` (wheels bundle libopenslide) | for slides |
+| libvips (`pyvips` + `pyvips-binary`) | slide → DZI with `dzsave` (fast path) | `uv sync` (wheels bundle libvips) | no (OpenSlide tiles without it, slower) |
+| dciodvfy (dicom3tools) | DICOM conformance checks | [dicom3tools](https://www.dclunie.com/dicom3tools.html) | no (checks are skipped) |
 
 Secrets for local work live in `secrets/*.env` (git-ignored; see `secrets/README.md`). None of
 the three modes needs a real key: without a model or Daytona key the agent runs scripted or

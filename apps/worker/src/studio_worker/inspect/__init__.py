@@ -115,13 +115,19 @@ class InspectSubscriber:
             if need:
                 n["facts"]["derivative"] = {"kind": need, "state": "processing", "progress": 0}
         # ACDC Info.cfg (ED/ES, height, weight) → meta of the volumes in its folder (0-based frames).
-        for f in files:
+        # The cfg itself becomes a hidden `info` slot of that group (todo19 §2 A), not a loose
+        # document the plan keeps as a reference.
+        for f, fn in zip(files, nodes):
             if posixpath.basename(f["relPath"]).lower() == "info.cfg" and 0 < int(f.get("size") or 0) <= 64 * 1024:
                 info = sidecars.parse_acdc_info(self._all(f["nodeId"], int(f["size"])).decode("utf-8", "replace"))
                 folder = posixpath.dirname(f["relPath"])
+                used: list[str] = []
                 for g, n in zip(files, nodes):
                     if g is not f and posixpath.dirname(g["relPath"]) == folder and n.get("detectedKind") in ("volume", "mask"):
                         n["facts"]["acdc"] = sidecars.item_meta(info)
+                        used.append(g["nodeId"])
+                if used:
+                    fn["facts"]["sidecar"] = sidecar_slot(f["relPath"], used)
         groups = dicom.group_series(instances)
         by_id = {n["nodeId"]: n for n in nodes}
         for g in groups:
@@ -146,7 +152,7 @@ class InspectSubscriber:
         if kind in ("archive", "table", "document", "annotations") and head.startswith(b"PK") and size <= FULL_LIMIT["archive"]:
             full = self._all(nid, size)
             kind, facts = detect.detect(name, head, full)
-        if kind == "unknown" and name.lower().endswith(".dat") and posixpath.splitext(f["relPath"])[0] in hea_stems:
+        if kind in ("unknown", "document", "table") and wfdb_signal(f["relPath"], hea_stems):
             kind, facts = "waveform", {"format": "WFDB signal"}
         inst = None
         if kind == "image" and size <= FULL_LIMIT["image"]:
@@ -239,3 +245,16 @@ class InspectSubscriber:
         r = self.http.put(f"/api/v1/worker/inspect/nodes/{nid}/derived/{role}", content=data, headers={"Content-Type": media_type})
         r.raise_for_status()
         return r.json()["path"]
+
+
+def wfdb_signal(rel_path: str, hea_stems: set[str]) -> bool:
+    """A `.dat` or `.mat` next to a `.hea` of the same stem is that record's signal (todo19 §2 A:
+    PTB-XL and PhysioNet 2020 use `.mat`)."""
+    stem, ext = posixpath.splitext(rel_path)
+    return ext.lower() in (".dat", ".mat") and stem in hea_stems
+
+
+def sidecar_slot(rel_path: str, consumed_by: list[str]) -> dict:
+    """`facts.sidecar` for a file read into its group's item metadata (ACDC `Info.cfg`): a hidden
+    slot of the group in its folder, so the drop plan doesn't list it as a loose document."""
+    return {"role": "info", "slot": "info", "group": posixpath.dirname(rel_path), "hidden": True, "consumedBy": list(consumed_by)}

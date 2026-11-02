@@ -43,7 +43,7 @@ from urllib.parse import urlsplit
 import httpx
 from studio_observability import bound, httpx_request_hook, setup_service, traceparent
 
-from . import config, health
+from . import capabilities, config, health
 from .config import env  # noqa: F401 — kept for callers that read namespaced env vars
 from .boundary import BoundaryRunner
 from .deid import DeidSubscriber
@@ -60,6 +60,8 @@ log = logging.getLogger("studio_worker")
 NAMING = config.naming()
 SERVICE = "worker"
 HEARTBEAT_S = 2.0  # with KILL_GRACE_S, a cancelled job's processes are gone within 5 s
+CAPS_REPORT_S = 5 * 60.0  # re-report converters this often (todo19 D10) ...
+CAPS_TTL_S = 15 * 60  # ... and the kernel forgets a worker that stopped reporting after this
 KILL_GRACE_S = 1.0
 
 
@@ -129,7 +131,11 @@ class Worker:
         self.unpack = UnpackSubscriber(self.http, data_dir / "unpack", unpack_limits)
         # Media derivatives (todo18 D4): video → MP4, slide → DZI, with progress on the item.
         (data_dir / "derive").mkdir(parents=True, exist_ok=True)
-        self.derive = DeriveWorker(self.http, data_dir / "derive", derive_limits or config.DeriveLimits())
+        # Converters this worker has (todo19 D10): reported to the kernel, which routes derivative
+        # kinds only to a worker that can serve them and re-queues what was waiting for one.
+        self.capabilities = capabilities.detect()
+        self._caps_reported_at = 0.0
+        self.derive = DeriveWorker(self.http, data_dir / "derive", derive_limits or config.DeriveLimits(), kinds=capabilities.kinds_for(self.capabilities))
         # Item derivatives (todo11 D8): on their own thread and client in `run_forever`, so a
         # long inspection or plugin job never holds up the thumbnails a person is waiting for.
         self.items = ItemProcessor(httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]}))
@@ -326,10 +332,29 @@ class Worker:
         except httpx.HTTPError:
             log.warning("couldn't hand the job back; its lease will expire", extra={"job_id": job_id})
 
+    def report_capabilities(self, *, every_s: float = CAPS_REPORT_S) -> bool:
+        """POST /api/v1/workers/capabilities at start and every `every_s` (the kernel keeps it
+        `CAPS_TTL_S`); returns whether it reported."""
+        now = time.monotonic()
+        if self._caps_reported_at and now - self._caps_reported_at < every_s:
+            return False
+        try:
+            r = self.http.post("/api/v1/workers/capabilities", json={"workerId": self.worker_id, "capabilities": self.capabilities, "ttlS": CAPS_TTL_S})
+        except httpx.HTTPError as e:
+            log.warning("capabilities: %s", type(e).__name__)
+            return False
+        if getattr(r, "is_success", True):
+            self._caps_reported_at = now
+            requeued = (r.json() or {}).get("requeued") if hasattr(r, "json") else None
+            if requeued:
+                log.info("re-queued derivatives that were waiting for a converter", extra={"count": requeued})
+        return True
+
     def tick(self) -> bool:
         """Claim and run one job. Returns whether there was one."""
         if self.stopping.is_set():
             return False
+        self.report_capabilities()
         self.http.post("/api/v1/worker/events/deliver")
         if self._items_thread is None:
             try:
@@ -532,7 +557,9 @@ def main(argv: list[str] | None = None) -> int:
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:
         probe = health.KernelProbe(s.kernel_url)
-        health.serve(s.health_port, version={"service": SERVICE, "version": service_version(), "gitSha": s.git_sha}, ready=lambda: (not w.stopping.is_set() and probe(), {"kernel": "ok" if probe() else "unreachable", "stopping": w.stopping.is_set()}))
+        health.serve(s.health_port, version={"service": SERVICE, "version": service_version(), "gitSha": s.git_sha}, ready=lambda: (not w.stopping.is_set() and probe(), {"kernel": "ok" if probe() else "unreachable", "stopping": w.stopping.is_set(), "capabilities": w.capabilities, "missing": capabilities.missing(w.capabilities)}))
+    for line in capabilities.missing(w.capabilities):
+        log.warning(line)
     log.info("worker started", extra={"kernel": s.kernel_url, "worker_id": s.worker_id, "plugins": s.plugins, "resource_classes": s.resource_classes, "envs_dir": str(s.envs_dir)})
     return w.run_forever(a.poll if a.poll is not None else s.poll_s, once=a.once)
 

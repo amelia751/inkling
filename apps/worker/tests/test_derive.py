@@ -209,3 +209,122 @@ def test_worker_loop_reports_the_codec_failure(tmp_path):
 
 def test_acdc_item_meta_is_zero_based():
     assert sidecars.item_meta({"ed": 1, "es": 12, "group": "DCM", "weight": 95.0}) == {"ed": 0, "es": 11, "group": "DCM", "weight": 95.0}
+
+
+# ---- todo19 P0-1/P0-2, §2 A: real tiling, missing converters, constant frame rate ------------
+
+
+def _fixture_slide(tmp_path: Path) -> Path:
+    """A tiny pyramidal tiled TIFF that OpenSlide reads as generic-tiff (no stored bytes)."""
+    pyvips = pytest.importorskip("pyvips")
+    p = tmp_path / "tiny.tif"
+    img = (pyvips.Image.xyz(600, 400)[0] % 256).cast("uchar").bandjoin([pyvips.Image.xyz(600, 400)[1].cast("uchar"), 128])
+    img = img.copy(xres=4.0, yres=4.0)  # 4 px/mm = 250 µm/px
+    img.tiffsave(str(p), tile=True, pyramid=True, compression="jpeg", tile_width=256, tile_height=256)
+    return p
+
+
+@pytest.mark.parametrize("engine", ["pyvips", "openslide"])
+def test_real_tiling_of_a_generated_slide(tmp_path, engine):
+    pytest.importorskip("openslide")
+    src = _fixture_slide(tmp_path)
+    seen: list[int] = []
+    d = derive.tile_slide(src, tmp_path / "out", "abc", progress=seen.append, engine=engine)
+    assert d.key == "derived/abc.dzi" and "<Image" in d.files[d.key].read_text()
+    tiles = [k for k in d.files if k.startswith("derived/abc_files/") and k.endswith(".jpeg")]
+    assert tiles and "derived/abc_thumb.png" in d.files
+    assert d.meta["width"] == 600 and d.meta["height"] == 400 and d.meta["engine"] == engine
+    assert seen[0] == 0 and seen[-1] == 100
+
+
+def test_missing_openslide_is_unavailable_not_failed(tmp_path, monkeypatch):
+    import builtins
+
+    real = builtins.__import__
+
+    def no_openslide(name, *a, **kw):
+        if name in ("openslide", "pyvips"):
+            raise ImportError(name)
+        return real(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", no_openslide)
+    with pytest.raises(derive.DeriveError) as e:
+        derive.tile_slide(tmp_path / "s.svs", tmp_path, "abc")
+    assert e.value.unavailable and e.value.converter == "OpenSlide" and not e.value.retry
+    with pytest.raises(derive.DeriveError) as v:
+        derive.transcode_video(tmp_path / "s.svs", tmp_path, "abc", which=lambda _n: None)
+    assert v.value.unavailable and v.value.converter == "ffmpeg"
+
+
+def test_worker_loop_reports_unavailable(tmp_path):
+    k = _FakeKernel()
+
+    def convert(*_a):
+        raise derive.DeriveError("OpenSlide isn't installed", unavailable=True, converter="OpenSlide")
+
+    derive.DeriveWorker(k, tmp_path, convert=convert, kinds=["video-mp4"]).tick()
+    assert k.calls[0] == ("/api/v1/worker/derivatives/claim", {"limit": 1, "maxAttempts": 3, "kinds": ["video-mp4"]})
+    assert k.calls[-1][1]["unavailable"] is True
+
+
+def test_transcode_keeps_source_fps_at_a_constant_rate(tmp_path):
+    src = tmp_path / "in.avi"
+    src.write_bytes(b"x")
+    cmds: list[list[str]] = []
+    base = _fake_run()
+
+    def run(cmd, **kw):
+        cmds.append(cmd)
+        if "ffprobe" in cmd[0]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps({"streams": [{"codec_type": "video", "codec_name": "mjpeg", "duration": "10", "avg_frame_rate": "25/1", "r_frame_rate": "30000/1001"}]}), stderr="")
+        return base(cmd, **kw)
+
+    d = derive.transcode_video(src, tmp_path / "out", "abc", run=run, which=_which)
+    ff = cmds[-1]
+    assert ff[ff.index("-fps_mode") + 1] == "cfr" and ff[ff.index("-r") + 1] == "30000/1001"
+    assert d.meta["fps"] == pytest.approx(29.97, abs=0.01)
+
+
+def test_capabilities_detect_and_kinds():
+    from studio_worker import capabilities
+
+    caps = capabilities.detect(which=lambda n: None if n == "dciodvfy" else f"/bin/{n}", run=lambda *_a, **_k: SimpleNamespace(returncode=0, stdout="ffmpeg version 7.1 Copyright", stderr=""))
+    assert caps["ffmpeg"] == "7.1" and "dciodvfy" not in caps
+    assert capabilities.kinds_for({"ffmpeg": "7.1", "ffprobe": "7.1", "openslide": "4.0.1"}) == ["video-mp4", "slide-dzi"]
+    assert capabilities.kinds_for({}) == []
+    assert capabilities.missing({}) and "OpenSlide" in " ".join(capabilities.missing({"ffmpeg": "7"}))
+
+
+def test_mat_signals_pair_with_their_header_like_dat():
+    from studio_worker import inspect as insp
+    from studio_worker.inspect import detect
+
+    kind, _ = detect.detect("HR00001.hea", b"HR00001 12 500 5000\nHR00001.mat 16+24 1000/mV 16 0 0 0 0 I\nHR00001.mat 16+24 1000/mV 16 0 0 0 0 II\n")
+    assert kind == "waveform"
+    stems = {"ptbxl/HR00001"}
+    assert insp.wfdb_signal("ptbxl/HR00001.mat", stems) and insp.wfdb_signal("ptbxl/HR00001.dat", stems)
+    assert not insp.wfdb_signal("other/x.mat", stems)
+
+
+def test_info_cfg_is_a_hidden_sidecar_slot_of_its_group():
+    from studio_worker import inspect as insp
+
+    fact = insp.sidecar_slot("patient001/Info.cfg", ["nod-a", "nod-b"])
+    assert fact == {"role": "info", "slot": "info", "group": "patient001", "hidden": True, "consumedBy": ["nod-a", "nod-b"]}
+
+
+def test_dicom_series_orders_by_position_along_the_normal_and_flags_2d():
+    from studio_worker.inspect import dicom
+
+    ax = (1.0, 0.0, 0.0, 0.0, 1.0, 0.0)  # normal +z
+    f = {"dicom": {"modality": "CT", "rows": 4, "columns": 4, "pixelSpacing": [0.5, 0.5]}}
+    # instance numbers disagree with the geometry: position wins
+    sl = [dicom.Instance(f"n{z}", f"{z}.dcm", "st", "se", 10 - z, ax, (0.0, 0.0, float(z) * 2.5), f) for z in (2, 0, 1)]
+    [g] = dicom.group_series(sl)
+    assert g["nodeIds"] == ["n0", "n1", "n2"] and g["orderedBy"] == "position" and g.get("opensAs") != "2d"
+    assert g["sliceSpacing"] == pytest.approx(2.5)
+    # no geometry: falls back to InstanceNumber and opens as 2D images
+    bare = [dicom.Instance(f"m{i}", f"{i}.dcm", "st", "se2", i, None, None, {"dicom": {"modality": "CR"}}) for i in (3, 1, 2)]
+    [h] = dicom.group_series(bare)
+    assert h["nodeIds"] == ["m1", "m2", "m3"] and h["orderedBy"] == "instance" and h["opensAs"] == "2d"
+    assert any("opens as 2D images" in q for q in h["quality"])

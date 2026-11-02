@@ -98,3 +98,68 @@ def test_a_codec_failure_through_the_api_is_final(client):
     assert r["state"] == "failed"
     assert client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"] == []
     assert client.post("/api/v1/worker/derivatives/claim", json={}).status_code in (401, 403)
+
+
+# ---- todo19 P0-2 / D10: a missing converter waits; capabilities re-queue it ------------------
+
+
+def _cap_db() -> Session:
+    from studio_api.models import WorkerCapability
+
+    eng = create_engine("sqlite://")
+    Base.metadata.create_all(eng, tables=[Derivative.__table__, WorkerCapability.__table__])  # type: ignore[list-item]
+    return Session(eng)
+
+
+def test_a_missing_converter_waits_instead_of_failing():
+    from studio_api.kernel import capabilities as caps
+
+    db = _cap_db()
+    row = d.request(db, SimpleNamespace(id="nod-s", project_id="p"), "slide-dzi")
+    [claimed] = d.claim(db)
+    d.fail(db, claimed, "OpenSlide isn't installed", retry=False, unavailable=True)
+    assert claimed.state == "waiting" and claimed.attempts == 0
+    s = d.state_for(db, ["nod-s"])["nod-s"]
+    assert s["state"] == "waiting" and s["error"] == "Waiting for a converter: OpenSlide"
+    assert d.claim(db) == []  # nobody can serve it yet
+    # a worker without OpenSlide reports: still waiting
+    assert caps.report(db, "w1", {"ffmpeg": "7.1"}) == 0 and row.state == "waiting"
+    # one with it: re-queued, claimable only by a worker that serves slides
+    assert caps.report(db, "w2", {"openslide": "4.0.1"}) == 1 and row.state == "pending"
+    assert d.claim(db, kinds=["video-mp4"]) == []
+    assert d.claim(db, kinds=["slide-dzi"]) == [row]
+
+
+def test_capabilities_expire_and_requeue_legacy_isnt_installed_failures():
+    from datetime import timedelta
+
+    from studio_api.kernel import capabilities as caps
+
+    db = _cap_db()
+    row = d.request(db, SimpleNamespace(id="nod-old", project_id="p"), "slide-dzi")
+    row.state, row.attempts, row.error = "failed", 1, "Slide tiling isn't available: OpenSlide isn't installed on the worker"
+    codec = d.request(db, SimpleNamespace(id="nod-c", project_id="p"), "video-mp4")
+    codec.state, codec.error = "failed", "ffmpeg can't decode cinepak video"
+    db.flush()
+    assert caps.report(db, "w", {"openslide": "4.0.1", "ffmpeg": "7.1"}, ttl_s=60) == 1
+    assert row.state == "pending" and row.attempts == 0 and codec.state == "failed"
+    assert set(caps.live(db)) == {"openslide", "ffmpeg"}
+    assert caps.live(db, now=d._now() + timedelta(seconds=120)) == {}
+
+
+def test_capabilities_route_requeues_a_waiting_slide(client):
+    from .conftest import worker_headers as W
+    from .test_explore import _report
+    from .test_projects import _import
+
+    p = client.post("/api/v1/projects", json={"title": "Slides"}).json()["id"]
+    imp = _import(client, p, {"s.svs": b"II*\x00"})
+    _report(client, imp, {"s.svs": "slide"}, {"s.svs": {"derivative": {"kind": "slide-dzi"}}})
+    [row] = client.post("/api/v1/worker/derivatives/claim", json={"kinds": ["slide-dzi"]}, headers=W()).json()["derivatives"]
+    r = client.post(f"/api/v1/worker/derivatives/{row['id']}/fail", json={"reason": "OpenSlide isn't installed", "unavailable": True}, headers=W()).json()
+    assert r["state"] == "waiting"
+    assert client.post("/api/v1/workers/capabilities", json={"workerId": "w", "capabilities": {}}).status_code in (401, 403)
+    rep = client.post("/api/v1/workers/capabilities", json={"workerId": "w", "capabilities": {"openslide": "4.0.1"}}, headers=W()).json()
+    assert rep["requeued"] == 1 and rep["kinds"] == ["slide-dzi"]
+    assert client.get("/api/v1/workers/capabilities", headers=W()).json()["capabilities"] == {"openslide": "4.0.1"}
+    assert [x["id"] for x in client.post("/api/v1/worker/derivatives/claim", json={"kinds": ["slide-dzi"]}, headers=W()).json()["derivatives"]] == [row["id"]]

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import tempfile
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -81,8 +82,44 @@ def detect_revision(have: Schema) -> str | None:
     return best
 
 
+@contextmanager
+def _tolerant_ops():
+    """Dev databases built by create_all are often partly ahead of their stamp (a newer table or
+    column already there). While upgrading one, creating something that exists is a no-op."""
+    from alembic.operations import Operations
+
+    orig = {n: getattr(Operations, n) for n in ("create_table", "add_column", "create_index")}
+
+    def insp(op):
+        return sa.inspect(op.get_bind())
+
+    def create_table(self, name, *a, **kw):
+        if insp(self).has_table(name):
+            log.info("dev migrate: table %s already exists, skipped", name)
+            return None
+        return orig["create_table"](self, name, *a, **kw)
+
+    def add_column(self, table, column, *a, **kw):
+        if column.name in {c["name"] for c in insp(self).get_columns(table)}:
+            log.info("dev migrate: column %s.%s already exists, skipped", table, column.name)
+            return None
+        return orig["add_column"](self, table, column, *a, **kw)
+
+    def create_index(self, name, table, *a, **kw):
+        if name and name in {i["name"] for i in insp(self).get_indexes(table)}:
+            return None
+        return orig["create_index"](self, name, table, *a, **kw)
+
+    Operations.create_table, Operations.add_column, Operations.create_index = create_table, add_column, create_index  # type: ignore[method-assign]
+    try:
+        yield
+    finally:
+        for n, f in orig.items():
+            setattr(Operations, n, f)
+
+
 def _upgrade_head() -> None:
-    with db.engine().begin() as conn:
+    with db.engine().begin() as conn, _tolerant_ops():
         command.upgrade(_config(conn), "head")
 
 

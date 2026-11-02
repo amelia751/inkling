@@ -58,6 +58,23 @@ describe("volume data kind", () => {
     expect(inferSubject({ path: "x", name: "a_t1.nii", subject: "S9", sequence: "t2" })).toEqual({ subject: "S9", sequence: "t2" });
   });
 
+  it("loads a subject's reference part (todo20 D9) as its label layer, not an item", () => {
+    const doc = { id: "task", assets: [
+      { path: "a/t1", sha256: "", bytes: 0, name: "B_t1.nii.gz", subject: "B", sequence: "t1", folder: ["brain"], kind: "volume",
+        parts: [{ slot: "reference", kind: "mask", path: "a/seg", sha256: "", bytes: 0, name: "B_seg.nii.gz", nodeId: "n-seg" }] },
+      { path: "a/t2", sha256: "", bytes: 0, name: "B_t2.nii.gz", subject: "B", sequence: "t2", folder: ["brain"], kind: "volume" },
+      // A part whose own name says nothing still joins the item of the asset it belongs to.
+      { path: "a/x", sha256: "", bytes: 0, name: "scan.nii.gz", folder: ["c"], parts: [{ slot: "reference", path: "a/m", sha256: "", bytes: 0, name: "labels.nii.gz" }] },
+    ] } as unknown as Project;
+    const items = groupItems(doc);
+    expect(items.map((i) => [i.id, i.assets.length])).toEqual([["B", 3], ["c/scan", 2]]);
+    expect(referenceAsset(items[0].assets)).toMatchObject({ path: "a/seg", sequence: "seg", nodeId: "n-seg" });
+    expect(volumeSources(items[0].assets).map((s) => s.key)).toEqual(["t1", "t2"]);
+    expect(items[0].parts?.at(-1)).toEqual({ key: "seg", label: "seg (reference)", role: "reference" });
+    expect(referenceAsset(items[1].assets)?.path).toBe("a/m");
+    expect(items[0].assets.some((a) => "parts" in a)).toBe(false);
+  });
+
   it("groups assets by subject and splits sequences / DICOM series", () => {
     const items = groupItems(brats);
     expect(items.map((i) => [i.id, i.assets.length, i.dataKind])).toEqual([

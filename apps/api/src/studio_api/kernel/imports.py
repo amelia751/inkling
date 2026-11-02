@@ -41,6 +41,7 @@ from ..config import settings
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Source, SourceNode, TaskItem, UploadFile, now
 from . import assets, audit, drops, events, fs, ingest, projects, tree
+from .admission import WriteRejected
 from .kinds import is_junk
 
 CHUNK_BYTES = 64 * 1024 * 1024
@@ -141,7 +142,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
             continue
         fixed = "".join("_" if c in forbidden and c != "/" else c for c in rel) if forbidden else rel
         if fixed != rel:
-            renamed.append({"rule": "layout.forbidden-char", "severity": "info", "path": f"/files/{i}/relPath", "message": "Characters the project rules forbid were replaced with '_'.", "fix": "", "docs": "/docs/lint-rules#layout.forbidden-char"})
+            renamed.append({"rule": "layout.forbidden-char", "severity": "info", "path": f"/files/{i}/relPath", "message": "Characters the project rules forbid were replaced with '_'.", "fix": "", "docs": "/docs/lint-rules#layout.forbidden-char", "file": rel, "renamedTo": fixed})
         wanted.append((fid, fixed, size, sha))
     if len(wanted) > limits.upload_max_session_files:
         raise HTTPException(413, f"Too many files: the limit is {limits.upload_max_session_files:,} per import")
@@ -191,7 +192,16 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     findings: list[dict] = list(renamed)
     if check is not None:
         base = tree.path_of(db, node) if node is not None else fs.clean_name(title)
-        findings += check([f"{base}/{w[1]}" if base else w[1] for w in wanted]).findings_json()
+        paths = [f"{base}/{w[1]}" if base else w[1] for w in wanted]
+        try:
+            findings += _with_files(check(paths).findings_json(), paths)
+        except WriteRejected as e:
+            # todo20 D8: the drop fails at once with the findings grouped by rule. The route
+            # rolls the request back, then records this on the drop (`record_rejection`).
+            if drop is not None:
+                e.body_extra.setdefault("dropId", drop.id)
+                e.drop_findings = drops.group_findings(list(renamed) + _with_files([v.to_json() for v in e.violations], paths), refused=True)  # type: ignore[attr-defined]
+            raise
 
     known = _known_hashes(db, p, [w[3] for w in wanted])
     if node is not None:
@@ -257,6 +267,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     db.flush()
     if drop is not None:
         drops.session_started(db, ctx, drop, s)
+        drops.add_findings(drop, drops.group_findings(findings))
     audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": len(wanted), "skippedSystemFiles": skipped_junk, "attested": True, **({"dropId": drop.id} if drop is not None else {})})
     # Dropped into a Studio (todo11 D8): its images are items from now on, before any byte.
     registered = ingest.register(db, s, task) if task is not None else None
@@ -267,6 +278,29 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     if check is not None or renamed:
         out["findings"] = findings
     return out
+
+
+def _with_files(found: list[dict], paths: list[str]) -> list[dict]:
+    """Name the file of each `/paths/<i>` finding (for grouping; a person's view only)."""
+    out = []
+    for f in found:
+        ptr = str(f.get("path") or "")
+        parts = ptr.split("/")
+        if len(parts) >= 3 and parts[1] == "paths" and parts[2].isdigit() and int(parts[2]) < len(paths):
+            f = {**f, "file": paths[int(parts[2])]}
+        out.append(f)
+    return out
+
+
+def record_rejection(db: Session, ctx: RequestContext, e: Exception) -> None:
+    """After a rejected import: roll back, mark its drop failed with the grouped findings, commit."""
+    drop_id = getattr(e, "body_extra", {}).get("dropId") if hasattr(e, "body_extra") else None
+    grouped = getattr(e, "drop_findings", None)
+    if not drop_id or grouped is None:
+        return
+    db.rollback()
+    drops.import_rejected(db, ctx, drop_id, grouped, getattr(e, "title", "The import breaks the project's rules"))
+    db.commit()
 
 
 def _human(n: int) -> str:
@@ -662,6 +696,8 @@ def fail_stalled(db: Session, at: datetime | None = None) -> int:
         ctx = RequestContext(s.project_id, "service:housekeeping", f"stall-{s.id}")
         audit.record(db, ctx.for_scope(s.project_id, None), "import.stalled", target=s.id, after={"minutes": minutes})
         _publish(db, ctx, s)
+        if s.drop_id:
+            drops.session_ended(db, s)
         n += 1
     db.flush()
     return n

@@ -37,18 +37,36 @@ export function inferSubject(a: Pick<SeedAsset, "path" | "name" | "subject" | "s
 
 export function groupItems(project: Project): StudioItem[] {
   const bySubject = new Map<string, StudioItem>();
-  for (const raw of project.assets) {
+  for (const [raw, ...parts] of project.assets.map(withParts)) {
     const { subject, sequence } = inferSubject(raw);
     const asset = sequence && !raw.sequence ? { ...raw, sequence } : raw;
     const key = raw.subject ? subject : [...(Array.isArray(raw.folder) ? raw.folder : []), subject].join("/");
     const item = bySubject.get(key) ?? { id: key, name: subject, group: "Subjects", assets: [], dataKind: VOLUME_KIND };
-    item.assets.push(asset);
+    // Slots join the item they belong to, whatever their own names say (todo20 D9).
+    item.assets.push(asset, ...parts);
     bySubject.set(key, item);
   }
   return [...bySubject.values()].map((item) => {
     const parts = itemParts(item.assets);
     return parts.length > 1 ? { ...item, parts } : item;
   });
+}
+
+/**
+ * todo20 D9: an asset, then its slots, as files of the asset's item. A `reference` part (the subject's
+ * `_seg`) joins as `sequence: seg`, so `referenceAsset` loads it as the read-only label layer.
+ */
+export function withParts(asset: SeedAsset): SeedAsset[] {
+  if (!asset.parts?.length) return [asset];
+  const { parts, ...own } = asset;
+  return [
+    own,
+    ...parts.map(({ slot, ...p }): SeedAsset => {
+      const part: SeedAsset = { ...p, folder: p.folder ?? own.folder };
+      if (slot === "reference") part.sequence = REFERENCE_SEQUENCE;
+      return part;
+    }),
+  ];
 }
 
 /** The Items panel's rows under a subject: one per sequence / series, then the reference segmentation. */

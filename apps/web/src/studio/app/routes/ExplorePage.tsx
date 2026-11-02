@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AiIcon,
   ArrowRightIcon,
@@ -10,7 +10,6 @@ import {
   DocumentIcon,
   DoneIcon,
   ErrorIcon,
-  ImportedIcon,
   NoRelationshipIcon,
   PrivacyIcon,
   RelationshipIcon,
@@ -28,7 +27,6 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Checkbox } from "@studio/ui/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
 import { Input } from "@studio/ui/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@studio/ui/ui/popover";
 import { Skeleton } from "@studio/ui/ui/skeleton";
@@ -39,7 +37,6 @@ import {
   exploreKeys,
   fetchExplore,
   fetchNode,
-  fetchProposalPreview,
   fetchProposals,
   NeedsApiError,
   recomputeProposal,
@@ -47,7 +44,7 @@ import {
   useProjectDetail,
 } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
-import { exploreUrl, projectTrashUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
+import { exploreUrl, projectTrashUrl, sourcesUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
 import { useRestoreBatch } from "@/studio/lib/trash-api";
 import type { ExploreRecord, ExploreSummary, ExploreTaskRow, Proposal, ProposalStrength, QualityItem, RelationshipEvidence, RelationshipTargetRef } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
@@ -81,7 +78,6 @@ export function ExplorePage() {
   const select = (t: Tab, id?: string | null) => navigate(exploreUrl(projectId, t, id ?? undefined), { replace: true });
   const openRel = all.filter((p) => p.kind === "relationship" && p.status === "proposed").length;
   const openMap = all.filter((p) => p.kind === "mapping" && p.status === "proposed").length;
-  const previewing = all.find((p) => p.id === selected && (p.kind === "dataset" || p.kind === "task") && p.status === "proposed");
   const error = summary.error ?? proposals.error;
 
   return (
@@ -107,7 +103,7 @@ export function ExplorePage() {
               </TabsTrigger>
             </TabsList>
             <TabsContent value="summary">
-              {summary.data && proposals.data ? <ShapeSummary projectId={projectId} s={summary.data} proposals={all} onPreview={(id) => select("summary", id)} /> : <ExploreSkeleton />}
+              {summary.data && proposals.data ? <ShapeSummary projectId={projectId} s={summary.data} proposals={all} /> : <ExploreSkeleton />}
             </TabsContent>
             <TabsContent value="relationships">
               {proposals.data ? <ProposalList kind="relationship" projectId={projectId} proposals={all} selected={selected} onSelect={(id) => select("relationships", id)} /> : <ExploreSkeleton />}
@@ -119,7 +115,6 @@ export function ExplorePage() {
           </Tabs>
         )}
       </div>
-      {previewing && <ActionPreview projectId={projectId} proposal={previewing} onClose={() => select(tab)} />}
     </AppLayout>
   );
 }
@@ -218,7 +213,7 @@ function DecisionButtons({ p, onEdit, editing, decide }: { p: Proposal; onEdit?:
 
 const RECORD_ICON: Record<ExploreRecord["type"], IconComponent> = { series: VolumeIcon, table: TableFileIcon, documents: DocumentIcon, files: DatasetsIcon };
 
-function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: string; s: ExploreSummary; proposals: Proposal[]; onPreview: (id: string) => void }) {
+function ShapeSummary({ projectId, s, proposals }: { projectId: string; s: ExploreSummary; proposals: Proposal[] }) {
   const decide = useDecide(projectId);
   const byId = useMemo(() => new Map(proposals.map((p) => [p.id, p])), [proposals]);
   const restore = useRestoreBatch(projectId);
@@ -236,17 +231,6 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
     );
   return (
     <div className="flex flex-col gap-6" data-testid="shape-summary">
-      {s.clean && s.readyProposalId && (
-        <Card className="flex flex-wrap items-center gap-4 border-dashed border-border-hover bg-utility-tint p-5" data-testid="ready-card">
-          <DatasetsIcon className="size-5 text-hint" />
-          <p className="min-w-0 flex-1 text-body-2">
-            Ready to annotate. {String(byId.get(s.readyProposalId)?.payload.summary ?? "")}
-          </p>
-          <Button size="lg" onClick={() => onPreview(s.readyProposalId!)} data-testid="ready-create">
-            Create dataset & set up the task
-          </Button>
-        </Card>
-      )}
       <div className="grid gap-4 md:grid-cols-3">
         <Column title="Files" hint="What you have">
           <ul className="flex flex-col gap-1.5 text-sm" data-testid="summary-files">
@@ -328,13 +312,14 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
             })}
           </ul>
         </Column>
-        <Column title="Tasks" hint="What you'll annotate">
+        {/* todo20 D3: Studios come from the drop plan, never from a proposal here; this lists them. */}
+        <Column title="Studios" hint="Where you annotate">
           {s.tasks.length === 0 ? (
-            <EmptyState size="s" art="task" title="No tasks yet" description="Confirm how your files fit together first." />
+            <EmptyState size="s" art="task" title="No Studios yet" description="Files you add open in the project's Studio." />
           ) : (
             <ul className="flex flex-col gap-2" data-testid="summary-tasks">
               {s.tasks.map((t) => (
-                <TaskRowView key={t.id} projectId={projectId} t={t} p={t.proposalId ? byId.get(t.proposalId) : undefined} onPreview={onPreview} />
+                <TaskRowView key={t.id} projectId={projectId} t={t} />
               ))}
             </ul>
           )}
@@ -355,35 +340,20 @@ function Column({ title, hint, children }: { title: string; hint: string; childr
   );
 }
 
-function TaskRowView({ projectId, t, p, onPreview }: { projectId: string; t: ExploreTaskRow; p?: Proposal; onPreview: (id: string) => void }) {
-  if (t.status === "confirmed")
-    return (
-      <li className="flex items-start gap-2 rounded-md border border-border p-3" data-testid="task-row">
-        <DoneIcon className="mt-0.5 size-4 shrink-0 text-positive" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{t.title}</p>
-          {t.detail && <p className="text-sm text-muted-foreground">{t.detail}</p>}
-        </div>
-        {t.taskId && (
-          <Button size="sm" variant="outline" asChild>
-            <Link to={studioUrl(projectId, t.taskId)}>Open Studio</Link>
-          </Button>
-        )}
-      </li>
-    );
-  if (!p) return null;
+function TaskRowView({ projectId, t }: { projectId: string; t: ExploreTaskRow }) {
+  if (t.status !== "confirmed") return null;
   return (
-    <li>
-      <ProposalFrame p={p} className="p-3" testid="dataset-proposal">
+    <li className="flex items-start gap-2 rounded-md border border-border p-3" data-testid="task-row">
+      <DoneIcon className="mt-0.5 size-4 shrink-0 text-positive" />
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{t.title}</p>
         {t.detail && <p className="text-sm text-muted-foreground">{t.detail}</p>}
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <Origin p={p} />
-          <Button size="sm" onClick={() => onPreview(p.id)} data-testid="dataset-review">
-            Review & create <ChevronRightIcon />
-          </Button>
-        </div>
-      </ProposalFrame>
+      </div>
+      {t.taskId && (
+        <Button size="sm" variant="outline" asChild>
+          <Link to={studioUrl(projectId, t.taskId)}>Open Studio</Link>
+        </Button>
+      )}
     </li>
   );
 }
@@ -667,99 +637,5 @@ function QualityList({ projectId, items }: { projectId: string; items: QualityIt
         );
       })}
     </Card>
-  );
-}
-
-// ---- Confirming a dataset proposal: the action preview -------------------------------------------
-
-function ActionPreview({ projectId, proposal, onClose }: { projectId: string; proposal: Proposal; onClose: () => void }) {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const preview = useQuery({ queryKey: [...exploreKeys.preview(proposal.id), proposal.payload], queryFn: () => fetchProposalPreview(proposal.id) });
-  const pv = preview.data;
-  const [title, setTitle] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const create = useMutation({
-    mutationFn: async () => {
-      if (title !== null && title.trim() && title.trim() !== pv?.title) await recomputeProposal(proposal.id, { title: title.trim() });
-      return confirmProposal(proposal.id);
-    },
-    onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ["projects", projectId] });
-      // todo8 D7: the owner lands on Task setup, one click from the Studio.
-      if (r.task) navigate(taskSetupUrl(projectId, r.task.id));
-      else onClose();
-    },
-    onError: (e) => setError(e instanceof Error ? e.message : String(e)),
-  });
-  const blocked = (pv?.blocking?.length ?? 0) > 0;
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg" data-testid="action-preview">
-        <DialogHeader>
-          <DialogTitle>Create the dataset and set up its task</DialogTitle>
-          <DialogDescription>Here is everything this will do. Your original files stay exactly as they are.</DialogDescription>
-        </DialogHeader>
-        {!pv ? (
-          <Skeleton className="h-40 rounded-md" />
-        ) : (
-          <div className="flex flex-col gap-4 text-sm">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-hint">Dataset name</span>
-              <Input value={title ?? pv.title ?? ""} onChange={(e) => setTitle(e.target.value)} data-testid="preview-title" />
-            </label>
-            <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2">
-              <dt className="text-hint">Files</dt>
-              <dd className="tnum" data-testid="preview-files">
-                {pv.files?.toLocaleString()} {pv.files === 1 ? "file" : "files"}
-                {pv.heldFiles ? ` (${pv.heldFiles} held for privacy review stay out until cleared)` : ""}
-              </dd>
-              <dt className="text-hint">Items</dt>
-              <dd>{pv.grouping}</dd>
-              <dt className="text-hint">Studio</dt>
-              <dd>{pv.taskTitle} · {(pv.preset ?? "").replace(/^preset:/, "")}</dd>
-              {(pv.labelClasses?.length ?? 0) > 0 && (
-                <>
-                  <dt className="text-hint">Label classes</dt>
-                  <dd className="flex flex-wrap gap-1.5" data-testid="preview-classes">
-                    {pv.labelClasses!.map((c) => (
-                      <Badge key={c} theme="clear">{c}{pv.groups?.find((g) => g.label === c) ? ` · ${pv.groups!.find((g) => g.label === c)!.count}` : ""}</Badge>
-                    ))}
-                  </dd>
-                </>
-              )}
-            </dl>
-            {(pv.importedLabels ?? 0) > 0 && (
-              <p className="flex items-start gap-2 rounded-md bg-info-tint p-3" data-testid="preview-imported">
-                <ImportedIcon className="mt-0.5 size-4 shrink-0 text-info" />
-                <span>
-                  Imports {pv.importedLabels} {pv.importedLabels === 1 ? "label" : "labels"} from <code>{pv.labelsFrom}</code> as <em>imported</em> annotations. They count as unreviewed until you accept them.
-                </span>
-              </p>
-            )}
-            {(pv.alsoConfirms?.length ?? 0) > 0 && (
-              <div>
-                <p className="text-xs text-hint">Also confirms</p>
-                <ul className="mt-1 list-disc pl-5" data-testid="preview-also">
-                  {pv.alsoConfirms!.map((a) => <li key={a.id}>{String(a.payload.summary ?? a.kind)}</li>)}
-                </ul>
-              </div>
-            )}
-            {pv.blocking?.map((b) => (
-              <p key={b.nodeId} className="flex items-start gap-2 text-warning" role="alert">
-                <PrivacyIcon className="mt-0.5 size-4 shrink-0" /> <span>{b.reason}. <Link className="underline" to={sourcesUrl(projectId, b.nodeId)}>Open in Sources</Link></span>
-              </p>
-            ))}
-            {error && <p className="text-danger" role="alert">{error}</p>}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button loading={create.isPending} disabled={!pv || blocked} onClick={() => create.mutate()} data-testid="create-and-open">
-            Create & set up the task
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

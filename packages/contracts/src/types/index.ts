@@ -40,6 +40,16 @@ export interface SeedAsset {
    * detected file kind such as `slide`), from the task document. Picks the profile it opens with.
    */
   kind?: string;
+  /**
+   * todo20 D9: files that are a slot of this item, not items of their own (task documents). A
+   * subject's `_seg` is its `reference` part, loaded by the data kind as a label layer.
+   */
+  parts?: AssetPart[];
+}
+
+/** One slot of an item's asset (todo20 D9): its own file, and the role it plays in the item. */
+export interface AssetPart extends Omit<SeedAsset, "parts" | "role"> {
+  slot: "reference" | "signal" | "sidecar";
 }
 
 export interface AssetDerivative {

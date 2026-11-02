@@ -25,7 +25,8 @@ interface Crumb {
 }
 
 /**
- * Name, folders and a preset. Folders are picked in a flat list with a breadcrumb (Finder's
+ * Name, folders and a preset. With no preset (todo20 D6) the Studio accepts every kind in the
+ * picked folders, each with its profile's preset (the kernel works that out). Folders are picked in a flat list with a breadcrumb (Finder's
  * column-less list view): click a name to open it, tick it to include all of it.
  */
 export function NewDatasetDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
@@ -34,7 +35,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
   const sources = useQuery({ queryKey: projectKeys.sources(projectId), queryFn: () => fetchSources(projectId) });
   const presets = useMemo(() => registry.list("presets").map((p) => ({ value: `preset:${p.name}`, title: p.title, description: p.description })), []);
   const [title, setTitle] = useState("");
-  const [taskTitle, setTaskTitle] = useState("Annotate");
+  const [taskTitle, setTaskTitle] = useState("Studio");
   const [preset, setPreset] = useState<string>("");
   const [picked, setPicked] = useState<Map<string, string>>(new Map());
   const [sourceId, setSourceId] = useState<string | null>(null);
@@ -43,7 +44,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
   const here = trail.at(-1)?.id ?? null;
   const children = useQuery({ queryKey: projectKeys.children(source?.id ?? "", here), queryFn: () => fetchChildren(source!.id, here), enabled: !!source });
   const create = useMutation({
-    mutationFn: () => createDataset(projectId, { title: title.trim(), nodeIds: [...picked.keys()], task: { title: taskTitle.trim() || "Annotate", ...(preset ? { preset } : {}) } }),
+    mutationFn: () => createDataset(projectId, { title: title.trim(), nodeIds: [...picked.keys()], task: { title: taskTitle.trim() || "Studio", ...(preset ? { preset } : {}) } }),
     onSuccess: (d) => {
       invalidateFor(qc, projectId, "dataset.changed");
       void qc.invalidateQueries({ queryKey: projectKeys.overview(projectId) });
@@ -143,7 +144,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
             <div className="grid gap-1.5">
               <Label htmlFor="dataset-preset">Studio setup</Label>
               <Select value={preset} onValueChange={setPreset}>
-                <SelectTrigger id="dataset-preset" data-testid="preset-picker"><SelectValue placeholder="Choose later" /></SelectTrigger>
+                <SelectTrigger id="dataset-preset" data-testid="preset-picker"><SelectValue placeholder="Every kind in these folders" /></SelectTrigger>
                 <SelectContent>
                   {presets.map((p) => (
                     <SelectItem key={p.value} value={p.value} title={p.description}>{p.title}</SelectItem>
@@ -152,7 +153,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="task-title">First task</Label>
+              <Label htmlFor="task-title">Studio name</Label>
               <Input id="task-title" value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} />
             </div>
           </div>

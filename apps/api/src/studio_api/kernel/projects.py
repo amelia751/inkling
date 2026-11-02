@@ -44,7 +44,7 @@ from ..models import (
     now,
 )
 from . import assets, audit, events, fs, tree
-from .kinds import VIEWABLE, subject_sequence, wfdb_parts
+from .kinds import VIEWABLE, mask_volumes, subject_sequence, wfdb_parts
 
 log = logging.getLogger(__name__)
 
@@ -975,10 +975,30 @@ def task_document(db: Session, t: TaskRow) -> dict:
         for n, ref in files:
             if n.id in signal_of and (sa := db.get(Asset, pinned_view(db, n, ref)[3] or "")) is not None:
                 signals.setdefault(signal_of[n.id], []).append(sa.path)
+        # todo20 D9: a subject's `_seg` (a mask beside a volume of its subject) is that volume's
+        # `reference` slot, loaded as its label layer: a part of the subject's item, not an item.
+        views = {n.id: pinned_view(db, n, ref) for n, ref in files}
+        reference_of = mask_volumes([(n.id, n.parent_id, n.name, views[n.id][0]) for n, _ in files])
+        reference_parts: dict[str, list[dict]] = {}
+        for n, _ in files:
+            if n.id not in reference_of:
+                continue
+            kind, facts, flags, asset_id, sha, size = views[n.id]
+            if (flags.get("privacy") or {}) and not flags["privacy"].get("clearedBy"):
+                continue
+            if asset_id is None or (ma := db.get(Asset, asset_id)) is None:
+                continue
+            part = {"slot": "reference", "kind": "mask", "path": ma.path, "sha256": sha or "", "bytes": size or 0, "name": n.name, "nodeId": n.id}
+            if (ss := subject_sequence(n.name)) is not None:
+                part["subject"], part["sequence"] = ss[0], ss[1] or "seg"
+            reference_parts.setdefault(reference_of[n.id], []).append(part)
+        placed = {p["nodeId"] for ps in reference_parts.values() for p in ps}
         for n, ref in files:
             if n.id in signal_of:
                 continue
-            kind, facts, flags, asset_id, sha, size = pinned_view(db, n, ref)
+            if n.id in placed:
+                continue
+            kind, facts, flags, asset_id, sha, size = views[n.id]
             if asset_id is None or (kind or "") not in VIEWABLE or kind is None:
                 continue
             if (flags.get("privacy") or {}) and not flags["privacy"].get("clearedBy"):
@@ -1013,6 +1033,8 @@ def task_document(db: Session, t: TaskRow) -> dict:
             _subject_sequence(db, entry, n, kind, facts)
             if n.id in labels:
                 entry["label"] = labels[n.id]
+            if n.id in reference_parts:
+                entry["parts"] = reference_parts[n.id]
             items.append(entry)
     # todo18 D4: videos and slides the browser can't show play from their derivative.
     from . import derivatives

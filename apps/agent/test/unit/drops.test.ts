@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AgentEvent } from "@studio/agent-protocol";
-import { dropBlock, safeSummary } from "../../src/tools/drops.ts";
+import { dropBlock, dropStatus, safeSummary, waitForDrop } from "../../src/tools/drops.ts";
 import { harness } from "./harness.ts";
 
 /**
@@ -19,7 +19,8 @@ const DROP = "drp-0123456789abcdef01234567";
 const SUMMARY = {
   dropId: DROP,
   origin: "chat",
-  state: "inspecting",
+  // Settled, so get_drop answers at once (todo20 D8: it waits for a drop still in progress).
+  state: "ready",
   total: 2,
   byKind: { dicom: 1, image: 1 },
   bytes: 1234,
@@ -112,5 +113,45 @@ describe("drops on messages", () => {
     expect(m.status).toBe(202);
     const events: AgentEvent[] = await h.drive(m.body.runId);
     expect(events.some((e) => e.type === "custom")).toBe(false);
+  });
+});
+
+describe("waiting for a drop to settle (todo20 D8)", () => {
+  const kernelSeq = (states: Record<string, unknown>[]) => {
+    let i = 0;
+    const calls = { n: 0 };
+    const k = { get: async () => { calls.n += 1; return states[Math.min(i++, states.length - 1)]; } } as unknown as Parameters<typeof waitForDrop>[0];
+    return { k, calls };
+  };
+  const base = { dropId: DROP, byKind: {}, bytes: 0, groups: [], files: [] };
+
+  it("polls until the drop settles and never says 0 files mid-upload", async () => {
+    const { k, calls } = kernelSeq([
+      { ...base, state: "uploading", total: 0, expected: 35, states: {} },
+      { ...base, state: "uploading", total: 35, expected: 35, states: { uploading: 23 } },
+      { ...base, state: "duplicate", total: 35, expected: 35, states: { duplicate: 35 } },
+    ]);
+    let t = 0;
+    const { summary, settled } = await waitForDrop(k, DROP, { sleep: async (ms) => void (t += ms), now: () => t });
+    expect(settled).toBe(true);
+    expect(calls.n).toBe(3);
+    expect(summary.status).toBe("These 35 files are already in this project");
+  });
+
+  it("gives up after the bound and says how far the upload got", async () => {
+    const { k } = kernelSeq([{ ...base, state: "uploading", total: 35, expected: 35, states: { uploading: 23 } }]);
+    let t = 0;
+    const { summary, settled } = await waitForDrop(k, DROP, { timeoutMs: 20_000, sleep: async (ms) => void (t += ms), now: () => t });
+    expect(settled).toBe(false);
+    expect(t).toBeLessThanOrEqual(20_000);
+    expect(summary.status).toBe("Still uploading (12 of 35)");
+    expect(dropStatus({ ...base, state: "uploading", total: 0, states: {} } as never)).toBe("Still uploading: no file has arrived yet");
+  });
+
+  it("reports a failed drop with its reason and grouped findings, and a partly ready one", () => {
+    const failed = safeSummary({ ...base, state: "failed", total: 0, states: {}, failure: { step: "import", reason: "The write breaks the project's rules" }, findings: [{ rule: "name.pattern", outcome: "refused", count: 35, files: ["Smith.dcm"] }] });
+    expect(JSON.stringify(failed)).not.toContain("Smith");
+    expect(dropStatus(failed)).toBe("The drop failed: The write breaks the project's rules (35 files: name.pattern (refused))");
+    expect(dropStatus({ ...base, state: "partly_ready", total: 35, states: { ready: 33, failed: 2 } } as never)).toBe("33 files ready, 2 failed");
   });
 });

@@ -186,7 +186,7 @@ export const useBoots = create<BootsState>()((set, get) => {
       const b = get().boots[bootId];
       if (!b || b.state !== "running") return;
       // A boot the model is running: stop its run. Steps already done stay done.
-      if (b.initiator?.runId && useAgent.getState().active?.runId === b.initiator.runId) useAgent.getState().stop();
+      if (b.initiator?.runId && useAgent.getState().runs[b.projectId]?.runId === b.initiator.runId) useAgent.getState().stop(b.projectId);
       put(bootId, b.projectId, (x) => ({ ...x, state: "stopped", finishedAt: Date.now() }));
     },
     undo: async (bootId) => {

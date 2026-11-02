@@ -65,7 +65,7 @@ FIXTURE: dict[str, tuple[str, dict]] = {
 }
 # The task document lists one asset per viewable file, each by its original filename (grouping
 # into items, e.g. the BraTS subject, happens in the Studio, checked in the browser below).
-EXPECTED_ASSETS = {"cxr_0001.png", *(f"{BRATS}_{s}.nii.gz" for s in ("t1", "t1ce", "t2", "flair", "seg")), f"{CINE}_4d.nii.gz", "00001_hr.hea", "colitis-0001.avi", "TCGA-A6-5665-01Z.svs"}
+EXPECTED_ASSETS = {"cxr_0001.png", *(f"{BRATS}_{s}.nii.gz" for s in ("t1", "t1ce", "t2", "flair")), f"{CINE}_4d.nii.gz", "00001_hr.hea", "colitis-0001.avi", "TCGA-A6-5665-01Z.svs"}
 # What the Studio's item list should show: one name per item, the original filename.
 EXPECTED_ITEMS = {"cxr_0001.png", f"{BRATS}_t1.nii.gz", f"{CINE}_4d.nii.gz", "00001_hr.hea", "colitis-0001.avi", "TCGA-A6-5665-01Z.svs"}
 
@@ -168,8 +168,11 @@ def run_api(db: Path) -> dict:
     check("no item is named by a storage key", not any(STORAGE_KEY.search(n) for n in names), json.dumps([n for n in names if STORAGE_KEY.search(n)]))
     check("every item carries its kind", all(a.get("kind") for a in assets), json.dumps([(a.get("name"), a.get("kind")) for a in assets])[:400])
     check("items of six kinds in one task", len({a.get("kind") for a in assets}) >= 6, json.dumps(sorted({str(a.get("kind")) for a in assets})))
-    seg = next((a for a in assets if (a.get("name") or "") == f"{BRATS}_seg.nii.gz"), None)
-    check("the BraTS seg is a mask of the same task, served by its subject's profile", seg is not None and seg.get("kind") == "mask" and bool(seg.get("profile")), json.dumps(seg)[:300])
+    # todo20 D9: the seg is the subject's `reference` slot, a part of its item, not an item.
+    owner = next((a for a in assets if any((p.get("name") or "") == f"{BRATS}_seg.nii.gz" for p in a.get("parts") or [])), None)
+    seg = next((p for p in (owner or {}).get("parts") or [] if (p.get("name") or "") == f"{BRATS}_seg.nii.gz"), None)
+    check("the BraTS seg is not an item of its own", not any(a.get("kind") == "mask" for a in assets), json.dumps([a.get("name") for a in assets if a.get("kind") == "mask"]))
+    check("the BraTS seg is the reference part of its subject's item", owner is not None and owner.get("subject") == BRATS and owner.get("kind") == "volume" and bool(owner.get("profile")) and seg is not None and seg.get("slot") == "reference" and seg.get("kind") == "mask", json.dumps(owner)[:400])
     return {"project": project, "task": task}
 
 

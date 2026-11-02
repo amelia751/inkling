@@ -34,7 +34,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session, session_scope
-from ..kernel import dataset_profile, datasets_views, events, overview, projects, samples, write_doors
+from ..kernel import dataset_profile, datasets_views, events, intents, overview, projects, samples, tree, write_doors
 from ..kernel import rules as krules
 from ..kernel.admission import Ctx, admit
 from ..kernel.admission.http import WriteParams, declares, write_params
@@ -152,7 +152,18 @@ def create_dataset(project_id: str, body: dict = Body(...), w: WriteParams = Dep
         task = body.get("task")
         if isinstance(task, dict):
             env = task.get("environment") or ({"extends": task["preset"]} if task.get("preset") else None)
-            projects.create_task(db, ctx, d, str(task.get("title") or d.title), str(task.get("kind") or "annotate"), env)
+            accepts = None
+            if env is None:
+                # todo20 D6: no preset chosen → a Studio accepting every kind in the picked
+                # folders, each kind with its profile's preset (todo19 D4, as the drop plan boots).
+                kinds = list(dict.fromkeys(n.detected_kind for n in tree.files_under(db, node_ids) if n.detected_kind))
+                pairs = [(k, pr) for k in kinds if (pr := intents.preset_for_kind(k))]
+                if pairs:
+                    presets = list(dict.fromkeys(pr for _, pr in pairs))
+                    env, accepts = {"extends": presets[0] if len(presets) == 1 else presets}, [k for k, _ in pairs]
+            t = projects.create_task(db, ctx, d, str(task.get("title") or "Studio"), str(task.get("kind") or "annotate"), env)
+            if accepts:
+                t.accepts = accepts
         return with_findings(projects.dataset_dict(db, d), admitted)
 
     if w.dry_run:

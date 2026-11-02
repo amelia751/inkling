@@ -51,7 +51,19 @@ export function agentUnavailable(e: unknown): boolean {
   if (e instanceof AgentHttpError) return e.status === 502 || e.status === 503 || e.status === 504;
   return e instanceof TypeError || (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError"));
 }
-export const createSession = (req: CreateSessionRequest) => call<CreateSessionResponse>("POST", "/sessions", req);
+/** todo20: `sessionId` names the session (a chat made offline keeps its id); idempotent on the service. */
+export const createSession = (req: CreateSessionRequest & { sessionId?: string }) => call<CreateSessionResponse>("POST", "/sessions", req);
+/** todo20 D2: a chat is an agent session in a project; the list is the owner's, newest first. */
+export interface ChatSummary {
+  id: string;
+  projectId: string;
+  title: string | null;
+  createdAt: number | string;
+  updatedAt: number | string;
+}
+export const listChats = (projectId: string) => call<{ sessions: ChatSummary[] }>("GET", `/sessions?projectId=${encodeURIComponent(projectId)}`);
+/** The thread rebuilt on the server (transcript plus run events), in the drawer's message shape. */
+export const fetchThread = <M>(sessionId: string) => call<{ sessionId: string; messages: M[] }>("GET", `/sessions/${encodeURIComponent(sessionId)}/thread`);
 export const deleteSession = (sessionId: string) => call<void>("DELETE", `/sessions/${sessionId}`);
 export const sendMessage = (sessionId: string, req: SendMessageRequest) => call<SendMessageResponse>("POST", `/sessions/${sessionId}/messages`, req);
 export const cancelRun = (runId: string) => call<unknown>("POST", `/runs/${runId}/cancel`);

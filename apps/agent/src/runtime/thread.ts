@@ -1,0 +1,125 @@
+import type { ThreadMessage, ThreadPart } from "@studio/agent-protocol";
+import type { RunRecord } from "../store/types.ts";
+
+/**
+ * todo20 W3 / D2: a conversation's visible thread, rebuilt on the server from the stored pi
+ * transcript plus the session's run records, in the shape the web drawer renders
+ * (`ChatMessage` in apps/web/src/studio/stores/agent.ts). Browser-only parts (cards, approvals,
+ * environment changes, boots) aren't in the transcript; the web's local cache keeps those.
+ */
+
+const TITLE_MAX = 60;
+
+/** The user's own words in a stored user message: no `<studio_context>` block, no `<drop>` block. */
+export function parseUserText(raw: string): { text: string; dropId?: string } {
+  let s = raw.replace(/^<studio_context>[\s\S]*?<\/studio_context>\s*/, "");
+  let dropId: string | undefined;
+  s = s.replace(/<drop id="([^"]+)"(?:[^>]*\/>|>[\s\S]*?<\/drop>)\s*/g, (_m, id: string) => {
+    dropId ??= id;
+    return "";
+  });
+  return { text: s.trim(), ...(dropId ? { dropId } : {}) };
+}
+
+/** A chat title from the first user message: one line, at most ~60 characters. */
+export function titleFrom(text: string): string | null {
+  const line = text.replace(/\s+/g, " ").trim();
+  if (!line) return null;
+  return line.length <= TITLE_MAX ? line : `${line.slice(0, TITLE_MAX - 1).trimEnd()}…`;
+}
+
+type Content = string | { type: string; text?: string; thinking?: string; id?: string; name?: string; arguments?: unknown }[];
+interface Entry {
+  type?: string;
+  id?: string;
+  timestamp?: string;
+  message?: { role?: string; content?: Content; timestamp?: number; model?: string; provider?: string; toolCallId?: string; isError?: boolean; details?: { summary?: unknown }; stopReason?: string; errorMessage?: string };
+}
+
+const textOf = (c: Content | undefined): string =>
+  typeof c === "string" ? c : (c ?? []).filter((p) => p.type === "text").map((p) => p.text ?? "").join("");
+
+/** Title from a transcript (header first): the first user message's own words. */
+export function titleFromTranscript(entries: unknown[]): string | null {
+  for (const e of entries as Entry[]) {
+    if (e?.type === "message" && e.message?.role === "user") {
+      const t = titleFrom(parseUserText(textOf(e.message.content)).text);
+      if (t) return t;
+    }
+  }
+  return null;
+}
+
+const firstLine = (s: string) => s.split("\n").find((l) => l.trim())?.trim().slice(0, 200);
+
+/**
+ * `entries`: the transcript, header first. `runs`: the session's run records (any order); each
+ * assistant message gets the run that was started last at or before its user message.
+ */
+export function buildThread(entries: unknown[], runs: RunRecord[], titles: ReadonlyMap<string, string> = new Map()): ThreadMessage[] {
+  const sorted = [...runs].sort((a, b) => a.createdAt - b.createdAt);
+  const out: ThreadMessage[] = [];
+  let assistant: ThreadMessage | undefined;
+  const runFor = (at: number) => {
+    let found: RunRecord | undefined;
+    // 2 s slack: the run record is written just after the message is accepted.
+    for (const r of sorted) if (r.createdAt <= at + 2000) found = r;
+    return found;
+  };
+  for (const e of entries as Entry[]) {
+    if (e?.type !== "message" || !e.message) continue;
+    const m = e.message;
+    const at = Number(m.timestamp) || Date.parse(e.timestamp ?? "") || 0;
+    if (m.role === "user") {
+      const { text, dropId } = parseUserText(textOf(m.content));
+      const parts: ThreadPart[] = [...(dropId ? [{ type: "drop" as const, id: dropId }] : []), ...(text ? [{ type: "text" as const, text }] : [])];
+      out.push({ id: e.id ?? `u${out.length}`, role: "user", parts });
+      const run = runFor(at);
+      assistant = { id: `${e.id ?? out.length}-a`, role: "assistant", parts: [] };
+      if (run) {
+        assistant.runId = run.id;
+        assistant.runStatus = run.status === "interrupted" ? "failed" : run.status;
+        if (run.status === "cancelled") assistant.stopped = true;
+        if (run.status === "interrupted") assistant.error = "The run was interrupted. Send “continue” to pick up where it left off.";
+        if (run.usage) assistant.usage = { ...run.usage };
+      }
+      out.push(assistant);
+      continue;
+    }
+    if (m.role !== "assistant" && m.role !== "toolResult") continue;
+    if (!assistant) {
+      assistant = { id: `${e.id ?? out.length}-a`, role: "assistant", parts: [] };
+      out.push(assistant);
+    }
+    const parts = assistant.parts;
+    if (m.role === "assistant") {
+      if (m.provider && m.model) assistant.model = `${m.provider}:${m.model}`;
+      for (const c of typeof m.content === "string" ? [{ type: "text", text: m.content }] : (m.content ?? [])) {
+        const last = parts[parts.length - 1];
+        if (c.type === "text" && c.text) {
+          if (last?.type === "text") last.text += c.text;
+          else parts.push({ type: "text", text: c.text });
+        } else if (c.type === "thinking" && c.thinking) {
+          if (last?.type === "reasoning") last.text += c.thinking;
+          else parts.push({ type: "reasoning", text: c.thinking });
+        } else if (c.type === "toolCall" && c.id && c.name) {
+          parts.push({ type: "tool", id: c.id, name: c.name, title: titles.get(c.name) ?? c.name, status: "running", input: c.arguments });
+        }
+      }
+      if (m.stopReason === "error" && m.errorMessage) assistant.error = m.errorMessage;
+    } else if (m.role === "toolResult" && m.toolCallId) {
+      const p = parts.find((x) => x.type === "tool" && x.id === m.toolCallId);
+      if (p?.type === "tool") {
+        p.status = m.isError ? "error" : "done";
+        const own = m.details?.summary;
+        const summary = typeof own === "string" ? own : firstLine(textOf(m.content));
+        if (summary) p.summary = summary;
+      }
+    }
+  }
+  // A tool still "running" in a finished run never got its result (cancelled, crashed).
+  for (const msg of out)
+    if (msg.role === "assistant" && msg.runStatus && !["queued", "running", "awaiting_approval"].includes(msg.runStatus))
+      for (const p of msg.parts) if (p.type === "tool" && p.status === "running") p.status = "error";
+  return out;
+}

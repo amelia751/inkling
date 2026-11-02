@@ -62,8 +62,8 @@ def main() -> int:
             page.get_by_test_id("studio-more").click()
             menu = page.get_by_role("menu")
             menu.wait_for(timeout=5000)
-            check("⋯ holds Task setup, shortcuts, Plugins, Theme and project Review",
-                  all(menu.get_by_text(t).count() for t in ("Task setup…", "Keyboard shortcuts", "Theme", "Open project Review")) and page.get_by_role("link", name="Plugins").count() == 1,
+            check("⋯ holds Studio settings, shortcuts, Plugins, Theme and project Review",
+                  all(menu.get_by_text(t).count() for t in ("Studio settings…", "Keyboard shortcuts", "Theme", "Open project Review")) and page.get_by_role("link", name="Plugins").count() == 1,
                   menu.inner_text().replace("\n", " · "))
             page.keyboard.press("Escape")
             menu.wait_for(state="detached", timeout=5000)

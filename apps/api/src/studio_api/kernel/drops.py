@@ -260,8 +260,10 @@ def session_started(db: Session, ctx: RequestContext, d: Drop, s: ImportSession)
     db.flush()
     check_limits(_count(db, d), _bytes(db, d))
     d.updated_at = now()
-    if d.state == "failed":
+    if d.state in ("failed", "ready", "partly_ready", "duplicate"):
+        # Another session of the gesture (a retry, the rest of a big drop): it's open again.
         d.state = "uploading"
+        d.declared = {k: v for k, v in (d.declared or {}).items() if k != "failure"}
     _log(d, "drop.session", importId=s.id)
 
 
@@ -290,10 +292,12 @@ def session_completed(db: Session, ctx: RequestContext, s: ImportSession, node_i
             _publish(db, ctx, d, "drop.file", {"nodeId": nid, "state": "checking"})
     elif all(x.state in ("failed", "cancelled") for x in _sessions(db, d)):
         d.state = "failed"
+        _fail_reason(d, "upload", "No file finished uploading")
         _publish(db, ctx, d, "drop.failed", {"step": "upload", "errorClass": "no_file_uploaded"})
         _log(d, "drop.failed", step="upload")
     d.updated_at = now()
     _log(d, "drop.uploaded", committed=len(node_ids))
+    settle(db, ctx, d)
 
 
 def session_cancelled(db: Session, ctx: RequestContext, s: ImportSession) -> None:
@@ -302,8 +306,10 @@ def session_cancelled(db: Session, ctx: RequestContext, s: ImportSession) -> Non
         return
     if all(x.state in ("failed", "cancelled") for x in _sessions(db, d)) and not db.scalar(select(SourceNode.id).where(SourceNode.import_session_id.in_([x.id for x in _sessions(db, d)])).limit(1)):
         d.state = "failed"
+        _fail_reason(d, "upload", "Cancelled")
         _publish(db, ctx, d, "drop.failed", {"step": "upload", "errorClass": "cancelled"})
         _log(d, "drop.failed", step="upload", errorClass="cancelled")
+    settle(db, ctx, d)
 
 
 def session_inspected(db: Session, ctx: RequestContext, s: ImportSession, node_ids: list[str]) -> None:
@@ -314,6 +320,152 @@ def session_inspected(db: Session, ctx: RequestContext, s: ImportSession, node_i
         _publish(db, ctx, d, "drop.file", {"nodeId": n.id, "state": _node_state(n, d)})
     d.updated_at = now()
     _log(d, "drop.inspected", files=len(node_ids))
+    settle(db, ctx, d)
+
+
+# ---- Settling and findings (todo20 D8) ------------------------------------------------------
+#
+# A drop always ends in a state: once every session of it has ended (ready, needs review,
+# failed, cancelled) a drop still `uploading` or `inspecting` becomes `ready`, `partly_ready`
+# (some files failed), `duplicate` (every file was already here) or `failed`. The classifier
+# (drops_plan) may move it on to `planned` / `applied` afterwards.
+
+OPEN_SESSION_STATES = ("uploading", "inspecting")
+SETTLED = ("ready", "partly_ready", "duplicate", "failed", "classified", "planned", "applied")
+FINDING_SAMPLE = 5
+
+
+def _fail_reason(d: Drop, step: str, reason: str) -> None:
+    d.declared = {**(d.declared or {}), "failure": {"step": step, "reason": reason[:300]}}
+
+
+def _same_bytes(f: UploadFile, n: SourceNode | None) -> bool:
+    """todo20 D5: a file uploaded again whose bytes were already in the project (a new node)."""
+    return n is not None and f.state == "uploaded" and ((f.reason or "").startswith("Same file as") or bool((n.flags or {}).get("duplicate_of")))
+
+
+def settle(db: Session, ctx: RequestContext | None, d: Drop) -> str:
+    """Move a drop whose sessions all ended out of `uploading` / `inspecting`. Idempotent."""
+    if d.state not in OPEN_SESSION_STATES:
+        return d.state
+    sessions = _sessions(db, d)
+    if not sessions or any(s.state in OPEN_SESSION_STATES for s in sessions):
+        return d.state
+    good = failed = dup = 0
+    for s, f, n in _rows(db, d):
+        st = _file_state(s, f, n, d)
+        if st in ("removed", "deleted"):
+            continue
+        if st == "failed" or st == "uploading" or (st == "checking" and s.state == "failed"):
+            failed += 1
+        elif st == "duplicate" or _same_bytes(f, n):
+            dup += 1
+        else:
+            good += 1
+    if good == 0 and failed == 0 and dup > 0:
+        d.state = "duplicate"
+    elif good == 0:
+        d.state = "failed"
+        if not (d.declared or {}).get("failure"):
+            reason = next((s.error for s in sessions if s.error), None) or "No file could be added"
+            _fail_reason(d, "upload", reason)
+    else:
+        d.state = "partly_ready" if failed else "ready"
+    d.updated_at = now()
+    if ctx is None:
+        ctx = RequestContext(d.project_id, "service:drops", f"settle-{d.id}")
+    if d.state == "failed":
+        _publish(db, ctx, d, "drop.failed", {"step": "upload", "errorClass": "nothing_added"})
+    # Otherwise the session's own `import.updated` tells clients to read the drop again.
+    _log(d, "drop.settled", ready=good, failed=failed, duplicate=dup)
+    return d.state
+
+
+def session_ended(db: Session, s: ImportSession) -> None:
+    """A session ended outside a request about its drop (housekeeping's stall check)."""
+    d = db.get(Drop, s.drop_id) if s.drop_id else None
+    if d is not None:
+        settle(db, None, d)
+
+
+def _outcome(f: dict, refused: bool) -> str:
+    if f.get("renamedTo"):
+        return "renamed"
+    if refused and f.get("severity") == "error" and not f.get("evaluate"):
+        return "refused"
+    return "reported"
+
+
+_OUTCOME_WORDS = {"renamed": "renamed automatically", "refused": "refused", "reported": "reported"}
+
+
+def group_findings(findings: list[dict], *, refused: bool = False) -> list[dict]:
+    """Per-file findings grouped by rule and outcome, never one line per file:
+    `{rule, severity, outcome, message, count, files, renamedTo?, headline}`. `files` and
+    `renamedTo` (`[{from, to}]`) are samples of at most FINDING_SAMPLE; `count` is the total."""
+    out: dict[tuple[str, str], dict] = {}
+    for f in findings:
+        outcome = _outcome(f, refused)
+        key = (str(f.get("rule") or "unknown"), outcome)
+        g = out.get(key)
+        if g is None:
+            g = out[key] = {"rule": key[0], "severity": f.get("severity") or "info", "outcome": outcome, "message": f.get("message") or "", "count": 0, "files": []}
+        g["count"] += 1
+        file = f.get("file")
+        if file and len(g["files"]) < FINDING_SAMPLE:
+            g["files"].append(file)
+        if f.get("renamedTo"):
+            ren = g.setdefault("renamedTo", [])
+            if len(ren) < FINDING_SAMPLE:
+                ren.append({"from": file, "to": f["renamedTo"]})
+    for g in out.values():
+        _headline(g)
+    return list(out.values())
+
+
+def _headline(g: dict) -> None:
+    n = g["count"]
+    what = g["message"].rstrip(".") or g["rule"]
+    g["headline"] = f"{n} file{'s' if n != 1 else ''}: {what[:1].lower() + what[1:]}, {_OUTCOME_WORDS.get(g['outcome'], g['outcome'])}"
+
+
+def merge_findings(a: list[dict], b: list[dict]) -> list[dict]:
+    by = {(g["rule"], g["outcome"]): {**g, "files": list(g.get("files") or [])} for g in a}
+    for g in b:
+        k = (g["rule"], g["outcome"])
+        if k not in by:
+            by[k] = {**g, "files": list(g.get("files") or [])}
+            continue
+        m = by[k]
+        m["count"] += g["count"]
+        m["files"] = (m["files"] + list(g.get("files") or []))[:FINDING_SAMPLE]
+        if g.get("renamedTo"):
+            m["renamedTo"] = (list(m.get("renamedTo") or []) + g["renamedTo"])[:FINDING_SAMPLE]
+        _headline(m)
+    return list(by.values())
+
+
+def add_findings(d: Drop, grouped: list[dict]) -> None:
+    if grouped:
+        d.declared = {**(d.declared or {}), "findings": merge_findings(list((d.declared or {}).get("findings") or []), grouped)}
+
+
+def import_rejected(db: Session, ctx: RequestContext, drop_id: str, grouped: list[dict], title: str) -> None:
+    """A refused import (422 from the project's rules): its drop fails at once with the grouped
+    findings, unless an earlier session of the drop added files (then it settles as usual).
+    The caller has rolled the request back and commits after."""
+    d = db.get(Drop, drop_id) if isinstance(drop_id, str) else None
+    if d is None:
+        return
+    add_findings(d, grouped)
+    if _sessions(db, d):
+        settle(db, ctx, d)
+    else:
+        d.state = "failed"
+        _fail_reason(d, "import", title)
+        d.updated_at = now()
+        _publish(db, ctx, d, "drop.failed", {"step": "import", "errorClass": "rejected"})
+        _log(d, "drop.failed", step="import", errorClass="rejected")
 
 
 # ---- Views ----------------------------------------------------------------------------------
@@ -408,17 +560,10 @@ def person_view(db: Session, d: Drop) -> dict:
         "updatedAt": projects.iso(d.updated_at),
         "importIds": [s.id for s in _sessions(db, d)],
         "files": files,
+        "findings": list((d.declared or {}).get("findings") or []),
+        **({"failure": (d.declared or {})["failure"]} if (d.declared or {}).get("failure") else {}),
         "summary": summary(db, d),
     }
-
-
-def settled_state(d: Drop, states: dict[str, int], already: int | None = None) -> str:
-    """The drop's state, or `duplicate` (todo20 D5) when every file was already in the project."""
-    total = sum(states.values())
-    already = states.get("duplicate", 0) if already is None else already
-    if total and already >= total and d.state not in ("failed", "uploading"):
-        return "duplicate"
-    return d.state
 
 
 def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -> dict:
@@ -448,21 +593,29 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
     total = sum(states.values())
     # todo20 D5: files whose bytes were already in the project vs new ones; a drop of only
     # known files settles as `duplicate`, never silently.
-    already = states.get("duplicate", 0) + sum(1 for _s, f, n in rows if n is not None and f.state == "uploaded" and ((f.reason or "").startswith("Same file as") or (n.flags or {}).get("duplicate_of")))
+    already = states.get("duplicate", 0) + sum(1 for _s, f, n in rows if _same_bytes(f, n))
     new = sum(v for k, v in states.items() if k in ("ready", "kept", "checking")) - (already - states.get("duplicate", 0))
     out = {
         "dropId": d.id,
         "origin": d.origin,
-        "state": settled_state(d, states, already),
+        "state": d.state,
         "total": total,
         "new": max(new, 0),
         "alreadyHere": already,
+        # todo20 D8: the files the browser declared, so "still uploading (12 of 35)" can be said.
+        "expected": int((d.declared or {}).get("files") or 0),
         "byKind": by_kind,
         "bytes": total_bytes,
         "states": states,
         "groups": classified_groups(db, d.id) or groups(visible),
         "files": files,
     }
+    # todo20 D8: grouped findings carry no file names (the agent sees counts and rules only).
+    found = (d.declared or {}).get("findings") or []
+    if found:
+        out["findings"] = [{k: g[k] for k in ("rule", "severity", "outcome", "message", "count") if k in g} for g in found]
+    if (d.declared or {}).get("failure"):
+        out["failure"] = (d.declared or {})["failure"]
     if offset + limit < len(visible):
         out["nextOffset"] = offset + limit
     return out

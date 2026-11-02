@@ -182,7 +182,7 @@ function MoreMenu({ projectId, taskId, taskTitle, datasetId, exportInMenu, canEd
         )}
         <DropdownMenuItem asChild>
           <Link to={taskSetupUrl(projectId, taskId)} data-testid="menu-task-setup">
-            <SettingsIcon /> Task setup…
+            <SettingsIcon /> Studio settings…
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onShowShortcuts} data-testid="menu-shortcuts">

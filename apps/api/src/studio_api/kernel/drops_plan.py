@@ -86,7 +86,12 @@ def _sync_drop(db: Session, row: DropPlanRow) -> None:
     """Keep the drop's own state in step with its plan (Datasets' "Needs attention" reads it)."""
     d = _drop_row(db, row.drop_id)
     if d is not None and row.state in _DROP_STATE:
-        d.state = _DROP_STATE[row.state]
+        # todo20 D5: a drop of only known files stays `duplicate` once applied (linked into the Studio).
+        acts = (row.plan or {}).get("actions") or []
+        if row.state == "applied" and acts and all(x.get("type") == "link_existing" for x in acts):
+            d.state = "duplicate"
+        elif not (d.state == "duplicate" and row.state == "applied"):
+            d.state = _DROP_STATE[row.state]
         ds = (row.applied or {}).get("datasetId") or (row.context or {}).get("datasetId")
         if ds and not getattr(d, "dataset_id", None):
             d.dataset_id = ds

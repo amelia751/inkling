@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from ..context import RequestContext, get_context
 from ..db import get_session
 from ..kernel import audit, events, fs, imports, projects, trash, tree, url_imports, write_doors
+from ..kernel.admission import WriteRejected
 from ..kernel.admission.http import WriteParams, declares, write_params
 from ..models import DatasetRow, ImportSession, SourceNode, now
 
@@ -142,7 +143,12 @@ def start_import(project_id: str, body: dict = Body(...), w: WriteParams = Depen
 
     if w.dry_run:
         return write_doors.dry_run_reply(db, run())
-    return write_doors.idempotent(db, ctx, w, write_doors.IMPORTS_CREATE, {"project": p.id, **body}, run, status=201)
+    try:
+        return write_doors.idempotent(db, ctx, w, write_doors.IMPORTS_CREATE, {"project": p.id, **body}, run, status=201)
+    except WriteRejected as e:
+        # todo20 D8: a refused import fails its drop at once (grouped findings), not "uploading".
+        imports.record_rejection(db, ctx, e)
+        raise
 
 
 @router.post("/projects/{project_id}/imports/url", status_code=202)

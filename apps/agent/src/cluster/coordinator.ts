@@ -132,6 +132,11 @@ export class RunCoordinator {
     );
   }
 
+  /** Wait for this session's queued store writes (todo20 W3: read-your-writes for the thread). */
+  async settled(sessionId: string): Promise<void> {
+    await this.writes.get(sessionId)?.catch(() => {});
+  }
+
   /** Background transcript append; `from` is the position of `items[0]` (0 = header). */
   persistTranscript(sessionId: string, from: number, items: unknown[]): void {
     void this.enqueue(sessionId, async () => this.track(sessionId, await this.store.appendTranscript(sessionId, from, items))).catch((err) =>

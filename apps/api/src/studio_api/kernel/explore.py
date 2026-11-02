@@ -34,7 +34,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext
-from ..models import Asset, DatasetRow, ImportSession, ProjectRow, Proposal, Source, SourceNode, TaskRow, now
+from ..models import Asset, DatasetRow, ImportSession, ProjectRow, Proposal, SourceNode, TaskRow, now
 from . import annotations, assets, audit, events, projects, tree
 from .kinds import BY_EXTENSION, VIEWABLE
 
@@ -420,23 +420,6 @@ def from_agent(db: Session, p: ProjectRow, kind: str, payload: dict, evidence: d
 # ---- Building proposals after inspection ---------------------------------------------------------
 
 
-def _dataset_nodes(db: Session, files: list[SourceNode], kind_of) -> list[str]:
-    """Folders that hold only the dataset's kind (and nothing else), else the files themselves."""
-    by_parent: dict[str, list[SourceNode]] = {}
-    for f in files:
-        by_parent.setdefault(f.parent_id or "", []).append(f)
-    out: list[str] = []
-    containers = projects.container_ids(db, files[0].project_id) if files else set()
-    for parent, members in by_parent.items():
-        folder = db.get(SourceNode, parent) if parent else None
-        under = tree.files_under(db, [parent]) if folder is not None and folder.id not in containers else []
-        if under and len(under) == len(members) and all(kind_of(n) for n in under):
-            out.append(parent)
-        else:
-            out.extend(f.id for f in members)
-    return out
-
-
 def _main_kind(files: list[SourceNode]) -> str | None:
     def k(n: SourceNode) -> str:
         if n.detected_kind == "dicom" and (n.facts or {}).get("series", {}).get("sliceCount", 1) > 1:
@@ -448,13 +431,12 @@ def _main_kind(files: list[SourceNode]) -> str | None:
 
 
 def build_proposals(db: Session, ctx: RequestContext, p: ProjectRow, s: ImportSession) -> list[Proposal]:
-    """Relationship, mapping and dataset proposals for what an import brought (created by
-    `worker:inspect`, because they come from its report)."""
+    """Relationship and mapping proposals for what an import brought (created by
+    `worker:inspect`, because they come from its report). They enrich a Studio (labels from a
+    table); Studio items come only from the drop plan, so there is no dataset proposal."""
     files = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False))))
     created: list[Proposal] = []
     targets = Targets(db, p)
-    relationship = mapping = None
-    label_table = None
     for t in [n for n in files if n.detected_kind == "table" and (n.facts or {}).get("table", {}).get("rowCount")]:
         names, rows = table_rows(db, t)
         if not rows:
@@ -472,33 +454,6 @@ def build_proposals(db: Session, ctx: RequestContext, p: ProjectRow, s: ImportSe
             hinted = bool(LABEL_HINT.search(col)) and not mev["conflicts"]
             mp = projects.create_proposal(db, ctx, p, "mapping", {"tableNodeId": t.id, "table": t.name, "column": col, "field": "label classes", "classes": classes, "relationshipProposalId": rel.id, "summary": mev["summary"]}, mev, "strong" if hinted else "possible", INSPECTOR, import_session_id=s.id)
             created.append(mp)
-            if relationship is None:
-                relationship, mapping, label_table = rel, mp, t
-    viewable = [n for n in files if (n.detected_kind or "") in VIEWABLE]
-    kind = _main_kind(viewable)
-    if kind is not None:
-        main = [n for n in viewable if (_main_kind([n]) == kind)]
-        node_ids = _dataset_nodes(db, main, lambda n: _main_kind([n]) == kind)
-        source = db.get(Source, s.source_id)
-        one, many = NOUNS.get(kind, ("item", "items"))
-        items = len({(n.facts or {}).get("series", {}).get("seriesUidHash") for n in main}) if kind == "dicom-series" else len(main)
-        noun = one if items == 1 else many
-        summary = f"Looks like {items} {noun}" + (f" with labels from {label_table.name}" if label_table is not None else "")
-        title = (source.title if source else None) or "New dataset"
-        payload = {
-            "title": title,
-            "nodeIds": node_ids,
-            "kind": kind,
-            "preset": PRESETS[kind],
-            "taskTitle": "Classify" if mapping is not None else "Annotate",
-            "taskKind": "classification" if mapping is not None else "annotate",
-            "relationshipProposalId": relationship.id if relationship else None,
-            "mappingProposalId": mapping.id if mapping else None,
-            "itemCount": items,
-            "summary": summary,
-        }
-        strength = "strong" if len({_main_kind([n]) for n in viewable}) == 1 else "possible"
-        created.append(projects.create_proposal(db, ctx, p, "dataset", payload, {"items": items, "kind": kind, "otherFiles": len(files) - len(main), "summary": summary}, strength, INSPECTOR, import_session_id=s.id))
     return created
 
 
@@ -752,8 +707,6 @@ def summary(db: Session, p: ProjectRow) -> dict:
     for d in db.scalars(select(DatasetRow).where(DatasetRow.project_id == p.id).order_by(DatasetRow.created_at)):
         for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at)):
             tasks.append({"id": f"task:{t.id}", "title": t.title, "detail": f"{d.title} · {t.kind.replace('-', ' ')}", "status": "confirmed", "taskId": t.id, "datasetId": d.id})
-    for x in [x for x in open_ if x.kind in ("dataset", "task")]:
-        tasks.append({"id": f"proposal:{x.id}", "title": str((x.payload or {}).get("title") or "New dataset"), "detail": (x.payload or {}).get("summary"), "status": "proposed", "proposalId": x.id, "strength": x.strength})
     in_trash = _trashed_records(db, p)
     records.extend(in_trash["records"])
     quality = quality_items(db, p, files, proposals)

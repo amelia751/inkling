@@ -13,6 +13,7 @@ import { fromFileList } from "@/studio/lib/uploads/walk";
 import { dropsApi } from "./api";
 import { dropKeys, useDropChips, useDropEvents, type Chip } from "./hooks";
 import { failureText } from "@/studio/stores/uploads";
+import { findingLine, renamedExample } from "@/studio/lib/findings";
 import { dismissDrop, resumeDrop } from "./start";
 import { useDrops } from "./store";
 
@@ -107,6 +108,29 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
           <span>{local.retryAt ? <RetryCountdown at={local.retryAt} /> : failureText(local.error, [])}</span>
         </p>
       )}
+      {server?.state === "failed" && server.failure && !local?.error && (
+        <p className="flex items-start gap-1.5 px-0.5 text-caption text-danger" data-testid="drop-failure">
+          <ErrorIcon className="mt-0.5 size-3.5 shrink-0" />
+          <span>{server.failure.reason}</span>
+        </p>
+      )}
+      {!!server?.findings?.length && (
+        // todo20 D8: one line per rule with a count, never one per file; a fixed name shown once.
+        <ul className="flex flex-col gap-1 px-0.5 text-caption" data-testid="drop-findings">
+          {server.findings.map((g) => {
+            const example = g.outcome === "renamed" ? renamedExample(g) : undefined;
+            return (
+              <li key={`${g.rule}:${g.outcome}`} className={cn("flex items-start gap-1.5", g.outcome === "refused" ? "text-danger" : "text-hint")} data-testid="drop-finding" data-rule={g.rule} data-outcome={g.outcome} data-count={g.count}>
+                {g.outcome === "refused" ? <ErrorIcon className="mt-0.5 size-3.5 shrink-0" /> : <WarningIcon className="mt-0.5 size-3.5 shrink-0" />}
+                <span>
+                  {findingLine(g)}
+                  {example ? ` (${example})` : ""}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
       {paused && local && (
         <div className="flex items-center gap-2 rounded-lg bg-generic px-2.5 py-2 text-caption" data-testid="drop-paused">
           <WarningIcon className="size-3.5 shrink-0 text-warning" />
@@ -144,6 +168,8 @@ const OVERALL_TEXT: Record<string, string> = {
   uploading: "Uploading",
   checking: "Checking",
   ready: "Ready",
+  partly_ready: "Some files didn't upload",
+  duplicate: "Already in this project",
   failed: "Some files didn't upload",
   interrupted: "Not uploaded",
   paused: "Paused",

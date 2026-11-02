@@ -1,4 +1,5 @@
 import { problemFrom, type ApiProblem } from "./problem";
+import { violationsText, type FindingLike } from "./findings";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ActivityEntry,
@@ -63,10 +64,9 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown; title?: unknown; violations?: unknown };
     const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
     // todo17 D6: a rejected write is problem JSON listing every violation with its fix.
-    const violations = Array.isArray(body.violations) ? (body.violations as { message?: unknown; fix?: unknown }[]) : [];
-    const problemMessage = violations.length
-      ? violations.map((v) => [v.message, v.fix].filter((x) => typeof x === "string" && x).join(" ")).join(" ")
-      : typeof body.title === "string" ? body.title : undefined;
+    // todo20 D8: grouped by rule, so 35 files breaking one rule read as one sentence with a count.
+    const violations = Array.isArray(body.violations) ? (body.violations as FindingLike[]) : [];
+    const problemMessage = violations.length ? violationsText(violations) : typeof body.title === "string" ? body.title : undefined;
     const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? problemMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
     // A 429's `Retry-After` (seconds) rides in the body, so `toProblem(e).retryAfter` sees it (todo18).
     const ra = res.headers.get("Retry-After");

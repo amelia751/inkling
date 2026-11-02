@@ -45,6 +45,17 @@ def _proposals(client, project: str) -> dict[str, dict]:
     return {p["kind"]: p for p in client.get(f"/api/v1/projects/{project}/proposals").json()["proposals"]}
 
 
+def _dataset(client, project: str, imp: dict, props: dict[str, dict], kind: str = "image") -> dict:
+    """A dataset proposal as the assistant makes one: inspection no longer proposes datasets
+    (todo20 D3, Studio items come from the drop plan), but a proposed one still confirms."""
+    files = client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["files"]
+    nodes = [f["nodeId"] for f in files if f["name"].endswith(".png")]
+    payload = {"title": "New dataset", "nodeIds": nodes, "kind": kind, "preset": explore.PRESETS[kind], "taskTitle": "Classify", "taskKind": "classification", "relationshipProposalId": props["relationship"]["id"], "mappingProposalId": props["mapping"]["id"], "itemCount": len(nodes)}
+    r = client.post(f"/api/v1/projects/{project}/proposals", json={"kind": "dataset", "payload": payload})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
 def test_patient_ids_match_folders_by_number_but_never_across_names(client):
     p = client.post("/api/v1/projects", json={"title": "MRI"}).json()["id"]
     csv_bytes, prof = _table(["patient_id", "diagnosis"], [["P001", "healthy"], ["p-002", "lesion"], ["3", "healthy"], ["P004", "lesion"], ["Q005", "healthy"]])
@@ -80,13 +91,15 @@ def test_mapping_conflicts_and_renames(client):
     imp = _import(client, p, {"x/a.png": png(2, 2), "x/b.png": png(3, 2), "x/c.png": png(4, 2), "x/d.png": png(5, 2), "x/e.png": png(6, 2), "x/t.csv": csv_bytes})
     _report(client, imp, {f"{c}.png": "image" for c in "abcde"} | {"t.csv": "table"}, {"t.csv": {"table": prof}})
     props = _proposals(client, p)
-    rel, mp, ds = props["relationship"], props["mapping"], props["dataset"]
+    assert "dataset" not in props  # todo20 D3: the drop plan makes Studio items
+    rel, mp = props["relationship"], props["mapping"]
     assert (rel["evidence"]["matched"], rel["strength"]) == (5, "strong")
     assert mp["evidence"]["conflicts"] == [{"values": ["Normal", "normal"], "reason": "differ only by case or spacing"}]
     assert mp["strength"] == "possible"
     # Rename both spellings to one class: the server recomputes the classes.
     r = client.post(f"/api/v1/proposals/{mp['id']}/recompute", json={"classes": [{"value": "Normal", "id": "normal"}, {"value": "normal", "id": "normal"}, {"value": "nodule", "id": "nodule"}]}).json()
     assert sorted({c["id"] for c in r["payload"]["classes"]}) == ["nodule", "normal"] and r["evidence"]["merged"] == ["normal"]
+    ds = _dataset(client, p, imp, props)
     pv = client.get(f"/api/v1/proposals/{ds['id']}/preview").json()
     assert pv["labelClasses"] == ["nodule", "normal"] and pv["importedLabels"] == 5 and {g["label"]: g["count"] for g in pv["groups"]} == {"nodule": 3, "normal": 2}
     # Nothing is applied before a person confirms.
@@ -104,7 +117,7 @@ def test_held_table_blocks_label_import_until_cleared(client):
     imp = _import(client, p, {"d/a.png": png(2, 2), "d/b.png": png(3, 3), "d/c.png": png(4, 4), "d/t.csv": csv_bytes})
     _report(client, imp, {"a.png": "image", "b.png": "image", "c.png": "image", "t.csv": "table"}, {"t.csv": {"table": prof}}, {"t.csv": {"privacy": {"reason": "Held: column “email” looks like an identifier field", "source": "table"}}})
     props = _proposals(client, p)
-    ds = props["dataset"]
+    ds = _dataset(client, p, imp, props)
     assert client.get(f"/api/v1/proposals/{ds['id']}/preview").json()["blocking"]
     assert client.post(f"/api/v1/proposals/{ds['id']}/confirm", json={}).status_code == 409
     table = props["relationship"]["payload"]["tableNodeId"]
@@ -112,14 +125,14 @@ def test_held_table_blocks_label_import_until_cleared(client):
     assert client.post(f"/api/v1/proposals/{ds['id']}/confirm", json={}).json()["importedLabels"] == 3
 
 
-def test_a_clean_import_is_ready_and_summarised(client):
+def test_a_clean_import_is_summarised_without_a_dataset_proposal(client):
     p = client.post("/api/v1/projects", json={"title": "Clean"}).json()["id"]
     imp = _import(client, p, {"films/a.png": png(2, 2), "films/b.png": png(3, 3)})
     assert _report(client, imp, {"a.png": "image", "b.png": "image"})["state"] == "ready"
     s = client.get(f"/api/v1/projects/{p}/explore").json()
-    assert s["clean"] and s["readyProposalId"] == _proposals(client, p)["dataset"]["id"]
+    assert _proposals(client, p) == {} and s["openProposals"] == 0 and "readyProposalId" not in s
     assert s["files"]["byKind"] == [{"kind": "image", "label": "Images", "count": 2}]
-    assert [t["status"] for t in s["tasks"]] == ["proposed"]
+    assert s["tasks"] == []
     # The report is applied once.
     assert client.post(f"/api/v1/worker/inspect/imports/{imp['id']}/report", json={"nodes": []}, headers=W()).status_code == 409
     assert client.post(f"/api/v1/worker/inspect/imports/{imp['id']}/report", json={"nodes": []}).status_code == 401
@@ -161,3 +174,17 @@ def test_assistant_proposals_get_kernel_evidence_in_explores_shape(client):
     r = client.post(f"/api/v1/projects/{p}/proposals", json=pair)
     assert r.status_code == 201, r.text
     assert r.json()["payload"]["summary"].endswith("same patient") and r.json()["evidence"]["why"] == ["same id"]
+
+
+def test_a_new_dataset_with_no_preset_accepts_every_kind_it_holds(client):
+    """todo20 D6: "Studio" by default, and with no preset the Studio accepts every kind in the
+    picked folders (each with its profile's preset), not a single preset."""
+    p = client.post("/api/v1/projects", json={"title": "Mixed"}).json()["id"]
+    imp = _import(client, p, {"m/a.png": png(2, 2), "m/b.mp4": b"\x00\x00\x00\x18ftypmp42"})
+    _report(client, imp, {"a.png": "image", "b.mp4": "video"})
+    nodes = [f["nodeId"] for f in client.get(f"/api/v1/worker/inspect/imports/{imp['id']}", headers=W()).json()["files"]]
+    r = client.post(f"/api/v1/projects/{p}/datasets", json={"title": "Mixed set", "nodeIds": nodes, "task": {}})
+    assert r.status_code == 201, r.text
+    t = r.json()["tasks"][0]
+    assert t["title"] == "Studio"
+    assert sorted(client.get(f"/api/v1/tasks/{t['id']}/document").json()["accepts"]) == ["image", "video"]

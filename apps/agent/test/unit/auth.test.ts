@@ -158,4 +158,24 @@ describe("dev auth mode", () => {
     expect(((await listed.json()) as { sessions: { id: string }[] }).sessions.map((s) => s.id)).toEqual([created.body.sessionId]);
     expect(await h.sessions.store.getMeta(created.body.sessionId)).toMatchObject({ owner: "local" });
   });
+
+  it("honours X-Dev-Principal (todo14 M0): a new dev person doesn't see the local principal's sessions", async () => {
+    h = await harness({ scripts: [] });
+    const as = (p?: string) => ({ "x-agent-service-token": TOKEN, "content-type": "application/json", ...(p ? { "x-dev-principal": p } : {}) });
+    const create = async (p?: string) => {
+      const res = await h!.app.request("/v1/sessions", { method: "POST", headers: as(p), body: JSON.stringify({ projectId: "demo", profile: "assistant" }) });
+      expect(res.status).toBe(201);
+      return ((await res.json()) as { sessionId: string }).sessionId;
+    };
+    const list = async (p?: string) => ((await (await h!.app.request("/v1/sessions", { headers: as(p) })).json()) as { sessions: { id: string }[] }).sessions.map((s) => s.id);
+    const local = await create();
+    const fresh = await create("user:dev-abc123");
+    expect(await list()).toEqual([local]);
+    expect(await list("user:dev-abc123")).toEqual([fresh]);
+    expect(await list("user:dev-other1")).toEqual([]);
+    expect(await h.sessions.store.getMeta(fresh)).toMatchObject({ owner: "user:dev-abc123" });
+    expect((await h.app.request(`/v1/sessions/${local}`, { headers: as("user:dev-abc123") })).status).toBe(404);
+    // Not a user: principal: ignored, the caller is the local principal.
+    expect(await list("service")).toEqual([local]);
+  });
 });

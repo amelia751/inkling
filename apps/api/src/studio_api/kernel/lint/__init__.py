@@ -32,6 +32,8 @@ CATALOGUE: dict[str, RuleSpec] = {
         RuleSpec("label.unknown", "error", "Use one of the project's labels, or propose adding it to the rules."),
         RuleSpec("label.synonym", "info", "Use the canonical label; the normaliser rewrites synonyms.", fixable=True),
         RuleSpec("geometry.not-allowed", "error", "Use a geometry this label allows."),
+        RuleSpec("label.in-use", "error", "Merge the label into another with labels.merge (or rename it with labels.rename) instead of removing it."),
+        RuleSpec("label.name-taken", "error", "Merge into the existing label with labels.merge instead of renaming onto it."),
         RuleSpec("layout.misplaced", "error", "Put the file under one of the project's folder patterns."),
         RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path."),
         RuleSpec("layout.too-deep", "warn", "Use a shallower folder."),

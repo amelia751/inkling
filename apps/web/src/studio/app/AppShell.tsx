@@ -16,6 +16,8 @@ import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
 import { FilesPage } from "./routes/FilesPage";
 import { TrashPage } from "./routes/TrashPage";
+import { ChangesPage } from "./routes/ChangesPage";
+import { ConnectedAgentsPage } from "./routes/settings/ConnectedAgentsPage";
 import { DeletedProjectsPage } from "./routes/DeletedProjectsPage";
 import { LEGACY, LegacyRedirect, SectionFrame, FilesRedirect, StudioEntry } from "./routes/project-pages";
 import { VersionReviewPage } from "@/studio/core/versioning";
@@ -45,6 +47,8 @@ const routes = [
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.
   { path: "/projects/:projectId/trash", element: <TrashPage /> },
+  // todo17 M2: change requests, beside Trash in the nav.
+  { path: "/projects/:projectId/changes/:changeId?", element: <ChangesPage /> },
   { path: "/projects/:projectId/sources/trash", element: <FilesPage trash /> },
   // todo12 M1: pipeline runs live under Data (static segments win over `:nodeId`, as Trash does).
   { path: "/projects/:projectId/sources/pipelines", element: <PipelineRunsPage /> },
@@ -83,6 +87,7 @@ const routes = [
   { path: "/billing/details", element: <BillingDetailsPage /> },
   { path: "/settings", element: <Navigate to="profile" replace /> },
   { path: "/settings/profile", element: <ProfilePage /> },
+  { path: "/settings/connected-agents", element: <ConnectedAgentsPage /> },
   // Before projects (todo6 D2 makes the ids line up): keep every old link working.
   { path: "/datasets/:datasetId", element: <LegacyRedirect to={LEGACY.studio} /> },
   { path: "/datasets/:datasetId/review", element: <LegacyRedirect to={LEGACY.review} /> },

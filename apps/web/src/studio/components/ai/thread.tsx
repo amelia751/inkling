@@ -13,7 +13,8 @@ import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
 import { useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
-import { exploreUrl, trashUrl } from "@/studio/lib/routes";
+import { changesUrl, exploreUrl, trashUrl } from "@/studio/lib/routes";
+import { changeRequestOf } from "@/studio/lib/governance-api";
 import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
 import { AgentCardView, type StudioCardContext } from "./cards";
 import { BootCard, OfferCard } from "./boot-card";
@@ -124,7 +125,16 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
                 const offer = studioOffer(t);
                 if (offer) return <OfferCard key={t.id} projectId={projectId} messageId={message.id} offerId={t.id} offer={offer} />;
                 const trashed = movedToTrash(t);
-                return trashed && <TrashCard key={t.id} projectId={projectId} name={t.name} batchId={trashed} />;
+                if (trashed) return <TrashCard key={t.id} projectId={projectId} name={t.name} batchId={trashed} />;
+                // todo17 M2: a write that opened a change request instead of applying.
+                const cr = t.status === "done" ? (changeRequestOf(t.output) ?? changeRequestOf(t.summary)) : null;
+                return (
+                  cr && (
+                    <Link key={t.id} to={changesUrl(projectId, cr.id)} className="self-start text-brand underline-offset-2 hover:underline" data-testid="agent-change-request">
+                      Opened change request: {cr.title}
+                    </Link>
+                  )
+                );
               })}
             </Fragment>
           );

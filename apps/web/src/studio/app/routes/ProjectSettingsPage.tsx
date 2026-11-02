@@ -17,18 +17,19 @@ import { isSampleTemplate, NeedsApiError, patchProject, projectKeys, useProjectD
 import { projectsUrl, settingsUrl } from "@/studio/lib/routes";
 import { PluginsPage } from "./PluginsPage";
 import { ProjectMembers } from "./settings/ProjectMembers";
+import { RulesEditor } from "./settings/RulesEditor";
 import { DeleteProjectDialog } from "./DeletedProjectsPage";
 
-type SettingsTab = "general" | "members" | "plugins";
+type SettingsTab = "general" | "members" | "rules" | "plugins";
 
 /**
  * Project settings (todo6 Phase 8, D10): General (title, description, visibility, archive),
- * Members (project Team & Access, mocked until WorkOS: todo/todo9.md) and Plugins (what used
+ * Members (project Team & Access, mocked until WorkOS: todo/todo9.md), Rules (todo17 D3) and Plugins (what used
  * to be the dataset's Plugins page).
  */
 export function ProjectSettingsPage() {
   const { projectId = "", tab = "general" } = useParams();
-  const current: SettingsTab = tab === "plugins" || tab === "members" ? tab : "general";
+  const current: SettingsTab = tab === "plugins" || tab === "members" || tab === "rules" ? tab : "general";
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-6" data-testid="settings-page" data-tab={current}>
@@ -36,12 +37,15 @@ export function ProjectSettingsPage() {
         <nav className="mb-5 flex items-end gap-6 overflow-x-auto shadow-[inset_0_-1px_0_0_var(--g-line)] hide-scrollbar" aria-label="Settings sections">
           <TabLink to={settingsUrl(projectId, "general")}>General</TabLink>
           <TabLink to={settingsUrl(projectId, "members")}>Members</TabLink>
+          <TabLink to={settingsUrl(projectId, "rules")}>Rules</TabLink>
           <TabLink to={settingsUrl(projectId, "plugins")}>Plugins</TabLink>
         </nav>
         {current === "general" ? (
           <General projectId={projectId} />
         ) : current === "members" ? (
           <ProjectMembers projectId={projectId} />
+        ) : current === "rules" ? (
+          <RulesEditor projectId={projectId} />
         ) : (
           <NestedPage>
             <PluginsPage />

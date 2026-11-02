@@ -170,8 +170,8 @@ function SetupEditor({ env, task, projectId, canEdit }: { env: ResolvedEnv; task
       if ("errors" in r) return setErrors(r.errors);
       remember(r.env);
       // With versioning on, the saved setup is also committed to this person's work branch.
-      void commitStudioSetup(task.id, "Task setup saved");
-      toast("Task setup changed", {
+      void commitStudioSetup(task.id, "Studio settings saved");
+      toast("Studio settings changed", {
         id: "task-setup-saved",
         duration: 10_000,
         action: { label: "Undo", onClick: () => void undo() },
@@ -210,7 +210,7 @@ function SetupEditor({ env, task, projectId, canEdit }: { env: ResolvedEnv; task
       <PageHeading
         title={
           <span className="flex items-center gap-2">
-            <SettingsIcon className="size-5 text-hint" /> Task setup
+            <SettingsIcon className="size-5 text-hint" /> Studio settings
           </span>
         }
         description={
@@ -556,12 +556,12 @@ function setupContext(projectId: string, task: Project, env: ResolvedEnv): Agent
   return {
     key: `${projectId}:task-setup:${task.id}:${envKey(env)}`,
     section: "datasets",
-    label: `Task setup › ${task.title}`,
+    label: `Studio settings › ${task.title}`,
     shares: "This task's setup: its labels, tools, panels, export formats and options (the environment as written). No files.",
     turnContext: () =>
       [
         `Project: ${projectId}`,
-        `Section: Task setup for task ${task.title} (${task.id})`,
+        `Section: Studio settings for ${task.title} (${task.id})`,
         `Labels: ${(env.spec.labels ?? []).map((g) => `${g.name} [${g.control}${g.multiple ? ", multiple" : ""}]: ${g.classes.map((c) => `${c.name ?? c.id}${c.hotkey ? ` (key ${c.hotkey})` : ""}`).join(", ")}`).join("; ") || "none"}`,
         `Tools: ${env.tools.map((t) => t.label).join(", ") || "none"}`,
         `Environment as written: ${JSON.stringify(env.source).slice(0, 4000)}`,

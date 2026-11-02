@@ -49,7 +49,7 @@ function TaskLabels({ projectId, task: t, canEdit }: { projectId: string; task: 
         </div>
         {canEdit && (
           <Button variant="outline" size="sm" asChild>
-            <Link to={taskSetupUrl(projectId, t.id)}><TaskSetupIcon /> Task setup</Link>
+            <Link to={taskSetupUrl(projectId, t.id)}><TaskSetupIcon /> Studio settings</Link>
           </Button>
         )}
         <Button size="sm" asChild>
@@ -61,7 +61,7 @@ function TaskLabels({ projectId, task: t, canEdit }: { projectId: string; task: 
       ) : doc.isLoading ? (
         <div className="p-4"><Skeleton className="h-16 rounded-md" /></div>
       ) : !env?.labels.length ? (
-        <p className="px-4 py-3 text-sm text-muted-foreground">No labels yet. {canEdit ? "Add them in Task setup." : ""}</p>
+        <p className="px-4 py-3 text-sm text-muted-foreground">No labels yet. {canEdit ? "Add them in Studio settings." : ""}</p>
       ) : (
         <div className="divide-y divide-border">
           {env.labels.map((g) => <LabelGroupRow key={g.name} group={g} />)}

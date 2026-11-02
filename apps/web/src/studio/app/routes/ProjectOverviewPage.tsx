@@ -8,7 +8,6 @@ import {
   AiIcon,
   ArrowRightIcon,
   ChevronRightIcon,
-  DatasetsIcon,
   ErrorIcon,
   ExploreIcon,
   FileIcon,
@@ -35,11 +34,11 @@ import { fetchAnnotations, fetchTaskDocument } from "@/studio/lib/api";
 import { envLabel, envOf, projectIcon } from "@/studio/lib/environment";
 import { kernelAssetUrl, kernelEnabled } from "@/extension-host/kernel";
 import { seedUrl } from "@/studio/lib/api";
-import { api, fetchPreview, fetchProposals, isSampleTemplate, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
+import { api, fetchPreview, isSampleTemplate, NeedsApiError, projectKeys, useOverview } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
 import { datasetUrl, exploreUrl, settingsUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
 import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
-import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
+import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, ResumeState } from "@studio/contracts/types";
 import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { cn } from "@studio/ui/utils";
 import { HealthPanel } from "./HealthPanel";
@@ -74,7 +73,7 @@ export function ProjectOverviewPage() {
                 <ProjectEmptyState projectId={projectId} title={o.project.title} />
               ) : (
                 <div className="flex flex-col gap-8">
-                  <ImportResult overview={o} />
+                  <LatestImport overview={o} />
                   {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} tasks={o.tasks} />}
                   <SourceSummaryCards projectId={projectId} cards={o.data ?? []} onAdd={(p) => void addData(p)} />
                   <AttentionQueue projectId={projectId} items={o.attention ?? []} total={o.attentionTotal ?? 0} />
@@ -258,7 +257,7 @@ function ResumeWorkCard({ projectId, resume }: { projectId: string; resume: Resu
       </div>
       <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
         <Button variant="outline" size="lg" asChild>
-          <Link to={taskSetupUrl(projectId, resume.taskId)} data-testid="task-setup-link">Task setup</Link>
+          <Link to={taskSetupUrl(projectId, resume.taskId)} data-testid="task-setup-link">Studio settings</Link>
         </Button>
         <Button size="lg" asChild>
           <Link to={studioUrl(projectId, resume.taskId)} state={{ resume: true }} data-testid="open-studio">
@@ -277,7 +276,7 @@ function StartCard({ projectId, tasks }: { projectId: string; tasks: { id: strin
       <p className="min-w-0 flex-1 text-body-2">Pick up where the data is.</p>
       {tasks.length === 1 && (
         <Button variant="outline" size="lg" asChild>
-          <Link to={taskSetupUrl(projectId, tasks[0].id)} data-testid="task-setup-link">Task setup</Link>
+          <Link to={taskSetupUrl(projectId, tasks[0].id)} data-testid="task-setup-link">Studio settings</Link>
         </Button>
       )}
       <Button size="lg" asChild>
@@ -290,46 +289,31 @@ function StartCard({ projectId, tasks }: { projectId: string; tasks: { id: strin
 // ---- What the latest import found -------------------------------------------------------------
 
 /**
- * After inspection: a clean set offers its dataset proposal right here ("Create dataset & open
- * Studio · Review first"); a mixed one points to Explore ("See what we found").
+ * todo20 D3: the drop plan is the only way files become Studio items, so this card never offers
+ * a dataset. It points at the Studio (or at Files while there is none yet) and, when a table
+ * could add labels, at Explore. A settled import with a Studio already has the start card.
  */
-function ImportResult({ overview: o }: { overview: ProjectOverview }) {
+function LatestImport({ overview: o }: { overview: ProjectOverview }) {
   const projectId = o.project.id;
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const settled = o.latestImport && (o.latestImport.state === "ready" || o.latestImport.state === "needs_review");
-  const proposals = useQuery({ queryKey: [...projectKeys.proposals(projectId), "proposed"], queryFn: () => fetchProposals(projectId, "proposed"), enabled: !!settled, staleTime: 5_000 });
-  const confirm = useMutation({
-    mutationFn: (p: Proposal) => api<{ task?: { id: string } }>(`/proposals/${p.id}/confirm`, { method: "POST", json: {} }),
-    onSuccess: (r) => {
-      void qc.invalidateQueries({ queryKey: ["projects", projectId] });
-      // todo8 D7: the owner lands on Task setup, one click from the Studio.
-      if (r.task) navigate(taskSetupUrl(projectId, r.task.id));
-    },
-  });
-  if (!settled || !proposals.data?.length) return null;
-  const dataset = proposals.data.find((p) => p.kind === "dataset");
-  const others = proposals.data.filter((p) => p.kind !== "dataset");
-  if (dataset && others.length === 0) {
-    return (
-      <Card className="flex flex-wrap items-center gap-4 border-dashed border-border-hover bg-utility-tint p-5" data-testid="import-proposal">
-        <DatasetsIcon className="size-5 text-hint" />
-        <p className="min-w-0 flex-1 text-body-2">{String(dataset.payload.summary ?? "This looks ready to annotate.")}</p>
-        <Button variant="outline" size="lg" asChild>
-          <Link to={exploreUrl(projectId, "summary", dataset.id)}>Review first</Link>
-        </Button>
-        <Button size="lg" loading={confirm.isPending} onClick={() => confirm.mutate(dataset)} data-testid="create-and-open">
-          Create dataset & set up the task
-        </Button>
-      </Card>
-    );
-  }
+  const state = o.latestImport?.state;
+  if (state !== "ready" && state !== "needs_review") return null;
+  const hasStudio = o.tasks.length > 0;
+  if (state === "ready" && hasStudio) return null;
   return (
-    <Card className="flex flex-wrap items-center gap-4 border-dashed border-border-hover bg-utility-tint p-5" data-testid="import-explore">
+    <Card className="flex flex-wrap items-center gap-4 border-dashed border-border-hover bg-utility-tint p-5" data-testid="import-latest">
       <ExploreIcon className="size-5 text-hint" />
-      <p className="min-w-0 flex-1 text-body-2">Your files are in. Some of them need a decision before they become a dataset.</p>
+      <p className="min-w-0 flex-1 text-body-2">{state === "needs_review" ? "Your files are in. A table could add labels to them." : "Your files are in."}</p>
+      {state === "needs_review" && (
+        <Button variant="outline" size="lg" asChild>
+          <Link to={exploreUrl(projectId)} data-testid="import-explore">See what we found</Link>
+        </Button>
+      )}
       <Button size="lg" asChild>
-        <Link to={exploreUrl(projectId)}>See what we found <ArrowRightIcon /></Link>
+        {hasStudio ? (
+          <Link to={studioUrl(projectId)} data-testid="import-open-studio">Open Studio <ArrowRightIcon /></Link>
+        ) : (
+          <Link to={sourcesUrl(projectId)} data-testid="import-open-files">See them in Files <ArrowRightIcon /></Link>
+        )}
       </Button>
     </Card>
   );

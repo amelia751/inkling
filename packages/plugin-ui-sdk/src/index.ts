@@ -9,3 +9,4 @@ export * from "./labels";
 export * from "./host";
 export * from "./viewer";
 export * from "./perf";
+export * from "./assets";

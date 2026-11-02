@@ -22,6 +22,8 @@ import { NAMING } from "@studio/contracts/naming";
 import { agentUnavailable, fetchAgentStatus } from "@/studio/lib/agent/client";
 import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/agent/providers";
 import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
+import { useStudio } from "@/studio/stores/studio";
+import { MAX_ANNOTATIONS, snapshotTruncation } from "@/studio/lib/agent/context";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
@@ -120,6 +122,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
         <h2 className="sr-only">{NAMING.displayName} AI</h2>
         <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1 text-hint">
+          {status.data?.provider === "scripted" && (
+            <span className="rounded border border-border px-1.5 text-caption" title="Dev: replies come from a fixture, not a model" data-testid="agent-scripted-badge">
+              Scripted model
+            </span>
+          )}
           {ready && thread.length > 0 && (
             <Tooltip>
               <TooltipTrigger asChild>
@@ -263,7 +270,7 @@ function Conversation({
       setPending(drop);
       setDeferred({ text, drop });
     } else ask(text, drop);
-  });
+  }, !!status?.configured);
   useEffect(() => {
     if (!deferred || busy || running) return;
     setDeferred(null);
@@ -551,6 +558,8 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
   const dismiss = useAgentContextStore((s) => s.dismiss);
   const restore = useAgentContextStore((s) => s.restore);
+  const total = useStudio((s) => (provider.snapshot ? s.annotations.length : 0));
+  const cut = snapshotTruncation(total);
   if (dismissed)
     return (
       <button
@@ -571,8 +580,16 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
         <TooltipTrigger asChild>
           <span className="truncate" tabIndex={0}>{provider.label}</span>
         </TooltipTrigger>
-        <TooltipContent className="max-w-64">{provider.shares}</TooltipContent>
+        <TooltipContent className="max-w-64">
+          {provider.shares}
+          {cut && <span className="mt-1 block">{cut}.</span>}
+        </TooltipContent>
       </Tooltip>
+      {cut && (
+        <span className="shrink-0 text-caption text-warning" data-testid="agent-context-truncated" title={cut}>
+          first {MAX_ANNOTATIONS.toLocaleString("en-US")}
+        </span>
+      )}
       <button type="button" onClick={dismiss} className="flex h-8.5 w-6 shrink-0 items-center justify-center rounded-r-lg text-hint hover:text-foreground" aria-label="Don't share this context">
         <CloseIcon className="size-3" />
       </button>

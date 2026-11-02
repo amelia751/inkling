@@ -7,6 +7,7 @@ import { AgentHttpError } from "@/studio/lib/agent/client";
 import { RES } from "@studio/contracts/naming";
 import { findItem, runCardTool } from "@/studio/lib/agent/card-tools";
 import { secondsLeft } from "@/studio/lib/agent/approval";
+import { snapshotTruncation } from "@/studio/lib/agent/context";
 import { BLOCKED_PREFIX, raceAbort, reduce, TOOL_STOPPED, useAgent, type ChatMessage } from "./agent";
 
 const approval = (expiresAt: number): ChatMessage => ({
@@ -99,5 +100,10 @@ describe("todo18 D assistant store", () => {
     await vi.waitFor(() => expect(useAgent.getState().active).toBeNull());
     expect(useAgent.getState().running).toBeNull();
     other.close();
+  });
+
+  it("context chip says when the snapshot was cut at 3,000 annotations", () => {
+    expect(snapshotTruncation(3000)).toBeNull();
+    expect(snapshotTruncation(4210)).toBe("Shares the first 3,000 of 4,210 annotations");
   });
 });

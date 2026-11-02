@@ -10,6 +10,7 @@ resources:
   - web.yaml
   - api.yaml
   - agent.yaml
+  - mcp.yaml
   - worker.yaml
   - versioning.yaml
   - pipeline.yaml

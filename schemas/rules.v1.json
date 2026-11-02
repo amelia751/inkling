@@ -189,6 +189,14 @@
         ]
       }
     },
+    "enforce": {
+      "default": [],
+      "description": "Rule codes promoted out of evaluate mode (D5): their errors reject writes",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "merge": {
       "default": {
         "auto": "write-tier"

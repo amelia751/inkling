@@ -32,13 +32,34 @@ CATALOGUE: dict[str, RuleSpec] = {
         RuleSpec("label.unknown", "error", "Use one of the project's labels, or propose adding it to the rules."),
         RuleSpec("label.synonym", "info", "Use the canonical label; the normaliser rewrites synonyms.", fixable=True),
         RuleSpec("geometry.not-allowed", "error", "Use a geometry this label allows."),
-        RuleSpec("layout.misplaced", "error", "Put the file under one of the project's folder patterns."),
-        RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path."),
-        RuleSpec("layout.too-deep", "warn", "Use a shallower folder."),
-        RuleSpec("name.pattern", "warn", "Rename the file to match the project's file-name pattern."),
-        RuleSpec("dataset.metadata-missing", "error", "Add the required metadata to the dataset."),
+        RuleSpec("label.in-use", "error", "Merge the label into another with labels.merge (or rename it with labels.rename) instead of removing it."),
+        RuleSpec("label.name-taken", "error", "Merge into the existing label with labels.merge instead of renaming onto it."),
+        RuleSpec("annotation.invalid", "error", "Send a well-formed annotation: id, itemId, label, provenance, author, createdAt and a geometry with a type."),
+        RuleSpec("annotation.out-of-bounds", "error", "Keep the geometry inside the image extent; clip it or redraw it.", fixable=True, evaluate=True),
+        RuleSpec("annotation.too-small", "warn", "Redraw it at least `annotations.minSize` across, or delete it if it was a stray click.", evaluate=True),
+        RuleSpec("annotation.attribute-missing", "error", "Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema.", evaluate=True),
+        RuleSpec("env.unresolved", "error", "Fix the references the resolver reports (modules, renderers, tools) using the catalogue."),
+        RuleSpec("env.label-drift", "warn", "Use the project's labels in the Studio, or propose a rules change.", fixable=True, evaluate=True),
+        # Layout and names mirror lint-rules.ts: new rules ship in evaluate mode (D5), so a
+        # person's upload is never blocked until the project promotes them.
+        RuleSpec("layout.misplaced", "warn", "Put the file under one of the project's folder patterns.", evaluate=True),
+        RuleSpec("layout.forbidden-char", "error", "Remove the forbidden characters from the path.", fixable=True),
+        RuleSpec("layout.too-deep", "warn", "Use a shallower folder.", evaluate=True),
+        RuleSpec("name.pattern", "warn", "Rename the file to match the project's file-name pattern.", fixable=True, evaluate=True),
+        RuleSpec("name.phi-suspect", "error", "Rename it with a pseudonymous id; never use patient names, dates of birth or record numbers.", evaluate=True),
+        RuleSpec("dataset.metadata-missing", "error", "Add the required metadata to the dataset.", evaluate=True),
         RuleSpec("dataset.name-taken", "error", "Choose a dataset name that is not used in this project."),
         RuleSpec("dataset.mixed-modality", "warn", "Split the dataset so it holds one modality.", evaluate=True),
+        # Imaging checks (D11): the worker's `imaging.check` reports them (kernel/imaging_findings.py).
+        RuleSpec("dicom.series-incomplete", "warn", "Upload the missing instances, or remove the partial series.", evaluate=True),
+        RuleSpec("dicom.inconsistent-spacing", "warn", "Check the series for missing or duplicated slices, or resample it to even spacing.", evaluate=True),
+        RuleSpec("dicom.inconsistent-orientation", "warn", "Split the series: its slices belong to more than one volume.", evaluate=True),
+        RuleSpec("dicom.seg-frame-mismatch", "error", "Regenerate the segmentation against the referenced series.", evaluate=True),
+        RuleSpec("dicom.conformance", "info", "Fix the attributes dciodvfy reports, or re-export from the source system.", evaluate=True),
+        RuleSpec("nifti.orientation-mismatch", "warn", "Rewrite the header with one consistent affine (qform = sform).", evaluate=True),
+        RuleSpec("nifti.voxel-size", "error", "Set positive voxel sizes (pixdim) in the header.", evaluate=True),
+        RuleSpec("nifti.nan", "warn", "Replace NaN voxels (e.g. with 0) before labelling or training.", evaluate=True),
+        RuleSpec("nifti.grid-mismatch", "error", "Resample the mask onto the image grid (same shape and affine).", evaluate=True),
     )
 }
 
@@ -97,3 +118,7 @@ def run_families(families: Iterable[Family], data: Mapping[str, Any], rules: Map
     for fam in families:
         out.extend(resolve_severity(v, rules) for v in fam(data, rules))
     return [v for v in out if v.severity != "off"]
+
+# `from __future__ import annotations` binds the name `annotations` here, which would shadow the
+# `annotations` family submodule for `from ..lint import annotations`.
+del annotations  # type: ignore[name-defined]  # noqa: F821

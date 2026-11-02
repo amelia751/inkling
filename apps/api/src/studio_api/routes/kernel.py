@@ -15,7 +15,10 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..context import AUTH_API_KEY, RequestContext, ensure_workspace, get_context, issue_session, scope_of
 from ..db import get_session
-from ..kernel import annotations, assets, audit, boundary, environment_policy, events, gateway, jobs, projects, secrets
+from ..kernel import annotations, assets, audit, environment_admission, environment_policy, events, gateway, jobs, projects, secrets
+from ..kernel.admission import doors
+from ..kernel.admission.http import WriteParams, declares, write_params
+from ..kernel.admission.problem import with_findings
 from ..models import WorkspaceEnvironment
 from ..naming import ns
 from ..plugins import installer
@@ -52,12 +55,24 @@ def get_annotations(project_id: str, ctx: RequestContext = Depends(get_context),
     return annotations.get_document(db, c)
 
 
-@router.put("/annotations/{project_id}")
-def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.put("/annotations/{project_id}", openapi_extra=declares("annotations.save"))
+def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session), w: WriteParams = Depends(write_params)):
+    """The Studio's autosave, through admit() (todo17): labels checked against the project's rules
+    and the Studio's labels (synonyms rewritten), every violation at once as 422 problem JSON,
+    warnings as `findings`; `dryRun=true` saves nothing; `Idempotency-Key` replays a retry."""
     if ctx.profile == "plugin":  # plugins write through POST /v1/annotations, never the whole document
         raise HTTPException(403, "plugin sessions can't replace the annotation document")
     c = _project_ctx(ctx, project_id, db, write=True)
-    return annotations.put_document(db, c, doc, labels=boundary.vocabulary(db, c))
+    if w.dry_run:
+        out, res = annotations.save_document(db, c, doc, dry_run=True)
+        return with_findings(out, res)
+    with doors.IdempotentWrite(db, w.idempotency_key, ctx.principal, "annotations.save", {"path": project_id, "body": doc}) as idem:
+        if idem.replay is not None:
+            return JSONResponse(idem.replay.response, status_code=idem.replay.status)
+        out, res = annotations.save_document(db, c, doc)
+        body = with_findings(out, res)
+        idem.complete(200, body)
+        return body
 
 
 @router.get("/v1/annotations")
@@ -67,8 +82,8 @@ def list_annotations(item_id: str | None = None, label: str | None = None, limit
     return {"annotations": annotations.list_annotations(db, ctx, item_id, label, limit)}
 
 
-@router.post("/v1/annotations")
-def write_annotations(request: Request, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.post("/v1/annotations", openapi_extra=declares("annotations.commit"))
+def write_annotations(request: Request, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session), w: WriteParams = Depends(write_params)):
     """`annotations.write` for plugin sessions (studio_plugin_sdk `ctx.annotations.write`).
     Bound to the running job named in `X-Job-Id`; the kernel stamps identity and provenance."""
     if ctx.profile != "plugin" or not ctx.allows("annotations.write"):
@@ -77,8 +92,9 @@ def write_annotations(request: Request, body: dict = Body(...), ctx: RequestCont
     if not job_id:
         raise HTTPException(422, "X-Job-Id must name the job this write belongs to")
     job = jobs.get(db, ctx, job_id)
-    ids = annotations.plugin_write(db, ctx, job, body.get("annotations") or [], key=ctx.idempotency_key)
-    return {"annotationIds": ids}
+    # Idempotent per (job, Idempotency-Key) in `annotations.commit`; admit() checks labels and shape.
+    ids, res = annotations.plugin_write(db, ctx, job, body.get("annotations") or [], key=ctx.idempotency_key, dry_run=w.dry_run)
+    return with_findings({"annotationIds": ids}, res)
 
 
 @router.post("/v1/annotations/{annotation_id}/review")
@@ -259,8 +275,8 @@ def workspace_state(workspace_id: str, ctx: RequestContext = Depends(get_context
     return installer.workspace_state(db, c)
 
 
-@router.put("/v1/workspaces/{workspace_id}/environment")
-def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+@router.put("/v1/workspaces/{workspace_id}/environment", openapi_extra=declares("studio.save"))
+def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session), w: WriteParams = Depends(write_params)):
     """Replace the task's environment. Runs the same policy as every other environment write
     (todo17 M0): shape and references → 422; an API key needs `environments:write` (or `admin`)
     and, without `admin`, may only change what the agent path allow-list permits → 403."""
@@ -278,13 +294,23 @@ def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestConte
         checked = environment_policy.check_write(principal="agent", installed=installed, base=base, patch=patch, is_patch=True)
     else:
         checked = environment_policy.check_write(principal="person", installed=installed, environment=new_env)
-    if not checked.ok:
+    if checked.status == 403:
         return JSONResponse(checked.body(), status_code=checked.status)
-    db.add(row)
-    before = row.environment
-    row.environment, row.revision, row.author = new_env, row.revision + 1, c.principal
-    audit.record(db, c, "workspace.environment", before=before, after=row.environment)
-    return {"revision": row.revision}
+    # todo17: through admit() — unresolved → 422 problem JSON (with legacy `errors`), label drift → findings.
+    res = environment_admission.admit_environment(db, c.workspace_id, environment_admission.SAVE_OP, checked, principal=ctx.principal, on_behalf_of=ctx.on_behalf_of, dry_run=w.dry_run)
+    if w.dry_run:
+        return environment_admission.success({"revision": row.revision, "environment": res.value}, res, checked.warnings)
+    with doors.IdempotentWrite(db, w.idempotency_key, ctx.principal, "studio.save", {"path": workspace_id, "body": body}) as idem:
+        if idem.replay is not None:
+            return JSONResponse(idem.replay.response, status_code=idem.replay.status)
+        db.add(row)
+        before = row.environment
+        row.environment, row.revision, row.author = new_env, row.revision + 1, c.principal
+        audit.record(db, c, "workspace.environment", before=before, after=row.environment)
+        environment_admission.record(db, c.workspace_id, c.task, res)
+        out = environment_admission.success({"revision": row.revision}, res, checked.warnings)
+        idem.complete(200, out)
+        return out
 
 
 @router.get("/v1/audit")

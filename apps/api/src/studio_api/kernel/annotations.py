@@ -7,6 +7,7 @@ is idempotent per key, so re-running a job never duplicates annotations (§14 #7
 
 from __future__ import annotations
 
+import copy
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -16,9 +17,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext
-from ..models import AnnotationCommit, AnnotationDocumentRow
+from ..models import AnnotationCommit, AnnotationDocumentRow, ProjectRow
 from ..naming import canonical_id
-from . import audit
+from . import audit, labelset
+from .admission import Admitted, Ctx, Operation, WriteRejected, admit, register
+from .admission import doors
+from .lint import annotations as lint_annotations
+from .lint import labels as lint_labels
 
 ANNOTATIONS_VERSION = 2
 # `imported`: written from a source file (a CSV column), unreviewed until a person confirms it (todo6 D8).
@@ -127,39 +132,64 @@ def validate_annotation(a: Any) -> dict:
     return a
 
 
-def document_errors(annotations: list, labels: set[str] | None) -> list[dict]:
-    """Every violation in a whole document at once (todo17 M0): each item's shape
-    (`validate_annotation`) and, when the Studio declares a label set, its label."""
-    errors: list[dict] = []
-    for i, a in enumerate(annotations):
-        try:
-            validate_annotation(_canonical(a) if isinstance(a, dict) else a)
-        except ValueError as e:
-            errors.append({"path": f"/annotations/{i}", "code": "schema", "message": str(e)})
-            continue
-        if labels and a["label"] not in labels:
-            errors.append({"path": f"/annotations/{i}/label", "code": "label", "message": f"label {a['label']!r} isn't in this Studio's label set"})
-    return errors
+# ---- Admission (todo17 D1): every annotation write runs admit() ---------------------------------
+
+ANNOTATION_FAMILIES = (lint_annotations.check, lint_labels.check)
+SAVE_OP = register(Operation(id="annotations.save", families=ANNOTATION_FAMILIES, scope="project:write"))
+COMMIT_OP = register(Operation(id="annotations.commit", families=ANNOTATION_FAMILIES, scope="project:write", idempotent=True))
 
 
-def put_document(db: Session, ctx: RequestContext, doc: dict, labels: set[str] | None = None) -> dict:
-    """Save the whole document (the Studio's autosave). Bumps the revision, like the dev seed server.
-    Rejects the whole save with 422 listing every invalid item; `labels` empty or None skips the label check."""
+def admit_annotations(db: Session, ctx: RequestContext, op: Operation, annotations_: list, *, items: Any = None, dry_run: bool = False) -> Admitted:
+    """Normalise (labels → the stored spelling), validate (shape, labels, geometry, the project's
+    `annotations` rules) and permit a set of annotations. The label set is the project's rules
+    labels ∪ the Studio's labels (presets resolved). Raises WriteRejected with every violation."""
+    project = labelset.project_rules(db, ctx.workspace_id)
+    studio = labelset.studio_labels(db, ctx.workspace_id, ctx.task)
+    rules = labelset.effective_rules(project, studio)
+    anns = [_canonical(a) if isinstance(a, dict) else a for a in copy.deepcopy(annotations_)]
+    fixes = labelset.canonicalise(anns, rules, studio)
+    data: dict[str, Any] = {"annotations": anns}
+    if isinstance(items, dict):
+        data["items"] = items
+    c = Ctx(project_id=ctx.workspace_id if project else None, principal=ctx.principal, on_behalf_of=ctx.on_behalf_of, rules=rules)
+    try:
+        res = admit(op, data, c, dry_run=dry_run)
+    except WriteRejected as e:
+        e.violations += fixes
+        raise
+    res.findings = fixes + res.findings
+    return res
+
+
+def save_document(db: Session, ctx: RequestContext, doc: Any, *, dry_run: bool = False) -> tuple[dict, Admitted]:
+    """Save the whole document (the Studio's autosave) through admit(): every violation of every
+    item at once (422 problem JSON); synonyms are rewritten; warnings come back as `findings`.
+    Bumps the revision. `doc.items` ({itemId: {width, height}}) enables the inside-image check."""
     if not isinstance(doc, dict) or not isinstance(doc.get("annotations"), list):
         raise HTTPException(400, "invalid annotation document")
-    errors = document_errors(doc["annotations"], labels)
-    if errors:
-        raise HTTPException(422, {"ok": False, "errors": errors})
+    try:
+        res = admit_annotations(db, ctx, SAVE_OP, doc["annotations"], items=doc.get("items"), dry_run=dry_run)
+    except WriteRejected as e:
+        raise doors.reject(e.violations, title="The annotations break the project's rules", errors=doors.legacy_errors(e.violations)) from None
+    anns = res.value["annotations"]
+    if dry_run:
+        cur = get_document(db, ctx)
+        return {"revision": cur["revision"], "annotations": anns}, res
     row = _row(db, ctx)
     base = doc.get("revision")
     if base is not None and int(base) != row.revision:
         # todo18 P0-4: someone saved since this client loaded; hand back their document to merge.
         raise HTTPException(409, {"code": "revision_conflict", "message": f"the document is at revision {row.revision}, this save was based on {base}", "current": get_document(db, ctx)})
-    row.annotations = [_canonical(a) for a in doc["annotations"]]
+    row.annotations = anns
     row.annotations_version = doc.get("annotationsVersion")
     row.revision += 1
     row.saved_at = datetime.now(UTC)
-    return get_document(db, ctx)
+    doors.record_findings(db, _project_id(db, ctx), "annotations", ctx.task, res)
+    return get_document(db, ctx), res
+
+
+def _project_id(db: Session, ctx: RequestContext) -> str | None:
+    return ctx.workspace_id if db.get(ProjectRow, ctx.workspace_id) is not None else None
 
 
 def commit(db: Session, ctx: RequestContext, annotations: list[dict], *, idempotency_key: str | None, job_id: str | None = None, source: str) -> list[str]:
@@ -185,7 +215,7 @@ def commit(db: Session, ctx: RequestContext, annotations: list[dict], *, idempot
 CORE_GEOMETRIES = {"class", "box", "ellipse", "polygon", "multipolygon", "polyline", "spline", "keypoint", "point3d", "measurement", "mask", "span", "instant", "track"}
 
 
-def plugin_write(db: Session, ctx: RequestContext, job: Any, annotations: list[Any], *, key: str | None) -> list[str]:
+def plugin_write(db: Session, ctx: RequestContext, job: Any, annotations: list[Any], *, key: str | None, dry_run: bool = False) -> tuple[list[str], Admitted]:
     """`annotations.write` for a plugin session (the SDK's `ctx.annotations.write`).
 
     The same guarantees as the gateway's commit path, with identity from the context:
@@ -217,19 +247,26 @@ def plugin_write(db: Session, ctx: RequestContext, job: Any, annotations: list[A
             "createdAt": now,
             "attributes": attrs,
         }
-        try:
-            validate_annotation(stamped)
-            t = canonical_id(stamped["geometry"]["type"])
-            if t not in CORE_GEOMETRIES and "." not in t:
-                raise ValueError(f"geometry type {t!r} is neither a core geometry nor a module geometry (<module>.<name>)")
-        except ValueError as e:
-            raise HTTPException(422, f"annotations[{i}]: {e}") from e
-        try:
-            assets.get_asset(db, ctx, stamped["itemId"])
-        except HTTPException as e:
-            raise HTTPException(422, f"annotations[{i}]: item {stamped['itemId']!r} isn't an asset of this workspace") from e
+        g = stamped.get("geometry")
+        t = canonical_id(g["type"]) if isinstance(g, dict) and isinstance(g.get("type"), str) else None
+        if t is not None and t not in CORE_GEOMETRIES and "." not in t:
+            raise HTTPException(422, f"annotations[{i}]: geometry type {t!r} is neither a core geometry nor a module geometry (<module>.<name>)")
+        if isinstance(stamped.get("itemId"), str) and stamped["itemId"]:
+            try:
+                assets.get_asset(db, ctx, stamped["itemId"])
+            except HTTPException as e:
+                raise HTTPException(422, f"annotations[{i}]: item {stamped['itemId']!r} isn't an asset of this workspace") from e
         out.append(stamped)
-    return commit(db, ctx.for_scope(ctx.workspace_id, job.task_id), out, idempotency_key=f"job:{job.job_id}:write:{key or uuid.uuid4().hex}", job_id=job.job_id, source=f"{job.plugin_id}.{job.tool}")
+    scoped = ctx.for_scope(ctx.workspace_id, job.task_id)
+    try:
+        res = admit_annotations(db, scoped, COMMIT_OP, out, dry_run=dry_run)
+    except WriteRejected as e:
+        raise doors.reject(e.violations, title="The annotations break the project's rules", errors=doors.legacy_errors(e.violations)) from None
+    if dry_run:
+        return [a["id"] for a in res.value["annotations"]], res
+    ids = commit(db, scoped, res.value["annotations"], idempotency_key=f"job:{job.job_id}:write:{key or uuid.uuid4().hex}", job_id=job.job_id, source=f"{job.plugin_id}.{job.tool}")
+    doors.record_findings(db, _project_id(db, scoped), "annotations", scoped.task, res)
+    return ids, res
 
 
 def list_annotations(db: Session, ctx: RequestContext, item_id: str | None = None, label: str | None = None, limit: int = 1000) -> list[dict]:

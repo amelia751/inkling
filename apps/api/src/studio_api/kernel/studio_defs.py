@@ -142,6 +142,8 @@ def revision_meta(r: WorkspaceEnvironmentRevision) -> dict:
 LOCK_PATH = "plugins.lock.json"
 # The dataset's structure (DatasetStructure v1, todo13 D8): the draft, kept by the kernel.
 STRUCTURE_PATH = "structure.json"
+# The project's rules (todo17 D3) at the time of the commit, so each dataset version carries them.
+RULES_PATH = "rules.json"
 TASK_PATH = re.compile(r"^tasks/([A-Za-z0-9][A-Za-z0-9._-]{0,127})/(environment\.json|README\.md)$")
 README_MAX = 64 * 1024
 
@@ -215,12 +217,30 @@ def studio_files(db: Session, ctx: RequestContext, dataset_id: str | None = None
         draft = db.get(DatasetStructureRow, (dataset_id, "draft"))
         if draft is not None and draft.structure:
             files[STRUCTURE_PATH] = canonicalize(draft.structure)
+    rules = rules_file(db, ctx.workspace_id)
+    if rules is not None:
+        files[RULES_PATH] = rules
     return files
+
+
+def rules_file(db: Session, project_id: str) -> str | None:
+    """The project's rules as canonical JSON (`.studio/rules.json`), or None for no project."""
+    from ..models import ProjectRow
+    from . import rules as krules
+    from .canonical import canonicalize
+
+    p = db.get(ProjectRow, project_id)
+    return canonicalize(krules.get(db, p)["rules"]) if p is not None else None
 
 
 def parse_files(files: dict[str, str]) -> dict:
     """`.studio/` files → `{lockfile, lockfileHash, tasks: {id: {environment, contentHash, readme}}, structure?}`."""
     out: dict = {"lockfile": None, "tasks": {}}
+    if RULES_PATH in files:
+        try:
+            out["rules"] = json.loads(files[RULES_PATH])
+        except ValueError:
+            out["rules"] = None
     if STRUCTURE_PATH in files:
         try:
             out["structure"] = json.loads(files[STRUCTURE_PATH])

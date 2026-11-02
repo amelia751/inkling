@@ -49,7 +49,7 @@ def test_review_queue_covers_every_type_filters_and_feeds_overview(client):
     _review_opened(pid, ds["id"], "rv-1")
     _review_opened(pid, ds["id"], "rv-2", merged=True)
     task = ds["tasks"][0]["id"]
-    ann = {"id": "s1", "itemId": "x", "label": "l", "provenance": "ai-suggested", "author": "m", "createdAt": "2026-10-30T00:00:00Z", "geometry": {"type": "box", "x": 1, "y": 1, "w": 2, "h": 2}, "attributes": {"review_status": "pending"}}
+    ann = {"id": "s1", "itemId": "x", "label": "normal", "provenance": "ai-suggested", "author": "m", "createdAt": "2026-10-30T00:00:00Z", "geometry": {"type": "box", "x": 1, "y": 1, "w": 2, "h": 2}, "attributes": {"review_status": "pending"}}
     assert client.put(f"/api/annotations/{task}", json={"revision": 0, "annotations": [ann]}, headers=ws(task)).status_code == 200
 
     r = client.get(f"/api/v1/projects/{pid}/review").json()

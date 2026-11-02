@@ -27,8 +27,9 @@ import hashlib
 import os
 import posixpath
 import tempfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
@@ -103,9 +104,13 @@ def _publish(db: Session, ctx: RequestContext, s: ImportSession) -> None:
     events.publish(db, ctx.for_scope(s.project_id, None), "import.updated", {"projectId": s.project_id, "importId": s.id, "state": s.state}, source="kernel")
 
 
-def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, internal: bool = False, session_id: str | None = None) -> dict:
+def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, *, internal: bool = False, session_id: str | None = None, check: Callable[[list[str]], Any] | None = None, forbidden: str = "") -> dict:
     """`internal`: the kernel's own fetch or copy (todo16 D10, `url_imports`), which may run
-    for the assistant's delegated token; the bytes never pass through the caller."""
+    for the assistant's delegated token; the bytes never pass through the caller.
+
+    todo17: `forbidden` characters in a path become `_` (an info finding each), and `check`
+    runs the layout rules on the paths the files will land at (raising rejects the import;
+    rules in evaluate mode only report). Its findings come back as `findings`."""
     if ctx.scopes and not internal:
         raise HTTPException(403, "only people add data to a project")
     files = body.get("files")
@@ -115,6 +120,7 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     if body.get("attested") is not True:
         raise HTTPException(422, "confirm that you may use these files for research and that they're de-identified or synthetic")
     skipped_junk = 0
+    renamed: list[dict] = []
     wanted: list[tuple[str, str, int, str]] = []
     seen_ids: set[str] = set()
     for i, f in enumerate(files):
@@ -133,7 +139,10 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
         if is_junk(rel):
             skipped_junk += 1
             continue
-        wanted.append((fid, rel, size, sha))
+        fixed = "".join("_" if c in forbidden and c != "/" else c for c in rel) if forbidden else rel
+        if fixed != rel:
+            renamed.append({"rule": "layout.forbidden-char", "severity": "info", "path": f"/files/{i}/relPath", "message": "Characters the project rules forbid were replaced with '_'.", "fix": "", "docs": "/docs/lint-rules#layout.forbidden-char"})
+        wanted.append((fid, fixed, size, sha))
     if len(wanted) > limits.upload_max_session_files:
         raise HTTPException(413, f"Too many files: the limit is {limits.upload_max_session_files:,} per import")
 
@@ -179,6 +188,10 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
         # a folder of the same name (the same folder again, e.g. a re-drop on it), it merges
         # into that folder instead of nesting a copy inside it.
         wanted = [(fid, rel.split("/", 1)[1], size, sha) for fid, rel, size, sha in wanted]
+    findings: list[dict] = list(renamed)
+    if check is not None:
+        base = tree.path_of(db, node) if node is not None else fs.clean_name(title)
+        findings += check([f"{base}/{w[1]}" if base else w[1] for w in wanted]).findings_json()
 
     known = _known_hashes(db, p, [w[3] for w in wanted])
     if node is not None:
@@ -251,6 +264,8 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     out = session_dict(db, s, files=True)
     if registered is not None:
         out["items"] = registered
+    if check is not None or renamed:
+        out["findings"] = findings
     return out
 
 
@@ -507,6 +522,10 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     if ids:
         prio = {"priority": "first"} if (s.totals or {}).get("priority") == "first" else {}
         events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids, **prio}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
+        # todo17 D11: imaging checks run in the worker after the upload; they never block it.
+        from . import imaging_findings
+
+        imaging_findings.enqueue_check(db, scoped, p, ids, trigger="import", key=f"imaging.check:import:{s.id}")
     if s.drop_id:
         drops.session_completed(db, ctx, s, ids)
     _publish(db, ctx, s)

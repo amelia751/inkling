@@ -27,6 +27,17 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: mcp-config
+data:
+  # Rate-limit counters (db 3); the URL with the AUTH string is in mcp-secrets.
+  INKLING_MCP_REDIS_URL: rediss://10.30.0.3:6378/3
+  INKLING_MCP_REDIS_CA_FILE: /etc/redis-ca/ca.crt
+  # https://STUDIO_HOST/mcp (values/): the OAuth resource and token audience.
+  INKLING_MCP_PUBLIC_URL: https://studio.example.com/mcp
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: worker-config
 data:
   KEDA_REDIS_ADDRESS: 10.30.0.3:6378

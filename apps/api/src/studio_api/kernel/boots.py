@@ -147,6 +147,10 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
             initiator["firstStudio"] = True
     b = Boot(id=boot_id, project_id=p.id, preset=preset, state="running", task_ids=[], steps=[], initiator=initiator, principal=ctx.principal, on_behalf_of=projects.person(ctx), request_hash=rh)
     db.add(b)
+    # todo17 D3: the project's first boot with a preset stores that preset's rules (revision 1).
+    from . import rules as project_rules
+
+    project_rules.seed_from_preset(db, p, preset, projects.person(ctx))
 
     # The draft: a dataset of the given files (possibly none yet) and its task.
     from . import collections

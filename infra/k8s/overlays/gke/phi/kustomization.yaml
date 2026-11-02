@@ -1,4 +1,4 @@
-# gke/phi: the apps that serve customer data (web, api, worker, versioning, pipeline) on GKE
+# gke/phi: the apps that serve customer data (web, api, mcp, worker, versioning, pipeline) on GKE
 # Autopilot in spurby-phi (infra/terraform/phi). The agent runs in spurby-ai (../ai), so it's
 # deleted here; web proxies /api/agent to it over HTTPS. Environment-specific values (CIDRs,
 # Redis host, buckets, hosts, service accounts) come from ConfigMap gke-values: placeholders
@@ -38,6 +38,10 @@ images:
   - name: studio-api
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-api
     digest: sha256:00f87b5ad068bae5d6024fd8b2f4e87b5b1986ba66b8e9da78f7fe191fe1f664
+  # studio-mcp (todo17 D12): placeholder digest until CI first pushes it (deployed with the site, todo15 §8).
+  - name: studio-mcp
+    newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-mcp
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
   - name: studio-worker
     newName: us-central1-docker.pkg.dev/spurby-phi/images/studio-worker
     digest: sha256:15537367fffdb65fcfc4a63e4e39ffd4d94df0e58f9334460fcc7d6bb65f78c8

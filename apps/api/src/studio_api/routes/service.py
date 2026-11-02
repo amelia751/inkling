@@ -23,7 +23,7 @@ import re
 import time
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -122,3 +122,28 @@ def get_blob(key: str, request: Request, principal: str = Depends(service_scope.
     resp = blob_response(blobstore.data(), ref["key"], ref["media_type"], request)
     resp.headers["X-Content-SHA256"] = ref["sha256"]
     return resp
+
+
+# ---- Imaging findings (todo17 D11) -----------------------------------------------------------
+# The worker's `imaging.check` posts what it found here, with the worker token: codes, counts,
+# ids and field names only. Body: {resourceKind, resourceId, violations, source: "scan"} or a
+# batch `{source, checked?, results: [{resourceKind, resourceId, violations}]}`.
+
+
+def _worker(x_worker_token: str = Header(default="")) -> None:
+    from .worker import _auth
+
+    _auth(x_worker_token)
+
+
+@router.post("/projects/{project_id}/findings", dependencies=[Depends(_worker)])
+def record_findings(project_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    from ..kernel import imaging_findings
+    from ..models import ProjectRow
+
+    p = db.get(ProjectRow, project_id)
+    if p is None:
+        raise HTTPException(404, "no such project")
+    out = imaging_findings.record_body(db, p, body)
+    db.commit()
+    return out

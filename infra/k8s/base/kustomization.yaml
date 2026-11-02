@@ -12,6 +12,7 @@ resources:
   - web
   - api
   - agent
+  - mcp
   - worker
   - versioning
   - pipeline

@@ -11,6 +11,11 @@ lookups go to the table every time, so revoking is immediate.
 A key acts as principal `apikey:<id>` in its owner organization. Its scopes map to kernel scopes
 (`KERNEL_SCOPES`); the context always carries at least `apikey`, so `ctx.scopes` is never empty
 and the key is never mistaken for a person. The secret is returned once and never logged.
+
+todo17 D12: keys are made with the tier scopes (`project:read`, `project:write`, `project:trash`,
+`project:destroy`, `rules:propose`, plus `admin`); old names still work and map to them
+(`auth/scopes.py` LEGACY), keeping the kernel scopes they always had. The context carries both,
+and catalogue routes check the tier scope (`scopes.check_route`).
 """
 
 from __future__ import annotations
@@ -36,6 +41,7 @@ from ..context import AUTH_API_KEY, RequestContext, client_ip, ensure_workspace,
 from ..models import AuditEvent, OrgApiKey, Organization, User, now
 from ..naming import naming
 from . import client as wclient
+from . import scopes as tscopes
 from .permissions import PERMISSIONS
 
 log = logging.getLogger(__name__)
@@ -46,15 +52,18 @@ MARKER_SCOPE = "apikey"
 CREATED = "api_key.created"
 REVOKED = "api_key.revoked"
 
-# Key scopes (packages/contracts/src/accounts.ts API_KEY_SCOPES) → kernel scopes (`ctx.allows`).
+# Key scopes (packages/contracts/src/accounts.ts API_KEY_SCOPES and LEGACY_API_KEY_SCOPES) →
+# kernel scopes (`ctx.allows`). The old names keep exactly the kernel scopes they had.
 KERNEL_SCOPES: dict[str, tuple[str, ...]] = {
+    **{s: tscopes.KERNEL[s] for s in tscopes.SCOPES},
     "datasets:read": ("annotations.read", "assets.read", "versioning.read", "versioning.checkout"),
     "annotations:write": ("annotations.read", "annotations.write", "proposals.write", "versioning.read", "versioning.write"),
     "environments:write": ("environments.write",),
     "studio:tools": ("commands.invoke", "events.publish"),
     "admin": ("*",),
 }
-SCOPES: tuple[str, ...] = tuple(KERNEL_SCOPES)
+SCOPES: tuple[str, ...] = (*tscopes.SCOPES, "admin")  # what new keys are made with
+LEGACY_SCOPES: tuple[str, ...] = tuple(tscopes.LEGACY)
 
 CACHE_TTL_S = 60.0
 LAST_USED_EVERY_S = 60.0
@@ -68,8 +77,10 @@ def dev_prefix() -> str:
 
 def kernel_scopes(key_scopes: list[str] | tuple[str, ...]) -> tuple[str, ...]:
     out: list[str] = [MARKER_SCOPE]
-    for s in key_scopes:
-        for k in (s, *KERNEL_SCOPES.get(s, ())):
+    for s in (*key_scopes, *tscopes.tier_scopes(key_scopes)):
+        # A tier scope a legacy name maps to adds only its name, not its kernel scopes.
+        expand = KERNEL_SCOPES.get(s, ()) if s in key_scopes else ()
+        for k in (s, *expand):
             if k not in out:
                 out.append(k)
     return tuple(out)
@@ -279,6 +290,7 @@ def resolve(request: Request, db: Session, token: str, correlation: str, idem: s
 def check_scopes(scopes: Any) -> list[str]:
     if not isinstance(scopes, list) or not scopes or not all(isinstance(s, str) for s in scopes):
         raise HTTPException(422, f"scopes: pick at least one of {', '.join(SCOPES)}")
+    # Old names are still accepted (scripts that make keys); they map to the new ones.
     bad = [s for s in scopes if s not in KERNEL_SCOPES]
     if bad:
         raise HTTPException(422, f"unknown scope {bad[0]!r}; scopes are {', '.join(SCOPES)}")

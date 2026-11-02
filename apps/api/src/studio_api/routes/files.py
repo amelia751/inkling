@@ -36,7 +36,8 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import assets, audit, fs, imports, name_screen, projects, tree, zipstream
+from ..kernel import assets, audit, fs, imports, name_screen, projects, tree, write_doors, zipstream
+from ..kernel.admission.http import WriteParams, declares, write_params
 from ..models import Asset, DatasetRow, NodeVersion, ProjectRow, SourceNode
 from ..streaming import blob_response
 
@@ -96,19 +97,44 @@ def _raced(fn, *args):
     return out
 
 
-@router.post("/projects/{project_id}/fs/ops")
-def ops(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return _raced(fs.apply, db, ctx, _project(db, ctx, project_id, write=True), body)
+@router.post("/projects/{project_id}/fs/ops", openapi_extra=declares(write_doors.FILES_OPS.id))
+def ops(project_id: str, body: dict = Body(...), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo17: every path the batch leaves behind runs the layout rules (layout.*, name.*):
+    an enforced error rejects the whole batch with every violation (422 problem JSON); warnings
+    come back as `findings`. `?dryRun=true` applies it, reports, and saves nothing."""
+    p = _project(db, ctx, project_id, write=True)
+
+    def check(b: fs.Batch):
+        paths, folders = write_doors.batch_paths(db, set(b.touched) | b.moved | b.renamed)
+        return write_doors.check_paths(db, ctx, p, write_doors.FILES_OPS, paths, folders, dry_run=w.dry_run)
+
+    if w.dry_run:
+        try:
+            out = fs.apply(db, ctx, p, body, check=check, dry_run=True)
+        except IntegrityError:
+            raise HTTPException(409, "Someone else just changed this folder. Reload and try again") from None
+        return write_doors.dry_run_reply(db, out)
+    return write_doors.idempotent(db, ctx, w, write_doors.FILES_OPS, {"project": p.id, **body}, lambda: _raced(lambda *a: fs.apply(*a, check=check), db, ctx, p, body))
 
 
-@router.post("/projects/{project_id}/fs/undo")
-def undo(project_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return _raced(fs.undo, db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
+@router.post("/projects/{project_id}/fs/undo", openapi_extra=declares(write_doors.FILES_UNDO.id))
+def undo(project_id: str, body: dict = Body(default={}), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """Undo restores names that were already admitted, so no layout check; retries are safe
+    with an Idempotency-Key."""
+    p = _project(db, ctx, project_id, write=True)
+    write_doors.admit_plain(db, ctx, p, write_doors.FILES_UNDO, dry_run=w.dry_run)
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, fs.undo(db, ctx, p, body.get("batchId") or None))
+    return write_doors.idempotent(db, ctx, w, write_doors.FILES_UNDO, {"project": p.id, **body}, lambda: _raced(fs.undo, db, ctx, p, body.get("batchId") or None))
 
 
-@router.post("/projects/{project_id}/fs/redo")
-def redo(project_id: str, body: dict = Body(default={}), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return _raced(fs.redo, db, ctx, _project(db, ctx, project_id, write=True), body.get("batchId") or None)
+@router.post("/projects/{project_id}/fs/redo", openapi_extra=declares(write_doors.FILES_REDO.id))
+def redo(project_id: str, body: dict = Body(default={}), w: WriteParams = Depends(write_params), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    p = _project(db, ctx, project_id, write=True)
+    write_doors.admit_plain(db, ctx, p, write_doors.FILES_REDO, dry_run=w.dry_run)
+    if w.dry_run:
+        return write_doors.dry_run_reply(db, fs.redo(db, ctx, p, body.get("batchId") or None))
+    return write_doors.idempotent(db, ctx, w, write_doors.FILES_REDO, {"project": p.id, **body}, lambda: _raced(fs.redo, db, ctx, p, body.get("batchId") or None))
 
 
 @router.get("/projects/{project_id}/fs/history")
@@ -233,7 +259,9 @@ def download_version(node_id: str, version: int, request: Request, ctx: RequestC
 def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """A folder or a selection as one ZIP, streamed (stored entries, constant memory). Entry
     names are current paths, never the names files arrived with. Files held for privacy
-    review are left out and listed in `_held_files.txt`."""
+    review are left out and listed in `_held_files.txt`. Imaging checks (todo17 D11) are queued
+    for what is exported; open error-severity imaging findings answer 422 problem JSON with
+    `findings` unless a person sends `force: true`; others are counted in `X-Imaging-Findings`."""
     p = _project(db, ctx, project_id)
     ids = body.get("nodeIds")
     if not isinstance(ids, list) or not ids:
@@ -290,6 +318,15 @@ def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = 
         if not f.asset_id:
             continue
         asset_ids[path] = f.asset_id
+    # todo17 D11: a fresh imaging check of what leaves, and a gate on what is already known.
+    from ..kernel import imaging_findings
+
+    exported = {f.id: f for path, f in files if path in asset_ids}
+    try:
+        imaging = imaging_findings.export_gate(db, ctx, p, list(exported.values()), force=body.get("force") is True)
+    except imaging_findings.ExportBlocked as e:
+        db.commit()  # keep the queued check
+        return e.response()
     by_asset = {a.id: a for a in db.scalars(select(Asset).where(Asset.id.in_(list(set(asset_ids.values())))))} if asset_ids else {}
     for path, aid in asset_ids.items():
         a = by_asset.get(aid)
@@ -305,7 +342,7 @@ def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = 
         note = ("\n".join(lines) + "\n").encode()
     name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Sources"
     stamp = datetime.fromtimestamp(time.time(), UTC)
-    return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store", "X-Held-Files": str(len(held))})
+    return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store", "X-Held-Files": str(len(held)), "X-Imaging-Findings": str(len(imaging))})
 
 
 # ---- Activity ----------------------------------------------------------------------------------

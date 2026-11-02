@@ -1,15 +1,15 @@
 """todo18 D8: `blob_delete_retries`, after-commit deletes (blobs, versioning repos) that failed.
 
-Revision ID: 0025
-Revises: 0023
+Revision ID: 0026
+Revises: 0025
 Create Date: 2026-11-02 20:00:00.000000
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = '0025'
-down_revision = '0023'
+revision = '0026'
+down_revision = '0025'
 branch_labels = None
 depends_on = None
 

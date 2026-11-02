@@ -5,7 +5,8 @@ Derived from credentials, never from a request body, so a plugin or agent can't 
 tenant by putting an id in its input. Resolution order (todo9 Phase 3):
 
 1. `Authorization: Bearer <kernel session token>` (agent runs, workers, plugins);
-2. `Authorization: Bearer <organization API key>` (`_resolve_api_key`, todo9 Phase 8);
+2. `Authorization: Bearer <OAuth access token>` (an outside agent over MCP, todo17 D12;
+   `auth/oauth.py`), else `Bearer <organization API key>` (`_resolve_api_key`, todo9 Phase 8);
 3. the WorkOS session cookie (`auth_mode=workos`; unsealed and refreshed by
    `auth.session.session_middleware`, which leaves the result on `request.state`);
 4. trusted dev headers (`auth_mode=dev` with `dev_trust_headers`): `X-Dev-Principal`.
@@ -32,7 +33,7 @@ WORKSPACE_HEADER = "X-Workspace-Id"
 # session or e2e test. Only `user:` principals; agents always come with a session token.
 PRINCIPAL_HEADER = "X-Dev-Principal"
 # How a context was authenticated (`RequestContext.auth`).
-AUTH_DEV, AUTH_COOKIE, AUTH_TOKEN, AUTH_API_KEY = "dev", "cookie", "token", "apikey"
+AUTH_DEV, AUTH_COOKIE, AUTH_TOKEN, AUTH_API_KEY, AUTH_OAUTH = "dev", "cookie", "token", "apikey", "oauth"
 # A delegation minted by a dev identity holds every permission.
 ALL = "*"
 
@@ -78,8 +79,9 @@ class RequestContext:
     @property
     def workspace_bound(self) -> bool:
         """A session token is bound to the one workspace it was minted for; an organization API
-        key (also scoped) reaches any project of its organization (`projects.require_project`)."""
-        return bool(self.scopes) and self.auth != AUTH_API_KEY
+        key (also scoped) reaches any project of its organization, and an outside agent's OAuth
+        token any project its person may (`projects.require_project`)."""
+        return bool(self.scopes) and self.auth not in (AUTH_API_KEY, AUTH_OAUTH)
 
     def allows(self, scope: str) -> bool:
         """Session tokens carry scopes; dev header identities are full users."""
@@ -190,8 +192,13 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
         row = db.get(SessionToken, hash_token(token))
         if row is not None and row.expires_at.replace(tzinfo=row.expires_at.tzinfo or UTC) >= datetime.now(UTC):
             return _session_token_context(request, db, row, correlation, idem)
-        if row is None and (key_ctx := _resolve_api_key(request, db, token, correlation, idem)) is not None:
-            return key_ctx
+        if row is None:
+            from .auth import oauth
+
+            if oauth.looks_like_jwt(token):
+                return oauth.resolve(request, db, token, correlation, idem)
+            if (key_ctx := _resolve_api_key(request, db, token, correlation, idem)) is not None:
+                return key_ctx
         raise HTTPException(401, "invalid or expired session token or API key")
     workspace_header = request.headers.get(WORKSPACE_HEADER) or "default"
     signed_in = getattr(request.state, "auth_session", None)
@@ -219,4 +226,7 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
 def get_context(request: Request, db: Session = Depends(get_session)) -> RequestContext:
     ctx = resolve_context(request, db)
     request.state.ctx = ctx
+    from .auth import scopes
+
+    scopes.check_route(request, ctx)  # todo17 D12: API keys and OAuth tokens need the route's tier
     return ctx

@@ -1,5 +1,6 @@
 """Periodic kernel work the worker triggers (todo7 Phase 4): `files.empty_trash`, and
-(todo13 D13) `files.screen_names`, the name-screening backfill, about once a minute.
+(todo13 D13) `files.screen_names`, the name-screening backfill, about once a minute, and (todo17
+D10) `rules.scan`: queued per-project re-checks each minute, the daily scan at API_RULES_SCAN_HOUR.
 
 Every worker asks the kernel at most once an hour; the kernel runs the job at most once a day
 across every worker and replica (a `scheduled_runs` row per day), purging what has been in the
@@ -16,9 +17,9 @@ import httpx
 
 log = logging.getLogger("studio_worker.schedule")
 
-JOBS = ("files.empty_trash", "files.screen_names", "blobs.retry")  # blobs.retry: todo18 D8, daily in the kernel
+JOBS = ("files.empty_trash", "files.screen_names", "rules.scan", "blobs.retry")  # blobs.retry: todo18 D8, daily in the kernel
 # Seconds between asks per job (default: the scheduler's interval).
-INTERVALS = {"files.screen_names": 60.0}
+INTERVALS = {"files.screen_names": 60.0, "rules.scan": 60.0}
 
 
 class Scheduled:

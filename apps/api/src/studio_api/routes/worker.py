@@ -387,6 +387,18 @@ def screen_names_job(body: dict = Body(default={}), db: Session = Depends(get_se
     return {"ran": result["screened"] > 0, "result": result}
 
 
+@router.post("/scheduled/rules.scan", dependencies=[Depends(_auth)])
+def rules_scan_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
+    """todo17 D10: drain the queued per-project scans (every rules change enqueues one), and run
+    the daily scan of every project once per UTC day from API_RULES_SCAN_HOUR on."""
+    from ..config import settings
+    from ..kernel import findings
+
+    drained = findings.drain(db)
+    daily = findings.daily(db, hour=settings().rules_scan_hour)
+    return {"ran": bool(drained) or bool(daily.get("ran")), "result": {"scans": drained, "daily": daily}}
+
+
 # ---- Import jobs (todo16 round 2) -------------------------------------------------------------
 # `imports.fetch_url`: the worker claims the job (builtin "imports") and asks the kernel to run
 # it; the kernel fetches the link (pinned address, capped) and lands it in the queued session.

@@ -41,6 +41,7 @@ import { overviewContext, useAgentContext } from "@/studio/lib/agent/providers";
 import type { AttentionItem, DataCard, ProjectOverview, ProjectSummary, Proposal, ResumeState } from "@studio/contracts/types";
 import { NewStudioButton } from "@/studio/components/studio/NewStudioButton";
 import { cn } from "@studio/ui/utils";
+import { HealthPanel } from "./HealthPanel";
 
 /**
  * Project Overview (todo6 Phase 3.3, docs/ux.md §4): where am I, what was I doing, what data is
@@ -76,6 +77,8 @@ export function ProjectOverviewPage() {
                   {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} tasks={o.tasks} />}
                   <SourceSummaryCards projectId={projectId} cards={o.data ?? []} onAdd={(p) => void addData(p)} />
                   <AttentionQueue projectId={projectId} items={o.attention ?? []} total={o.attentionTotal ?? 0} />
+                  {/* todo17 M3: what's stored that breaks the project's rules. */}
+                  <HealthPanel projectId={projectId} />
                 </div>
               )}
             </>

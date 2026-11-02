@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# apps/mcp: MCP server over stdio (no port; run with `docker run -i`). Build from the repo root:
+# apps/mcp: `studio-mcp`, the remote MCP server (streamable HTTP on :8300, todo17 D12). Build from
+# the repo root:
 #   docker build -f apps/mcp/Dockerfile -t studio-mcp:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
-#   docker run --rm -i -e INKLING_URL=http://host.docker.internal:8080 studio-mcp:dev
+#   docker run --rm -p 8300:8300 -e INKLING_API_URL=http://host.docker.internal:8000 studio-mcp:dev
+# The same image runs over stdio with `-e INKLING_MCP_TRANSPORT=stdio` and `docker run -i`.
 ARG NODE_IMAGE=node:24-trixie-slim
 
 FROM ${NODE_IMAGE} AS base
@@ -39,11 +41,15 @@ LABEL org.opencontainers.image.source="${IMAGE_SOURCE}" \
 WORKDIR /app
 COPY --from=prod-deps /repo/ ./
 COPY --from=build /repo/apps/mcp/dist apps/mcp/dist
-# dist/main.js reads ../../../schemas/naming.json, i.e. /app/schemas/naming.json, and
-# dist/viewers.js the viewer document template (schemas/viewer-runtime.v1.json).
+# dist/main.js reads ../../../schemas/naming.json, i.e. /app/schemas/naming.json, dist/operations.js
+# the operation catalogue and dist/viewers.js the viewer document template.
 COPY --from=build /repo/schemas/naming.json schemas/naming.json
+COPY --from=build /repo/schemas/operations.json schemas/operations.json
 COPY --from=build /repo/schemas/viewer-runtime.v1.json schemas/viewer-runtime.v1.json
-ENV NODE_ENV=production HOME=/tmp GIT_SHA=${GIT_SHA}
+ENV NODE_ENV=production HOME=/tmp GIT_SHA=${GIT_SHA} \
+    INKLING_MCP_TRANSPORT=http INKLING_MCP_HOST=0.0.0.0 INKLING_MCP_PORT=8300
 USER node
-# stdio server: no HEALTHCHECK (nothing listens).
+EXPOSE 8300
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:8300/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
 CMD ["node", "apps/mcp/dist/main.js"]

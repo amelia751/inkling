@@ -1,15 +1,15 @@
 """todo18 B: `fs_batches.state`, the Trash batch lock (restoring | destroying | restored | destroyed).
 
-Revision ID: 0022
-Revises: 0021
+Revision ID: 0024
+Revises: 0023
 Create Date: 2026-11-02 20:00:00.000000
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = '0022'
-down_revision = '0021'
+revision = '0024'
+down_revision = '0023'
 branch_labels = None
 depends_on = None
 

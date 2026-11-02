@@ -9,6 +9,9 @@ Every write runs these rules (todo17 D4). Severities: **error** rejects the writ
 | `label.unknown` | annotation | error | enforce | no | Label isn't in the project's rules. Use one of the labels in the project rules (see `allowed`), or propose a rules change that adds it. |
 | `label.synonym` | annotation | info | enforce | yes | Label is a synonym of a canonical label. Use the canonical label name; the normaliser rewrites synonyms on write. |
 | `geometry.not-allowed` | annotation | error | enforce | no | Geometry not allowed for this label. Draw this label with one of its allowed geometries (see `allowed`). |
+| `label.in-use` | rules | error | enforce | no | Rules change would orphan annotations. Merge the label into another with labels.merge (or rename it with labels.rename) instead of removing it; the message gives the count. |
+| `label.name-taken` | rules | error | enforce | no | Rename target is already a label. Merge into the existing label with labels.merge instead of renaming onto it. |
+| `annotation.invalid` | annotation | error | enforce | no | Annotation is malformed. Send a well-formed annotation: id, itemId, label, provenance, author, createdAt and a geometry with a type (see the message). |
 | `annotation.out-of-bounds` | annotation | error | evaluate | yes | Annotation lies outside the image. Keep the geometry inside the image extent; clip it or redraw it. |
 | `annotation.too-small` | annotation | warn | evaluate | no | Annotation is smaller than the minimum size. Redraw it at least `annotations.minSize` across, or delete it if it was a stray click. |
 | `annotation.attribute-missing` | annotation | error | evaluate | no | Required attribute missing. Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema. |
@@ -25,3 +28,9 @@ Every write runs these rules (todo17 D4). Severities: **error** rejects the writ
 | `dicom.series-incomplete` | dicom | warn | evaluate | no | DICOM series is incomplete. Upload the missing instances (see the slice gaps), or remove the partial series. |
 | `dicom.seg-frame-mismatch` | dicom | error | evaluate | no | SEG frame of reference doesn't match its source. Regenerate the segmentation against the referenced series. |
 | `nifti.orientation-mismatch` | nifti | warn | evaluate | no | NIfTI qform and sform disagree. Rewrite the header with one consistent affine (qform = sform). |
+| `dicom.inconsistent-spacing` | dicom | warn | evaluate | no | DICOM series has uneven slice or pixel spacing. Check the series for missing or duplicated slices, or resample it to even spacing. |
+| `dicom.inconsistent-orientation` | dicom | warn | evaluate | no | DICOM series mixes slice orientations. Split the series: its slices belong to more than one volume. |
+| `dicom.conformance` | dicom | info | evaluate | no | DICOM file fails conformance checks (dciodvfy). Fix the attributes dciodvfy reports, or re-export from the source system. |
+| `nifti.voxel-size` | nifti | error | evaluate | no | NIfTI voxel size is zero, negative or not finite. Set positive voxel sizes (pixdim) in the header. |
+| `nifti.nan` | nifti | warn | evaluate | no | NIfTI image contains NaN voxels. Replace NaN voxels (e.g. with 0) before labelling or training. |
+| `nifti.grid-mismatch` | nifti | error | evaluate | no | NIfTI mask grid differs from its image. Resample the mask onto the image grid (same shape and affine). |

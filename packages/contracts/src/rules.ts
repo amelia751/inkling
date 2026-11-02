@@ -59,6 +59,7 @@ export const Rules = z.object({
   annotations: AnnotationRules.default(() => AnnotationRules.parse({})),
   imaging: ImagingRules.default(() => ImagingRules.parse({})),
   severityOverrides: z.record(z.string(), RuleSeverity).default({}).describe("Lint rule code → severity"),
+  enforce: z.array(z.string()).default([]).describe("Rule codes promoted out of evaluate mode (D5): their errors reject writes"),
   merge: MergeRules.default(() => MergeRules.parse({})),
 }).superRefine((r, ctx) => {
   const seen = new Map<string, string>();

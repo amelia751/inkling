@@ -64,7 +64,7 @@ class Annotations(_M):
 
 
 class Merge(_M):
-    auto: bool | dict[str, Any] | str = False
+    auto: bool | dict[str, Any] | str = "write-tier"  # "write-tier" | "never" (todo17 D7)
 
 
 class RulesV1(_M):
@@ -75,6 +75,7 @@ class RulesV1(_M):
     annotations: Annotations = Annotations()
     imaging: dict[str, Any] = {}
     severityOverrides: dict[str, Severity] = {}
+    enforce: list[str] = []  # D5: rule codes promoted out of evaluate mode
     merge: Merge = Merge()
 
 
@@ -158,30 +159,51 @@ def _check_revision(current: int, base: Any) -> None:
         raise HTTPException(409, {"error": "stale revision", "revision": current})
 
 
-def _save(db: Session, ctx: RequestContext, p: ProjectRow, rules: dict[str, Any], base: Any) -> dict[str, Any]:
+def save_row(db: Session, ctx: RequestContext, p: ProjectRow, rules: dict[str, Any], base: Any, *, dry_run: bool = False) -> tuple[dict[str, Any], ProjectRulesHistory | None]:
+    """Save `rules` as the next revision (409 if `base` is stale) and append a history row.
+    Returns the saved rules json and the history row (None on a dry run, where nothing is written)."""
     row = db.get(ProjectRules, p.id, with_for_update=True)
     current = row.revision if row is not None else 0
     _check_revision(current, base)
     rules = validate(rules)
     at = datetime.now(UTC)
+    if dry_run:
+        return _out(rules, current + 1, source="project", updated_by=ctx.principal, updated_at=at), None
     if row is None:
         row = ProjectRules(project_id=p.id, rules=rules, revision=1, updated_by=ctx.principal, updated_at=at)
         db.add(row)
     else:
         row.rules, row.revision, row.updated_by, row.updated_at = rules, current + 1, ctx.principal, at
-    db.add(ProjectRulesHistory(project_id=p.id, revision=row.revision, rules=rules, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, created_at=at))
+    hist = ProjectRulesHistory(project_id=p.id, revision=row.revision, rules=rules, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, created_at=at)
+    db.add(hist)
     db.flush()
-    return _out(row.rules, row.revision, source="project", updated_by=row.updated_by, updated_at=row.updated_at)
+    # D10: what's stored is re-checked against the new rules (the worker drains the queue).
+    from . import findings
+
+    findings.enqueue_scan(db, p.id, f"rules revision {row.revision}")
+    return _out(row.rules, row.revision, source="project", updated_by=row.updated_by, updated_at=row.updated_at), hist
 
 
-def put(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any]) -> dict[str, Any]:
+def _save(db: Session, ctx: RequestContext, p: ProjectRow, rules: Any, base: Any, *, dry_run: bool = False) -> dict[str, Any]:
+    """A rules edit by a person (PUT/PATCH): refused (422 problem JSON, `label.in-use`) if it would
+    leave annotations with a label the rules no longer know (rename or merge it instead)."""
+    from . import label_ops
+
+    current = get(db, p)
+    _check_revision(current["revision"], base)
+    label_ops.check_orphans(db, p, current["rules"], validate(rules))
+    out = save_row(db, ctx, p, rules, base, dry_run=dry_run)[0]
+    return {**out, "dryRun": True} if dry_run else out
+
+
+def put(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any], *, dry_run: bool = False) -> dict[str, Any]:
     require_person(ctx)
     if "rules" not in body:
         raise HTTPException(422, {"error": "body needs rules and baseRevision"})
-    return _save(db, ctx, p, body["rules"], body.get("baseRevision"))
+    return _save(db, ctx, p, body["rules"], body.get("baseRevision"), dry_run=dry_run)
 
 
-def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any]) -> dict[str, Any]:
+def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any], *, dry_run: bool = False) -> dict[str, Any]:
     """JSON Patch (RFC 6902) on the current rules: `{ baseRevision, ops: [...] }`."""
     require_person(ctx)
     ops = body.get("ops")
@@ -193,9 +215,30 @@ def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any])
         rules = jsonpatch.apply_patch(copy.deepcopy(current["rules"]), ops)
     except (jsonpatch.JsonPatchException, jsonpatch.JsonPointerException, TypeError, ValueError) as e:
         raise HTTPException(422, {"error": f"patch does not apply: {e}"}) from None
-    return _save(db, ctx, p, rules, body.get("baseRevision"))
+    return _save(db, ctx, p, rules, body.get("baseRevision"), dry_run=dry_run)
 
 
 def history(db: Session, p: ProjectRow, limit: int = 50) -> dict[str, Any]:
     rows = db.scalars(select(ProjectRulesHistory).where(ProjectRulesHistory.project_id == p.id).order_by(ProjectRulesHistory.revision.desc()).limit(max(1, min(limit, 200))))
     return {"history": [{"revision": r.revision, "rules": r.rules, "actor": r.actor, "onBehalfOf": r.on_behalf_of, "createdAt": r.created_at.isoformat()} for r in rows]}
+
+
+def seed_from_preset(db: Session, p: ProjectRow, preset: str | None, actor: str) -> dict[str, Any] | None:
+    """todo17 D3: a new project (or its first boot with a preset) stores that preset's rules as
+    revision 1, so later preset edits never change a project's rules under it. No-op when the
+    project already has rules or the preset has none."""
+    preset = (preset or "").removeprefix("preset:")
+    if not preset or "/" in preset or ".." in preset or db.get(ProjectRules, p.id) is not None:
+        return None
+    raw = _preset_rules(preset, str(settings().repo_root))
+    if raw is None:
+        return None
+    try:
+        rules = validate(json.loads(raw))
+    except HTTPException:
+        return None
+    at = datetime.now(UTC)
+    db.add(ProjectRules(project_id=p.id, rules=rules, revision=1, updated_by=actor, updated_at=at))
+    db.add(ProjectRulesHistory(project_id=p.id, revision=1, rules=rules, actor=actor, on_behalf_of=None, created_at=at))
+    db.flush()
+    return rules

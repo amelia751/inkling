@@ -46,6 +46,12 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/merge"),
         ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/resolutions"),
         ("POST", f"{P}/datasets/{{dataset_id}}/releases"),
+        # todo17 D9, D10: the project context, findings, fixes (agents get a change request)
+        # and the gardener (only opens change requests, never merges).
+        ("GET", f"{P}/projects/{{project_id}}/context"),
+        ("GET", f"{P}/projects/{{project_id}}/findings"),
+        ("POST", f"{P}/projects/{{project_id}}/findings/{{finding_id}}/fix"),
+        ("POST", f"{P}/projects/{{project_id}}/gardener"),
         # Environment control plane
         ("GET", "/api/environments/{project_id}"),
         ("PATCH", "/api/environments/{project_id}"),
@@ -131,6 +137,22 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # todo16 D9: an assistant turn, journaled in fs_batches (kernel/turns.py).
         ("GET", f"{P}/projects/{{project_id}}/turns/{{turn_id}}"),
         ("POST", f"{P}/projects/{{project_id}}/turns/{{turn_id}}/undo"),
+        # todo17 D7: rules (an agent's write becomes a change request) and change requests
+        # (open, add to, close its own; the kernel refuses an agent's merge with 403).
+        ("GET", f"{P}/projects/{{project_id}}/rules"),
+        ("PUT", f"{P}/projects/{{project_id}}/rules"),
+        ("PATCH", f"{P}/projects/{{project_id}}/rules"),
+        ("GET", f"{P}/projects/{{project_id}}/changes"),
+        ("POST", f"{P}/projects/{{project_id}}/changes"),
+        ("GET", f"{P}/projects/{{project_id}}/changes/{{cid}}"),
+        ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/operations"),
+        ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/merge"),
+        ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/close"),
+        ("POST", f"{P}/projects/{{project_id}}/changes/{{cid}}/comments"),
+        # todo17 D3/D12: the project's rules (writes stay people's; agents propose changes), and
+        # an outside agent polling the approval a person gives for its destroy (202 + link).
+        ("GET", f"{P}/projects/{{project_id}}/rules/history"),
+        ("GET", f"{P}/approvals/{{approval_id}}"),
     }
 )
 

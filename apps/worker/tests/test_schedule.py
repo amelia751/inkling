@@ -44,7 +44,7 @@ def test_name_screening_backfill_is_asked_every_minute():
     assert s.tick() == ["files.screen_names"]
     now[0] = 61
     assert s.tick() == ["files.screen_names"]
-    assert calls == ["files.empty_trash", "files.screen_names", "blobs.retry", "files.screen_names"]
+    assert calls == ["files.empty_trash", "files.screen_names", "rules.scan", "blobs.retry", "files.screen_names", "rules.scan"]
 
 
 def test_blobs_retry_is_asked_with_the_daily_jobs():
@@ -58,3 +58,18 @@ def test_blobs_retry_is_asked_with_the_daily_jobs():
     s = Scheduled(httpx.Client(transport=httpx.MockTransport(handler), base_url="http://kernel"), interval_s=3600, clock=lambda: 0.0)
     assert s.tick() == ["blobs.retry"]
     assert "/api/v1/worker/scheduled/blobs.retry" in paths
+
+
+def test_rules_scan_is_asked_every_minute():
+    """todo17 D10: queued per-project scans drain within a minute; the kernel owns the daily one."""
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path.rsplit("/", 1)[-1])
+        return httpx.Response(200, json={"ran": request.url.path.endswith("rules.scan")})
+
+    now = [0.0]
+    s = Scheduled(httpx.Client(transport=httpx.MockTransport(handler), base_url="http://kernel"), interval_s=3600, clock=lambda: now[0])
+    assert s.tick() == ["rules.scan"]
+    now[0] = 61
+    assert s.tick() == ["rules.scan"]

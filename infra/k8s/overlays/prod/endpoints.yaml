@@ -36,3 +36,10 @@ data:
   INKLING_VERSIONING_REDIS_URL: rediss://redis.internal.example.com:6380/2
 # Database URLs carry credentials, so they are in the Secrets; for reference the hosts are
 #   pg.internal.example.com:5432  databases `studio` (api, versioning schema) and `agent`.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-config
+data:
+  INKLING_MCP_REDIS_URL: rediss://redis.internal.example.com:6380/3

@@ -90,7 +90,20 @@ test checks each entry exists. Change this list and that file together.
 - Project reads with no file contents: project, overview, sources, proposals (read, create),
   review, search, drive listing, imports, source nodes and their activity; asset metadata
   (`GET /api/v1/assets`: ids, paths, types, sizes).
+- Project context and health (todo17 D9, D10): `GET …/projects/{id}/context` (rules, findings by
+  rule, what's published, recent changes), `GET …/findings`, `POST …/findings/{id}/fix` and
+  `POST …/gardener`; for an agent a fix only ever opens a change request. Findings carry rule
+  codes, resource ids and messages, never file names.
 - Org settings (todo15 D2): `GET /api/v1/org`, so the agent can refuse runs when `aiAssist` is off.
+- Project rules (todo17 D3): `GET /api/v1/projects/{id}/rules` and `…/rules/history` (writes stay a
+  person's; agents propose them).
+- Outside agents (todo17 D12): the same allowlist applies to an MCP OAuth token (principal
+  `agent:<client name>`, on behalf of the person who signed it in, `auth/oauth.py`), plus
+  `GET /api/v1/approvals/{id}` to poll the approval a person gives for its destroy (which always
+  answers 202 with an approval link first). Its scopes (`project:read`, `project:write`,
+  `project:trash`, `project:destroy`, `rules:propose`, `auth/scopes.py`) gate each route by the
+  operation catalogue's tier; a missing one is 403 `insufficient_scope`. A connection revoked in
+  Settings › Connected agents answers 401.
 - Drops (todo13 D3): `GET /api/v1/drops/{id}` answers an agent with the drop's `DropSummary`
   only: counts by kind and state, groups, and per file its node id, its screened name and
   technical facts (dimensions, frames, duration, modality, column names and types, pages). The

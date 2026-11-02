@@ -67,7 +67,7 @@ SDK's own unprefixed `WORKOS_*` variables are never read.
 | Key (without prefix)      | Default                          | Meaning |
 |---------------------------|----------------------------------|---------|
 | API_AUTH_MODE             | dev                              | `dev` (trusted dev headers) or `workos` (AuthKit sessions) |
-| API_WORKOS_API_KEY *      | (none)                           | `sk_…` server key (secret; the worker reads the same key) |
+| API_WORKOS_API_KEY *      | (none)                           | `sk_…` server key (secret) |
 | API_WORKOS_CLIENT_ID *    | (none)                           | `client_…`; also names the JWKS URL |
 | API_WORKOS_COOKIE_PASSWORD * | (none)                        | seals the session cookie; must be a Fernet key (`Fernet.generate_key()`), the same on every replica (secret) |
 | API_WORKOS_REDIRECT_URI * | (none)                           | `https://<host>/api/auth/callback`, exactly as in the WorkOS dashboard |
@@ -76,6 +76,7 @@ SDK's own unprefixed `WORKOS_*` variables are never read.
 | API_PUBLIC_URL            | (none: from the redirect URI)    | the Studio's origin, for `return_to` checks and Admin Portal return URLs |
 | API_SESSION_MAX_HOURS     | 12                               | the session cookie's lifetime; set it to the WorkOS environment's maximum session length (Sessions tab), which is environment-wide and shown read-only on Organization › Security |
 | API_SIGNIN_METHODS        | password,google                  | the AuthKit sign-in methods turned on in the WorkOS environment (`password`, `google`, `microsoft`, `github`, `apple`, `magic_auth`, `passkey`), shown read-only on Organization › Security; the API can't read them |
+| API_WORKOS_SYNC_INTERVAL_S | 5                               | workos mode: how often the Events API sync polls (`auth/sync.py`; one replica at a time; 0 = off) |
 
 Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
 gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
@@ -238,6 +239,7 @@ class Settings(BaseModel):
     workos_redirect_uri: str | None = None
     workos_issuer: str | None = None
     workos_base_url: str | None = None
+    workos_sync_interval_s: float = 5.0
     public_url: str | None = None
     # Organization › Security (todo9 Phase 9): environment-wide in WorkOS, so read-only there.
     session_max_hours: int = 12
@@ -338,6 +340,7 @@ _KEYS: dict[str, str] = {
     "workos_redirect_uri": "API_WORKOS_REDIRECT_URI",
     "workos_issuer": "API_WORKOS_ISSUER",
     "workos_base_url": "API_WORKOS_BASE_URL",
+    "workos_sync_interval_s": "API_WORKOS_SYNC_INTERVAL_S",
     "public_url": "API_PUBLIC_URL",
     "session_max_hours": "API_SESSION_MAX_HOURS",
     "signin_methods": "API_SIGNIN_METHODS",

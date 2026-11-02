@@ -25,7 +25,7 @@ MEMBER_PERMS = ["project:create"]
 
 
 def workos_settings(**extra) -> dict:
-    return {"auth_mode": "workos", "workos_api_key": "sk_test_fake", "workos_client_id": "client_fake", "workos_cookie_password": COOKIE_PASSWORD, "workos_redirect_uri": REDIRECT, **extra}
+    return {"auth_mode": "workos", "workos_api_key": "sk_test_fake", "workos_client_id": "client_fake", "workos_cookie_password": COOKIE_PASSWORD, "workos_redirect_uri": REDIRECT, "workos_sync_interval_s": 0, **extra}
 
 
 def token(sub: str, org: str | None = None, perms: list[str] | None = None, *, ttl: int = 300, role: str | None = None, sid: str = "session_1") -> str:

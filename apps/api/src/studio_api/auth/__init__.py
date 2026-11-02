@@ -3,6 +3,7 @@
     client.py      the AsyncWorkOSClient, built from settings; JWKS and readiness
     cookie.py      the sealed session cookie and the signed sign-in state
     session.py     verify / refresh the session, the `/api/*` middleware, token revocation
+    sync.py        the WorkOS Events API sync into the mirror, nightly reconciliation
     bootstrap.py   mirror upserts at sign-in, personal organizations, the org switcher list
     routes.py      /api/auth/{login,callback,session,switch-org,logout,verify}
     permissions.py permission names and `require_permission(perm)` (a FastAPI dependency)
@@ -10,7 +11,7 @@
     api_keys.py    organization API keys: create/list/revoke, Bearer resolution (`apikey:<id>`)
 
 Later phases plug in here: org routes use `require_permission`, `current_org` and `audit`;
-`context._resolve_api_key` calls `api_keys.resolve`; event handlers call `session.revoke_sessions_for`.
+`context._resolve_api_key` calls `api_keys.resolve`; the event sync (`sync.py`) calls `session.revoke_sessions_for`.
 """
 
 from .audit import audit

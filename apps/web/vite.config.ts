@@ -77,6 +77,10 @@ async function verifyForAgent(req: http.IncomingMessage, res: http.ServerRespons
   } catch {
     return fail(503, "the API is unreachable");
   }
+  // A verify that refreshed the session rotated the cookie (or a 401 cleared it): pass it on, or
+  // the browser keeps a spent refresh token (apps/api auth/routes.py `verify`, as nginx does).
+  const cookies = verified.headers.getSetCookie();
+  if (cookies.length) res.setHeader("set-cookie", cookies);
   if (verified.status === 401) return fail(401, "sign in required");
   if (!verified.ok) return fail(503, `the API answered ${verified.status}`);
   const accessToken = verified.headers.get("x-access-token");

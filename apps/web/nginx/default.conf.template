@@ -52,6 +52,10 @@ server {
     proxy_set_header X-Request-Id $request_id;
   }
 
+  # Only the internal /_auth subrequest may call the API's verify endpoint; the ingress sends an
+  # outside request for it here (infra/k8s/base/ingress.yaml), and it gets a 404.
+  location = /api/auth/verify { return 404; }
+
   # The agent service: /api/agent/* → <agent>/v1/* with the service token (what the Vite
   # proxy does in dev). agent-auth/<mode>.inc sets the identity headers: `dev` sends the service
   # token as the bearer (and in X-Agent-Service-Token), `workos` forwards the person's access

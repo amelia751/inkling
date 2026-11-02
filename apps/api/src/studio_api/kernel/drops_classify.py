@@ -63,6 +63,10 @@ class FileIn:
     facts: dict = field(default_factory=dict)
     flags: dict = field(default_factory=dict)
     existing: bool = False  # the same bytes were already in Files before this drop
+    # A WFDB signal file (.mat/.dat): the node id of the header (.hea) whose record it holds.
+    # The gatherer pairs them (same folder, same drop); the file joins that header's group as a
+    # part of its recording, not an item of its own and not "can't use yet".
+    part_of: str | None = None
 
 
 @dataclass
@@ -101,9 +105,16 @@ class Group:
     collection_id: str | None = None
     asks: str | None = None
     relates_to: str | None = None
+    # Node ids (also in `node_ids`) that are parts of another file's item (WFDB signal files):
+    # they go into the collection with it but don't count as items.
+    parts: list[str] = field(default_factory=list)
+
+    @property
+    def count(self) -> int:
+        return len(self.node_ids) - len(self.parts)
 
     def as_dict(self, with_nodes: bool = True) -> dict:
-        out: dict[str, Any] = {"groupId": self.group_id, "kind": self.kind, "count": len(self.node_ids), "suggestedAction": self.action}
+        out: dict[str, Any] = {"groupId": self.group_id, "kind": self.kind, "count": self.count, "suggestedAction": self.action}
         if self.shape:
             out["shape"] = dict(self.shape)
         if with_nodes:
@@ -173,8 +184,16 @@ def group_files(files: list[FileIn]) -> list[Group]:
     """Groups in a stable order (first appearance), each with its counts and shape."""
     buckets: OrderedDict[str, Group] = OrderedDict()
     series: dict[str, set[str]] = {}
+    keys = {f.node_id: file_key(f) for f in files}
+    parts: set[str] = set()
     for f in files:
-        bucket, kind = file_key(f)
+        # A signal file joins its header's (viewable) group as a part of that recording.
+        head = keys.get(f.part_of) if f.part_of else None
+        if head is not None and head[0].startswith("viewable:") and not f.existing:
+            keys[f.node_id] = head
+            parts.add(f.node_id)
+    for f in files:
+        bucket, kind = keys[f.node_id]
         g = buckets.get(bucket)
         if g is None:
             gid = "g-" + bucket.replace("viewable:", "").replace(":", "-").rstrip("-").lower()
@@ -182,6 +201,9 @@ def group_files(files: list[FileIn]) -> list[Group]:
             if kind in ("dicom-series", "dicom") and (m := _modality(f)):
                 g.shape["modality"] = m
         g.node_ids.append(f.node_id)
+        if f.node_id in parts:
+            g.parts.append(f.node_id)
+            continue
         g.held += _held(f)
         g.existing += bool(f.existing or (f.flags or {}).get("duplicate_of"))
         g.spoofed += _spoofed(f)
@@ -279,7 +301,7 @@ def plan(drop_id: str, groups: list[Group], ctx: Context, preset_for: Callable[[
     actions: list[dict] = []
     needs = False
     for g in groups:
-        a: dict[str, Any] = {"groupId": g.group_id, "type": g.action, "nodeIds": list(g.node_ids), "kind": g.kind, "count": len(g.node_ids)}
+        a: dict[str, Any] = {"groupId": g.group_id, "type": g.action, "nodeIds": list(g.node_ids), "kind": g.kind, "count": g.count}
         if g.held:
             a["held"] = g.held
         if g.action in ("add_to_collection", "new_collection", "new_dataset") and preset_for and g.kind in VIEWABLE:

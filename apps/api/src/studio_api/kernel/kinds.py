@@ -61,3 +61,19 @@ def kind_from_extension(name: str) -> str:
 def is_junk(rel_path: str) -> bool:
     parts = [p.lower() for p in rel_path.split("/") if p]
     return bool(parts) and (parts[-1] in JUNK_NAMES or parts[-1].startswith("._") or any(p in JUNK_DIRS for p in parts[:-1]))
+
+
+WFDB_SIGNAL_EXTS = (".mat", ".dat")
+
+
+def wfdb_parts(nodes: list[tuple[str, object, str]]) -> dict[str, str]:
+    """{signal node id: header node id} for (id, folder, name) triples: a `<record>.mat` or
+    `<record>.dat` next to a `<record>.hea` in the same folder is that record's signal file (the
+    file name a PhysioNet header names). Names are only compared, never stored or logged."""
+    heads = {(folder, name[:-4]): nid for nid, folder, name in nodes if name.lower().endswith(".hea")}
+    out: dict[str, str] = {}
+    for nid, folder, name in nodes:
+        stem, ext = name[:-4], name[-4:].lower()
+        if ext in WFDB_SIGNAL_EXTS and (h := heads.get((folder, stem))):
+            out[nid] = h
+    return out

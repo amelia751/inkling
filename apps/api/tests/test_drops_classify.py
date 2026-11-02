@@ -187,3 +187,21 @@ def test_fast_preset_only_takes_a_kind_it_can_show():
     assert not intents.serves_kind("preset:volume-3d", "waveform", TABLE)
     assert intents.serves_kind("preset:volume-3d", "mask", TABLE)
     assert intents.serves_kind("preset:ecg", "waveform", TABLE)
+
+
+def test_wfdb_signal_files_are_part_of_their_recording():
+    """A .hea's .mat/.dat (paired by the gatherer) joins its Waveforms group: added to the
+    collection with it, not counted as an item, not "can't use yet"."""
+    from studio_api.kernel.kinds import wfdb_parts
+
+    nodes = [("h1", "d", "HR00001.hea"), ("h2", "d", "HR00002.hea"), ("m1", "d", "HR00001.mat"), ("m2", "d", "HR00002.mat"), ("x", "other", "HR00001.mat"), ("dat", "d", "HR00002.dat")]
+    parts = wfdb_parts(nodes)
+    assert parts == {"m1": "h1", "m2": "h2", "dat": "h2"}
+    files = [dc.FileIn("h1", "waveform", "waveform"), dc.FileIn("h2", "waveform", "waveform"), dc.FileIn("m1", "unknown", "unknown", part_of="h1"), dc.FileIn("m2", "unknown", "unknown", part_of="h2"), dc.FileIn("x", "unknown", "unknown")]
+    groups = dc.classify(files, dc.Context())
+    wave = next(g for g in groups if g.kind == "waveform")
+    assert wave.node_ids == ["h1", "h2", "m1", "m2"] and wave.count == 2 and wave.action == "new_dataset"
+    assert [g.node_ids for g in groups if g.action == "keep_unsupported"] == [["x"]]
+    p = dc.plan("drp-1", groups, dc.Context(), preset)
+    a = next(a for a in p["actions"] if a["kind"] == "waveform")
+    assert a["count"] == 2 and a["nodeIds"] == ["h1", "h2", "m1", "m2"]

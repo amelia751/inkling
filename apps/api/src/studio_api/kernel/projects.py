@@ -44,7 +44,7 @@ from ..models import (
     now,
 )
 from . import assets, audit, events, fs, tree
-from .kinds import VIEWABLE
+from .kinds import VIEWABLE, wfdb_parts
 
 log = logging.getLogger(__name__)
 
@@ -911,10 +911,15 @@ def task_document(db: Session, t: TaskRow) -> dict:
     # todo13 D7: a task on one collection sees only that collection's files.
     in_collection = collections.item_filter(db, t, d)
     if d is not None:
-        for n, ref in dataset_files(db, d, include_hidden=False):
-            if n.id in theirs:
-                continue  # listed below, in drop order, with its ingest state
-            if in_collection is not None and not in_collection(n.id):
+        files = [(n, ref) for n, ref in dataset_files(db, d, include_hidden=False) if n.id not in theirs and (in_collection is None or in_collection(n.id))]
+        # WFDB: a header's signal files (.mat/.dat beside it) are part of its item, not items.
+        signal_of = wfdb_parts([(n.id, n.parent_id, n.name) for n, _ in files])
+        signals: dict[str, list[str]] = {}
+        for n, ref in files:
+            if n.id in signal_of and (sa := db.get(Asset, pinned_view(db, n, ref)[3] or "")) is not None:
+                signals.setdefault(signal_of[n.id], []).append(sa.path)
+        for n, ref in files:
+            if n.id in signal_of:
                 continue
             kind, facts, flags, asset_id, sha, size = pinned_view(db, n, ref)
             if asset_id is None or (kind or "") not in VIEWABLE or kind is None:
@@ -927,6 +932,11 @@ def task_document(db: Session, t: TaskRow) -> dict:
             # The item id is the asset's storage path, which never changes (D3): annotations
             # stay on their items whatever happens to the file's name or folder.
             entry: dict[str, Any] = {"path": a.path, "sha256": sha or "", "bytes": size or 0, "name": n.name, "nodeId": n.id}
+            if kind == "waveform" and n.name.lower().endswith(".hea"):
+                # The record name (the header's stem) names the item; `raw` lists the header
+                # and its signal files, as the seeds' recordings do (plugins/timeseries reader).
+                entry["record"] = n.name[:-4]
+                entry["raw"] = [a.path, *signals.get(n.id, [])]
             for k in ("width", "height", "fps", "frames", "duration"):
                 if facts.get(k) is not None:
                     entry[k] = facts[k]

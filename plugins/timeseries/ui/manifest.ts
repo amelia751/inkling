@@ -17,7 +17,7 @@ const codeOption = (list: string) => z.object({ code: z.string().default("").des
 function groupItems(project: Project): StudioItem[] {
   return project.assets.map((a) => ({
     id: a.path,
-    name: a.record ?? a.path,
+    name: a.record ?? a.name ?? a.path,
     group: "Recordings",
     assets: [a],
     sourceLabel: a.dx,

@@ -117,7 +117,13 @@ export function seedServer(seedRoot: string, { kernel = false, annotationsDir = 
             try {
               const doc = JSON.parse(body);
               fs.mkdirSync(annotationsDir, { recursive: true });
-              const saved = { ...doc, revision: (doc.revision ?? 0) + 1, savedAt: new Date().toISOString() };
+              // todo18 P0-4, as the API: a save based on a stale revision gets 409 with the current document.
+              const current = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as { revision?: number }) : { revision: 0, annotations: [] };
+              if (typeof doc.revision === "number" && doc.revision !== (current.revision ?? 0)) {
+                res.statusCode = 409;
+                return res.end(JSON.stringify({ detail: { code: "revision_conflict", message: `the document is at revision ${current.revision ?? 0}`, current } }));
+              }
+              const saved = { ...doc, revision: (current.revision ?? 0) + 1, savedAt: new Date().toISOString() };
               fs.writeFileSync(file, JSON.stringify(saved, null, 2));
               res.end(JSON.stringify(saved));
             } catch {

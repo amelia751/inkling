@@ -8,8 +8,8 @@ the same box: the later tab shows the Theirs / Mine notice (`save-conflict-notic
     INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/edge_concurrency_test.py --port 5199
 
-TODO(todo18): the dev annotations server (e2e fixtures) must also answer a stale revision with
-409 + `current`, like `kernel/annotations.py put_document`; until then the steps below are skipped.
+The dev annotations server (`dev/seed-server.ts`) answers a stale revision with 409 + `current`,
+like `kernel/annotations.py put_document`. TODO(todo18): the drawing steps below.
 """
 
 from __future__ import annotations

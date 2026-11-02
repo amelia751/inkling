@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { problemMessage, toProblem } from "@/studio/lib/problem";
 import { Link, useParams } from "react-router";
 import { AnnotateIcon, ArchiveFileIcon, DatasetsIcon, DocumentIcon, DoneIcon, ErrorIcon, FileIcon, ImageIcon, PrivacyIcon, SearchIcon, TableFileIcon, UndoIcon, UnknownFileIcon, VideoIcon, VolumeIcon, WaveformIcon, SlideIcon } from "@studio/ui/icons";
 import type { DropAction, DropActionType } from "@studio/contracts/drop-plan";
@@ -97,7 +98,7 @@ function PlanLedger({ plan }: { plan: PlanView }) {
     setBusy(kind);
     setError(null);
     fn()
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => setError(kind === "undo" ? undoBlockedReason(e) : problemMessage(e)))
       .finally(() => setBusy(null));
   };
   const answer = (a: DropAction, yes: boolean) =>
@@ -117,7 +118,9 @@ function PlanLedger({ plan }: { plan: PlanView }) {
       ? "Applying"
       : plan.state === "applied"
         ? plan.fastPath
-          ? "Studio opened · sorted on its own"
+          ? plan.waitingFirstItem
+            ? "Preparing your first item"
+            : "Studio opened · sorted on its own"
           : plan.auto
             ? "Sorted on its own"
             : "Applied"
@@ -137,6 +140,11 @@ function PlanLedger({ plan }: { plan: PlanView }) {
           {header}
         </p>
       </header>
+      {isFollowUp(plan.dropId) && (
+        <p className="border-t border-border px-3 py-1.5 text-caption text-muted-foreground" data-testid="plan-follow-up">
+          More files arrived after the first plan was applied. This plan covers only those.
+        </p>
+      )}
       <ul className="flex flex-col border-t border-border">
         {actions.map((a) => {
           const Icon = ICON[a.kind ?? "unknown"] ?? FileIcon;
@@ -303,4 +311,17 @@ export function DropPlanCards({ projectId }: { projectId: string }) {
       ))}
     </div>
   );
+}
+
+/** A follow-up plan for files that arrived after the first was applied (`<dropId>-<n>`, drops_plan.py). */
+export const isFollowUp = (dropId: string) => /^drp[-_][0-9a-z]+-\d+$/i.test(dropId);
+
+/** Why Undo can't run, in the kernel's words made plain (todo18), never a generic error. */
+export function undoBlockedReason(e: unknown): string {
+  const p = toProblem(e);
+  const d = (p.detail ?? "").toLowerCase();
+  if (d.includes("annotations")) return "Undo isn't available: the Studio this drop made already has annotations. Your files stay in Sources.";
+  if (d.includes("published")) return "Undo isn't available: the Studio this drop made was published. Your files stay in Sources.";
+  if (d.includes("undo window")) return "Undo isn't available any more: its window has passed. Your files stay in Sources.";
+  return problemMessage(e);
 }

@@ -62,7 +62,10 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
     const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
     const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
-    throw new ApiError(res.status, msg, body, res.headers.get("X-Request-Id") ?? undefined, res.headers);
+    // A 429's `Retry-After` (seconds) rides in the body, so `toProblem(e).retryAfter` sees it (todo18).
+    const ra = res.headers.get("Retry-After");
+    const withRetry = ra && /^\d+$/.test(ra) && body && typeof body === "object" && !("retryAfter" in body) ? { ...body, retryAfter: Number(ra) } : body;
+    throw new ApiError(res.status, msg, withRetry, res.headers.get("X-Request-Id") ?? undefined, res.headers);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

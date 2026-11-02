@@ -7,6 +7,7 @@ import { hashFiles } from "@/studio/lib/uploads/hash";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { markTimeline } from "@/studio/lib/drop-timeline";
 import { apiFetch } from "@/extension-host/http";
+import { onBeforeSignIn, signInAgain } from "@/studio/lib/session";
 
 /**
  * Uploads (todo6 Phase 4.4): a Drive-style tray that never blocks. One entry per import:
@@ -42,6 +43,8 @@ export interface TrayFile {
   received: number;
   state: UploadFileState;
   reason: string | null;
+  /** The server's SHA-256 for this file (resume matches by it, todo18). */
+  sha256?: string;
 }
 
 export interface TraySession {
@@ -94,8 +97,20 @@ export function notUploaded(picked: { relPath: string; size: number }[]): TrayFi
 interface Attestation {
   projectId: string;
   count: number;
+  /** One per upload waiting on this answer (two drops into one project share one dialog). */
   resolve: (ok: boolean) => void;
 }
+
+/** Why work stopped when the person left (todo18 D7): the tray says so. */
+export type LeaveReason = "signedOut" | "orgSwitch" | "unauthorized";
+export const LEAVE_REASONS: Record<LeaveReason, string> = {
+  signedOut: "Upload stopped: you signed out. Sign in and drop the same files to resume",
+  orgSwitch: "Upload stopped: you switched workspace. Switch back and drop the same files to resume",
+  unauthorized: "Upload stopped: your session ended. Sign in and drop the same files to resume",
+};
+
+/** The 401 on a chunk PUT: stop the whole session, don't retry. */
+class Unauthorized extends Error {}
 
 interface UploadsState {
   sessions: TraySession[];
@@ -130,6 +145,15 @@ interface UploadsState {
   cancel: (key: string) => Promise<void>;
   dismiss: (key: string) => void;
   answerAttestation: (ok: boolean) => void;
+  /** Uploads waiting behind the open rights dialog (another project). */
+  attestationQueue: Attestation[];
+  /**
+   * Leaving (sign-out, workspace switch, a 401): abort every upload in flight, cancel it on the
+   * kernel, and say why on its tray row (todo18 D7). Returns how many were stopped.
+   */
+  abortAll: (reason: LeaveReason) => Promise<number>;
+  /** The rights attestation on its own (an import from a link asks the same, todo18). */
+  attest: (projectId: string, count: number) => Promise<boolean>;
 }
 
 const blobs = new Map<string, Map<string, File>>();
@@ -139,7 +163,7 @@ const watching = new Set<string>();
 let seq = 0;
 
 /** True while any bytes are on their way (beforeunload asks then, and only then). */
-export const bytesInFlight = () => useUploads.getState().sessions.some((s) => s.phase === "uploading" || s.phase === "preparing");
+export const bytesInFlight = () => useUploads.getState().sessions.some((s) => s.phase === "uploading" || s.phase === "preparing" || s.phase === "checking");
 
 export const useUploads = create<UploadsState>((set, get) => {
   const patch = (key: string, p: Partial<TraySession> | ((s: TraySession) => Partial<TraySession>)) =>
@@ -154,7 +178,21 @@ export const useUploads = create<UploadsState>((set, get) => {
   async function attest(projectId: string, count: number): Promise<boolean> {
     const p = await fetchProject(projectId).catch(() => null);
     if (p?.attested) return true;
-    return new Promise((resolve) => set({ attestation: { projectId, count, resolve } }));
+    return new Promise((resolve) => {
+      const { attestation, attestationQueue } = get();
+      if (!attestation) return set({ attestation: { projectId, count, resolve } });
+      // Same project: one dialog with both counts; both uploads get the answer.
+      if (attestation.projectId === projectId) {
+        const prev = attestation.resolve;
+        return set({ attestation: { projectId, count: attestation.count + count, resolve: (ok) => (prev(ok), resolve(ok)) } });
+      }
+      const same = attestationQueue.find((a) => a.projectId === projectId);
+      if (same) {
+        const prev = same.resolve;
+        return set({ attestationQueue: attestationQueue.map((a) => (a === same ? { projectId, count: a.count + count, resolve: (ok: boolean) => (prev(ok), resolve(ok)) } : a)) });
+      }
+      set({ attestationQueue: [...attestationQueue, { projectId, count, resolve }] });
+    });
   }
 
   async function sendFile(key: string, importId: string, f: TrayFile, signal: AbortSignal): Promise<void> {
@@ -170,6 +208,7 @@ export const useUploads = create<UploadsState>((set, get) => {
           offset = Number(/expected offset (\d+)/.exec(body.detail!)![1]);
           continue;
         }
+        if (res.status === 401) throw new Unauthorized();
         if (res.status === 413) return patchFile(key, f.clientFileId, { state: "rejected", reason: body.detail ?? "Too large" });
         if (!res.ok) throw new Error(body.detail ?? `${res.status}`);
         offset = body.received ?? offset;
@@ -179,6 +218,7 @@ export const useUploads = create<UploadsState>((set, get) => {
         if (f.size === 0) return;
       } catch (e) {
         if (signal.aborted) return;
+        if (e instanceof Unauthorized) throw e;
         if (++attempt > RETRIES) return patchFile(key, f.clientFileId, { state: "failed", reason: "The connection dropped. Retry" });
         await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
         void e;
@@ -193,11 +233,19 @@ export const useUploads = create<UploadsState>((set, get) => {
     aborts.set(key, ctrl);
     patch(key, { phase: "uploading", error: undefined });
     const queue = s.files.filter((f) => f.state === "pending");
-    await Promise.all(
-      Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
-        for (let f = queue.shift(); f; f = queue.shift()) await sendFile(key, s.importId!, f, ctrl.signal);
-      }),
-    );
+    try {
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
+          for (let f = queue.shift(); f; f = queue.shift()) await sendFile(key, s.importId!, f, ctrl.signal);
+        }),
+      );
+    } catch (e) {
+      if (!(e instanceof Unauthorized)) throw e;
+      // Signed out mid-upload: stop every upload once (not 4 retries per file), then sign in.
+      await get().abortAll("unauthorized");
+      signInAgain();
+      return;
+    }
     if (ctrl.signal.aborted) return;
     const done = await api<ImportSession>(`/imports/${s.importId}/complete`, { method: "POST" });
     absorb(key, done);
@@ -209,7 +257,7 @@ export const useUploads = create<UploadsState>((set, get) => {
     patch(key, (s) => ({
       ...(server.state === "inspecting" ? { checkingSince: s.checkingSince ?? Date.now() } : { checkingSince: undefined, stalled: false }),
       serverState: server.state,
-      files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason })) : s.files,
+      files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason, ...(f.sha256 ? { sha256: f.sha256 } : {}) })) : s.files,
       phase: server.state === "inspecting" ? "checking" : server.state === "uploading" ? (s.phase === "uploading" ? "uploading" : "failed") : server.state === "failed" ? "failed" : server.state === "cancelled" ? "cancelled" : "done",
       needsReview: server.state === "needs_review",
       error: server.error ?? undefined,
@@ -243,10 +291,30 @@ export const useUploads = create<UploadsState>((set, get) => {
     sessions: [],
     collapsed: false,
     attestation: null,
+    attestationQueue: [],
+    attest: (projectId, count) => attest(projectId, count),
     setCollapsed: (collapsed) => set({ collapsed }),
     answerAttestation: (ok) => {
       get().attestation?.resolve(ok);
-      set({ attestation: null });
+      const [next, ...rest] = get().attestationQueue;
+      set({ attestation: next ?? null, attestationQueue: rest });
+    },
+    abortAll: async (reason) => {
+      const live = get().sessions.filter((s) => s.phase === "attesting" || s.phase === "preparing" || s.phase === "uploading" || s.phase === "checking");
+      const { attestation, attestationQueue } = get();
+      set({ attestation: null, attestationQueue: [] });
+      attestation?.resolve(false);
+      for (const a of attestationQueue) a.resolve(false);
+      await Promise.all(
+        live.map(async (s) => {
+          aborts.get(s.key)?.abort();
+          // keepalive: the cancel still reaches the kernel while the page navigates away.
+          if (s.importId && s.phase !== "checking") await apiFetch(apiUrl(`/v1/imports/${s.importId}/cancel`), { method: "POST", keepalive: true }).catch(() => null);
+          patch(s.key, { phase: "cancelled", error: LEAVE_REASONS[reason] });
+          changed(s.key);
+        }),
+      );
+      return live.length;
     },
     add: async (projectId, picked, opts = {}) => {
       if (!picked.files.length) return undefined;
@@ -258,7 +326,7 @@ export const useUploads = create<UploadsState>((set, get) => {
       if (opts.onChanged) listeners.set(key, opts.onChanged);
       opts.onStarted?.(key);
       if (!(await attest(projectId, picked.files.length))) {
-        patch(key, { phase: "cancelled", error: "Nothing was uploaded" });
+        if (session(key)?.phase !== "cancelled") patch(key, { phase: "cancelled", error: "Nothing was uploaded" });
         return session(key);
       }
       markTimeline("attested");
@@ -320,6 +388,9 @@ export const useUploads = create<UploadsState>((set, get) => {
     },
   };
 });
+
+// A sign-in redirect (any 401) leaves the page: stop uploads first and cancel them on the kernel.
+onBeforeSignIn(() => void useUploads.getState().abortAll("unauthorized"));
 
 /** "Uploading 1,204 files · 38%", "Checking files…", "Ready · 3 need attention". */
 export function trayLine(s: TraySession): string {

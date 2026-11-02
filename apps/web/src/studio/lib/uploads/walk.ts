@@ -17,7 +17,7 @@ export interface Picked {
 }
 
 const JUNK_NAMES = new Set([".ds_store", "thumbs.db", "desktop.ini"]);
-const JUNK_DIRS = new Set(["__macosx"]);
+const JUNK_DIRS = new Set(["__macosx", ".git"]);
 
 export function isJunk(relPath: string): boolean {
   const parts = relPath.split("/").filter(Boolean).map((p) => p.toLowerCase());

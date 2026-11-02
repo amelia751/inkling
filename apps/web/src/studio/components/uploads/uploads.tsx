@@ -271,7 +271,7 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
   const interrupted = s.phase === "failed" && !s.importId;
   const again = usePickers((picked) => {
     const drop = s.dropId ? useDrops.getState().drops[s.dropId] : undefined;
-    if (drop) resumeDrop(drop, picked);
+    if (drop) void resumeDrop(drop, picked);
     else void add(s.projectId, picked, { targetNodeId: s.targetNodeId, onChanged: refresh });
     dismiss(s.key);
   });

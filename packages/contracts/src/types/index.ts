@@ -548,7 +548,8 @@ export interface ChildrenPage {
   nextCursor: string | null;
 }
 
-export type ImportState = "uploading" | "inspecting" | "needs_review" | "ready" | "imported" | "failed" | "cancelled";
+/** `fetching`: an import from a link while the kernel downloads it (todo18). */
+export type ImportState = "fetching" | "uploading" | "inspecting" | "needs_review" | "ready" | "imported" | "failed" | "cancelled";
 export type UploadFileState = "pending" | "uploaded" | "skipped_duplicate" | "rejected" | "failed";
 
 export interface ImportSession {
@@ -557,7 +558,7 @@ export interface ImportSession {
   sourceId: string;
   targetNodeId: string | null;
   state: ImportState;
-  totals: { files: number; bytes: number; receivedBytes: number; byState: Partial<Record<UploadFileState, number>>; skippedSystemFiles?: number; committed?: number; incomplete?: boolean };
+  totals: { files: number; bytes: number; receivedBytes: number; byState: Partial<Record<UploadFileState, number>>; skippedSystemFiles?: number; committed?: number; incomplete?: boolean; fetchedBytes?: number; fetchTotalBytes?: number };
   createdBy: string;
   attestedBy: string | null;
   attestedAt: string | null;

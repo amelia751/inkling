@@ -23,6 +23,10 @@ that are missing or invalid, never their values.
 | API_SAMPLE_MEMBERS        | user:local-expert                | todo14 D3: comma-separated dev principals that stay read-only (`viewer`) members of the Samples org; everyone else starts empty. Dev mode (trusted headers) only; ignored in `workos` mode |
 | API_SAMPLES_ENABLED       | 1                                | todo14 §8: "Try a sample" (served as `samples` in `GET /api/v1/features`) |
 | API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
+| API_IMPORT_STALL_MINUTES  | 15                               | todo18 D6: an import `inspecting` longer than this fails with a reason (0 = off) |
+| API_SCHEDULED_RECLAIM_MINUTES | 30                           | todo18 D6: a scheduled run (`files.empty_trash`) stuck `running` this long is reclaimed |
+| API_IDEMPOTENCY_STALL_MINUTES | 10                           | todo18 D6: an Idempotency-Key `in_progress` this long is swept (a retry runs) |
+| API_INSPECT_MAX_ATTEMPTS  | 3                                | todo18 D6: an import delivered to inspection this often without a report is dead-lettered (files unsupported, with the reason) |
 | API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
 | API_VERSIONING_URL        | (none)                           | apps/versioning base URL; unset = versioning routes answer 503 |
 | API_VERSIONING_TENANT     | default                          | tenant sent to the versioning service |
@@ -248,6 +252,13 @@ class Settings(BaseModel):
     # todo17 D13 / D10: idempotency-key retention and the daily rules scan's hour (UTC).
     idempotency_ttl_hours: int = Field(default=24, ge=1)
     rules_scan_hour: int = Field(default=3, ge=0, le=23)
+    # todo18 D6: an import `inspecting` longer than this fails with a reason (0 = never).
+    import_stall_minutes: int = Field(default=15, ge=0)
+    # todo18 D6: a scheduled run stuck `running` / an idempotency key `in_progress` this long is released.
+    scheduled_reclaim_minutes: int = Field(default=30, ge=1)
+    idempotency_stall_minutes: int = Field(default=10, ge=1)
+    # todo18 D6: deliveries of one import to the inspector before its files are set aside.
+    inspect_max_attempts: int = Field(default=3, ge=1)
 
     # ---- Accounts (todo9 Phase 1): `dev` = trusted headers, `workos` = AuthKit sessions. ----
     auth_mode: Literal["dev", "workos"] = "dev"
@@ -367,6 +378,10 @@ _KEYS: dict[str, str] = {
     "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
     "idempotency_ttl_hours": "API_IDEMPOTENCY_TTL_HOURS",
     "rules_scan_hour": "API_RULES_SCAN_HOUR",
+    "import_stall_minutes": "API_IMPORT_STALL_MINUTES",
+    "scheduled_reclaim_minutes": "API_SCHEDULED_RECLAIM_MINUTES",
+    "idempotency_stall_minutes": "API_IDEMPOTENCY_STALL_MINUTES",
+    "inspect_max_attempts": "API_INSPECT_MAX_ATTEMPTS",
     # Accounts (todo9).
     "auth_mode": "API_AUTH_MODE",
     "workos_api_key": "API_WORKOS_API_KEY",

@@ -45,7 +45,14 @@ describe("drop plans store (project drop.* events)", () => {
     emitProjectEvent("drop.planned", { dropId: "drp_f", plan: { ...PLAN, dropId: "drp_f", needsPerson: false }, auto: true }, "p1");
     expect(usePlans.getState().plans.drp_f.state).toBe("applying");
     emitProjectEvent("drop.applied", { dropId: "drp_f", taskIds: ["t9"], undoUntil: null, fastPath: true, auto: true }, "p1");
+    // todo18: not before the first item exists ("Preparing your first item").
+    expect(useBoots.getState().pendingNav).toBeNull();
+    expect(usePlans.getState().plans.drp_f.waitingFirstItem).toBe(true);
+    emitProjectEvent("item.ready", { taskId: "other", itemId: "i0" }, "p1");
+    expect(useBoots.getState().pendingNav).toBeNull();
+    emitProjectEvent("item.ready", { taskId: "t9", itemId: "i1" }, "p1");
     expect(useBoots.getState().pendingNav).toEqual({ bootId: "drp_f", url: "/projects/p1/studio/t9" });
+    expect(usePlans.getState().plans.drp_f.waitingFirstItem).toBe(false);
   });
 
   it("a refused archive is a chip; a failed apply is the card's state", () => {

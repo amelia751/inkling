@@ -17,6 +17,7 @@ import { forgetClient } from "@/studio/lib/person-key";
 import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { useUploads } from "@/studio/stores/uploads";
 import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
 
@@ -72,6 +73,9 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     setSwitching(id);
     try {
       const { redirect } = await switchOrg(id);
+      // Uploads belong to the old workspace: stop them and cancel them on the kernel (todo18 D7).
+      const stopped = await useUploads.getState().abortAll("orgSwitch");
+      if (stopped) toast.info(`Stopped ${stopped} ${stopped === 1 ? "upload" : "uploads"}`, { description: "They belonged to the other workspace. Switch back and drop the same files to resume." });
       // Nothing this browser holds for the old organization carries over (todo15 D1).
       forgetClient();
       client.removeQueries({ queryKey: ["agent-status"] });

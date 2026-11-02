@@ -33,7 +33,9 @@ import os
 import posixpath
 import socket
 import tempfile
+import time
 from collections.abc import Callable, Iterator
+from contextvars import ContextVar
 from dataclasses import dataclass
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -140,7 +142,21 @@ def _name_of(url: str, header: str | None = None) -> str:
 # ---- Fetchers ----------------------------------------------------------------------------------
 
 
-def _spool(chunks: Iterator[bytes], max_bytes: int) -> tuple[str, int, str]:
+# todo18: bytes fetched so far (and the declared total) for the import being fetched; set by
+# `run_fetch` around the fetch, called by the fetchers. A ContextVar, so concurrent jobs don't mix.
+PROGRESS: ContextVar[Callable[[int, int | None], None] | None] = ContextVar("url_import_progress", default=None)
+
+
+def _report(n: int, total: int | None) -> None:
+    cb = PROGRESS.get()
+    if cb is not None:
+        try:
+            cb(n, total)
+        except Exception:  # noqa: BLE001 - progress is best effort, never fails the fetch
+            pass
+
+
+def _spool(chunks: Iterator[bytes], max_bytes: int, total: int | None = None) -> tuple[str, int, str]:
     h = hashlib.sha256()
     n = 0
     tmp = tempfile.NamedTemporaryFile(delete=False, prefix="urlimp-")
@@ -152,6 +168,7 @@ def _spool(chunks: Iterator[bytes], max_bytes: int) -> tuple[str, int, str]:
                     raise TooLarge()
                 h.update(chunk)
                 tmp.write(chunk)
+                _report(n, total)
     except BaseException:
         os.unlink(tmp.name)
         raise
@@ -194,7 +211,7 @@ def _fetch_https(url: str, max_bytes: int) -> Fetched:
                 declared = r.headers.get("content-length")
                 if declared and declared.isdigit() and int(declared) > max_bytes:
                     raise TooLarge()
-                path, size, sha = _spool(r.iter_bytes(1024 * 1024), max_bytes)
+                path, size, sha = _spool(r.iter_bytes(1024 * 1024), max_bytes, int(declared) if declared and declared.isdigit() else None)
                 return Fetched(_name_of(url, r.headers.get("content-disposition")), path, size, sha)
     raise HTTPException(422, "That link redirects too many times")
 
@@ -303,6 +320,28 @@ def _fail_session(db: Session, s: ImportSession, error: str) -> None:
     s.state, s.error, s.finished_at = "failed", error, now()
 
 
+def record_progress(db: Session, import_id: str, fetched: int, total: int | None) -> None:
+    """`totals.fetchedBytes` / `fetchTotalBytes` of a `fetching` session (the imports list shows them)."""
+    s = db.get(ImportSession, import_id)
+    if s is not None and s.state == "fetching":
+        s.totals = {**(s.totals or {}), "fetchedBytes": fetched, **({"fetchTotalBytes": total} if total else {})}
+
+
+def _progress_writer(import_id: str) -> Callable[[int, int | None], None]:
+    from ..db import session_scope
+
+    last = [0.0]
+
+    def write(n: int, total: int | None) -> None:
+        if time.monotonic() - last[0] < 1.0 and (total is None or n < total):
+            return
+        last[0] = time.monotonic()
+        with session_scope() as w:
+            record_progress(w, import_id, n, total)
+
+    return write
+
+
 def run_fetch(db: Session, j: PluginJob) -> dict:
     """The worker's `imports.fetch_url`: fetch the link (pinned, capped), land the bytes in the
     session the route made, settle the job. A link that fails fails the session with a
@@ -318,10 +357,17 @@ def run_fetch(db: Session, j: PluginJob) -> dict:
     cap = settings().url_import_max_bytes
     try:
         scheme, url = check_url(inp.get("url"))
+        # The fetch can take minutes: end this transaction so progress writes (their own
+        # sessions) don't leave it on a stale snapshot, then report bytes about once a second.
+        sid0 = s.id
+        db.commit()
+        token = PROGRESS.set(_progress_writer(sid0))
         try:
             got = FETCH(scheme, url, cap)
         except TooLarge:
             raise HTTPException(413, f"That file is larger than {imports._human(cap)}, the limit for an import from a link") from None
+        finally:
+            PROGRESS.reset(token)
         try:
             key = imports.upload_key(p.id, got.sha256, got.name)
             store = blobstore.data()

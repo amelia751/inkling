@@ -34,7 +34,7 @@ def _housekeeping(stop: threading.Event) -> None:
     queue's reaper lock keep the work single."""
     import time
 
-    from .kernel import drops, eventbus, queue
+    from .kernel import drops, eventbus, imports, queue, sweepers
 
     interval = settings().housekeeping_interval_s
     stuck_checked = 0.0
@@ -45,6 +45,8 @@ def _housekeeping(stop: threading.Event) -> None:
                 stuck_checked = time.monotonic()
                 with session_scope() as db:
                     drops.log_stuck(db)
+                    imports.fail_stalled(db)
+                    sweepers.run(db)
             with session_scope() as db:
                 if settings().event_bus == "redis":
                     eventbus.deliver(db)

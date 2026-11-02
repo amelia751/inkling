@@ -16,8 +16,18 @@ import { cn } from "@studio/ui/utils";
  * (`POST /v1/projects/from-sample`) and opens its Overview. A second use makes a second copy.
  */
 export function TrySample({ className }: { className?: string }) {
-  const samples = useSamples().data;
+  const query = useSamples();
+  const samples = query.data;
   const [open, setOpen] = useState(false);
+  // todo18: a quiet placeholder while the api answers, not a line that pops in later.
+  if (query.isLoading)
+    return (
+      <div className={cn("text-center", className)}>
+        <Button variant="ghost-secondary" size="sm" disabled aria-busy data-testid="try-sample-loading">
+          Loading samples…
+        </Button>
+      </div>
+    );
   if (!samples?.enabled) return null;
   return (
     <div className={cn("text-center", className)}>

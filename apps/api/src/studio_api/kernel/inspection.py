@@ -21,6 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import blobstore
+from ..config import settings
 from ..context import RequestContext
 from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile
 from . import assets, audit, derivatives, drops, events, explore, imports, projects
@@ -49,6 +50,15 @@ def import_for_worker(db: Session, import_id: str) -> dict:
     is the one the file arrived with (`original_path`): the privacy check reads what was
     uploaded; renames re-run it in the kernel (todo7 Phase 7)."""
     s = _session(db, import_id)
+    if s.state == "inspecting":
+        # todo18 D6: each read is one delivery of the import to an inspector. One that keeps
+        # crashing the worker (never reports) is dead-lettered here, kernel side: after
+        # `API_INSPECT_MAX_ATTEMPTS` its files are marked unsupported with the reason, and the
+        # listing answers a settled state so the worker acks and moves on.
+        attempts = int((s.totals or {}).get("inspectAttempts") or 0) + 1
+        s.totals = {**(s.totals or {}), "inspectAttempts": attempts}
+        if attempts > settings().inspect_max_attempts:
+            report(db, s.id, {"nodes": [], "inspector": "kernel"}, unreported_reason=POISON_REASON)
     files = list(db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)).order_by(SourceNode.original_path)))
     uploaded: dict[str, str] = {}
     if (s.totals or {}).get("mode") == "replace":
@@ -67,6 +77,8 @@ def import_for_worker(db: Session, import_id: str) -> dict:
             out["knownNames"] = known
     return out
 
+
+POISON_REASON = "Checking this file kept failing, so it was set aside. It may be damaged or in a format we can't read yet"
 
 TABLE_EXT = re.compile(r"\.(csv|tsv|xlsx|parquet)$", re.IGNORECASE)
 MAX_KNOWN_NAMES = 20_000
@@ -149,7 +161,7 @@ def _clean_flags(raw: Any) -> dict:
     return out
 
 
-def report(db: Session, import_id: str, body: dict) -> dict:
+def report(db: Session, import_id: str, body: dict, *, unreported_reason: str = "We couldn't check this file") -> dict:
     """Apply the worker's findings once; a report for a session that already left `inspecting`
     answers 409 (the worker acks the event and moves on)."""
     s = _session(db, import_id)
@@ -187,7 +199,7 @@ def report(db: Session, import_id: str, body: dict) -> dict:
     for nid, n in nodes.items():
         if n.detected_kind is None and nid not in updated:
             n.detected_kind = "unknown"
-            n.flags = {**(n.flags or {}), "unsupported": "We couldn't check this file"}
+            n.flags = {**(n.flags or {}), "unsupported": unreported_reason}
     db.flush()
     created: list[Proposal] = []
     raw_groups = body.get("groups")

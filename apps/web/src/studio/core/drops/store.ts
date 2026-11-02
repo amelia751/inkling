@@ -31,6 +31,8 @@ export interface LocalDrop {
   error?: string;
   /** 413: point to Files' folder upload. */
   overLimit?: boolean;
+  /** 429: when the kernel takes drops again (ms epoch, from `Retry-After`); the card counts down. */
+  retryAt?: number;
   /**
    * Read back from storage after a reload: its `File`s are gone, so anything still unsent is
    * interrupted, never "Preparing" again (set only in what's persisted).

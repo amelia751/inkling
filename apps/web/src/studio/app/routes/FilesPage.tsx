@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ImportLinkDialog } from "@/studio/components/files/import-link-dialog";
 import { EmptyState, NoResults } from "@studio/ui/ui/empty-state";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -236,6 +237,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
 
   // ---- Search -------------------------------------------------------------------------------
   const [query, setQuery] = useState("");
+  const [linkOpen, setLinkOpen] = useState(false); // todo18: "Import from a link"
   const [q, setQ] = useState("");
   const [kind, setKind] = useState<DetectedKind | undefined>();
   useEffect(() => {
@@ -1116,6 +1118,9 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         <DropdownMenuItem onSelect={() => pickUpload(listedFolderId, "folder")} data-testid="files-upload-folder">
           <UploadIcon /> Upload folder…
         </DropdownMenuItem>
+        <DropdownMenuItem disabled={!!listedEditReason} onSelect={() => setLinkOpen(true)} data-testid="files-import-link">
+          <UploadIcon /> Import from a link…
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -1126,6 +1131,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
 
   return (
     <AppLayout>
+      <ImportLinkDialog open={linkOpen} onOpenChange={setLinkOpen} projectId={projectId} folderId={listedFolderId} />
       <div
         className="relative flex h-full min-h-0 flex-col"
         data-testid="sources-page"

@@ -76,6 +76,10 @@ export class MemoryRunEventBus implements RunEventBus {
     for (const h of this.handlers) queueMicrotask(() => h(runId));
   }
 
+  async deleteRuns(runIds: string[]): Promise<void> {
+    for (const id of runIds) this.logs.delete(id);
+  }
+
   onSignal(fn: (runId: string) => void): () => void {
     this.handlers.add(fn);
     return () => this.handlers.delete(fn);

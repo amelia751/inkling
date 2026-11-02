@@ -5,7 +5,7 @@ import { SignJWT, exportJWK, generateKeyPair, type JWK } from "jose";
 type Key = Awaited<ReturnType<typeof generateKeyPair>>["privateKey"];
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { workosVerifier } from "../../src/http/auth.ts";
-import { TOKEN, harness } from "./harness.ts";
+import { ENV_TOOLS, TOKEN, harness } from "./harness.ts";
 
 /**
  * todo9 Phase 5: the agent accepts the shared service token plus, in `workos` mode, a WorkOS access
@@ -177,5 +177,122 @@ describe("dev auth mode", () => {
     expect((await h.app.request(`/v1/sessions/${local}`, { headers: as("user:dev-abc123") })).status).toBe(404);
     // Not a user: principal: ignored, the caller is the local principal.
     expect(await list("service")).toEqual([local]);
+  });
+});
+
+describe("internal org/member conversation deletion (todo14 D9)", () => {
+  const FIXTURE = {
+    scripts: [
+      { when: "wait", turns: [{ toolCalls: [{ name: "get_environment" }] }, { text: "never" }] },
+      { turns: [{ text: "Hello." }] },
+    ],
+  };
+  const workos = () => harness(FIXTURE, { AGENT_AUTH_MODE: "workos", AGENT_WORKOS_CLIENT_ID: CLIENT_ID, AGENT_WORKOS_ISSUER: ISSUER, AGENT_WORKOS_BASE_URL: baseUrl });
+  const service = { authorization: `Bearer ${TOKEN}` };
+  const alice = { sub: "user_alice", org_id: "org_a" };
+  const aliceB = { sub: "user_alice", org_id: "org_b" };
+  const bob = { sub: "user_bob", org_id: "org_a" };
+  const until = async (ok: () => Promise<boolean>) => {
+    for (let i = 0; i < 400 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 25));
+    expect(await ok()).toBe(true);
+  };
+
+  async function setup(hh: H) {
+    const create = async (claims: Record<string, unknown>) => {
+      const res = await hh.call("POST", "/v1/sessions", { projectId: "demo", profile: "environment-designer", clientTools: ENV_TOOLS }, await asUser(claims));
+      expect(res.status).toBe(201);
+      return ((await res.json()) as { sessionId: string }).sessionId;
+    };
+    const send = async (claims: Record<string, unknown>, id: string, text: string) => {
+      const res = await hh.call("POST", `/v1/sessions/${id}/messages`, { text }, await asUser(claims));
+      expect(res.status).toBe(202);
+      return ((await res.json()) as { runId: string }).runId;
+    };
+    const list = async (claims: Record<string, unknown>) => {
+      const res = await hh.call("GET", "/v1/sessions", undefined, await asUser(claims));
+      return ((await res.json()) as { sessions: { id: string }[] }).sessions.map((x) => x.id);
+    };
+    const done = await create(alice);
+    const busy = await create(alice);
+    const bobs = await create(bob);
+    const elsewhere = await create(aliceB);
+    const doneRun = await send(alice, done, "hello");
+    const busyRun = await send(alice, busy, "wait for the tool");
+    const bobRun = await send(bob, bobs, "hello");
+    const elsewhereRun = await send(aliceB, elsewhere, "hello");
+    const status = async (runId: string) => (await hh.sessions.store.getRun(runId))?.status;
+    await until(async () => (await status(doneRun)) === "completed" && (await status(bobRun)) === "completed" && (await status(elsewhereRun)) === "completed");
+    // The client tool is never answered: the run stays active until it's deleted.
+    await until(async () => (await status(busyRun)) === "running");
+    for (const r of [doneRun, busyRun, bobRun, elsewhereRun]) expect(await hh.sessions.cluster.bus.oldestSeq(r)).toBe(1);
+    return { done, busy, bobs, elsewhere, doneRun, busyRun, bobRun, elsewhereRun, list };
+  }
+
+  it("deletes a member's conversations in one org, then the whole org's, and nothing else", async () => {
+    h = await workos();
+    const hh = h;
+    const s = await setup(hh);
+    const bus = hh.sessions.cluster.bus;
+
+    const member = await hh.call("DELETE", `/v1/internal/orgs/org_a/members/${encodeURIComponent("user:user_alice")}/sessions`, undefined, service);
+    expect(member.status).toBe(200);
+    expect(await member.json()).toEqual({ deleted: 2 });
+    expect(await s.list(alice)).toEqual([]);
+    expect(await s.list(bob)).toEqual([s.bobs]);
+    expect(await s.list(aliceB)).toEqual([s.elsewhere]);
+    for (const id of [s.done, s.busy]) expect(await hh.sessions.store.getMeta(id)).toBeUndefined();
+    for (const r of [s.doneRun, s.busyRun]) {
+      expect(await hh.sessions.store.getRun(r)).toBeUndefined();
+      expect(await bus.oldestSeq(r)).toBeUndefined();
+    }
+    expect(await bus.oldestSeq(s.bobRun)).toBe(1);
+    // The deleted sessions are gone for their owner too, not just unlisted.
+    expect((await hh.call("GET", `/v1/sessions/${s.busy}`, undefined, await asUser(alice))).status).toBe(404);
+
+    const org = await hh.call("DELETE", "/v1/internal/orgs/org_a/sessions", undefined, service);
+    expect(await org.json()).toEqual({ deleted: 1 });
+    expect(await s.list(bob)).toEqual([]);
+    expect(await bus.oldestSeq(s.bobRun)).toBeUndefined();
+    // Another organization is untouched, its run events included.
+    expect(await s.list(aliceB)).toEqual([s.elsewhere]);
+    expect(await bus.oldestSeq(s.elsewhereRun)).toBe(1);
+
+    // Idempotent: nothing left to delete.
+    expect(await (await hh.call("DELETE", "/v1/internal/orgs/org_a/sessions", undefined, service)).json()).toEqual({ deleted: 0 });
+    // An unencoded principal works too.
+    expect(await (await hh.call("DELETE", "/v1/internal/orgs/org_b/members/user:user_alice/sessions", undefined, service)).json()).toEqual({ deleted: 1 });
+    expect(await s.list(aliceB)).toEqual([]);
+  }, 30_000);
+
+  it("is for the service only: no token is 401, a person or a browser-proxied call is 403", async () => {
+    h = await workos();
+    const path = "/v1/internal/orgs/org_a/sessions";
+    const del = (headers: Record<string, string>) => h!.app.request(path, { method: "DELETE", headers });
+    expect((await del({})).status).toBe(401);
+    expect((await del({ authorization: "Bearer wrong" })).status).toBe(401);
+    expect((await del({ authorization: `Bearer ${await accessToken()}` })).status).toBe(401);
+    // A signed-in person through the proxy (service token in its header, their access token as bearer).
+    expect((await del(await asUser())).status).toBe(403);
+    // The service token in both headers (dev-mode proxy shape): in workos mode the bearer must be a person's token.
+    expect((await del({ "x-agent-service-token": TOKEN, authorization: `Bearer ${TOKEN}` })).status).toBe(401);
+    expect((await del({ "x-agent-service-token": TOKEN })).status).toBe(401);
+    expect((await del({ authorization: `Bearer ${TOKEN}` })).status).toBe(200);
+    const member = (p: string) => h!.app.request(`/v1/internal/orgs/org_a/members/${p}/sessions`, { method: "DELETE", headers: { authorization: `Bearer ${TOKEN}` } });
+    expect((await member(encodeURIComponent("user:user_alice"))).status).toBe(200);
+    expect((await member("service")).status).toBe(400);
+    expect((await member(encodeURIComponent("user:a b"))).status).toBe(400);
+    // Other methods aren't routed.
+    expect((await h.app.request(path, { headers: { authorization: `Bearer ${TOKEN}` } })).status).toBe(404);
+  });
+
+  it("dev mode: the service token as bearer works, a browser-proxied call does not", async () => {
+    h = await harness(FIXTURE);
+    const del = (headers: Record<string, string>) => h!.app.request("/v1/internal/orgs/org_a/sessions", { method: "DELETE", headers });
+    expect((await del({})).status).toBe(401);
+    expect((await del({ "x-agent-service-token": TOKEN, authorization: `Bearer ${TOKEN}` })).status).toBe(403);
+    expect((await del({ "x-agent-service-token": TOKEN })).status).toBe(403);
+    const ok = await del({ authorization: `Bearer ${TOKEN}` });
+    expect(ok.status).toBe(200);
+    expect(await ok.json()).toEqual({ deleted: 0 });
   });
 });

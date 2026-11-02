@@ -229,6 +229,58 @@ switch on only when that milestone ships.
   allowlist holds only Vertex models. Confirm that the BAA covers `spurby-ai` (a separate billing
   account outside the organization) and that the model is on the HIPAA covered list.
 
+## Sample templates
+
+Sample projects (todo14 §3, §4.3) are templates in the Samples organization; "Try a sample"
+makes a copy in the person's organization whose `assets` rows share the template's blob keys
+(bytes are never copied per person). The bytes those keys name live in **`spurby-phi`**, under
+the `samples/` prefix of the api's bucket (`gs://spurby-phi-objects/samples/`):
+
+| What | Where |
+|---|---|
+| Template rows (projects, datasets, tasks) | `spurby-phi` Postgres, Samples org, upserted from `samples/manifest.json` once per api process (`ensure_seeds_once`) |
+| Template bytes (`<template>/…`, `manifest.json`, `<template>/workspace.json`) | `gs://spurby-phi-objects/samples/` |
+| A copy's rows | the person's organization, like any project |
+| A copy's bytes | the template's keys under `samples/`; uploads to a copy go under `.data/` like any upload |
+
+The api reads seed assets under `INKLING_API_SAMPLES_PREFIX` (`samples` in
+`overlays/gke/phi/patches/endpoints.yaml`): the seed manifest, `/seed/*`, signed asset URLs for
+templates and copies. `.data/` (uploads, derived data) is unaffected. Its service account has
+`roles/storage.objectUser` on the whole bucket (`infra/terraform/phi/storage.tf`), so no extra
+grant is needed.
+
+**Why a copy inside the perimeter.** The sample set is public data and its curated home is
+`spurby-data` (`spurby-data-public`). But the api runs inside the VPC Service Controls perimeter,
+and reading another project's bucket from there needs an egress rule, which the perimeter keeps
+for the de-identified release path only. A one-off copy of public bytes into `spurby-phi` crosses
+no boundary that matters and keeps the perimeter rules unchanged.
+
+**Restricted templates are never uploaded.** Hyper-Kvasir, ACDC and TCGA (`restricted` in
+`seed-data/manifest.json`) restrict commercial use or redistribution and stay local development
+only. For a `gs://` target the tool drops them and their manifest entries, whatever the
+arguments, so the api on Google Cloud never offers them.
+
+**The copy (once per environment, and again when the sample set changes).** From a machine with
+`seed-data/` (`pnpm seeds`), signed in as an operator listed in the perimeter's
+`admin_identities` with object create rights on the bucket (or impersonating the deploy
+identity). The upload goes from local disk to the bucket, never bucket to bucket across the
+perimeter:
+
+```sh
+gcloud auth application-default login            # or --impersonate-service-account=terraform@spurby-phi.iam.gserviceaccount.com
+uv run tools/fetch-seeds.py --upload-only=gs://spurby-phi-objects/samples/ --dry-run   # what would go up
+uv run tools/fetch-seeds.py --upload-only=gs://spurby-phi-objects/samples/
+```
+
+It is idempotent: objects already there with the same size and `sha256` metadata are skipped,
+so a second run uploads nothing. `manifest.json` goes up last, so the api never lists a
+template whose bytes are still uploading. The api picks the templates up on its next start
+(rollout restart of `api`). To check: `gcloud storage ls gs://spurby-phi-objects/samples/` lists
+only public templates, and `GET /seed/manifest.json` on the Studio host lists the same ones.
+
+The same command with `gs://spurby-data-public/samples/` keeps the curated copy in `spurby-data`
+current (outside the perimeter; also public templates only).
+
 ## Drops: config, monitoring and rollout (todo13)
 
 todo13 (drop anything into chat, plans, collections, the Datasets tab) adds no Google Cloud

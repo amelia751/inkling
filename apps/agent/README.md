@@ -88,7 +88,14 @@ POST /v1/runs/:runId/client-tools/:callId { ok, output }        409 if not pendi
 POST /v1/approvals/:approvalId            { decision: approve|reject, note? }
 GET  /v1/sessions/:id/artifacts
 GET  /v1/artifacts/:artifactId            download (dev only)
+DELETE /v1/internal/orgs/:orgId/sessions                     → { deleted }  every conversation in the org
+DELETE /v1/internal/orgs/:orgId/members/:principal/sessions  → { deleted }  one member's there (`user:<id>`, URL-encoded)
 ```
+
+`/v1/internal/*` (todo14 D9) is service-to-service only: the service token as the `Authorization` bearer and
+no `X-Agent-Service-Token` header (both web proxies add that header, so a browser-proxied call is a 403, and
+the proxies don't forward `/api/agent/internal/*` at all). Each deleted conversation goes like `DELETE
+/v1/sessions/:id` (active run cancelled, sandbox released, rows, artifacts and run-event streams dropped).
 
 Types: [`packages/agent-protocol`](../../packages/agent-protocol/src/index.ts), which both this service and the web app import.
 

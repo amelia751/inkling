@@ -4,6 +4,7 @@
  * the X-Workspace-Id header; the kernel decides what this principal may do.
  */
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 export interface PluginSummary {
   id: string;
@@ -62,7 +63,7 @@ export interface InstalledPlugin {
 }
 
 async function call<T>(workspaceId: string, method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(apiUrl(`/v1${path}`), {
+  const res = await apiFetch(apiUrl(`/v1${path}`), {
     method,
     headers: { "Content-Type": "application/json", "X-Workspace-Id": workspaceId },
     body: body === undefined ? undefined : JSON.stringify(body),

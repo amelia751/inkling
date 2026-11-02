@@ -62,6 +62,31 @@ function contract(name: string, make: () => Promise<SessionStore>, cleanup: () =
       for (const m of [a, b, other, noOrg]) await s.deleteSession(m.id);
     });
 
+    it("lists an organization's sessions, or one member's there, and their runs (todo14 D9)", async () => {
+      const org = `org_${randomUUID()}`;
+      const other = `org_${randomUUID()}`;
+      const u1 = `user:${randomUUID()}`;
+      const u2 = `user:${randomUUID()}`;
+      const a = { ...meta(sid(), u1), orgId: org };
+      const b = { ...meta(sid(), u2), orgId: org };
+      const c = { ...meta(sid(), u1), orgId: other };
+      const d = meta(sid(), u1);
+      for (const m of [a, b, c, d]) await s.putMeta(m);
+      const ra = run(a.id);
+      const rb = run(b.id);
+      const rc = run(c.id);
+      for (const r of [ra, rb, rc]) await s.insertRun(r);
+      const ids = async (f: { orgId: string; owner?: string }) => (await s.listOrgSessions(f)).map((m) => m.id).sort();
+      expect(await ids({ orgId: org })).toEqual([a.id, b.id].sort());
+      expect(await ids({ orgId: org, owner: u1 })).toEqual([a.id]);
+      expect(await ids({ orgId: org, owner: `user:${randomUUID()}` })).toEqual([]);
+      expect((await s.runIdsForSessions([a.id, b.id])).sort()).toEqual([ra.id, rb.id].sort());
+      expect(await s.runIdsForSessions([])).toEqual([]);
+      for (const m of [a, b, c, d]) await s.deleteSession(m.id);
+      expect(await s.getRun(ra.id)).toBeUndefined();
+      expect(await s.runIdsForSessions([a.id, b.id, c.id])).toEqual([]);
+    });
+
     it("keeps the transcript in order, header first", async () => {
       const m = meta();
       await s.putMeta(m);
@@ -142,6 +167,21 @@ contract(
 );
 
 describe("file store", () => {
+  it("finds and deletes runs on disk that this process never loaded", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agent-store-"));
+    const a = new FileSessionStore(join(dir, "sessions"), join(dir, "runs"));
+    const m = meta();
+    await a.putMeta(m);
+    const r = run(m.id);
+    await a.insertRun(r);
+    const b = new FileSessionStore(join(dir, "sessions"), join(dir, "runs"));
+    expect(await b.runIdsForSessions([m.id])).toEqual([r.id]);
+    await b.deleteSession(m.id);
+    const c = new FileSessionStore(join(dir, "sessions"), join(dir, "runs"));
+    expect(await c.getRun(r.id)).toBeUndefined();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it("marks runs left active by a previous process as interrupted at init", async () => {
     const dir = mkdtempSync(join(tmpdir(), "agent-store-"));
     const a = new FileSessionStore(join(dir, "sessions"), join(dir, "runs"));

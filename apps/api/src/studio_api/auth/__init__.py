@@ -7,9 +7,10 @@
     routes.py      /api/auth/{login,callback,session,switch-org,logout,verify}
     permissions.py permission names and `require_permission(perm)` (a FastAPI dependency)
     audit.py       `audit(db, ctx, action, target)`: rows in `audit_events`
+    api_keys.py    organization API keys: create/list/revoke, Bearer resolution (`apikey:<id>`)
 
-Later phases plug in here: org routes use `require_permission`, `current_org` and `audit`; the API-key
-resolver fills `context._resolve_api_key`; event handlers call `session.revoke_sessions_for`.
+Later phases plug in here: org routes use `require_permission`, `current_org` and `audit`;
+`context._resolve_api_key` calls `api_keys.resolve`; event handlers call `session.revoke_sessions_for`.
 """
 
 from .audit import audit

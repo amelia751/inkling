@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AddDataIcon, AnnotateIcon, CheckIcon, ChevronDownIcon, ProjectsIcon, SettingsIcon } from "@studio/ui/icons";
 import {
   DropdownMenu,
@@ -8,19 +11,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
+import { Loader } from "@studio/ui/ui/loader";
 import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
+import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
-import { useAuthSession } from "@/studio/lib/org-api";
-import type { SessionOrg } from "@studio/contracts";
 import { cn } from "@studio/ui/utils";
 
 const TRIGGER = "press flex h-7 min-w-0 items-center gap-1 rounded-lg bg-generic py-1.5 pl-[9px] pr-1.5 text-sm text-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]";
 
 /**
  * `Workspace ▾ / Project ▾ / Section` (todo6 Phase 2.2). Both are switchers. The workspace
- * is the person's organization ("Workspace" in UI copy, todo6 D1); one personal workspace
- * for now, so its menu only names it.
+ * is the person's organization ("Workspace" in UI copy, todo6 D1): the menu lists the
+ * session's organizations, and picking one switches the session to it (todo9 Phase 4).
  */
 export function Breadcrumbs({ project, section, className }: { project?: { id: string; title: string }; section?: string; className?: string }) {
   return (
@@ -47,7 +50,7 @@ const PERSONAL = "Personal";
 
 /**
  * todo14 D1: a personal organization reads "<First name>'s workspace"; a team org its own name.
- * Without a session (seed mode, or before sign-in answers) it stays "Personal".
+ * Without a first name (dev principals, the seed-mode mock account) it stays "Personal".
  */
 export function workspaceName(org: SessionOrg | undefined, firstName: string | null | undefined): string {
   if (!org) return PERSONAL;
@@ -55,11 +58,31 @@ export function workspaceName(org: SessionOrg | undefined, firstName: string | n
 }
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
-  const session = useAuthSession().data;
-  const current = session?.organization;
-  const first = session?.user.firstName;
-  const name = workspaceName(current, first);
-  const orgs = session?.organizations?.length ? session.organizations : current ? [current] : [];
+  const { organization, organizations, user } = useSession();
+  // The mock account (seed mode, dev without sessions) isn't a person: keep its org "Personal".
+  const first = user.id === mockSession().user.id ? null : user.firstName;
+  const name = workspaceName(organization, first);
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const [switching, setSwitching] = useState<string | null>(null);
+  const pick = async (id: string) => {
+    if (id === organization.id || switching) return;
+    setSwitching(id);
+    try {
+      const { redirect } = await switchOrg(id);
+      // The organization needs its own sign-in (SSO, MFA): the API comes back here after it.
+      if (redirect) return window.location.assign(redirect);
+      await resetForOrg(client);
+      navigate("/");
+    } catch (e) {
+      toast.error("Couldn't switch workspace", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSwitching(null);
+    }
+  };
+  // Ours first, then the rest by name.
+  const orgs = [organization, ...organizations.filter((o) => o.id !== organization.id).sort((a, b) => a.name.localeCompare(b.name))];
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label={`Workspace: ${name}. Switch workspace`} data-testid="workspace-switcher">
@@ -68,22 +91,17 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[240px]">
         <DropdownMenuLabel className="font-normal text-hint">Workspaces</DropdownMenuLabel>
-        {orgs.length ? (
-          // TODO(todo9): switching org belongs to the session work (todo9-web-session); this only names them.
-          orgs.map((o) => (
-            <DropdownMenuItem key={o.id} data-testid="workspace-option">
+        {orgs.map((o) => {
+          const current = o.id === organization.id;
+          return (
+            <DropdownMenuItem key={o.id} disabled={!!switching} onSelect={() => void pick(o.id)} data-testid={`switch-org-${o.id}`} aria-current={current || undefined}>
               <span className="min-w-0 flex-1 truncate">{workspaceName(o, first)}</span>
-              {o.id === current?.id && <CheckIcon className="text-brand-heavy" />}
+              {switching === o.id ? <Loader size="s" /> : current && <CheckIcon className="text-brand-heavy" />}
             </DropdownMenuItem>
-          ))
-        ) : (
-          <DropdownMenuItem>
-            <span className="min-w-0 flex-1 truncate">{name}</span>
-            <CheckIcon className="text-brand-heavy" />
-          </DropdownMenuItem>
-        )}
+          );
+        })}
         <DropdownMenuSeparator />
-        {/* TODO(todo14 M3 / todo9): team organizations; creating one isn't wired yet. */}
+        {/* TODO(todo14 Q2, todo9): team organizations; creating one isn't wired yet. */}
         <DropdownMenuItem disabled data-testid="workspace-create">Create organization</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

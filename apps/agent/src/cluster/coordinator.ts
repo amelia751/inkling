@@ -250,6 +250,13 @@ export class RunCoordinator {
     return this.local.size === 0;
   }
 
+  /** Resolve when this replica's runs of one session have written their terminal record and events, or at `deadline`. */
+  async waitForSessionRuns(sessionId: string, deadline: number): Promise<boolean> {
+    const mine = () => [...this.local.values()].some((l) => l.ctx.id === sessionId);
+    while (mine() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50));
+    return !mine();
+  }
+
   private async heartbeat(): Promise<void> {
     const ids = this.activeLocalIds();
     if (!ids.length) return;

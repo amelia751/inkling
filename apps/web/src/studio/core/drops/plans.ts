@@ -5,6 +5,7 @@ import { onProjectEvent } from "@/studio/lib/use-project-events";
 import { api } from "@/studio/lib/projects-api";
 import { studioUrl } from "@/studio/lib/routes";
 import { useBoots } from "@/studio/stores/boots";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Drop plans (todo13 D5, D6, §3.3): what the plan card shows, fed by the project stream's
@@ -222,7 +223,7 @@ export const REFUSED_COPY: Record<string, string> = {
 
 /** "Find a plugin" (todo13 M2 item 8): the catalogue's data kinds that open this kind of file. */
 export async function findPlugins(kind: string): Promise<{ id: string; label?: string; module: string; description: string }[]> {
-  const res = await fetch(apiUrl(`/catalog?kind=${enc(kind)}`));
+  const res = await apiFetch(apiUrl(`/catalog?kind=${enc(kind)}`));
   if (!res.ok) return [];
   const cat = (await res.json()) as { contributions?: { id: string; label?: string; module: string; description: string; type: string }[] };
   return (cat.contributions ?? []).filter((c) => c.type === "dataKinds");

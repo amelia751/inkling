@@ -32,6 +32,7 @@ from ..models import Organization, OrganizationMember, User
 from . import bootstrap, cookie
 from . import client as wclient
 from .audit import ORG_SWITCHED, SIGNED_IN, SIGNED_OUT, record_event
+from .invitations import accept_for_email
 from .permissions import PERMISSIONS
 from .session import CSRF_HEADER, CSRF_VALUE, AuthSession, SessionError, _verified, current_session, decode_access_token, error_response, refresh, seal
 
@@ -132,6 +133,8 @@ async def callback(request: Request, code: str | None = None, state: str | None 
             our_org = bootstrap.org_for_workos_id(db, s.org_id) if s.org_id else None
             if our_org:
                 bootstrap.ensure_membership(db, our_org, principal, s.role)
+                # Hosted AuthKit accepted an invitation: its project grants become project roles.
+                accept_for_email(db, our_org, principal, str(user.get("email") or ""))
             record_event(db, org_id=our_org, actor=principal, action=SIGNED_IN, target=principal, ip=ip, user_agent=ua, detail={"sessionId": s.session_id})
     except SessionError as e:
         return _fail(e.status, e.detail)

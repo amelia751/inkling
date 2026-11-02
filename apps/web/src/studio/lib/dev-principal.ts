@@ -1,4 +1,5 @@
 import { RES } from "@studio/contracts/naming";
+import { runtimeConfig } from "@/extension-host/runtime-config";
 
 /**
  * Dev-only identity switch (todo14 Milestone 0): until sign-in exists (todo9), every browser is
@@ -9,7 +10,7 @@ import { RES } from "@studio/contracts/naming";
  *
  * `fetch` gets the header from `installDevPrincipalFetch`; an `EventSource` can't set headers, so
  * its URL carries `devPrincipal=` and the Vite proxy turns that into the header (vite.config.ts).
- * In a production build none of this is active.
+ * In a production build, or with WorkOS sign-in (`auth.mode: workos`), none of this is active.
  */
 export const DEV_PRINCIPAL_HEADER = "X-Dev-Principal";
 export const DEV_PRINCIPAL_PARAM = "devPrincipal";
@@ -18,7 +19,11 @@ export const DEFAULT_DEV_PRINCIPAL = "user:local-expert";
 const KEY = `${RES}-dev-principal`;
 const VALID = /^user:dev-[a-z0-9]{4,32}$/;
 
-const isDev = () => (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
+/** Only on the Vite dev server, and never with WorkOS sign-in (the api ignores the header there anyway). */
+const isDev = () => (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true && runtimeConfig().auth?.mode !== "workos";
+
+/** Whether the account menu offers "Start as a new person". */
+export const devPrincipalAvailable = isDev;
 
 /** The principal this tab acts as, when "Start as a new person" picked one (dev only). */
 export function devPrincipal(): string | null {

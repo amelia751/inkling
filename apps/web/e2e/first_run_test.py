@@ -250,6 +250,9 @@ def main() -> int:
             "expiresAt": None,
         }
         me = {"id": "om-dana", "userId": principal, "name": "Dana Lee", "email": "dana@example.org", "role": "admin", "status": "active", "projects": 0, "lastActive": None, "sso": False}
+        # Seed mode has no /api/auth (the shell uses its mock account): say the api is there so the
+        # session is read from /api/auth/session, answered here as todo9's api would.
+        page.route("**/config.json", json_route({"kernel": True, "auth": {"mode": "dev"}}))
         page.route("**/api/auth/session", json_route(session))
         page.route("**/api/v1/org/members", json_route({"members": [me]}))
         page.route("**/api/v1/org/invitations", json_route({"invitations": []}))
@@ -272,7 +275,7 @@ def main() -> int:
         page.wait_for_selector("[data-testid=members-table]", timeout=20000)
         page.wait_for_load_state("networkidle")
         check("with a second member, no members-empty", page.locator("[data-testid=members-empty]").count() == 0)
-        for u in ("**/api/auth/session", "**/api/v1/org/members", "**/api/v1/org/invitations", "**/api/v1/org/api-keys"):
+        for u in ("**/config.json", "**/api/auth/session", "**/api/v1/org/members", "**/api/v1/org/invitations", "**/api/v1/org/api-keys"):
             page.unroute(u)
 
         # ---- Back to local-expert: the samples return -----------------------------------------------

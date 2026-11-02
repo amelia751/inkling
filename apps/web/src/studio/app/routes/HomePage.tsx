@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { problemMessage } from "@/studio/lib/problem";
 import { LicenseIcon, LockIcon, ProjectsIcon } from "@studio/ui/icons";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { Badge } from "@studio/ui/ui/badge";
@@ -38,7 +39,7 @@ export function HomePage() {
                 <h2 id="recent-heading" className="text-body-2 font-semibold">Recent projects</h2>
                 <Link to={projectsUrl()} className="text-sm text-brand hover:underline">All projects</Link>
               </div>
-              {error && <p className="text-sm text-muted-foreground">Couldn't load your projects: {String(error)}</p>}
+              {error && <p className="text-sm text-danger" role="alert" data-testid="home-projects-error">Couldn't load your projects: {problemMessage(error)}</p>}
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {isLoading && [0, 1, 2].map((i) => <ProjectCardSkeleton key={i} />)}
                 {recent.map((p) => (

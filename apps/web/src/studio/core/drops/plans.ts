@@ -128,7 +128,8 @@ export const usePlans = create<PlansState>()((set, get) => {
       if (readyTasks.has(task)) return open(p.dropId, projectId, task);
       put(e.dropId, projectId, (x) => ({ ...x, waitingFirstItem: true }));
       // Nothing waits forever: open anyway after a while (the Studio shows its own progress).
-      setTimeout(() => get().plans[e.dropId]?.waitingFirstItem && open(e.dropId!, projectId, task), FIRST_ITEM_WAIT_MS);
+      const dropId = e.dropId;
+      setTimeout(() => get().plans[dropId]?.waitingFirstItem && open(dropId, projectId, task), FIRST_ITEM_WAIT_MS);
     }
   });
   onProjectEvent("item.ready", (data, projectId) => {

@@ -1,4 +1,4 @@
-import type { Project, SeedAsset, StudioItem } from "@studio/contracts/types";
+import type { ItemPart, Project, SeedAsset, StudioItem } from "@studio/contracts/types";
 import { ns } from "@studio/contracts/naming";
 
 /**
@@ -44,7 +44,18 @@ export function groupItems(project: Project): StudioItem[] {
     item.assets.push(asset);
     bySubject.set(key, item);
   }
-  return [...bySubject.values()];
+  return [...bySubject.values()].map((item) => {
+    const parts = itemParts(item.assets);
+    return parts.length > 1 ? { ...item, parts } : item;
+  });
+}
+
+/** The Items panel's rows under a subject: one per sequence / series, then the reference segmentation. */
+export function itemParts(assets: SeedAsset[]): ItemPart[] {
+  const parts: ItemPart[] = volumeSources(assets).map((s) => ({ key: s.key, label: s.label, role: "view" }));
+  const ref = referenceAsset(assets);
+  if (ref) parts.push({ key: REFERENCE_SEQUENCE, label: `${ref.sequence ?? REFERENCE_SEQUENCE} (reference)`, role: "reference" });
+  return parts;
 }
 
 /** One displayable volume of a subject: a NIfTI sequence, or a whole DICOM series. */

@@ -57,6 +57,8 @@ export interface StudioHostState {
   lockedLabels: string[];
   /** Fill opacity multiplier for overlays and masks, 0–1. */
   overlayOpacity: number;
+  /** The open item's part shown (`StudioItem.parts` key), or null for the renderer's default. Reset on item change. */
+  activePart: string | null;
 
   load: (projectId: string, annotations: Annotation[], revision: number, firstLabel: string | null) => void;
   setItemIndex: (i: number) => void;
@@ -101,6 +103,8 @@ export interface StudioHostState {
   markError: () => void;
   toggleAi: () => void;
   setViewerStatus: (s: string) => void;
+  /** Show one of the open item's parts (the Items panel and the renderer's own picker both call it). */
+  setActivePart: (key: string | null) => void;
 }
 
 export type HostListener = (state: StudioHostState, prev: StudioHostState) => void;

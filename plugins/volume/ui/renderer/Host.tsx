@@ -10,7 +10,7 @@ import { cn } from "@studio/ui/utils";
 import type { Plane } from "@studio/contracts/types";
 import { VOLUME_COMMANDS as C } from "../commands";
 import { cellsFor, gridClass, mprConfig, type Cell, type Layout } from "../config";
-import { initialSource, referenceAsset, volumeSources } from "../dataKind";
+import { initialSource, REFERENCE_SEQUENCE, referenceAsset, volumeSources } from "../dataKind";
 import { MprEngine, type EngineContext, type WandMode } from "./MprEngine";
 import { ViewBar } from "./ViewBar";
 import { brushSizeOf, execute, markFirstFrame, toolOption, useCommands, useHost } from "@studio/plugin-ui-sdk";
@@ -35,6 +35,24 @@ export function MprRenderer({ project, item, config, runtime }: RendererProps) {
   const [viewReady, setViewReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showRef, setShowRef] = useState(true);
+  // The Items panel lists the subject's sequences (item.parts); the host's activePart is the
+  // shared pick. A sequence part switches the view; the reference part turns its overlay on.
+  const activePart = useHost((s) => s.activePart);
+  const setActivePart = useHost((s) => s.setActivePart);
+  useEffect(() => {
+    if (activePart === REFERENCE_SEQUENCE) {
+      setShowRef(true);
+      setActivePart(sequence ?? null);
+    } else if (activePart && activePart !== sequence && sequences.some((s) => s.key === activePart)) setSequence(activePart);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePart, sequences]);
+  useEffect(() => {
+    // Publish what's shown only when nothing valid is asked for (a new item); a pick in flight wins.
+    const asked = useHost.getState().activePart;
+    if (asked && (asked === REFERENCE_SEQUENCE || sequences.some((s) => s.key === asked))) return;
+    setActivePart(sequences.find((s) => s.key === sequence)?.key ?? sequences[0]?.key ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sequence, sequences]);
   const [refReady, setRefReady] = useState(false);
   const [mip, setMip] = useState(false);
   const [sphere, setSphere] = useState(false);
@@ -221,7 +239,10 @@ export function MprRenderer({ project, item, config, runtime }: RendererProps) {
         run={(id) => void execute(id)}
         sequences={sequences}
         sequence={sequence}
-        onSequence={setSequence}
+        onSequence={(k) => {
+          setSequence(k);
+          setActivePart(k);
+        }}
         modality={engine.modality}
         layout={layout}
         layouts={cfg.layouts}

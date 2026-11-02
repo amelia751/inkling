@@ -96,6 +96,9 @@ def create_app(*, init_db: bool = True) -> FastAPI:
         create_all()
     if init_db:
         _seed_projects()
+    from .kernel.admission import http as admission_http
+
+    admission_http.install(app)  # problem JSON for rejected writes (todo17 D6)
     app.include_router(ops.router)
     app.include_router(auth_routes.router)
     app.include_router(api_keys.router)

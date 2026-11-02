@@ -60,6 +60,8 @@ that are missing or invalid, never their values.
 | API_BOUNDARY_PROBE_BUDGET | 64                               | typed probes per sample and workspace (todo10 §6.1 step 5); audited |
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
 | API_DROP_UNDO_SECONDS     | 30                               | todo13 D6: how long an applied drop plan can be undone |
+| API_IDEMPOTENCY_TTL_HOURS | 24                               | todo17 D13: how long an `Idempotency-Key` replays its first answer |
+| API_RULES_SCAN_HOUR       | 3                                | todo17 D10: hour (UTC, 0-23) of the daily `rules.scan` |
 
 Accounts (todo9 Phase 1). `dev` keeps today's header identity; `workos` signs people in with
 WorkOS AuthKit (`studio_api/auth/`). `workos` mode requires the four keys marked *, needs
@@ -239,6 +241,9 @@ class Settings(BaseModel):
     # todo13 D6 (§7.1): how long an applied drop plan can be undone. The `API_FEATURE_*` flags
     # are todo13-entry's (`kernel/features.py`); drop plans read them through `drop_flags`.
     drop_undo_seconds: int = 30
+    # todo17 D13 / D10: idempotency-key retention and the daily rules scan's hour (UTC).
+    idempotency_ttl_hours: int = Field(default=24, ge=1)
+    rules_scan_hour: int = Field(default=3, ge=0, le=23)
 
     # ---- Accounts (todo9 Phase 1): `dev` = trusted headers, `workos` = AuthKit sessions. ----
     auth_mode: Literal["dev", "workos"] = "dev"
@@ -353,6 +358,8 @@ _KEYS: dict[str, str] = {
     "feature_fast_path": "API_FEATURE_FAST_PATH",
     "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
     "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
+    "idempotency_ttl_hours": "API_IDEMPOTENCY_TTL_HOURS",
+    "rules_scan_hour": "API_RULES_SCAN_HOUR",
     # Accounts (todo9).
     "auth_mode": "API_AUTH_MODE",
     "workos_api_key": "API_WORKOS_API_KEY",

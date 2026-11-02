@@ -14,7 +14,7 @@ import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Textarea } from "@studio/ui/ui/textarea";
 import { relativeTime } from "@/studio/components/files";
 import { governanceKeys, putRules, rulesSourceLine, useRules, useRulesHistory, type RulesDocument } from "@/studio/lib/governance-api";
-import { parseProblem, problemText, violationsAt, type Problem } from "@/studio/lib/problem";
+import { parseProblem, problemText, violationsAt, type Problem } from "@/studio/lib/governance-problem";
 import { DATASET_METADATA, fromDraft, newLabel, toDraft, type RulesDraft } from "@/studio/lib/rules-draft";
 
 /**

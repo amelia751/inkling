@@ -1,6 +1,9 @@
 import { ApiError, NeedsApiError } from "@/studio/lib/projects-api";
 
 /**
+ * todo17 governance screens (Changes, Health, Rules, Connected agents): field-level reading of
+ * problem JSON. The app-wide decoder is ./problem.ts (todo18 D2); fold this into it later.
+ *
  * Problem JSON for rejected writes (todo17 D6). The kernel answers a write that breaks the rules
  * with RFC 9457 `{ code: "write_rejected", violations: [...] }`; older validators answer
  * `{ detail: { error, issues: [{ path, message }] } }`. Screens get one shape: a title and a list of

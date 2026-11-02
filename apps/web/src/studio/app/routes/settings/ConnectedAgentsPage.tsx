@@ -8,7 +8,7 @@ import { DataTable, fmtDate, SettingsPage, type Column } from "@/studio/componen
 import { relativeTime } from "@/studio/components/files";
 import { notify } from "@/studio/lib/files/announce";
 import { useConnectedAgents, useRevokeConnectedAgent, type ConnectedAgent } from "@/studio/lib/governance-api";
-import { problemText } from "@/studio/lib/problem";
+import { problemText } from "@/studio/lib/governance-problem";
 
 export const AGENTS_EMPTY = "No connected agents.";
 

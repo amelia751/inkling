@@ -15,7 +15,7 @@ import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { canEditTaskSetup } from "@/studio/lib/task-setup";
 import { changesUrl } from "@/studio/lib/routes";
-import { parseProblem, problemText } from "@/studio/lib/problem";
+import { parseProblem, problemText } from "@/studio/lib/governance-problem";
 import {
   authorLine,
   CHANGE_STATE_LABEL,

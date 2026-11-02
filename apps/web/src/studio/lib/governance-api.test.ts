@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/studio/lib/projects-api";
-import { fieldOf, isMissingRoute, parseProblem, problemText, violationsAt } from "./problem";
+import { fieldOf, isMissingRoute, parseProblem, problemText, violationsAt } from "./governance-problem";
 import { actorName, authorLine, changeRequestOf, diffValue, fetchChanges, fetchFindings, groupFindings, labelId, mergeChange, rulesSourceLine, wouldHaveRejectedRows, writesLine } from "./governance-api";
 import { fromDraft, newLabel, toDraft } from "./rules-draft";
 import { changesUrl, connectedAgentsUrl, settingsUrl, targetUrl } from "./routes";

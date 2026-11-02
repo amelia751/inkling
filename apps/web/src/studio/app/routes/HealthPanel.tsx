@@ -8,7 +8,7 @@ import { Card } from "@studio/ui/ui/card";
 import { Skeleton } from "@studio/ui/ui/skeleton";
 import { notify } from "@/studio/lib/files/announce";
 import { changesUrl, settingsUrl } from "@/studio/lib/routes";
-import { isMissingRoute, problemText } from "@/studio/lib/problem";
+import { isMissingRoute, problemText } from "@/studio/lib/governance-problem";
 import {
   fixFinding,
   governanceKeys,

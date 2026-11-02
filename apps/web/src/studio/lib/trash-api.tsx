@@ -113,6 +113,39 @@ const KIND_PATH: Record<DeletableKind, string> = { dataset: "datasets", collecti
 
 // ---- Fetchers ------------------------------------------------------------------------------------
 
+/** One Trash row per deletion batch (todo18 B): the files trashed together share a batch id, so
+ * they collapse into "pneumonia and 5 more" with the members listed when expanded. */
+export interface TrashGroup {
+  batchId: string;
+  head: ProjectTrashItem;
+  members: ProjectTrashItem[];
+  label: string;
+}
+
+export function groupByBatch(items: ProjectTrashItem[]): TrashGroup[] {
+  const by = new Map<string, ProjectTrashItem[]>();
+  for (const it of items) {
+    const list = by.get(it.batchId);
+    if (list) list.push(it);
+    else by.set(it.batchId, [it]);
+  }
+  return [...by.entries()].map(([batchId, members]) => {
+    const head = members[0]!;
+    const more = members.length - 1;
+    return { batchId, head, members, label: more > 0 ? `${head.name} and ${more.toLocaleString()} more` : head.name };
+  });
+}
+
+/** What "Empty trash" takes, per kind, for its confirm dialog (todo18 P0-1). */
+export function emptyCountsLine(items: ProjectTrashItem[]): string {
+  const n: Record<TrashKind, number> = { source: 0, dataset: 0, collection: 0, studio: 0 };
+  for (const it of items) n[it.kind] += 1;
+  const word: Record<TrashKind, [string, string]> = { source: ["file or folder", "files and folders"], dataset: ["dataset", "datasets"], collection: ["collection", "collections"], studio: ["Studio", "Studios"] };
+  const parts = (Object.keys(n) as TrashKind[]).filter((k) => n[k] > 0).map((k) => `${n[k].toLocaleString()} ${n[k] === 1 ? word[k][0] : word[k][1]}`);
+  if (parts.length <= 1) return parts[0] ?? "Nothing";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 export const trashKeys = {
   list: (projectId: string, filter: TrashFilter = "all") => ["projects", projectId, "trash", filter] as const,
   all: (projectId: string) => ["projects", projectId, "trash"] as const,
@@ -127,7 +160,7 @@ export async function fetchProjectTrash(projectId: string, filter: TrashFilter =
 
 export const restoreBatch = (projectId: string, batchId: string) => api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST" });
 export const destroyBatch = (projectId: string, batchId: string) => api<{ purged: number }>(`/projects/${P(projectId)}/trash/${P(batchId)}`, { method: "DELETE" });
-export const emptyProjectTrash = (projectId: string) => api<unknown>(`/projects/${P(projectId)}/trash/empty`, { method: "POST" });
+export const emptyProjectTrash = (projectId: string) => api<unknown>(`/projects/${P(projectId)}/trash/empty?kind=all`, { method: "POST" });
 
 export const previewDelete = (projectId: string, kind: DeletableKind, id: string) =>
   api<{ impact: Impact }>(`/projects/${P(projectId)}/${KIND_PATH[kind]}/${P(id)}?dryRun=true`, { method: "DELETE" });

@@ -270,3 +270,19 @@ def test_a_studio_offers_restore_explore_shows_files_in_trash_and_names_are_peop
     trashed = [r for r in after["records"] if r["status"] == "trashed"]
     assert after["files"]["inTrash"] == 1
     assert [(r["nodeId"], r["title"], bool(r["trashBatchId"])) for r in trashed] == [(doc_id, "readme.txt", True)]
+
+
+def test_sources_empty_trash_purges_files_only_and_preview_counts_per_kind(client):
+    """todo18 P0-1: Sources › Trash empties files only; the project Trash lists counts per kind."""
+    p, ds, _ = _setup(client)
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["b.png"].id]}])
+    assert client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").status_code == 200
+    pre = client.get(f"/api/v1/projects/{p}/trash/empty/preview").json()
+    assert pre["byKind"] == {"sources": 1, "datasets": 1, "collections": 1, "studios": 1}
+    assert client.get(f"/api/v1/projects/{p}/trash/empty/preview", params={"kind": "sources"}).json()["byKind"]["datasets"] == 0
+    out = client.post(f"/api/v1/projects/{p}/trash/empty", params={"kind": "sources"}).json()
+    assert out["purged"] == 1
+    t = _trash(client, p)
+    assert [i["kind"] for i in t["items"]] == ["dataset"]  # the dataset is still in Trash
+    assert client.post(f"/api/v1/projects/{p}/trash/empty", params={"kind": "bogus"}).status_code == 422

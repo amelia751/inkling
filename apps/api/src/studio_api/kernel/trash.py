@@ -416,9 +416,16 @@ def destroy(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> d
     return {"purged": n}
 
 
-def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None) -> dict:
-    """Empty Trash: the files (as before) and every other batch."""
+def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None, kind: str = "all") -> dict:
+    """Empty Trash. `kind="all"` (the project Trash page) purges every kind; `kind="sources"`
+    (Sources › Trash) purges files only and never touches datasets, collections or Studios
+    (todo18 P0-1). The result carries `byKind`, the count per kind, for the confirm dialog."""
+    if kind not in ("all", "sources"):
+        raise HTTPException(422, "kind must be all or sources")
     out = fs.empty_trash(db, ctx, p, dry_run=dry_run, older_than=older_than)
+    by_kind = {"sources": out.get("purged", 0), "datasets": 0, "collections": 0, "studios": 0}
+    if kind == "sources":
+        return {**out, "byKind": by_kind}
     q = select(FsBatch).where(FsBatch.project_id == p.id, FsBatch.kind == "trash", FsBatch.resource != "project")
     if older_than is not None:
         q = q.where(FsBatch.at < older_than)
@@ -426,6 +433,8 @@ def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = Fa
     purged = 0
     for b in batches:
         rows = _batch_rows(db, b.id)
+        for k in ("dataset", "collection", "studio"):
+            by_kind[k + "s"] += len(rows.get(k) or [])
         if dry_run:
             purged += sum(len(v) for v in rows.values())
             continue
@@ -435,6 +444,7 @@ def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = Fa
         db.flush()
         _audit(db, ctx, p, "destroy", "all", p.id, None, {"batches": len(batches), "purged": purged})
     out["purged"] = out.get("purged", 0) + purged
+    out["byKind"] = by_kind
     return out
 
 

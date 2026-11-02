@@ -128,9 +128,12 @@ export const fetchTrash = (projectId: string, cursor?: string | null) => fsApi<T
 export interface EmptyTrashResult {
   purged: number;
   keptBytes: { name: string; reason: string }[];
+  byKind?: { sources: number; datasets: number; collections: number; studios: number };
 }
-export const postEmptyTrash = (projectId: string) => fsApi<EmptyTrashResult>(`/projects/${P(projectId)}/trash/empty`, { method: "POST" });
-export const fetchEmptyTrashPreview = (projectId: string) => fsApi<EmptyTrashResult>(`/projects/${P(projectId)}/trash/empty/preview`);
+/** Sources › Trash empties files only (`kind=sources`, todo18 P0-1); the project Trash empties every kind. */
+export const emptyTrashUrl = (projectId: string, preview = false) => `/projects/${P(projectId)}/trash/empty${preview ? "/preview" : ""}?kind=sources`;
+export const postEmptyTrash = (projectId: string) => fsApi<EmptyTrashResult>(emptyTrashUrl(projectId), { method: "POST" });
+export const fetchEmptyTrashPreview = (projectId: string) => fsApi<EmptyTrashResult>(emptyTrashUrl(projectId, true));
 
 export const fetchStarred = (projectId: string) => fsApi<{ items: FsShortcut[] }>(`/projects/${P(projectId)}/starred`).then((r) => r.items);
 export const fetchRecent = (projectId: string) => fsApi<{ items: FsShortcut[] }>(`/projects/${P(projectId)}/recent`).then((r) => r.items);

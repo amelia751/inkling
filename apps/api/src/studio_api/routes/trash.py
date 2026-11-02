@@ -3,7 +3,7 @@
     GET    /api/v1/projects/{pid}/trash?kind=all|sources|datasets|collections|studios&cursor=
     POST   /api/v1/projects/{pid}/trash/{batchId}/restore     { restored, relocatedToRoot }
     DELETE /api/v1/projects/{pid}/trash/{batchId}             destroy (owners) → { purged }
-    POST   /api/v1/projects/{pid}/trash/empty                 every kind → { purged, keptBytes }
+    POST   /api/v1/projects/{pid}/trash/empty?kind=all|sources  → { purged, keptBytes, byKind }
     GET    /api/v1/projects/{pid}/trash/empty/preview         the same, without doing it
     GET    /api/v1/projects/{pid}/trash/impact?nodeIds=a,b    a file delete's { items, files, datasetsLosingItems }
     PATCH  /api/v1/projects/{pid}/datasets/{id}               { name?, description? }
@@ -48,15 +48,15 @@ def list_trash(project_id: str, kind: str = "all", cursor: str | None = None, ct
 
 
 @router.post("/projects/{project_id}/trash/empty")
-def empty(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def empty(project_id: str, kind: str = "all", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    return trash.empty(db, ctx, p)
+    return trash.empty(db, ctx, p, kind=kind)
 
 
 @router.get("/projects/{project_id}/trash/empty/preview")
-def empty_preview(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def empty_preview(project_id: str, kind: str = "all", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    return trash.empty(db, ctx, p, dry_run=True)
+    return trash.empty(db, ctx, p, dry_run=True, kind=kind)
 
 
 @router.get("/projects/{project_id}/trash/impact")

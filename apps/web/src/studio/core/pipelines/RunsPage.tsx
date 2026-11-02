@@ -60,7 +60,7 @@ export function PipelineRunsPage() {
             description="When you upload files, each upload is checked and proposed as a dataset version here."
             actions={
               <Button variant="outline" size="lg" asChild>
-                <Link to={filesUrl(projectId)}>Open Files</Link>
+                <Link to={filesUrl(projectId)}>Open Sources</Link>
               </Button>
             }
             data-testid="pipeline-runs-empty"

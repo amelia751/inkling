@@ -150,7 +150,7 @@ def check_limits(files: int, size: int) -> None:
     s = settings()
     if files > s.drop_max_files or size > s.drop_max_bytes:
         what = f"{s.drop_max_files:,} files" if files > s.drop_max_files else f"{_human(s.drop_max_bytes)}"
-        raise HTTPException(413, f"A chat drop holds at most {what}. Use Add folder in Files for bigger uploads.")
+        raise HTTPException(413, f"A chat drop holds at most {what}. Use Add folder in Sources for bigger uploads.")
 
 
 def _rate_limit(db: Session, who: str) -> None:
@@ -368,9 +368,9 @@ def person_view(db: Session, d: Drop) -> dict:
         state = _file_state(s, f, n, d)
         reason = f.reason
         if f.state == "uploaded" and (reason or "").startswith("Same file as"):
-            reason = "Already in Files"
+            reason = "Already in Sources"
         if f.state == "skipped_duplicate":
-            reason = "Already in Files"
+            reason = "Already in Sources"
         files.append(
             {
                 "clientFileId": f.client_file_id,

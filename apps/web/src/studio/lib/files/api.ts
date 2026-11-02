@@ -640,3 +640,21 @@ export function useAddFollowed(projectId: string, datasetId: string) {
     },
   });
 }
+
+/**
+ * How many things are in the project's Trash, for the sidebar's Trash item (todo16 Milestone 0).
+ * Reads `count` (the all-kinds Trash API) and falls back to the file Trash's `total`; undefined
+ * while loading or when the Trash can't be read (seed mode, no access), so the item shows no badge.
+ * Its key sits under `filesKeys.trash`, so every invalidation of the Trash refreshes it.
+ */
+export function useTrashCount(projectId: string | undefined): number | undefined {
+  const q = useQuery({
+    queryKey: [...filesKeys.trash(projectId ?? ""), "count"] as const,
+    queryFn: () => fetchTrash(projectId!) as Promise<TrashPage & { count?: number }>,
+    enabled: !!projectId,
+    retry: false,
+    staleTime: 30_000,
+    select: (d) => (typeof d.count === "number" ? d.count : typeof d.total === "number" ? d.total : undefined),
+  });
+  return q.isError ? undefined : q.data;
+}

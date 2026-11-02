@@ -97,7 +97,7 @@ export interface MenuContext {
   usedInTask?: boolean;
   /** Files: more than one version exists (Version history is offered either way; this only enables it). */
   hasVersions?: boolean;
-  /** The project's root folder ("Files"): can't be renamed, moved or trashed. */
+  /** The project's root folder ("Sources"): can't be renamed, moved or trashed. */
   isRoot?: boolean;
   /** Several selected: something in the selection is sample data. */
   selectionLocked?: boolean;

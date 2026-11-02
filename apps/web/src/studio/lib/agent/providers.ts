@@ -19,7 +19,7 @@ export interface AgentContextProvider {
   /** Changes when what's shared changes (another selection), which brings a removed chip back. */
   key: string;
   section: AgentSection;
-  /** Chip text, e.g. "Files › MRI/patient_002". */
+  /** Chip text, e.g. "Sources › MRI/patient_002". */
   label: string;
   /** Chip tooltip: what is shared, in plain words. */
   shares: string;
@@ -162,7 +162,7 @@ export function sourceNodeContext(project: ProjectRef, node: SourceNode | null |
   const held = isHeld(node);
   const named = !held && !project.restricted;
   const name = node.displayPath ?? node.name;
-  const label = held ? "Files › a held file" : named ? `Files › ${name}` : `Files › a ${node.detectedKind ?? node.kind}`;
+  const label = held ? "Sources › a held file" : named ? `Sources › ${name}` : `Sources › a ${node.detectedKind ?? node.kind}`;
   const facts = shareableFacts(node.facts, named);
   return {
     key: `${project.id}:sources:${node.id}`,

@@ -34,7 +34,7 @@ _DIGITS = re.compile(r"\d+")
 _LAST_DIGITS = re.compile(r"\d+(?=\D*$)")
 # Extensions whose dots belong together (`.nii.gz` is a volume, not an archive).
 DOUBLE_EXT = (".nii.gz", ".tar.gz")
-ROOT_NAME = "Files"
+ROOT_NAME = "Sources"
 SORTS = ("name", "kind", "size", "added")
 
 

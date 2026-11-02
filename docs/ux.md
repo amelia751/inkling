@@ -1,7 +1,7 @@
 # Inkling UX Specification
 
 **Status:** Proposed product UX, v0.2  
-**Scope:** Workspace, Projects, Project Overview, Data (Files), Explore, Datasets, Studio, Review, Activity, and persistent AI assistant  
+**Scope:** Workspace, Projects, Project Overview, Sources, Explore, Datasets, Studio, Review, Activity, and persistent AI assistant  
 **Primary audience:** Domain experts who are not programmers, initially medical-imaging researchers  
 **Reference:** Existing Inkling 2D X-ray annotation canvas and current dataset dashboard. This document replaces the earlier *statistics-heavy Project Overview* concept; it does **not** replace the working annotation editor.
 
@@ -38,7 +38,7 @@ Workspace (personal or organization)
 └── Recent
     └── Project (the durable container for a goal)
         ├── Overview       ← redesigned project home
-        ├── Files          ← the project's drive, import history, Shared in chat
+        ├── Sources        ← the project's drive, import history, Shared in chat
         ├── Datasets       ← logical collections, structure, quality, versions
         │   └── Explore    ← discovered shapes, schemas, relationships ("Needs attention")
         ├── Studio         ← modality-aware editor for a selected task
@@ -53,8 +53,8 @@ Persistent contextual Inkling AI panel can accompany any Project section.
 
 - **Workspace** is an account or organization and its members.
 - **Project** is a durable research goal, e.g. *Cardiac Research*.
-- **Files** is the project's drive: one tree of folders and files, shown in the **Files** section (the `sources` route; it was labelled Data before todo13). Names and folders change freely; bytes don't. Everything dropped in a chat lands here too, under **Shared in chat/<conversation>**.
-- **Drop** is one gesture of files (dropped, pasted or attached) in a chat, on Home, in Files or on a Studio canvas. Every dropped file is a File first; whether it becomes dataset data is the drop's **plan**.
+- **Sources** is everything added to the project and the section that shows it (todo16 D1): one drive, a tree of folders and files (the `sources` route; labelled Data before todo13, Files before todo16). One upload or import is an **import**. Names and folders change freely; bytes don't. Everything dropped in a chat lands here too, under **Shared in chat/<conversation>**.
+- **Drop** is one gesture of files (dropped, pasted or attached) in a chat, on Home, in Sources or on a Studio canvas. Every dropped file is a File first; whether it becomes dataset data is the drop's **plan**.
 - **Source** is an import's provenance: who brought which files in, when and from where (an upload or a seed). It's shown in the inspector and the Imports list, not as a tree root.
 - **Trash** holds deleted files and folders for 30 days; Restore puts them back where they were.
 - **Dataset** is a logical, structured set of samples built from one or more sources.
@@ -62,13 +62,13 @@ Persistent contextual Inkling AI panel can accompany any Project section.
 - **Task** describes work on a dataset: classification, segmentation, event marking, review, etc.
 - **Version** is a published immutable snapshot with derivation history.
 
-**Non-equivalence:** Project ≠ Dataset; Files ≠ Source ≠ Dataset; Dataset ≠ Task. A project may contain several datasets, one dataset may derive from many sources, and the same sample may serve several tasks. A dataset pins the files (and their versions) it was made from, so reorganizing Files never changes it.
+**Non-equivalence:** Project ≠ Dataset; Sources ≠ Import ≠ Dataset; Dataset ≠ Task. A project may contain several datasets, one dataset may derive from many sources, and the same sample may serve several tasks. A dataset pins the files (and their versions) it was made from, so reorganizing Sources never changes it.
 
 ### Navigation placement
 
 - **Global rail/sidebar:** Home, Projects, Datasets, Recent; switch organization/workspace.
-- **Project sidebar** (todo13 D10): Overview, Files, Datasets, Studio, Review, Activity. Explore opens from Datasets' "Needs attention"; pipeline runs live under Files. Datasets shows while `API_FEATURE_DATASETS_TAB` is on. This is separate from global navigation.
-- **Studio contextual left panel:** Items / Labels. The Items tab is named by the data kind's noun (Images, Studies, Slides, Recordings, Videos); "Files" is the drive and "Review" is the project section, so neither word names a Studio tab. When the Studio's dataset has several collections, the header has a **collection switcher**: each collection is its own Studio. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
+- **Project sidebar** (todo13 D10): Overview, Sources, Datasets, Studio, Review, Activity, with Trash (and its count) and Settings at the bottom. Explore opens from Datasets' "Needs attention"; pipeline runs live under Sources. Datasets shows while `API_FEATURE_DATASETS_TAB` is on. This is separate from global navigation.
+- **Studio contextual left panel:** Items / Labels. The Items tab is named by the data kind's noun (Images, Studies, Slides, Recordings, Videos); "Sources" is the drive and "Review" is the project section, so neither word names a Studio tab. When the Studio's dataset has several collections, the header has a **collection switcher**: each collection is its own Studio. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
 - **Task setup** (`/projects/:p/tasks/:taskId/setup`) is where an owner configures a task: labels, tools, viewer, panels, export formats and what annotators see. It's reached from the Studio's task switcher, its ⋯ menu and the Overview task card; annotators can open it read-only.
 - **Right panel:** persistent, collapsible AI chat that carries project context across sections.
 
@@ -97,7 +97,7 @@ pasted screenshot) creates the project through the person's API, named from the 
 what the files are (“12 images”, never a file name), and opens it with the assistant drawer,
 the message delivered or the files uploading. With projects already, it asks first: add to the
 last project, or start a new one. Projects with none shows the same composer. There is no project form: every "New project"
-goes to this composer, and `/projects/new` redirects to it. Every empty surface (Overview, Files, Datasets, the Studio entry, the empty
+goes to this composer, and `/projects/new` redirects to it. Every empty surface (Overview, Sources, Datasets, the Studio entry, the empty
 Studio canvas) is the same `ComposerEmptyState` (`@studio/ui`): what will appear there, plus
 drop files and ask the assistant. The Studio canvas takes drops at any time; files join the
 open Studio. `?timeline=1` shows the drop timeline (gesture → first interactive item), which is
@@ -107,7 +107,7 @@ also posted, as durations only, to `POST /api/v1/telemetry/timeline`.
 
 1. *Drop* (any surface). The browser hashes and uploads through the normal import route; the
    message shows a **drop card** at once (< 300 ms): one chip per file with its live state
-   (uploading, checking, ready, kept, failed, "Already in Files", "Looks like a ZIP").
+   (uploading, checking, ready, kept, failed, "Already in Sources", "Looks like a ZIP").
 2. *Classified* after inspection (≈ 1–2 s for small images): each group of the drop gets one
    action in a **plan card**: add to a collection, new collection, new draft dataset, unpack,
    keep as reference (PDF, DOCX, notes) or keep, can't use yet ("Find a plugin"). A labels
@@ -121,9 +121,9 @@ also posted, as durations only, to `POST /api/v1/telemetry/timeline`.
    anything touching a published dataset, or ambiguous, waits for **Apply**.
 5. *Later drops* are calm: same-kind files join the open Studio live; a different kind (CT
    series in an X-ray Studio) becomes a new collection with its own Studio, and the open Studio
-   doesn't reload or change; documents stay in Files as reference.
+   doesn't reload or change; documents stay in Sources as reference.
 6. *Shared files* (the chat's ⋯ menu) lists what was shared in this conversation, newest first.
-   Removing a file from the chat removes the reference only; the File stays in Files.
+   Removing a file from the chat removes the reference only; the File stays in Sources.
 
 The assistant sees each dropped file's id, a screened name (`image-0007.png` when the name
 looks like it identifies a person) and technical facts, never pixels, text or cell values
@@ -233,7 +233,7 @@ Match current Inkling dark theme: restrained near-black surfaces, subtle borders
 
 | Section | Purpose | Primary surface |
 |---|---|---|
-| **Data** (Files) | Keep, organize and inspect the project's files and import history | Folder tree with editing, listing, inspector, upload tray, Imports, Trash |
+| **Sources** | Keep, organize and inspect the project's files and import history | Folder tree with editing, listing, inspector, upload tray, Imports, Trash |
 | **Explore** | Understand physical and logical data shapes before choosing annotation | Shape summary, table preview, relations and mappings |
 | **Datasets** | Manage logical datasets, collections, annotation tasks, versions | Dataset cards or table with clear task entry points |
 | **Studio** | Annotate and edit one selected task using its appropriate viewer | Context panel + large canvas + AI assistant |
@@ -242,9 +242,9 @@ Match current Inkling dark theme: restrained near-black surfaces, subtle borders
 
 The Overview is deliberately not a replacement for these detailed screens. It only routes users to them.
 
-## 6. Sources: Files and messy-data ingestion
+## 6. Sources and messy-data ingestion
 
-The **Files** section (nav label **Files** since todo13 D10; the route stays `/projects/:p/sources`, and sources live inside it as provenance) holds the project's **Files**: one drive per project, a real file
+The **Sources** section (nav label **Sources** since todo16 D1, Files before; the route stays `/projects/:p/sources`, and imports live inside it as provenance) holds everything added to the project: one drive per project, a real file
 system built on the kiwifs tree (todo7). Two things stay true: the **bytes** of every upload are
 immutable, and nothing a dataset or version depends on changes silently. Names and folders are
 the user's: every change is journaled, undoable and restorable, and the original filename,
@@ -253,7 +253,7 @@ relative folder, checksum, size, source metadata and authorization status are ke
 Wire contract: [`files-api.md`](files-api.md).
 
 **Model.**
-- One root per project ("Files"); each import lands in a folder the user picks, and each older
+- One root per project ("Sources"); each import lands in a folder the user picks, and each older
   source is a top-level folder named after it. Sample data is locked ("Copy it to make your own");
   copying is free (same bytes).
 - Node ids are permanent and paths are computed, so a rename or move never breaks annotations
@@ -285,7 +285,7 @@ Wire contract: [`files-api.md`](files-api.md).
 - *Feedback:* optimistic with rollback; toasts bottom-left with **Undo** ("Moved 3 items to *MRI*"),
   mirrored to an `aria-live` region; other people's changes appear live ("Lam moved 2 items here").
 - *The assistant:* reads folders and names, never contents or original names, and proposes a
-  reorganization plan the user applies (one batch, one undo) or edits in Files (§9).
+  reorganization plan the user applies (one batch, one undo) or edits in Sources (§9).
 
 Example import:
 
@@ -378,12 +378,12 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 
 ## 9. Persistent AI chat — Cursor-like, not a generic bot
 
-The assistant follows project context across Overview, Files, Datasets (and Explore), Studio, Review, and Activity, on Home before a project exists, and in the Studio's AI panel. Its composer takes drops, pastes and attachments (todo13). It can read permitted project metadata and propose typed tool actions.
+The assistant follows project context across Overview, Sources, Datasets (and Explore), Studio, Review, and Activity, on Home before a project exists, and in the Studio's AI panel. Its composer takes drops, pastes and attachments (todo13). It can read permitted project metadata and propose typed tool actions.
 
 Examples:
 - “What did I import?” → inspect source inventory.
 - “These folders have different schemas—organize them.” → propose groups and mappings.
-- “Group these scans by patient.” → propose a reorganization of Files (new folders, moves, renames) as a before/after card; **Apply** runs it as the user in one undoable step, **Edit** opens it in Files with a checkbox per step. The assistant can't change files itself.
+- “Group these scans by patient.” → propose a reorganization of Sources (new folders, moves, renames) as a before/after card; **Apply** runs it as the user in one undoable step, **Edit** opens it in Sources with a checkbox per step. The assistant can't change files itself.
 - “Match diagnosis.csv to MRI studies.” → display candidate joins and ambiguous rows for review.
 - “Create a ventricular segmentation task.” → propose ontology, tooling, scope.
 - “Open the scan with missing labels.” → navigate to task/sample.

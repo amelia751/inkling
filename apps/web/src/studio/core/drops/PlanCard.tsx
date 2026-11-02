@@ -62,8 +62,8 @@ const CHOICE_LABEL: Record<DropActionType, string> = {
   new_collection: "New collection",
   add_to_collection: "Add to the collection",
   unpack: "Unpack",
-  keep_reference: "Keep in Files as reference",
-  keep_unsupported: "Keep in Files",
+  keep_reference: "Keep in Sources as reference",
+  keep_unsupported: "Keep in Sources",
   link_existing: "Link the existing File",
 };
 
@@ -122,7 +122,7 @@ function PlanLedger({ plan }: { plan: PlanView }) {
             ? "Sorted on its own"
             : "Applied"
         : plan.state === "undone"
-          ? "Undone · your files are still in Files"
+          ? "Undone · your files are still in Sources"
           : plan.state === "failed"
             ? `Couldn't ${plan.failed?.step === "classify" ? "sort these files" : "apply this"}`
             : asking.length

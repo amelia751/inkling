@@ -8,7 +8,7 @@ project's drive"). All routes are under `/api/v1` and the UI calls them through
 ## Model (decisions D1–D10)
 
 - **One drive per project (D1).** Each project has one root folder node (`DriveInfo.rootNodeId`,
-  name "Files"). Every existing source root becomes a top-level folder under it, named after the
+  name "Sources", todo16 D1; migration 0017 renamed older "Files" roots). Every existing source root becomes a top-level folder under it, named after the
   source's title. `sources` rows stay as import provenance (`SourceNode.sourceId`).
 - **Ids are opaque and permanent (D3).** New nodes are `nod-<uuid hex>`; existing hashed ids are kept.
   `Asset.path` never changes. Copies point at the same asset (D5).
@@ -76,7 +76,7 @@ reason "renamed".
 
 ## Drops and chat files (todo13-drops)
 
-A **drop** is one gesture of files dropped, pasted or attached (chat, Home, Files, a Studio
+A **drop** is one gesture of files dropped, pasted or attached (chat, Home, Sources, a Studio
 canvas): table `drops` (`origin`, `conversation_id`, `message_id`, `task_id`, `state`), and every
 import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.py`,
 `routes/drops.py`; contract `packages/contracts/src/drops.ts`. Behind `API_FEATURE_CHAT_DROPS`
@@ -84,7 +84,7 @@ import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.p
 
 - `POST /v1/projects/:id/drops` `{origin, id?, conversationId?, conversationTitle?, messageId?,
   taskId?, files?, bytes?}`: people only (viewers and agents 403); `API_DROP_MAX_FILES` /
-  `API_DROP_MAX_BYTES` per drop (413, pointing to Files' folder upload); 20 drops a minute per
+  `API_DROP_MAX_BYTES` per drop (413, pointing to Sources' folder upload); 20 drops a minute per
   person (`API_DROP_RATE_PER_MINUTE`, 429 with `Retry-After`). A client `id` (`drp-…`) makes a
   retry return the same drop.
 - `POST /v1/projects/:id/imports` takes `origin: {kind, conversationId?, messageId?, dropId?}`
@@ -96,12 +96,12 @@ import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.p
   recognized as keyed by them (§3.3). Worker-only, inside the perimeter; the plan and the agent
   get the count of matching columns, never the names.
 - `GET /v1/drops/:id`: a person gets the drop with one entry per file (`state`: uploading,
-  checking, ready, kept, failed, duplicate "Already in Files", removed, deleted; `looksLike` when
+  checking, ready, kept, failed, duplicate "Already in Sources", removed, deleted; `looksLike` when
   the extension and the detected kind disagree, "Looks like a ZIP"); an agent gets the
   `DropSummary` (screened names, technical facts, 50 files a page with `?offset=`).
 - `GET /v1/projects/:id/drops?conversationId=`: a conversation's Shared files, newest first.
 - `DELETE /v1/drops/:id/files/:nodeId`: takes a file out of the chat; the File stays (D4).
-- `POST /v1/projects/:id/conversations/:cid/deleted`: the chat is gone; its folder stays in Files,
+- `POST /v1/projects/:id/conversations/:cid/deleted`: the chat is gone; its folder stays in Sources,
   renamed "<conversation> (deleted chat)" (a journaled rename). Moving a File to Trash shows
   "Deleted file" on its chips.
 - Events on the project stream: `drop.received {dropId, origin, count}`, `drop.file {dropId,
@@ -129,7 +129,7 @@ minute, resumable) or `python -m studio_api.kernel.name_screen backfill [--proje
 
 `apps/api/src/studio_api/routes/files.py` and `kernel/fs.py`. Small additions to the shapes above:
 
-- `sourceId` is `null` for the drive root and for folders made in Files (they came from no import).
+- `sourceId` is `null` for the drive root and for folders made in Sources (they came from no import).
   Copies keep the original's `sourceId` (the bytes' provenance).
 - Folder rows carry `revision` (bumped when their children change), for `FsOpsRequest.expect`; a stale
   revision answers `409 { detail: "<folder> changed since you loaded it. Reload and try again" }`.

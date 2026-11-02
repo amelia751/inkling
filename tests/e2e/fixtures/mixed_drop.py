@@ -11,7 +11,7 @@ Written fresh on every run (no binaries in the repo). Writes, under OUT_DIR:
   mixed/more-xrays.zip             a ZIP of 4 PNGs (J5: unpacked and added)
   mixed/voice-memo.mp3             an MP3 frame (J5: kept, "Find a plugin")
   mixed/labels.csv                 a CSV keyed by the PNGs' file names (J5: asked as labels table)
-  duplicate/copy-of-cxr_000.png    the same bytes as pngs/cxr_000.png (J6: "Already in Files")
+  duplicate/copy-of-cxr_000.png    the same bytes as pngs/cxr_000.png (J6: "Already in Sources")
   identifier/Smith_John_1962-04-03.dcm  a DICOM with an identifier-like name (J7)
   manifest.json                    what each fixture is, for the test's assertions
 

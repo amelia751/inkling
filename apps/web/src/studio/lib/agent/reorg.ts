@@ -201,10 +201,10 @@ export interface DiffNodeInfo {
 
 /**
  * A snapshot tree for the diff from the nodes the plan touches: each node under its parent when
- * the parent is known, else under a "Files" root. Enough for before/after of what moves.
+ * the parent is known, else under a "Sources" root. Enough for before/after of what moves.
  */
 export function planSnapshot(nodes: DiffNodeInfo[]): DiffTreeNode {
-  const root: DiffTreeNode = { id: "__root__", name: "Files", kind: "folder", children: [] };
+  const root: DiffTreeNode = { id: "__root__", name: "Sources", kind: "folder", children: [] };
   const byId = new Map<string, DiffTreeNode>(nodes.map((n) => [n.id, { id: n.id, name: n.name, kind: n.kind, ...(n.kind === "file" ? {} : { children: [] }) }]));
   for (const n of nodes) {
     const me = byId.get(n.id)!;
@@ -220,7 +220,7 @@ export function applyErrorText(status: number, detail: unknown): string {
   if (status === 409 && detail && typeof detail === "object" && Array.isArray((detail as FsConflictError).conflicts)) {
     const c = (detail as FsConflictError).conflicts;
     const names = c.slice(0, 3).map((x) => `"${x.name}" in ${x.parentName}`).join(", ");
-    return `${c.length === 1 ? "An item named" : "Items named"} ${names}${c.length > 3 ? ` and ${c.length - 3} more` : ""} already ${c.length === 1 ? "exists" : "exist"}. Edit the plan in Files to decide.`;
+    return `${c.length === 1 ? "An item named" : "Items named"} ${names}${c.length > 3 ? ` and ${c.length - 3} more` : ""} already ${c.length === 1 ? "exists" : "exist"}. Edit the plan in Sources to decide.`;
   }
   if (status === 403) return "You can't change files in this project.";
   if (status === 501) return "Changing files needs the full stack.";

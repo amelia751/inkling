@@ -163,7 +163,7 @@ def main() -> int:
         check("status words, not engine words", page.locator("[data-testid=pipeline-run-row][data-run-id=run_review] [data-testid=pipeline-run-status]").inner_text() == "Needs review")
         review_counts = page.locator("[data-testid=pipeline-run-row][data-run-id=run_review] [data-testid=pipeline-run-counts]").inner_text()
         check("a row counts files, quarantined and rejected", "10 files" in review_counts and "1 quarantined" in review_counts and "1 rejected" in review_counts, review_counts)
-        check("Files is the active section", page.locator("[data-testid=project-sidebar] a[aria-current=page]").inner_text().strip() == "Files", page.locator("[data-testid=project-sidebar] a[aria-current=page]").all_inner_texts().__repr__())
+        check("Sources is the active section", page.locator("[data-testid=project-sidebar] a[aria-current=page]").inner_text().strip() == "Sources", page.locator("[data-testid=project-sidebar] a[aria-current=page]").all_inner_texts().__repr__())
         page.get_by_role("radio", name="Needs review").click()
         check("the Needs review filter keeps only waiting runs", list(rows_state(page)) == ["run_review"], str(list(rows_state(page))))
         page.get_by_role("radio", name="All").click()

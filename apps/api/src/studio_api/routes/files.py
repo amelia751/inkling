@@ -318,10 +318,10 @@ def zip_download(project_id: str, body: dict = Body(...), ctx: RequestContext = 
     db.commit()
     note = None
     if held:
-        lines = ["These files were left out because they are held for privacy review.", "Clear the hold in Files (or rename the file) to include them.", ""]
+        lines = ["These files were left out because they are held for privacy review.", "Clear the hold in Sources (or rename the file) to include them.", ""]
         lines += [f"{path}\t{reason}" for path, reason in held]
         note = ("\n".join(lines) + "\n").encode()
-    name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Files"
+    name = selected[0].name if len(selected) == 1 and selected[0].is_dir and selected[0].parent_id is not None else "Sources"
     stamp = datetime.fromtimestamp(time.time(), UTC)
     return StreamingResponse(zipstream.stream(entries, note, stamp), media_type="application/zip", headers={"Content-Disposition": _disposition(f"{name}.zip"), "Cache-Control": "no-store", "X-Held-Files": str(len(held))})
 

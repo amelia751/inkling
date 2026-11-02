@@ -9,7 +9,7 @@ export const homeUrl = () => "/";
 export const projectsUrl = () => "/projects";
 /** `"files"` is the old name of `"sources"` (todo7 D11, reverted) and gives the same URL. */
 export const projectUrl = (projectId: string, section: ProjectSection = "overview") => `/projects/${encodeURIComponent(projectId)}/${section === "files" ? "sources" : section}`;
-/** The project's drive: `/projects/:p/sources/:nodeId?`. The nav label is "Sources"; the root folder is "Files". */
+/** The project's drive: `/projects/:p/sources/:nodeId?`. The nav label and the root folder are both "Sources". */
 export const filesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "sources")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
 /** The Trash view (todo7 Phase 4). */
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;

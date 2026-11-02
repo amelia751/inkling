@@ -53,11 +53,11 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     name: "open_location",
     title: "Pointing to a place",
     description:
-      "Show the user a button that opens a place in the project, e.g. 'Open Files › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
+      "Show the user a button that opens a place in the project, e.g. 'Open Sources › MRI/patient_002' or 'Review it in Explore'. You never navigate yourself; they click. Use ids from the project tools (nodeId, proposalId, taskId, datasetId), never paths.",
     input_schema: obj(
       {
         section: { type: "string", enum: ["overview", "sources", "explore", "datasets", "studio", "review", "activity"], description: "The project section." },
-        label: str("Button text naming the place, e.g. 'Files › MRI/patient_002'."),
+        label: str("Button text naming the place, e.g. 'Sources › MRI/patient_002'."),
         nodeId: str("Data: a file or folder id."),
         proposalId: str("Explore: a proposal id."),
         tab: str("Explore: summary, relationships, mappings or quality."),
@@ -72,7 +72,7 @@ export const CARD_TOOLS: ClientToolSpec[] = [
     name: "propose_reorganization",
     title: "Drafting a reorganization",
     description:
-      "Propose reorganizing the project's Files: new folders (mkdir), moves and renames, each with a one-line reason. Shown as a card with a before/after diff; nothing changes until the user clicks Apply, which they can undo in one step. " +
+      "Propose reorganizing the project's Sources: new folders (mkdir), moves and renames, each with a one-line reason. Shown as a card with a before/after diff; nothing changes until the user clicks Apply, which they can undo in one step. " +
       "You can't change files yourself. Use ids from list_folder or find_files, never paths. Give each new folder a short ref (e.g. \"p1\") and use that ref as parentId to move things into it. Keep names free of dates of birth and personal names.",
     input_schema: obj({
       title: str("One line, e.g. 'Group by patient: 47 folders → patient_001…047'."),

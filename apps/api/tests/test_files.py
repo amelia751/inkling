@@ -81,7 +81,7 @@ def test_one_drive_per_project_with_imports_as_top_level_folders(client):
     assert tree.NEW_ID.fullmatch(nodes["a.png"].id) and nodes["a.png"].original_path == "MRI/a.png"
     detail = client.get(f"/api/v1/source-nodes/{nodes['a.png'].id}").json()
     assert detail["pathText"] == "study/MRI/a.png" and detail["originalPath"] == "MRI/a.png" and detail["version"] == 1
-    assert [x["name"] for x in detail["path"]] == ["Files", "study", "MRI"]
+    assert [x["name"] for x in detail["path"]] == ["Sources", "study", "MRI"]
     # The source alias still lists a source's folder.
     src = client.get(f"/api/v1/projects/{p}/sources").json()["sources"][0]
     assert {i["name"] for i in client.get(f"/api/v1/sources/{src['id']}/children").json()["items"]} == {"MRI", "b.csv"}
@@ -109,8 +109,8 @@ def test_mkdir_rename_and_case_insensitive_conflicts(client):
     clash = _ops(client, p, [{"kind": "mkdir", "parentId": root, "name": "mri", "id": "nod-" + "a" * 32}])
     assert clash.status_code == 409
     detail = clash.json()["detail"]
-    assert detail["conflicts"][0] | {"existingId": None} == {"nodeId": "nod-" + "a" * 32, "name": "mri", "parentId": root, "parentName": "Files", "existingId": None, "kind": "folder", "identical": False}
-    assert 'An item named "mri" already exists in Files' == detail["message"]
+    assert detail["conflicts"][0] | {"existingId": None} == {"nodeId": "nod-" + "a" * 32, "name": "mri", "parentId": root, "parentName": "Sources", "existingId": None, "kind": "folder", "identical": False}
+    assert 'An item named "mri" already exists in Sources' == detail["message"]
     both = _ops(client, p, [{"kind": "mkdir", "parentId": root, "name": "mri", "id": "nod-" + "a" * 32}], resolutions={"*": "keep_both"}).json()
     assert [n["name"] for n in both["nodes"]] == ["mri (2)"] and both["nodes"][0]["id"] == "nod-" + "a" * 32
     for bad, why in (("a/b", "/"), ("", "empty"), ("..", "empty"), ("x" * 256, "255"), ("a\x01", "control")):
@@ -157,7 +157,7 @@ def test_moving_a_10k_file_folder_touches_o_depth_rows(client):
     after = _by_name(p)
     assert (after["dest"].descendant_count, after["dest"].total_bytes, after["dest"].child_count) == (10_000, 100_000, 1)
     assert after["er"].descendant_count == 1 and after["study"].descendant_count == 1
-    assert after["Files"].descendant_count == 10_001
+    assert after["Sources"].descendant_count == 10_001
     assert after["f00042.dcm"].parent_id == big_id  # children untouched
 
 
@@ -218,7 +218,7 @@ def test_copy_is_free_and_duplicates_in_place(client):
         copies = list(db.scalars(select(SourceNode).where(SourceNode.project_id == p, SourceNode.name == "b.png")))
         assert len(copies) == 2 and copies[0].asset_id == copies[1].asset_id and copies[0].id != copies[1].id
         assert db.query(Asset).filter(Asset.workspace_id == p).count() == 2  # no bytes copied (D5)
-    assert after["Files"].descendant_count == 4
+    assert after["Sources"].descendant_count == 4
     # Identical bytes into a folder that has them: skipped silently.
     r = _ops(client, p, [{"kind": "copy", "nodeIds": [n["b.png"].id], "parentId": r["nodes"][0]["id"]}]).json()
     assert r["skipped"]["identical"] == 1
@@ -261,15 +261,15 @@ def test_undo_of_a_copy_and_of_trash(client):
     p, root, _ = _new(client, {"study/sub/a.png": png(4, 4), "study/sub/b.png": png(5, 5)})
     n = _by_name(p)
     c = _ops(client, p, [{"kind": "copy", "nodeIds": [n["sub"].id], "parentId": root}]).json()
-    assert _by_name(p)["Files"].descendant_count == 4
+    assert _by_name(p)["Sources"].descendant_count == 4
     client.post(f"/api/v1/projects/{p}/fs/undo", json={"batchId": c["batchId"]})
     with kdb.session_scope() as db:
         assert db.query(SourceNode).filter(SourceNode.project_id == p, SourceNode.name == "a.png").count() == 1
-    assert _by_name(p)["Files"].descendant_count == 2
+    assert _by_name(p)["Sources"].descendant_count == 2
     t = _ops(client, p, [{"kind": "trash", "nodeIds": [n["sub"].id]}]).json()
-    assert _by_name(p)["Files"].descendant_count == 0
+    assert _by_name(p)["Sources"].descendant_count == 0
     client.post(f"/api/v1/projects/{p}/fs/undo", json={"batchId": t["batchId"]})
-    assert _by_name(p)["Files"].descendant_count == 2 and _by_name(p)["sub"].trashed_at is None
+    assert _by_name(p)["Sources"].descendant_count == 2 and _by_name(p)["sub"].trashed_at is None
 
 
 # ---- Trash (D8) --------------------------------------------------------------------------------

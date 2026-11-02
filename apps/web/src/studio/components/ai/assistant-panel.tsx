@@ -516,7 +516,7 @@ function Composer({
 }
 
 /**
- * What the assistant can see ("Files › MRI/patient_002"), above the composer. Removing it
+ * What the assistant can see ("Sources › MRI/patient_002"), above the composer. Removing it
  * stops sending the selection until the context changes; the "+" brings it back.
  */
 export function ContextIndicator({ provider }: { provider: AgentContextProvider }) {
@@ -558,7 +558,7 @@ function AiOff() {
     <div className="flex flex-col gap-3 px-4 pt-6" data-testid="agent-off">
       <span className="flex size-8 items-center justify-center rounded-lg bg-generic text-hint"><AiIcon className="size-4" /></span>
       <h3 className="text-body-2 font-semibold">The assistant is off for this organization</h3>
-      <p className="text-muted-foreground">An admin can turn it on in Organization settings. Dropped files still go to the project's Files.</p>
+      <p className="text-muted-foreground">An admin can turn it on in Organization settings. Dropped files still go to the project's Sources.</p>
     </div>
   );
 }

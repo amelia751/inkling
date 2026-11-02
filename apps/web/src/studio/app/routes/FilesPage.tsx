@@ -90,7 +90,7 @@ import { PlanPanel } from "./files/plan-panel";
 
 /**
  * Files (todo7; todo6 Phase 4 before it, docs/ux.md §6): the project's drive. One root
- * ("Files", D1) whose folders are yours: make, rename, move, copy, trash and undo, with the
+ * ("Sources", D1) whose folders are yours: make, rename, move, copy, trash and undo, with the
  * bytes of every upload immutable. Three panes: the tree, the listing of the folder shown and
  * the inspector of the selection. Drive's moves (selection bar, drag anywhere, New ▾), Finder's
  * keys (core commands with `when: section == sources`), every change optimistic and journaled.
@@ -487,9 +487,9 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const toDragItem = (n: SourceNode): FsDragItem => ({ id: n.id, name: n.displayPath ?? n.name, kind: n.kind, parentId: n.parentId, locked: n.locked, icon: nodeIcon(n) });
 
   const pathNames = async (id: string): Promise<string> => {
-    if (isRootId(id)) return "Files";
+    if (isRootId(id)) return "Sources";
     const d = await qc.fetchQuery({ queryKey: projectKeys.node(id), queryFn: () => fetchNode(id) });
-    return ["Files", ...stripRoot(d.path).map((p) => p.name), d.name].join("/");
+    return ["Sources", ...stripRoot(d.path).map((p) => p.name), d.name].join("/");
   };
   const copyPath = async (id?: string | null) => {
     const target = id && !isSeq(id) ? id : (listedFolderId ?? rootId);
@@ -756,7 +756,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
     return folderId ? { node: null, folderId, from } : null;
   };
   const rootNode = (): SourceNode | undefined =>
-    rootId ? { id: rootId, sourceId: "", parentId: null, name: "Files", kind: "folder", detectedKind: "folder", size: null, sha256: null, childCount: rootItems.length, descendantCount: 0, facts: {}, flags: {}, status: "ready", importSessionId: null, createdAt: null } : undefined;
+    rootId ? { id: rootId, sourceId: "", parentId: null, name: "Sources", kind: "folder", detectedKind: "folder", size: null, sha256: null, childCount: rootItems.length, descendantCount: 0, facts: {}, flags: {}, status: "ready", importSessionId: null, createdAt: null } : undefined;
   const menuRegion = (from: "tree" | "list" | "path", child: ReactNode, className?: string) => (
     <ContextMenu onOpenChange={(o) => !o && setMenu(null)}>
       <ContextMenuTrigger asChild>
@@ -1189,7 +1189,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
             {menuRegion(
               "path",
               <PathBar
-                rootLabel="Files"
+                rootLabel="Sources"
                 rootId={rootId}
                 segments={trash ? [{ id: "trash", name: "Trash" }] : segments}
                 hrefFor={(id) => (id === "trash" ? trashUrl(projectId) : filesUrl(projectId, id))}
@@ -1255,7 +1255,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
               <ResizablePanel id="tree" defaultSize={260} minSize={180} maxSize={480}>
                 <div ref={treeBox} className="flex h-full min-h-0 flex-col" data-testid="sources-tree">
                   <TreeHeader
-                    label="Files"
+                    label="Sources"
                     sort={sort.key === "status" ? "name" : sort.key}
                     onSort={sortFor}
                     filter={filter}
@@ -1512,7 +1512,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
         mode={moveDlg?.mode ?? "move"}
         itemCount={moveDlg?.nodes.length ?? 0}
         itemName={moveDlg?.nodes.length === 1 ? moveDlg.nodes[0].name : undefined}
-        root={{ id: rootId ?? "", name: "Files" }}
+        root={{ id: rootId ?? "", name: "Sources" }}
         initialPath={segments.filter((s) => !isSeq(s.id)).map((s) => ({ id: s.id, name: s.name, locked: s.locked }))}
         loadFolders={(id) => fetchFsChildren(projectId, id).then((r) => r.items)}
         recent={readRecent(projectId)}

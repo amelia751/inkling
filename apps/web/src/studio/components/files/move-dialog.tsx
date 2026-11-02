@@ -39,7 +39,7 @@ export interface MoveDialogProps {
   /** What is moving, for the title: one name, or a count. */
   itemCount: number;
   itemName?: string;
-  /** The project's root folder ("Files"). */
+  /** The project's root folder ("Sources"). */
   root: FolderRef;
   /** Where the dialog opens: the folders below the root down to the start folder, top first. Default: the root. */
   initialPath?: FolderRef[];

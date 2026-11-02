@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { ReasonButton } from "./shared";
 
 /**
- * The tree header (todo7 §2, kiwifs `AppSidebar` "Pages" header): a 32px row with the "Files"
+ * The tree header (todo7 §2, kiwifs `AppSidebar` "Pages" header): a 32px row with the "Sources"
  * label and icon buttons (New folder, Upload, Collapse all, Sort ▾), then a filter field that
  * narrows the *loaded* tree as you type ("Filter folders shown"; the toolbar's search is the one
  * for files not loaded yet). Esc in the field clears it. The sort is applied server-side by the
@@ -19,7 +19,7 @@ export type TreeSortKey = "name" | "kind" | "size" | "added";
 export const TREE_SORT_LABEL: Record<TreeSortKey, string> = { name: "Name", kind: "Kind", size: "Size", added: "Date added" };
 
 export interface TreeHeaderProps {
-  /** Default "Files". */
+  /** Default "Sources". */
   label?: string;
   sort: TreeSortKey;
   onSort: (key: TreeSortKey) => void;
@@ -34,7 +34,7 @@ export interface TreeHeaderProps {
   filterRef?: Ref<HTMLInputElement>;
 }
 
-export function TreeHeader({ label = "Files", sort, onSort, filter, onFilter, onNewFolder, onUpload, onCollapseAll, disabled = {}, filterRef }: TreeHeaderProps) {
+export function TreeHeader({ label = "Sources", sort, onSort, filter, onFilter, onNewFolder, onUpload, onCollapseAll, disabled = {}, filterRef }: TreeHeaderProps) {
   return (
     <div className="shrink-0 px-2 pt-1" data-testid="tree-header">
       <div className="flex h-8 items-center gap-0.5">

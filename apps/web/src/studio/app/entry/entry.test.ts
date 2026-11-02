@@ -20,8 +20,8 @@ describe("todo13 §7.1 feature flags", () => {
 
 describe("todo13 D10 sidebar", () => {
   it("says Files for the drive, keeping its section id", () => {
-    expect(PROJECT_SECTIONS.map((s) => s.label)).toEqual(["Overview", "Files", "Datasets", "Studio", "Review", "Activity"]);
-    expect(PROJECT_SECTIONS.find((s) => s.label === "Files")?.section).toBe("sources");
+    expect(PROJECT_SECTIONS.map((s) => s.label)).toEqual(["Overview", "Sources", "Datasets", "Studio", "Review", "Activity"]);
+    expect(PROJECT_SECTIONS.find((s) => s.label === "Sources")?.section).toBe("sources");
   });
   it("shows Datasets only with the datasets tab flag", () => {
     expect(visibleSections({ datasetsTab: false }).map((s) => s.section)).not.toContain("datasets");

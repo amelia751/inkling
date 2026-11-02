@@ -139,7 +139,7 @@ export function TrashView(props: TrashViewProps) {
                 </span>
               </span>
               <span className="hidden truncate text-muted-foreground @xl:block" title={it.originalLocation ?? undefined}>
-                {it.originalLocation ?? <span className="text-hint">Folder is gone: restores to Files</span>}
+                {it.originalLocation ?? <span className="text-hint">Folder is gone: restores to Sources</span>}
               </span>
               <span className="hidden truncate text-muted-foreground @3xl:block">{it.trashedBy}</span>
               <span className="truncate text-muted-foreground" title={`${fullDate(it.trashedAt) ?? ""} · deleted for good in ${plural(it.purgeInDays, "day")}`}>

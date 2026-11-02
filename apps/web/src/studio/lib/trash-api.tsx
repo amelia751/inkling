@@ -263,8 +263,9 @@ export function isTrashedItem(x: unknown): boolean {
 }
 
 /** Every one of the dataset's files is in Trash (`filesInTrash`, `itemCount` on the dataset). */
+/** `itemCount` is the api's count of the dataset's files *not* in Trash. */
 export function allFilesInTrash(d: { filesInTrash?: number; itemCount?: number } | null | undefined): boolean {
-  return !!d && !!d.filesInTrash && d.filesInTrash >= (d.itemCount ?? Number.POSITIVE_INFINITY);
+  return !!d && !!d.filesInTrash && d.itemCount === 0;
 }
 
 /** "3 matches in Trash", or "" when there are none. */

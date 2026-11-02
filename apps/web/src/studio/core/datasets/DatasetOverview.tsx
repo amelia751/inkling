@@ -14,7 +14,7 @@ import { actorName, actorOf } from "@/studio/app/routes/ActivityPage";
 import { relativeTime } from "@/studio/components/files";
 import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
 import { datasetUrl, projectTrashUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
-import { allFilesInTrash } from "@/studio/lib/trash-api";
+import { allFilesInTrash, useRestoreBatch } from "@/studio/lib/trash-api";
 import { api as versioning } from "@/studio/core/versioning/api";
 import { versioningEnabled } from "@/studio/core/versioning/session";
 import type { DatasetViewProps } from "./DatasetLayout";
@@ -33,6 +33,8 @@ import { AttentionLine, CollectionThumb, DatasetSection, SuggestedBadge } from "
 export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: DatasetViewProps) {
   const p = profile.data;
   const addData = useAddData(projectId, d);
+  const restore = useRestoreBatch(projectId);
+  const trashBatches = (d as { filesTrashBatchIds?: string[] }).filesTrashBatchIds ?? [];
   return (
     <div className="flex flex-col gap-8" data-testid="dataset-overview">
       {p?.checking ? (
@@ -48,9 +50,15 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
             title="This dataset's files are in Trash"
             description="Its items show as In Trash until the files are restored. Trash keeps them for 30 days."
             actions={
-              <Button variant="outline" size="lg" asChild>
-                <Link to={projectTrashUrl(projectId)} data-testid="empty-files-in-trash-restore">Restore from Trash</Link>
-              </Button>
+              trashBatches.length && canEdit ? (
+                <Button variant="outline" size="lg" disabled={restore.isPending} onClick={() => trashBatches.forEach((b) => restore.mutate(b))} data-testid="empty-files-in-trash-restore">
+                  Restore files
+                </Button>
+              ) : (
+                <Button variant="outline" size="lg" asChild>
+                  <Link to={projectTrashUrl(projectId)} data-testid="empty-files-in-trash-restore">Open Trash</Link>
+                </Button>
+              )
             }
             data-testid="empty-files-in-trash"
           />

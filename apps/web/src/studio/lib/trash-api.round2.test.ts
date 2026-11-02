@@ -11,7 +11,7 @@ describe("trash round 2 helpers", () => {
     expect(isTrashedItem({ state: "trashed" })).toBe(true);
     expect(isTrashedItem({ state: "todo" })).toBe(false);
     expect(isTrashedItem(null)).toBe(false);
-    expect(allFilesInTrash({ filesInTrash: 3, itemCount: 3 })).toBe(true);
+    expect(allFilesInTrash({ filesInTrash: 3, itemCount: 0 })).toBe(true);
     expect(allFilesInTrash({ filesInTrash: 2, itemCount: 3 })).toBe(false);
     expect(allFilesInTrash({ filesInTrash: 2 })).toBe(false);
     expect(allFilesInTrash({})).toBe(false);

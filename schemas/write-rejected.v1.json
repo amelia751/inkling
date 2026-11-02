@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "type": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "status": {
+      "type": "number",
+      "const": 422
+    },
+    "code": {
+      "type": "string",
+      "const": "write_rejected"
+    },
+    "detail": {
+      "type": "string"
+    },
+    "violations": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "rule": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warn",
+              "info"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "description": "JSON pointer into the operation's input"
+          },
+          "value": {},
+          "allowed": {
+            "type": "array",
+            "items": {}
+          },
+          "message": {
+            "type": "string"
+          },
+          "fix": {
+            "type": "string"
+          },
+          "docs": {
+            "type": "string"
+          },
+          "mode": {
+            "description": "`evaluate`: recorded as if enforced, nothing rejected (D5)",
+            "type": "string",
+            "enum": [
+              "enforce",
+              "evaluate"
+            ]
+          }
+        },
+        "required": [
+          "rule",
+          "severity",
+          "path",
+          "message",
+          "fix"
+        ]
+      }
+    },
+    "retryable": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code",
+    "violations",
+    "retryable"
+  ],
+  "$id": "inkling://schema/write-rejected/v1"
+}

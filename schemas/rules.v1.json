@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "default": 1,
+      "type": "number",
+      "const": 1
+    },
+    "labels": {
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Stable id stored on annotations"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Canonical display name"
+          },
+          "synonyms": {
+            "default": [],
+            "description": "Other spellings; normalised to `name` on write (label.synonym)",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "colour": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "allowedGeometries": {
+            "default": [],
+            "description": "Empty means any geometry",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "attributes": {
+            "description": "JSON Schema for annotation.attributes under this label",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      }
+    },
+    "layout": {
+      "default": {
+        "folderPatterns": [],
+        "forbiddenCharacters": ""
+      },
+      "type": "object",
+      "properties": {
+        "folderPatterns": {
+          "default": [],
+          "description": "Glob patterns files must live under; empty means anywhere",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "fileNamePattern": {
+          "description": "Regular expression every file name must match",
+          "type": "string"
+        },
+        "forbiddenCharacters": {
+          "default": "",
+          "description": "Characters not allowed in file and folder names",
+          "type": "string"
+        },
+        "maxDepth": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "datasets": {
+      "default": {
+        "requiredMetadata": [],
+        "oneModalityPerDataset": false,
+        "uniqueNames": true
+      },
+      "type": "object",
+      "properties": {
+        "requiredMetadata": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "modality",
+              "license",
+              "source",
+              "description"
+            ]
+          }
+        },
+        "oneModalityPerDataset": {
+          "default": false,
+          "type": "boolean"
+        },
+        "uniqueNames": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "annotations": {
+      "default": {
+        "insideImage": true,
+        "requiredAttributes": []
+      },
+      "type": "object",
+      "properties": {
+        "insideImage": {
+          "default": true,
+          "type": "boolean"
+        },
+        "minSize": {
+          "description": "Minimum extent in pixels (or samples for 1D)",
+          "type": "number",
+          "minimum": 0
+        },
+        "requiredAttributes": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "imaging": {
+      "default": {
+        "checks": {}
+      },
+      "type": "object",
+      "properties": {
+        "checks": {
+          "default": {},
+          "description": "Imaging check code → severity (dicom.*, nifti.*)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warn",
+              "info",
+              "off"
+            ]
+          }
+        }
+      }
+    },
+    "severityOverrides": {
+      "default": {},
+      "description": "Lint rule code → severity",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "error",
+          "warn",
+          "info",
+          "off"
+        ]
+      }
+    },
+    "merge": {
+      "default": {
+        "auto": "write-tier"
+      },
+      "type": "object",
+      "properties": {
+        "auto": {
+          "default": "write-tier",
+          "description": "Auto-merge change requests whose operations are all tier write and pass every check (D7)",
+          "type": "string",
+          "enum": [
+            "write-tier",
+            "never"
+          ]
+        }
+      }
+    }
+  },
+  "$id": "inkling://schema/rules/v1"
+}

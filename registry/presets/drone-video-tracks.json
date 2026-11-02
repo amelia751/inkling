@@ -63,5 +63,68 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "car",
+        "name": "car",
+        "synonyms": [
+          "automobile"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "box"
+        ]
+      },
+      {
+        "id": "truck",
+        "name": "truck",
+        "synonyms": [
+          "lorry"
+        ],
+        "colour": "#f59e0b",
+        "allowedGeometries": [
+          "box"
+        ]
+      },
+      {
+        "id": "person",
+        "name": "person",
+        "synonyms": [
+          "pedestrian"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "box"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": false,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

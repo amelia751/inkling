@@ -1,0 +1,218 @@
+{
+  "$id": "inkling://schema/lint-rules/v1",
+  "severities": [
+    "error",
+    "warn",
+    "info",
+    "off"
+  ],
+  "rules": [
+    {
+      "code": "label.unknown",
+      "title": "Label isn't in the project's rules",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Use one of the labels in the project rules (see `allowed`), or propose a rules change that adds it.",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "label.synonym",
+      "title": "Label is a synonym of a canonical label",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "info",
+      "fix": "Use the canonical label name; the normaliser rewrites synonyms on write.",
+      "fixable": true,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "geometry.not-allowed",
+      "title": "Geometry not allowed for this label",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Draw this label with one of its allowed geometries (see `allowed`).",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "annotation.out-of-bounds",
+      "title": "Annotation lies outside the image",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Keep the geometry inside the image extent; clip it or redraw it.",
+      "fixable": true,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "annotation.too-small",
+      "title": "Annotation is smaller than the minimum size",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Redraw it at least `annotations.minSize` across, or delete it if it was a stray click.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "annotation.attribute-missing",
+      "title": "Required attribute missing",
+      "appliesTo": [
+        "annotation"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Set every attribute listed in `annotations.requiredAttributes` and the label's attribute schema.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "dataset.name-taken",
+      "title": "Dataset name already used in this project",
+      "appliesTo": [
+        "dataset"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Pick another name, or add the files to the existing dataset.",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "dataset.metadata-missing",
+      "title": "Required dataset metadata missing",
+      "appliesTo": [
+        "dataset"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Fill in every field in `datasets.requiredMetadata` (modality, license, source, description).",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "dataset.mixed-modality",
+      "title": "Dataset mixes modalities",
+      "appliesTo": [
+        "dataset",
+        "file"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Put each modality in its own dataset.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "layout.misplaced",
+      "title": "File is outside the project's folder layout",
+      "appliesTo": [
+        "file"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Move the file under one of `layout.folderPatterns`, within `layout.maxDepth`.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "name.pattern",
+      "title": "Name doesn't match the naming rules",
+      "appliesTo": [
+        "file",
+        "dataset"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Rename it to match `layout.fileNamePattern` without `layout.forbiddenCharacters`; trimming and NFC are applied on write.",
+      "fixable": true,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "name.phi-suspect",
+      "title": "Name may contain personal health information",
+      "appliesTo": [
+        "file",
+        "dataset"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Rename it with a pseudonymous id; never use patient names, dates of birth or record numbers.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": true
+    },
+    {
+      "code": "env.unresolved",
+      "title": "Environment doesn't resolve",
+      "appliesTo": [
+        "environment"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Fix the references the resolver reports (modules, renderers, tools) using the catalogue.",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "env.label-drift",
+      "title": "Studio labels differ from the project's rules",
+      "appliesTo": [
+        "environment"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Use the project's labels in the Studio, or propose a rules change.",
+      "fixable": true,
+      "mode": "evaluate",
+      "phi": false
+    },
+    {
+      "code": "dicom.series-incomplete",
+      "title": "DICOM series is incomplete",
+      "appliesTo": [
+        "dicom"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Upload the missing instances (see the slice gaps), or remove the partial series.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": true
+    },
+    {
+      "code": "dicom.seg-frame-mismatch",
+      "title": "SEG frame of reference doesn't match its source",
+      "appliesTo": [
+        "dicom"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Regenerate the segmentation against the referenced series.",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": true
+    },
+    {
+      "code": "nifti.orientation-mismatch",
+      "title": "NIfTI qform and sform disagree",
+      "appliesTo": [
+        "nifti"
+      ],
+      "defaultSeverity": "warn",
+      "fix": "Rewrite the header with one consistent affine (qform = sform).",
+      "fixable": false,
+      "mode": "evaluate",
+      "phi": false
+    }
+  ]
+}

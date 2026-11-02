@@ -62,5 +62,78 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "lv-endo",
+        "name": "LV endocardium",
+        "synonyms": [
+          "LV blood pool",
+          "LVendo"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "polygon",
+          "mask"
+        ]
+      },
+      {
+        "id": "lv-epi",
+        "name": "LV epicardium",
+        "synonyms": [
+          "LVepi"
+        ],
+        "colour": "#22c55e",
+        "allowedGeometries": [
+          "polygon",
+          "mask"
+        ]
+      },
+      {
+        "id": "rv-endo",
+        "name": "RV endocardium",
+        "synonyms": [
+          "RV blood pool",
+          "RVendo"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "polygon",
+          "mask"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "modality",
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": true,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {
+        "dicom.series-incomplete": "warn",
+        "dicom.seg-frame-mismatch": "error",
+        "nifti.orientation-mismatch": "warn"
+      }
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

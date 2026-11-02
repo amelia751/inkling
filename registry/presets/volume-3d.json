@@ -55,5 +55,67 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "liver",
+        "name": "Liver",
+        "synonyms": [
+          "hepar"
+        ],
+        "colour": "#a16207",
+        "allowedGeometries": [
+          "mask",
+          "polygon"
+        ]
+      },
+      {
+        "id": "tumor",
+        "name": "Tumour",
+        "synonyms": [
+          "tumor",
+          "lesion",
+          "neoplasm"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "mask",
+          "polygon",
+          "box"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "modality",
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": true,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {
+        "dicom.series-incomplete": "warn",
+        "dicom.seg-frame-mismatch": "error",
+        "nifti.orientation-mismatch": "warn"
+      }
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

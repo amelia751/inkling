@@ -52,5 +52,73 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "tumor",
+        "name": "Tumour",
+        "synonyms": [
+          "tumor",
+          "carcinoma"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "polygon",
+          "mask",
+          "freehand"
+        ]
+      },
+      {
+        "id": "stroma",
+        "name": "Stroma",
+        "synonyms": [],
+        "colour": "#f59e0b",
+        "allowedGeometries": [
+          "polygon",
+          "mask",
+          "freehand"
+        ]
+      },
+      {
+        "id": "lymphocyte",
+        "name": "Lymphocyte",
+        "synonyms": [
+          "TIL"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "point",
+          "polygon"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "modality",
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": true,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

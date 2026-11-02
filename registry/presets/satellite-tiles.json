@@ -75,5 +75,80 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "building",
+        "name": "building",
+        "synonyms": [
+          "footprint"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "polygon",
+          "box"
+        ]
+      },
+      {
+        "id": "field",
+        "name": "field",
+        "synonyms": [
+          "farmland",
+          "crop"
+        ],
+        "colour": "#22c55e",
+        "allowedGeometries": [
+          "polygon"
+        ]
+      },
+      {
+        "id": "water",
+        "name": "water",
+        "synonyms": [
+          "lake",
+          "river"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "polygon"
+        ]
+      },
+      {
+        "id": "tree",
+        "name": "tree",
+        "synonyms": [],
+        "colour": "#15803d",
+        "allowedGeometries": [
+          "point"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": false,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

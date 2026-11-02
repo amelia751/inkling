@@ -583,5 +583,95 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "p-wave",
+        "name": "P wave",
+        "synonyms": [
+          "P"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "span",
+          "instant"
+        ]
+      },
+      {
+        "id": "qrs",
+        "name": "QRS complex",
+        "synonyms": [
+          "QRS"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "span",
+          "instant"
+        ]
+      },
+      {
+        "id": "t-wave",
+        "name": "T wave",
+        "synonyms": [
+          "T"
+        ],
+        "colour": "#22c55e",
+        "allowedGeometries": [
+          "span",
+          "instant"
+        ]
+      },
+      {
+        "id": "artifact",
+        "name": "artifact",
+        "synonyms": [
+          "noise"
+        ],
+        "colour": "#6b7280",
+        "allowedGeometries": [
+          "span"
+        ]
+      },
+      {
+        "id": "afib",
+        "name": "Atrial fibrillation",
+        "synonyms": [
+          "AF",
+          "AFib"
+        ],
+        "colour": "#a855f7",
+        "allowedGeometries": [
+          "span"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "modality",
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": true,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

@@ -1,0 +1,61 @@
+# Nightly against WorkOS staging (todo9 Phase 13): one password sign-in with the staging test
+# user through the WorkOS API, and its access token verified against the staging JWKS
+# (tests/e2e/auth/staging_sign_in.py). No hosted AuthKit, no browser, no api.
+#
+# Off until these repository secrets exist (Settings → Secrets and variables → Actions); without
+# them the run passes with a notice:
+#
+#   E2E_WORKOS_STAGING_API_KEY    the staging environment's sk_test_… key
+#   E2E_WORKOS_STAGING_CLIENT_ID  the staging client_… id
+#   E2E_WORKOS_STAGING_EMAIL      a staging test user with password sign-in on, no MFA, in one or more orgs
+#   E2E_WORKOS_STAGING_PASSWORD   its password
+#   E2E_WORKOS_STAGING_ISSUER     optional: the expected `iss` (what the api's API_WORKOS_ISSUER is set to)
+#
+# Radar may challenge password sign-ins from CI addresses: allowlist the test user in the staging
+# dashboard (Radar) if the run fails with a radar_* code. Still to add (Phase 13): an invitation
+# round trip and an SSO sign-in with the staging test identity provider.
+name: auth-nightly
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: auth-nightly
+  cancel-in-progress: false
+
+jobs:
+  staging-sign-in:
+    name: password sign-in (WorkOS staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Prefixed names only: the WorkOS SDKs read unprefixed WORKOS_* variables on their own.
+      INKLING_E2E_WORKOS_API_KEY: ${{ secrets.E2E_WORKOS_STAGING_API_KEY }}
+      INKLING_E2E_WORKOS_CLIENT_ID: ${{ secrets.E2E_WORKOS_STAGING_CLIENT_ID }}
+      INKLING_E2E_WORKOS_EMAIL: ${{ secrets.E2E_WORKOS_STAGING_EMAIL }}
+      INKLING_E2E_WORKOS_PASSWORD: ${{ secrets.E2E_WORKOS_STAGING_PASSWORD }}
+      INKLING_E2E_WORKOS_ISSUER: ${{ secrets.E2E_WORKOS_STAGING_ISSUER }}
+    steps:
+      - name: Secrets present?
+        id: gate
+        run: |
+          if [ -n "$INKLING_E2E_WORKOS_API_KEY" ] && [ -n "$INKLING_E2E_WORKOS_CLIENT_ID" ] \
+             && [ -n "$INKLING_E2E_WORKOS_EMAIL" ] && [ -n "$INKLING_E2E_WORKOS_PASSWORD" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::WorkOS staging secrets aren't set; skipping (see .github/workflows/auth-nightly.yml)"
+          fi
+      - uses: actions/checkout@v5
+        if: steps.gate.outputs.ready == 'true'
+      - uses: astral-sh/setup-uv@v7
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          enable-cache: true
+      - name: Password sign-in against staging
+        if: steps.gate.outputs.ready == 'true'
+        run: uv run --frozen --package studio-api python tests/e2e/auth/staging_sign_in.py

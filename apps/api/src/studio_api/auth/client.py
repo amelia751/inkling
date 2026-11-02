@@ -20,6 +20,13 @@ log = logging.getLogger(__name__)
 
 DEFAULT_BASE_URL = "https://api.workos.com/"
 
+# Calls to WorkOS sit on a person's request (a refresh in the middleware, the callback): fail
+# fast and answer 503 (the cookie is kept, the browser retries) instead of the SDK's defaults:
+# a 60 s timeout (read from the unprefixed WORKOS_REQUEST_TIMEOUT otherwise) and 3 retries with
+# backoff, ~14 s per request during an outage, or up to 60 s when a 429 sends Retry-After.
+REQUEST_TIMEOUT_S = 10
+MAX_RETRIES = 0
+
 _client: Any = None
 
 
@@ -35,7 +42,10 @@ def client() -> Any:
         from workos import AsyncWorkOSClient
 
         s = settings()
-        _client = AsyncWorkOSClient(api_key=s.workos_api_key, client_id=s.workos_client_id, base_url=base_url(), jwt_issuer=s.workos_issuer or None, jwt_leeway=5.0)
+        _client = AsyncWorkOSClient(
+            api_key=s.workos_api_key, client_id=s.workos_client_id, base_url=base_url(), jwt_issuer=s.workos_issuer or None, jwt_leeway=5.0,
+            request_timeout=REQUEST_TIMEOUT_S, max_retries=MAX_RETRIES,
+        )
     return _client
 
 

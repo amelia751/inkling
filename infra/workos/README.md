@@ -54,3 +54,13 @@ npx @workos/emulate@0.18.0 --seed infra/workos/emulate.yaml --validate-config
 Notes (checked with 0.18.0): seeding `apiKeys` replaces `sk_test_default`, so this file seeds
 none and tests create organization API keys at run time; the signing key changes on every
 restart unless `--signing-key` is given, so restart api too (or let it refetch the JWKS).
+
+## Tests against Emulate
+
+- `apps/api/tests/emulate/`: the api's sign-in, refresh, logout, multi-org, org boundary and
+  personal-org tests (pytest; skipped unless an emulator answers at
+  `<envPrefix>TEST_WORKOS_EMULATE_URL`, default `http://localhost:4100`). In the `ci` workflow.
+- `tests/e2e/auth/`: the e2e harness (Emulate + api + agent + Vite in `workos` mode) and the
+  `sign_in(email, password)` helper for browser and cross-service tests. In the manual `e2e` workflow.
+- `.github/workflows/auth-nightly.yml`: one password sign-in against WorkOS staging, off until its
+  repository secrets exist.

@@ -157,12 +157,23 @@ async def memberships(db: Session, workos_user_id: str) -> list[dict[str, Any]]:
         for workos_org_id, name in rows:
             oid = org_for_workos_id(db, workos_org_id, name)
             org = db.get(Organization, oid)
-            if org is not None and name and not org.name:
-                org.name = name
+            if org is not None and not org.name:
+                org.name = name or await _org_name(workos_org_id)
+                db.flush()
             out.append({"id": oid, "workosOrgId": workos_org_id, "name": (org.name if org else name) or name})
         return out
     q = select(Organization).join(OrganizationMember, OrganizationMember.org_id == Organization.id).where(OrganizationMember.principal == principal, OrganizationMember.status == "active", Organization.workos_org_id.is_not(None))
     return [{"id": o.id, "workosOrgId": o.workos_org_id, "name": o.name} for o in db.scalars(q)]
+
+
+async def _org_name(workos_org_id: str) -> str:
+    """An organization's name when the membership listing didn't carry it (WorkOS Emulate
+    doesn't); once per organization, since the row keeps it."""
+    try:
+        return str((await wclient.client().organizations.get_organization(workos_org_id)).name or "")
+    except Exception:  # noqa: BLE001 — a nameless entry beats no switcher
+        log.warning("reading WorkOS organization %s failed", workos_org_id, exc_info=True)
+        return ""
 
 
 def forget_memberships(workos_user_id: str | None = None) -> None:

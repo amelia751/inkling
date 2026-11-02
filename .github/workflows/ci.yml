@@ -57,6 +57,40 @@ jobs:
           pnpm --filter @studio/api-client generate
           git diff --exit-code packages/api-client/src/schema.d.ts
 
+  workos-emulate:
+    # todo9 Phase 13: the api's WorkOS sign-in against WorkOS Emulate (apps/api/tests/emulate):
+    # callback errors, refresh rotation, logout, 5xx during refresh, multi-org, org boundary,
+    # personal orgs. Fast, no browser. The emulator is seeded from the checkout, which a
+    # `services:` container can't mount (services start before checkout), so a step starts it.
+    name: api sign-in (WorkOS Emulate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: WorkOS Emulate container
+        run: |
+          docker run -d --name workos-emulate -p 4100:4100 \
+            -e NO_UPDATE_NOTIFIER=1 -e WORKOS_EMULATE_DISABLE_UPDATE_CHECK=1 \
+            -v "$PWD/infra/workos/emulate.yaml:/seed/emulate.yaml:ro" \
+            ghcr.io/workos/emulate:0.18.0 --host 0.0.0.0 --seed /seed/emulate.yaml --issuer http://localhost:4100
+      - run: uv sync --frozen --package studio-api
+      - name: Wait for the emulator
+        run: for _ in $(seq 1 60); do curl -fsS http://localhost:4100/health && exit 0; sleep 1; done; docker logs workos-emulate; exit 1
+      - name: Emulate api tests
+        env:
+          INKLING_TEST_WORKOS_EMULATE_URL: http://localhost:4100
+          INKLING_TEST_WORKOS_EMULATE_REQUIRED: "1" # fail, don't skip, when the emulator is missing
+        run: uv run --package studio-api pytest apps/api/tests/emulate -q
+      - name: Emulator logs
+        if: failure()
+        run: docker logs workos-emulate 2>&1 | tail -n 200
+      - name: Stop the emulator
+        if: always()
+        run: docker rm -f workos-emulate
+
   go:
     name: versioning (Go)
     runs-on: ubuntu-latest

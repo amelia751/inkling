@@ -86,13 +86,14 @@ async def login(request: Request, return_to: str | None = None, organization_id:
 
     pair = PKCE().generate()
     state = secrets.token_urlsafe(32)
+    workos_org = await anyio.to_thread.run_sync(_workos_org_param, organization_id)
     url = wclient.client().user_management.get_authorization_url(
         provider="authkit", redirect_uri=settings().workos_redirect_uri, state=state, code_challenge=pair.code_challenge, code_challenge_method="S256",
-        organization_id=await anyio.to_thread.run_sync(_workos_org_param, organization_id), invitation_token=invitation_token, login_hint=login_hint,
+        organization_id=workos_org, invitation_token=invitation_token, login_hint=login_hint,
         screen_hint="sign-up" if screen_hint == "sign-up" else None, max_age=max_age,
     )
     resp = RedirectResponse(url, status_code=302)
-    cookie.set_state(resp, {"s": state, "v": pair.code_verifier, "r": target})
+    cookie.set_state(resp, {"s": state, "v": pair.code_verifier, "r": target, **({"o": workos_org} if workos_org else {})})
     return resp
 
 
@@ -100,6 +101,23 @@ def _fail(status: int, detail: str) -> JSONResponse:
     resp = JSONResponse({"detail": detail}, status_code=status)
     cookie.clear_state(resp)
     return resp
+
+
+async def _exchange_code(code: str, st: dict[str, Any], ip: str | None, ua: str | None) -> Any:
+    """The code → tokens. A person in several organizations can get `organization_selection_required`
+    back (WorkOS Emulate always does; hosted AuthKit usually asks on its own page first): finish
+    in the organization the sign-in asked for, else the first one offered. The switcher does the rest."""
+    from workos._errors import OrganizationSelectionRequiredError
+
+    um = wclient.client().user_management
+    try:
+        return await um.authenticate_with_code(code=code, code_verifier=st.get("v"), ip_address=ip, user_agent=ua)
+    except OrganizationSelectionRequiredError as e:
+        offered = [str(o.get("id")) for o in (e.organizations or []) if o.get("id")]
+        if not offered or not e.pending_authentication_token:
+            raise
+        pick = st.get("o") if st.get("o") in offered else offered[0]
+        return await um.authenticate_with_organization_selection(pending_authentication_token=e.pending_authentication_token, organization_id=pick, ip_address=ip, user_agent=ua)
 
 
 @router.get("/callback")
@@ -113,7 +131,7 @@ async def callback(request: Request, code: str | None = None, state: str | None 
         return _fail(400, "sign-in state didn't match; start again from the sign-in page")
     ip, ua = client_ip(request), request.headers.get("User-Agent")
     try:
-        auth = await wclient.client().user_management.authenticate_with_code(code=code, code_verifier=st.get("v"), ip_address=ip, user_agent=ua)
+        auth = await _exchange_code(code, st, ip, ua)
     except Exception as e:  # noqa: BLE001 — WorkOS text goes back as the detail
         if _transient(e):
             return _fail(503, "WorkOS is unavailable; try signing in again")
@@ -190,12 +208,13 @@ async def _workos_session(s: AuthSession) -> dict[str, Any]:
     u = s.user
     email = str(u.get("email") or "")
     with session_scope() as db:
+        # The memberships first: they name organizations we only knew by id.
+        orgs = await bootstrap.memberships(db, str(u.get("id") or s.claims["sub"]))
         org: dict[str, Any] = {"id": "", "workosOrgId": None, "name": ""}
         if s.org_id:
             row = db.get(Organization, bootstrap.org_for_workos_id(db, s.org_id))
             if row is not None:
                 org = _org_dict(row)
-        orgs = await bootstrap.memberships(db, str(u.get("id") or s.claims["sub"]))
     imp = s.impersonator
     return {
         "mode": "workos",

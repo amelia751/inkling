@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { registry } from "./registry";
 import { profileForItem, resolveEnvironment } from "./resolve";
-import { FILE_VIEW_RENDERER } from "@studio/renderers/file-view/manifest";
+import { FILE_VIEW_RENDERER } from "@studio/plugin-ui-sdk/resolved";
 import "@/extension-host/bundled";
 
 const RASTER = "studio.image2d.dataKinds.raster";

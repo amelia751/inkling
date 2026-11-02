@@ -1,10 +1,16 @@
 import type { EnvironmentSpec, LabelGroup } from "@studio/contracts";
+import { ns } from "@studio/contracts/naming";
 import type { ContributionOf, ContributionType, PanelSlot } from "./module";
 
 /**
  * Types of a resolved environment, as plugins see it. The resolver that builds them lives
  * in the extension host (apps/web/src/extension-host/resolve.ts).
  */
+
+/** Module of the generic file view renderer (packages/renderers/src/file-view). */
+export const FILE_VIEW_MODULE = ns("file-view");
+/** Renderer id of the generic file view: what `ResolvedEnv.fileView` shows for unmapped kinds. */
+export const FILE_VIEW_RENDERER = `${FILE_VIEW_MODULE}.renderers.file`;
 
 /** A contribution as indexed by the registry: its full id plus where it came from. */
 export type Registered<T extends ContributionType> = ContributionOf<T> & {

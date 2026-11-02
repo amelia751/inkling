@@ -1,4 +1,5 @@
 import { defineModule } from "@studio/plugin-ui-sdk/module";
+import { FILE_VIEW_MODULE } from "@studio/plugin-ui-sdk/resolved";
 import { ns } from "@studio/contracts/naming";
 
 /**
@@ -11,8 +12,8 @@ import { ns } from "@studio/contracts/naming";
  * renderer id is `FILE_VIEW_RENDERER`. The shell uses it directly (not through a profile), so it
  * never needs to `consume` the item's kind.
  */
-export const FILE_VIEW = ns("file-view");
-export const FILE_VIEW_RENDERER = `${FILE_VIEW}.renderers.file`;
+export { FILE_VIEW_MODULE as FILE_VIEW, FILE_VIEW_RENDERER } from "@studio/plugin-ui-sdk/resolved";
+const FILE_VIEW = FILE_VIEW_MODULE;
 /** The generic one-item-per-file data kind (apps/web extension-host/sandbox) it also consumes. */
 const FILES_KIND = `${ns("generic")}.dataKinds.files`;
 

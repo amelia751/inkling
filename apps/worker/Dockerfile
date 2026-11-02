@@ -39,6 +39,11 @@ LABEL org.opencontainers.image.source="${IMAGE_SOURCE}" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.title="studio-worker"
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
+# ffmpeg (+ ffprobe) converts videos the browser can't play (todo19 P0-1). OpenSlide and libvips
+# come as wheels (openslide-bin, pyvips-binary) in the venv, so no system packages for slides.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 10001 app && useradd --system --uid 10001 --gid app --no-create-home --home-dir /tmp app
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv

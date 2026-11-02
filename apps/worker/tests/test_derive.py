@@ -209,3 +209,87 @@ def test_worker_loop_reports_the_codec_failure(tmp_path):
 
 def test_acdc_item_meta_is_zero_based():
     assert sidecars.item_meta({"ed": 1, "es": 12, "group": "DCM", "weight": 95.0}) == {"ed": 0, "es": 11, "group": "DCM", "weight": 95.0}
+
+
+# ---- todo19 P0-1/P0-2, §2 A: real tiling, missing converters, constant frame rate ------------
+
+
+def _fixture_slide(tmp_path: Path) -> Path:
+    """A tiny pyramidal tiled TIFF that OpenSlide reads as generic-tiff (no stored bytes)."""
+    pyvips = pytest.importorskip("pyvips")
+    p = tmp_path / "tiny.tif"
+    img = (pyvips.Image.xyz(600, 400)[0] % 256).cast("uchar").bandjoin([pyvips.Image.xyz(600, 400)[1].cast("uchar"), 128])
+    img = img.copy(xres=4.0, yres=4.0)  # 4 px/mm = 250 µm/px
+    img.tiffsave(str(p), tile=True, pyramid=True, compression="jpeg", tile_width=256, tile_height=256)
+    return p
+
+
+@pytest.mark.parametrize("engine", ["pyvips", "openslide"])
+def test_real_tiling_of_a_generated_slide(tmp_path, engine):
+    pytest.importorskip("openslide")
+    src = _fixture_slide(tmp_path)
+    seen: list[int] = []
+    d = derive.tile_slide(src, tmp_path / "out", "abc", progress=seen.append, engine=engine)
+    assert d.key == "derived/abc.dzi" and "<Image" in d.files[d.key].read_text()
+    tiles = [k for k in d.files if k.startswith("derived/abc_files/") and k.endswith(".jpeg")]
+    assert tiles and "derived/abc_thumb.png" in d.files
+    assert d.meta["width"] == 600 and d.meta["height"] == 400 and d.meta["engine"] == engine
+    assert seen[0] == 0 and seen[-1] == 100
+
+
+def test_missing_openslide_is_unavailable_not_failed(tmp_path, monkeypatch):
+    import builtins
+
+    real = builtins.__import__
+
+    def no_openslide(name, *a, **kw):
+        if name in ("openslide", "pyvips"):
+            raise ImportError(name)
+        return real(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", no_openslide)
+    with pytest.raises(derive.DeriveError) as e:
+        derive.tile_slide(tmp_path / "s.svs", tmp_path, "abc")
+    assert e.value.unavailable and e.value.converter == "OpenSlide" and not e.value.retry
+    with pytest.raises(derive.DeriveError) as v:
+        derive.transcode_video(tmp_path / "s.svs", tmp_path, "abc", which=lambda _n: None)
+    assert v.value.unavailable and v.value.converter == "ffmpeg"
+
+
+def test_worker_loop_reports_unavailable(tmp_path):
+    k = _FakeKernel()
+
+    def convert(*_a):
+        raise derive.DeriveError("OpenSlide isn't installed", unavailable=True, converter="OpenSlide")
+
+    derive.DeriveWorker(k, tmp_path, convert=convert, kinds=["video-mp4"]).tick()
+    assert k.calls[0] == ("/api/v1/worker/derivatives/claim", {"limit": 1, "maxAttempts": 3, "kinds": ["video-mp4"]})
+    assert k.calls[-1][1]["unavailable"] is True
+
+
+def test_transcode_keeps_source_fps_at_a_constant_rate(tmp_path):
+    src = tmp_path / "in.avi"
+    src.write_bytes(b"x")
+    cmds: list[list[str]] = []
+    base = _fake_run()
+
+    def run(cmd, **kw):
+        cmds.append(cmd)
+        if "ffprobe" in cmd[0]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps({"streams": [{"codec_type": "video", "codec_name": "mjpeg", "duration": "10", "avg_frame_rate": "25/1", "r_frame_rate": "30000/1001"}]}), stderr="")
+        return base(cmd, **kw)
+
+    d = derive.transcode_video(src, tmp_path / "out", "abc", run=run, which=_which)
+    ff = cmds[-1]
+    assert ff[ff.index("-fps_mode") + 1] == "cfr" and ff[ff.index("-r") + 1] == "30000/1001"
+    assert d.meta["fps"] == pytest.approx(29.97, abs=0.01)
+
+
+def test_capabilities_detect_and_kinds():
+    from studio_worker import capabilities
+
+    caps = capabilities.detect(which=lambda n: None if n == "dciodvfy" else f"/bin/{n}", run=lambda *_a, **_k: SimpleNamespace(returncode=0, stdout="ffmpeg version 7.1 Copyright", stderr=""))
+    assert caps["ffmpeg"] == "7.1" and "dciodvfy" not in caps
+    assert capabilities.kinds_for({"ffmpeg": "7.1", "ffprobe": "7.1", "openslide": "4.0.1"}) == ["video-mp4", "slide-dzi"]
+    assert capabilities.kinds_for({}) == []
+    assert capabilities.missing({}) and "OpenSlide" in " ".join(capabilities.missing({"ffmpeg": "7"}))

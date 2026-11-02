@@ -22,7 +22,7 @@ LEASE_S = 15 * 60
 DEFAULT_MAX_ATTEMPTS = 3
 LABEL = {"video-mp4": "Converting video", "slide-dzi": "Preparing slide"}
 # The converter each kind needs (todo19 D10): a worker serves a kind when it reports any of these.
-NEEDS = {"video-mp4": ("ffmpeg",), "slide-dzi": ("openslide", "pyvips")}
+NEEDS = {"video-mp4": ("ffmpeg",), "slide-dzi": ("openslide",)}
 CONVERTER = {"video-mp4": "ffmpeg", "slide-dzi": "OpenSlide"}
 
 

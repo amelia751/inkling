@@ -71,6 +71,7 @@
               "studio.overlay2d",
               "studio.cornerstone",
               "studio.timeline",
+              "studio.file-view",
               "studio.generic",
               "studio.image2d",
               "studio.volume",
@@ -148,6 +149,7 @@
               "renderer": {
                 "type": "string",
                 "enum": [
+                  "studio.file-view.renderers.file",
                   "studio.image2d.renderers.cornerstone-stack",
                   "studio.image2d.renderers.canvas-raster",
                   "studio.volume.renderers.cornerstone-mpr",
@@ -465,6 +467,7 @@
                   "studio.cine.dataKinds.volume-time",
                   "studio.wsi.dataKinds.raster-pyramid",
                   "studio.text-spans.dataKinds.text",
+                  "studio.file-view.renderers.file",
                   "studio.image2d.renderers.cornerstone-stack",
                   "studio.image2d.renderers.canvas-raster",
                   "studio.volume.renderers.cornerstone-mpr",

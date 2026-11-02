@@ -35,6 +35,11 @@ export interface SeedAsset {
   meta?: Record<string, string | number | null>;
   /** todo18 D4: the browser-viewable file the worker made (video → MP4, slide → DZI). */
   derivative?: AssetDerivative;
+  /**
+   * todo19 D1: the item's detected kind (a data kind contribution id, its local name, or a
+   * detected file kind such as `slide`), from the task document. Picks the profile it opens with.
+   */
+  kind?: string;
 }
 
 export interface AssetDerivative {
@@ -285,6 +290,8 @@ export interface StudioItem {
    * (a ground-truth segmentation) toggle an overlay instead of replacing the view.
    */
   parts?: ItemPart[];
+  /** todo19 D3: the profile this item opens with (`ResolvedEnv.profiles[dataKind].id`); unset: the file view. */
+  profile?: string;
 }
 
 export interface ItemPart {

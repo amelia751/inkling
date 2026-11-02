@@ -1,4 +1,5 @@
 import { mediaTypeOf } from "@studio/contracts/media-types";
+import { itemWhenContext, profileForItem } from "./resolve";
 import type { PluginManifest } from "@studio/contracts/plugin-manifest";
 import type { PanelDecl, RendererDecl, UiContributions, VisibleWhen } from "@studio/contracts/ui-contributions";
 import { defineModule, type CommandContribution, type ModuleManifest, type PanelContribution, type PanelProps, type RendererContribution, type RendererProps, type ResolvedEnv } from "@studio/plugin-ui-sdk";
@@ -145,8 +146,8 @@ export function bindDeclarativeCommands(env: ResolvedEnv, context: () => { itemI
 }
 
 /** The environment's toolbar commands whose `when` holds for this item right now. */
-export function visibleToolbarCommands(env: ResolvedEnv, item: { assets: { path: string; role?: string }[] } | undefined, live: Record<string, unknown>) {
-  const ctx = { ...env.context, ...live, "item.mediaType": itemMediaType(item) };
+export function visibleToolbarCommands(env: ResolvedEnv, item: { assets: { path: string; role?: string }[]; dataKind?: string } | undefined, live: Record<string, unknown>) {
+  const ctx = { ...(profileForItem(env, item)?.context ?? env.context), ...live, "item.mediaType": itemMediaType(item), ...itemWhenContext(env, item) };
   return env.commands.filter((c) => c.surface === "toolbar" && when(c.when, ctx));
 }
 

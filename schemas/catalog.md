@@ -13,6 +13,7 @@ Validate before saving; fix errors using their `path` and `suggestion`.
 - `studio.text-spans.dataKinds.text` — One item per UTF-8 text file
 
 ## renderers
+- `studio.file-view.renderers.file` — Generic file view: name, size, kind, facts, preview for images, download (consumes studio.generic.dataKinds.files; space image2d)
 - `studio.image2d.renderers.cornerstone-stack` — Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config (consumes studio.image2d.dataKinds.raster; space image2d)
 - `studio.image2d.renderers.canvas-raster` — Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools (consumes studio.image2d.dataKinds.raster; space image2d)
 - `studio.volume.renderers.cornerstone-mpr` — Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D (consumes studio.volume.dataKinds.volume; space volume)

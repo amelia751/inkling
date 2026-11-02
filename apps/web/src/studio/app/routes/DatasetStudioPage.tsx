@@ -33,7 +33,7 @@ import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { ErrorState } from "@studio/ui/ui/error-state";
 import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, safeHref, type KnownGood } from "@/studio/lib/safe-mode";
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
-import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
+import { itemWhenContext, resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
 import { api, fetchTaskIncludingTrashed, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { projectTrashUrl } from "@/studio/lib/routes";
@@ -605,6 +605,7 @@ function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
         "selection.count": s.selectedIds.length,
         "env.tools": env.tools.map((t) => t.name),
         "item.mediaType": itemMediaType(current()),
+        ...itemWhenContext(env, current()),
       };
     });
     // Declarative plugin commands (toolbar actions) run through the command gateway.

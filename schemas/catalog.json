@@ -26,6 +26,12 @@
       "description": "Label spans and point-in-time events on any renderer with a time axis."
     },
     {
+      "id": "studio.file-view",
+      "version": "1.0.0",
+      "title": "File view",
+      "description": "Shows any file as metadata, a preview when possible and a download link: the fallback for kinds a Studio doesn't map."
+    },
+    {
       "id": "studio.generic",
       "version": "0.1.0",
       "title": "Generic files",
@@ -233,6 +239,31 @@
         "data": {
           "kind": "studio.text-spans.dataKinds.text"
         }
+      }
+    },
+    {
+      "id": "studio.file-view.renderers.file",
+      "type": "renderers",
+      "module": "studio.file-view",
+      "description": "Generic file view: name, size, kind, facts, preview for images, download",
+      "consumes": [
+        "studio.generic.dataKinds.files"
+      ],
+      "space": "image2d",
+      "capabilities": [
+        "itemSwap",
+        "fallback"
+      ],
+      "example": {
+        "data": {
+          "kind": "studio.generic.dataKinds.files"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "studio.file-view.renderers.file"
+          }
+        ]
       }
     },
     {

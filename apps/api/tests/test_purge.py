@@ -83,14 +83,11 @@ def test_failed_deletes_are_queued_and_the_daily_sweep_retries_them(client, monk
 
 
 def test_transcodes_and_tiles_come_from_derivatives_when_it_exists(client, monkeypatch):
-    import sys
-    import types
-
     key = "sources/p1/derived/tiles/n9/0.png"
     _put(key)
-    mod = types.ModuleType("studio_api.kernel.derivatives")
-    mod.derived_keys = lambda db_, node_ids: [key] if "n9" in node_ids else []  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "studio_api.kernel.derivatives", mod)
+    from studio_api.kernel import derivatives
+
+    monkeypatch.setattr(derivatives, "derived_keys", lambda db_, node_ids: [key] if "n9" in node_ids else [])
     with db.session_scope() as s:
         assert purge.run(s, "files", ["n9"], project_id="p1")["blobs"] == 1
     assert blobstore.data().stat(key) is None

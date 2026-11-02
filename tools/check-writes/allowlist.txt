@@ -118,6 +118,10 @@ POST /api/v1/telemetry/timeline
 POST /api/v1/worker/boundary/jobs/{job_id}/complete
 POST /api/v1/worker/boundary/jobs/{job_id}/fail
 POST /api/v1/worker/claim
+POST /api/v1/worker/derivatives/claim
+POST /api/v1/worker/derivatives/{did}/complete
+POST /api/v1/worker/derivatives/{did}/fail
+POST /api/v1/worker/derivatives/{did}/progress
 POST /api/v1/worker/events/deliver
 POST /api/v1/worker/imports/jobs/{job_id}/run
 POST /api/v1/worker/inspect/imports/{import_id}/report
@@ -161,6 +165,7 @@ PUT /api/v1/service/blobs/{key}
 PUT /api/v1/uploads/{session_id}/files/{file_id}
 PUT /api/v1/worker/boundary/jobs/{job_id}/bundle
 PUT /api/v1/worker/boundary/jobs/{job_id}/fixtures/{name}
+PUT /api/v1/worker/derivatives/{did}/files/{rel}
 PUT /api/v1/worker/inspect/nodes/{node_id}/derived/{role}
 PUT /api/v1/worker/items/{item_id}/derived/{role}
 PUT /api/v1/worker/unpack/sessions/{sid}/files/{fid}

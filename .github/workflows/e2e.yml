@@ -122,6 +122,62 @@ jobs:
         if: always()
         run: docker compose -f infra/docker/compose.yaml --profile full down -v
 
+  auth:
+    # todo9 Phase 13: sign-in end to end against WorkOS Emulate (tests/e2e/auth): the api, the
+    # agent (scripted model) and Vite in workos mode. People sign in by password through the
+    # WorkOS API and the api's callback; hosted AuthKit is never driven.
+    name: sign-in (WorkOS Emulate)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --frozen --all-packages
+      - name: Playwright browser
+        run: uv run --package studio-web-e2e playwright install --with-deps chromium
+      - name: Stack smoke (starts and stops its own stack)
+        run: python3 tests/e2e/auth/smoke_test.py
+      - name: Stack up (Emulate, api, agent, Vite on 58700-58703)
+        run: |
+          nohup python3 tests/e2e/auth/stack.py up --agent > /tmp/auth-stack.log 2>&1 &
+          for _ in $(seq 1 120); do grep -q "Ctrl-C" /tmp/auth-stack.log && exit 0; sleep 2; done
+          grep -v COOKIE /tmp/auth-stack.log; exit 1
+      - name: Agent behind sign-in
+        env:
+          INKLING_E2E_WORKOS_EMULATE_URL: http://localhost:58700
+        run: uv run --package studio-web-e2e python tests/e2e/agent_auth_test.py --port 58702
+      - name: Web sign-in (apps/web/e2e/auth_test.py)
+        working-directory: apps/web
+        env:
+          INKLING_E2E_WORKOS_EMULATE_URL: http://localhost:58700
+          INKLING_E2E_AUTH_BASE: http://localhost:58702
+        run: |
+          if [ ! -f e2e/auth_test.py ]; then echo "no e2e/auth_test.py yet"; exit 0; fi
+          uv run --package studio-web-e2e python e2e/auth_test.py --port 58702
+      - name: Stack down
+        if: always()
+        run: |
+          pkill -TERM -f "tests/e2e/auth/stack.py up" || true
+          sleep 5; grep -v COOKIE /tmp/auth-stack.log | tail -n 50 || true
+          docker rm -f auth-e2e-emulate-58700 >/dev/null 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: auth-e2e-artifacts
+          path: |
+            apps/web/e2e/.artifacts
+            /tmp/auth-stack.log
+            /tmp/auth-e2e-*/*.log
+          if-no-files-found: ignore
+
   daytona-live:
     name: agent live (Daytona)
     if: github.event_name == 'workflow_dispatch'

@@ -94,6 +94,15 @@ def unambiguous(text: str | None, file_kinds: list[str], tbl: dict | None = None
     return best[0] if len(best) == 1 else None
 
 
+def serves_kind(preset: str, kind: str, tbl: dict | None = None) -> bool:
+    """Whether `preset` can show files of `kind` (its `fileKinds`; a preset listing none shows any)."""
+    for e in (tbl if tbl is not None else table()).get("intents", []):
+        if e.get("preset") == preset:
+            kinds = e.get("fileKinds") or []
+            return not kinds or kind in kinds
+    return False
+
+
 def preset_for_kind(kind: str, tbl: dict | None = None) -> str | None:
     """The preset for one detected kind alone (a new collection's Studio), or None."""
     m = unambiguous(None, [kind], tbl)

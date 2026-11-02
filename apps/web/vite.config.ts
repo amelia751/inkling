@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
+import { isAgentInternal } from "./dev/agent-internal";
 import { aliases, REPO_ROOT } from "./aliases";
 // The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
 // reads the emitted copy of packages/contracts/src/naming.ts.
@@ -90,7 +91,8 @@ const agentProxy: Record<string, ProxyOptions> = {
     target: AGENT_URL,
     rewrite: (p: string) => p.replace(/^\/api\/agent/, "/v1"),
     // Runs (awaited) before the proxy: a string means "answered here" (401/503 already written).
-    bypass: (req, res) => (res ? verifyForAgent(req, res) : undefined),
+    // Service-only agent routes (todo14 D9) are never proxied from the browser: `false` is Vite's 404.
+    bypass: (req, res) => (isAgentInternal(req.url) ? false : res ? verifyForAgent(req, res) : undefined),
     configure: (proxy) => {
       proxy.on("proxyReq", (req) => {
         const token = serviceToken();

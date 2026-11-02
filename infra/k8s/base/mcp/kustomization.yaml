@@ -1,0 +1,11 @@
+# mcp: studio-mcp, the remote MCP server for outside agents (todo17 D12). Streamable HTTP,
+# stateless: any replica answers any request; rate-limit counters are in Redis.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - pdb.yaml
+  - service.yaml
+  - hpa.yaml

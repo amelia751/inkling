@@ -1,4 +1,4 @@
-# api: reached by the ingress controller, the agent, the worker and the pipeline; talks to the
+# api: reached by the ingress controller, the agent, mcp, the worker and the pipeline; talks to the
 # data services, versioning and the pipeline's private API. No internet egress. Redis is 6379
 # plain or 6378 with TLS (Memorystore's in-transit encryption).
 apiVersion: networking.k8s.io/v1
@@ -18,6 +18,9 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: agent
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: mcp
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: worker

@@ -1,0 +1,20 @@
+# Non-secret settings for apps/mcp (apps/mcp/src/config.ts). No secrets: it holds no credentials
+# of its own and forwards each caller's bearer token to the api, which verifies it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-config
+data:
+  INKLING_ENV: production
+  INKLING_MCP_TRANSPORT: http
+  INKLING_MCP_HOST: 0.0.0.0
+  INKLING_MCP_PORT: "8300"
+  INKLING_API_URL: http://api
+  INKLING_MCP_STUDIO_URL: http://api
+  # The OAuth resource (token audience) and where clients find its metadata: overlays set the host.
+  INKLING_MCP_PUBLIC_URL: http://localhost/mcp
+  # WorkOS AuthKit domain (the authorization server); overlays/gke with components/workos.
+  INKLING_MCP_AUTH_SERVER: ""
+  INKLING_MCP_RATE_LIMIT_PER_MIN: "120"
+  INKLING_MCP_WRITE_QUOTA_PER_DAY: "5000"
+  INKLING_MCP_REDIS_URL: redis://redis:6379/3

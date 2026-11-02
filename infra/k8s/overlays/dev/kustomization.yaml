@@ -16,6 +16,8 @@ images:
     newTag: dev
   - name: studio-agent
     newTag: dev
+  - name: studio-mcp
+    newTag: dev
   - name: studio-worker
     newTag: dev
   - name: studio-versioning

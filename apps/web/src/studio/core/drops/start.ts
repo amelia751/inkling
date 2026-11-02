@@ -60,7 +60,7 @@ export function startDrop(o: StartDropOptions): string {
   const files = picked.files.map((f) => ({ relPath: f.relPath, size: f.file.size, ...(IMAGE.test(f.relPath) && f.file.size < 50 * 1024 * 1024 ? { preview: URL.createObjectURL(f.file) } : {}) }));
   const store = useDrops.getState();
   const joining = !!store.drops[id];
-  if (store.drops[id]) store.patch(id, (d) => ({ files: [...d.files.filter((x) => !files.some((f) => f.relPath === x.relPath)), ...files], error: undefined, overLimit: undefined }));
+  if (store.drops[id]) store.patch(id, (d) => ({ files: [...d.files.filter((x) => !files.some((f) => f.relPath === x.relPath)), ...files], error: undefined, overLimit: undefined, restored: undefined }));
   else store.put({ id, projectId: o.projectId, origin: o.origin, conversationId: o.conversationId, taskId: o.taskId, files, uploadKeys: [], createdAt: Date.now() });
   void run(id, o, picked, joining);
   return id;
@@ -194,6 +194,12 @@ export function resumeDrop(drop: LocalDrop, files: Picked | File[], extra: Parti
   if (same.length) ids.push(startDrop({ ...base, files: { files: same, skipped: 0 }, dropId: drop.id }));
   if (other.length) ids.push(startDrop({ ...base, files: { files: other, skipped: 0 } }));
   return ids;
+}
+
+/** "Dismiss" on an interrupted drop: stop what's left, forget it here and hide its card. */
+export async function dismissDrop(dropId: string): Promise<void> {
+  useDrops.getState().dismiss(dropId);
+  await cancelDrop(dropId);
 }
 
 /** Discard a drop before its message is sent: its uploads stop; files already in stay in Files. */

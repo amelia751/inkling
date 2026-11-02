@@ -31,8 +31,9 @@ export function useContributionImpl<T>(id: string): { impl: T | undefined; statu
 export function SlotSkeleton({ kind }: { kind: SlotKind }) {
   if (kind === "viewport") {
     return (
-      <div className="relative flex h-full w-full items-center justify-center bg-canvas text-sm text-canvas-foreground/60" data-testid="viewport-skeleton" role="status" aria-label="Loading viewer">
-        <Loader className="text-current" />
+      // The canvas stays dark with a slow sheen; the spinner only appears if loading drags on.
+      <div className="canvas-skeleton relative flex h-full w-full items-center justify-center bg-canvas text-sm text-canvas-foreground/60" data-testid="viewport-skeleton" role="status" aria-label="Loading viewer">
+        <Loader className="canvas-notice-delayed text-current" />
       </div>
     );
   }

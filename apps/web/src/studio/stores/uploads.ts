@@ -66,6 +66,29 @@ export interface TraySession {
   /** Files the kernel flagged after inspection (privacy, unsupported, duplicates…). */
   needsReview?: boolean;
   error?: string;
+  /** The folder it was going to (so "Drop again" lands in the same place). */
+  targetNodeId?: string;
+}
+
+/** A browser-level failure (the network, a reload, the dev server restarting), not the kernel's reason. */
+export const isNetworkError = (msg: string | undefined) => !msg || /failed to fetch|networkerror|load failed|network request failed|aborted|err_/i.test(msg);
+
+/** The file row of a session that stopped before its bytes went up. */
+export const NOT_UPLOADED = "Not uploaded";
+
+/**
+ * The plain headline of a failed session: what happened and what was kept, never "Failed to fetch".
+ * The kernel's own reasons (limits, inspection timeouts) are already plain and pass through.
+ */
+export function failureText(error: string | undefined, files: Pick<TrayFile, "state">[]): string {
+  const saved = files.some((f) => f.state === "uploaded" || f.state === "skipped_duplicate");
+  if (isNetworkError(error)) return saved ? "Upload interrupted. Some files were saved." : "Upload interrupted. Nothing was saved.";
+  return error!;
+}
+
+/** Files of a session that failed before the kernel knew them: each one says "Not uploaded", not "Preparing". */
+export function notUploaded(picked: { relPath: string; size: number }[]): TrayFile[] {
+  return picked.map((f, i) => ({ clientFileId: `f${i}`, relPath: f.relPath, size: f.size, received: 0, state: "failed", reason: NOT_UPLOADED }));
 }
 
 interface Attestation {
@@ -230,7 +253,7 @@ export const useUploads = create<UploadsState>((set, get) => {
       const key = `upload-${++seq}`;
       const top = new Set(picked.files.map((f) => f.relPath.split("/")[0]));
       const title = top.size === 1 && picked.files[0].relPath.includes("/") ? [...top][0] : `${picked.files.length} ${picked.files.length === 1 ? "file" : "files"}`;
-      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [], dropId: opts.drop?.dropId, quiet: opts.quiet };
+      const entry: TraySession = { key, projectId, title, phase: "attesting", total: picked.files.length, prepared: 0, skippedJunk: picked.skipped, files: [], dropId: opts.drop?.dropId, quiet: opts.quiet, targetNodeId: opts.targetNodeId };
       set((st) => ({ sessions: [entry, ...st.sessions], collapsed: opts.quiet ? st.collapsed : false }));
       if (opts.onChanged) listeners.set(key, opts.onChanged);
       opts.onStarted?.(key);
@@ -257,7 +280,9 @@ export const useUploads = create<UploadsState>((set, get) => {
         await upload(key);
       } catch (e) {
         if (e instanceof DOMException && e.name === "AbortError") return session(key);
-        patch(key, { phase: "failed", error: e instanceof NeedsApiError ? e.message : e instanceof Error ? e.message : String(e) });
+        const error = e instanceof NeedsApiError ? e.message : e instanceof Error ? e.message : String(e);
+        // Before the kernel knew the files, none of them went up: say so per file (no "Preparing").
+        patch(key, (s) => ({ phase: "failed", error, files: s.files.length ? s.files : notUploaded(picked.files.map((f) => ({ relPath: f.relPath, size: f.file.size }))) }));
       }
       return session(key);
     },
@@ -318,8 +343,9 @@ export function trayLine(s: TraySession): string {
       return s.needsReview ? "Ready · some files need your attention" : "Ready";
     }
     case "failed": {
+      if (s.error || !s.importId) return failureText(s.error, s.files);
       const bad = s.files.filter((f) => f.state === "failed" || f.state === "rejected").length;
-      return bad ? `${bad} ${bad === 1 ? "file" : "files"} didn't upload` : s.error ?? "The upload stopped";
+      return bad ? `${bad} ${bad === 1 ? "file" : "files"} didn't upload` : "The upload stopped";
     }
     case "cancelled":
       return s.error ?? "Cancelled";

@@ -152,6 +152,8 @@ interface UploadsState {
    * kernel, and say why on its tray row (todo18 D7). Returns how many were stopped.
    */
   abortAll: (reason: LeaveReason) => Promise<number>;
+  /** The rights attestation on its own (an import from a link asks the same, todo18). */
+  attest: (projectId: string, count: number) => Promise<boolean>;
 }
 
 const blobs = new Map<string, Map<string, File>>();
@@ -290,6 +292,7 @@ export const useUploads = create<UploadsState>((set, get) => {
     collapsed: false,
     attestation: null,
     attestationQueue: [],
+    attest: (projectId, count) => attest(projectId, count),
     setCollapsed: (collapsed) => set({ collapsed }),
     answerAttestation: (ok) => {
       get().attestation?.resolve(ok);

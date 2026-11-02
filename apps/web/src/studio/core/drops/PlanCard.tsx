@@ -117,7 +117,9 @@ function PlanLedger({ plan }: { plan: PlanView }) {
       ? "Applying"
       : plan.state === "applied"
         ? plan.fastPath
-          ? "Studio opened · sorted on its own"
+          ? plan.waitingFirstItem
+            ? "Preparing your first item"
+            : "Studio opened · sorted on its own"
           : plan.auto
             ? "Sorted on its own"
             : "Applied"

@@ -40,6 +40,8 @@ export interface PlanView {
   refused: Record<string, string>;
   /** This tab made the drop (it navigates on a fast path). */
   own: boolean;
+  /** Fast path applied, the Studio opens on its first `item.ready` ("Preparing your first item"). */
+  waitingFirstItem?: boolean;
   seenAt: number;
 }
 
@@ -64,9 +66,18 @@ export const undoSecondsLeft = (p: PlanView, now = Date.now()) => (p.state === "
 /** Asks that hold the plan for a person (the others are offers beside an action). */
 export const QUESTIONS = new Set(["labels_table", "tabular_collection", "which_dataset"]);
 
+/** How long the fast path waits for the first item before opening the Studio anyway. */
+export const FIRST_ITEM_WAIT_MS = 30_000;
+/** Tasks that already have a ready item (an `item.ready` can beat `drop.applied`). */
+const readyTasks = new Set<string>();
+
 export const usePlans = create<PlansState>()((set, get) => {
   const put = (dropId: string, projectId: string, fn: (p: PlanView) => PlanView) =>
     set((s) => ({ plans: { ...s.plans, [dropId]: fn(s.plans[dropId] ?? blank(dropId, projectId)) } }));
+  const open = (dropId: string, projectId: string, task: string) => {
+    put(dropId, projectId, (x) => ({ ...x, waitingFirstItem: false }));
+    useBoots.setState({ pendingNav: { bootId: dropId, url: studioUrl(projectId, task) } });
+  };
 
   const fromState = (st: DropPlanState, projectId?: string) =>
     put(st.dropId, projectId ?? st.projectId, (p) => ({
@@ -110,8 +121,21 @@ export const usePlans = create<PlansState>()((set, get) => {
       fastPath: !!e.fastPath || p.fastPath,
     }));
     const p = get().plans[e.dropId];
-    // The fast path opens the new Studio in the tab that dropped (principle 3), once.
-    if (!e.undone && e.fastPath && p.own && p.taskIds[0] && before?.state !== "applied") useBoots.setState({ pendingNav: { bootId: p.dropId, url: studioUrl(projectId, p.taskIds[0]) } });
+    // The fast path opens the new Studio in the tab that dropped (principle 3), once, and only
+    // when its first item is ready (todo18: no empty-canvas flash).
+    if (!e.undone && e.fastPath && p.own && p.taskIds[0] && before?.state !== "applied") {
+      const task = p.taskIds[0];
+      if (readyTasks.has(task)) return open(p.dropId, projectId, task);
+      put(e.dropId, projectId, (x) => ({ ...x, waitingFirstItem: true }));
+      // Nothing waits forever: open anyway after a while (the Studio shows its own progress).
+      setTimeout(() => get().plans[e.dropId]?.waitingFirstItem && open(e.dropId!, projectId, task), FIRST_ITEM_WAIT_MS);
+    }
+  });
+  onProjectEvent("item.ready", (data, projectId) => {
+    const e = data as { taskId?: string } | null;
+    if (!e?.taskId) return;
+    readyTasks.add(e.taskId);
+    for (const p of Object.values(get().plans)) if (p.waitingFirstItem && p.taskIds[0] === e.taskId) open(p.dropId, projectId, e.taskId);
   });
   onProjectEvent("drop.failed", (data, projectId) => {
     const e = data as { dropId?: string; step?: string; errorClass?: string; nodeId?: string } | null;

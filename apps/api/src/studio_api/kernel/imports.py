@@ -28,7 +28,7 @@ import os
 import posixpath
 import tempfile
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import select, update
@@ -492,7 +492,7 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     ids = tree.add_files(db, p.id, source.id, landing, specs, import_session_id=s.id, created_by=projects.person(ctx))
     pending = db.scalar(select(UploadFile.client_file_id).where(UploadFile.session_id == s.id, UploadFile.state.in_(("pending", "failed"))).limit(1))
     s.state = "inspecting" if ids else ("failed" if pending else "ready")
-    s.totals = {**(s.totals or {}), "committed": len(ids), "incomplete": bool(pending)}
+    s.totals = {**(s.totals or {}), "committed": len(ids), "incomplete": bool(pending), **({"inspectingAt": now().isoformat()} if ids else {})}
     if source.status == "uploading":
         source.status = "inspecting" if ids else "ready"
     if not ids:
@@ -615,6 +615,37 @@ def cancel(db: Session, ctx: RequestContext, s: ImportSession) -> dict:
         audit.record(db, ctx.for_scope(s.project_id, None), "import.cancelled", target=s.id)
         _publish(db, ctx, s)
     return session_dict(db, s, files=True)
+
+
+def stall_reason(minutes: int) -> str:
+    return f"Inspection didn't finish in {minutes} minutes. Retry or drop the files again"
+
+
+def fail_stalled(db: Session, at: datetime | None = None) -> int:
+    """todo18 D6: nothing waits forever. A session still `inspecting` `API_IMPORT_STALL_MINUTES`
+    after its bytes were committed fails with a reason (the worker died, its event was lost).
+    Run by the api's housekeeping about once a minute; idempotent across replicas."""
+    at = at or now()
+    minutes = settings().import_stall_minutes
+    if minutes <= 0:
+        return 0
+    cutoff = at - timedelta(minutes=minutes)
+    n = 0
+    for s in db.scalars(select(ImportSession).where(ImportSession.state == "inspecting").limit(500)):
+        raw = (s.totals or {}).get("inspectingAt")
+        since = datetime.fromisoformat(raw) if raw else s.started_at
+        if since is None or (since if since.tzinfo else since.replace(tzinfo=UTC)) > cutoff:
+            continue
+        s.state, s.finished_at, s.error = "failed", at, stall_reason(minutes)
+        source = db.get(Source, s.source_id) if s.source_id else None
+        if source is not None and source.status == "inspecting" and not db.scalar(select(ImportSession.id).where(ImportSession.source_id == source.id, ImportSession.id != s.id, ImportSession.state.in_(("uploading", "inspecting"))).limit(1)):
+            source.status = "ready"
+        ctx = RequestContext(s.project_id, "service:housekeeping", f"stall-{s.id}")
+        audit.record(db, ctx.for_scope(s.project_id, None), "import.stalled", target=s.id, after={"minutes": minutes})
+        _publish(db, ctx, s)
+        n += 1
+    db.flush()
+    return n
 
 
 def finish_inspection(db: Session, s: ImportSession, needs_review: bool, at: datetime | None = None) -> None:

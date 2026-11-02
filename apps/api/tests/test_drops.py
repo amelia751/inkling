@@ -465,3 +465,24 @@ def test_a_drops_first_files_are_classified_and_inspected_first(client):
 
         tasks = [t.id for t in db.scalars(select(TaskRow).where(TaskRow.project_id == pid))]
     assert len(tasks) == 1 and len(client.get(f"/api/v1/tasks/{tasks[0]}/document").json()["assets"]) == 6
+
+
+def test_an_import_stuck_inspecting_fails_with_a_reason_after_the_stall_minutes(client):
+    """todo18 D6: the worker never reports; after `API_IMPORT_STALL_MINUTES` the housekeeping
+    sweeper fails the session with a plain reason instead of leaving it `inspecting` forever."""
+    from datetime import timedelta
+
+    from studio_api.kernel import imports as kimports
+    from studio_api.models import ImportSession, now
+
+    pid = _project(client)
+    _, imp = _drop(client, pid, {"a.png": png(8, 8)})
+    with kdb.session_scope() as db:
+        assert kimports.fail_stalled(db) == 0
+        assert db.get(ImportSession, imp["id"]).state == "inspecting"
+    with kdb.session_scope() as db:
+        assert kimports.fail_stalled(db, at=now() + timedelta(minutes=16)) == 1
+    s = client.get(f"/api/v1/imports/{imp['id']}").json()
+    assert s["state"] == "failed" and s["error"] == kimports.stall_reason(15)
+    with kdb.session_scope() as db:
+        assert kimports.fail_stalled(db, at=now() + timedelta(minutes=30)) == 0

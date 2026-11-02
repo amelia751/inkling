@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ThemeSwitch } from "@/studio/components/layout/theme-switch";
 import { DEFAULT_DEV_PRINCIPAL, backToDefaultPrincipal, devPrincipal, devPrincipalAvailable, startAsNewPerson } from "@/studio/lib/dev-principal";
 import { logout, useSession } from "@/studio/lib/session";
+import { useUploads } from "@/studio/stores/uploads";
 import { billingUrl, orgUrl, profileUrl, settingsUrl } from "@/studio/lib/routes";
 import { cn } from "@studio/ui/utils";
 
@@ -40,6 +41,9 @@ export function UserMenu({ className }: { className?: string }) {
     }
     setLeaving(true);
     try {
+      // Leaving stops work you own (todo18 D7): uploads are cancelled on the kernel first.
+      const stopped = await useUploads.getState().abortAll("signedOut");
+      if (stopped) toast.info(`Stopped ${stopped} ${stopped === 1 ? "upload" : "uploads"}`, { description: "Sign in and drop the same files to resume." });
       window.location.assign(await logout(client));
     } catch (e) {
       setLeaving(false);

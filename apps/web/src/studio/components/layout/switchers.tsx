@@ -11,6 +11,8 @@ import {
 import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
+import { useAuthSession } from "@/studio/lib/org-api";
+import type { SessionOrg } from "@studio/contracts";
 import { cn } from "@studio/ui/utils";
 
 const TRIGGER = "press flex h-7 min-w-0 items-center gap-1 rounded-lg bg-generic py-1.5 pl-[9px] pr-1.5 text-sm text-foreground hover:bg-generic-hover data-[state=open]:bg-generic-hover [outline-offset:-2px]";
@@ -40,21 +42,49 @@ export function Breadcrumbs({ project, section, className }: { project?: { id: s
   );
 }
 
+/** The stored name of a personal organization (apps/api `PERSONAL_ORG_NAME`). */
+const PERSONAL = "Personal";
+
+/**
+ * todo14 D1: a personal organization reads "<First name>'s workspace"; a team org its own name.
+ * Without a session (seed mode, or before sign-in answers) it stays "Personal".
+ */
+export function workspaceName(org: SessionOrg | undefined, firstName: string | null | undefined): string {
+  if (!org) return PERSONAL;
+  return org.name === PERSONAL && firstName?.trim() ? `${firstName.trim()}'s workspace` : org.name;
+}
+
 export function WorkspaceSwitcher({ className }: { className?: string }) {
+  const session = useAuthSession().data;
+  const current = session?.organization;
+  const first = session?.user.firstName;
+  const name = workspaceName(current, first);
+  const orgs = session?.organizations?.length ? session.organizations : current ? [current] : [];
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label="Workspace: Personal. Switch workspace" data-testid="workspace-switcher">
-        <span className="truncate">Personal</span>
+      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label={`Workspace: ${name}. Switch workspace`} data-testid="workspace-switcher">
+        <span className="truncate">{name}</span>
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[240px]">
         <DropdownMenuLabel className="font-normal text-hint">Workspaces</DropdownMenuLabel>
-        <DropdownMenuItem>
-          <span className="min-w-0 flex-1 truncate">Personal</span>
-          <CheckIcon className="text-brand-heavy" />
-        </DropdownMenuItem>
+        {orgs.length ? (
+          // TODO(todo9): switching org belongs to the session work (todo9-web-session); this only names them.
+          orgs.map((o) => (
+            <DropdownMenuItem key={o.id} data-testid="workspace-option">
+              <span className="min-w-0 flex-1 truncate">{workspaceName(o, first)}</span>
+              {o.id === current?.id && <CheckIcon className="text-brand-heavy" />}
+            </DropdownMenuItem>
+          ))
+        ) : (
+          <DropdownMenuItem>
+            <span className="min-w-0 flex-1 truncate">{name}</span>
+            <CheckIcon className="text-brand-heavy" />
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">Team workspaces arrive with members and roles.</p>
+        {/* TODO(todo14 M3 / todo9): team organizations; creating one isn't wired yet. */}
+        <DropdownMenuItem disabled data-testid="workspace-create">Create organization</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

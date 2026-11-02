@@ -191,6 +191,12 @@ def main() -> int:
             else:
                 route.fulfill(response=res)
 
+        # The first send above left a queued message in this project's conversation: start it over, as
+        # a fresh copy's conversation would be.
+        page.evaluate(f"""async () => {{
+          (await import('/src/studio/app/entry/pending-ask.ts')).usePendingAsks.setState({{ asks: {{}} }});
+          (await import('/src/studio/stores/agent.ts')).useAgent.getState().reset('{P}');
+        }}""")
         page.route("**/api/v1/projects/from-sample", from_sample)
         page.route(f"**/api/v1/projects/{P}/**", copy_owner)
         page.route(f"**/api/v1/projects/{P}", copy_owner)
@@ -203,9 +209,71 @@ def main() -> int:
         check("the copy shows the Sample badge", page.locator("[data-testid=sample-badge]").count() == 1)
         check("…and its license line", LICENSE in page.locator("[data-testid=sample-license]").inner_text())
         shot(page, "first-run-sample-copy")
+
+        # ---- D8: the drawer's empty conversation shows the three todo13 examples, until dismissed ------
+        puts: list[tuple[str, str | None]] = []
+        page.on("request", lambda r: r.method == "PUT" and "/api/v1/me/prefs/" in r.url and puts.append((r.url.rsplit("/", 1)[-1], r.post_data)))
+        # No agent service in seed mode: say one is configured (nothing is sent to it) and that this
+        # person agreed to share project context, so the drawer shows its empty conversation.
+        page.route("**/api/agent/status", json_route({"configured": True, "provider": "scripted", "model": None, "sandbox": "off", "profiles": ["assistant"]}))
+        page.evaluate("async () => (await import('/src/studio/stores/agent.ts')).useAgent.getState().setConsent(true)")
+        page.reload()
+        page.wait_for_selector("[data-testid=sample-badge]", timeout=20000)
+        if page.locator("[data-testid=agent-drawer]").count() == 0:
+            page.locator("[data-testid=assistant-toggle]").click()
+        page.wait_for_selector("[data-testid=agent-empty]", timeout=10000)
+        page.wait_for_selector("[data-testid=first-run-hints]", timeout=10000)
+        prompts = [t.strip() for t in page.locator("[data-testid=agent-empty] li button").all_inner_texts()]
+        check("first-run hints: the three todo13 examples", prompts == ["Segment liver CT", "Classify skin lesions", "Annotate ultrasound video"], str(prompts))
+        shot(page, "first-run-drawer-hints")
+        page.locator("[data-testid=first-run-hints-dismiss]").click()
+        page.wait_for_selector("[data-testid=first-run-hints]", state="detached", timeout=5000)
+        check("dismissing stores it server-side (PUT /v1/me/prefs/firstRunHintsDismissed)", puts == [("firstRunHintsDismissed", '{"value":true}')], str(puts))
+        check("…and the drawer falls back to its usual prompts", page.locator("[data-testid=agent-empty] li").count() == 4)
+        page.reload()
+        page.wait_for_selector("[data-testid=agent-empty]", timeout=20000)
+        page.wait_for_load_state("networkidle")
+        check("…and stays dismissed after a reload (not localStorage)", page.locator("[data-testid=first-run-hints]").count() == 0)
         page.unroute("**/api/v1/projects/from-sample")
         page.unroute(f"**/api/v1/projects/{P}/**")
         page.unroute(f"**/api/v1/projects/{P}")
+
+        # ---- Settings empty states (§4.2) and the personal workspace name (D1), as todo9's api answers -------
+        session = {
+            "mode": "dev",
+            "user": {"id": principal, "workosUserId": "", "email": "dana@example.org", "firstName": "Dana", "lastName": "Lee", "name": "Dana Lee", "avatarUrl": None},
+            "organization": {"id": "org-dana", "workosOrgId": None, "name": "Personal"},
+            "role": "admin",
+            "permissions": ["org:manage", "members:manage", "billing:manage", "apikeys:manage", "audit:read", "project:create"],
+            "organizations": [{"id": "org-dana", "workosOrgId": None, "name": "Personal"}],
+            "impersonator": None,
+            "expiresAt": None,
+        }
+        me = {"id": "om-dana", "userId": principal, "name": "Dana Lee", "email": "dana@example.org", "role": "admin", "status": "active", "projects": 0, "lastActive": None, "sso": False}
+        page.route("**/api/auth/session", json_route(session))
+        page.route("**/api/v1/org/members", json_route({"members": [me]}))
+        page.route("**/api/v1/org/invitations", json_route({"invitations": []}))
+        page.route("**/api/v1/org/api-keys", json_route({"keys": []}))
+        page.goto(f"{base}/organization/members")
+        page.wait_for_selector("[data-testid=members-empty]", timeout=20000)
+        check("Team & Access with only you: invite people", "Invite people to work on your projects" in page.locator("[data-testid=members-empty]").inner_text())
+        check("…with an invite action", page.locator("[data-testid=members-empty-invite]").is_enabled())
+        check("the switcher names the personal workspace by first name", page.locator("[data-testid=workspace-switcher]").inner_text().strip() == "Dana's workspace", page.locator("[data-testid=workspace-switcher]").inner_text())
+        shot(page, "first-run-settings-members")
+        page.locator("[data-testid=members-empty-invite]").click()
+        check("…which opens the invite dialog", bool(page.wait_for_selector("[data-testid=invite-email]", timeout=5000)))
+        page.keyboard.press("Escape")
+        page.goto(f"{base}/organization/api-keys")
+        page.wait_for_selector("[data-testid=keys-empty]", timeout=20000)
+        check("API keys with none: No keys yet + Create", "No keys yet" in page.locator("[data-testid=keys-empty]").inner_text() and page.locator("[data-testid=keys-empty-create]").count() == 1)
+        shot(page, "first-run-settings-keys")
+        page.route("**/api/v1/org/members", json_route({"members": [me, {**me, "id": "om-sam", "userId": "user:dev-sam", "name": "Sam", "email": "sam@example.org"}]}))
+        page.goto(f"{base}/organization/members")
+        page.wait_for_selector("[data-testid=members-table]", timeout=20000)
+        page.wait_for_load_state("networkidle")
+        check("with a second member, no members-empty", page.locator("[data-testid=members-empty]").count() == 0)
+        for u in ("**/api/auth/session", "**/api/v1/org/members", "**/api/v1/org/invitations", "**/api/v1/org/api-keys"):
+            page.unroute(u)
 
         # ---- Back to local-expert: the samples return -----------------------------------------------
         menu_action(page, "dev-default-person")

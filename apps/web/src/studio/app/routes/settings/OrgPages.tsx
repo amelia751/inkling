@@ -301,11 +301,12 @@ export function ApiKeysPage() {
           ) : (
             <EmptyState
               art="key"
-              title="No API keys yet"
+              title="No keys yet"
+              data-testid="keys-empty"
               description="An API key lets scripts and pipelines upload data and read annotations on behalf of this organization."
               actions={
                 canManage ? (
-                  <Button variant="outline" size="lg" onClick={() => setCreating(true)}>
+                  <Button variant="outline" size="lg" onClick={() => setCreating(true)} data-testid="keys-empty-create">
                     Create API key
                   </Button>
                 ) : undefined

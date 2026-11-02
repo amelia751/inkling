@@ -15,6 +15,7 @@ import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
 import { mergeAnnotations, resolveConflict, useSaveConflicts } from "@/studio/lib/annotation-merge";
 import { toProblem } from "@/studio/lib/problem";
+import { retryDelayMs, useSaveProblem } from "@/studio/lib/save-problem";
 import { useLiveDropItems } from "@/studio/core/drops";
 import { setLabelClasses } from "@studio/plugin-ui-sdk/labels";
 import { ANNOTATIONS_VERSION } from "@studio/contracts/migrations/annotations-v1-to-v2";
@@ -630,6 +631,9 @@ function useAutosave(projectId: string) {
   const annotations = useStudio((s) => s.annotations);
   const dirty = useStudio((s) => s.dirty);
   const inFlight = useRef(false);
+  const merges = useRef(0);
+  const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(retry.current), []);
 
   const save = useCallback(async () => {
     const run = async (): Promise<void> => {
@@ -648,10 +652,15 @@ function useAutosave(projectId: string) {
           useSaveConflicts.getState().setBase(projectId, snapshot);
           useStudio.getState().markSaved(doc.revision, snapshot);
         }
+        merges.current = 0;
+        if (useSaveProblem.getState().problem) {
+          useSaveProblem.getState().set(null);
+          takeUnsaved(projectId); // saved at last: drop the offline stash
+        }
       } catch (e) {
         const p = toProblem(e);
         const current = p.current as AnnotationDocument | undefined;
-        if (p.kind === "conflict" && current && Array.isArray(current.annotations)) {
+        if (p.kind === "conflict" && current && Array.isArray(current.annotations) && merges.current++ < 3) {
           // Someone saved since we loaded: merge per annotation id, then save the merge on their revision.
           const b = useSaveConflicts.getState();
           const { merged, conflicts } = mergeAnnotations(b.baseProject === projectId ? b.base : [], useStudio.getState().annotations, current.annotations);
@@ -664,7 +673,14 @@ function useAutosave(projectId: string) {
         }
         // A stale head shows "someone else saved; refresh and re-apply" in the top bar.
         if (!(e instanceof StaleHeadError)) console.warn("[save]", e);
+        useSaveProblem.getState().set(p);
         useStudio.getState().markError();
+        if (p.retryable) {
+          // Offline / 5xx / 429 (todo18 §2 C): keep the edits in this tab and retry with back-off.
+          stashUnsaved();
+          clearTimeout(retry.current);
+          retry.current = setTimeout(() => void run(), retryDelayMs(p, useSaveProblem.getState().attempt));
+        }
         return;
       } finally {
         inFlight.current = false;

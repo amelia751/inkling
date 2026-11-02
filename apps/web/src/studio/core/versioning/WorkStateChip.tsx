@@ -6,7 +6,8 @@ import { BranchIcon, CheckIcon, ChevronDownIcon, ErrorIcon, HistoryIcon } from "
 import { Button } from "@studio/ui/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Spinner } from "@studio/ui/ui/spinner";
-import { datasetUrl } from "@/studio/lib/routes";
+import { datasetUrl, projectTrashUrl, taskSetupUrl } from "@/studio/lib/routes";
+import { saveChip, useSaveProblem } from "@/studio/lib/save-problem";
 import { useStudio } from "@/studio/stores/studio";
 import { api } from "./api";
 import { switchBranch, useVersioning } from "./session";
@@ -26,6 +27,33 @@ import { reload } from "./VersioningControls";
 export function WorkStateChip({ projectId, onRetry }: { projectId: string; onRetry: () => void }) {
   const versioned = useVersioning((s) => s.enabled && s.datasetId === projectId);
   const saveState = useStudio((s) => s.saveState);
+  const problem = useSaveProblem((s) => s.problem);
+  const routeProject = useParams().projectId;
+  if (saveState === "error" && problem) {
+    // todo18 D2: the chip says why (from the decoded problem), not a generic "Not saved".
+    const chip = saveChip(problem);
+    const tone = chip.state === "offline" || chip.state === "session" || chip.state === "conflict" ? "text-muted-foreground" : "text-danger";
+    return (
+      <span className={`flex shrink-0 items-center gap-1.5 text-sm ${tone}`} role="status" data-testid="work-state" data-state="error" data-problem={chip.state}>
+        <ErrorIcon className="size-4" /> <span className="hidden @[520px]:inline">{chip.text}</span>
+        {chip.state === "invalid-label" && routeProject ? (
+          <Link className="underline" to={`${taskSetupUrl(routeProject, projectId)}#labels`} data-testid="work-state-labels">
+            Labels
+          </Link>
+        ) : null}
+        {chip.state === "gone" && routeProject ? (
+          <Link className="underline" to={projectTrashUrl(routeProject)}>
+            Trash
+          </Link>
+        ) : null}
+        {chip.state !== "forbidden" && chip.state !== "gone" ? (
+          <Button variant="ghost" size="sm" onClick={onRetry} className="h-6 px-1.5">
+            Retry
+          </Button>
+        ) : null}
+      </span>
+    );
+  }
   if (saveState === "error") {
     return (
       <Button variant="ghost" size="sm" onClick={onRetry} className="shrink-0 text-danger hover:text-danger" data-testid="work-state" data-state="error">

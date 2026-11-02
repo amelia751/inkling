@@ -100,6 +100,8 @@ interface AgentState {
   profile: ProfileName;
   /** Dataset whose run is streaming in this tab, if any. */
   running: string | null;
+  /** The last send refused because another project's run is active (one run per tab). */
+  blockedBy?: { projectId: string; waitingOn: string } | null;
   setProfile: (p: ProfileName) => void;
   setHost: (host: AgentHost | null) => void;
   send: (projectId: string, text: string, opts: SendOptions) => Promise<void>;
@@ -120,6 +122,25 @@ interface AgentState {
 
 let host: AgentHost | null = null;
 let controller: AbortController | null = null;
+/** Browser-side tool work of the run being followed: Stop aborts it and posts the failure at once. */
+let toolAbort: AbortController | null = null;
+
+export const STUDIO_CLOSED = "The Studio isn't open, so this tool can't run. Ask the person to open it, or use open_location.";
+export const BLOCKED_PREFIX = "Waiting for the assistant in project ";
+export const TOOL_STOPPED = "Stopped by the person.";
+
+/** Run a browser tool, but give up as soon as `signal` aborts (Stop, panel closed). */
+export function raceAbort<T>(work: Promise<T>, signal: AbortSignal, onAbort: () => T): Promise<T> {
+  if (signal.aborted) return Promise.resolve(onAbort());
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => resolve(onAbort());
+    signal.addEventListener("abort", abort, { once: true });
+    work.then(
+      (v) => (signal.removeEventListener("abort", abort), resolve(v)),
+      (e) => (signal.removeEventListener("abort", abort), reject(e)),
+    );
+  });
+}
 /**
  * Runs this tab streamed (not persisted: another tab never claims them). A boot whose
  * `initiator.runId` is one of these was asked for here, even when the run already finished
@@ -222,10 +243,15 @@ export const useAgent = create<AgentState>()(
         a.answered.push(e.callId);
         set({ active: { ...a } });
         let outcome: ClientToolOutcome;
-        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: "The assistant for this project is closed." } };
+        if (!host || host.projectId !== a.projectId) outcome = { ok: false, output: { error: STUDIO_CLOSED }, summary: "The Studio isn't open" };
         else {
           try {
-            outcome = await host.runTool(e.name, (e.input ?? {}) as Record<string, unknown>);
+            toolAbort ??= new AbortController();
+            outcome = await raceAbort(host.runTool(e.name, (e.input ?? {}) as Record<string, unknown>), toolAbort.signal, () => ({
+              ok: false,
+              output: { error: host && host.projectId === a.projectId ? TOOL_STOPPED : STUDIO_CLOSED },
+              summary: "Stopped",
+            }));
           } catch (err) {
             outcome = { ok: false, output: { error: err instanceof Error ? err.message : String(err) } };
           }
@@ -310,8 +336,14 @@ export const useAgent = create<AgentState>()(
         active: null,
         profile: "environment-designer",
         running: null,
+        blockedBy: null,
         setProfile: (profile) => set({ profile }),
         setHost: (h) => {
+          // The panel closed (or moved to another project): browser tools in flight fail now.
+          if (!h || (host && h.projectId !== host.projectId)) {
+            toolAbort?.abort();
+            toolAbort = null;
+          }
           host = h;
         },
         conversation: (projectId) => {
@@ -323,7 +355,12 @@ export const useAgent = create<AgentState>()(
         },
         send: async (projectId, text, opts) => {
           const state = get();
-          if (state.running && state.running !== projectId) return;
+          if (state.running && state.running !== projectId) {
+            // One run at a time per tab: say so instead of dropping the message.
+            const blocked: ChatMessage = { id: crypto.randomUUID(), role: "assistant", parts: [], error: `${BLOCKED_PREFIX}${state.running} · Stop it there first.` };
+            set((s) => ({ threads: { ...s.threads, [projectId]: [...(s.threads[projectId] ?? []), blocked] }, blockedBy: { projectId, waitingOn: state.running! } }));
+            return;
+          }
           const steering = state.running === projectId && state.active;
           const parts: MessagePart[] = [...(opts.drop ? [{ type: "drop" as const, id: opts.drop.dropId }] : []), ...(text ? [{ type: "text" as const, text }] : [])];
           const user: ChatMessage = { id: opts.messageId ?? crypto.randomUUID(), role: "user", parts };
@@ -364,6 +401,9 @@ export const useAgent = create<AgentState>()(
           void follow(a);
         },
         stop: () => {
+          // Browser-side tool work stops now; its failure is posted to the service by clientTool.
+          toolAbort?.abort();
+          toolAbort = null;
           const a = get().active;
           if (!a) return controller?.abort();
           // Cancel on the service; the stream then ends with `done: cancelled`. Fall back to local abort.
@@ -399,8 +439,23 @@ export const useAgent = create<AgentState>()(
         decide: async (projectId, messageId, approvalId, decision) => {
           const setState = (state: ApprovalState) =>
             patchMessage(projectId, messageId, (m) => ({ ...m, parts: m.parts.map((p) => (p.type === "approval" && p.id === approvalId ? { ...p, state } : p)) }));
-          setState(decision === "approve" ? "approved" : "rejected");
-          await decideApproval(approvalId, { decision }).catch(() => setState("expired"));
+          // Pending until the service agrees (a second tab or an expiry may have decided first).
+          const part = (get().threads[projectId] ?? []).find((m) => m.id === messageId)?.parts.find((p) => p.type === "approval" && p.id === approvalId) as
+            | Extract<MessagePart, { type: "approval" }>
+            | undefined;
+          if (part && (part.state !== "pending" || part.expiresAt <= Date.now())) {
+            if (part.state === "pending") setState("expired");
+            return;
+          }
+          try {
+            await decideApproval(approvalId, { decision });
+            setState(decision === "approve" ? "approved" : "rejected");
+          } catch (err) {
+            const status = err instanceof AgentHttpError ? err.status : 0;
+            // 404/409/410: decided elsewhere or expired. Anything else: still pending, try again.
+            if (status === 404 || status === 409 || status === 410) setState("expired");
+            // Otherwise the card stays pending and the person can try again.
+          }
         },
         addPart: (projectId, messageId, part) =>
           patchMessage(projectId, messageId, (m) => (m.parts.some((p) => "id" in p && p.id === (part as { id?: string }).id && p.type === part.type) ? m : { ...m, parts: [...m.parts, part] })),

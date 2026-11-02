@@ -1,4 +1,5 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { secondsLeft } from "@/studio/lib/agent/approval";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { ChevronDownIcon, CloseIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, RetryIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
@@ -357,8 +358,20 @@ function DecideButtons({ onReject, approve, busy }: { onReject: () => void; appr
 const approveClass = "border-positive/50 text-positive hover:bg-positive-tint";
 
 /** Consequential steps wait here; nothing runs until the expert approves. */
-function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void }) {
-  const pending = part.state === "pending";
+function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void | Promise<void> }) {
+  const [now, setNow] = useState(() => Date.now());
+  const left = secondsLeft(part.expiresAt, now);
+  const pending = part.state === "pending" && left > 0;
+  const [deciding, setDeciding] = useState(false);
+  useEffect(() => {
+    if (part.state !== "pending" || left <= 0) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [part.state, left]);
+  const choose = (d: "approve" | "reject") => {
+    setDeciding(true);
+    Promise.resolve(onDecide(d)).finally(() => setDeciding(false));
+  };
   // A proposal (propose_schema / propose_relationship) is confirmed by a person in Explore.
   const proposal = part.detail?.kind === "proposal" ? part.detail : undefined;
   // todo16 D8: a catalogue operation that asks first: what goes, and whether it can be undone.
@@ -378,17 +391,20 @@ function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart
               </span>
             )}
           </ApprovalAlert>
+          <span className="text-hint text-muted-foreground" data-testid="agent-approval-countdown">
+            {deciding ? "Sending…" : `Expires in ${left >= 60 ? `${Math.ceil(left / 60)} min` : `${left} s`}`}
+          </span>
           <DecideButtons
-            onReject={() => onDecide("reject")}
+            onReject={() => !deciding && choose("reject")}
             approve={
-              <Button variant="outline" size="sm" className={approveClass} onClick={() => onDecide("approve")}>
+              <Button variant="outline" size="sm" className={approveClass} disabled={deciding} onClick={() => choose("approve")}>
                 <DoneIcon /> Approve
               </Button>
             }
           />
         </>
       ) : (
-        <Decided state={part.state}>
+        <Decided state={part.state === "pending" ? "expired" : part.state}>
           {proposal && part.state === "approved" && (
             <Link to={exploreUrl(projectId, proposal.proposalKind === "mapping" ? "mappings" : "relationships")} className="ml-auto text-brand underline-offset-2 hover:underline" data-testid="agent-proposal-link">
               Review in Explore

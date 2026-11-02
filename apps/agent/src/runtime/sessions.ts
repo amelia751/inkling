@@ -42,7 +42,7 @@ import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilder
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
-import { Projector, sanitizeError } from "./events.ts";
+import { Projector, providerErrorMessage, sanitizeError } from "./events.ts";
 import { Run } from "./runs.ts";
 
 export const AI_ASSIST_OFF_MESSAGE = "The assistant is off for this organization";
@@ -740,7 +740,7 @@ export class SessionService {
       if (run.endReason) this.transition(ctx, run.endReason === "budget" ? "failed" : run.endReason, run);
       else {
         log.error({ err: sanitizeError(String(err)) }, "run failed");
-        run.events.push({ type: "error", message: sanitizeError(err instanceof Error ? err.message : String(err)) });
+        run.events.push({ type: "error", message: providerErrorMessage(err instanceof Error ? err.message : String(err)) });
         this.transition(ctx, "failed", run);
       }
     } finally {
@@ -769,7 +769,7 @@ export class SessionService {
     if (run.done || run.endReason) return;
     run.endReason = reason;
     if (message) run.events.push({ type: "error", message });
-    if (reason === "expired") run.events.push({ type: "error", message: `Stopped: the run exceeded ${this.config.budgets.maxRunSeconds}s.` });
+    if (reason === "expired") run.events.push({ type: "error", message: `Stopped by the time budget: this run reached its ${this.config.budgets.maxRunSeconds} s limit. Send "continue" to pick up where it left off; an admin can raise AGENT_MAX_RUN_SECONDS.` });
     run.abort.abort();
     ctx.bridge.cancelAll(reason);
     ctx.approvals.rejectAll(reason);
@@ -854,7 +854,7 @@ export class SessionService {
     }
     ctx.policy.spendUsd = ctx.projector.spendUsd;
     if (e.type === "message_end" && ctx.projector.spendUsd >= this.config.budgets.maxSpendUsd)
-      this.abortRun(ctx, run, "budget", `Stopped: this run reached the $${this.config.budgets.maxSpendUsd.toFixed(2)} spend limit.`);
+      this.abortRun(ctx, run, "budget", `Stopped by the spend budget: this run reached its $${this.config.budgets.maxSpendUsd.toFixed(2)} limit. Send "continue" to go on; an admin can raise AGENT_MAX_SPEND_USD.`);
   }
 
   /** Stop live sandboxes on shutdown (disk kept; reattached lazily next time). */

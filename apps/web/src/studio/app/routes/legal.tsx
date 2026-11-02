@@ -50,7 +50,7 @@ export function LegalPage({ kind }: { kind: LegalKind }) {
     <div className="min-h-dvh bg-background text-foreground">
       <main className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-12 md:py-16" data-testid={`legal-${kind}`}>
         <a href="/" className="text-sm text-muted-foreground hover:text-foreground">{name}</a>
-        <h1 className="text-heading-2 font-semibold">{page.title}</h1>
+        <h1 className="text-header-2 font-semibold">{page.title}</h1>
         {page.sections.map((s) => (
           <section key={s.heading} className="flex flex-col gap-1.5">
             <h2 className="text-body-2 font-semibold">{s.heading}</h2>

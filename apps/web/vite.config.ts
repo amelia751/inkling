@@ -55,6 +55,24 @@ function serviceToken(): string | undefined {
   agentToken = new RegExp(`^${NAMING.envPrefix}AGENT_TOKEN=(.+)$`, "m").exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
   return agentToken;
 }
+/**
+ * Dev identity (todo14 M0, src/studio/lib/dev-principal.ts): "Start as a new person" sends
+ * `X-Dev-Principal: user:dev-<id>` on fetches; an EventSource can't, so its URL carries
+ * `devPrincipal=`, which becomes the header here. Anything not shaped like a dev principal is dropped.
+ */
+const DEV_PRINCIPAL = /^user:dev-[a-z0-9]{4,32}$/;
+function forwardDevPrincipal(proxyReq: { path: string; getHeader(n: string): unknown; setHeader(n: string, v: string): unknown; removeHeader(n: string): void }) {
+  const url = new URL(proxyReq.path, "http://proxy");
+  const fromQuery = url.searchParams.get("devPrincipal");
+  if (fromQuery !== null) {
+    url.searchParams.delete("devPrincipal");
+    proxyReq.path = url.pathname + url.search;
+    if (DEV_PRINCIPAL.test(fromQuery)) proxyReq.setHeader("x-dev-principal", fromQuery);
+  }
+  const header = proxyReq.getHeader("x-dev-principal");
+  if (header !== undefined && !(typeof header === "string" && DEV_PRINCIPAL.test(header))) proxyReq.removeHeader("x-dev-principal");
+}
+
 const agentProxy: Record<string, ProxyOptions> = {
   "/api/agent": {
     target: AGENT_URL,
@@ -63,6 +81,7 @@ const agentProxy: Record<string, ProxyOptions> = {
       proxy.on("proxyReq", (req) => {
         const token = serviceToken();
         if (token) req.setHeader("authorization", `Bearer ${token}`);
+        forwardDevPrincipal(req);
       });
       // Event streams must not be buffered or compressed on the way through.
       proxy.on("proxyRes", (res) => {
@@ -138,7 +157,7 @@ export default defineConfig({
     // /api/agent goes to the agent service; with the API on, the rest of /api goes there (agentProxy is listed first).
     proxy: {
       ...agentProxy,
-      ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
+      ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined), configure: (proxy) => proxy.on("proxyReq", forwardDevPrincipal) } } : {}),
     },
   },
   // runtime-config.ts reads this as the dev default for `kernel` (/config.json decides in images).

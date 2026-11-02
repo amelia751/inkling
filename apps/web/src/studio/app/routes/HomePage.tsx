@@ -5,7 +5,7 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
-import { useProjectList } from "@/studio/lib/projects-api";
+import { useProjectList, useSamples } from "@/studio/lib/projects-api";
 import { newProjectUrl, projectsUrl, projectUrl, studioUrl } from "@/studio/lib/routes";
 import { HomeComposer } from "@/studio/app/entry/HomeComposer";
 import type { ProjectSummary } from "@studio/contracts/types";
@@ -21,6 +21,7 @@ export function HomePage() {
   const { data: projects, isLoading, error } = useProjectList();
   const recent = (projects ?? []).slice(0, 6);
   const empty = !isLoading && !error && recent.length === 0;
+  const samples = useSamples().data;
 
   return (
     <AppLayout>
@@ -36,6 +37,15 @@ export function HomePage() {
             </Button>
           }
         >
+          {/* todo14 §4.1: one quiet line instead of Recent projects, only when the api offers samples. */}
+          {empty && samples?.enabled && (
+            <p className="mt-6 text-center">
+              {/* TODO(todo14 M1): open the sample picker (title, modality, license) and copy the pick. */}
+              <Button variant="ghost-secondary" size="sm" data-testid="try-sample">
+                Or try a sample project
+              </Button>
+            </p>
+          )}
           {!empty && (
             <section className="mt-6" aria-labelledby="recent-heading">
               <div className="mb-3 flex items-baseline justify-between gap-4">

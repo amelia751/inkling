@@ -30,6 +30,8 @@ def test_create_all_db_missing_a_recent_column_is_stamped_and_upgraded(tmp_path)
     db.create_all()
     with db.engine().begin() as c:  # an older create_all (before 0020), no alembic_version
         c.execute(sa.text("DROP TABLE blob_delete_retries"))  # 0025
+        c.execute(sa.text("DROP TABLE IF EXISTS derivatives"))  # 0023
+        c.execute(sa.text("ALTER TABLE fs_batches DROP COLUMN state"))  # 0022
         c.execute(sa.text("DROP TABLE approvals_used"))
         c.execute(sa.text("DROP INDEX IF EXISTS ix_fs_batches_turn"))
         c.execute(sa.text("ALTER TABLE fs_batches DROP COLUMN turn_id"))

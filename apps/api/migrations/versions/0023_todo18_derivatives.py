@@ -16,6 +16,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if sa.inspect(op.get_bind()).has_table('derivatives'):  # a create_all dev database already has it (todo18 P0-6)
+        return
     op.create_table(
         'derivatives',
         sa.Column('id', sa.String(length=64), primary_key=True),

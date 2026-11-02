@@ -46,6 +46,7 @@ export class ApiError extends Error {
     // todo18 D2: the decoded problem, so `toProblem(e)` / UI states work on every `api()` failure.
     this.problem = problemFrom(status, body, headers);
     if (requestId && !this.problem.requestId) this.problem.requestId = requestId;
+    if (!this.problem.detail && message) this.problem.detail = message;
   }
   readonly problem: ApiProblem;
 }

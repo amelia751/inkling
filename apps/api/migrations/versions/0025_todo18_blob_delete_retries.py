@@ -15,6 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    if sa.inspect(op.get_bind()).has_table('blob_delete_retries'):  # a create_all dev database already has it (todo18 P0-6)
+        return
     op.create_table(
         'blob_delete_retries',
         sa.Column('id', sa.Integer(), primary_key=True, autoincrement=True),

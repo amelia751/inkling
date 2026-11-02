@@ -15,6 +15,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Idempotent: a dev database built by create_all may already have the column (todo18 P0-6).
+    if 'state' in {c['name'] for c in sa.inspect(op.get_bind()).get_columns('fs_batches')}:
+        return
     op.add_column('fs_batches', sa.Column('state', sa.String(length=16), nullable=True))
 
 

@@ -25,6 +25,7 @@ dependencies = [
     # The generated versioning client (src/studio_api/clients/versioning) needs these.
     "attrs>=24.2",
     "python-dateutil>=2.9",
+    "workos>=10.6,<11",
 ]
 
 [project.optional-dependencies]

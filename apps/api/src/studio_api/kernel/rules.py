@@ -28,7 +28,7 @@ from ..models import Boot, ProjectRow, ProjectRules, ProjectRulesHistory, TaskRo
 
 AGENT_DENIED = "Rules are changed by people. The assistant proposes rule changes as a change request."
 
-Severity = Literal["error", "warning", "info", "off"]
+Severity = Literal["error", "warn", "info", "off"]
 
 
 class _M(BaseModel):

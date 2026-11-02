@@ -8,6 +8,8 @@ import type { Project } from "@studio/contracts/types";
 import { envOf } from "@/studio/lib/environment";
 import type { Exporter, ExporterImpl } from "@studio/plugin-ui-sdk/module";
 import { registry } from "@/extension-host/registry";
+import { exporterIds, exportersByKind } from "@/studio/lib/per-kind";
+import { buildKindArchive } from "@/studio/lib/kind-archive";
 
 /**
  * Standard-format downloads offered by the project's environment (COCO, NIfTI masks,
@@ -20,7 +22,11 @@ export function FormatExports({ project, enabled }: { project: Project; enabled:
     if (!env) return;
     let live = true;
     Promise.all(
-      env.exporters.map(async (c) => {
+      // todo19 D8: the accepted kinds' profile exporters ∪ the env's.
+      exporterIds(env.spec)
+        .map((id) => env.exporters.find((x) => x.id === id) ?? registry.get("exporters", id))
+        .filter((c) => !!c)
+        .map(async (c) => {
         const impl = await registry.loadImpl<ExporterImpl>(c.id);
         return { ...impl, id: c.id, label: c.label, description: c.description } as Exporter;
       }),
@@ -33,6 +39,31 @@ export function FormatExports({ project, enabled }: { project: Project; enabled:
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   if (!exporters.length) return null;
+  const byKind = env ? exportersByKind(env.spec) : {};
+  const kindCount = Object.keys(byKind).length;
+
+  const runAll = async () => {
+    setBusy("all");
+    setError(null);
+    try {
+      const doc = await fetchAnnotations(project.id);
+      const { bytes } = await buildKindArchive(byKind, projectItems(project), doc.annotations, async (id, items, annotations) => {
+        const ex = exporters.find((e) => e.id === id);
+        if (!ex) return null;
+        const blob = await ex.build({ project, items, annotations, env });
+        return { filename: ex.filename(project), data: new Uint8Array(await blob.arrayBuffer()) };
+      }, { fallbackKind: env?.dataKind.id });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/zip" }));
+      a.download = `${project.id}-export.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(`Export: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (id: string) => {
     const ex = exporters.find((e) => e.id === id)!;
@@ -57,6 +88,17 @@ export function FormatExports({ project, enabled }: { project: Project; enabled:
     <Card className="p-0">
       <h2 className="border-b border-border px-4 py-3 text-sm font-medium">Standard formats</h2>
       <div className="divide-y divide-border">
+        {kindCount > 1 && (
+          <div className="flex items-center gap-4 px-4 py-3" data-testid="export-all-kinds">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium">Everything, one archive</div>
+              <div className="text-sm text-muted-foreground">A folder per kind ({kindCount}) with that kind's formats, and a manifest.json.</div>
+            </div>
+            <Button onClick={runAll} disabled={!enabled || busy !== null}>
+              <ExportIcon /> {busy === "all" ? "Preparing" : "Download"}
+            </Button>
+          </div>
+        )}
         {exporters.map((ex) => (
           <div key={ex.id} className="flex items-center gap-4 px-4 py-3">
             <div className="min-w-0 flex-1">

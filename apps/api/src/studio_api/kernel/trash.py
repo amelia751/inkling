@@ -476,8 +476,12 @@ def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = Fa
         if dry_run:
             purged += sum(len(v) for v in rows.values())
             continue
+        # Take each batch's lock (todo18 B): one a restore holds is skipped, not destroyed under it.
+        got = db.execute(update(FsBatch).where(FsBatch.id == b.id, FsBatch.state.is_(None)).values(state="destroying").execution_options(synchronize_session=False))
+        if got.rowcount == 0:  # type: ignore[attr-defined]
+            continue
         purged += _destroy_rows(db, rows)
-        db.delete(b)
+        b.state = "destroyed"
     if batches and not dry_run:
         db.flush()
         _audit(db, ctx, p, "destroy", "all", p.id, None, {"batches": len(batches), "purged": purged})

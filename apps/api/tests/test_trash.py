@@ -333,3 +333,13 @@ def test_renames_use_the_shared_name_rule(client):
         assert r.json()["detail"] == names.problem(bad)
     assert client.patch(url, json={"name": "Scans v2. "}).json()["name"] == "Scans v2"
     assert names.problem("a/b", slash=True) and not names.problem("a/b")
+
+
+def test_empty_trash_takes_each_batch_lock(client):
+    """todo18 B: Empty trash claims each batch like a destroy, so a restore racing it loses
+    with 409 "already deleted forever" (not a 404 or a half-restored batch)."""
+    p, ds, _ = _setup(client)
+    b = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.post(f"/api/v1/projects/{p}/trash/empty").json()["purged"] >= 1
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409 and "deleted forever" in r.text

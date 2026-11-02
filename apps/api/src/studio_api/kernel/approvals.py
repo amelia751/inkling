@@ -24,6 +24,8 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from fastapi import HTTPException
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -95,7 +97,10 @@ def verify(db: Session, ctx: RequestContext, *, operation: str, project_id: str,
     t = time.time()
     if not isinstance(exp, int | float) or exp < t or exp > t + MAX_TTL_S + SKEW_S:
         raise _deny("it has expired; ask again")
-    if db.get(ApprovalUsed, aid) is not None:
+    # todo18 B: single use is the INSERT itself (ON CONFLICT DO NOTHING), not a read then a
+    # write, so two requests racing with one approval can't both pass; the loser gets 403.
+    ins = pg_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    row = {"approval_id": aid, "person": ctx.on_behalf_of, "operation": operation, "project_id": project_id, "expires_at": datetime.fromtimestamp(exp, UTC), "used_at": datetime.now(UTC)}
+    res = db.execute(ins(ApprovalUsed).values(**row).on_conflict_do_nothing(index_elements=["approval_id"]))
+    if res.rowcount == 0:  # type: ignore[attr-defined]
         raise _deny("it was already used; ask again")
-    db.add(ApprovalUsed(approval_id=aid, person=ctx.on_behalf_of, operation=operation, project_id=project_id, expires_at=datetime.fromtimestamp(exp, UTC)))
-    db.flush()

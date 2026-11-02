@@ -14,7 +14,7 @@ import { actorName, actorOf } from "@/studio/app/routes/ActivityPage";
 import { relativeTime } from "@/studio/components/files";
 import { fetchActivity, projectKeys } from "@/studio/lib/projects-api";
 import { datasetUrl, projectTrashUrl, studioUrl, targetUrl } from "@/studio/lib/routes";
-import { allFilesInTrash, useRestoreBatch } from "@/studio/lib/trash-api";
+import { allFilesInTrash, useRestoreBatches } from "@/studio/lib/trash-api";
 import { api as versioning } from "@/studio/core/versioning/api";
 import { versioningEnabled } from "@/studio/core/versioning/session";
 import type { DatasetViewProps } from "./DatasetLayout";
@@ -33,7 +33,7 @@ import { AttentionLine, CollectionThumb, DatasetSection, SuggestedBadge } from "
 export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: DatasetViewProps) {
   const p = profile.data;
   const addData = useAddData(projectId, d);
-  const restore = useRestoreBatch(projectId);
+  const restore = useRestoreBatches(projectId);
   const trashBatches = (d as { filesTrashBatchIds?: string[] }).filesTrashBatchIds ?? [];
   return (
     <div className="flex flex-col gap-8" data-testid="dataset-overview">
@@ -51,7 +51,7 @@ export function DatasetOverview({ projectId, dataset: d, profile, canEdit }: Dat
             description="Its items show as In Trash until the files are restored. Trash keeps them for 30 days."
             actions={
               trashBatches.length && canEdit ? (
-                <Button variant="outline" size="lg" disabled={restore.isPending} onClick={() => trashBatches.forEach((b) => restore.mutate(b))} data-testid="empty-files-in-trash-restore">
+                <Button variant="outline" size="lg" disabled={restore.isPending} onClick={() => restore.mutate(trashBatches)} data-testid="empty-files-in-trash-restore">
                   Restore files
                 </Button>
               ) : (

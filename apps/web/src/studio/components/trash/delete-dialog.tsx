@@ -8,8 +8,9 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Input } from "@studio/ui/ui/input";
 import { Skeleton } from "@studio/ui/ui/skeleton";
+import { nameProblem } from "@/studio/lib/files/names";
 import { projectTrashUrl } from "@/studio/lib/routes";
-import { deleteResource, usedByLine, invalidateAfterTrash, KIND_LABEL, messageOf, movedToTrashToast, previewDelete, useRename, type DeletableKind, type Impact } from "@/studio/lib/trash-api";
+import { canConfirmDelete, deleteResource, usedByLine, invalidateAfterTrash, KIND_LABEL, messageOf, movedToTrashToast, previewDelete, useRename, type DeletableKind, type Impact } from "@/studio/lib/trash-api";
 
 /**
  * Delete = move to Trash (todo16 D2). The dialog loads the impact preview (`?dryRun=true`) and
@@ -21,19 +22,23 @@ export function DeleteDialog({ projectId, kind, id, name, open, onOpenChange, on
   const navigate = useNavigate();
   const [impact, setImpact] = useState<Impact | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The impact preview failing blocks Confirm (todo18 B): Retry, never delete blind.
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     if (!open) return;
     setImpact(null);
     setError(null);
+    setPreviewError(null);
     let live = true;
     previewDelete(projectId, kind, id)
       .then((r) => live && setImpact(r.impact))
-      .catch((e) => live && setError(messageOf(e)));
+      .catch((e) => live && setPreviewError(messageOf(e)));
     return () => {
       live = false;
     };
-  }, [open, projectId, kind, id]);
+  }, [open, projectId, kind, id, attempt]);
 
   const confirm = async () => {
     setBusy(true);
@@ -57,10 +62,15 @@ export function DeleteDialog({ projectId, kind, id, name, open, onOpenChange, on
           <AlertDialogTitle>Delete {KIND_LABEL[kind].toLowerCase()} “{name}”?</AlertDialogTitle>
           <AlertDialogDescription>It moves to Trash with everything below. You can restore it for 30 days.</AlertDialogDescription>
         </AlertDialogHeader>
-        <ImpactList impact={impact} error={error} self={id} />
+        <ImpactList impact={impact} error={previewError ? `Couldn't check what goes with it: ${previewError}` : error} self={id} />
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <Button variant="destructive" loading={busy} disabled={!impact && !error} onClick={() => void confirm()} data-testid="delete-confirm">
+          {previewError && (
+            <Button variant="outline" onClick={() => setAttempt((n) => n + 1)} data-testid="delete-impact-retry">
+              Retry
+            </Button>
+          )}
+          <Button variant="destructive" loading={busy} disabled={!canConfirmDelete(impact, previewError)} onClick={() => void confirm()} data-testid="delete-confirm">
             Move to Trash
           </Button>
         </AlertDialogFooter>
@@ -106,8 +116,11 @@ export function RenameInPlace({ projectId, kind, id, name, className, canEdit = 
   const [value, setValue] = useState(name);
   const rename = useRename(projectId, kind);
   useEffect(() => setValue(name), [name]);
+  const problem = nameProblem(value);
   const save = () => {
     const next = value.trim();
+    // An invalid name never saves, not even on blur (todo18 B): the field stays open with why.
+    if (next !== name.trim() && problem) return;
     setEditing(false);
     if (next && next !== name) rename.mutate({ id, name: next });
     else setValue(name);
@@ -129,8 +142,9 @@ export function RenameInPlace({ projectId, kind, id, name, className, canEdit = 
     );
   return (
     <span className={className}>
-      <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} onBlur={save} aria-label={`New name for ${name}`} className="h-7" data-testid="rename-input" />
-      <Button variant="ghost-secondary" size="icon-sm" aria-label="Save name" onMouseDown={(e) => e.preventDefault()} onClick={save}>
+      <Input autoFocus value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={onKey} onBlur={save} aria-label={`New name for ${name}`} className="h-7" aria-invalid={!!problem} title={problem ?? undefined} data-testid="rename-input" />
+      {problem && <span className="text-xs text-danger" data-testid="rename-error">{problem}</span>}
+      <Button variant="ghost-secondary" size="icon-sm" aria-label="Save name" disabled={!!problem} onMouseDown={(e) => e.preventDefault()} onClick={save}>
         <CheckIcon />
       </Button>
       <Button variant="ghost-secondary" size="icon-sm" aria-label="Cancel rename" onMouseDown={(e) => e.preventDefault()} onClick={() => (setValue(name), setEditing(false))}>

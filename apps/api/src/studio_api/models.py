@@ -815,6 +815,10 @@ class FsBatch(Base):
     seq: Mapped[int] = mapped_column(Integer, default=0)
     # todo16: what the batch moved (`source` = the drive; dataset | collection | studio | project).
     resource: Mapped[str] = mapped_column(String(16), default="source", server_default="source")
+    # todo18 B: the Trash batch lock. None while in Trash; restoring | destroying while a request
+    # holds it (claimed by a conditional UPDATE, so two requests can't both act); restored |
+    # destroyed afterwards, so the loser gets 409 "already restored" rather than 404.
+    state: Mapped[str | None] = mapped_column(String(16), nullable=True)
     # todo16 D9: the person an assistant acted for (None: the person's own change) and the
     # assistant turn (`X-Turn-Id`), so a whole turn can be listed and undone (kernel/turns.py).
     on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)

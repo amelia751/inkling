@@ -96,7 +96,7 @@ def test_studio_and_collection_delete_and_rename(client):
     assert client.delete(f"/api/v1/projects/{p}/trash/{s['batchId']}").json() == {"purged": 1}
     with kdb.session_scope() as db:
         assert db.get(TaskRow, task_id, execution_options=INCLUDE_TRASHED) is None
-    assert client.post(f"/api/v1/projects/{p}/trash/{s['batchId']}/restore").status_code == 404
+    assert client.post(f"/api/v1/projects/{p}/trash/{s['batchId']}/restore").status_code == 409  # todo18: already deleted forever
     # Empty Trash takes every kind.
     assert client.post(f"/api/v1/projects/{p}/trash/empty").json()["purged"] == 1
     assert _trash(client, p)["count"] == 0
@@ -273,3 +273,124 @@ def test_a_studio_offers_restore_explore_shows_files_in_trash_and_names_are_peop
     trashed = [r for r in after["records"] if r["status"] == "trashed"]
     assert after["files"]["inTrash"] == 1
     assert [(r["nodeId"], r["title"], bool(r["trashBatchId"])) for r in trashed] == [(doc_id, "readme.txt", True)]
+
+
+def test_sources_empty_trash_purges_files_only_and_preview_counts_per_kind(client):
+    """todo18 P0-1: Sources › Trash empties files only; the project Trash lists counts per kind."""
+    p, ds, _ = _setup(client)
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["b.png"].id]}])
+    assert client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").status_code == 200
+    pre = client.get(f"/api/v1/projects/{p}/trash/empty/preview").json()
+    assert pre["byKind"] == {"sources": 1, "datasets": 1, "collections": 1, "studios": 1}
+    assert client.get(f"/api/v1/projects/{p}/trash/empty/preview", params={"kind": "sources"}).json()["byKind"]["datasets"] == 0
+    out = client.post(f"/api/v1/projects/{p}/trash/empty", params={"kind": "sources"}).json()
+    assert out["purged"] == 1
+    t = _trash(client, p)
+    assert [i["kind"] for i in t["items"]] == ["dataset"]  # the dataset is still in Trash
+    assert client.post(f"/api/v1/projects/{p}/trash/empty", params={"kind": "bogus"}).status_code == 422
+
+
+def test_a_batch_restored_or_destroyed_twice_gets_409_not_404(client):
+    """todo18 B: the batch lock. The second restore or destroy of a batch loses with 409."""
+    p, ds, _ = _setup(client)
+    b = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.post(f"/api/v1/projects/{p}/trash/{b}/restore").status_code == 200
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409 and "already restored" in r.text
+    assert client.delete(f"/api/v1/projects/{p}/trash/{b}").status_code == 409
+    b2 = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.delete(f"/api/v1/projects/{p}/trash/{b2}").status_code == 200
+    assert client.post(f"/api/v1/projects/{p}/trash/{b2}/restore").status_code == 409
+    with kdb.session_scope() as db:
+        from studio_api.models import FsBatch
+
+        assert db.get(FsBatch, b2).state == "destroyed"
+    assert client.post(f"/api/v1/projects/{p}/trash/nope/restore").status_code == 404
+
+
+def test_restore_takes_several_batches_in_one_request(client):
+    """todo18 B: "Restore all" is one request restoring every batch, not parallel restores."""
+    p, _, _ = _new(client, {"study/a.png": png(4, 4), "study/b.png": png(5, 5)})
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["a.png"].id]}])
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["b.png"].id]}])
+    ids = [i["batchId"] for i in _trash(client, p)["items"]]
+    assert len(set(ids)) == 2
+    r = client.post(f"/api/v1/projects/{p}/trash/{ids[0]}/restore", json={"batchIds": ids[1:]})
+    assert r.status_code == 200, r.text
+    assert sorted(x["name"] for x in r.json()["restored"]) == ["a.png", "b.png"]
+    assert _trash(client, p)["count"] == 0
+    assert client.post(f"/api/v1/projects/{p}/trash/{ids[0]}/restore", json={"batchIds": "x"}).status_code == 422
+
+
+def test_renames_use_the_shared_name_rule(client):
+    """todo18 B: `.`, `..`, blank and over 255 bytes are refused; the same rule as files."""
+    from studio_api.kernel import names
+
+    p, ds, _ = _setup(client)
+    url = f"/api/v1/projects/{p}/datasets/{ds['id']}"
+    for bad in [".", "..", "   ", "a\x01b", "é" * 128]:
+        r = client.patch(url, json={"name": bad})
+        assert r.status_code == 422, bad
+        assert r.json()["detail"] == names.problem(bad)
+    assert client.patch(url, json={"name": "Scans v2. "}).json()["name"] == "Scans v2"
+    assert names.problem("a/b", slash=True) and not names.problem("a/b")
+
+
+def test_empty_trash_takes_each_batch_lock(client):
+    """todo18 B: Empty trash claims each batch like a destroy, so a restore racing it loses
+    with 409 "already deleted forever" (not a 404 or a half-restored batch)."""
+    p, ds, _ = _setup(client)
+    b = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()["batchId"]
+    assert client.post(f"/api/v1/projects/{p}/trash/empty").json()["purged"] >= 1
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409 and "deleted forever" in r.text
+
+
+def test_purge_rolls_back_when_the_versioning_commit_fails(client, monkeypatch):
+    """todo18 B: a versioned dataset's files aren't dropped (nor the file purged) without the commit."""
+    from studio_api.kernel import versioning
+    from studio_api.kernel.versioning import client as vclient, service
+    from studio_api.kernel.versioning.fake import FakeVersioning
+
+    from .conftest import ws
+
+    vclient.set_client(FakeVersioning())
+    service.clear_cache()
+    try:
+        p, ds, _ = _setup(client)
+        assert client.post("/api/v1/datasets", json={"id": ds["id"]}, headers=ws(p)).status_code == 201
+        a = _by_name(p)["a.png"].id
+        _ops(client, p, [{"kind": "trash", "nodeIds": [a]}])
+        real = versioning.run
+        monkeypatch.setattr(versioning, "run", lambda db, c, op, *x, **k: (503, {}) if op == "commit" else real(db, c, op, *x, **k))
+        r = client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "purge", "nodeIds": [a]}]})
+        assert r.status_code == 503, r.text
+        d = client.get(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()
+        assert [f["nodeId"] for f in d["definition"]["files"]] == [a]
+        assert _trash(client, p, "sources")["count"] == 1  # still in Trash, not purged
+    finally:
+        vclient.set_client(None)
+        service.clear_cache()
+
+
+def test_restore_into_a_taken_name_asks_and_keeps_both(client):
+    """todo18 B: a restore whose name is taken returns the Sources 409 `conflicts`; retrying with
+    `resolutions` (keep both) restores it under a new name."""
+    p, _, _ = _new(client, {"study/a.png": png(4, 4)})
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["a.png"].id]}])
+    parent = n["a.png"].parent_id
+    with kdb.session_scope() as db:
+        from studio_api.models import SourceNode
+
+        db.add(SourceNode(id="dup-a", project_id=p, parent_id=parent, name="a.png", is_dir=True))
+    b = _trash(client, p)["items"][0]["batchId"]
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409, r.text
+    conflicts = r.json()["detail"]["conflicts"]
+    assert conflicts and conflicts[0]["name"] == "a.png"
+    ok = client.post(f"/api/v1/projects/{p}/trash/{b}/restore", json={"resolutions": {"*": "keep_both"}})
+    assert ok.status_code == 200, ok.text
+    assert _trash(client, p)["count"] == 0

@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api, projectKeys } from "@/studio/lib/projects-api";
+import type { FsConflict, FsResolution } from "@studio/contracts/types";
+import { FsConflictApiError, toFsError } from "@/studio/lib/files/api";
+import { api, ApiError, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 
 /**
  * Project-wide Trash and delete (todo16 D2–D6, the shared contract): every resource a project
@@ -113,6 +115,39 @@ const KIND_PATH: Record<DeletableKind, string> = { dataset: "datasets", collecti
 
 // ---- Fetchers ------------------------------------------------------------------------------------
 
+/** One Trash row per deletion batch (todo18 B): the files trashed together share a batch id, so
+ * they collapse into "pneumonia and 5 more" with the members listed when expanded. */
+export interface TrashGroup {
+  batchId: string;
+  head: ProjectTrashItem;
+  members: ProjectTrashItem[];
+  label: string;
+}
+
+export function groupByBatch(items: ProjectTrashItem[]): TrashGroup[] {
+  const by = new Map<string, ProjectTrashItem[]>();
+  for (const it of items) {
+    const list = by.get(it.batchId);
+    if (list) list.push(it);
+    else by.set(it.batchId, [it]);
+  }
+  return [...by.entries()].map(([batchId, members]) => {
+    const head = members[0]!;
+    const more = members.length - 1;
+    return { batchId, head, members, label: more > 0 ? `${head.name} and ${more.toLocaleString()} more` : head.name };
+  });
+}
+
+/** What "Empty trash" takes, per kind, for its confirm dialog (todo18 P0-1). */
+export function emptyCountsLine(items: ProjectTrashItem[]): string {
+  const n: Record<TrashKind, number> = { source: 0, dataset: 0, collection: 0, studio: 0 };
+  for (const it of items) n[it.kind] += 1;
+  const word: Record<TrashKind, [string, string]> = { source: ["file or folder", "files and folders"], dataset: ["dataset", "datasets"], collection: ["collection", "collections"], studio: ["Studio", "Studios"] };
+  const parts = (Object.keys(n) as TrashKind[]).filter((k) => n[k] > 0).map((k) => `${n[k].toLocaleString()} ${n[k] === 1 ? word[k][0] : word[k][1]}`);
+  if (parts.length <= 1) return parts[0] ?? "Nothing";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 export const trashKeys = {
   list: (projectId: string, filter: TrashFilter = "all") => ["projects", projectId, "trash", filter] as const,
   all: (projectId: string) => ["projects", projectId, "trash"] as const,
@@ -125,9 +160,16 @@ export async function fetchProjectTrash(projectId: string, filter: TrashFilter =
   return { items, count: res.count ?? res.total ?? items.length };
 }
 
-export const restoreBatch = (projectId: string, batchId: string) => api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST" });
+/** A name now taken rejects with `FsConflictApiError` (its `conflicts`); retry with `resolutions` (todo18 B). */
+export const restoreBatch = (projectId: string, batchId: string, resolutions?: Record<string, FsResolution>) =>
+  api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST", ...(resolutions ? { json: { resolutions } } : {}) }).catch((e: unknown) => {
+    throw toFsError(e);
+  });
+/** Several batches in one request (todo18 B "Restore all"): the first in the path, the rest in the body. */
+export const restoreBatches = (projectId: string, batchIds: string[]) =>
+  api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchIds[0] ?? "")}/restore`, { method: "POST", json: { batchIds: batchIds.slice(1) } });
 export const destroyBatch = (projectId: string, batchId: string) => api<{ purged: number }>(`/projects/${P(projectId)}/trash/${P(batchId)}`, { method: "DELETE" });
-export const emptyProjectTrash = (projectId: string) => api<unknown>(`/projects/${P(projectId)}/trash/empty`, { method: "POST" });
+export const emptyProjectTrash = (projectId: string) => api<unknown>(`/projects/${P(projectId)}/trash/empty?kind=all`, { method: "POST" });
 
 export const previewDelete = (projectId: string, kind: DeletableKind, id: string) =>
   api<{ impact: Impact }>(`/projects/${P(projectId)}/${KIND_PATH[kind]}/${P(id)}?dryRun=true`, { method: "DELETE" });
@@ -156,13 +198,32 @@ export function useProjectTrash(projectId: string, filter: TrashFilter) {
   return useQuery({ queryKey: trashKeys.list(projectId, filter), queryFn: () => fetchProjectTrash(projectId, filter), enabled: !!projectId });
 }
 
-export function useRestoreBatch(projectId: string) {
+export function useRestoreBatch(projectId: string, onConflict?: (batchId: string, conflicts: FsConflict[]) => void) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (batchId: string) => restoreBatch(projectId, batchId),
+    mutationFn: (v: string | { batchId: string; resolutions: Record<string, FsResolution> }) => (typeof v === "string" ? restoreBatch(projectId, v) : restoreBatch(projectId, v.batchId, v.resolutions)),
     onSuccess: (r) => {
-      invalidateAfterTrash(qc, projectId);
+      invalidateAfterTrash(qc, projectId); // todo18 D1: invalidateFor
       toast(r.relocatedToRoot ? "Restored to Sources: the folder it was in is gone" : "Restored");
+    },
+    onError: (e, v) => {
+      // A name that's taken asks keep both / replace / skip, like any Sources op (todo18 B).
+      if (e instanceof FsConflictApiError && onConflict) return onConflict(typeof v === "string" ? v : v.batchId, e.conflicts);
+      toast(`Couldn't restore: ${messageOf(e)}`);
+    },
+  });
+}
+
+/** The batch id a restore mutation's variables name. */
+export const restoreVarBatch = (v: string | { batchId: string } | undefined): string | undefined => (typeof v === "string" ? v : v?.batchId);
+
+export function useRestoreBatches(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (batchIds: string[]) => restoreBatches(projectId, batchIds),
+    onSuccess: (r) => {
+      invalidateAfterTrash(qc, projectId); // todo18 D1: invalidateFor
+      toast(r.relocatedToRoot ? "Restored to Sources: some folders are gone" : "Restored");
     },
     onError: (e) => toast(`Couldn't restore: ${messageOf(e)}`),
   });
@@ -237,16 +298,23 @@ export function movedToTrashToast(opts: { qc: QueryClient; projectId: string; ba
 
 /**
  * What trashing these Sources nodes takes from datasets (`GET /projects/{pid}/trash/impact`).
- * Resolves `null` when the api doesn't have the endpoint yet, so the delete still goes ahead.
+ * Resolves `null` only when the api doesn't have the endpoint (404 / 501). Any other failure
+ * throws: the delete must not go ahead without the "used by datasets" warning (todo18 B).
  */
 export async function fetchFilesImpact(projectId: string, nodeIds: string[]): Promise<Impact | null> {
   try {
     const r = await api<{ impact?: Partial<Impact> } & Partial<Impact>>(`/projects/${P(projectId)}/trash/impact?nodeIds=${nodeIds.map(P).join(",")}`);
     const i = r.impact ?? r;
     return { items: i.items ?? [], files: i.files ?? 0, datasetsLosingItems: i.datasetsLosingItems ?? [] };
-  } catch {
-    return null;
+  } catch (e) {
+    if (e instanceof NeedsApiError || (e instanceof ApiError && e.status === 404)) return null;
+    throw e;
   }
+}
+
+/** The delete dialog's Confirm: only once the impact preview has loaded (todo18 B). */
+export function canConfirmDelete(impact: Impact | null, previewError: string | null): boolean {
+  return !!impact && !previewError;
 }
 
 /** "Used by 2 datasets (340 items)", or "" when no dataset loses an item. */

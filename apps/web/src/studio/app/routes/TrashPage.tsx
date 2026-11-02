@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router";
+import { useParams, useSearchParams } from "react-router";
 import { AnnotateIcon, DatasetsIcon, DeleteIcon, RestoreIcon, SourcesIcon } from "@studio/ui/icons";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@studio/ui/ui/alert-dialog";
 import { Badge } from "@studio/ui/ui/badge";
@@ -14,16 +14,23 @@ import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import {
   deletedByLabel,
   dependentsLine,
+  emptyCountsLine,
+  groupByBatch,
   KIND_LABEL,
   matchesFilter,
   useDestroyBatch,
   useEmptyProjectTrash,
   useProjectTrash,
+  restoreVarBatch,
   useRestoreBatch,
   type ProjectTrashItem,
   type TrashFilter,
+  type TrashGroup,
   type TrashKind,
 } from "@/studio/lib/trash-api";
+import { useCan } from "@/studio/lib/use-can";
+import type { FsConflict } from "@studio/contracts/types";
+import { ConflictDialog } from "@/studio/components/files";
 
 const FILTERS: { value: Exclude<TrashFilter, "collections">; label: string }[] = [
   { value: "all", label: "All" },
@@ -34,6 +41,13 @@ const FILTERS: { value: Exclude<TrashFilter, "collections">; label: string }[] =
 
 const ICON: Record<TrashKind, typeof SourcesIcon> = { source: SourcesIcon, dataset: DatasetsIcon, collection: DatasetsIcon, studio: AnnotateIcon };
 
+const NO_CONFLICTS: FsConflict[] = [];
+
+/** `?kind=sources` (Sources › Trash) preselects that chip; anything else shows everything. */
+export function initialTrashFilter(kind: string | null): Exclude<TrashFilter, "collections"> {
+  return FILTERS.find((f) => f.value === kind)?.value ?? "all";
+}
+
 export const TRASH_EMPTY = "Nothing in Trash. Deleted things stay here for 30 days, then they're gone.";
 
 /**
@@ -43,15 +57,21 @@ export const TRASH_EMPTY = "Nothing in Trash. Deleted things stay here for 30 da
  */
 export function TrashPage() {
   const { projectId = "" } = useParams();
-  const [filter, setFilter] = useState<Exclude<TrashFilter, "collections">>("all");
+  const [params] = useSearchParams();
+  const [filter, setFilter] = useState<Exclude<TrashFilter, "collections">>(() => initialTrashFilter(params.get("kind")));
   const trash = useProjectTrash(projectId, "all");
-  const restore = useRestoreBatch(projectId);
+  const [conflict, setConflict] = useState<{ batchId: string; conflicts: FsConflict[] } | null>(null);
+  const restore = useRestoreBatch(projectId, (batchId, conflicts) => setConflict({ batchId, conflicts }));
   const destroy = useDestroyBatch(projectId);
   const empty = useEmptyProjectTrash(projectId);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<ProjectTrashItem | null>(null);
   const all = trash.data?.items ?? [];
-  const rows = all.filter((i) => matchesFilter(i, filter));
+  const rows = groupByBatch(all.filter((i) => matchesFilter(i, filter)));
+  const canRestore = useCan(projectId, "trash");
+  const canDestroy = useCan(projectId, "destroy");
+  // Pending per batch (todo18 B): one row's action doesn't disable the others.
+  const busyBatch = (restore.isPending ? restoreVarBatch(restore.variables) : undefined) ?? (destroy.isPending ? destroy.variables : undefined);
 
   return (
     <AppLayout>
@@ -60,9 +80,11 @@ export function TrashPage() {
           title="Trash"
           description="Deleted sources, datasets and Studios stay here for 30 days."
           actions={
-            <Button variant="outline" size="lg" disabled={!all.length || empty.isPending} onClick={() => setConfirmEmpty(true)} data-testid="trash-empty">
-              <DeleteIcon /> Empty trash
-            </Button>
+            canDestroy.ok ? (
+              <Button variant="outline" size="lg" disabled={!all.length || empty.isPending} onClick={() => setConfirmEmpty(true)} data-testid="trash-empty">
+                <DeleteIcon /> Empty trash
+              </Button>
+            ) : undefined
           }
         />
         <SegmentedControl value={filter} onValueChange={setFilter} size="md" options={FILTERS.map((f) => ({ value: f.value, label: f.label, "data-testid": `trash-filter-${f.value}` }))} aria-label="Show" />
@@ -77,20 +99,36 @@ export function TrashPage() {
             <EmptyState art="trash" title={all.length ? "Nothing of this kind in Trash" : "Trash is empty"} description={TRASH_EMPTY} data-testid="trash-empty-state" />
           ) : (
             <Card className="divide-y divide-border overflow-hidden" role="list">
-              {rows.map((it) => (
-                <TrashRow key={it.batchId} item={it} busy={restore.isPending || destroy.isPending} onRestore={() => restore.mutate(it.batchId)} onDelete={() => setConfirmDelete(it)} />
+              {rows.map((g) => (
+                <TrashRow
+                  key={g.batchId}
+                  group={g}
+                  busy={busyBatch === g.batchId || empty.isPending}
+                  onRestore={canRestore.ok ? () => restore.mutate(g.batchId) : undefined}
+                  onDelete={canDestroy.ok ? () => setConfirmDelete({ ...g.head, name: g.label }) : undefined}
+                />
               ))}
             </Card>
           )}
         </div>
       </div>
 
+      <ConflictDialog
+        open={!!conflict}
+        conflicts={conflict?.conflicts ?? NO_CONFLICTS}
+        onDone={(resolutions) => {
+          if (conflict) restore.mutate({ batchId: conflict.batchId, resolutions });
+          setConflict(null);
+        }}
+        onCancel={() => setConflict(null)}
+      />
+
       <AlertDialog open={confirmEmpty} onOpenChange={setConfirmEmpty}>
         <AlertDialogContent data-testid="trash-empty-confirm">
           <AlertDialogHeader>
             <AlertDialogTitle>Empty Trash?</AlertDialogTitle>
             <AlertDialogDescription>
-              {all.length.toLocaleString()} {all.length === 1 ? "thing" : "things"} will be deleted for good, with everything they took with them. This can't be undone.
+              <span data-testid="trash-empty-counts">{emptyCountsLine(all)}</span> will be deleted for good, with everything they took with them. This can't be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -129,33 +167,57 @@ export function TrashPage() {
   );
 }
 
-function TrashRow({ item: it, busy, onRestore, onDelete }: { item: ProjectTrashItem; busy: boolean; onRestore: () => void; onDelete: () => void }) {
+function TrashRow({ group, busy, onRestore, onDelete }: { group: TrashGroup; busy: boolean; onRestore?: () => void; onDelete?: () => void }) {
+  const it = group.head;
   const Icon = ICON[it.kind];
   const deps = dependentsLine(it.dependents);
+  const [open, setOpen] = useState(false);
+  const many = group.members.length > 1;
   return (
-    <div role="listitem" className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm" data-testid="trash-row" data-kind={it.kind} data-batch-id={it.batchId}>
-      <Icon className="size-4 shrink-0 text-hint" aria-hidden />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="truncate font-medium" title={it.name}>{it.name}</span>
-          <Badge theme="unknown" size="xs">{KIND_LABEL[it.kind]}</Badge>
+    <div role="listitem" className="px-4 py-3 text-sm" data-testid="trash-row" data-kind={it.kind} data-batch-id={it.batchId}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <Icon className="size-4 shrink-0 text-hint" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            {many ? (
+              <button type="button" className="truncate text-left font-medium hover:underline" title={group.label} aria-expanded={open} onClick={() => setOpen((o) => !o)} data-testid="trash-row-expand">
+                {group.label}
+              </button>
+            ) : (
+              <span className="truncate font-medium" title={it.name}>{it.name}</span>
+            )}
+            <Badge theme="unknown" size="xs">{KIND_LABEL[it.kind]}</Badge>
+          </span>
+          <span className="block truncate text-muted-foreground">
+            {it.originalLocation ?? "Its folder is gone: restores to Sources"}
+            {deps && !many && ` · with ${deps}`}
+          </span>
         </span>
-        <span className="block truncate text-muted-foreground">
-          {it.originalLocation ?? "Its folder is gone: restores to Sources"}
-          {deps && ` · with ${deps}`}
-        </span>
-      </span>
-      <span className="text-muted-foreground" data-testid="trash-deleted-by">{deletedByLabel(it.trashedBy)}</span>
-      <span className="text-muted-foreground" title={it.trashedAt}>{relativeTime(it.trashedAt)}</span>
-      <span className="tnum text-muted-foreground" data-testid="trash-days-left">{it.daysLeft.toLocaleString()} {it.daysLeft === 1 ? "day" : "days"} left</span>
-      <span className="flex gap-1">
-        <Button variant="outline" size="sm" disabled={busy} onClick={onRestore} data-testid="trash-restore">
-          <RestoreIcon /> Restore
-        </Button>
-        <Button variant="ghost" size="sm" className="text-danger hover:text-danger" disabled={busy} onClick={onDelete} data-testid="trash-delete-forever">
-          <DeleteIcon /> Delete forever
-        </Button>
-      </span>
+        <span className="text-muted-foreground" data-testid="trash-deleted-by">{deletedByLabel(it.trashedBy)}</span>
+        <span className="text-muted-foreground" title={it.trashedAt}>{relativeTime(it.trashedAt)}</span>
+        <span className="tnum text-muted-foreground" data-testid="trash-days-left">{it.daysLeft.toLocaleString()} {it.daysLeft === 1 ? "day" : "days"} left</span>
+        {(onRestore || onDelete) && (
+          <span className="flex gap-1">
+            {onRestore && (
+              <Button variant="outline" size="sm" disabled={busy} onClick={onRestore} data-testid="trash-restore">
+                <RestoreIcon /> Restore
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="ghost" size="sm" className="text-danger hover:text-danger" disabled={busy} onClick={onDelete} data-testid="trash-delete-forever">
+                <DeleteIcon /> Delete forever
+              </Button>
+            )}
+          </span>
+        )}
+      </div>
+      {many && open && (
+        <ul className="mt-2 ml-8 space-y-0.5 text-muted-foreground" data-testid="trash-row-members">
+          {group.members.map((m) => (
+            <li key={m.id} className="truncate" title={m.name}>{m.name}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

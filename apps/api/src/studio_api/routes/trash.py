@@ -1,9 +1,9 @@
 """todo16 Milestone 1: delete and recover everything (docs: todo/todo16.md §2 D2-D6).
 
     GET    /api/v1/projects/{pid}/trash?kind=all|sources|datasets|collections|studios&cursor=
-    POST   /api/v1/projects/{pid}/trash/{batchId}/restore     { restored, relocatedToRoot }
+    POST   /api/v1/projects/{pid}/trash/{batchId}/restore     { batchIds?, resolutions? } → { restored, relocatedToRoot }
     DELETE /api/v1/projects/{pid}/trash/{batchId}             destroy (owners) → { purged }
-    POST   /api/v1/projects/{pid}/trash/empty                 every kind → { purged, keptBytes }
+    POST   /api/v1/projects/{pid}/trash/empty?kind=all|sources  → { purged, keptBytes, byKind }
     GET    /api/v1/projects/{pid}/trash/empty/preview         the same, without doing it
     GET    /api/v1/projects/{pid}/trash/impact?nodeIds=a,b    a file delete's { items, files, datasetsLosingItems }
     PATCH  /api/v1/projects/{pid}/datasets/{id}               { name?, description? }
@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import projects, trash, turns
+from ..kernel import names, projects, trash, turns
 from ..models import DatasetCollectionRow, DatasetRow, ProjectRow, TaskRow
 
 router = APIRouter(prefix="/api/v1")
@@ -48,15 +48,15 @@ def list_trash(project_id: str, kind: str = "all", cursor: str | None = None, ct
 
 
 @router.post("/projects/{project_id}/trash/empty")
-def empty(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def empty(project_id: str, kind: str = "all", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    return trash.empty(db, ctx, p)
+    return trash.empty(db, ctx, p, kind=kind)
 
 
 @router.get("/projects/{project_id}/trash/empty/preview")
-def empty_preview(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def empty_preview(project_id: str, kind: str = "all", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    return trash.empty(db, ctx, p, dry_run=True)
+    return trash.empty(db, ctx, p, dry_run=True, kind=kind)
 
 
 @router.get("/projects/{project_id}/trash/impact")
@@ -69,9 +69,17 @@ def file_impact(project_id: str, nodeIds: str = "", ctx: RequestContext = Depend
 
 
 @router.post("/projects/{project_id}/trash/{batch_id}/restore")
-def restore(project_id: str, batch_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def restore(project_id: str, batch_id: str, body: dict | None = Body(default=None), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """`{ batchIds? }` restores those batches too, in this one request and transaction
+    (todo18 B: a dataset's "Restore files" with several batches)."""
     p = trash.require_trash(db, ctx, project_id)
-    return trash.restore(db, ctx, p, batch_id)
+    more = (body or {}).get("batchIds") or []
+    if not isinstance(more, list) or not all(isinstance(x, str) for x in more):
+        raise HTTPException(422, "batchIds lists batch ids")
+    res = (body or {}).get("resolutions")
+    if res is not None and not isinstance(res, dict):
+        raise HTTPException(422, "resolutions must be an object")
+    return trash.restore_many(db, ctx, p, [batch_id, *more], res)
 
 
 @router.delete("/projects/{project_id}/trash/{batch_id}")
@@ -86,12 +94,13 @@ def _patch(db: Session, ctx: RequestContext, project_id: str, what: str, id_: st
     kind, r = _row(db, p, what, id_)
     name = body.get("name")
     if name is not None:
-        if not isinstance(name, str) or not name.strip() or len(name) > 256:
-            raise HTTPException(422, "name must be 1 to 256 characters")
+        if not isinstance(name, str):
+            raise HTTPException(422, "A name is text")
+        clean = names.clean(name)
         if kind == "collection":
-            r.name = name.strip()
+            r.name = clean
         else:
-            r.title = name.strip()
+            r.title = clean
     desc = body.get("description")
     if desc is not None:
         if kind != "dataset" or not isinstance(desc, str):

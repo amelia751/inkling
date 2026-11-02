@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from .. import aftercommit, blobstore
@@ -256,7 +256,11 @@ def drop_purged(db: Session, ctx: RequestContext, p: ProjectRow, node_ids: set[s
             status, res = run(db, vctx, "branch", d.id, {})
             if status < 300:
                 status, res = run(db, vctx, "commit", d.id, body)
-            oid = res.get("commit_oid") if status < 300 else None
+            if status >= 300:
+                # todo18: never drop files from a versioned dataset's definition without the commit
+                # that records it; the request's transaction rolls back and nothing is purged.
+                raise HTTPException(503, f"Couldn't record the removal in {d.title}'s history, so nothing was deleted forever. Try again.")
+            oid = res.get("commit_oid")
         record_event(db, org_id=p.org_id, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, action="dataset.files_purged", target=d.id, detail={"projectId": p.id, "files": len(gone), "commitOid": oid})
         out.append({"id": d.id, "name": d.title, "items": len(gone), "commitOid": oid})
     db.flush()
@@ -285,7 +289,28 @@ def trash(db: Session, ctx: RequestContext, p: ProjectRow, kind: str, row: Any) 
 
 def _batch(db: Session, p: ProjectRow, batch_id: str) -> FsBatch | None:
     b = db.get(FsBatch, batch_id)
-    return b if b is not None and b.project_id == p.id and b.kind == "trash" else None
+    return b if b is not None and b.project_id == p.id and b.kind == "trash" and b.state is None else None
+
+
+DONE = {"restoring": "restored", "destroying": "destroyed"}
+
+
+def _claim(db: Session, p: ProjectRow, batch_id: str, state: str) -> FsBatch | None:
+    """Take the batch lock (todo18 B). A conditional UPDATE, atomic on Postgres (the loser waits
+    on the row lock, then sees the state set) and on SQLite (one writer). The loser gets 409."""
+    res = db.execute(update(FsBatch).where(FsBatch.id == batch_id, FsBatch.project_id == p.id, FsBatch.state.is_(None)).values(state=state).execution_options(synchronize_session=False))
+    b = db.get(FsBatch, batch_id)
+    if b is not None:
+        db.refresh(b)
+    if res.rowcount == 0 and b is not None and b.project_id == p.id and b.state is not None:  # type: ignore[attr-defined]
+        what = {"restoring": "being restored", "destroying": "being deleted", "restored": "already restored", "destroyed": "already deleted forever"}.get(b.state, b.state)
+        raise HTTPException(409, f"Someone else got there first: this is {what}")
+    return b
+
+
+def _release(b: FsBatch | None, state: str) -> None:
+    if b is not None:
+        b.state = DONE[state]
 
 
 def _batch_rows(db: Session, batch_id: str) -> dict[str, list[Any]]:
@@ -296,15 +321,20 @@ def _source_roots(db: Session, p: ProjectRow, batch_id: str) -> list[SourceNode]
     return list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.trash_batch_id == batch_id, SourceNode.trashed_at.is_not(None))))
 
 
-def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> dict:
+def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str, resolutions: dict[str, str] | None = None) -> dict:
+    lock = _claim(db, p, batch_id, "restoring")
     roots = _source_roots(db, p, batch_id)
     if roots:
+        if lock is not None:
+            lock.state = None  # a file batch is also an undo unit: hold the row lock only
         items = list_items(db, p, batch_id=batch_id)
-        res = fs.apply(db, ctx, p, {"ops": [{"kind": "restore", "nodeIds": [n.id for n in roots]}]})
+        # A name now taken: 409 with `conflicts`, like any Sources op; the person picks keep both /
+        # replace / skip in the same dialog and the restore retries with `resolutions` (todo18 B).
+        res = fs.apply(db, ctx, p, {"ops": [{"kind": "restore", "nodeIds": [n.id for n in roots]}], **({"resolutions": resolutions} if resolutions else {})})
         relocated = any(it.get("originalLocation") is None for it in items)
         _audit(db, ctx, p, "restore", "source", batch_id, batch_id, {"files": len(roots), "fsBatchId": res.get("batchId")})
         return {"restored": items, "relocatedToRoot": relocated}
-    b = _batch(db, p, batch_id)
+    b = lock if lock is not None and lock.kind == "trash" else None
     if b is None:
         raise HTTPException(404, "nothing in Trash with that id")
     items = list_items(db, p, batch_id=batch_id)
@@ -320,10 +350,21 @@ def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> d
                 if d is not None and d.trashed_at is not None:
                     relocated = True
                     d.trashed_at = d.trashed_by = d.trash_batch_id = None
-    db.delete(b)
+    _release(b, "restoring")
     db.flush()
     _audit(db, ctx, p, "restore", b.resource, batch_id, batch_id, {"items": len(items)})
     return {"restored": items, "relocatedToRoot": relocated}
+
+
+def restore_many(db: Session, ctx: RequestContext, p: ProjectRow, batch_ids: list[str], resolutions: dict[str, str] | None = None) -> dict:
+    """Restore several batches at once, all or nothing (the request's one transaction)."""
+    ids = list(dict.fromkeys(batch_ids))
+    out: dict = {"restored": [], "relocatedToRoot": False}
+    for b in ids:
+        r = restore(db, ctx, p, b, resolutions)
+        out["restored"].extend(r["restored"])
+        out["relocatedToRoot"] = out["relocatedToRoot"] or r["relocatedToRoot"]
+    return out
 
 
 def _delete_by(db: Session, column: str, values: list[str]) -> None:
@@ -397,44 +438,61 @@ def _delete_blobs(keys: list[str]) -> None:
 
 
 def destroy(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> dict:
+    lock = _claim(db, p, batch_id, "destroying")
     roots = _source_roots(db, p, batch_id)
     if roots:
+        if lock is not None:
+            lock.state = None
         plan = fs.purge_plan(db, p, roots)
         b = fs.Batch(db, ctx, p)
         fs.purge_apply(b, plan)
         fs.finish(b)
         _audit(db, ctx, p, "destroy", "source", batch_id, batch_id, {"purged": b.purged})
         return {"purged": b.purged}
-    b = _batch(db, p, batch_id)
+    b = lock if lock is not None and lock.kind == "trash" else None
     if b is None:
         raise HTTPException(404, "nothing in Trash with that id")
     n = _destroy_rows(db, _batch_rows(db, batch_id))
     resource = b.resource
-    db.delete(b)
+    _release(b, "destroying")
     db.flush()
     _audit(db, ctx, p, "destroy", resource, batch_id, batch_id, {"purged": n})
     return {"purged": n}
 
 
-def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None) -> dict:
-    """Empty Trash: the files (as before) and every other batch."""
+def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None, kind: str = "all") -> dict:
+    """Empty Trash. `kind="all"` (the project Trash page) purges every kind; `kind="sources"`
+    (Sources › Trash) purges files only and never touches datasets, collections or Studios
+    (todo18 P0-1). The result carries `byKind`, the count per kind, for the confirm dialog."""
+    if kind not in ("all", "sources"):
+        raise HTTPException(422, "kind must be all or sources")
     out = fs.empty_trash(db, ctx, p, dry_run=dry_run, older_than=older_than)
-    q = select(FsBatch).where(FsBatch.project_id == p.id, FsBatch.kind == "trash", FsBatch.resource != "project")
+    by_kind = {"sources": out.get("purged", 0), "datasets": 0, "collections": 0, "studios": 0}
+    if kind == "sources":
+        return {**out, "byKind": by_kind}
+    q = select(FsBatch).where(FsBatch.project_id == p.id, FsBatch.kind == "trash", FsBatch.state.is_(None), FsBatch.resource != "project")
     if older_than is not None:
         q = q.where(FsBatch.at < older_than)
     batches = list(db.scalars(q))
     purged = 0
     for b in batches:
         rows = _batch_rows(db, b.id)
+        for k in ("dataset", "collection", "studio"):
+            by_kind[k + "s"] += len(rows.get(k) or [])
         if dry_run:
             purged += sum(len(v) for v in rows.values())
             continue
+        # Take each batch's lock (todo18 B): one a restore holds is skipped, not destroyed under it.
+        got = db.execute(update(FsBatch).where(FsBatch.id == b.id, FsBatch.state.is_(None)).values(state="destroying").execution_options(synchronize_session=False))
+        if got.rowcount == 0:  # type: ignore[attr-defined]
+            continue
         purged += _destroy_rows(db, rows)
-        db.delete(b)
+        b.state = "destroyed"
     if batches and not dry_run:
         db.flush()
         _audit(db, ctx, p, "destroy", "all", p.id, None, {"batches": len(batches), "purged": purged})
     out["purged"] = out.get("purged", 0) + purged
+    out["byKind"] = by_kind
     return out
 
 
@@ -513,6 +571,8 @@ def list_items(db: Session, p: ProjectRow, kind: str = "all", *, batch_id: str |
             d.update(batchId=n.trash_batch_id or n.id, kind="source", trashedBy=_who(db, n.trashed_by, _actor(db, n.trash_batch_id)), trashedByName=n.trashed_by or "", daysLeft=days_left(n.trashed_at), dependents={"files": files})
             items.append(d)
     q2 = select(FsBatch).where(FsBatch.project_id == p.id, FsBatch.kind == "trash", FsBatch.resource.in_(("dataset", "collection", "studio")))
+    # A batch being restored or destroyed (the lock holder) still lists itself; done ones don't.
+    q2 = q2.where(FsBatch.state.is_(None) | FsBatch.state.in_(("restoring", "destroying")))
     if want not in (None, "source"):
         q2 = q2.where(FsBatch.resource == want)
     elif want == "source":
@@ -547,7 +607,7 @@ def purge_expired(db: Session, *, days_: int | None = None) -> dict:
     d = days() if days_ is None else days_
     cutoff = now() - timedelta(days=d)
     out = fs.purge_expired(db, days=d)
-    pids = set(db.scalars(select(FsBatch.project_id).where(FsBatch.kind == "trash", FsBatch.at < cutoff).distinct()))
+    pids = set(db.scalars(select(FsBatch.project_id).where(FsBatch.kind == "trash", FsBatch.state.is_(None), FsBatch.at < cutoff).distinct()))
     purged = 0
     for pid in pids:
         p = _get(db, ProjectRow, pid)

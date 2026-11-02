@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { copyName, extensionChanged, keepBothName, nameWarning, nextUntitled, normalizeName, stem, validateName, windowsReservedWarning } from "./names";
+import { copyName, nameProblem, extensionChanged, keepBothName, nameWarning, nextUntitled, normalizeName, stem, validateName, windowsReservedWarning } from "./names";
 
 describe("names (todo7 D10)", () => {
   it("stems keep multi-part extensions together", () => {
@@ -85,5 +85,18 @@ describe("nameWarning (never blocks)", () => {
     expect(nameWarning("Chest_Xray")).toBeNull();
     expect(nameWarning("case_014.dcm", { isFile: true })).toBeNull();
     expect(nameWarning("scan_2024-03-07")).toMatch(/date/);
+  });
+});
+
+describe("todo18 nameProblem (same cases as the api's kernel/names.py)", () => {
+  it("refuses dots, blanks, control characters and over 255 bytes", () => {
+    expect(nameProblem(".")).toBe("“.” can't be used as a name");
+    expect(nameProblem("..")).toBe("“..” can't be used as a name");
+    expect(nameProblem("   ")).toBe("A name can't be empty");
+    expect(nameProblem("a\u0001b")).toBe("A name can't contain control characters");
+    expect(nameProblem("é".repeat(128))).toBe("A name can be at most 255 bytes long");
+    expect(nameProblem("a/b", { slash: true })).toBe("A name can't contain “/”");
+    expect(nameProblem("a/b")).toBeNull();
+    expect(nameProblem("Scans v2. ")).toBeNull();
   });
 });

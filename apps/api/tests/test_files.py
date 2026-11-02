@@ -313,6 +313,7 @@ def test_purge_keeps_bytes_a_dataset_uses_and_deletes_the_rest(client):
     t = _ops(client, p, [{"kind": "trash", "nodeIds": [n["keep.png"].id, n["drop.png"].id]}]).json()
     assert t["warnings"] == ["LV segmentation still uses 1 of these"]
     preview = client.get(f"/api/v1/projects/{p}/trash/empty/preview").json()
+    preview.pop("byKind")
     assert preview == {"purged": 2, "keptBytes": [{"name": "keep.png", "reason": "Kept: the LV segmentation dataset uses it"}]}
     with kdb.session_scope() as db:
         keep_asset = db.get(Asset, n["keep.png"].asset_id)
@@ -345,6 +346,7 @@ def test_purge_keeps_bytes_a_version_uses(client):
     client.post(f"/api/v1/source-nodes/{a_id}/versions/1/restore")
     assert [v["version"] for v in client.get(f"/api/v1/source-nodes/{a_id}/versions").json()["versions"]] == [3, 2, 1]
     out = client.post(f"/api/v1/projects/{p}/trash/empty").json()
+    out.pop("byKind")
     assert out == {"purged": 1, "keptBytes": [{"name": "a.png", "reason": "Kept: a version of a.png uses it"}]}
     with kdb.session_scope() as db:
         assert db.get(SourceNode, b_id) is None and db.get(Asset, b_asset) is not None

@@ -99,3 +99,27 @@ def test_reused_approval_is_refused(client, trashed):
 def test_people_need_no_approval(client, trashed):
     p, n = trashed
     assert client.post(f"/api/v1/projects/{p}/fs/ops", json={"ops": [{"kind": "purge", "nodeIds": [n]}]}).status_code == 200
+
+
+def test_an_approval_used_by_a_concurrent_request_is_refused_not_a_500(client, trashed, monkeypatch):
+    """todo18 B: two requests racing with one approval. The use is recorded by INSERT … ON
+    CONFLICT DO NOTHING, so the second one gets 403 "already used" even when both passed any
+    read-before-write check (here: the ledger row lands between the checks and the write)."""
+    from fastapi import HTTPException
+    from sqlalchemy.orm import Session
+
+    from studio_api.context import RequestContext
+    from studio_api.models import ApprovalUsed
+
+    p, _ = trashed
+    token, _h = _agent(p)
+    ok = _approval(token, p, op="trash.empty", aid="appr_race")
+    ctx = RequestContext(p, "agent:run_9", "c1", scopes=("project.write",), on_behalf_of=ALICE, token_hash=hash_token(token), approval_id=ok)
+    with kdb.session_scope() as db:
+        approvals.verify(db, ctx, operation="trash.empty", project_id=p)
+    real_get = Session.get
+    monkeypatch.setattr(Session, "get", lambda self, model, ident, **kw: None if model is ApprovalUsed else real_get(self, model, ident, **kw))
+    with kdb.session_scope() as db:
+        with pytest.raises(HTTPException) as e:
+            approvals.verify(db, ctx, operation="trash.empty", project_id=p)
+    assert e.value.status_code == 403 and "already used" in str(e.value.detail)

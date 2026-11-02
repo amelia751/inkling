@@ -7,7 +7,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:b25810f7727b32e72b9fe232a8e834b495923d10d43612648ec1fab8e6c6993d",
+      "artifactDigest": "sha256:cc7b40c639cb5b75b74360a3a38481d79d71b73b2e201c5a9993a5f41b3c6f3e",
       "path": "plugins/cardiac-metrics",
       "capabilities": [
         "cine.metrics"
@@ -70,7 +70,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:47f4743a36a84b21e3b4c02f3060f86d031c6dc5f5bb2533271a43af5995d045",
+      "artifactDigest": "sha256:bf366ca8b58bf755eea29b1c6d8edb07f09cb575acc901e26f2631a0cc080e59",
       "path": "plugins/cine",
       "capabilities": [
         "cine.view",
@@ -140,7 +140,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:c05ce3c56b82dcdd0f987baff3ce58413521d67a4308cafa35a866f3f076abc3",
+      "artifactDigest": "sha256:7a2481cd6c27d7463d590767bf282038d0d06df3a8e2f8f604eed8b616d87844",
       "path": "plugins/dicom-export",
       "capabilities": [
         "dataset.export.dicom"
@@ -200,7 +200,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:2067ca4a3efeb7fa7b3999f4c1fdea709df378227226f8de1a3810533796466f",
+      "artifactDigest": "sha256:5bca111f8f37c91165de14e2576204660cfb185123342208b138caa853f16241",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -279,7 +279,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:bf36f4a170aaabdf506cae87d299276b1d3b03bab6457e751dfea1eb1121cf4b",
+      "artifactDigest": "sha256:8bf08bb9d624e9b18f1abba4cf697652e59d9feb7538a55db73599335027c56c",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"
@@ -443,7 +443,7 @@
       "version": "0.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:87a4bce6966f55c8cfc0a707587336f61201a3357afb7c46b0efb02a69619ea7",
+      "artifactDigest": "sha256:536a48657ef8effe16e5ad5a3ed1e6299e24bdca519b16df8eb334071e45f61a",
       "path": "plugins/text-spans",
       "capabilities": [
         "text.annotate"
@@ -505,7 +505,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:09f4a385bf1381fd5a6d03d8ee15f4af51f301a10ffc875af471ab204c407eb1",
+      "artifactDigest": "sha256:9e314931eec6ddd3941a1c3b84bd1ad69279efb5be80451ed193f53bb5caf28a",
       "path": "plugins/timeseries",
       "capabilities": [
         "signal.view",
@@ -578,7 +578,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:3906b9d44502357fd80c801762cf26a706ba2fa52f8a94fa56d372d9b48c802f",
+      "artifactDigest": "sha256:e01087acbd7b953245c4a95125423be5ce99cb4930fd3b0cb04dff7a4bf49467",
       "path": "plugins/video",
       "capabilities": [
         "video.view",
@@ -652,7 +652,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:5801ab2e38b6d360d2dc41bf92676c83df52cc15d273482b5b574093a4ecb01a",
+      "artifactDigest": "sha256:65b194e952880e9dc66bb93662183db22e81a60fc043cd5b7456e125943abdbb",
       "path": "plugins/volume",
       "capabilities": [
         "volume.view",
@@ -725,7 +725,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:da99789ca1acdf38dee528cbd8171988de33cbdf1f11889d287ec794bf707c12",
+      "artifactDigest": "sha256:11890a2bbd334d6f7aef03125e79d140d0c1ade8e36d9156412a70ffcc7a78ec",
       "path": "plugins/wsi",
       "capabilities": [
         "pyramid.view",

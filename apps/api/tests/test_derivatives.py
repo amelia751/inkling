@@ -51,3 +51,50 @@ def test_codec_failure_is_not_retried():
     [r] = d.claim(db)
     d.fail(db, r, "ffmpeg can't decode cinepak video", retry=False)
     assert d.state_for(db, ["nod-3"])["nod-3"]["error"].endswith("cinepak video")
+
+
+def test_worker_routes_convert_an_uploaded_avi_end_to_end(client):
+    """Report → pending row → claim → progress → streamed files → complete; purge keys."""
+    from studio_api import blobstore
+    from studio_api import db as kdb
+
+    from .conftest import worker_headers as W
+    from .test_explore import _report
+    from .test_projects import _import
+
+    p = client.post("/api/v1/projects", json={"title": "Video"}).json()["id"]
+    imp = _import(client, p, {"clips/a.avi": b"RIFF....AVI "})
+    _report(client, imp, {"a.avi": "video"}, {"a.avi": {"derivative": {"kind": "video-mp4"}}})
+    [row] = client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"]
+    assert row["kind"] == "video-mp4" and row["state"] == "processing"
+    assert client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"] == []
+    assert client.post(f"/api/v1/worker/derivatives/{row['id']}/progress", json={"progress": 40}, headers=W()).status_code == 200
+    with kdb.session_scope() as db:
+        assert d.state_for(db, [row["nodeId"]])[row["nodeId"]]["progress"] == 40
+    up = client.put(f"/api/v1/worker/derivatives/{row['id']}/files/derived/abc.mp4", content=b"mp4-bytes", headers={**W(), "Content-Type": "video/mp4"})
+    assert up.status_code == 200, up.text
+    key = up.json()["key"]
+    assert key.endswith(f"{p}/derived/abc.mp4") and blobstore.data().read(key) == b"mp4-bytes"
+    assert client.put(f"/api/v1/worker/derivatives/{row['id']}/files/../x", content=b"x", headers=W()).status_code in (404, 422)
+    done = client.post(f"/api/v1/worker/derivatives/{row['id']}/complete", json={"sha": "abc", "key": key, "keys": [key], "meta": {"codec": "h264"}}, headers=W())
+    assert done.json()["state"] == "ready"
+    with kdb.session_scope() as db:
+        assert d.derived_keys(db, [row["nodeId"]]) == [key]
+        items = [{"nodeId": row["nodeId"], "path": "x"}]
+        d.annotate(db, items)
+        assert items[0]["derivative"]["src"] == key and items[0]["derivative"]["state"] == "ready"
+
+
+def test_a_codec_failure_through_the_api_is_final(client):
+    from .conftest import worker_headers as W
+    from .test_explore import _report
+    from .test_projects import _import
+
+    p = client.post("/api/v1/projects", json={"title": "Video"}).json()["id"]
+    imp = _import(client, p, {"b.mov": b"moov"})
+    _report(client, imp, {"b.mov": "video"}, {"b.mov": {"derivative": {"kind": "video-mp4"}}})
+    [row] = client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"]
+    r = client.post(f"/api/v1/worker/derivatives/{row['id']}/fail", json={"reason": "ffmpeg can't decode cinepak video", "retry": False}, headers=W()).json()
+    assert r["state"] == "failed"
+    assert client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"] == []
+    assert client.post("/api/v1/worker/derivatives/claim", json={}).status_code in (401, 403)

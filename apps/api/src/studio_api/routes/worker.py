@@ -240,8 +240,28 @@ def derivative_progress(did: str, body: dict = Body(...), db: Session = Depends(
 async def derivative_file(did: str, rel: str, request: Request, db: Session = Depends(get_session)):
     from ..kernel import derivatives
 
-    data = await request.body()
-    return {"key": derivatives.put_file(db, derivatives.get(db, did), rel, data, request.headers.get("Content-Type", ""))}
+    from .. import blobstore
+
+    row = derivatives.get(db, did)
+    key = derivatives.file_key(row, rel)
+    ctype = request.headers.get("Content-Type") or "application/octet-stream"
+    # Spooled to /tmp and handed to the BlobStore as a file (a converted video can be
+    # gigabytes): never held in memory.
+    import os
+    import tempfile
+
+    size = 0
+    with tempfile.NamedTemporaryFile(prefix="derive-", delete=False) as f:
+        async for chunk in request.stream():
+            size += len(chunk)
+            f.write(chunk)
+    try:
+        blobstore.data().put_file(key, f.name, ctype)
+    finally:
+        os.unlink(f.name)
+    derivatives.register_file(db, row, key, ctype, size)
+    db.commit()
+    return {"key": key}
 
 
 @router.post("/derivatives/{did}/complete", dependencies=[Depends(_auth)])

@@ -952,6 +952,10 @@ def task_document(db: Session, t: TaskRow) -> dict:
             if n.id in labels:
                 entry["label"] = labels[n.id]
             items.append(entry)
+    # todo18 D4: videos and slides the browser can't show play from their derivative.
+    from . import derivatives
+
+    derivatives.annotate(db, items)
     # Items dropped into the Studio (todo11 D8): there from `registered` on, after the rest.
     items += [ingest.entry(ti) for ti in ingesting]
     add_folders(db, items)

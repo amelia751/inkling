@@ -89,6 +89,24 @@ def state_for(db: Session, node_ids: list[str]) -> dict[str, dict]:
     return out
 
 
+def annotate(db: Session, items: list[dict]) -> None:
+    """Add `derivative` ({kind, state, progress, label, error?, src?}) to task-document items;
+    a ready slide also gets `mpp` and its size from the slide header."""
+    states = state_for(db, [i["nodeId"] for i in items if i.get("nodeId")])
+    for it in items:
+        s = states.get(it.get("nodeId") or "")
+        if not s:
+            continue
+        v = {k: s[k] for k in ("kind", "state", "progress", "label", "error") if k in s}
+        if s["state"] == "ready":
+            v["src"] = s["key"]
+            meta = s.get("meta") or {}
+            for k in ("mpp", "width", "height"):
+                if meta.get(k) is not None:
+                    it[k] = meta[k]
+        it["derivative"] = v
+
+
 def derived_keys(db: Session, node_ids: list[str]) -> list[str]:
     """Every blob key derived from these nodes, for the purge worker (todo18 W8)."""
     if not node_ids:
@@ -100,9 +118,6 @@ def derived_keys(db: Session, node_ids: list[str]) -> list[str]:
 
 
 # ---- Worker API helpers ------------------------------------------------------------------------
-
-MAX_FILE_BYTES = 256 << 20
-
 
 def get(db: Session, did: str) -> Derivative:
     from fastapi import HTTPException
@@ -117,17 +132,25 @@ def public(row: Derivative) -> dict:
     return {"id": row.id, "projectId": row.project_id, "nodeId": row.source_node_id, "kind": row.kind, "state": row.state, "attempts": row.attempts, "progress": row.progress}
 
 
-def put_file(db: Session, row: Derivative, rel: str, data: bytes, media_type: str) -> str:
-    """Store one derivative file at `uploads/<project>/derived/<rel>` (content-hash keyed by the worker)."""
+def file_key(row: Derivative, rel: str) -> str:
+    """`uploads/<project>/derived/<rel>`; the worker names files by the source's content hash."""
     from fastapi import HTTPException
 
-    from .. import blobstore
     from . import assets
 
-    if not rel.startswith(("derived/",)) or ".." in rel.split("/") or len(data) > MAX_FILE_BYTES:
-        raise HTTPException(422, "derivative files are derived/<sha>… and at most 256 MB")
-    key = f"{assets.UPLOAD_PREFIX}{row.project_id}/{rel}"
-    store = blobstore.data()
-    if store.stat(key) is None:
-        store.put(key, data, media_type or "application/octet-stream")
-    return key
+    parts = rel.split("/")
+    if not rel.startswith("derived/") or ".." in parts or "" in parts:
+        raise HTTPException(422, "derivative files are derived/<sha>…")
+    return f"{assets.UPLOAD_PREFIX}{row.project_id}/{rel}"
+
+
+def register_file(db: Session, row: Derivative, key: str, media_type: str, size: int) -> None:
+    """The viewable file (.mp4, .dzi, thumbnail) is an Asset of the project so `assetUrl` signs it;
+    DZI tiles are served as companions of their `.dzi` asset."""
+    from ..models import Asset
+
+    if key.endswith(("_files",)) or "_files/" in key:
+        return
+    if db.scalar(select(Asset.id).where(Asset.workspace_id == row.project_id, Asset.path == key)) is None:
+        db.add(Asset(workspace_id=row.project_id, path=key, media_type=media_type, role="derivative", size=size))
+        db.flush()

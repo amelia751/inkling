@@ -241,7 +241,8 @@ class DeriveWorker:
             main = ""
             for rel, path in d.files.items():
                 ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
-                up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=path.read_bytes(), headers={"Content-Type": ctype})
+                with path.open("rb") as body:  # streamed, never read whole
+                    up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=body, headers={"Content-Type": ctype})
                 up.raise_for_status()
                 keys.append(up.json()["key"])
                 if rel == d.key:

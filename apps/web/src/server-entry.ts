@@ -18,6 +18,9 @@ import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { PIPELINE_SCHEMAS, pipelineDocuments } from "@studio/contracts/pipeline";
 import { DatasetStructure } from "@studio/contracts/dataset-structure";
 import { DropPlan } from "@studio/contracts/drop-plan";
+import { Rules } from "@studio/contracts/rules";
+import { lintRulesDocument, lintRulesMarkdown, WriteRejected } from "@studio/contracts/lint-rules";
+export { lintRulesMarkdown };
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
 import { catalogForKind, catalogPrompt, describeCatalog, environmentJsonSchema } from "@/extension-host/catalog";
 import type { EnvironmentSpec } from "@studio/contracts/environment";
@@ -121,6 +124,10 @@ export function contractSchemas(): Record<string, unknown> {
     "drop-plan.v1.json": js(DropPlan, "drop-plan/v1"),
     // todo16 D7: the operations catalogue, read by apps/mcp and the kernel's tests.
     "operations.json": { $id: `${NAMING.schemaPrefix}://schema/operations/v1`, ...operationsDocument() },
+    // todo17 D3/D4/D6: project rules, the lint rule catalogue and the write-rejected problem JSON, read by the kernel.
+    "rules.v1.json": js(Rules, "rules/v1"),
+    "lint-rules.json": lintRulesDocument(),
+    "write-rejected.v1.json": js(WriteRejected, "write-rejected/v1"),
   };
 }
 

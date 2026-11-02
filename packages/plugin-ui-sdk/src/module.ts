@@ -2,6 +2,7 @@ import type { ComponentType, SVGProps } from "react";
 import type * as z from "zod";
 import type { Annotation, Geometry, Project, StudioItem } from "@studio/contracts/types";
 import type { EnvironmentSpec, LabelGroup } from "@studio/contracts/environment";
+import type { RulesInput } from "@studio/contracts/rules";
 import type { ResolvedEnv, ResolvedViewport } from "./resolved";
 
 /** An icon component (ui icons satisfy it). */
@@ -152,6 +153,8 @@ export interface ReviewRuleContribution extends ContributionBase {
 export interface PresetContribution extends ContributionBase {
   title: string;
   spec: EnvironmentSpec;
+  /** Default project rules (`rules.v1`, todo17 D3) for projects created from this preset. */
+  rules?: RulesInput;
 }
 
 export interface Contributions {

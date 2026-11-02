@@ -49,7 +49,7 @@ describe("envForProfile", () => {
     expect(e.viewports).toBe(mixed.viewports);
     expect(e.tools).toBe(mixed.tools);
     expect(e.panels).toBe(mixed.panels);
-    expect(e.fileView).toBe(false);
+    expect(e.showFileView).toBe(false);
     expect(e.context).toMatchObject({ renderer: "r.image", "item.kind": "k.image", "item.profile": "k.image" });
   });
   it("uses the profile's renderer, config, tools and panels for another kind", () => {
@@ -69,7 +69,7 @@ describe("envForProfile", () => {
     for (const kind of ["k.video", "k.bad"]) {
       const spec: EnvironmentSpec = { ...mixed.spec, data: { ...mixed.spec.data, kinds: { ...mixed.spec.data!.kinds, "k.bad": { renderer: "r.missing" } } } };
       const e = envForProfile(env(spec), activeProfile(env(spec), { dataKind: kind }), lookup);
-      expect(e.fileView).toBe(true);
+      expect(e.showFileView).toBe(true);
       expect(e.viewports).toEqual([]);
       expect(e.tools).toEqual([]);
       expect(e.panels).toEqual(mixed.panels);

@@ -47,7 +47,7 @@ const SLOTS: PanelSlot[] = ["left", "right", "bottom", "viewport-bar"];
  * environment's own kind keeps its resolved viewports (overrides already merged). An unmapped
  * kind gets no viewports: the shell shows the generic file view.
  */
-export function envForProfile(env: ResolvedEnv, active: ActiveProfile, lookup: Lookup): ResolvedEnv & { fileView: boolean } {
+export function envForProfile(env: ResolvedEnv, active: ActiveProfile, lookup: Lookup): ResolvedEnv & { showFileView: boolean } {
   const { profile, kind } = active;
   const ownKind = kind !== undefined && kind === (env.spec.data?.kind ?? env.dataKind?.id);
   let viewports: ResolvedViewport[] = [];
@@ -62,7 +62,10 @@ export function envForProfile(env: ResolvedEnv, active: ActiveProfile, lookup: L
       });
     }
   }
-  const fileView = viewports.length === 0;
+  const unmapped = viewports.length === 0;
+  // The generic file view renderer (packages/renderers) when it's registered; else the shell's fallback.
+  if (unmapped && env.fileView) viewports = [env.fileView];
+  const fileView = unmapped;
   const pick = <T extends "tools" | "panels">(type: T, ids: string[], fallback: Registered<T>[]): Registered<T>[] =>
     ids.flatMap((id) => {
       const known = fallback.find((c) => c.id === id) ?? (lookup.get(type as "tools", id) as Registered<T> | undefined);
@@ -80,5 +83,5 @@ export function envForProfile(env: ResolvedEnv, active: ActiveProfile, lookup: L
     "item.kind": kind,
     "item.profile": active.key,
   };
-  return { ...env, viewports, tools, panels, context, fileView };
+  return { ...env, viewports, tools, panels, context, showFileView: fileView && !env.fileView };
 }

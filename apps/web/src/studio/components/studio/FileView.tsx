@@ -6,7 +6,7 @@ import { buttonVariants } from "@studio/ui/ui/button";
 /**
  * The generic file view (todo19 D3): an item whose kind this Studio doesn't map still opens,
  * with its name, kind and a download per file. Nothing disappears.
- * TODO(todo19 C): switch to the `file-view` renderer in packages/renderers once it lands.
+ * Fallback only: used when the `studio.file-view` renderer (packages/renderers) isn't registered.
  */
 export function FileView({ item, kind }: { item: StudioItem; kind: string | undefined }) {
   return (

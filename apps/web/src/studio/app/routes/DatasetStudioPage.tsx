@@ -414,7 +414,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       <main className="min-h-0 flex-1" aria-label="Viewer">
         {item ? (
           <CanvasDropTarget projectId={routeProjectId} taskId={projectId}>
-            {env.fileView ? (
+            {env.showFileView ? (
               <FileView key={activeKey} item={item} kind={active.kind} />
             ) : env.viewports.length === 1 ? (
               <ViewportHost key={remountsOnItemSwitch(main) ? item.id : `${activeKey}:${main.name}`} env={env} viewport={main} project={project} item={item} />

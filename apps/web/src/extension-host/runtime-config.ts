@@ -6,7 +6,8 @@ import { NAMING, configureNaming } from "@studio/contracts/naming";
  * (served by the web image's nginx from a ConfigMap or a compose volume) before the app
  * loads. When it's absent (the Vite dev server, tests) the same-origin defaults below apply,
  * plus what the dev server passes in: `import.meta.env.DEV_API` (true when it was started with
- * `<envPrefix>API_URL`, vite.config.ts) and `VITE_<envPrefix>FLAGS`.
+ * `<envPrefix>API_URL`, vite.config.ts), `import.meta.env.AUTH_MODE` (`<envPrefix>WEB_AUTH_MODE`,
+ * default `dev`) and `VITE_<envPrefix>FLAGS`.
  */
 export interface RuntimeConfig {
   /** Base of the kernel API (apps/api); the SPA appends `/v1/…`, `/annotations/…`. */
@@ -26,7 +27,17 @@ export interface RuntimeConfig {
    * (the proxy still runs on an opaque origin there, because its iframe has no allow-same-origin).
    */
   sandboxOrigin: string;
+  /**
+   * How people sign in (todo9): `dev` trusts the dev principal (no sign-in, the API's dev
+   * headers or the mock account); `workos` uses the API's cookie session and sends signed-out
+   * visitors to `/api/auth/login`. Nothing secret.
+   */
+  auth: { mode: AuthMode };
 }
+
+export type AuthMode = "dev" | "workos";
+const AUTH_MODES: readonly AuthMode[] = ["dev", "workos"];
+const authMode = (v: unknown): AuthMode | undefined => (AUTH_MODES.includes(v as AuthMode) ? (v as AuthMode) : undefined);
 
 const viteEnv = (): Record<string, unknown> => (import.meta as { env?: Record<string, unknown> }).env ?? {};
 
@@ -40,6 +51,7 @@ function defaults(): RuntimeConfig {
     flags: typeof flags === "string" ? splitList(flags) : [],
     displayName: NAMING.displayName,
     sandboxOrigin: "",
+    auth: { mode: authMode(env.AUTH_MODE) ?? "dev" },
   };
 }
 
@@ -65,6 +77,7 @@ export function applyRuntimeConfig(doc: unknown): RuntimeConfig {
     flags: [...new Set([...base.flags, ...(Array.isArray(d.flags) ? d.flags.filter((f): f is string => typeof f === "string") : typeof d.flags === "string" ? splitList(d.flags) : [])])],
     displayName: str(d.displayName) ?? base.displayName,
     sandboxOrigin: trimSlash(str(d.sandboxOrigin) ?? base.sandboxOrigin),
+    auth: { mode: authMode((d.auth as Record<string, unknown> | undefined)?.mode) ?? base.auth.mode },
   };
   if (current.displayName !== NAMING.displayName) {
     const old = NAMING.displayName;

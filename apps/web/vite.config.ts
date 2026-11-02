@@ -175,8 +175,9 @@ export default defineConfig({
       ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
     },
   },
-  // runtime-config.ts reads this as the dev default for `kernel` (/config.json decides in images).
-  define: { "import.meta.env.DEV_API": JSON.stringify(kernel) },
+  // runtime-config.ts reads these as the dev defaults for `kernel` and `auth.mode` (/config.json
+  // decides in images). <envPrefix>WEB_AUTH_MODE=workos needs <envPrefix>API_URL (the API signs people in).
+  define: { "import.meta.env.DEV_API": JSON.stringify(kernel), "import.meta.env.AUTH_MODE": JSON.stringify(env("WEB_AUTH_MODE") ?? "dev") },
   resolve: {
     alias: [
       ...aliases,

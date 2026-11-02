@@ -6,6 +6,7 @@
 #                                  entrypoint, NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1)
 #   INKLING_AGENT_TOKEN            service token the proxy adds; it never reaches the browser
 #   INKLING_WEB_AUTH_MODE          `dev` (default) or `workos`: picks agent-auth/<mode>.inc (todo9 Phase 5)
+#                                  and is written into /config.json's `auth`
 #   INKLING_API_URL                the API (default http://api:8000); `workos` mode asks its
 #                                  /api/auth/verify for the person's access token
 #   GIT_SHA                        build revision for /version
@@ -26,11 +27,16 @@ server {
   location = /version { access_log off; default_type application/json; return 200 '{"service":"web","gitSha":"${GIT_SHA}"}'; }
 
   # Runtime config (ConfigMap / compose volume at /etc/studio/config.json). Missing → 404 and
-  # the SPA uses same-origin defaults. Never cached.
+  # the SPA uses same-origin defaults. Never cached. The sign-in mode comes from the container's
+  # env: it's spliced in as the document's first key (the file's opening `{`), so leave `auth`
+  # out of the file (a duplicate key in the file would win, JSON.parse keeps the last).
   location = /config.json {
     root /etc/studio;
     default_type application/json;
     add_header Cache-Control "no-store" always;
+    sub_filter_types application/json;
+    sub_filter_once on;
+    sub_filter '{' '{"auth":{"mode":"${INKLING_WEB_AUTH_MODE}"},';
     try_files /config.json =404;
   }
 

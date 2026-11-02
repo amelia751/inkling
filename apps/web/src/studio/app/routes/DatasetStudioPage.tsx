@@ -13,6 +13,8 @@ import { remountsOnItemSwitch, ViewportHost } from "@/studio/components/studio/V
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations } from "@/studio/lib/api";
+import { mergeAnnotations, resolveConflict, useSaveConflicts } from "@/studio/lib/annotation-merge";
+import { toProblem } from "@/studio/lib/problem";
 import { useLiveDropItems } from "@/studio/core/drops";
 import { setLabelClasses } from "@studio/plugin-ui-sdk/labels";
 import { ANNOTATIONS_VERSION } from "@studio/contracts/migrations/annotations-v1-to-v2";
@@ -38,7 +40,7 @@ import { rememberTool } from "@/studio/stores/tool-prefs";
 import { nextTodoIndex } from "@/studio/lib/items";
 import { studioItems } from "@/studio/lib/item-folders";
 import { useTaskItems } from "@/studio/lib/task-items";
-import type { Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
+import type { Annotation, AnnotationDocument, Placement, Plane, Project, ResumeState, StudioItem } from "@studio/contracts/types";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { useShell } from "@/studio/stores/shell";
 import { FullPageMessage } from "./shared";
@@ -439,6 +441,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
         />
       </ShellTransition>
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} env={env} />
+      <SaveConflictNotice />
       <ShellTransition>
       {viewport === "phone" ? (
         <div className="flex min-h-0 flex-1 flex-col">{canvas}</div>
@@ -600,11 +603,33 @@ function useEnvBindings(env: ResolvedEnv, items: StudioItem[]) {
   }, [env]);
 }
 
+/** todo18 P0-4: the same annotation was changed here and by someone else; the person picks Theirs or Mine. */
+function SaveConflictNotice() {
+  const conflicts = useSaveConflicts((s) => s.conflicts);
+  const c = conflicts[0];
+  if (!c) return null;
+  const pick = (choice: "mine" | "theirs") => {
+    const st = useStudio.getState();
+    useStudio.setState({ annotations: resolveConflict(st.annotations, c, choice), dirty: true });
+    useSaveConflicts.getState().drop(c.id);
+  };
+  const what = c.mine?.label ?? c.theirs?.label ?? c.id;
+  return (
+    <div role="status" data-testid="save-conflict-notice" className="flex items-center gap-2 border-b bg-amber-50 px-3 py-1.5 text-sm dark:bg-amber-950">
+      <span className="flex-1">Someone else changed this {what} annotation too{conflicts.length > 1 ? ` (+${conflicts.length - 1} more)` : ""}. Keep which version?</span>
+      <button type="button" className="rounded border px-2 py-0.5" data-testid="save-conflict-theirs" onClick={() => pick("theirs")}>Theirs</button>
+      <button type="button" className="rounded border px-2 py-0.5" data-testid="save-conflict-mine" onClick={() => pick("mine")}>Mine</button>
+    </div>
+  );
+}
+
 /** Debounced save; the indicator only shows "Saved" after the server returns the new revision. */
 function useAutosave(projectId: string) {
   const annotations = useStudio((s) => s.annotations);
   const dirty = useStudio((s) => s.dirty);
   const inFlight = useRef(false);
+  // The document as last loaded or saved: the merge base when a save gets 409 (todo18 P0-4).
+  const base = useRef<{ projectId: string; annotations: Annotation[] } | null>(null);
 
   const save = useCallback(async () => {
     const run = async (): Promise<void> => {
@@ -619,10 +644,24 @@ function useAutosave(projectId: string) {
           useStudio.getState().markSaved(await saveVersioned(projectId, snapshot), snapshot);
         } else {
           const v2 = !snapshot.some((a) => LEGACY_TYPES.test(a.geometry.type));
+          if (base.current?.projectId !== projectId) base.current = { projectId, annotations: s.past[0] ?? [] };
           const doc = await saveAnnotations(projectId, { revision: s.revision, annotations: snapshot, ...(v2 ? { annotationsVersion: ANNOTATIONS_VERSION } : {}) });
+          base.current = { projectId, annotations: snapshot };
           useStudio.getState().markSaved(doc.revision, snapshot);
         }
       } catch (e) {
+        const p = toProblem(e);
+        const current = p.current as AnnotationDocument | undefined;
+        if (p.kind === "conflict" && current && Array.isArray(current.annotations)) {
+          // Someone saved since we loaded: merge per annotation id, then save the merge on their revision.
+          const { merged, conflicts } = mergeAnnotations(base.current?.annotations ?? [], useStudio.getState().annotations, current.annotations);
+          base.current = { projectId, annotations: current.annotations };
+          useStudio.setState({ annotations: merged, revision: current.revision, dirty: true, saveState: "saving" });
+          if (conflicts.length) useSaveConflicts.getState().set(conflicts);
+          inFlight.current = false;
+          await run();
+          return;
+        }
         // A stale head shows "someone else saved; refresh and re-apply" in the top bar.
         if (!(e instanceof StaleHeadError)) console.warn("[save]", e);
         useStudio.getState().markError();

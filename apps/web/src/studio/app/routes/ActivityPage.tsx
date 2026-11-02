@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { Link, useParams } from "react-router";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -82,7 +83,7 @@ function Entry({ projectId, entry: e }: { projectId: string; entry: ActivityEntr
 /** todo16 D9: "Ana's assistant: renamed 3 items, deleted dataset X", with Undo while it's the latest change. */
 function TurnEntry({ projectId, entry: e }: { projectId: string; entry: ActivityEntry }) {
   const qc = useQueryClient();
-  const undo = useMutation({ mutationFn: () => undoTurn(projectId, e.turnId!), onSettled: () => void qc.invalidateQueries({ queryKey: projectKeys.activity(projectId) }) });
+  const undo = useMutation({ mutationFn: () => undoTurn(projectId, e.turnId!), onSettled: () => invalidateFor(qc, projectId, "turn.undone") });
   return (
     <div className="flex items-center gap-3 px-4 py-2.5" data-testid="activity-entry" data-action={e.action} data-actor-kind="assistant" data-turn-id={e.turnId}>
       <AiIcon className="size-4 shrink-0 text-ai-text" />

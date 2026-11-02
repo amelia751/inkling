@@ -4,9 +4,10 @@ import type { AnnotationDocument, Project } from "@studio/contracts/types";
 import { canonicalId } from "@studio/contracts/naming";
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import { apiFetch } from "@/extension-host/http";
+import { ensureOk } from "./problem";
 
 async function json<T>(res: Response): Promise<T> {
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  await ensureOk(res); // todo18 D2: failures throw ProblemError
   return res.json() as Promise<T>;
 }
 

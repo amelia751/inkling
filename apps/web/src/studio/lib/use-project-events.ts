@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { withDevPrincipal } from "@/studio/lib/dev-principal";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { invalidateFor } from "@/studio/lib/invalidate";
 
 /**
  * Live project updates (todo6 Phase 1.2): the kernel's server-sent events invalidate the
@@ -93,21 +94,13 @@ function open(projectId: string): EventSource {
     const id = (e as MessageEvent).lastEventId;
     if (id) lastIds.set(projectId, id);
   };
-  const refresh = (keys: unknown[][]) => (e: Event) => {
-    seen(e);
-    keys.forEach((queryKey) => void client?.invalidateQueries({ queryKey }));
-  };
-  const project = ["projects", projectId];
-  const on = {
-    // The drive (todo7) lists imported files too: its children pages follow imports and inspection.
-    "import.updated": refresh([project, ["sources"], ["files", projectId]]),
-    "source.node.inspected": refresh([project, ["sources"], ["source-nodes"], ["files", projectId, "children"]]),
-    "proposal.created": refresh([project]),
-    "proposal.decided": refresh([project, ["tasks"]]),
-    // A boot adds a draft task: Overview and the Studio list show it.
-    "boot.ready": refresh([project]),
-  };
-  for (const [type, fn] of Object.entries(on)) es.addEventListener(type, fn);
+  // todo18 D1: every event refreshes what `invalidateFor` says, app-wide (not only on the page that listens).
+  for (const type of ["proposal.created", "proposal.decided"]) {
+    es.addEventListener(type, (e) => {
+      seen(e);
+      if (client) invalidateFor(client, projectId, type);
+    });
+  }
   for (const type of FORWARDED) {
     es.addEventListener(type, (e) => {
       seen(e);
@@ -117,6 +110,7 @@ function open(projectId: string): EventSource {
       } catch {
         // Events without a JSON body still notify.
       }
+      if (client) invalidateFor(client, projectId, type, data && typeof data === "object" ? (data as { taskId?: string; datasetId?: string }) : undefined);
       emitProjectEvent(type, data, projectId);
     });
   }

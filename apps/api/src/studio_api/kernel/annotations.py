@@ -151,9 +151,13 @@ def put_document(db: Session, ctx: RequestContext, doc: dict, labels: set[str] |
     if errors:
         raise HTTPException(422, {"ok": False, "errors": errors})
     row = _row(db, ctx)
+    base = doc.get("revision")
+    if base is not None and int(base) != row.revision:
+        # todo18 P0-4: someone saved since this client loaded; hand back their document to merge.
+        raise HTTPException(409, {"code": "revision_conflict", "message": f"the document is at revision {row.revision}, this save was based on {base}", "current": get_document(db, ctx)})
     row.annotations = [_canonical(a) for a in doc["annotations"]]
     row.annotations_version = doc.get("annotationsVersion")
-    row.revision = int(doc.get("revision") or 0) + 1
+    row.revision += 1
     row.saved_at = datetime.now(UTC)
     return get_document(db, ctx)
 

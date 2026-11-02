@@ -1,3 +1,4 @@
+import { problemFrom, type ApiProblem } from "./problem";
 import { useQuery } from "@tanstack/react-query";
 import type {
   ActivityEntry,
@@ -39,9 +40,14 @@ export class ApiError extends Error {
     readonly body?: unknown,
     /** The API's `X-Request-Id`, shown in "Copy error details" so a report can be traced. */
     readonly requestId?: string,
+    headers?: Headers | null,
   ) {
     super(message);
+    // todo18 D2: the decoded problem, so `toProblem(e)` / UI states work on every `api()` failure.
+    this.problem = problemFrom(status, body, headers);
+    if (requestId && !this.problem.requestId) this.problem.requestId = requestId;
   }
+  readonly problem: ApiProblem;
 }
 
 export async function api<T>(path: string, init?: RequestInit & { json?: unknown }): Promise<T> {
@@ -56,7 +62,7 @@ export async function api<T>(path: string, init?: RequestInit & { json?: unknown
     const body = (await res.json().catch(() => ({}))) as { detail?: unknown; error?: unknown };
     const detailMessage = body.detail && typeof body.detail === "object" && typeof (body.detail as { message?: unknown }).message === "string" ? (body.detail as { message: string }).message : undefined;
     const msg = typeof body.detail === "string" ? body.detail : detailMessage ?? (typeof body.error === "string" ? body.error : `${res.status} ${res.statusText}`);
-    throw new ApiError(res.status, msg, body, res.headers.get("X-Request-Id") ?? undefined);
+    throw new ApiError(res.status, msg, body, res.headers.get("X-Request-Id") ?? undefined, res.headers);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

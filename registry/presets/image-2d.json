@@ -57,5 +57,89 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "normal",
+        "name": "Normal",
+        "synonyms": [
+          "no finding",
+          "unremarkable"
+        ],
+        "colour": "#22c55e",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "ellipse",
+          "freehand",
+          "mask",
+          "point"
+        ]
+      },
+      {
+        "id": "pneumonia",
+        "name": "Pneumonia",
+        "synonyms": [
+          "PNA",
+          "consolidation"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "ellipse",
+          "freehand",
+          "mask",
+          "point"
+        ]
+      },
+      {
+        "id": "nodule",
+        "name": "Nodule",
+        "synonyms": [
+          "mass",
+          "lesion"
+        ],
+        "colour": "#f59e0b",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "ellipse",
+          "freehand",
+          "mask",
+          "point"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "modality",
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": true,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {
+        "dicom.series-incomplete": "warn"
+      }
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

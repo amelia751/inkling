@@ -1158,3 +1158,67 @@ class ApprovalUsed(Base):
     project_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---- Rules, lint findings, idempotency (todo17 D3, D10, D13; migration 0019) ---------------
+
+
+class ProjectRules(Base):
+    """A project's `rules.v1` document (todo17 D3). Absent = the preset's defaults, revision 0."""
+
+    __tablename__ = "project_rules"
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), primary_key=True)
+    rules: Mapped[dict] = mapped_column(JSON)
+    revision: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    updated_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ProjectRulesHistory(Base):
+    """Every saved rules revision, append-only (`GET /api/v1/projects/:id/rules/history`)."""
+
+    __tablename__ = "project_rules_history"
+    __table_args__ = (UniqueConstraint("project_id", "revision", name="uq_project_rules_history_revision"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    revision: Mapped[int] = mapped_column(Integer)
+    rules: Mapped[dict] = mapped_column(JSON)
+    actor: Mapped[str] = mapped_column(String(256))
+    on_behalf_of: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LintFinding(Base):
+    """What a write or a scan found against the project's rules (todo17 D10)."""
+
+    __tablename__ = "lint_findings"
+    __table_args__ = (
+        Index("ix_lint_findings_project_open", "project_id", "resolved_at"),
+        Index("ix_lint_findings_resource", "resource_kind", "resource_id"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: uuid.uuid4().hex)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"))
+    resource_kind: Mapped[str] = mapped_column(String(32))
+    resource_id: Mapped[str] = mapped_column(String(128))
+    rule: Mapped[str] = mapped_column(String(128))
+    severity: Mapped[str] = mapped_column(String(16))
+    path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    message: Mapped[str] = mapped_column(Text, default="", server_default="")
+    source: Mapped[str] = mapped_column(String(8))  # write | scan
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class IdempotencyKey(Base):
+    """A mutating request's `Idempotency-Key` (todo17 D13): same key + same body replays
+    `response` (`{status, body}`); a different body is 422; `status` 'in_progress' means the first one
+    is still running (409), 'done' once stored."""
+
+    __tablename__ = "idempotency_keys"
+    key: Mapped[str] = mapped_column(String(256), primary_key=True)
+    principal: Mapped[str] = mapped_column(String(256), primary_key=True)
+    op_id: Mapped[str] = mapped_column(String(256))
+    body_hash: Mapped[str] = mapped_column(String(71))
+    status: Mapped[str] = mapped_column(String(16))
+    response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)

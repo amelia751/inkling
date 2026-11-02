@@ -6,14 +6,16 @@ from __future__ import annotations
 import mimetypes
 import re
 
+import jsonpatch
+
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from .. import blobstore
-from ..context import RequestContext, ensure_workspace, get_context, issue_session, scope_of
+from ..context import AUTH_API_KEY, RequestContext, ensure_workspace, get_context, issue_session, scope_of
 from ..db import get_session
-from ..kernel import annotations, assets, audit, events, gateway, jobs, projects, secrets
+from ..kernel import annotations, assets, audit, boundary, environment_policy, events, gateway, jobs, projects, secrets
 from ..models import WorkspaceEnvironment
 from ..naming import ns
 from ..plugins import installer
@@ -55,7 +57,7 @@ def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext 
     if ctx.profile == "plugin":  # plugins write through POST /v1/annotations, never the whole document
         raise HTTPException(403, "plugin sessions can't replace the annotation document")
     c = _project_ctx(ctx, project_id, db, write=True)
-    return annotations.put_document(db, c, doc)
+    return annotations.put_document(db, c, doc, labels=boundary.vocabulary(db, c))
 
 
 @router.get("/v1/annotations")
@@ -259,11 +261,28 @@ def workspace_state(workspace_id: str, ctx: RequestContext = Depends(get_context
 
 @router.put("/v1/workspaces/{workspace_id}/environment")
 def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project_ctx(ctx, workspace_id, db, write=True)
+    """Replace the task's environment. Runs the same policy as every other environment write
+    (todo17 M0): shape and references → 422; an API key needs `environments:write` (or `admin`)
+    and, without `admin`, may only change what the agent path allow-list permits → 403."""
+    if ctx.auth == AUTH_API_KEY and not ctx.allows("environments.write"):
+        raise HTTPException(403, "this API key can't write environments (needs the environments:write scope)")
+    # For a key, `environments.write` (checked above) is the write gate; the project's own write gate is `annotations.write`.
+    c = _project_ctx(ctx, workspace_id, db, write=ctx.auth != AUTH_API_KEY)
     row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task)) or WorkspaceEnvironment(workspace_id=c.workspace_id, task_id=c.task, revision=0)
+    installed = environment_policy.installed_plugins(db, c.workspace_id)
+    new_env = body.get("environment")
+    if ctx.auth == AUTH_API_KEY and "*" not in ctx.scopes:
+        # A non-admin key is held to the agent's allow-list: its replacement is checked as the patch it amounts to.
+        base = row.environment if isinstance(row.environment, dict) else {}
+        patch = jsonpatch.make_patch(base, new_env).patch if isinstance(new_env, dict) else [{"op": "replace", "path": "", "value": new_env}]
+        checked = environment_policy.check_write(principal="agent", installed=installed, base=base, patch=patch, is_patch=True)
+    else:
+        checked = environment_policy.check_write(principal="person", installed=installed, environment=new_env)
+    if not checked.ok:
+        return JSONResponse(checked.body(), status_code=checked.status)
     db.add(row)
     before = row.environment
-    row.environment, row.revision, row.author = body.get("environment"), row.revision + 1, c.principal
+    row.environment, row.revision, row.author = new_env, row.revision + 1, c.principal
     audit.record(db, c, "workspace.environment", before=before, after=row.environment)
     return {"revision": row.revision}
 

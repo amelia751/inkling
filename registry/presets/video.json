@@ -43,5 +43,64 @@
       "inkling.core.reviewRules.unlabeled-items"
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "person",
+        "name": "Person",
+        "synonyms": [
+          "pedestrian",
+          "human"
+        ],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "point",
+          "span",
+          "instant"
+        ]
+      },
+      {
+        "id": "vehicle",
+        "name": "Vehicle",
+        "synonyms": [
+          "car"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "span"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": false,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

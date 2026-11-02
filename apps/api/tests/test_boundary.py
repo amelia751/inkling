@@ -226,7 +226,13 @@ def test_filtered_annotations_drop_free_text(client):
         {"id": "a1", "itemId": "img/a.png", "label": "cat", "geometry": {"type": "box", "x": 1, "y": 2, "w": 3, "h": 4, "comment": "seen by Dr Smith"}, "provenance": "human-created", "attributes": {"note": "Patient Jane Doe called", "score": 0.9, "review_status": "accepted"}},
         {"id": "a2", "itemId": "Doe_Jane/scan.png", "label": "Jane Doe", "geometry": None, "attributes": {}},
     ]}
-    assert client.put("/api/annotations/ws-a", json=doc, headers=ws("ws-a")).status_code == 200
+    # a2 is malformed legacy data (todo17 M0: a save now rejects it), so it goes straight into the row.
+    assert client.put("/api/annotations/ws-a", json=doc, headers=ws("ws-a")).status_code == 422
+    from studio_api.db import session_scope
+    from studio_api.models import AnnotationDocumentRow
+
+    with session_scope() as s:
+        s.merge(AnnotationDocumentRow(workspace_id="ws-a", task_id="ws-a", revision=1, annotations=doc["annotations"]))
     h = agent(client)
     r = client.get("/api/v1/boundary/annotations", headers=h)
     assert r.status_code == 200, r.text

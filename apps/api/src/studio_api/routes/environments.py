@@ -16,6 +16,7 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     GET          /api/environments/{projectId}/audit → the workspace's hash-chained audit verifies
     POST         /api/environments/validate            → shape and reference checks (todo11 D2)
     GET          /api/catalog, /api/catalog/schema     → schemas/catalog.json, schemas/environment.v1.json
+    GET          /api/catalog/prompt                   → schemas/catalog.md (the MCP `catalog` tool)
     GET          /api/catalog/{capabilities,plugins/…} → 501: dev server only
 
 Every write is checked here (kernel/environment_policy.py, todo11 D2): required `revision`,
@@ -132,14 +133,16 @@ def _base_environment(db: Session, c: RequestContext) -> dict | None:
 @router.post("/api/environments/validate")
 async def validate_environment(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """todo11 D2: the same checks a write gets (shape and references against the generated
-    schema and the workspace's installed plugins), without saving. Body: the spec. Resolve-level
-    checks (extends merge, overrides) stay in the Studio's resolver."""
+    schema and the workspace's installed plugins), without saving. Body: the spec. todo17 D2: the
+    resolver's deterministic checks run too; errors reject, warnings come back as `warnings`."""
     try:
         body = await _body(request)
     except _BadBody as e:
         return _json(400, {"error": str(e)})
     checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, ctx.workspace_id), environment=body)
-    return {"ok": True, "spec": body} if checked.ok else _json(422, checked.body())
+    if not checked.ok:
+        return _json(422, {**checked.body(), "warnings": checked.warnings})
+    return {"ok": True, "spec": body, "warnings": checked.warnings}
 
 
 @router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)
@@ -159,6 +162,18 @@ def catalog(kind: str | None = None):
 @router.api_route("/api/catalog/schema", methods=["GET"], include_in_schema=False)
 def catalog_schema():
     return _static_json("environment.v1.json")
+
+
+@router.api_route("/api/catalog/prompt", methods=["GET"], include_in_schema=False)
+def catalog_prompt():
+    """The catalogue as Markdown (`schemas/catalog.md`, served by the web as /catalog.md): what an
+    outside agent reads before writing an environment (todo17 M0)."""
+    from ..config import settings
+
+    try:
+        return Response((settings().repo_root / "schemas" / "catalog.md").read_text(), media_type="text/markdown; charset=utf-8")
+    except FileNotFoundError:
+        return _json(404, {"error": "schemas/catalog.md isn't in this image"})
 
 
 @router.api_route("/api/catalog/{rest:path}", methods=["GET", "POST"], include_in_schema=False)

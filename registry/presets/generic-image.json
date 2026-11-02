@@ -45,5 +45,49 @@
       }
     ],
     "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "object",
+        "name": "Object",
+        "synonyms": [
+          "thing",
+          "item"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "box",
+          "polygon",
+          "point"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": false,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": true,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
   }
 }

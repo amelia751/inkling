@@ -40,6 +40,7 @@ export type OrgPermission = (typeof ORG_PERMISSIONS)[number];
 export const API_KEY_SCOPES = [
   { id: "datasets:read", label: "Read datasets and exports" },
   { id: "annotations:write", label: "Write annotations" },
+  { id: "environments:write", label: "Change Studio environments" },
   { id: "studio:tools", label: "Run Studio tools (MCP, agents)" },
   { id: "admin", label: "Manage the organization" },
 ] as const;

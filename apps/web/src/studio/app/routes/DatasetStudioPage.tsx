@@ -1,5 +1,5 @@
 import { Component, startTransition, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
-import { Link, useLocation, useParams } from "react-router";
+import { Link, useBlocker, useLocation, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
@@ -696,6 +696,25 @@ function useAutosave(projectId: string) {
     const t = setTimeout(save, AUTOSAVE_MS);
     return () => clearTimeout(t);
   }, [annotations, dirty, save]);
+
+  // todo18 §2 C: leaving the Studio inside the app with unsaved edits saves first; only if that
+  // fails does the person choose to leave anyway (the edits stay in this tab's stash).
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => useStudio.getState().dirty && currentLocation.pathname !== nextLocation.pathname);
+  useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    let live = true;
+    void save().then(() => {
+      if (!live || blocker.state !== "blocked") return;
+      if (!useStudio.getState().dirty) return blocker.proceed();
+      if (window.confirm("Your latest annotations aren't saved yet. Leave anyway? They're kept in this tab and come back when you reopen the Studio.")) {
+        stashUnsaved();
+        blocker.proceed();
+      } else blocker.reset();
+    });
+    return () => {
+      live = false;
+    };
+  }, [blocker, save]);
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {

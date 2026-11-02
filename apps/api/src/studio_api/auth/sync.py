@@ -26,7 +26,8 @@ Handlers (data only):
     invitation.*             mirror `org_invitations`; accepted → pending project grants become
                              `project_members`; revoked → its grants dropped
     session.*, organization_domain.*, api_key.*, connection.*, authentication.*
-                             one `audit_events` row each (id = the event id)
+                             one `audit_events` row each (id = the event id); api_key.revoked
+                             also drops the key's cached validation
 
 Unknown users and organizations referenced by an event become stubs, filled in by their own
 events (out-of-order safety). `reconcile()` runs about once a day (and from the CLI) to catch
@@ -385,6 +386,11 @@ def _on_audit(db: Session, ev: dict[str, Any], fx: Effects) -> None:
         "detail": detail or None,
         "at": _dt(ev.get("created_at")) or now(),
     }])
+    if ev["event"] == "api_key.revoked" and d.get("id"):
+        from .api_keys import forget_key
+
+        key_id = str(d["id"])
+        fx.append(lambda: forget_key(key_id))  # revoked in the dashboard: stop honouring it now
 
 
 def _handler(event_type: str) -> Callable[[Session, dict[str, Any], Effects], None] | None:

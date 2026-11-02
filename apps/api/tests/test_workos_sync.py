@@ -303,3 +303,17 @@ def test_the_loop_starts_only_in_workos_mode(client):
         assert sync.start(threading.Event()) is None  # interval 0 = off
     finally:
         config.set_settings(s)
+
+
+def test_api_key_revoked_is_audited_and_drops_the_cached_validation(client, stats, monkeypatch):
+    from studio_api.auth import api_keys
+
+    dropped: list[str] = []
+    monkeypatch.setattr(api_keys, "forget_key", dropped.append)
+    sync.process([ev("organization.created", org("org_K", "Keys"))], stats)
+    e = ev("api_key.revoked", {"object": "api_key", "id": "api_key_1", "owner": {"type": "organization", "id": "org_K"}, "name": "ci", "obfuscated_value": "sk_…abcd", "permissions": [], "created_at": "2026-11-01T00:00:00Z", "updated_at": "2026-11-01T10:00:00Z"})
+    sync.process([e], stats)
+    assert dropped == ["api_key_1"]
+    with db.session_scope() as d:
+        a = d.get(AuditEvent, e["id"])
+        assert a.action == "workos.api_key.revoked" and a.target == "api_key_1" and a.actor == "workos" and a.org_id is not None

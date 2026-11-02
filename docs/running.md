@@ -336,3 +336,22 @@ For checking hosted pages, emails, SSO and Radar by hand. Copy `secrets/workos.e
 your own test users; staging is shared, so don't delete organizations you didn't create. Roles
 and permissions come from `infra/workos/seed.yml`; change them there, not on the dashboard.
 Production keys (`sk_live_…`) never go on a laptop.
+
+### Production (runbook)
+
+The `prod` overlay runs `workos` mode against the WorkOS production environment; on Google Cloud
+it is `infra/k8s/overlays/gke/phi/components/workos`, off until Phase 14. The steps are in
+`infra/k8s/README.md` ("WorkOS runbook"), in short:
+
+- **Turning it on:** staging for a week first; seed and configure the production environment,
+  add the `workos-secrets` version, enable the component (and the agent's mode in `gke/ai`), and
+  check sign-in, invitations and API keys **while the ingress allow-list (`STUDIO_ALLOW_CIDRS`)
+  is still on**. Remove the allow-list only afterwards, in its own change.
+- **Rotating the cookie password** ends every session; rolling restart of api.
+- **Rotating the API key** has no downtime: new key in, restart api and worker, then revoke the
+  old one in the dashboard.
+- **When WorkOS is down,** signed-in people keep working (local JWT checks, transient refresh
+  errors keep the session); new sign-ins and member, invitation and key changes fail; the event
+  sync catches up later. Don't restart pods.
+- **Revoking a person everywhere:** remove the membership (or block the user), revoke their
+  sessions and their API keys; access ends at the next refresh (≤ 5 min).

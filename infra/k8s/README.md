@@ -1,7 +1,8 @@
 # infra/k8s
 
 Kustomize for every deployable app. How to run it on a local cluster is in
-[`docs/running.md`](../../docs/running.md); this file covers secrets, scaling and adding an app.
+[`docs/running.md`](../../docs/running.md); this file covers secrets, the WorkOS runbook, scaling
+and adding an app.
 
 ```text
 base/
@@ -94,6 +95,89 @@ kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-m
 # …and so on per the table. Rotate with `kubectl create … --dry-run=client -o yaml | kubectl apply -f -`,
 # then `kubectl rollout restart deployment/<app>`.
 ```
+
+## WorkOS runbook (todo9)
+
+Sign-in, WorkOS environments and modes: `docs/running.md` ("Signing in"). Here: the Secret and
+what to do in production. `workos-secrets` keys are in the table above. Pods read it at start
+(`envFrom` / `secretKeyRef`), so every change needs a restart of api (and worker for the key).
+Below, `NS=studio`; on GKE the value lives in Secret Manager (`spurby-phi`, secret
+`workos-secrets`, one JSON object) and External Secrets syncs it within an hour, or at once with
+`kubectl -n $NS annotate externalsecret workos-secrets force-sync=$(date +%s) --overwrite`.
+Elsewhere, replace the Secret with `kubectl create secret generic workos-secrets
+--from-env-file=<(…) --dry-run=client -o yaml | kubectl apply -f -`. Never echo a value.
+
+**Turn sign-in on (GKE, Phase 14).** Staging first, for a week with the team; then production.
+
+1. WorkOS production environment: billing details added, `npx workos@0.24.0 seed
+   --file=infra/workos/seed.yml` applied, then the dashboard steps in `infra/workos/README.md`
+   (default role, API key permissions, JWT template, session lengths). Redirect URI exactly
+   `https://<STUDIO_HOST>/api/auth/callback` (https only), sign-out URI `https://<STUDIO_HOST>/`,
+   initiate login URI `https://<STUDIO_HOST>/api/auth/login`.
+2. Add the secret's first version (the production key is shown once; paste it at the prompt):
+
+   ```sh
+   python3 -c 'import getpass, json; from cryptography.fernet import Fernet; print(json.dumps({
+     "INKLING_API_WORKOS_API_KEY": getpass.getpass("WorkOS API key: "),
+     "INKLING_API_WORKOS_CLIENT_ID": input("Client id: "),
+     "INKLING_API_WORKOS_COOKIE_PASSWORD": Fernet.generate_key().decode()}))' \
+     | gcloud secrets versions add workos-secrets --project=spurby-phi --data-file=-
+   kubectl -n $NS get externalsecret workos-secrets     # SecretSynced
+   ```
+
+3. Add `components/workos` to `overlays/gke/phi/kustomization.yaml` (before `values`), set
+   `INKLING_API_WORKOS_ISSUER` in its `configmap.yaml` to the `iss` Phase 0 recorded, render from
+   `live/phi`, apply. In `overlays/gke/ai`, set `INKLING_AGENT_AUTH_MODE=workos` and
+   `INKLING_AGENT_WORKOS_CLIENT_ID` (and the issuer) in `agent-config`, apply.
+4. **Keep the ingress allow-list (`STUDIO_ALLOW_CIDRS`).** From an allowed address: sign in,
+   switch organization, invite someone, create and revoke an API key, sign out. Check that
+   `GET /api/auth/session` without a cookie is 401, and that a request with only the dev headers
+   is refused.
+5. Only then remove the `whitelist-source-range` annotation (`overlays/gke/phi/patches`, its
+   replacement in `values/` and `STUDIO_ALLOW_CIDRS` in `local.env*`) in a separate change.
+
+Roll back by removing `components/workos` and applying: the api returns to `dev` mode, which is
+only safe while the allow-list is still on, so never remove the allow-list and the component in
+the same change.
+
+**Rotate the cookie password.** Every session ends: everyone signs in again. Do it off-hours, or
+at once if the key leaked. Replace only `INKLING_API_WORKOS_COOKIE_PASSWORD`, then restart api:
+
+```sh
+gcloud secrets versions access latest --secret=workos-secrets --project=spurby-phi \
+  | python3 -c 'import json, sys; from cryptography.fernet import Fernet; d = json.load(sys.stdin)
+d["INKLING_API_WORKOS_COOKIE_PASSWORD"] = Fernet.generate_key().decode(); print(json.dumps(d))' \
+  | gcloud secrets versions add workos-secrets --project=spurby-phi --data-file=-
+# force-sync (above), then:
+kubectl -n $NS rollout restart deployment/api && kubectl -n $NS rollout status deployment/api
+```
+
+During the rollout old and new pods disagree, so a person may be signed out twice. Disable the
+previous secret version afterwards (`gcloud secrets versions disable`).
+
+**Rotate the WorkOS API key.** No downtime: WorkOS keeps both keys valid until you revoke one.
+Create a new key in the dashboard (API Keys), put it in `INKLING_API_WORKOS_API_KEY` the same way,
+force-sync, `kubectl rollout restart deployment/api deployment/worker`, check `/readyz`, a
+sign-in and the worker's event sync log, then revoke the old key in the dashboard and disable the
+old secret version. A leaked key: revoke first (sign-in and member management fail until the new
+key is rolled out; signed-in people keep working until their next refresh fails).
+
+**WorkOS outage.** People already signed in keep working: access tokens are verified locally
+against the cached JWKS, and a refresh that fails with 408, 429, 5xx or a network error keeps the
+session and is retried (never a sign-out). New sign-ins, sign-out, switching organization,
+invitations, member, role and key changes, the Admin Portal and the security page fail with a
+WorkOS error. API keys keep working while their validation is cached, then fail closed. The
+worker's event sync stops and catches up from its Postgres cursor afterwards (WorkOS keeps 90
+days of events). Nothing to do but watch the refresh-error and sync-lag dashboards and
+status.workos.com; don't restart pods (a restart drops the JWKS and key caches).
+
+**Revoke a person everywhere.** In the organization's Members page (or the WorkOS dashboard:
+Users → the person), remove their membership, or for every organization delete or block the user;
+then revoke their sessions (dashboard: the user's Sessions → revoke, or `revoke_session` for each
+`sid`). Their access token stays valid until it expires (≤ 5 min, D10); the next refresh fails
+and the cookie is cleared. Also revoke organization API keys they created (Settings → API keys)
+and, for a leaked laptop, any MCP key on it. Annotations, revisions and audit rows keep their
+principal (`user:<workos id>`).
 
 ## Scaling knobs
 

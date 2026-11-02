@@ -176,6 +176,12 @@ export function decide(
         summary: `Add a proposal to link two parts of the project: ${str("rule").slice(0, 160)}. It changes no data; you confirm it in Explore.`,
         detail: { kind: "proposal", proposalKind: "relationship", workspaceId: s.workspaceId ?? "" },
       };
+    // todo16 round 2: adding data needs the person's rights confirmation; the tool sends
+    // `attested: true` only after they approve this card.
+    case "import_from_url":
+      return { kind: "ask", summary: `Do you have the rights to add this data? Import one file from ${linkHost(str("url"))} into this project.` };
+    case "copy_into_project":
+      return { kind: "ask", summary: `Do you have the rights to add this data? Copy files from ${str("sampleId") ? `the sample ${str("sampleId").slice(0, 80)}` : "another project"} into this project.` };
     case "activate_plugin":
       return { kind: "ask", summary: `Activate the staged plugin change ${str("requestId")}` };
     case "configure_plugin":
@@ -213,6 +219,16 @@ export function decide(
       const op = operationForTool(call.toolName);
       return op ? decideOperation(op, call.input, s.trashAskOver ?? 100, { files: facts.files }) : { kind: "allow" };
     }
+  }
+}
+
+/** The host of a link for an approval card (never its path or query, which may carry a token). */
+function linkHost(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return "a link";
   }
 }
 

@@ -12,7 +12,7 @@ moves its folder to the Trash (undoable) while no dataset uses it.
     GET   /api/v1/projects/{id}/imports                  import sessions, newest first
     POST  /api/v1/projects/{id}/imports                  start (or resume) a session: file list + attestation
     PUT   /api/v1/uploads/{session}/files/{fileId}       the bytes (`?offset=` for 64 MB chunks)
-    POST  /api/v1/projects/{id}/imports/url             import one file from an https:// or gs:// link (todo16 D10)
+    POST  /api/v1/projects/{id}/imports/url             import one file from an https:// or gs:// link (todo16 D10): 202, a queued job
     POST  /api/v1/projects/{id}/imports/copy            copy from a sample or another project you can read
     POST  /api/v1/imports/{id}/complete | /cancel | /retry
     GET   /api/v1/imports/{id}
@@ -128,7 +128,7 @@ def start_import(project_id: str, body: dict = Body(...), ctx: RequestContext = 
     return imports.create_session(db, ctx, p, body)
 
 
-@router.post("/projects/{project_id}/imports/url", status_code=201)
+@router.post("/projects/{project_id}/imports/url", status_code=202)
 def import_from_url(project_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.require_project(db, ctx, project_id, write=True)
     return url_imports.import_url(db, ctx, p, body)

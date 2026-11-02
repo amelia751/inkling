@@ -251,7 +251,9 @@ function Conversation({
     });
   };
   // A message typed (or files dropped) on Home before this project existed (todo13 D1) is sent once, here.
-  usePendingAsk(project.id, (text, drop) => ask(text, drop));
+  // todo16 round 2: a drop from the assistant's upload card comes the same way; while a run is
+  // going it waits in the composer and goes with the next message.
+  usePendingAsk(project.id, (text, drop) => (drop && (busy || running) ? setPending(drop) : ask(text, drop)));
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;

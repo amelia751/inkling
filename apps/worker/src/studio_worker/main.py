@@ -361,6 +361,16 @@ class Worker:
             finally:
                 self.busy = False
             return True
+        if claim.get("builtin") == "imports":
+            # A kernel import job (todo16 round 2, `imports.fetch_url`): the kernel fetches the
+            # link and lands it; this worker only holds the lease while it runs.
+            self.busy = True
+            try:
+                with self.heartbeat(claim["job"]):
+                    self.http.post(f"/api/v1/worker/imports/jobs/{claim['job']['jobId']}/run", json={"workerId": self.worker_id}, timeout=3700).raise_for_status()
+            finally:
+                self.busy = False
+            return True
         if claim.get("builtin") == "service":
             self.busy = True
             try:

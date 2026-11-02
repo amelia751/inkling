@@ -58,6 +58,11 @@ def claim(body: dict = Body(default={}), db: Session = Depends(get_session)):
     if j.plugin_id == service_jobs.PLUGIN:
         # A kernel job a service enqueued (todo12 §5): the worker runs it itself.
         return {"job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "service"}
+    from ..kernel import url_imports
+
+    if j.plugin_id == url_imports.PLUGIN:
+        # A kernel import job (todo16 round 2): the worker asks the kernel to run it.
+        return {"job": jobs.job_dict(j) | {"workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "imports"}
     if j.plugin_id == boundary.PLUGIN:
         # A data-boundary job (todo10 Phase 7): the worker runs it itself; no plugin, no session token.
         return {"job": jobs.job_dict(j) | {"input": j.input, "workspaceId": j.workspace_id, "timeoutSeconds": j.timeout_s, "traceparent": j.traceparent}, "builtin": "boundary"}
@@ -98,6 +103,10 @@ def complete(job_id: str, body: dict = Body(...), db: Session = Depends(get_sess
 
     if j.plugin_id == boundary.PLUGIN:
         raise HTTPException(409, "boundary jobs report to /boundary/jobs/{id}/complete")
+    from ..kernel import url_imports
+
+    if j.plugin_id == url_imports.PLUGIN:
+        raise HTTPException(409, "import jobs run through /imports/jobs/{id}/run")
     gateway.finish(db, j, body.get("result"), body.get("costUsd"))
     return jobs.job_dict(j)
 
@@ -285,6 +294,19 @@ def screen_names_job(body: dict = Body(default={}), db: Session = Depends(get_se
     budget = body.get("budgetS")
     result = name_screen.backfill(db, max_batches=None, budget_s=float(budget) if isinstance(budget, (int, float)) and budget > 0 else 20.0)
     return {"ran": result["screened"] > 0, "result": result}
+
+
+# ---- Import jobs (todo16 round 2) -------------------------------------------------------------
+# `imports.fetch_url`: the worker claims the job (builtin "imports") and asks the kernel to run
+# it; the kernel fetches the link (pinned address, capped) and lands it in the queued session.
+
+
+@router.post("/imports/jobs/{job_id}/run", dependencies=[Depends(_auth)])
+def run_import_job(job_id: str, body: dict = Body(default={}), db: Session = Depends(get_session)):
+    from ..kernel import url_imports
+
+    out = url_imports.run_fetch(db, url_imports.worker_job(db, job_id, str(body.get("workerId"))))
+    return {"state": out.get("state"), "error": out.get("error")}
 
 
 # ---- Data-boundary jobs (todo10 Phase 7) ------------------------------------------------------

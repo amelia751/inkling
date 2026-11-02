@@ -3,21 +3,32 @@ import { UploadIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { cn } from "@studio/ui/utils";
 import type { AgentCard } from "@studio/agent-protocol";
+import { usePendingAsks } from "@/studio/app/entry/pending-ask";
 import { DropCard, pastedFiles, startDrop } from "@/studio/core/drops";
+import { useAgent } from "@/studio/stores/agent";
 
 /**
  * request_upload (todo16 D10): the assistant asks, the person picks or drops files here. The
  * bytes go the normal import path (`startDrop`, into the folder the assistant named or the
  * chat's landing folder); the assistant only ever reads the drop's facts, as for any chat drop.
+ * The drop belongs to the conversation: on the first files it's queued as a message of its own
+ * (`usePendingAsks`), which the conversation sends with the drop block so the assistant gets its
+ * facts, or keeps in the composer for the next message while a run is going (todo16 round 2).
  */
 export function UploadCard({ projectId, card }: { projectId: string; card: Extract<AgentCard, { kind: "upload-request" }> }) {
   const input = useRef<HTMLInputElement>(null);
   const [over, setOver] = useState(false);
   const [dropId, setDropId] = useState<string>();
 
+  const [messageId] = useState(() => crypto.randomUUID());
+
   const take = (files: FileList | File[] | null) => {
     if (!files || !files.length) return;
-    setDropId(startDrop({ projectId, origin: "chat", files: pastedFiles(files), ...(card.folderId ? { targetNodeId: card.folderId } : {}), ...(dropId ? { dropId } : {}) }));
+    const conv = useAgent.getState().conversation(projectId);
+    const id = startDrop({ projectId, origin: "chat", files: pastedFiles(files), conversationId: conv.id, conversationTitle: conv.title, messageId, ...(card.folderId ? { targetNodeId: card.folderId } : {}), ...(dropId ? { dropId } : {}) });
+    setDropId(id);
+    // More files later join the same drop; the message carrying it is sent once.
+    if (!dropId) usePendingAsks.getState().queue(projectId, "", { dropId: id, messageId });
   };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();

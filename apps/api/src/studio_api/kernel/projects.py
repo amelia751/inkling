@@ -22,6 +22,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..context import RequestContext, ensure_workspace
 from ..dbutil import insert_ignore
 from ..models import (
@@ -76,14 +77,22 @@ def personal_org_id(principal: str) -> str:
 
 
 def ensure_principal(db: Session, principal: str) -> str | None:
-    """A person's personal organization (dev creates one per `user:` principal), plus
-    editor access to the samples. Returns the personal org id."""
+    """A person's personal organization (dev creates one per `user:` principal), empty at
+    first. Only principals in `API_SAMPLE_MEMBERS` (dev mode) also join the Samples org, as
+    read-only `viewer`s (todo14 D3, D7); everyone else takes a sample as a copy. Returns the
+    personal org id.
+
+    TODO(todo9 Phase 3): with WorkOS sign-in this becomes the bootstrap of the signed-in
+    person's personal org, and `API_SAMPLE_MEMBERS` is ignored."""
     if not principal.startswith("user:"):
         return None
     org = personal_org_id(principal)
     if db.get(OrganizationMember, (org, principal)) is None:
-        insert_ignore(db, Organization, [{"id": org, "name": "Personal", "kind": "personal", "created_at": now()}, {"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
-        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "owner"}, {"org_id": SAMPLES_ORG, "principal": principal, "role": "editor"}])
+        insert_ignore(db, Organization, [{"id": org, "name": "Personal", "kind": "personal", "created_at": now()}])
+        insert_ignore(db, OrganizationMember, [{"org_id": org, "principal": principal, "role": "owner"}])
+    if settings().sample_member(principal) and db.get(OrganizationMember, (SAMPLES_ORG, principal)) is None:
+        insert_ignore(db, Organization, [{"id": SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
+        insert_ignore(db, OrganizationMember, [{"org_id": SAMPLES_ORG, "principal": principal, "role": "viewer"}])
     return org
 
 
@@ -113,10 +122,28 @@ def require_project(db: Session, ctx: RequestContext, project_id: str, *, write:
     return p
 
 
-def project_of_scope(db: Session, ctx: RequestContext) -> ProjectRow | None:
+def can_write(db: Session, ctx: RequestContext, project_id: str) -> bool:
+    """Whether the caller may change the project (it can already see it)."""
+    try:
+        require_project(db, ctx, project_id, write=True)
+    except HTTPException:
+        return False
+    return True
+
+
+def project_of_scope(db: Session, ctx: RequestContext, *, write: bool = False) -> ProjectRow | None:
     """The project behind a legacy workspace/task route, membership-checked when it exists."""
     p = db.get(ProjectRow, ctx.workspace_id)
-    return require_project(db, ctx, p.id) if p is not None else None
+    return require_project(db, ctx, p.id, write=write) if p is not None else None
+
+
+def require_scope_write(db: Session, ctx: RequestContext) -> None:
+    """A write addressed by the request's workspace (header or token, not a path id): when that
+    workspace is a project, the caller must be allowed to change it. A viewer (the Samples
+    templates, todo14 D7) gets 403; a stranger 404. Service, worker and plugin principals are
+    governed by their own scopes, not by membership."""
+    if person(ctx).startswith("user:"):
+        project_of_scope(db, ctx, write=True)
 
 
 # ---- Seeds -------------------------------------------------------------------------------------
@@ -228,8 +255,6 @@ _seeded: set[int] = set()
 
 def ensure_seeds_once(db: Session) -> None:
     """Per process and settings object: a cache of work already done, not request state."""
-    from ..config import settings
-
     key = id(settings())
     if key not in _seeded:
         ensure_seeds(db)

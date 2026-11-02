@@ -128,6 +128,10 @@ def dispatch(db: Session, ctx: RequestContext, body: dict, *, budget_checked: bo
         if not isinstance(raw, dict):
             raise HTTPException(422, "input must be an object")
         return versioning.command(db, ctx, builtin, raw)
+    # A plugin tool run is a write to the workspace (jobs, then annotations): not for viewers.
+    from .projects import require_scope_write
+
+    require_scope_write(db, ctx)
     if "inputs" in body:
         return dispatch_batch(db, ctx, body)
     plugin_id, version, manifest, tool, capability = _resolve(db, ctx, body)

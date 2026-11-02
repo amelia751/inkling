@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api")
 # ---- Annotations (also the Studio's existing /api/annotations/:projectId endpoints) ------
 
 
-def task_ctx(db: Session, ctx: RequestContext, task_id: str) -> RequestContext:
+def task_ctx(db: Session, ctx: RequestContext, task_id: str, *, write: bool = False) -> RequestContext:
     """The legacy `/annotations/:id` and `/environments/:id` ids are task ids (todo6 D3): a
     task of a project resolves to the project's workspace, and a seed (or older workspace)
     id is its own workspace and task. Project membership is checked when there is one."""
@@ -36,12 +36,12 @@ def task_ctx(db: Session, ctx: RequestContext, task_id: str) -> RequestContext:
         raise HTTPException(403, "session token is bound to another workspace")
     c = ctx.for_scope(workspace, task)
     ensure_workspace(db, workspace)
-    projects.project_of_scope(db, c)
+    projects.project_of_scope(db, c, write=write)
     return c
 
 
-def _project_ctx(ctx: RequestContext, project_id: str, db: Session) -> RequestContext:
-    return task_ctx(db, ctx, project_id)
+def _project_ctx(ctx: RequestContext, project_id: str, db: Session, *, write: bool = False) -> RequestContext:
+    return task_ctx(db, ctx, project_id, write=write)
 
 
 @router.get("/annotations/{project_id}")
@@ -54,7 +54,7 @@ def get_annotations(project_id: str, ctx: RequestContext = Depends(get_context),
 def put_annotations(project_id: str, doc: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.profile == "plugin":  # plugins write through POST /v1/annotations, never the whole document
         raise HTTPException(403, "plugin sessions can't replace the annotation document")
-    c = _project_ctx(ctx, project_id, db)
+    c = _project_ctx(ctx, project_id, db, write=True)
     return annotations.put_document(db, c, doc)
 
 
@@ -83,6 +83,7 @@ def write_annotations(request: Request, body: dict = Body(...), ctx: RequestCont
 def review(annotation_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.profile == "plugin":
         raise HTTPException(403, "plugins can't review annotations")
+    projects.require_scope_write(db, ctx)
     return annotations.set_review(db, ctx, annotation_id, str(body.get("status")))
 
 
@@ -125,6 +126,7 @@ def asset_file(workspace_id: str, path: str, exp: str, sig: str, request: Reques
 async def create_artifact(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if not ctx.allows("assets.write"):
         raise HTTPException(403, "this session can't write artifacts")
+    projects.require_scope_write(db, ctx)
     data = await request.body()
     if len(data) > 64 * 1024 * 1024:
         raise HTTPException(413, "artifact too large")
@@ -193,11 +195,13 @@ def get_job(job_id: str, ctx: RequestContext = Depends(get_context), db: Session
 
 @router.post("/v1/jobs/{job_id}/cancel")
 def cancel_job(job_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    projects.require_scope_write(db, ctx)
     return jobs.job_dict(jobs.cancel(db, ctx, job_id))
 
 
 @router.post("/v1/jobs/{job_id}/retry")
 def retry_job(job_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    projects.require_scope_write(db, ctx)
     return jobs.job_dict(jobs.retry(db, ctx, job_id))
 
 
@@ -210,6 +214,7 @@ def publish_event(body: dict = Body(...), ctx: RequestContext = Depends(get_cont
         raise HTTPException(403, "this session can't publish events")
     if str(body.get("type")) in events.PROJECT_EVENTS:
         raise HTTPException(403, "project events are published by the kernel only")
+    projects.require_scope_write(db, ctx)
     depth = int(body.get("depth") or 0)
     ev = events.publish(db, ctx, str(body.get("type")), body.get("payload") or {}, source=ctx.principal, depth=depth, idempotency_key=ctx.idempotency_key)
     return {"eventId": ev.event_id if ev else None, "duplicate": ev is None}
@@ -224,6 +229,7 @@ def secret_names(ctx: RequestContext = Depends(get_context), db: Session = Depen
 def put_secret(name: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.scopes:  # agent / plugin sessions never write secrets
         raise HTTPException(403, "only workspace users can set secrets")
+    projects.require_scope_write(db, ctx)
     secrets.put(db, ctx, name, str(body.get("value", "")))
     return Response(status_code=204)
 
@@ -232,6 +238,7 @@ def put_secret(name: str, body: dict = Body(...), ctx: RequestContext = Depends(
 def delete_secret(name: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     if ctx.scopes:
         raise HTTPException(403, "only workspace users can delete secrets")
+    projects.require_scope_write(db, ctx)
     secrets.delete(db, ctx, name)
     return Response(status_code=204)
 
@@ -252,7 +259,7 @@ def workspace_state(workspace_id: str, ctx: RequestContext = Depends(get_context
 
 @router.put("/v1/workspaces/{workspace_id}/environment")
 def put_environment(workspace_id: str, body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project_ctx(ctx, workspace_id, db)
+    c = _project_ctx(ctx, workspace_id, db, write=True)
     row = db.get(WorkspaceEnvironment, (c.workspace_id, c.task)) or WorkspaceEnvironment(workspace_id=c.workspace_id, task_id=c.task, revision=0)
     db.add(row)
     before = row.environment

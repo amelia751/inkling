@@ -20,6 +20,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -722,6 +723,20 @@ def _agent_branch(c: Call, branch: str) -> None:
         raise problem(403, "forbidden", f"agents may only write to {AGENT_BRANCH_PREFIX}* branches, not {branch!r}")
 
 
+_READ_SCOPES = frozenset({"versioning.read", "versioning.checkout"})
+
+
+def _writable(c: Call) -> None:
+    """Every non-read operation changes the workspace's project: viewers (the Samples templates,
+    todo14 D7) and strangers are refused like on any other project write."""
+    from ..projects import require_scope_write
+
+    try:
+        require_scope_write(c.db, c.ctx)
+    except HTTPException as e:
+        raise problem(e.status_code, "forbidden" if e.status_code == 403 else "not_found", str(e.detail)) from e
+
+
 def run(db: Session, ctx: RequestContext, op: str, dataset_id: str, body: dict | None = None) -> tuple[int, dict]:
     """Run one operation; returns (status, body). Problems come back as (status, problem body)
     rather than exceptions, so the audit entry recording a denial is committed too."""
@@ -734,6 +749,8 @@ def run(db: Session, ctx: RequestContext, op: str, dataset_id: str, body: dict |
             raise problem(403, "forbidden", f"this session lacks {spec.scope}")
         if auth.is_agent(ctx) and not spec.agent:
             raise problem(403, "forbidden", f"agents can't {op.replace('.', ' ')}: a person has to (spec §16C)")
+        if spec.scope not in _READ_SCOPES:
+            _writable(c)
         if op != "dataset.create":
             c.repo_id = _repo(c)
         status, out = HANDLERS[op](c, body)

@@ -4,13 +4,21 @@ restoring an old version restores it. Against the in-memory fake of apps/version
 
 from __future__ import annotations
 
+import functools
+
 import pytest
 
 from studio_api.kernel import studio_defs
 from studio_api.kernel.canonical import content_hash
 
-from .conftest import at_rev
+from .conftest import SAMPLE_TEAM, at_rev
 from .test_versioning import ALICE, BOB, ann, deid_pass, fake, save, vc, work  # noqa: F401
+
+
+@pytest.fixture
+def make_client(make_client):
+    """alice and bob work on the seed project together (conftest SAMPLE_TEAM, todo14 D7)."""
+    return functools.partial(make_client, sample_editors=SAMPLE_TEAM)
 
 ENV1 = {"extends": "preset:image-2d", "task": "classification", "labels": [{"name": "labels", "control": "Labels", "classes": [{"id": "cat"}]}]}
 ENV2 = {**ENV1, "task": "detection"}

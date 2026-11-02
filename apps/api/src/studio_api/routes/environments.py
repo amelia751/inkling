@@ -40,7 +40,7 @@ from ..context import RequestContext, ensure_workspace, get_context, scope_of
 from ..db import get_session
 from ..kernel import boots, environment_policy, projects, studio_defs
 from ..kernel.canonical import content_hash
-from ..models import WorkspaceEnvironment, WorkspaceEnvironmentRevision
+from ..models import ProjectRow, WorkspaceEnvironment, WorkspaceEnvironmentRevision
 from ..streaming import blob_response
 
 router = APIRouter()
@@ -110,7 +110,7 @@ def _iso(d: datetime) -> str:
     return d.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def _project(project_id: str, ctx: RequestContext, db: Session) -> RequestContext | JSONResponse:
+def _project(project_id: str, ctx: RequestContext, db: Session, *, write: bool = False) -> RequestContext | JSONResponse:
     """`:projectId` is a task id (todo6 D3); seeds' task, dataset and project share one id."""
     if not PROJECT_ID.fullmatch(project_id):
         return _json(400, {"error": "bad project id"})
@@ -119,7 +119,7 @@ def _project(project_id: str, ctx: RequestContext, db: Session) -> RequestContex
         return _json(403, {"error": "session token is bound to another workspace"})
     c = ctx.for_scope(workspace, task)
     try:
-        projects.project_of_scope(db, c)
+        projects.project_of_scope(db, c, write=write)
     except HTTPException as e:
         return _json(e.status_code, {"error": e.detail})
     return c
@@ -198,7 +198,7 @@ def environment_history(project_id: str, ctx: RequestContext = Depends(get_conte
 @router.put("/api/environments/{project_id}/readme")
 async def put_readme(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """The task's `.studio/tasks/<id>/README.md`: intent and notes (todo10 §3.2)."""
-    c = _project(project_id, ctx, db)
+    c = _project(project_id, ctx, db, write=True)
     if isinstance(c, JSONResponse):
         return c
     try:
@@ -234,7 +234,7 @@ def get_known_good(project_id: str, ctx: RequestContext = Depends(get_context), 
 
 @router.put("/api/environments/{project_id}/last-known-good")
 async def put_known_good(project_id: str, request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project(project_id, ctx, db)
+    c = _project(project_id, ctx, db, write=True)
     if isinstance(c, JSONResponse):
         return c
     if (denied := _person(ctx)) is not None:
@@ -263,6 +263,9 @@ async def boot_checks(project_id: str, request: Request, ctx: RequestContext = D
         return c
     if (denied := _person(ctx)) is not None:
         return denied
+    if db.get(ProjectRow, c.workspace_id) is not None and not projects.can_write(db, c, c.workspace_id):
+        # todo14 D7: a viewer (the Samples templates) boots fine but never moves last-known-good.
+        return {"moved": False, "reason": "you can view this project but not change it"}
     try:
         body = await _body(request) or {}
     except _BadBody as e:
@@ -281,7 +284,7 @@ async def boot_checks(project_id: str, request: Request, ctx: RequestContext = D
 
 @router.post("/api/environments/{project_id}/rollback")
 def rollback_environment(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    c = _project(project_id, ctx, db)
+    c = _project(project_id, ctx, db, write=True)
     if isinstance(c, JSONResponse):
         return c
     if (denied := _person(ctx)) is not None:
@@ -346,7 +349,7 @@ async def save_environment(project_id: str, request: Request, ctx: RequestContex
     """todo11 D2: the API is the authority on every write, whoever the caller is: who may write
     this task, a required `revision` (409 when stale), the agent's mutation scope (403), and
     shape and references (422) — `kernel/environment_policy.py`."""
-    c = _project(project_id, ctx, db)
+    c = _project(project_id, ctx, db, write=True)
     if isinstance(c, JSONResponse):
         return c
     try:

@@ -3,6 +3,8 @@ of apps/versioning (no Go, Postgres or object storage needed)."""
 
 from __future__ import annotations
 
+import functools
+
 import base64
 import json
 
@@ -14,10 +16,16 @@ from studio_api.kernel.versioning import auth, client as vclient, service
 from studio_api.kernel.versioning.fake import FakeVersioning
 from studio_api.naming import ns
 
-from .conftest import worker_headers, ws
+from .conftest import SAMPLE_TEAM, worker_headers, ws
 
 ALICE = ws("ws-a", **{"X-Dev-Principal": "user:alice"})
 BOB = ws("ws-a", **{"X-Dev-Principal": "user:bob"})
+
+
+@pytest.fixture
+def make_client(make_client):
+    """alice and bob work on the seed project together (conftest SAMPLE_TEAM, todo14 D7)."""
+    return functools.partial(make_client, sample_editors=SAMPLE_TEAM)
 
 
 def ann(id_: str, item: str = "img/a.png", label: str = "lesion", x: float = 1, **extra) -> dict:

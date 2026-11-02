@@ -15,6 +15,8 @@ export const filesUrl = (projectId: string, nodeId?: string | null, query?: Reco
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;
 /** The project-wide Trash (todo16 M2): sources, datasets, collections and Studios. */
 export const projectTrashUrl = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/trash`;
+/** Change requests (todo17 M2): the list, or one change by id. */
+export const changesUrl = (projectId: string, changeId?: string) => `/projects/${encodeURIComponent(projectId)}/changes${changeId ? `/${encodeURIComponent(changeId)}` : ""}`;
 /** Deleted projects (todo16 D6), kept 30 days. */
 export const deletedProjectsUrl = () => "/deleted-projects";
 /** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */
@@ -34,7 +36,8 @@ export const versionReviewUrl = (projectId: string, datasetId: string, reviewId:
 export const studioUrl = (projectId: string, taskId?: string) => `${projectUrl(projectId, "studio")}${taskId ? `/${encodeURIComponent(taskId)}` : ""}`;
 /** todo8 D7: the Task setup page (owners edit, annotators read). */
 export const taskSetupUrl = (projectId: string, taskId: string) => `/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/setup`;
-export const settingsUrl = (projectId: string, tab: "general" | "plugins" | "members" = "general") => `${projectUrl(projectId, "settings")}/${tab}`;
+export type ProjectSettingsTab = "general" | "members" | "rules" | "plugins";
+export const settingsUrl = (projectId: string, tab: ProjectSettingsTab = "general") => `${projectUrl(projectId, "settings")}/${tab}`;
 
 /** Organization, billing and personal settings, outside any project (laid out like the Nebius console). */
 export type OrgPage = "members" | "projects" | "security" | "api-keys" | "audit-log" | "settings";
@@ -42,6 +45,8 @@ export type BillingPage = "usage" | "invoices" | "details";
 export const orgUrl = (page: OrgPage = "members") => `/organization/${page}`;
 export const billingUrl = (page: BillingPage = "usage") => `/billing/${page}`;
 export const profileUrl = () => "/settings/profile";
+/** Settings › Connected agents (todo17 M4): MCP clients acting for you. */
+export const connectedAgentsUrl = () => "/settings/connected-agents";
 
 function withQuery(path: string, query?: Record<string, string | undefined>): string {
   const q = Object.entries(query ?? {}).filter((e): e is [string, string] => !!e[1]);
@@ -49,7 +54,7 @@ function withQuery(path: string, query?: Record<string, string | undefined>): st
 }
 
 /** Where an attention row, an activity entry or an assistant link resolves (`ProjectTarget`). */
-export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string; runId?: string }): string {
+export function targetUrl(projectId: string, t: { section: string; nodeId?: string; importId?: string; proposalId?: string; tab?: string; taskId?: string; datasetId?: string; status?: string; reviewId?: string; runId?: string; changeId?: string }): string {
   switch (t.section) {
     case "pipelines":
       return pipelinesUrl(projectId, t.runId);
@@ -63,7 +68,9 @@ export function targetUrl(projectId: string, t: { section: string; nodeId?: stri
       if (t.datasetId && t.reviewId) return versionReviewUrl(projectId, t.datasetId, t.reviewId);
       return t.datasetId ? datasetUrl(projectId, t.datasetId, DATASET_TABS.find((x) => x === t.tab)) : projectUrl(projectId, "datasets");
     case "settings":
-      return settingsUrl(projectId, t.tab === "plugins" || t.tab === "members" ? t.tab : "general");
+      return settingsUrl(projectId, t.tab === "plugins" || t.tab === "members" || t.tab === "rules" ? t.tab : "general");
+    case "changes":
+      return changesUrl(projectId, t.changeId);
     case "studio":
       return studioUrl(projectId, t.taskId);
     case "review":

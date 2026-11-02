@@ -8,6 +8,7 @@ import {
   ChevronDownIcon,
   DatasetsIcon,
   HomeIcon,
+  MergeIcon,
   OrganizationIcon,
   OverviewIcon,
   PersonIcon,
@@ -35,7 +36,7 @@ import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
 import { useTrashCount } from "@/studio/lib/files/api";
-import { billingUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
+import { billingUrl, changesUrl, connectedAgentsUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
 import { ns } from "@studio/contracts/naming";
@@ -302,6 +303,8 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
       </ul>
       <ul className={cn("mt-auto pt-4", rail && "flex flex-col items-center gap-1")}>
         {/* todo16 Milestone 0: the Trash is a sidebar item so it's findable (the tree footer link stays). */}
+        {/* todo17 M2: change requests waiting for review. */}
+        <NavItem to={changesUrl(project.id)} icon={MergeIcon} label="Changes" rail={rail} testId="nav-changes" />
         <NavItem to={projectTrashUrl(project.id)} icon={TrashIcon} label="Trash" rail={rail} count={trashCount} testId="nav-trash" />
         <NavItem to={projectUrl(project.id, "settings")} icon={SETTINGS.icon} label={SETTINGS.label} rail={rail} />
       </ul>
@@ -342,7 +345,15 @@ const SETTINGS_GROUPS: NavGroupDef[] = [
       { label: "Billing details", to: billingUrl("details") },
     ],
   },
-  { label: "Your profile", icon: PersonIcon, base: "/settings", items: [] },
+  {
+    label: "Your profile",
+    icon: PersonIcon,
+    base: "/settings",
+    items: [
+      { label: "Profile", to: profileUrl() },
+      { label: "Connected agents", to: connectedAgentsUrl() },
+    ],
+  },
 ];
 
 function NavGroup({ group, rail }: { group: NavGroupDef; rail: boolean }) {

@@ -14,6 +14,7 @@ import { useImport } from "./queries";
  * the listing pane, one session's summary with what didn't make it and why.
  */
 const STATE_LABEL: Record<ImportState, string> = {
+  fetching: "Fetching from the link",
   uploading: "Uploading",
   inspecting: "Checking files",
   needs_review: "Ready · needs your review",
@@ -24,7 +25,7 @@ const STATE_LABEL: Record<ImportState, string> = {
 };
 
 function StateIcon({ state, className }: { state: ImportState; className?: string }) {
-  if (state === "uploading" || state === "inspecting") return <Spinner className={cn("size-3.5", className)} />;
+  if (state === "fetching" || state === "uploading" || state === "inspecting") return <Spinner className={cn("size-3.5", className)} />;
   if (state === "failed") return <ErrorIcon className={cn("size-3.5 text-danger", className)} aria-label="Didn't finish" />;
   if (state === "needs_review") return <WarningIcon className={cn("size-3.5 text-warning", className)} aria-label="Needs review" />;
   if (state === "cancelled") return <CloseIcon className={cn("size-3.5 text-hint", className)} aria-label="Cancelled" />;
@@ -33,6 +34,13 @@ function StateIcon({ state, className }: { state: ImportState; className?: strin
 
 const ok = (s: ImportSession) => (s.totals.byState.uploaded ?? 0) + (s.totals.byState.skipped_duplicate ?? 0);
 const bad = (s: ImportSession) => (s.totals.byState.failed ?? 0) + (s.totals.byState.rejected ?? 0);
+
+/** "Fetching · 12 MB of 40 MB" while a link import downloads (todo18). */
+export function stateLine(s: Pick<ImportSession, "state" | "totals">): string {
+  const t = s.totals ?? ({} as ImportSession["totals"]);
+  if (s.state !== "fetching" || !t.fetchedBytes) return STATE_LABEL[s.state];
+  return `Fetching · ${formatBytes(t.fetchedBytes)}${t.fetchTotalBytes ? ` of ${formatBytes(t.fetchTotalBytes)}` : ""}`;
+}
 
 function when(iso: string | null): string {
   if (!iso) return "—";
@@ -52,7 +60,7 @@ export function ImportsList({ sessions, selectedId, onOpen }: { sessions: Import
               type="button"
               onClick={() => onOpen(s.id)}
               className={cn("flex h-7 w-full items-center gap-2 rounded-md px-2 text-left text-sm", selectedId === s.id ? "bg-selection" : "hover:bg-generic")}
-              title={STATE_LABEL[s.state]}
+              title={stateLine(s)}
               data-testid="import-row"
             >
               <StateIcon state={s.state} />
@@ -83,7 +91,7 @@ export function ImportSummary({ id, projectId, sources, onClose, onTrash, trashR
           <h2 className="text-header-1 font-semibold">Import · {s ? when(s.startedAt) : "…"}</h2>
           {s && (
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="import-state">
-              <StateIcon state={s.state} /> {STATE_LABEL[s.state]}
+              <StateIcon state={s.state} /> {stateLine(s)}
             </p>
           )}
         </div>

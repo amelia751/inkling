@@ -11,7 +11,9 @@ from fastapi import HTTPException
 
 from studio_api import db as kdb
 from studio_api.kernel import url_imports
-from studio_api.models import PluginEvent, PluginJob, SourceNode
+from sqlalchemy import select
+
+from studio_api.models import ImportSession, PluginEvent, PluginJob, SourceNode
 
 from .conftest import png, worker_headers
 from .test_projects import _import
@@ -185,3 +187,22 @@ def test_copy_from_a_sample(client):
     assert r.status_code == 201, r.text
     assert r.json()["files"]
     assert client.post(f"/api/v1/projects/{b['id']}/imports/copy", json={"sampleId": "nope", "attested": True}).status_code == 404
+
+
+def test_a_fetching_import_reports_bytes_fetched(client, monkeypatch, public_dns):
+    """todo18: `fetching` shows progress (bytes fetched of the declared total)."""
+    seen: list[dict] = []
+    img = png(5, 5)
+
+    def fetch(scheme, url, cap):
+        url_imports._report(3, 10)
+        with kdb.session_scope() as db:
+            s = db.scalars(select(ImportSession).where(ImportSession.state == "fetching")).first()
+            seen.append(dict(s.totals))
+        return _fake(img)[0](scheme, url, cap)
+
+    monkeypatch.setattr(url_imports, "FETCH", fetch)
+    p = client.post("/api/v1/projects", json={"title": "Links"}).json()
+    client.post(f"/api/v1/projects/{p['id']}/imports/url", json={"url": "https://example.com/x/chest.png", "attested": True})
+    assert _run_import_job(client)["state"] == "inspecting"
+    assert seen and seen[0]["fetchedBytes"] == 3 and seen[0]["fetchTotalBytes"] == 10

@@ -40,7 +40,17 @@ async function call<T>(method: string, path: string, body?: unknown, signal?: Ab
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
-export const fetchAgentStatus = () => call<AgentStatus>("GET", "/status");
+/** The agent's status; gives up after 10 s so the panel says "unavailable" instead of spinning (todo15 D5). */
+export const fetchAgentStatus = () => call<AgentStatus>("GET", "/status", undefined, AbortSignal.timeout(10_000));
+
+/**
+ * The agent is there but can't answer right now (todo15 D5): a 502/503/504 from the proxy, a
+ * timeout or a network error. Distinct from "not configured" (it answered, without a model key).
+ */
+export function agentUnavailable(e: unknown): boolean {
+  if (e instanceof AgentHttpError) return e.status === 502 || e.status === 503 || e.status === 504;
+  return e instanceof TypeError || (e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError"));
+}
 export const createSession = (req: CreateSessionRequest) => call<CreateSessionResponse>("POST", "/sessions", req);
 export const deleteSession = (sessionId: string) => call<void>("DELETE", `/sessions/${sessionId}`);
 export const sendMessage = (sessionId: string, req: SendMessageRequest) => call<SendMessageResponse>("POST", `/sessions/${sessionId}/messages`, req);

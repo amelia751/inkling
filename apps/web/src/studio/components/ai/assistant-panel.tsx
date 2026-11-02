@@ -14,11 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
 import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton } from "@studio/ui/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import type { AgentStatus, ProfileName } from "@studio/agent-protocol";
 import { NAMING } from "@studio/contracts/naming";
-import { fetchAgentStatus } from "@/studio/lib/agent/client";
+import { agentUnavailable, fetchAgentStatus } from "@/studio/lib/agent/client";
 import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/agent/providers";
 import { PROFILES, sessionTools } from "@/studio/lib/agent/session";
 import { useAgent, type ChatMessage, type ClientToolOutcome } from "@/studio/stores/agent";
@@ -81,6 +82,8 @@ export interface AssistantPanelProps {
 interface Attach {
   /** Chat drops are on (`API_FEATURE_CHAT_DROPS`). */
   on: boolean;
+  /** `/features` hasn't answered yet: a skeleton where attach goes (todo15 D5). */
+  pending?: boolean;
   /** Contributors and above (D14); viewers see attach disabled with a hint. */
   allowed: boolean;
   onFiles: (files: Picked | File[]) => void;
@@ -99,7 +102,8 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const profiles = PROFILES.filter((p) => status.data?.profiles.includes(p.id) ?? p.id !== "coder");
   const [scrolled, setScrolled] = useState(false);
   const [view, setView] = useState<"chat" | "files">("chat");
-  const dropsOn = useChatDropsEnabled(project.id).data === true;
+  const drops = useChatDropsEnabled(project.id);
+  const dropsOn = drops.data === true;
   const canEdit = useProjectSummary(project.id).data?.role !== "viewer";
   const conversationId = useAgent((s) => s.conversations[project.id]?.id);
   const first = thread.find((m) => m.role === "user")?.parts.find((p) => p.type === "text");
@@ -160,7 +164,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
         <div className="flex flex-1 items-center justify-center"><Loader /></div>
       ) : !status.data?.configured ? (
         <>
-          <NotConfigured status={status.data} studio={!!props.studio} />
+          {!status.data && agentUnavailable(status.error) ? (
+            <Unavailable retrying={status.isFetching} onRetry={() => void status.refetch()} studio={!!props.studio} />
+          ) : (
+            <NotConfigured status={status.data} studio={!!props.studio} />
+          )}
           {/* Drop plans are the kernel's: they show (and apply) without the assistant. */}
           <DropPlanCards projectId={project.id} />
         </>
@@ -172,7 +180,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : view === "files" ? (
         <SharedFiles projectId={project.id} conversationId={conversationId} canEdit={canEdit} />
       ) : (
-        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} canEdit={canEdit} />
+        <Conversation {...props} thread={thread} status={status.data} running={running === project.id} busy={!!running && running !== project.id} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
       )}
     </aside>
   );
@@ -193,8 +201,9 @@ function Conversation({
   onScrolled,
   taskId,
   dropsOn,
+  dropsPending,
   canEdit,
-}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; canEdit: boolean }) {
+}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; dropsPending?: boolean; canEdit: boolean }) {
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
@@ -221,7 +230,7 @@ function Conversation({
     const dropId = startDrop({ projectId: project.id, origin: "chat", files, conversationId: conv.id, conversationTitle: conv.title, messageId, taskId, dropId: pending?.dropId });
     setPending({ dropId, messageId });
   };
-  const attach: Attach = { on: dropsOn, allowed: canEdit, onFiles: addFiles };
+  const attach: Attach = { on: dropsOn, pending: dropsPending, allowed: canEdit, onFiles: addFiles };
 
   const ask = (text: string, drop?: { dropId: string; messageId: string }) => {
     const t = text.trim();
@@ -456,6 +465,7 @@ function Composer({
           className="block max-h-55 min-h-11 w-full flex-1 resize-none bg-transparent text-chat outline-none placeholder:text-hint focus-visible:outline-none"
         />
         <div className="mt-2 flex items-end gap-2">
+          {attach.pending && <Skeleton className="size-9 rounded-md" data-testid="agent-attach-pending" />}
           {attach.on && (
             <>
               <Tooltip>
@@ -550,6 +560,26 @@ function AiOff() {
       <span className="flex size-8 items-center justify-center rounded-lg bg-generic text-hint"><AiIcon className="size-4" /></span>
       <h3 className="text-body-2 font-semibold">The assistant is off for this organization</h3>
       <p className="text-muted-foreground">An admin can turn it on in Organization settings. Dropped files still go to the project's Files.</p>
+    </div>
+  );
+}
+
+/** The agent didn't answer (502/503/504, timeout, network): say so, with Retry (todo15 D5). */
+function Unavailable({ retrying, onRetry, studio }: { retrying: boolean; onRetry: () => void; studio: boolean }) {
+  return (
+    <div className="flex flex-1 flex-col gap-3 px-4 pt-6" data-testid="agent-unavailable">
+      <span className="flex size-8 items-center justify-center rounded-lg bg-generic text-hint"><AiIcon className="size-4" /></span>
+      <h3 className="text-body-2 font-semibold">The assistant is unavailable right now</h3>
+      <p className="text-muted-foreground">
+        It didn't answer. Try again in a moment.
+        {import.meta.env.DEV && (
+          <> In development, start it with <code className="rounded-xs bg-generic px-1 font-mono text-code">pnpm agent</code>.</>
+        )}
+      </p>
+      <div>
+        <Button size="sm" variant="outline" disabled={retrying} onClick={onRetry} data-testid="agent-retry">{retrying ? "Retrying" : "Retry"}</Button>
+      </div>
+      <p className="text-muted-foreground">{studio ? "Everything else in the Studio works without it." : "Everything else works without it."}</p>
     </div>
   );
 }

@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Label } from "@studio/ui/ui/label";
 import { Spinner } from "@studio/ui/ui/spinner";
-import { bytesInFlight, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
+import { bytesInFlight, INSPECTION_STALLED_REASON, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
 import { cn } from "@studio/ui/utils";
 
@@ -262,6 +262,7 @@ function PhaseIcon({ s }: { s: TraySession }) {
 
 function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
   const retry = useUploads((x) => x.retry);
+  const recheck = useUploads((x) => x.recheck);
   const cancel = useUploads((x) => x.cancel);
   const dismiss = useUploads((x) => x.dismiss);
   const setCollapsed = useUploads((x) => x.setCollapsed);
@@ -297,8 +298,11 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
             {(failed.length > 0 || s.files.length > 0) && (
               <Button size="sm" variant="ghost-secondary" onClick={() => setOpen((o) => !o)}>{open ? "Hide files" : "Show files"}</Button>
             )}
+            {s.importId && ((s.phase === "checking" && s.stalled) || (s.phase === "failed" && s.error === INSPECTION_STALLED_REASON)) && (
+              <Button size="sm" variant="outline" onClick={() => void recheck(s.key)} data-testid="tray-recheck">Retry</Button>
+            )}
             {busy && <Button size="sm" variant="ghost-secondary" onClick={() => void cancel(s.key)}>Cancel</Button>}
-            {(busy || s.phase === "checking") && <Button size="sm" variant="ghost-secondary" onClick={() => setCollapsed(true)}>Keep working</Button>}
+            {(busy || s.phase === "checking") && <Button size="sm" variant="ghost-secondary" onClick={() => setCollapsed(true)}>{s.stalled ? "Keep uploading" : "Keep working"}</Button>}
           </div>
           {open && (
             <ul className="mt-1.5 max-h-40 overflow-y-auto pl-6 text-xs" data-testid="tray-files">

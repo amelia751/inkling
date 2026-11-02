@@ -204,7 +204,12 @@ export default defineConfig({
   },
   // runtime-config.ts reads these as the dev defaults for `kernel` and `auth.mode` (/config.json
   // decides in images). `auth.mode` is the same <envPrefix>WEB_AUTH_MODE the agent proxy reads above.
-  define: { "import.meta.env.DEV_API": JSON.stringify(kernel), "import.meta.env.AUTH_MODE": JSON.stringify(agentAuthMode) },
+  // <envPrefix>WEB_INSPECTION_STALL_SECONDS: when an upload's "Checking files" says it's slow (todo15 D5).
+  define: {
+    "import.meta.env.DEV_API": JSON.stringify(kernel),
+    "import.meta.env.AUTH_MODE": JSON.stringify(agentAuthMode),
+    "import.meta.env.INSPECTION_STALL_SECONDS": JSON.stringify(env("WEB_INSPECTION_STALL_SECONDS") ?? ""),
+  },
   resolve: {
     alias: [
       ...aliases,

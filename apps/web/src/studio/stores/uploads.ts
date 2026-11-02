@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { ImportSession, ImportState, SeedAsset, UploadFileState } from "@studio/contracts/types";
 import type { DropOrigin } from "@studio/contracts/drops";
-import { apiUrl } from "@/extension-host/runtime-config";
+import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
 import type { Picked } from "@/studio/lib/uploads/walk";
@@ -18,6 +18,20 @@ import { apiFetch } from "@/extension-host/http";
 export const CHUNK = 64 * 1024 * 1024;
 const CONCURRENCY = 4;
 const RETRIES = 4;
+
+/** After this long in "Checking files", the session fails with a reason (todo15 D5). */
+export const INSPECTION_GIVE_UP_MS = 10 * 60 * 1000;
+export const INSPECTION_STALLED_REASON = "Inspection didn't finish in 10 minutes. Retry or drop the files again";
+
+/**
+ * Where a "Checking files" session stands (todo15 D5, fail loudly, never spin): `checking`
+ * until `stallMs`, then `stalled` ("Still checking. Inspection is slow or unavailable"), then
+ * `timedOut` after `giveUpMs`.
+ */
+export function inspectionStatus(checkingSince: number, now: number, stallMs = runtimeConfig().inspectionStallSeconds * 1000, giveUpMs = INSPECTION_GIVE_UP_MS): "checking" | "stalled" | "timedOut" {
+  const elapsed = now - checkingSince;
+  return elapsed >= giveUpMs ? "timedOut" : elapsed >= stallMs ? "stalled" : "checking";
+}
 
 export type TrayPhase = "attesting" | "preparing" | "uploading" | "checking" | "done" | "failed" | "cancelled";
 
@@ -45,6 +59,10 @@ export interface TraySession {
   skippedJunk: number;
   files: TrayFile[];
   serverState?: ImportState;
+  /** When this session entered "checking" (ms); restarts on Retry. */
+  checkingSince?: number;
+  /** Checking for longer than `inspectionStallSeconds`: inspection is slow or unavailable. */
+  stalled?: boolean;
   /** Files the kernel flagged after inspection (privacy, unsupported, duplicates…). */
   needsReview?: boolean;
   error?: string;
@@ -84,6 +102,8 @@ interface UploadsState {
     },
   ) => Promise<TraySession | undefined>;
   retry: (key: string) => Promise<void>;
+  /** "Still checking": ask the kernel again and restart the stall clock. */
+  recheck: (key: string) => Promise<void>;
   cancel: (key: string) => Promise<void>;
   dismiss: (key: string) => void;
   answerAttestation: (ok: boolean) => void;
@@ -92,6 +112,7 @@ interface UploadsState {
 const blobs = new Map<string, Map<string, File>>();
 const aborts = new Map<string, AbortController>();
 const listeners = new Map<string, (projectId: string) => void>();
+const watching = new Set<string>();
 let seq = 0;
 
 /** True while any bytes are on their way (beforeunload asks then, and only then). */
@@ -163,6 +184,7 @@ export const useUploads = create<UploadsState>((set, get) => {
 
   function absorb(key: string, server: ImportSession) {
     patch(key, (s) => ({
+      ...(server.state === "inspecting" ? { checkingSince: s.checkingSince ?? Date.now() } : { checkingSince: undefined, stalled: false }),
       serverState: server.state,
       files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason })) : s.files,
       phase: server.state === "inspecting" ? "checking" : server.state === "uploading" ? (s.phase === "uploading" ? "uploading" : "failed") : server.state === "failed" ? "failed" : server.state === "cancelled" ? "cancelled" : "done",
@@ -171,14 +193,25 @@ export const useUploads = create<UploadsState>((set, get) => {
     }));
   }
 
-  /** "Checking files…" until the worker's inspection settles the session. */
+  /** "Checking files…" until the worker's inspection settles the session; loud when it doesn't (D5). */
   async function watch(key: string) {
-    for (let delay = 1000; session(key)?.phase === "checking"; delay = Math.min(delay * 1.5, 5000)) {
-      await new Promise((r) => setTimeout(r, delay));
-      const s = session(key);
-      if (!s?.importId) return;
-      const server = await api<ImportSession>(`/imports/${s.importId}`).catch(() => null);
-      if (server) absorb(key, server);
+    if (watching.has(key)) return;
+    watching.add(key);
+    try {
+      for (let delay = 1000; session(key)?.phase === "checking"; delay = Math.min(delay * 1.5, 5000)) {
+        await new Promise((r) => setTimeout(r, delay));
+        const s = session(key);
+        if (!s?.importId) return;
+        const server = await api<ImportSession>(`/imports/${s.importId}`).catch(() => null);
+        if (server) absorb(key, server);
+        const now = session(key);
+        if (now?.phase !== "checking") break;
+        const status = inspectionStatus(now.checkingSince ?? Date.now(), Date.now());
+        if (status === "timedOut") patch(key, { phase: "failed", stalled: false, error: INSPECTION_STALLED_REASON });
+        else if (status === "stalled" && !now.stalled) patch(key, { stalled: true });
+      }
+    } finally {
+      watching.delete(key);
     }
     changed(key);
   }
@@ -235,6 +268,15 @@ export const useUploads = create<UploadsState>((set, get) => {
       absorb(key, server);
       await upload(key);
     },
+    recheck: async (key) => {
+      const s = session(key);
+      if (!s?.importId) return;
+      patch(key, { phase: "checking", checkingSince: Date.now(), stalled: false, error: undefined });
+      const server = await api<ImportSession>(`/imports/${s.importId}`).catch(() => null);
+      if (server) absorb(key, server);
+      changed(key);
+      await watch(key);
+    },
     cancel: async (key) => {
       aborts.get(key)?.abort();
       const s = session(key);
@@ -269,7 +311,7 @@ export function trayLine(s: TraySession): string {
       return `Uploading ${files} · ${bytes ? Math.round((sent / bytes) * 100) : 100}%`;
     }
     case "checking":
-      return "Checking files";
+      return s.stalled ? "Still checking. Inspection is slow or unavailable" : "Checking files";
     case "done": {
       const bad = s.files.filter((f) => f.state === "failed" || f.state === "rejected").length;
       if (bad) return `${bad} ${bad === 1 ? "file" : "files"} didn't upload`;

@@ -92,9 +92,10 @@ def test_apply_makes_a_draft_dataset_collection_and_studio_and_undo_takes_them_b
     assert st["state"] == "applied" and len(st["taskIds"]) == 1 and len(st["collectionIds"]) == 1 and st["undoUntil"]
     task = st["taskIds"][0]
     t = client.get(f"/api/v1/tasks/{task}").json()
-    assert t["state"] == "draft" and t["collectionId"] == st["collectionIds"][0]
+    # todo19 D2: the drop's Studio is over the dataset and accepts its kinds, not one collection.
+    assert t["state"] == "draft" and t["collectionId"] is None
     doc = client.get(f"/api/v1/tasks/{task}/document").json()
-    assert sorted(a["name"] for a in doc["assets"]) == ["img000.png", "img001.png", "img002.png"] and doc["collectionId"] == st["collectionIds"][0]
+    assert sorted(a["name"] for a in doc["assets"]) == ["img000.png", "img001.png", "img002.png"] and doc["accepts"] == ["image"]
     ds = client.get(f"/api/v1/projects/{p}/datasets/{st['datasetId']}").json()
     assert ds["draft"] is True and [c["kind"] for c in ds["collections"]] == ["image"] and ds["collections"][0]["files"] == 3 and ds["collections"][0]["taskIds"] == [task]
     applied = [pl for k, pl in _events(p) if k == "drop.applied"]
@@ -178,12 +179,14 @@ def test_fast_path_boots_without_the_agent_and_maps_request_labels(make_client):
     assert applied["fastPath"] is True and applied["auto"] is True
 
 
-def test_fast_path_waits_on_an_ambiguous_drop(make_client):
+def test_fast_path_opens_one_studio_for_a_mixed_drop(make_client):
+    # todo19 D4/D5: each kind gets its own profile, so a mixed drop no longer waits.
     client = _flags(make_client, fast_path=True)
     p = _project(client)
     files = {**_pngs(1), "clips/a.mp4": b"\x00\x00\x00\x18ftypmp42"}
     _drop(client, p, files, "drp_amb", {"img000.png": "image", "a.mp4": "video"})
-    assert client.get("/api/v1/drops/drp_amb/plan").json()["state"] == "planned"
+    st = client.get("/api/v1/drops/drp_amb/plan").json()
+    assert st["state"] == "applied" and len(st["taskIds"]) == 1
 
 
 def test_a_second_different_drop_adds_a_collection_and_never_changes_the_open_studio(make_client):

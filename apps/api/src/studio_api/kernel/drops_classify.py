@@ -20,7 +20,7 @@ Rules, in order (the first that applies wins for a file):
 | DICOM with a series                                 | grouped by modality into `dicom-series`, then as viewable |
 | Viewable, same kind and shape as a collection       | add_to_collection |
 | Viewable, no match, current dataset a draft (own)   | new_collection in it |
-| Viewable, no current dataset, or it's published     | new_dataset (further viewable groups: collections in it) |
+| Viewable, no current dataset, or it's published     | new_dataset (further viewable groups: its members, one Studio) |
 
 A privacy hold never changes the action (the card adds a quarantine notice); a file whose
 extension disagrees with its content is classified by content and counted as `spoofed`.
@@ -169,6 +169,14 @@ def _table(f: FileIn) -> dict:
     return t if isinstance(t, dict) else {}
 
 
+def _sidecar_of(f: FileIn, keys: dict) -> str | None:
+    """The node (of this drop) whose item a hidden sidecar belongs to (`facts.sidecar`)."""
+    sc = (f.facts or {}).get("sidecar")
+    if not isinstance(sc, dict) or not sc.get("hidden"):
+        return None
+    return next((n for n in sc.get("consumedBy") or [] if isinstance(n, str) and n in keys and n != f.node_id), None)
+
+
 def file_key(f: FileIn) -> tuple[str, str]:
     """(bucket, kind): which group a file goes to before collections are considered."""
     if f.existing or (f.flags or {}).get("duplicate_of"):
@@ -202,6 +210,9 @@ def group_files(files: list[FileIn]) -> list[Group]:
     for f in files:
         # A signal file joins its header's (viewable) group as a part of that recording.
         head = keys.get(f.part_of) if f.part_of else None
+        if head is None and (owner := _sidecar_of(f, keys)):
+            # todo19: a sidecar consumed into its group's metadata (Info.cfg) is a hidden slot.
+            head = keys[owner]
         if head is not None and head[0].startswith("viewable:") and not f.existing:
             keys[f.node_id] = head
             parts.add(f.node_id)
@@ -347,7 +358,36 @@ def plan(drop_id: str, groups: list[Group], ctx: Context, preset_for: Callable[[
         if g.relates_to:
             a["relatesTo"] = g.relates_to
         actions.append(a)
-    return {"dropId": drop_id, "actions": actions, "needsPerson": needs}
+    return {"dropId": drop_id, "actions": fold_members(actions), "needsPerson": needs}
+
+
+def fold_members(actions: list[dict]) -> list[dict]:
+    """todo19 D5: one `new_dataset` action for a drop. The viewable groups it would have made one
+    collection (and one Studio) each become its `members`; apply makes one Studio over them."""
+    inside = [a for a in actions if a["kind"] in VIEWABLE and (a["type"] == "new_dataset" or (a["type"] == "new_collection" and not a.get("datasetId") and not a.get("asks")))]
+    if not any(a["type"] == "new_dataset" for a in inside):
+        return actions
+    first = inside[0]
+    members = [{k: a[k] for k in ("groupId", "kind", "count", "nodeIds", "name", "preset", "held") if k in a} for a in inside]
+    kinds = list(dict.fromkeys(a["kind"] for a in inside))
+    folded: dict[str, Any] = {
+        "groupId": first["groupId"], "type": "new_dataset", "kind": first["kind"], "kinds": kinds,
+        "nodeIds": [n for a in inside for n in a["nodeIds"]], "count": sum(a["count"] for a in inside),
+        "name": first["name"] if len(inside) == 1 else "Dataset", "members": members,
+        "presets": list(dict.fromkeys(a["preset"] for a in inside if a.get("preset"))),
+    }
+    if held := sum(a.get("held") or 0 for a in inside):
+        folded["held"] = held
+    if first.get("preset"):
+        folded["preset"] = first["preset"]
+    ids = {a["groupId"] for a in inside}
+    out: list[dict] = []
+    for a in actions:
+        if a["groupId"] == first["groupId"]:
+            out.append(folded)
+        elif a["groupId"] not in ids:
+            out.append(a)
+    return out
 
 
 # Offers that don't hold up an apply: the card shows them as links beside the action.

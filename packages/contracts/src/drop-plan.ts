@@ -52,6 +52,25 @@ export type DropGroup = z.infer<typeof DropGroup>;
 /** What the card asks or offers for one action, beyond Apply. */
 export const DropActionAsk = z.enum(["labels_table", "tabular_collection", "attach_documentation", "find_plugin", "which_dataset"]);
 
+/** todo19 D5: one viewable group inside a drop's one `new_dataset` action (it gets a collection
+ * in the dataset, and its kind a profile in the dataset's one Studio). */
+export const DropMember = z
+  .object({
+    groupId: Id,
+    kind: Kind,
+    count: z.number().int().nonnegative(),
+    nodeIds: z.array(Id),
+    name: z.string().min(1).max(200).optional(),
+    preset: z
+      .string()
+      .regex(/^preset:[A-Za-z0-9._-]+$/)
+      .optional(),
+    held: z.number().int().nonnegative().optional(),
+  })
+  .strict()
+  .meta({ id: "DropMember" });
+export type DropMember = z.infer<typeof DropMember>;
+
 export const DropAction = z
   .object({
     groupId: Id,
@@ -75,6 +94,14 @@ export const DropAction = z
     held: z.number().int().nonnegative().optional(),
     /** The kind to search plugins for (`keep_unsupported`). */
     findPluginKind: Kind.optional(),
+    /** todo19 D5 (`new_dataset`): the viewable groups the one dataset and its one Studio hold. */
+    members: z.array(DropMember).optional(),
+    /** The kinds of `members`, in order; the Studio accepts them. */
+    kinds: z.array(Kind).optional(),
+    /** One profile preset per kind present (the Studio's `extends`). */
+    presets: z
+      .array(z.string().regex(/^preset:[A-Za-z0-9._-]+$/))
+      .optional(),
   })
   .strict()
   .meta({ id: "DropAction" });

@@ -51,7 +51,8 @@ def test_a_4d_volume_is_its_own_cine_group():
     from .test_drops_classify import preset
 
     p = dc.plan("drp-1", groups, dc.Context(), preset)
-    by_kind = {a["kind"]: a for a in p["actions"]}
+    assert len(p["actions"]) == 1 and p["actions"][0]["type"] == "new_dataset"
+    by_kind = {m["kind"]: m for m in p["actions"][0]["members"]}
     assert by_kind["volume-time"]["preset"] == "preset:cine-4d" and by_kind["volume-time"]["name"] == "4D cine"
     assert by_kind["volume"]["preset"] == "preset:volume-3d"
 
@@ -72,10 +73,19 @@ def test_the_drop_groups_subjects_and_the_document_names_them(client):
         row = db.get(DropPlanRow, drop["id"])
         assert row is not None
         assert sorted((g["kind"], g["count"]) for g in row.groups) == [("volume", 5), ("volume-time", 1)], row.groups
-        tasks = {db.get(DatasetCollectionRow, t.collection_id).kind: t.id for t in db.scalars(select(TaskRow).where(TaskRow.project_id == pid))}
-    assert set(tasks) == {"volume", "volume-time"}, tasks
-    doc = client.get(f"/api/v1/tasks/{tasks['volume']}/document").json()
-    got = {a["name"]: (a.get("subject"), a.get("sequence")) for a in doc["assets"]}
-    assert got == {**{f"{BRATS}_{s}.nii.gz": (BRATS, s) for s in seqs}, f"{BRATS}_seg.nii.gz": (BRATS, "seg"), "scan.nii.gz": ("scan", None)}
-    cine = client.get(f"/api/v1/tasks/{tasks['volume-time']}/document").json()["assets"]
+        # todo19 D5 (P0-4): one Studio for the drop, accepting both kinds; no Masks collection.
+        tasks = list(db.scalars(select(TaskRow).where(TaskRow.project_id == pid)))
+        assert [(t.collection_id, sorted(t.accepts or [])) for t in tasks] == [(None, ["volume", "volume-time"])]
+        kinds = sorted(c.kind for c in db.scalars(select(DatasetCollectionRow).where(DatasetCollectionRow.dataset_id == tasks[0].dataset_id)))
+        assert kinds == ["volume", "volume-time"], kinds
+    doc = client.get(f"/api/v1/tasks/{tasks[0].id}/document").json()
+    vols = [a for a in doc["assets"] if a["kind"] == "volume"]
+    got = {a["name"]: (a.get("subject"), a.get("sequence")) for a in vols}
+    assert got == {**{f"{BRATS}_{s}.nii.gz": (BRATS, s) for s in seqs}, "scan.nii.gz": ("scan", None)}
+    seg = next(a for a in doc["assets"] if a["name"] == f"{BRATS}_seg.nii.gz")
+    assert (seg["kind"], seg.get("subject"), seg.get("sequence")) == ("mask", BRATS, "seg")
+    assert {a["kind"]: a["profile"] for a in doc["assets"] if a["kind"] != "mask"} == {"volume": "preset:volume-3d", "volume-time": "preset:cine-4d"}
+    env = doc["environment"]
+    assert sorted(env["extends"]) == ["preset:cine-4d", "preset:volume-3d"], env
+    cine = [a for a in doc["assets"] if a["kind"] == "volume-time"]
     assert [(a["name"], a["subject"], a.get("frames")) for a in cine] == [("patient101_4d.nii.gz", "patient101_4d", 30)]

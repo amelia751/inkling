@@ -100,11 +100,77 @@
         "findPluginKind": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "members": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DropMember"
+          }
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,31}$"
+          }
+        },
+        "presets": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^preset:[A-Za-z0-9._-]+$"
+          }
         }
       },
       "required": [
         "groupId",
         "type",
+        "nodeIds"
+      ],
+      "additionalProperties": false
+    },
+    "DropMember": {
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "nodeIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+          }
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "preset": {
+          "type": "string",
+          "pattern": "^preset:[A-Za-z0-9._-]+$"
+        },
+        "held": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "groupId",
+        "kind",
+        "count",
         "nodeIds"
       ],
       "additionalProperties": false

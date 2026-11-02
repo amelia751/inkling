@@ -898,6 +898,23 @@ def _subject_sequence(db: Session, entry: dict, n: SourceNode, kind: str, facts:
         entry["sequence"] = sequence
 
 
+def _profile_lookup(environment: dict):
+    """kind → the preset of the environment's `extends` that shows it (todo19 D4), else None."""
+    from . import intents
+
+    ext = environment.get("extends") if isinstance(environment, dict) else None
+    presets = [ext] if isinstance(ext, str) else [x for x in ext or [] if isinstance(x, str)]
+    cache: dict[str, str | None] = {}
+
+    def of(kind: str) -> str | None:
+        if kind not in cache:
+            fit = [p for p in presets if intents.serves_kind(p, kind)]
+            cache[kind] = fit[0] if fit else None
+        return cache[kind]
+
+    return of
+
+
 def task_document(db: Session, t: TaskRow) -> dict:
     """A `Project`-shaped document (packages/contracts `Project`), so every data kind's
     `groupItems(project)` works unchanged for uploaded data: the compatibility seam."""
@@ -929,6 +946,7 @@ def task_document(db: Session, t: TaskRow) -> dict:
 
     # todo13 D7: a task on one collection sees only that collection's files.
     in_collection = collections.item_filter(db, t, d)
+    profile_of = _profile_lookup(environment)
     if d is not None:
         every = [(n, ref) for n, ref in dataset_files(db, d) if n.id not in theirs and (in_collection is None or in_collection(n.id))]
         # todo16 D4: a file in Trash stays an item, greyed (`state: "trashed"` + its batch to restore).
@@ -956,6 +974,11 @@ def task_document(db: Session, t: TaskRow) -> dict:
             # The item id is the asset's storage path, which never changes (D3): annotations
             # stay on their items whatever happens to the file's name or folder.
             entry: dict[str, Any] = {"path": a.path, "sha256": sha or "", "bytes": size or 0, "name": n.name, "nodeId": n.id}
+            # todo19 D1/D3: every item carries its kind and the profile (preset) that shows it.
+            item_kind = collections.collection_kind(kind, facts) or kind
+            entry["kind"] = item_kind
+            if prof := profile_of(item_kind):
+                entry["profile"] = prof
             if n.id in in_trash:
                 entry.update(state="trashed", trashBatchId=in_trash[n.id])
             if kind == "waveform" and n.name.lower().endswith(".hea"):
@@ -995,6 +1018,7 @@ def task_document(db: Session, t: TaskRow) -> dict:
         "projectId": p.id,
         "datasetId": t.dataset_id,
         "collectionId": t.collection_id,
+        **({"accepts": list(t.accepts)} if t.accepts else {}),
         "assets": items,
     }
 

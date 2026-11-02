@@ -58,6 +58,8 @@ def agent_may_write(db: Session, ctx: RequestContext, task_id: str) -> bool:
 
 def _request_hash(body: dict) -> str:
     keep = {k: body.get(k) for k in ("preset", "patch", "files", "folders", "name", "intent", "collectionId")}
+    # todo19: newer fields join the hash only when present, so stored boots keep their hash.
+    keep.update({k: body[k] for k in ("extends", "accepts", "datasetId") if body.get(k) is not None})
     return "sha256:" + hashlib.sha256(json.dumps(keep, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -93,9 +95,23 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
             return 409, {"error": "this bootId was used for a different boot", "boot": boot_doc(existing) if existing.project_id == p.id else None}
         return 202, boot_doc(existing)
 
-    preset = body.get("preset")
+    # todo19 D4: `extends` lists one profile preset per kind (deep-merged into data.kinds);
+    # `preset` stays the one-preset shorthand.
+    ext = body.get("extends")
+    if ext is not None:
+        presets = [ext] if isinstance(ext, str) else ext
+        if not isinstance(presets, list) or not presets or not all(isinstance(x, str) and x.startswith("preset:") for x in presets):
+            return 422, {"ok": False, "errors": [{"path": "/extends", "code": "schema", "message": "extends: a list of preset ids such as [\"preset:image-2d\", \"preset:ecg\"]"}]}
+        presets = list(dict.fromkeys(presets))
+    else:
+        presets = [body.get("preset")]
+    preset = presets[0]
     if not isinstance(preset, str) or not preset.startswith("preset:"):
         return 422, {"ok": False, "errors": [{"path": "/preset", "code": "schema", "message": "preset: a preset id such as preset:image-2d"}]}
+    accepts = body.get("accepts")
+    if accepts is not None and (not isinstance(accepts, list) or not accepts or not all(isinstance(k, str) and k for k in accepts)):
+        return 422, {"ok": False, "errors": [{"path": "/accepts", "code": "schema", "message": "accepts: a non-empty list of item kinds such as [\"image\", \"waveform\"]"}]}
+    accepts = list(dict.fromkeys(accepts)) if accepts else None
     patch = body.get("patch")
     if patch is not None and not isinstance(patch, list):
         return 422, {"ok": False, "errors": [{"path": "/patch", "code": "patch", "message": "A JSON Patch is an array of operations"}]}
@@ -105,10 +121,10 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
 
     # Everything is checked before anything is created.
     installed = environment_policy.installed_plugins(db, p.id)
-    base = {"extends": preset}
+    base: dict = {"extends": preset} if len(presets) == 1 else {"extends": presets}
     first = environment_policy.check_write(principal="person", installed=installed, environment=base)
     if not first.ok:
-        return 422, {"ok": False, "errors": [{**e, "path": "/preset" if e["path"] == "/extends" else e["path"]} for e in first.errors]}
+        return 422, {"ok": False, "errors": [{**e, "path": "/preset" if e["path"] == "/extends" and len(presets) == 1 else e["path"]} for e in first.errors]}
     refined = None
     if patch:
         checked = environment_policy.check_write(principal="agent" if is_agent(ctx) else "person", installed=installed, base=base, patch=patch, is_patch=True)
@@ -135,6 +151,16 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         if collection is None or collection.project_id != p.id:
             return 422, {"ok": False, "errors": [{"path": "/collectionId", "code": "reference", "message": "no such collection in this project"}]}
 
+    # todo19 D5: a boot on an existing dataset (a drop's draft) makes its one Studio over it.
+    dataset = None
+    dataset_id = body.get("datasetId")
+    if dataset_id is not None and collection is None:
+        dataset = db.get(DatasetRow, dataset_id) if isinstance(dataset_id, str) else None
+        if dataset is None or dataset.project_id != p.id:
+            return 422, {"ok": False, "errors": [{"path": "/datasetId", "code": "reference", "message": "no such dataset in this project"}]}
+        if node_ids:
+            return 422, {"ok": False, "errors": [{"path": "/files", "code": "schema", "message": "a boot on a dataset uses its files; add files to the dataset instead"}]}
+
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
     initiator: dict[str, str | bool] = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
@@ -155,7 +181,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     # The draft: a dataset of the given files (possibly none yet) and its task.
     from . import collections
 
-    if collection is not None:
+    if dataset is not None:
+        d = dataset
+    elif collection is not None:
         d = db.get(DatasetRow, collection.dataset_id)
         assert d is not None
         if node_ids:
@@ -166,15 +194,17 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True}, created_by=projects.person(ctx))
         db.add(d)
         db.flush()
-    if collection is None:
+    if collection is None and accepts is None and dataset is None:
         collection = _default_collection(db, ctx, d, preset)
     t = projects.create_task(db, ctx, d, title, "annotate", None)
     t.state, t.boot_id, t.booted_by = "draft", boot_id, ctx.principal
     t.collection_id = collection.id if collection is not None else None
+    # todo19 D2: the item filter is the dataset ∩ accepts (a dataset boot without accepts: all).
+    t.accepts = accepts
     b.task_ids = [t.id]
     db.flush()
     scoped = ctx.for_scope(p.id, None)
-    events.publish(db, scoped, "boot.started", {"bootId": boot_id, "taskIds": [t.id], "preset": preset, "initiator": initiator}, source="kernel")
+    events.publish(db, scoped, "boot.started", {"bootId": boot_id, "taskIds": [t.id], "preset": preset, **({"extends": presets} if len(presets) > 1 else {}), **({"accepts": accepts} if accepts else {}), "initiator": initiator}, source="kernel")
     _step(db, scoped, b, "task", f"Created draft “{title}”", title)
     if node_ids:
         n = len((d.definition or {}).get("files") or [])
@@ -188,7 +218,7 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     h1 = studio_defs.save_revision(db, tc, None, 0, base, prov, NULL_CONTENT_HASH)
     if h1 is None:
         raise HTTPException(409, "the new task's environment was written concurrently")
-    _step(db, scoped, b, "environment", f"Set up from {preset}", preset)
+    _step(db, scoped, b, "environment", f"Set up from {', '.join(presets)}", preset)
     if refined is not None:
         row = db.get(WorkspaceEnvironment, (p.id, t.id))
         h2 = studio_defs.save_revision(db, tc, row, 1, refined, prov, h1.content_hash, patch)

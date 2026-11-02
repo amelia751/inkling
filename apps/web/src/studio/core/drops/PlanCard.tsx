@@ -7,7 +7,7 @@ import { Button } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
-import { actionLabel, findPlugins, QUESTION_COPY, QUESTIONS, REFUSED_COPY, replanSummaryText, undoSecondsLeft, usePlans, type PlanView } from "./plans";
+import { actionLabel, findPlugins, memberCounts, QUESTION_COPY, QUESTIONS, REFUSED_COPY, replanSummaryText, undoSecondsLeft, usePlans, type PlanView } from "./plans";
 
 /**
  * The plan card (todo13 D5, D6, §3.2–3.4): a drop's groups and the one action each gets, with
@@ -170,6 +170,19 @@ function PlanLedger({ plan }: { plan: PlanView }) {
                   </select>
                 )}
               </div>
+              {a.members && a.members.length > 0 && (
+                <ul className="ml-6 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-muted-foreground" data-testid="plan-members">
+                  {memberCounts(a).map((m) => {
+                    const KindIcon = ICON[m.kind] ?? FileIcon;
+                    return (
+                      <li key={m.kind} className="flex items-center gap-1" data-testid="plan-member" data-kind={m.kind} data-count={m.count}>
+                        <KindIcon className="size-3.5 shrink-0 text-hint" aria-hidden />
+                        {m.label}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               {a.asks && QUESTIONS.has(a.asks) && plan.state === "planned" && !editing && (
                 <div className="ml-6 flex flex-wrap items-center gap-2">
                   <span className="text-sm text-muted-foreground">{QUESTION_COPY[a.asks]!.question}</span>

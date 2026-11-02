@@ -23,6 +23,7 @@ def _old_style_drop(client, monkeypatch) -> tuple[str, str]:
     with monkeypatch.context() as m:
         m.setattr(drops_plan, "mask_volumes", lambda nodes: {})
         m.setattr(dc, "_time_series", lambda f: False)
+        m.setattr(drops_plan, "PER_KIND_STUDIOS", True)  # before todo19 D5: a Studio per kind
         pid = _project(client)
         files = {f"brain/{BRATS}_{s}.nii.gz": f"vol-{s}".encode() for s in ("t1", "t2")}
         files[f"brain/{BRATS}_seg.nii.gz"] = b"seg"

@@ -234,11 +234,23 @@ export const noun = (kind: string | undefined, n: number) => {
   return `${n} ${n === 1 ? one : other}`;
 };
 
+/** todo19 D5: a drop's one dataset and its one Studio, with a count per kind. */
+export function memberCounts(a: DropAction): { kind: string; count: number; label: string }[] {
+  const by = new Map<string, number>();
+  for (const m of a.members ?? []) by.set(m.kind, (by.get(m.kind) ?? 0) + m.count);
+  return [...by].map(([kind, count]) => ({ kind, count, label: noun(kind, count) }));
+}
+
 /** One line per action, in the card's words (no file names: the plan carries none). */
 export function actionLabel(a: DropAction): string {
   const what = noun(a.kind, a.count ?? a.nodeIds.length);
   switch (a.type) {
     case "new_dataset":
+      if (a.members?.length) {
+        const n = a.count ?? a.nodeIds.length;
+        const k = memberCounts(a).length;
+        return `One Studio · ${n} ${n === 1 ? "file" : "files"} · ${k} ${k === 1 ? "kind" : "kinds"}`;
+      }
       return `${what} → a new draft dataset${a.name ? ` (“${a.name}”)` : ""}`;
     case "new_collection":
       if (a.asks === "labels_table") return `${what}: labels or metadata for these items?`;

@@ -169,12 +169,40 @@ def list_dicts(db: Session, d: DatasetRow) -> list[dict]:
     for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id)):
         if t.collection_id:
             tasks.setdefault(t.collection_id, []).append(t.id)
+        elif t.accepts:  # todo19 D2: a task over the dataset sees every collection of its kinds
+            for c in rows:
+                if accepts_kind(t.accepts, c.kind):
+                    tasks.setdefault(c.id, []).append(t.id)
     return [{**collection_dict(c, len(members(db, d, c, pairs))), "taskIds": tasks.get(c.id, [])} for c in rows]
 
 
+# A reference segmentation is a slot of its subject's volume (todo19 D6): a task that accepts
+# volumes sees the masks beside them.
+SUBJECT_KINDS = frozenset({"volume", "volume-time", "dicom-series"})
+
+
+def accepting_tasks(db: Session, d: DatasetRow, kind: str) -> list[TaskRow]:
+    """The live tasks of `d` whose `accepts` takes items of `kind` (todo19 D2)."""
+    return [t for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id)) if t.trashed_at is None and t.accepts and accepts_kind(t.accepts, kind)]
+
+
+def accepts_kind(accepts, kind: str | None) -> bool:
+    """Whether an item of (collection) kind `kind` belongs to a task accepting `accepts`."""
+    if not kind:
+        return False
+    keep = set(accepts or [])
+    return kind in keep or (kind == "mask" and bool(keep & SUBJECT_KINDS))
+
+
 def item_filter(db: Session, t: TaskRow, d: DatasetRow | None):
-    """For `task_document`: a predicate over node ids (None = no filter) for the task's collection."""
-    if not t.collection_id or d is None:
+    """For `task_document`: a predicate over node ids (None = no filter). todo19 D2: a task with
+    `accepts` sees the dataset's files of those kinds; a legacy task its collection's files."""
+    if d is None:
+        return None
+    if t.accepts:
+        keep = {str(ref["nodeId"]) for ref, kind in _ref_kinds(db, d) if accepts_kind(t.accepts, kind)}
+        return lambda node_id: node_id in keep
+    if not t.collection_id:
         return None
     c = db.get(DatasetCollectionRow, t.collection_id)
     if c is None or c.dataset_id != d.id:

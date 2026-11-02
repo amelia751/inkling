@@ -281,14 +281,19 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
 
 
 def _fast_path_preset(groups: list[dc.Group], cctx: dc.Context, plan: dict) -> str | None:
-    """Principle 3: a drop that makes a new dataset whose kinds (and request) pick exactly one
-    preset boots now, without the agent. Only plans that touch nothing but new drafts."""
+    """Principle 3: a drop that makes a new dataset boots now, without the agent: always one
+    Studio, each kind with its own profile (todo19 D4/D5), so a mixed drop no longer needs an
+    unambiguous preset. Only plans that touch nothing but new drafts. Returns the first profile."""
     if not drop_flags.enabled("fast_path") or cctx.dataset is not None or not dc.safe_to_auto_apply(plan):
         return None
-    if not any(g.action == "new_dataset" and g.kind in dc.VIEWABLE for g in groups):
+    a = next((a for a in plan.get("actions") or [] if a.get("type") == "new_dataset" and a.get("kind") in dc.VIEWABLE), None)
+    if a is None:
         return None
-    m = intents.unambiguous(cctx.request, dc.fast_path_kinds(groups))
-    return m.preset if m else None
+    presets = a.get("presets") or ([a["preset"]] if a.get("preset") else [])
+    if not presets:
+        m = intents.unambiguous(cctx.request, dc.fast_path_kinds(groups))
+        return m.preset if m else None
+    return presets[0]
 
 
 # ---- Apply ----------------------------------------------------------------------------------
@@ -327,7 +332,22 @@ def _boot_id(drop_id: str, group_id: str) -> str:
     return raw[:64] if len(raw) >= 8 else (raw + "-xxxxxxxx")[:8]
 
 
-def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, c: DatasetCollectionRow, preset: str, name: str, patch: list | None) -> list[str]:
+def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, d: DatasetRow, presets: list[str], kinds: list[str], name: str, patch: list | None) -> list[str]:
+    """todo19 D4/D5: the drop's one Studio: every kind's profile preset, accepting those kinds."""
+    from . import boots
+
+    body: dict = {"bootId": _boot_id(drop_id[:20], d.id), "extends": presets, "accepts": kinds, "datasetId": d.id, "name": f"{name} Studio", "dropId": drop_id}
+    if patch:
+        body["patch"] = patch
+    status, out = boots.boot(db, ctx, p, body, {})
+    if status != 202:
+        raise HTTPException(status, out.get("errors") or out.get("error") or "the Studio couldn't be set up")
+    return list(out.get("taskIds") or [])
+
+
+def _boot_collection(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, c: DatasetCollectionRow, preset: str, name: str, patch: list | None) -> list[str]:
+    """A Studio bound to one collection: how drops booted before todo19 (one per kind). Re-plan
+    still uses it for a legacy drop whose Studios are per collection."""
     from . import boots
 
     body: dict = {"bootId": _boot_id(drop_id[:20], c.id), "preset": preset, "collectionId": c.id, "name": f"{name} Studio", "dropId": drop_id}
@@ -337,6 +357,10 @@ def _boot(db: Session, ctx: RequestContext, p: ProjectRow, drop_id: str, c: Data
     if status != 202:
         raise HTTPException(status, out.get("errors") or out.get("error") or "the Studio couldn't be set up")
     return list(out.get("taskIds") or [])
+
+
+# The rules before todo19 D5 (a Studio per collection), kept for tests that reproduce old drops.
+PER_KIND_STUDIOS = False
 
 
 def _facts_of(db: Session, node_ids: list[str]) -> list[dict]:
@@ -395,27 +419,34 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
         touched.setdefault(d.id, []).append((c, _facts_of(db, node_ids)))
 
     task_ids: list[str] = []
+    # todo19 D5: the Studio each dataset of this plan gets (one boot per dataset, not per kind).
+    studios: dict[str, dict] = {}
     order = {"new_dataset": 0, "new_collection": 1, "add_to_collection": 2}
     for a in sorted(actions, key=lambda a: order.get(a["type"], 9)):
         t, nodes = a["type"], list(a.get("nodeIds") or [])
         if t in ("new_dataset", "new_collection"):
             d = dataset(a)
-            kind = a.get("kind") or "image"
-            shape = next((g.get("shape") for g in row.groups or [] if g.get("groupId") == a["groupId"]), None) or {}
-            c = collections.create(db, ctx, d, kind, a.get("name"), {k: v for k, v in shape.items() if k == "modality"})
-            created["collections"].append(c.id)
-            group_collection[a["groupId"]] = c.id
-            pin(d, c, nodes)
-            # The fast path's preset is one for the whole drop; it only takes this collection when
-            # it can show its kind (a mixed drop of MRI volumes and ECGs must not open the ECGs in
-            # the volume viewer). Otherwise the collection's own preset.
-            fast = fast_preset if (fast_preset and t == "new_dataset" and intents.serves_kind(fast_preset, kind)) else None
-            preset = fast or a.get("preset")
-            if preset and c.kind in collections.VIEWABLE_COLLECTIONS:
-                patch = structure.label_patch(labels) if labels and t == "new_dataset" else None
-                ids = _boot(db, ctx, p, row.drop_id, c, preset, a.get("name") or c.name, patch)
-                created["tasks"] += ids
-                task_ids += ids
+            chosen = set(nodes)
+            # A folded action (classify.fold_members): a collection per member kind, organisational.
+            members = a.get("members") or [{"groupId": a["groupId"], "kind": a.get("kind"), "name": a.get("name"), "preset": a.get("preset"), "nodeIds": nodes}]
+            for m in members:
+                kind = m.get("kind") or "image"
+                shape = next((g.get("shape") for g in row.groups or [] if g.get("groupId") == m["groupId"]), None) or {}
+                name = m.get("name") if a.get("members") else a.get("name")
+                c = collections.create(db, ctx, d, kind, name, {k: v for k, v in shape.items() if k == "modality"})
+                created["collections"].append(c.id)
+                group_collection[m["groupId"]] = c.id
+                pin(d, c, [n for n in m.get("nodeIds") or [] if n in chosen])
+                preset = m.get("preset") or intents.preset_for_kind(kind)
+                if preset and c.kind in collections.VIEWABLE_COLLECTIONS and PER_KIND_STUDIOS:
+                    ids = _boot_collection(db, ctx, p, row.drop_id, c, preset, name or c.name, None)
+                    created["tasks"] += ids
+                    task_ids += ids
+                elif preset and c.kind in collections.VIEWABLE_COLLECTIONS:
+                    s_ = studios.setdefault(d.id, {"d": d, "presets": [], "kinds": [], "name": a.get("name") or c.name, "labels": False})
+                    s_["presets"].append(preset)
+                    s_["kinds"].append(kind)
+                    s_["labels"] = s_["labels"] or t == "new_dataset"
         elif t == "add_to_collection":
             c = db.get(DatasetCollectionRow, a.get("collectionId"))
             if c is None or c.project_id != p.id:
@@ -424,10 +455,17 @@ def apply(db: Session, ctx: RequestContext, row: DropPlanRow, override: list | N
             assert d is not None
             pin(d, c, nodes)
             task_ids += [x.id for x in db.scalars(select(TaskRow).where(TaskRow.collection_id == c.id))]
+            task_ids += [x.id for x in collections.accepting_tasks(db, d, c.kind)]
         elif t == "unpack":
             for nid in nodes:
                 _request_unpack(db, row, nid)
                 created["unpack"].append(nid)
+    for s_ in studios.values():
+        presets, kinds = list(dict.fromkeys(s_["presets"])), list(dict.fromkeys(s_["kinds"]))
+        patch = structure.label_patch(labels) if labels and s_["labels"] else None
+        ids = _boot(db, ctx, p, row.drop_id, s_["d"], presets, kinds, s_["name"] if len(kinds) == 1 else (s_["d"].title or "Dataset"), patch)
+        created["tasks"] += ids
+        task_ids += ids
     # Labels tables: their relationship to the collection they describe (structure, suggested).
     rels = []
     for a in actions:
@@ -660,8 +698,16 @@ def replan(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
     labels = structure.labels_from_request((row.context or {}).get("request"))
     new_tasks: list[str] = []
     actions = []
+    # A task of this dataset that accepts kinds (todo19): a new kind joins it, no new Studio.
+    accepting = next((t for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id)) if t.trashed_at is None and t.accepts), None)
+    flat: list[dict] = []
     for act in plan.get("actions") or []:
-        act = dict(act)
+        if act.get("members"):
+            flat += [{**act, **m, "type": act["type"]} for m in act["members"]]
+        else:
+            flat.append(act)
+    for act in flat:
+        act = {k: v for k, v in act.items() if k not in ("members", "kinds", "presets")}
         nodes = list(act.get("nodeIds") or [])
         if act.get("type") not in _PLACING or not nodes:
             actions.append(act)
@@ -675,8 +721,11 @@ def replan(db: Session, ctx: RequestContext, row: DropPlanRow) -> dict:
             held[best.id] = set()
             mine.append(best.id)
             summary["createdCollections"].append(best.id)
-            if act.get("preset") and best.kind in collections.VIEWABLE_COLLECTIONS:
-                ids = _boot(db, ctx, p, row.drop_id, best, act["preset"], act.get("name") or best.name, structure.label_patch(labels) if labels else None)
+            if accepting is not None and best.kind in collections.VIEWABLE_COLLECTIONS:
+                if best.kind not in (accepting.accepts or []):
+                    accepting.accepts = [*(accepting.accepts or []), best.kind]
+            elif act.get("preset") and best.kind in collections.VIEWABLE_COLLECTIONS:
+                ids = _boot_collection(db, ctx, p, row.drop_id, best, act["preset"], act.get("name") or best.name, structure.label_patch(labels) if labels else None)
                 new_tasks += ids
                 summary["createdStudios"] += ids
         moving = [n for n in nodes if n not in held[best.id]]

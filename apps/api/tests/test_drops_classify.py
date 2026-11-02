@@ -111,9 +111,14 @@ def test_mixed_drop_becomes_one_dataset_with_several_collections():
     assert [(g.kind, g.action) for g in groups] == [("image", "new_dataset"), ("dicom-series", "new_collection"), ("document", "keep_reference"), ("archive", "unpack"), ("unknown", "keep_unsupported")]
     p = dc.plan("drp-1", groups, dc.Context(), preset)
     by = {a["groupId"]: a for a in p["actions"]}
-    assert by["g-image"]["preset"] == "preset:image-2d" and by["g-dicom-series-ct"]["preset"] == "preset:volume-3d" and by["g-dicom-series-ct"]["name"] == "CT series"
+    # todo19 D5: one new_dataset action; the viewable groups are its members (one Studio).
+    assert [a["type"] for a in p["actions"]].count("new_dataset") == 1 and "g-dicom-series-ct" not in by
+    ds = by["g-image"]
+    members = {m["groupId"]: m for m in ds["members"]}
+    assert members["g-image"]["preset"] == "preset:image-2d" and members["g-dicom-series-ct"]["preset"] == "preset:volume-3d" and members["g-dicom-series-ct"]["name"] == "CT series"
+    assert ds["kinds"] == ["image", "dicom-series"] and ds["presets"] == ["preset:image-2d", "preset:volume-3d"] and ds["count"] == 3
     assert by["g-unsupported-unknown"]["findPluginKind"] == "unknown" and by["g-reference-document"]["asks"] == "attach_documentation"
-    assert "datasetId" not in by["g-dicom-series-ct"]  # a collection of the dataset this plan creates
+    assert "datasetId" not in ds  # the dataset this plan creates
     assert p["needsPerson"] is False and dc.safe_to_auto_apply(p)
 
 

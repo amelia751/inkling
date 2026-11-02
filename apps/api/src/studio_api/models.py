@@ -988,6 +988,9 @@ class TaskRow(Base):
     # todo13 D7: the collection this task works on. None = every collection of its dataset (tasks
     # made before collections whose dataset holds several viewable kinds keep seeing them all).
     collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # todo19 D2: the item kinds (detected kinds: image, volume, volume-time, waveform…) this task
+    # accepts from its dataset. None = no kind filter (legacy tasks, which use `collection_id`).
+    accepts: Mapped[list | None] = mapped_column(JSON, nullable=True)
     # todo16 D2: in Trash (hidden from every read) until restored or purged; one batch per deletion.
     trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)

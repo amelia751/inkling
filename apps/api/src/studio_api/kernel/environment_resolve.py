@@ -83,6 +83,86 @@ def merge_specs(a: dict, b: dict) -> dict:
     return out
 
 
+# ---- Profiles (todo19 D3/D4; contracts `normalizeEnvironment`) ------------------------------------
+
+
+def normalize(spec: dict) -> dict:
+    """`normalizeEnvironment`: the one-kind shorthand (data.kind + viewports) folded into
+    data.kinds, and `accepts` defaulting to the keys of data.kinds. No stored rewrite."""
+    data = spec.get("data") if isinstance(spec.get("data"), dict) else None
+    if data is None:
+        return spec
+    kinds = dict(data.get("kinds") or {})
+    kind = data.get("kind")
+    if kind and kind not in kinds:
+        vps = [v for v in spec.get("viewports") or [] if isinstance(v, dict)]
+        entry: dict = {"renderer": vps[0].get("renderer", "") if vps else ""}
+        if vps and vps[0].get("config"):
+            entry["config"] = vps[0]["config"]
+        if len(vps) > 1:
+            entry["viewports"] = vps
+        kinds[kind] = entry
+    return {**spec, "data": {**data, "kinds": kinds}, "accepts": spec.get("accepts") or list(kinds)}
+
+
+def as_profile(spec: dict, pid: str) -> dict:
+    """One preset as a profile of its kind: its renderer, tools, panels, exporters and review
+    rules in `data.kinds.<kind>` (with `profile: pid`), its labels `appliesTo: [kind]`."""
+    kind = (spec.get("data") or {}).get("kind") if isinstance(spec.get("data"), dict) else None
+    if not kind:
+        return spec
+    out = normalize(spec)
+    entry = dict(out["data"]["kinds"][kind])
+    for k in ("tools", "panels", "exporters", "reviewRules"):
+        if spec.get(k) is not None and k not in entry:
+            entry[k] = spec[k]
+    entry["profile"] = pid
+    out["data"] = {**out["data"], "kinds": {**out["data"]["kinds"], kind: entry}}
+    out["labels"] = [{**g, "appliesTo": [kind]} if isinstance(g, dict) and "appliesTo" not in g else g for g in spec.get("labels") or []]
+    out.pop("accepts", None)
+    return out
+
+
+def compose(parts: list[dict]) -> dict:
+    """Several profiles deep-merged (D4): the first stays the shorthand (data.kind, viewports,
+    panels, tools, exporters); every part adds its data.kinds entry (with its own tools and
+    exporters); labels of the same name join their appliesTo; review rules are the union."""
+    if not parts:
+        return {}
+    out = dict(parts[0])
+    for part in parts[1:]:
+        data = dict(out.get("data") or {})
+        data["kinds"] = {**(data.get("kinds") or {}), **((part.get("data") or {}).get("kinds") or {})}
+        out["data"] = data
+        labels = [dict(g) if isinstance(g, dict) else g for g in out.get("labels") or []]
+        for g in part.get("labels") or []:
+            same = next((x for x in labels if isinstance(x, dict) and isinstance(g, dict) and x.get("name") == g.get("name")), None)
+            if same is None:
+                labels.append(g)
+            elif same.get("appliesTo") is not None and g.get("appliesTo") is not None:
+                classes = {c.get("id") for c in same.get("classes") or [] if isinstance(c, dict)}
+                same["classes"] = [*(same.get("classes") or []), *[c for c in g.get("classes") or [] if isinstance(c, dict) and c.get("id") not in classes]]
+                same["appliesTo"] = list(dict.fromkeys([*same["appliesTo"], *g["appliesTo"]]))
+        out["labels"] = labels
+        # Tools and exporters stay per profile (two kinds' tools may share a name, and an
+        # exporter is checked against its own kind's tools); review rules join.
+        for k in ("reviewRules",):
+            if part.get(k) is not None:
+                out[k] = list(dict.fromkeys([*(out.get(k) or []), *part[k]]))
+        for k, v in part.items():
+            if k not in out:
+                out[k] = v
+    return out
+
+
+def _expand_parents(parents: list, expanded) -> dict:
+    """The merged base of `extends`: one preset merges as before; several compose as profiles."""
+    got = [(pid, x) for pid in parents if isinstance(pid, str) and (x := expanded(pid)) is not None]
+    if len(got) <= 1:
+        return got[0][1] if got else {}
+    return compose([as_profile(x, pid) for pid, x in got])
+
+
 def _preset(presets: dict, by_id: dict, pid: str) -> dict | None:
     name = pid.removeprefix("preset:")
     if name in presets:
@@ -108,18 +188,16 @@ def resolve_issues(spec: dict, root: str | Path) -> list[dict]:
     def expand(s: dict, path: str, seen: list[str]) -> dict:
         ext = s.get("extends")
         parents = [] if ext is None else ext if isinstance(ext, list) else [ext]
-        base: dict = {}
-        for i, pid in enumerate(parents):
-            if not isinstance(pid, str):
-                continue
+        def one(pid: str) -> dict | None:
+            i = parents.index(pid)
             p = f"{path}/extends" + (f"/{i}" if isinstance(ext, list) else "")
             if pid in seen:
                 err(p, "extends-cycle", f'Preset "{pid}" extends itself ({" → ".join([*seen, pid])})')
-                continue
+                return None
             preset = _preset(presets, by_id, pid)
-            if preset is not None:  # unknown presets: the reference check
-                base = merge_specs(base, expand(preset, p, [*seen, pid]))
-        return merge_specs(base, s)
+            return expand(preset, p, [*seen, pid]) if preset is not None else None  # unknown: the reference check
+
+        return merge_specs(_expand_parents(parents, one), s)
 
     merged = expand(spec, "", [])
     if issues:
@@ -139,18 +217,45 @@ def resolve_issues(spec: dict, root: str | Path) -> list[dict]:
     # Data kind and viewports.
     data_kind = None
     kind = (merged.get("data") or {}).get("kind") if isinstance(merged.get("data"), dict) else None
-    if not kind:
+    profiles = (merged.get("data") or {}).get("kinds") if isinstance(merged.get("data"), dict) else None
+    profiles = profiles if isinstance(profiles, dict) else {}
+    if not kind and profiles:
+        pass  # todo19 D3: data.kinds maps every kind; checked below
+    elif not kind:
         err("/data/kind", "missing-data-kind", "The environment needs data.kind (a data kind contribution id)")
     else:
         data_kind = ref("dataKinds", kind, "/data/kind")
     viewports = [v for v in merged.get("viewports") or [] if isinstance(v, dict)]
-    if not viewports:
+    if not viewports and not profiles:
         err("/viewports", "missing-viewport", "The environment needs at least one viewport with a renderer")
     for i, v in enumerate(viewports):
         r = ref("renderers", v.get("renderer"), f"/viewports/{i}/renderer")
         if r and data_kind and data_kind["id"] not in (r.get("consumes") or []):
             fit = [c["id"] for c in by_id.values() if c.get("type") == "renderers" and data_kind["id"] in (c.get("consumes") or [])]
             err(f"/viewports/{i}/renderer", "renderer-data-mismatch", f'Renderer "{r["id"]}" can\'t display data kind "{data_kind["id"]}"', fit[0] if fit else None)
+
+    # todo19 D3: each data.kinds entry: a renderer that consumes its kind, tools that exist.
+    for k, prof in profiles.items():
+        if not isinstance(prof, dict):
+            continue
+        dk = ref("dataKinds", k, f"/data/kinds/{k}")
+        vps = [v for v in prof.get("viewports") or [] if isinstance(v, dict)] or [{"renderer": prof.get("renderer")}]
+        for i, v in enumerate(vps):
+            at = f"/data/kinds/{k}/viewports/{i}/renderer" if prof.get("viewports") else f"/data/kinds/{k}/renderer"
+            r = ref("renderers", v.get("renderer"), at)
+            if r and dk and dk["id"] not in (r.get("consumes") or []):
+                fit = [c["id"] for c in by_id.values() if c.get("type") == "renderers" and dk["id"] in (c.get("consumes") or [])]
+                err(at, "renderer-data-mismatch", f'Renderer "{r["id"]}" can\'t display data kind "{dk["id"]}"', fit[0] if fit else None)
+        for i, id_ in enumerate(prof.get("tools") or []):
+            ref("tools", id_, f"/data/kinds/{k}/tools/{i}")
+    # D7: labels apply only to kinds the Studio accepts.
+    accepted = merged.get("accepts") if isinstance(merged.get("accepts"), list) else list(profiles) or ([kind] if kind else [])
+    for i, g in enumerate(merged.get("labels") or []):
+        if isinstance(g, dict) and isinstance(g.get("appliesTo"), list) and accepted:
+            extra = [x for x in g["appliesTo"] if x not in accepted]
+            if extra:
+                err(f"/labels/{i}/appliesTo", "label-applies-to", f'Label group "{g.get("name")}" applies to {", ".join(extra)}, which this Studio doesn\'t accept ({", ".join(accepted)})',
+                    f'add {", ".join(extra)} to accepts, or remove {"it" if len(extra) == 1 else "them"} from appliesTo')
 
     # Tools: names unique.
     tool_ids = merged.get("tools") or []
@@ -209,12 +314,10 @@ def merged_spec(spec: dict, root: str | Path) -> dict:
     def expand(s: dict, seen: tuple[str, ...]) -> dict:
         ext = s.get("extends")
         parents = [] if ext is None else ext if isinstance(ext, list) else [ext]
-        base: dict = {}
-        for pid in parents:
-            if isinstance(pid, str) and pid not in seen:
-                preset = _preset(presets, by_id, pid)
-                if preset is not None:
-                    base = merge_specs(base, expand(preset, (*seen, pid)))
-        return merge_specs(base, s)
+        def one(pid: str) -> dict | None:
+            preset = _preset(presets, by_id, pid) if pid not in seen else None
+            return expand(preset, (*seen, pid)) if preset is not None else None
+
+        return merge_specs(_expand_parents(parents, one), s)
 
     return expand(spec, ()) if isinstance(spec, dict) else {}

@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@studio/ui/ui/sonner", () => ({ toast: vi.fn() }));
 
 const { emitProjectEvent } = await import("@/studio/lib/use-project-events");
-const { usePlans, actionLabel, undoSecondsLeft, QUESTION_COPY, replanSummaryText } = await import("./plans");
+const { usePlans, actionLabel, memberCounts, undoSecondsLeft, QUESTION_COPY, replanSummaryText } = await import("./plans");
 const { useBoots } = await import("@/studio/stores/boots");
 const { catalogForKind } = await import("@/extension-host/catalog");
 
@@ -65,6 +65,13 @@ describe("drop plans store (project drop.* events)", () => {
 
   it("words each action without file names", () => {
     expect(actionLabel(PLAN.actions[0])).toBe("2 images → a new draft dataset (“Images”)");
+    const one = { groupId: "g-image", type: "new_dataset" as const, nodeIds: ["a", "b", "c", "d"], kind: "image", count: 4, members: [
+      { groupId: "g-image", kind: "image", count: 2, nodeIds: ["a", "b"] },
+      { groupId: "g-waveform", kind: "waveform", count: 1, nodeIds: ["c"] },
+      { groupId: "g-video", kind: "video", count: 1, nodeIds: ["d"] },
+    ] };
+    expect(actionLabel(one)).toBe("One Studio · 4 files · 3 kinds");
+    expect(memberCounts(one).map((m) => m.label)).toEqual(["2 images", "1 recording", "1 video"]);
     expect(actionLabel(PLAN.actions[1])).toBe("1 table: labels or metadata for these items?");
     expect(actionLabel(PLAN.actions[2])).toBe("1 file: kept in Sources, can't use yet");
     expect(QUESTION_COPY.labels_table.noChange).toEqual({ type: "keep_reference" });

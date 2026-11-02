@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 from studio_observability import RequestContextMiddleware, setup_service
+from studio_observability import request_id as obs_request_id
 
 from .config import SettingsError, env, settings
 from .db import session_scope
@@ -158,8 +159,16 @@ def create_app(*, init_db: bool = True) -> FastAPI:
         try:
             resp = await call_next(request)
         except Exception as e:  # noqa: BLE001 — the kernel never leaks a stack trace to plugins
-            log.exception("unhandled error")
-            return JSONResponse({"detail": f"internal error: {type(e).__name__}"}, status_code=500)
+            # Problem JSON with the request id only: never the exception text, which can carry
+            # names, paths or values from the request (todo18 E P2).
+            rid = obs_request_id() or request.headers.get("X-Request-Id") or ""
+            log.exception("unhandled error", extra={"error_type": type(e).__name__, "request_id": rid})
+            return JSONResponse(
+                {"type": "/docs/errors#internal", "title": "Something went wrong on our side.", "status": 500, "code": "internal", "requestId": rid, "detail": f"internal error (request {rid})" if rid else "internal error", "retryable": True},
+                status_code=500,
+                media_type="application/problem+json",
+                headers={"X-Request-Id": rid} if rid else None,
+            )
         cid = getattr(request.state, "ctx", None)
         if cid is not None:
             resp.headers["X-Correlation-Id"] = cid.correlation_id

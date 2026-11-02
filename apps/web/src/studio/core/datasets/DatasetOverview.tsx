@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import type { DatasetCollection, DatasetProfile, DatasetRelationship, DatasetSummary, TaskSummary } from "@studio/contracts/types";
@@ -18,6 +19,7 @@ import { versioningEnabled } from "@/studio/core/versioning/session";
 import type { DatasetViewProps } from "./DatasetLayout";
 import { useDatasetAttention, usePipelineProblems } from "./api";
 import { useAddData } from "./add-data";
+import { RenameInPlace, ResourceMenu } from "@/studio/components/trash/delete-dialog";
 import { byRisk, countOf, itemShape, pipelineAttention, rankAttention } from "./model";
 import { IssueLine } from "./quality/DatasetQuality";
 import { AttentionLine, CollectionThumb, DatasetSection, SuggestedBadge } from "./shared";
@@ -125,14 +127,25 @@ function ContinueWorking({ projectId, dataset: d }: { projectId: string; dataset
   );
 }
 
-export function TaskList({ projectId, tasks }: { projectId: string; tasks: TaskSummary[] }) {
+export function TaskList({ projectId, tasks, canEdit = false }: { projectId: string; tasks: TaskSummary[]; canEdit?: boolean }) {
   return (
     <ul className="divide-y divide-border">
       {tasks.map((t) => (
-        <li key={t.id} className="flex items-center gap-3 px-4 py-2.5 text-sm" data-testid="task-row" data-task-id={t.id}>
+        <TaskRow key={t.id} projectId={projectId} task={t} canEdit={canEdit} />
+      ))}
+    </ul>
+  );
+}
+
+function TaskRow({ projectId, task: t, canEdit }: { projectId: string; task: TaskSummary; canEdit: boolean }) {
+  const [renaming, setRenaming] = useState(false);
+  return (
+        <li className="flex items-center gap-3 px-4 py-2.5 text-sm" data-testid="task-row" data-task-id={t.id}>
           <AnnotateIcon className="size-4 shrink-0 text-hint" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">{t.title}</span>
+            <RenameInPlace projectId={projectId} kind="studio" id={t.id} name={t.title} editing={renaming} onEditingChange={setRenaming} className="flex min-w-0 items-center gap-1">
+              <span className="block truncate font-medium">{t.title}</span>
+            </RenameInPlace>
             <span className="tnum block truncate text-muted-foreground">
               {t.annotatedItems.toLocaleString()} {t.annotatedItems === 1 ? "item" : "items"} annotated
               {t.state === "draft" && " · Draft"}
@@ -141,9 +154,8 @@ export function TaskList({ projectId, tasks }: { projectId: string; tasks: TaskS
           <Button size="sm" asChild>
             <Link to={studioUrl(projectId, t.id)} data-testid="open-studio">Open Studio</Link>
           </Button>
+          <ResourceMenu projectId={projectId} kind="studio" id={t.id} name={t.title} canEdit={canEdit} onRename={() => setRenaming(true)} />
         </li>
-      ))}
-    </ul>
   );
 }
 

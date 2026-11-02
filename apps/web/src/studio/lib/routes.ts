@@ -13,6 +13,10 @@ export const projectUrl = (projectId: string, section: ProjectSection = "overvie
 export const filesUrl = (projectId: string, nodeId?: string | null, query?: Record<string, string | undefined>) => withQuery(`${projectUrl(projectId, "sources")}${nodeId ? `/${encodeURIComponent(nodeId)}` : ""}`, query);
 /** The Trash view (todo7 Phase 4). */
 export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources")}/trash`;
+/** The project-wide Trash (todo16 M2): sources, datasets, collections and Studios. */
+export const projectTrashUrl = (projectId: string) => `/projects/${encodeURIComponent(projectId)}/trash`;
+/** Deleted projects (todo16 D6), kept 30 days. */
+export const deletedProjectsUrl = () => "/deleted-projects";
 /** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */
 export const pipelinesUrl = (projectId: string, runId?: string) => `${projectUrl(projectId, "sources")}/pipelines${runId ? `/${encodeURIComponent(runId)}` : ""}`;
 /** An alias of `filesUrl` (`/files/*` redirects there too). */

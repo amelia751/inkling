@@ -402,6 +402,21 @@ Never claim data is normalized, linked, published, or saved before a backend ope
 
 **Action vocabulary:** inspect_source, propose_schema, create_collection, map_fields, configure_annotation_task, open_viewer, suggest_annotation, validate_dataset, prepare_export, publish_version. Tool names are internal; visible labels use plain language.
 
+## 10a. Delete, Trash and their empty states (todo16)
+
+Delete always means "move to Trash" (30 days). The delete dialog (`delete-dialog`) shows what goes
+with it; the toast says "Moved to Trash: <name>" with **Undo** (`toast-undo`) and **Open Trash**.
+A project goes to Deleted projects after you type its name (Settings › Danger zone).
+
+| Where | Empty state |
+|---|---|
+| Trash (`/projects/:p/trash`) | "Nothing in Trash. Deleted things stay here for 30 days, then they're gone." |
+| Deleted projects (`/deleted-projects`, linked under Home's project list) | "No deleted projects. A deleted project stays here for 30 days, then it's gone." |
+| A dataset whose files are all in Trash | "This dataset's files are in Trash" + **Restore** |
+| A Studio whose dataset is in Trash | "This Studio's dataset is in Trash" + **Open Trash** |
+| Sources after deleting everything | Same as first run (drop files, ask) |
+| Search with trashed matches | "2 matches in Trash" (links to Trash) |
+
 ## 10. Review and versioning language
 
 Keep user-facing language accessible:

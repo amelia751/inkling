@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 
 # What a Studio can open (kinds.VIEWABLE, kept import-free so this module stays pure).
-VIEWABLE = frozenset({"image", "dicom", "dicom-series", "volume", "video", "waveform", "slide", "mask"})
+VIEWABLE = frozenset({"image", "dicom", "dicom-series", "volume", "volume-time", "video", "waveform", "slide", "mask"})
 REFERENCE = frozenset({"document", "annotations"})
 UNSUPPORTED = frozenset({"unknown", "audio"})
 
@@ -42,6 +42,7 @@ NAMES = {
     "dicom": "DICOM images",
     "dicom-series": "DICOM series",
     "volume": "3D volumes",
+    "volume-time": "4D cine",
     "mask": "Masks",
     "video": "Videos",
     "waveform": "Waveforms",
@@ -63,9 +64,10 @@ class FileIn:
     facts: dict = field(default_factory=dict)
     flags: dict = field(default_factory=dict)
     existing: bool = False  # the same bytes were already in Files before this drop
-    # A WFDB signal file (.mat/.dat): the node id of the header (.hea) whose record it holds.
-    # The gatherer pairs them (same folder, same drop); the file joins that header's group as a
-    # part of its recording, not an item of its own and not "can't use yet".
+    # A WFDB signal file (.mat/.dat): the node id of the header (.hea) whose record it holds; a
+    # reference segmentation (`<subject>_seg`): the node id of a volume of the same subject.
+    # The gatherer pairs them (same folder, same drop); the file joins that file's group as a
+    # part of its item, not an item of its own (no "Masks" group) and not "can't use yet".
     part_of: str | None = None
 
 
@@ -154,6 +156,14 @@ def _series(f: FileIn) -> str | None:
     return str(s.get("seriesUidHash")) if isinstance(s, dict) and s.get("seriesUidHash") else None
 
 
+def _time_series(f: FileIn) -> bool:
+    """kinds.is_time_series, inlined to keep this module import-free."""
+    try:
+        return int((f.facts or {}).get("frames") or 0) > 1
+    except (TypeError, ValueError):
+        return False
+
+
 def _table(f: FileIn) -> dict:
     t = (f.facts or {}).get("table")
     return t if isinstance(t, dict) else {}
@@ -175,6 +185,9 @@ def file_key(f: FileIn) -> tuple[str, str]:
         return f"viewable:dicom-series:{_modality(f) or ''}", "dicom-series"
     if f.kind == "dicom":
         return f"viewable:dicom:{_modality(f) or ''}", "dicom"
+    if f.kind == "volume" and _time_series(f):
+        # A volume with a time dimension (4D cine) opens in the cine Studio, not the 3D one.
+        return "viewable:volume-time:", "volume-time"
     if f.kind in VIEWABLE:
         return f"viewable:{f.kind}:", f.kind
     return f"unsupported:{f.kind or 'unknown'}", f.kind or "unknown"

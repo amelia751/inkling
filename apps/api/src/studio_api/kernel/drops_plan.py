@@ -55,7 +55,7 @@ from ..models import (
     now,
 )
 from . import audit, collections, drop_flags, drops_classify as dc, events, intents, projects, structure, tree
-from .kinds import kind_from_extension, wfdb_parts
+from .kinds import kind_from_extension, mask_volumes, wfdb_parts
 
 log = logging.getLogger("studio_api.drops")
 ACTION_TYPES = {"add_to_collection", "new_collection", "new_dataset", "unpack", "keep_reference", "keep_unsupported", "link_existing"}
@@ -133,6 +133,8 @@ def gather(db: Session, project_id: str, sessions: list[ImportSession]) -> list[
         return files
     committed = [n for n in db.scalars(select(SourceNode).where(SourceNode.import_session_id.in_(ids), SourceNode.is_dir.is_(False)).order_by(SourceNode.created_at, SourceNode.id)) if not tree.is_hidden(db, n)]
     parts = wfdb_parts([(n.id, n.parent_id, n.name) for n in committed])
+    # A subject's reference segmentation (`<subject>_seg`) goes with its volumes, not a Masks group.
+    parts.update(mask_volumes([(n.id, n.parent_id, n.name, n.detected_kind or kind_from_extension(n.name)) for n in committed]))
     for n in committed:
         files.append(dc.FileIn(n.id, n.detected_kind, kind_from_extension(n.name), dict(n.facts or {}), dict(n.flags or {}), part_of=parts.get(n.id)))
     dup_shas = [f.sha256 for f in db.scalars(select(UploadFile).where(UploadFile.session_id.in_(ids), UploadFile.state == "skipped_duplicate"))]

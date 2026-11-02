@@ -77,3 +77,58 @@ def wfdb_parts(nodes: list[tuple[str, object, str]]) -> dict[str, str]:
         if ext in WFDB_SIGNAL_EXTS and (h := heads.get((folder, stem))):
             out[nid] = h
     return out
+
+
+# MR sequence and reference-segmentation suffixes of a `<subject>_<sequence>` file stem (BraTS
+# `BraTS2021_00621_flair.nii.gz`, ACDC `patient101_frame01_gt.nii.gz`): the one vocabulary the
+# drop grouping and the task document's `subject` / `sequence` read.
+MR_SEQUENCE_TOKENS = frozenset({"t1", "t1ce", "t1c", "t2", "flair", "pd", "dwi", "adc", "seg", "gt"})
+SEG_TOKENS = frozenset({"seg", "gt"})
+VOLUME_EXTS = (".nii.gz", ".nii")
+
+
+def volume_stem(name: str) -> str | None:
+    """`name` without `.nii` / `.nii.gz`, or None for any other file."""
+    low = name.lower()
+    for ext in VOLUME_EXTS:
+        if low.endswith(ext):
+            return name[: -len(ext)]
+    return None
+
+
+def subject_sequence(name: str) -> tuple[str, str | None] | None:
+    """(subject, sequence) of a NIfTI file name: `<subject>_<sequence>` when the suffix is a known
+    sequence token, else (stem, None). None for a file that isn't NIfTI."""
+    stem = volume_stem(name)
+    if stem is None:
+        return None
+    head, sep, tail = stem.rpartition("_")
+    if sep and head and tail.lower() in MR_SEQUENCE_TOKENS:
+        return head, tail.lower()
+    return stem, None
+
+
+def is_time_series(facts: dict | None) -> bool:
+    """A volume with a time dimension (a 4D cine: NIfTI shape[3] > 1, `facts.frames`)."""
+    try:
+        return int((facts or {}).get("frames") or 0) > 1
+    except (TypeError, ValueError):
+        return False
+
+
+def mask_volumes(nodes: list[tuple[str, object, str, str | None]]) -> dict[str, str]:
+    """{mask node id: volume node id} for (id, folder, name, kind) quadruples: a reference
+    segmentation `<subject>_seg` / `<subject>_gt` (kind `mask`) beside a volume of the same
+    subject (same folder; the volume's stem is `<subject>` or `<subject>_…`) belongs with that
+    volume. Names are only compared, never stored or logged."""
+    vols = [(folder, stem, nid) for nid, folder, name, kind in nodes if kind == "volume" and (stem := volume_stem(name)) is not None]
+    out: dict[str, str] = {}
+    for nid, folder, name, kind in nodes:
+        ss = subject_sequence(name) if kind == "mask" else None
+        if not ss or ss[1] not in SEG_TOKENS:
+            continue
+        subject = ss[0]
+        match = next((v for f, stem, v in vols if f == folder and (stem == subject or stem.startswith(subject + "_"))), None)
+        if match is not None:
+            out[nid] = match
+    return out

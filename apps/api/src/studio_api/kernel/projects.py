@@ -44,7 +44,7 @@ from ..models import (
     now,
 )
 from . import assets, audit, events, fs, tree
-from .kinds import VIEWABLE, wfdb_parts
+from .kinds import VIEWABLE, subject_sequence, wfdb_parts
 
 log = logging.getLogger(__name__)
 
@@ -881,6 +881,23 @@ def add_folders(db: Session, entries: list[dict]) -> None:
         entries[i]["folder"] = names[len(common) :]
 
 
+def _subject_sequence(db: Session, entry: dict, n: SourceNode, kind: str, facts: dict) -> None:
+    """Give a volume item its `subject` / `sequence` when it has none, so a data kind's
+    `groupItems` can put a subject's sequences (and its `_seg`) together: `<subject>_<sequence>`
+    when the stem ends in a known sequence token (`kinds.MR_SEQUENCE_TOKENS`), else the stem;
+    a DICOM series file's subject is its folder. Never overwrites a value already there."""
+    subject: str | None = None
+    sequence: str | None = None
+    if kind in ("volume", "mask") and (ss := subject_sequence(n.name)):
+        subject, sequence = ss
+    elif kind == "dicom" and isinstance(facts.get("series"), dict) and n.parent_id and (parent := db.get(SourceNode, n.parent_id)) is not None:
+        subject = parent.name
+    if subject and not entry.get("subject"):
+        entry["subject"] = subject
+    if sequence and not entry.get("sequence"):
+        entry["sequence"] = sequence
+
+
 def task_document(db: Session, t: TaskRow) -> dict:
     """A `Project`-shaped document (packages/contracts `Project`), so every data kind's
     `groupItems(project)` works unchanged for uploaded data: the compatibility seam."""
@@ -955,6 +972,7 @@ def task_document(db: Session, t: TaskRow) -> dict:
             for k in ("role", "sequence"):
                 if facts.get(k) in ("reference", "seg"):
                     entry[k] = facts[k]
+            _subject_sequence(db, entry, n, kind, facts)
             if n.id in labels:
                 entry["label"] = labels[n.id]
             items.append(entry)

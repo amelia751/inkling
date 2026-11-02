@@ -18,10 +18,10 @@ from ..context import RequestContext
 from ..models import DatasetCollectionRow, DatasetRow, TaskRow
 from . import audit, projects
 from .drops_classify import NAMES
-from .kinds import VIEWABLE
+from .kinds import VIEWABLE, is_time_series
 
-VIEWABLE_COLLECTIONS = VIEWABLE | {"dicom-series"}
-ORDER = ["dicom-series", "dicom", "volume", "image", "video", "slide", "waveform", "mask", "table", "annotations", "document", "archive", "unknown"]
+VIEWABLE_COLLECTIONS = VIEWABLE | {"dicom-series", "volume-time"}
+ORDER = ["dicom-series", "dicom", "volume", "volume-time", "image", "video", "slide", "waveform", "mask", "table", "annotations", "document", "archive", "unknown"]
 
 
 def new_id() -> str:
@@ -29,11 +29,14 @@ def new_id() -> str:
 
 
 def collection_kind(kind: str | None, facts: dict | None) -> str | None:
-    """The collection kind of a file: DICOM files that belong to a series are `dicom-series`."""
+    """The collection kind of a file: DICOM files that belong to a series are `dicom-series`,
+    volumes with a time dimension `volume-time` (the cine plugin's 4D data kind)."""
     if not kind:
         return None
     if kind == "dicom" and isinstance(facts, dict) and isinstance(facts.get("series"), dict):
         return "dicom-series"
+    if kind == "volume" and is_time_series(facts):
+        return "volume-time"
     return kind
 
 

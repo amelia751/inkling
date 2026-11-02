@@ -48,7 +48,7 @@ VIEWABLE = {"image", "dicom", "dicom-series", "volume", "video", "waveform", "sl
 
 # Never uploaded: operating-system clutter.
 JUNK_NAMES = {".ds_store", "thumbs.db", "desktop.ini"}
-JUNK_DIRS = {"__macosx"}
+JUNK_DIRS = {"__macosx", ".git"}
 
 
 def kind_from_extension(name: str) -> str:

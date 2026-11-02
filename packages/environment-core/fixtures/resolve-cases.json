@@ -1,0 +1,117 @@
+{
+  "$comment": "todo17 D2: resolve-level checks. resolve.ts (apps/web/src/extension-host/resolve-conformance.test.ts) and the API's environment_resolve.py (apps/api/tests/test_environment_resolve_conformance.py) must report exactly these (code, path) pairs among the ported codes.",
+  "cases": [
+    {
+      "name": "preset resolves clean",
+      "environment": {
+        "extends": "preset:image-2d"
+      },
+      "expect": []
+    },
+    {
+      "name": "wrong type: a tool as a renderer",
+      "environment": {
+        "extends": "preset:image-2d",
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "inkling.overlay2d.tools.box"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "wrong-type",
+          "path": "/viewports/0/renderer"
+        }
+      ]
+    },
+    {
+      "name": "wrong type: a panel id in tools",
+      "environment": {
+        "extends": "preset:image-2d",
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.panels.files"
+        ]
+      },
+      "expect": [
+        {
+          "code": "wrong-type",
+          "path": "/tools/1"
+        }
+      ]
+    },
+    {
+      "name": "renderer can't show the data kind",
+      "environment": {
+        "extends": "preset:image-2d",
+        "data": {
+          "kind": "inkling.generic.dataKinds.files"
+        }
+      },
+      "expect": [
+        {
+          "code": "renderer-data-mismatch",
+          "path": "/viewports/0/renderer"
+        }
+      ]
+    },
+    {
+      "name": "label group targets a missing viewport",
+      "environment": {
+        "extends": "preset:image-2d",
+        "labels": [
+          {
+            "name": "objects",
+            "control": "RectangleLabels",
+            "toName": "nope",
+            "classes": [
+              {
+                "id": "a"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": [
+        {
+          "code": "label-target",
+          "path": "/labels/0/toName"
+        }
+      ]
+    },
+    {
+      "name": "duplicate tool",
+      "environment": {
+        "extends": "preset:image-2d",
+        "tools": [
+          "inkling.core.tools.select",
+          "inkling.core.tools.select"
+        ]
+      },
+      "expect": [
+        {
+          "code": "duplicate-tool",
+          "path": "/tools/0"
+        }
+      ]
+    },
+    {
+      "name": "exporter accepts nothing the environment creates",
+      "environment": {
+        "extends": "preset:image-2d",
+        "exporters": [
+          "inkling.image2d.exporters.coco",
+          "inkling.timeseries.exporters.ecg-intervals-csv"
+        ]
+      },
+      "expect": [
+        {
+          "code": "exporter-unused",
+          "path": "/exporters/1"
+        }
+      ]
+    }
+  ]
+}

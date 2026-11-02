@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import DDL, JSON, false, true, BigInteger, Boolean, DateTime, FetchedValue, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, event, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, Session, mapped_column, with_loader_criteria
 
 from .db import Base
 
@@ -688,6 +688,10 @@ class ProjectRow(Base):
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, onupdate=now)
+    # todo16 D2: in Trash (hidden from every read) until restored or purged; one batch per deletion.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class Source(Base):
@@ -809,6 +813,8 @@ class FsBatch(Base):
     undone_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     redone_by: Mapped[str | None] = mapped_column(String(64), nullable=True)
     seq: Mapped[int] = mapped_column(Integer, default=0)
+    # todo16: what the batch moved (`source` = the drive; dataset | collection | studio | project).
+    resource: Mapped[str] = mapped_column(String(16), default="source", server_default="source")
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -931,6 +937,10 @@ class DatasetRow(Base):
     created_from_proposal_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # todo16 D2: in Trash (hidden from every read) until restored or purged; one batch per deletion.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class TaskRow(Base):
@@ -956,6 +966,10 @@ class TaskRow(Base):
     # todo13 D7: the collection this task works on. None = every collection of its dataset (tasks
     # made before collections whose dataset holds several viewable kinds keep seeing them all).
     collection_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # todo16 D2: in Trash (hidden from every read) until restored or purged; one batch per deletion.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class Boot(Base):
@@ -1063,6 +1077,10 @@ class DatasetCollectionRow(Base):
     suggested: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # todo16 D2: in Trash (hidden from every read) until restored or purged; one batch per deletion.
+    trashed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trashed_by: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    trash_batch_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
 
 class DropPlanRow(Base):
@@ -1104,3 +1122,22 @@ class DatasetStructureRow(Base):
     hash: Mapped[str] = mapped_column(String(80))
     updated_by: Mapped[str] = mapped_column(String(256))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# ---- todo16 D2: trashed rows are hidden from every ORM read -----------------------------------
+
+TRASHABLE = (ProjectRow, DatasetRow, DatasetCollectionRow, TaskRow)
+INCLUDE_TRASHED = {"include_trashed": True}
+
+
+def _not_trashed(cls):  # noqa: ANN001, ANN202
+    return cls.trashed_at.is_(None)
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _hide_trashed(state) -> None:  # noqa: ANN001
+    """Every ORM select (lists, `db.get`, counts) leaves trashed datasets, collections, Studios and
+    projects out, unless it asks `execution_options(include_trashed=True)` (the Trash itself)."""
+    if not state.is_select or state.is_column_load or state.is_relationship_load or state.execution_options.get("include_trashed"):
+        return
+    state.statement = state.statement.options(*(with_loader_criteria(m, _not_trashed, include_aliases=True) for m in TRASHABLE))

@@ -276,6 +276,10 @@ class Settings(BaseModel):
     # ---- Sample templates (todo14 §3): key prefix of the seed assets in s3/gcs. ----
     samples_prefix: str = ""
 
+    # ---- Trash (todo16 D2/D5): days in Trash before purge; the assistant asks above this many items. ----
+    trash_days: int = 30
+    agent_trash_ask_over: int = 100
+
     @property
     def production(self) -> bool:
         return self.env == "production"
@@ -361,6 +365,9 @@ _KEYS: dict[str, str] = {
     "signin_methods": "API_SIGNIN_METHODS",
     # Sample templates (todo14 §3).
     "samples_prefix": "API_SAMPLES_PREFIX",
+    # Trash (todo16).
+    "trash_days": "API_TRASH_DAYS",
+    "agent_trash_ask_over": "API_AGENT_TRASH_ASK_OVER",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 

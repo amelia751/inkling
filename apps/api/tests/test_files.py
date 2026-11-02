@@ -284,7 +284,7 @@ def test_trash_restores_to_the_original_folder_or_the_root(client):
     assert _by_name(p)["MRI"].descendant_count == 1
     page = client.get(f"/api/v1/projects/{p}/trash").json()
     assert page["total"] == 1 and page["items"][0]["originalLocation"] == "study/MRI" and page["items"][0]["purgeInDays"] == 30
-    assert page["items"][0]["trashedBy"] == ALICE and page["items"][0]["trashed"] is True
+    assert page["items"][0]["trashedBy"]["id"] == ALICE and page["items"][0]["trashedByName"] == ALICE and page["items"][0]["trashed"] is True
     assert client.get(f"/api/v1/projects/{p}/fs").json()["trashCount"] == 1
     # Ops on something in Trash are refused (only restore and purge apply).
     assert _ops(client, p, [{"kind": "rename", "nodeId": n["x.png"].id, "name": "z.png"}]).status_code == 422

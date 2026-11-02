@@ -235,3 +235,20 @@ def test_0016_adds_user_prefs_and_downgrades(tmp_path):
     assert "user_prefs" not in sa.inspect(db.engine()).get_table_names()
     command.upgrade(cfg, "head")
     db.reset_engine()
+
+
+def test_0018_adds_trash_columns_and_downgrades(tmp_path):
+    import sqlalchemy as sa
+    from alembic import command
+
+    from studio_api import db
+
+    cfg = _alembic_at(tmp_path, "0018")
+    cols = lambda t: {c["name"] for c in sa.inspect(db.engine()).get_columns(t)}  # noqa: E731
+    for t in ("datasets", "dataset_collections", "tasks", "projects"):
+        assert {"trashed_at", "trashed_by", "trash_batch_id"} <= cols(t)
+    assert "resource" in cols("fs_batches")
+    command.downgrade(cfg, "0017")
+    assert "trashed_at" not in cols("datasets") and "resource" not in cols("fs_batches")
+    command.upgrade(cfg, "head")
+    db.reset_engine()

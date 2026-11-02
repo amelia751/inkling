@@ -247,12 +247,13 @@ def item_report(item_id: int, body: dict = Body(...), db: Session = Depends(get_
 # per day across every worker and replica (a `scheduled_runs` row per day, insert-or-ignore).
 
 
+@router.post("/scheduled/trash.purge", dependencies=[Depends(_auth)])
 @router.post("/scheduled/files.empty_trash", dependencies=[Depends(_auth)])
 def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_session)):
     from datetime import UTC, datetime
 
     from ..dbutil import insert_ignore
-    from ..kernel import fs
+    from ..kernel import trash
     from ..models import ScheduledRun
 
     period = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -266,8 +267,9 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
         claimed = db.execute(update(ScheduledRun).where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"})).rowcount  # type: ignore[attr-defined]
         if not claimed:
             return {"ran": False, "period": period, "result": None}
-    days = int(body["days"]) if isinstance(body.get("days"), int) else fs.TRASH_DAYS
-    result = fs.purge_expired(db, days=max(0, days))
+    days = int(body["days"]) if isinstance(body.get("days"), int) else trash.days()
+    # todo16: `trash.purge` (alias `files.empty_trash`): files and every other kind in Trash.
+    result = trash.purge_expired(db, days_=max(0, days))
     if not force:
         db.execute(update(ScheduledRun).where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period).values(result=result))
     return {"ran": True, "period": period, "result": result}

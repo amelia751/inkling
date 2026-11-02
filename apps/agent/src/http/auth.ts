@@ -106,3 +106,18 @@ export function authenticate(config: Config, verifier: AccessTokenVerifier | und
     return next();
   };
 }
+
+/**
+ * `/v1/internal/*` (todo14 D9): service-to-service calls only, e.g. the API deleting an org's
+ * conversations. The service token must be the `Authorization` bearer and no person may be on the
+ * call: anything carrying `X-Agent-Service-Token` came through a browser proxy (both web proxies set
+ * it, in either auth mode) and gets a 403, as does any caller `authenticate` resolved to a person.
+ */
+export function serviceOnly(config: Config): MiddlewareHandler<AppEnv> {
+  return async (c, next) => {
+    const token = config.serviceToken;
+    const direct = !!token && c.req.header(SERVICE_TOKEN_HEADER) === undefined && matches(c.req.header("authorization"), token);
+    if (c.get("caller").via !== "service" || !direct) return c.json({ error: "service calls only" }, 403);
+    return next();
+  };
+}

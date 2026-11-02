@@ -5,6 +5,7 @@ import { RES } from "@studio/contracts/naming";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Items as they ingest (todo11 D8, Milestone 3 Slice A). A drop into a Studio registers its
@@ -129,7 +130,7 @@ export async function catchUp(qc: QueryClient, taskId: string): Promise<void> {
   try {
     let after: string | null = String(qc.getQueryData<Project>(docKey(taskId))?.assets.length ?? 0);
     while (after !== null) {
-      const res = await fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/items?after=${after}`));
+      const res = await apiFetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/items?after=${after}`));
       if (!res.ok) return;
       const page = (await res.json()) as { items: SeedAsset[]; next: string | null };
       if (page.items.length) queue(qc, taskId, { kind: "assets", assets: page.items });
@@ -172,6 +173,6 @@ export function postVisible(taskId: string, itemIds: string[]): void {
   window.clearTimeout(visibleTimer);
   visibleTimer = window.setTimeout(() => {
     lastVisible = key;
-    void fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/items/visible`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds }) }).catch(() => undefined);
+    void apiFetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/items/visible`), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itemIds }) }).catch(() => undefined);
   }, 150);
 }

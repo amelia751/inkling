@@ -28,5 +28,7 @@ export interface RunEventBus {
   oldestSeq(runId: string): Promise<number | undefined>;
   read(runId: string, after: number, signal: AbortSignal): AsyncIterable<BusItem>;
   signal(runId: string): Promise<void>;
+  /** Drop every stored event of these runs (todo14 D9: their conversation was deleted). */
+  deleteRuns(runIds: string[]): Promise<void>;
   onSignal(fn: (runId: string) => void): () => void;
 }

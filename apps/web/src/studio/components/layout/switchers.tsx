@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { AddDataIcon, AnnotateIcon, CheckIcon, ChevronDownIcon, ProjectsIcon, SettingsIcon } from "@studio/ui/icons";
 import {
   DropdownMenu,
@@ -8,7 +11,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@studio/ui/ui/dropdown-menu";
+import { Loader } from "@studio/ui/ui/loader";
 import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
+import { resetForOrg, switchOrg, useSession } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { cn } from "@studio/ui/utils";
@@ -17,8 +22,8 @@ const TRIGGER = "press flex h-7 min-w-0 items-center gap-1 rounded-lg bg-generic
 
 /**
  * `Workspace ▾ / Project ▾ / Section` (todo6 Phase 2.2). Both are switchers. The workspace
- * is the person's organization ("Workspace" in UI copy, todo6 D1); one personal workspace
- * for now, so its menu only names it.
+ * is the person's organization ("Workspace" in UI copy, todo6 D1): the menu lists the
+ * session's organizations, and picking one switches the session to it (todo9 Phase 4).
  */
 export function Breadcrumbs({ project, section, className }: { project?: { id: string; title: string }; section?: string; className?: string }) {
   return (
@@ -41,20 +46,45 @@ export function Breadcrumbs({ project, section, className }: { project?: { id: s
 }
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
+  const { organization, organizations } = useSession();
+  const client = useQueryClient();
+  const navigate = useNavigate();
+  const [switching, setSwitching] = useState<string | null>(null);
+  const pick = async (id: string) => {
+    if (id === organization.id || switching) return;
+    setSwitching(id);
+    try {
+      const { redirect } = await switchOrg(id);
+      // The organization needs its own sign-in (SSO, MFA): the API comes back here after it.
+      if (redirect) return window.location.assign(redirect);
+      await resetForOrg(client);
+      navigate("/");
+    } catch (e) {
+      toast.error("Couldn't switch workspace", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSwitching(null);
+    }
+  };
+  // Ours first, then the rest by name.
+  const orgs = [organization, ...organizations.filter((o) => o.id !== organization.id).sort((a, b) => a.name.localeCompare(b.name))];
+
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label="Workspace: Personal. Switch workspace" data-testid="workspace-switcher">
-        <span className="truncate">Personal</span>
+      <DropdownMenuTrigger className={cn(TRIGGER, "max-w-[180px]", className)} aria-label={`Workspace: ${organization.name}. Switch workspace`} data-testid="workspace-switcher">
+        <span className="truncate">{organization.name}</span>
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-[240px]">
         <DropdownMenuLabel className="font-normal text-hint">Workspaces</DropdownMenuLabel>
-        <DropdownMenuItem>
-          <span className="min-w-0 flex-1 truncate">Personal</span>
-          <CheckIcon className="text-brand-heavy" />
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <p className="px-2 py-1.5 text-xs text-muted-foreground">Team workspaces arrive with members and roles.</p>
+        {orgs.map((o) => {
+          const current = o.id === organization.id;
+          return (
+            <DropdownMenuItem key={o.id} disabled={!!switching} onSelect={() => void pick(o.id)} data-testid={`switch-org-${o.id}`} aria-current={current || undefined}>
+              <span className="min-w-0 flex-1 truncate">{o.name}</span>
+              {switching === o.id ? <Loader size="s" /> : current && <CheckIcon className="text-brand-heavy" />}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuContent>
     </DropdownMenu>
   );

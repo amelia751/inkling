@@ -32,7 +32,7 @@ describe("pipeline gateway client (P§15 routes)", () => {
     expect(f.mock.calls[0][0]).toBe("/api/v1/pipeline-runs/run_1/approve");
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({ candidate_digest: "sha256:feed" });
-    expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe("approve:run_1:sha256:feed");
+    expect(new Headers(init.headers).get("Idempotency-Key")).toBe("approve:run_1:sha256:feed");
     expect(res.approval_id).toBe("ap_1");
   });
 

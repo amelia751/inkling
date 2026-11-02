@@ -75,6 +75,33 @@ export class FileSessionStore implements SessionStore {
     return out;
   }
 
+  async listOrgSessions({ orgId, owner }: { orgId: string; owner?: string }): Promise<StoredMeta[]> {
+    const out: StoredMeta[] = [];
+    for (const id of await this.listSessionIds()) {
+      const m = await this.getMeta(id);
+      if (m && m.orgId === orgId && (owner === undefined || m.owner === owner)) out.push(m);
+    }
+    return out;
+  }
+
+  /** Runs on disk too, not only the ones this process has read (dev store: a directory scan is fine). */
+  async runIdsForSessions(sessionIds: string[]): Promise<string[]> {
+    const want = new Set(sessionIds);
+    if (!want.size) return [];
+    const out = new Set<string>();
+    for (const r of this.runs.values()) if (want.has(r.sessionId)) out.add(r.id);
+    for (const f of readdirSync(this.runsDir).filter((n) => n.endsWith(".json"))) {
+      const id = f.slice(0, -5);
+      if (out.has(id) || this.runs.has(id)) continue;
+      try {
+        if (want.has((JSON.parse(readFileSync(this.runPath(id), "utf8")) as RunRecord).sessionId)) out.add(id);
+      } catch {
+        // Unreadable leftover: not ours to judge.
+      }
+    }
+    return [...out];
+  }
+
     async countSessions(): Promise<number> {
     return (await this.listSessionIds()).size;
   }
@@ -83,11 +110,10 @@ export class FileSessionStore implements SessionStore {
     if (!SESSION_ID.test(id)) return;
     rmSync(this.metaPath(id), { force: true });
     rmSync(this.jsonlPath(id), { force: true });
-    for (const [runId, r] of this.runs)
-      if (r.sessionId === id) {
-        this.runs.delete(runId);
-        rmSync(this.runPath(runId), { force: true });
-      }
+    for (const runId of await this.runIdsForSessions([id])) {
+      this.runs.delete(runId);
+      rmSync(this.runPath(runId), { force: true });
+    }
     for (const [k, i] of this.inputs) if (i.sessionId === id) this.inputs.delete(k);
   }
 

@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
+import { isAgentInternal } from "./dev/agent-internal";
 import { aliases, REPO_ROOT } from "./aliases";
 // The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
 // reads the emitted copy of packages/contracts/src/naming.ts.
@@ -77,6 +78,10 @@ async function verifyForAgent(req: http.IncomingMessage, res: http.ServerRespons
   } catch {
     return fail(503, "the API is unreachable");
   }
+  // A verify that refreshed the session rotated the cookie (or a 401 cleared it): pass it on, or
+  // the browser keeps a spent refresh token (apps/api auth/routes.py `verify`, as nginx does).
+  const cookies = verified.headers.getSetCookie();
+  if (cookies.length) res.setHeader("set-cookie", cookies);
   if (verified.status === 401) return fail(401, "sign in required");
   if (!verified.ok) return fail(503, `the API answered ${verified.status}`);
   const accessToken = verified.headers.get("x-access-token");
@@ -90,7 +95,8 @@ const agentProxy: Record<string, ProxyOptions> = {
     target: AGENT_URL,
     rewrite: (p: string) => p.replace(/^\/api\/agent/, "/v1"),
     // Runs (awaited) before the proxy: a string means "answered here" (401/503 already written).
-    bypass: (req, res) => (res ? verifyForAgent(req, res) : undefined),
+    // Service-only agent routes (todo14 D9) are never proxied from the browser: `false` is Vite's 404.
+    bypass: (req, res) => (isAgentInternal(req.url) ? false : res ? verifyForAgent(req, res) : undefined),
     configure: (proxy) => {
       proxy.on("proxyReq", (req) => {
         const token = serviceToken();
@@ -175,8 +181,9 @@ export default defineConfig({
       ...(kernel ? { "/api": { target: kernelUrl, bypass: (req) => (STAYS_ON_VITE.test(req.url ?? "") ? req.url : undefined) } } : {}),
     },
   },
-  // runtime-config.ts reads this as the dev default for `kernel` (/config.json decides in images).
-  define: { "import.meta.env.DEV_API": JSON.stringify(kernel) },
+  // runtime-config.ts reads these as the dev defaults for `kernel` and `auth.mode` (/config.json
+  // decides in images). `auth.mode` is the same <envPrefix>WEB_AUTH_MODE the agent proxy reads above.
+  define: { "import.meta.env.DEV_API": JSON.stringify(kernel), "import.meta.env.AUTH_MODE": JSON.stringify(agentAuthMode) },
   resolve: {
     alias: [
       ...aliases,

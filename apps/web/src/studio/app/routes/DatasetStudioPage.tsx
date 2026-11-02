@@ -47,6 +47,9 @@ import { NAMING, RES, ns } from "@studio/contracts/naming";
 import { markAfterPaint, markBoot, startBoot } from "@/extension-host/boot-timing";
 import { loadInPriority, newModules, warmFromHint, warmFromSpec } from "@/studio/lib/boot-priority";
 import { loadDocument, saveVersioned, StaleHeadError, useVersioning } from "@/studio/core/versioning";
+import { apiFetch } from "@/extension-host/http";
+import { onBeforeSignIn, useSignIn } from "@/studio/lib/session";
+import { stashUnsaved, takeUnsaved } from "@/studio/lib/unsaved";
 
 const AUTOSAVE_MS = 800;
 /** The environment query refetches at most this often (focus, remount); events carry the rest. */
@@ -165,10 +168,14 @@ function StudioPage() {
   const setEnv = useStudio((s) => s.setEnv);
 
   useEffect(() => {
-    if (project && saved.data && boot.status === "ready" && projectId !== project.id) {
+    // The store, not this render's `projectId`: StrictMode runs the effect twice with one closure.
+    if (project && saved.data && boot.status === "ready" && useStudio.getState().projectId !== project.id) {
       clearRuntime();
       setEnv(boot.env, { record: false });
-      load(project.id, saved.data.annotations, saved.data.revision, regionLabelNames(boot.env.labels)[0] ?? null);
+      // Edits kept across a sign-in redirect (session expired mid-work) come back unsaved.
+      const kept = takeUnsaved(project.id);
+      load(project.id, kept?.annotations ?? saved.data.annotations, kept?.revision ?? saved.data.revision, regionLabelNames(boot.env.labels)[0] ?? null);
+      if (kept) useStudio.setState({ dirty: true, saveState: "idle" });
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
@@ -498,7 +505,7 @@ function useResume(taskId: string, items: StudioItem[], env: ResolvedEnv) {
   useEffect(() => {
     if (!projectId) return;
     const flush = () => {
-      if (latest.current) void fetch(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/resume`), { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(latest.current) }).catch(() => undefined);
+      if (latest.current) void apiFetch(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/resume`), { method: "PUT", keepalive: true, headers: { "Content-Type": "application/json" }, body: JSON.stringify(latest.current) }).catch(() => undefined);
     };
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
@@ -605,10 +612,15 @@ function useAutosave(projectId: string) {
 
   useEffect(() => {
     const warn = (e: BeforeUnloadEvent) => {
-      if (useStudio.getState().dirty) e.preventDefault();
+      // Leaving to sign in again keeps the edits (onBeforeSignIn below): no "leave site?" prompt.
+      if (useStudio.getState().dirty && !useSignIn.getState().redirecting) e.preventDefault();
     };
     window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
+    const unstash = onBeforeSignIn(stashUnsaved);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      unstash();
+    };
   }, []);
 
   return save;

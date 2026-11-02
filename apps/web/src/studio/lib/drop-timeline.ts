@@ -1,6 +1,7 @@
 import { RES } from "@studio/contracts/naming";
 import { BOOT_MARK_PREFIX } from "@studio/plugin-ui-sdk/perf";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * The drop timeline (todo13 §6, Milestone 4 item 1): from the first gesture (a drop, a paste,
@@ -132,7 +133,7 @@ export async function reportTimeline(outcome: TimelineOutcome): Promise<void> {
   current.reported = true;
   notify();
   try {
-    await fetch(apiUrl("/v1/telemetry/timeline"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(timelinePayload(t, outcome)), keepalive: true });
+    await apiFetch(apiUrl("/v1/telemetry/timeline"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(timelinePayload(t, outcome)), keepalive: true });
   } catch {
     /* telemetry never gets in the way */
   }

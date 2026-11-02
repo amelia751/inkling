@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Product feature flags (todo13 §7.1): the api's `API_FEATURE_*` keys, served at
@@ -49,7 +50,7 @@ export const feature = (f: Feature): boolean => useFeatures.getState()[f];
  * applies when it arrives.
  */
 export function loadFeatures(timeoutMs = 1500): Promise<void> {
-  const req = fetch(apiUrl("/v1/features"), { headers: { Accept: "application/json" } })
+  const req = apiFetch(apiUrl("/v1/features"), { headers: { Accept: "application/json" } })
     .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
     .then((body: unknown) => useFeatures.setState({ ...parseFeatures(body), loaded: true }))
     .catch(() => undefined);

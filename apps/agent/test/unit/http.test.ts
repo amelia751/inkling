@@ -59,7 +59,7 @@ describe("HTTP API", () => {
   it("validates bodies and rejects client tools outside the profile allowlist", async () => {
     h = await harness(FIXTURE);
     expect((await h.json("POST", "/v1/sessions", { projectId: "../etc" })).status).toBe(400);
-    const bad = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "assistant", clientTools: [{ name: "patch_environment", description: "x", input_schema: {} }] });
+    const bad = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "assistant", clientTools: [{ name: "stage_plugin", description: "x", input_schema: {} }] });
     expect(bad.status).toBe(400);
     expect(bad.body.error).toMatch(/not allowed/);
     const arbitrary = await h.json("POST", "/v1/sessions", { projectId: "demo", profile: "environment-designer", clientTools: [{ name: "exec_shell", description: "x", input_schema: {} }] });

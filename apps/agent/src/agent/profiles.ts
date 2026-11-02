@@ -10,7 +10,7 @@ const prompt = (name: string) =>
     .trim()
     .replaceAll("{{displayName}}", NAMING.displayName);
 
-export const CARD_TOOLS = ["show_items", "propose_label_schema", "draft_document", "suggest_tool", "propose_review", "select_annotations", "open_location", "propose_reorganization", "request_upload"] as const;
+export const CARD_TOOLS = ["show_items", "propose_label_schema", "draft_document", "suggest_tool", "propose_review", "select_annotations", "open_location", "propose_reorganization", "request_upload", "offer_specialist"] as const;
 export const ENVIRONMENT_TOOLS = [
   "list_modules",
   "describe_contribution",
@@ -48,7 +48,17 @@ export interface Profile {
 
 /** Host-owned: the client picks a profile by name, never by capability. */
 export const PROFILES: Record<ProfileName, Profile> = {
-  assistant: { name: "assistant", clientTools: CARD_TOOLS, sandbox: false, studio: true, prompts: ["base", "boot"] },
+  // The one general assistant the Studio offers: cards, environment editing and the task tools.
+  // coder and builder are reached only through offer_specialist (a hand-off the user approves).
+  assistant: {
+    name: "assistant",
+    clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS],
+    sandbox: false,
+    studio: true,
+    kernel: "task",
+    prompts: ["base", "environment", "task", "specialists", "boot"],
+  },
+  // environment-designer and task are kept for API compatibility; the Studio no longer offers them.
   "environment-designer": {
     name: "environment-designer",
     clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS],

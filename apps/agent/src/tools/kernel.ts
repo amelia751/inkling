@@ -47,7 +47,8 @@ export interface KernelAccess {
 /** Scopes the Studio mints for each profile's token; the kernel enforces them. */
 export const KERNEL_SCOPES = {
   // Every profile reads its project (Overview, Sources, Explore) and may propose (never confirm).
-  assistant: ["proposals.write", "project.write"],
+  // The one general assistant: environment editing plus the task tools (capabilities, versioning).
+  assistant: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
   "environment-designer": ["proposals.write"],
   coder: ["proposals.write", "samples.inspect"],
   // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints, fixtures, verify, probes.

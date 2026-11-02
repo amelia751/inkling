@@ -390,8 +390,9 @@ export class SessionService {
     // (prompt caching, todo11): dataset, browser tools (sorted by name), project, Studio, kernel,
     // sandbox, then test extras. Each group's own order is fixed in its module.
     const tools: ToolDefinition<any, any, any>[] = [...createDatasetTools(ctx.dataset)];
-    // Server tools win over browser tools of the same name (the kernel sees the workspace's installs).
-    const clientSpecs = (profile.kernel ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools)
+    // Server tools win over browser tools of the same name (the builder kernel sees the workspace's
+    // installs). Only the builder kernel defines them; task-kernel profiles keep the browser's.
+    const clientSpecs = (profile.kernel === "builder" ? meta.clientTools.filter((t) => !(KERNEL_SHADOWED as readonly string[]).includes(t.name)) : meta.clientTools)
       .toSorted((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     tools.push(...createClientTools(clientSpecs, profile.clientTools, ctx.bridge));
     // Project tools for every profile (todo6 Phase 6): reads plus proposals, with the session's kernel token.

@@ -16,7 +16,7 @@ export function SessionGate({ children }: { children: ReactNode }) {
   if (session.data) return children;
   if (session.error && !isUnauthorized(session.error))
     return (
-      <Status title="Couldn't check who's signed in" body={session.error.message} testId="session-error">
+      <Status title="Couldn't check who's signed in" body={session.error instanceof Error ? session.error.message : String(session.error)} testId="session-error">
         <Button variant="outline" onClick={() => void session.refetch()}>
           Try again
         </Button>

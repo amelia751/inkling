@@ -4,6 +4,7 @@ import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { DialogContent, DialogDescription, DialogTitle } from "@studio/ui/ui/dialog";
 import { FieldError } from "@studio/ui/ui/field-error";
+import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { cn } from "@studio/ui/utils";
 import { AppLayout } from "@/studio/components/layout/app-layout";
@@ -86,7 +87,13 @@ export interface Column<T> {
  * Nebius table: 36px head in secondary text, body rows as one rounded card (12px corners,
  * 1px lines, 12px/8px cell padding, 20px at the edges).
  */
-export function DataTable<T>({ columns, rows, rowKey, empty, testId }: { columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; empty?: ReactNode; testId?: string }) {
+const SKELETON_WIDTHS = ["w-3/5", "w-2/5", "w-1/2", "w-1/3"];
+
+/**
+ * A DataTable that's still loading its first page: placeholder rows shaped like
+ * real ones (same cells and padding), so the table doesn't jump when data lands.
+ */
+export function DataTable<T>({ columns, rows, rowKey, empty, loading, skeletonRows = 3, testId }: { columns: Column<T>[]; rows: T[]; rowKey: (r: T) => string; empty?: ReactNode; loading?: boolean; skeletonRows?: number; testId?: string }) {
   return (
     <div className="-mx-1 overflow-x-auto px-1">
       <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm" data-testid={testId}>
@@ -106,7 +113,17 @@ export function DataTable<T>({ columns, rows, rowKey, empty, testId }: { columns
             "[&>tr:last-child>td:first-child]:rounded-bl-xl [&>tr:last-child>td:last-child]:rounded-br-xl",
           )}
         >
-          {rows.length === 0 ? (
+          {loading && rows.length === 0 ? (
+            Array.from({ length: skeletonRows }, (_, i) => (
+              <tr key={`skeleton-${i}`} aria-busy data-testid={testId ? `${testId}-skeleton` : undefined}>
+                {columns.map((c, j) => (
+                  <td key={c.key} className={cn("px-2 py-3 leading-[18px] first:pl-5 last:pr-5", c.className)}>
+                    <SkeletonText className={cn("my-[5px] h-2", SKELETON_WIDTHS[(i + j) % SKELETON_WIDTHS.length])} />
+                  </td>
+                ))}
+              </tr>
+            ))
+          ) : rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} className={typeof empty === "string" || !empty ? "px-5 py-10 text-center text-muted-foreground" : "p-0"}>
                 {empty ?? "Nothing here yet."}

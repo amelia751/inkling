@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Loader } from "@studio/ui/ui/loader";
+import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { Link } from "react-router";
 import { ApiKeyIcon, CheckIcon, CopyIcon, DeleteIcon, DomainIcon, ExternalLinkIcon, TopUpIcon } from "@studio/ui/icons";
 import { Alert } from "@studio/ui/ui/alert";
@@ -86,7 +87,7 @@ export function OrgProjectsPage() {
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} empty={isLoading ? <span className="inline-flex items-center gap-2"><Loader size="s" /> Loading projects</span> : q ? <NoResults what="projects" onClear={() => setQ("")} /> : <EmptyState art="folder" title="No projects yet" description="A project holds your files, the datasets you build from them and the annotation work on them." actions={<Button variant="outline" size="lg" asChild><Link to="/">Create project</Link></Button>} />} testId="org-projects-table" />
+      <DataTable columns={columns} rows={rows} rowKey={(p) => p.id} loading={isLoading} empty={q ? <NoResults what="projects" onClear={() => setQ("")} /> : <EmptyState art="folder" title="No projects yet" description="A project holds your files, the datasets you build from them and the annotation work on them." actions={<Button variant="outline" size="lg" asChild><Link to="/">Create project</Link></Button>} />} testId="org-projects-table" />
     </SettingsPage>
   );
 }
@@ -147,14 +148,11 @@ export function SecurityPage() {
   return (
     <SettingsPage title="Security" description="How people sign in to this organization and how accounts are provisioned." testId="org-security">
       {isError && <Alert theme="danger">Couldn't load security settings: {errorText(error)}</Alert>}
-      {isLoading && (
-        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader size="s" /> Loading
-        </span>
-      )}
       <div className="flex flex-col gap-4">
         <Section title="Sign-in methods" description="Which ways members can sign in. These are set for every organization; members using SSO always sign in through your identity provider.">
-          {security?.methods.length ? (
+          {isLoading ? (
+            <SectionSkeleton lines={3} />
+          ) : security?.methods.length ? (
             <ul className="flex flex-col gap-3">
               {security.methods.map((m) => (
                 <li key={m.id} className="flex items-center gap-3 text-sm">
@@ -189,21 +187,23 @@ export function SecurityPage() {
           description="Let members sign in with your organization's identity provider: Okta, Microsoft Entra ID, Google Workspace or any SAML/OIDC provider. Once SSO is active, it replaces the other sign-in methods for this organization."
           action={portalButton("sso", <>{security?.sso ? "Manage" : "Set up SSO"} <ExternalLinkIcon /></>, "admin-portal-sso")}
         >
-          <p className="text-sm text-muted-foreground">{security?.sso ? `${security.sso.provider} · ${security.sso.state}` : "Not configured. Opens the setup guide for your IT admin in a new tab."}</p>
+          {isLoading ? <SectionSkeleton /> : <p className="text-sm text-muted-foreground">{security?.sso ? `${security.sso.provider} · ${security.sso.state}` : "Not configured. Opens the setup guide for your IT admin in a new tab."}</p>}
         </Section>
         <Section
           title="Directory sync (SCIM)"
           description="Add and remove members automatically from your directory, and map directory groups to roles."
           action={portalButton("dsync", <>{security?.directory ? "Manage directory" : "Connect directory"} <ExternalLinkIcon /></>, "admin-portal-dsync")}
         >
-          <p className="text-sm text-muted-foreground">{security?.directory ? `${security.directory.provider}: ${security.directory.users} users, ${security.directory.groups} groups` : "No directory connected."}</p>
+          {isLoading ? <SectionSkeleton /> : <p className="text-sm text-muted-foreground">{security?.directory ? `${security.directory.provider}: ${security.directory.users} users, ${security.directory.groups} groups` : "No directory connected."}</p>}
         </Section>
         <Section
           title="Verified domains"
           description="People who sign up with an email at a verified domain join this organization automatically. Required for SSO."
           action={portalButton("domain_verification", <><DomainIcon /> Add domain</>, "admin-portal-domains")}
         >
-          {!security?.domains.length ? (
+          {isLoading ? (
+            <SectionSkeleton />
+          ) : !security?.domains.length ? (
             <p className="text-sm text-muted-foreground">No domains yet.</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
@@ -216,9 +216,9 @@ export function SecurityPage() {
           )}
         </Section>
         <Section title="Sessions" description="How long someone stays signed in. This is the same for every organization.">
-          <p className="text-sm" data-testid="session-length">
+          {isLoading ? <SectionSkeleton /> : <p className="text-sm" data-testid="session-length">
             {security ? `People are signed out after ${security.sessionHours === 1 ? "1 hour" : `${security.sessionHours} hours`} at most, and after an hour without activity.` : "—"}
-          </p>
+          </p>}
         </Section>
       </div>
     </SettingsPage>
@@ -289,12 +289,9 @@ export function ApiKeysPage() {
         columns={columns}
         rows={rows}
         rowKey={(k) => k.id}
+        loading={keys.isLoading}
         empty={
-          keys.isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader size="s" /> Loading keys
-            </span>
-          ) : offline ? (
+          offline ? (
             `Couldn't load API keys: ${errorText(keys.error)}`
           ) : q ? (
             <NoResults what="keys" onClear={() => setQ("")} />
@@ -492,12 +489,9 @@ export function AuditLogPage() {
         columns={columns}
         rows={rows}
         rowKey={(e) => e.id}
+        loading={log.isLoading}
         empty={
-          log.isLoading ? (
-            <span className="inline-flex items-center gap-2">
-              <Loader size="s" /> Loading events
-            </span>
-          ) : log.isError ? (
+          log.isError ? (
             `Couldn't load the audit log: ${errorText(log.error)}`
           ) : filtered ? (
             <NoResults what="events" onClear={() => (setActorInput(""), setAction("all"))} />
@@ -568,5 +562,16 @@ export function OrgSettingsPage() {
         </Button>
       </div>
     </SettingsPage>
+  );
+}
+
+/** Placeholder lines for a security section's body while the settings load. */
+function SectionSkeleton({ lines = 1 }: { lines?: number }) {
+  return (
+    <div className="flex flex-col gap-1.5" aria-busy>
+      {Array.from({ length: lines }, (_, i) => (
+        <SkeletonText key={i} className={i % 2 ? "w-1/3" : "w-1/2"} />
+      ))}
+    </div>
   );
 }

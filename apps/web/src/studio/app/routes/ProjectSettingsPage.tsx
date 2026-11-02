@@ -9,7 +9,7 @@ import { Card } from "@studio/ui/ui/card";
 import { Input } from "@studio/ui/ui/input";
 import { Label } from "@studio/ui/ui/label";
 import { RadioGroup, RadioGroupItem } from "@studio/ui/ui/radio-group";
-import { Skeleton } from "@studio/ui/ui/skeleton";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { Textarea } from "@studio/ui/ui/textarea";
 import { cn } from "@studio/ui/utils";
 import type { ProjectSummary } from "@studio/contracts/types";
@@ -61,7 +61,20 @@ function TabLink({ to, children }: { to: string; children: ReactNode }) {
 
 function General({ projectId }: { projectId: string }) {
   const project = useProjectDetail(projectId);
-  if (project.isLoading) return <Skeleton className="h-72 rounded-lg" />;
+  if (project.isLoading)
+    return (
+      <Card className="p-4" aria-busy data-testid="settings-general-skeleton">
+        <div className="flex max-w-xl flex-col gap-4">
+          {["h-9", "h-20", "h-14"].map((h, i) => (
+            <div key={i} className="flex flex-col gap-1.5">
+              <SkeletonText className="w-24" />
+              <Skeleton className={`${h} w-full rounded-md`} />
+            </div>
+          ))}
+          <Skeleton className="h-9 w-20 rounded-md" />
+        </div>
+      </Card>
+    );
   if (project.error || !project.data) return <p className="text-sm text-muted-foreground">Couldn't load the project: {String(project.error)}</p>;
   return <GeneralForm project={project.data} />;
 }

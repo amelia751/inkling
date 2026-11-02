@@ -3,6 +3,7 @@ import type { EnvironmentSpec } from "@studio/contracts/environment";
 import type { PluginsLock } from "@studio/contracts/lockfile";
 import { kernelEnabled } from "@/extension-host/kernel";
 import { apiUrl } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * The kernel's dataset-versioning routes (apps/api `routes/versioning.py`, todo4 Phase 6).
@@ -173,7 +174,7 @@ export interface VersionedDocument extends AnnotationDocument {
 const headers = (workspaceId: string) => ({ "Content-Type": "application/json", "X-Workspace-Id": workspaceId });
 
 async function call<T>(workspaceId: string, method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(apiUrl(`/v1${path}`), { method, headers: headers(workspaceId), body: body === undefined ? undefined : JSON.stringify(body) });
+  const res = await apiFetch(apiUrl(`/v1${path}`), { method, headers: headers(workspaceId), body: body === undefined ? undefined : JSON.stringify(body) });
   const data = (await res.json().catch(() => ({}))) as unknown;
   if (!res.ok) {
     const p = data as Partial<Problem>;

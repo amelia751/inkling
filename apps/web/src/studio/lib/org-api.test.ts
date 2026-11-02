@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MutationObserver, QueryClient } from "@tanstack/react-query";
+import { applyRuntimeConfig } from "@/extension-host/runtime-config";
 import { ApiError } from "./projects-api";
 import { auditCsvUrl, fetchAudit, memberRows, orgKeys, orgMutations, orgQueries, sessionCan, stepUpUrl } from "./org-api";
 
@@ -18,7 +19,10 @@ beforeEach(() => {
     return respond(c);
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  applyRuntimeConfig(null);
+});
 
 const client = () => new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
@@ -51,6 +55,8 @@ describe("org-api queries", () => {
   });
 
   it("the auth session is read from /api/auth/session", async () => {
+    // With an API (seed mode has none and uses the mock account, lib/session.ts).
+    applyRuntimeConfig({ kernel: true });
     respond = () => json(200, { permissions: ["audit:read"] });
     const s = await client().fetchQuery(orgQueries.authSession());
     expect(calls[0].url).toBe("/api/auth/session");

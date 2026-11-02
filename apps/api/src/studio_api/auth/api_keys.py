@@ -50,6 +50,7 @@ REVOKED = "api_key.revoked"
 KERNEL_SCOPES: dict[str, tuple[str, ...]] = {
     "datasets:read": ("annotations.read", "assets.read", "versioning.read", "versioning.checkout"),
     "annotations:write": ("annotations.read", "annotations.write", "proposals.write", "versioning.read", "versioning.write"),
+    "environments:write": ("environments.write",),
     "studio:tools": ("commands.invoke", "events.publish"),
     "admin": ("*",),
 }

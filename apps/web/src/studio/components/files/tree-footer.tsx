@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FsShortcut, SourceNode } from "@studio/contracts/types";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, ImportedIcon, QueueIcon } from "@studio/ui/icons";
 import { cn } from "@studio/ui/utils";
 import { nodeIcon } from "@/studio/lib/file-kinds";
@@ -38,12 +39,12 @@ export interface TreeFooterProps {
 }
 
 const MAX_ROWS = 8;
-const KEY = `${RES}-files-footer`;
+const KEY = () => personKey(`${RES}-files-footer`);
 type Open = { starred: boolean; recent: boolean };
 
 function readOpen(): Open {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY());
     if (raw) return { starred: true, recent: true, ...(JSON.parse(raw) as Partial<Open>) };
   } catch {
     // Private window or blocked storage: open by default.
@@ -53,7 +54,7 @@ function readOpen(): Open {
 
 function writeOpen(o: Open) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(o));
+    localStorage.setItem(KEY(), JSON.stringify(o));
   } catch {
     // Not remembered; nothing else depends on it.
   }

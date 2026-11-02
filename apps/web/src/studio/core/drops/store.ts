@@ -1,7 +1,7 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 import { RES } from "@studio/contracts/naming";
-import { personKey } from "@/studio/lib/dev-principal";
+import { followPerson, personStorage } from "@/studio/lib/person-key";
 import type { DropOriginKind } from "@studio/contracts/drops";
 
 /**
@@ -63,7 +63,9 @@ export const useDrops = create<DropsState>()(
         }),
     }),
     {
-      name: personKey(`${RES}-drops`),
+      name: `${RES}-drops`,
+      // Per person (todo15 D1): the name is suffixed with the person at each read and write.
+      storage: createJSONStorage(() => personStorage(() => localStorage)),
       version: 1,
       // Upload entries and object URLs don't survive a reload; the newest drops do.
       partialize: (s) => ({
@@ -77,3 +79,6 @@ export const useDrops = create<DropsState>()(
     },
   ),
 );
+
+// Another person (or organization) signed in: load theirs, or start empty (todo15 D1).
+followPerson(useDrops, () => localStorage);

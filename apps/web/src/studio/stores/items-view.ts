@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import type { QueueFilter } from "@/studio/lib/item-folders";
 
 /**
@@ -10,7 +11,7 @@ import type { QueueFilter } from "@/studio/lib/item-folders";
  */
 export type ItemsView = "folders" | "queue";
 
-const key = (taskId: string) => `${RES}-items-view-${taskId}`;
+const key = (taskId: string) => personKey(`${RES}-items-view-${taskId}`);
 
 export function readView(taskId: string): ItemsView | null {
   try {

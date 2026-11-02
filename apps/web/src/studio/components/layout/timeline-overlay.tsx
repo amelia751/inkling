@@ -1,10 +1,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useLocation } from "react-router";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import { dropTimeline, onServerEvent, SERVER_EVENTS, subscribeTimeline } from "@/studio/lib/drop-timeline";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
 
-const KEY = `${RES}-timeline-overlay`;
+const KEY = () => personKey(`${RES}-timeline-overlay`);
 const HEADLINE = new Set(["gesture", "project-created", "first-file-uploaded", "server:source.node.inspected", "studio:route-enter", "first-interactive"]);
 
 /** `?timeline=1` turns the overlay on for this tab (it survives navigation); `?timeline=0` off. */
@@ -12,7 +13,7 @@ function useTimelineOverlayEnabled(): boolean {
   const { search } = useLocation();
   const [on, setOn] = useState(() => {
     try {
-      return sessionStorage.getItem(KEY) === "1";
+      return sessionStorage.getItem(KEY()) === "1";
     } catch {
       return false;
     }
@@ -23,7 +24,7 @@ function useTimelineOverlayEnabled(): boolean {
     const next = v !== "0" && v !== "false";
     setOn(next);
     try {
-      sessionStorage.setItem(KEY, next ? "1" : "0");
+      sessionStorage.setItem(KEY(), next ? "1" : "0");
     } catch {
       /* storage blocked: this page only */
     }

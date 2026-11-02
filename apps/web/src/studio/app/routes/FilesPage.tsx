@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { DetectedKind, FsOp, SourceNode, SourceSummary, TrashItem } from "@studio/contracts/types";
 import { ns, RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import { ChevronDownIcon, CloseIcon, GridViewIcon, ListViewIcon, MoreIcon, NewFolderIcon, PasteIcon, PlusIcon, SearchIcon, UploadIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@studio/ui/ui/context-menu";
@@ -102,8 +103,8 @@ import { PlanPanel } from "./files/plan-panel";
  * `sources-*` names (a regression contract).
  */
 const SCOPE = ns("core");
-const SORT_KEY = `${RES}-files-sort`;
-const RECENT_KEY = `${RES}-files-move-recent`;
+const SORT_KEY = () => personKey(`${RES}-files-sort`);
+const RECENT_KEY = () => personKey(`${RES}-files-move-recent`);
 const EXPAND_CAP = 2000;
 const STATUS_CHIPS = [
   { value: "attention", label: "Needs attention" },
@@ -116,7 +117,7 @@ type MenuTarget = { node: SourceNode; from: "tree" | "list" | "path" } | { node:
 
 function readSort(): Sort {
   try {
-    const v = JSON.parse(localStorage.getItem(SORT_KEY) ?? "null") as Sort | null;
+    const v = JSON.parse(localStorage.getItem(SORT_KEY()) ?? "null") as Sort | null;
     if (v && ["name", "kind", "size", "status", "added"].includes(v.key) && (v.dir === 1 || v.dir === -1)) return v;
   } catch {
     // Storage blocked: the default.
@@ -126,7 +127,7 @@ function readSort(): Sort {
 
 function readRecent(projectId: string): MoveDestination[] {
   try {
-    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "{}") as Record<string, MoveDestination[]>;
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY()) ?? "{}") as Record<string, MoveDestination[]>;
     return Array.isArray(all[projectId]) ? all[projectId] : [];
   } catch {
     return [];
@@ -135,9 +136,9 @@ function readRecent(projectId: string): MoveDestination[] {
 
 function writeRecent(projectId: string, dest: MoveDestination) {
   try {
-    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "{}") as Record<string, MoveDestination[]>;
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY()) ?? "{}") as Record<string, MoveDestination[]>;
     all[projectId] = [dest, ...(all[projectId] ?? []).filter((d) => d.id !== dest.id)].slice(0, 5);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(all));
+    localStorage.setItem(RECENT_KEY(), JSON.stringify(all));
   } catch {
     // Not remembered.
   }
@@ -169,7 +170,7 @@ export function FilesPage({ trash = false }: { trash?: boolean }) {
   const setSort = (s: Sort) => {
     setSortState(s);
     try {
-      localStorage.setItem(SORT_KEY, JSON.stringify(s));
+      localStorage.setItem(SORT_KEY(), JSON.stringify(s));
     } catch {
       // Not remembered.
     }

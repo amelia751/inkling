@@ -63,6 +63,8 @@ class RequestContext:
     user_agent: str | None = None
     # todo16 D8: the approval the person gave in chat for a *destroy* operation (X-Approval-Id).
     approval_id: str | None = None
+    # The bearer session token's hash (a signed approval names the delegation it was given in).
+    token_hash: str | None = None
 
     @property
     def task(self) -> str:
@@ -171,7 +173,7 @@ def _session_token_context(request: Request, db: Session, row: SessionToken, cor
         delegation.on_behalf_of if delegation else None, task, delegation.task_id if delegation else None,
         org_id=delegation.org_id if delegation else None, permissions=perms, auth=AUTH_TOKEN,
         client_ip=client_ip(request), user_agent=request.headers.get("User-Agent"),
-        approval_id=request.headers.get("X-Approval-Id") or None,
+        approval_id=request.headers.get("X-Approval-Id") or None, token_hash=row.token_hash,
     )
 
 

@@ -5,6 +5,7 @@ import { OPERATIONS, type Operation, operationRequest, operationToolName } from 
 import type { ApprovalDetail } from "@studio/agent-protocol";
 import { KernelError, type KernelClient } from "./kernel.ts";
 import type { Decision } from "./policy.ts";
+import { approvalToken, operationTargets } from "./approval-token.ts";
 
 /**
  * Project operation tools generated from the operations catalogue (todo16 D7, D8, D9).
@@ -71,10 +72,7 @@ const removesNoun: Record<string, string> = { dataset: "a dataset", collection: 
  */
 export function decideOperation(op: Operation, input: Record<string, unknown>, askOver: number, facts: OperationFacts = {}): Decision {
   if (op.tier === "read" || op.tier === "write") return { kind: "allow" };
-  const ids = Object.entries(input)
-    .filter(([k]) => k.endsWith("Id") || k === "nodeIds")
-    .flatMap(([, v]) => (Array.isArray(v) ? v : [v]))
-    .map(String);
+  const ids = operationTargets(input);
   const items = ids.slice(0, 50).map((id) => ({ kind: op.removes ?? "item", id }));
   if (op.tier === "destroy") {
     const what = op.id === "trash.empty" ? "Empty the Trash: everything in it is deleted forever" : `${op.description.replace(/ Can't be undone\.$/, "")}`;
@@ -103,6 +101,9 @@ export interface OperationToolDeps {
   runId: () => string | undefined;
   /** The approval id the person gave for this tool call (set by the policy extension). */
   approvalFor: (toolCallId: string) => string | undefined;
+  /** The person's delegated kernel token and the key approvals are signed with (todo16 D8). */
+  kernelToken: () => string | undefined;
+  approvalSecret: string;
 }
 
 function batchOf(res: unknown): string | undefined {
@@ -127,7 +128,13 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
         if (!parsed.success) throw new Error(`invalid input for ${name}: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
         const req = operationRequest(op, d.projectId, parsed.data as Record<string, unknown>);
         const qs = req.query ? `?${new URLSearchParams(req.query)}` : "";
-        const approval = d.approvalFor(callId);
+        const approvalId = d.approvalFor(callId);
+        const kernelToken = d.kernelToken();
+        // Destroys carry a signed approval the api verifies (person, operation, targets, expiry, once).
+        const approval =
+          approvalId && op.tier === "destroy" && kernelToken
+            ? approvalToken({ approvalId, kernelToken, opId: op.id, projectId: d.projectId, targets: operationTargets(parsed.data as Record<string, unknown>), secret: d.approvalSecret })
+            : approvalId;
         let res: unknown;
         try {
           res = await d.kernel.request(req.method, `${req.path}${qs}`, { json: req.body, signal, headers: approval ? { "X-Approval-Id": approval } : undefined });

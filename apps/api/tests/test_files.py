@@ -673,4 +673,4 @@ def test_delegated_assistant_writes_and_trashes_but_destroy_needs_approval(clien
     r = client.post(f"/api/v1/projects/{p}/trash/empty", headers=agent)
     assert r.status_code == 403 and "approval" in r.json()["detail"]
     r = client.post(f"/api/v1/projects/{p}/trash/empty", headers={**agent, "X-Approval-Id": "appr_1"})
-    assert r.status_code == 200, r.text
+    assert r.status_code == 403, r.text  # a bare id is not a signed approval (test_approvals.py)

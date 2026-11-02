@@ -405,7 +405,7 @@ export class SessionService {
     // todo16 D7-D9: write, trash and destroy tools from the operations catalogue, with the
     // person's delegated token; one journal per session so a turn undoes as one step.
     ctx.policy.trashAskOver = this.config.trashAskOver;
-    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, journal: ctx.journal, runId: () => ctx.activeRun?.id, approvalFor: (id) => ctx.approvalIds.get(id) }));
+    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, journal: ctx.journal, runId: () => ctx.activeRun?.id, approvalFor: (id) => ctx.approvalIds.get(id), kernelToken: () => ctx.kernelToken, approvalSecret: this.config.approvalSecret }));
     // todo13: files dropped in the chat (screened names and facts only).
     tools.push(...createDropTools(kernel));
     if (profile.studio) {

@@ -4,8 +4,8 @@
 //   node tools/dev.mjs            dev auth (trusted dev headers, the dev principal)
 //   node tools/dev.mjs --signin   api, web and agent in AUTH_MODE=workos with secrets/workos.env
 //
-// Model (D6): the agent runs `scripted` unless <envPrefix>AGENT_MODEL is set in the shell or in a
-// secrets/*.env file (secrets/models.env, next to its provider key). Nothing here prints a value:
+// Model (D6): <envPrefix>AGENT_MODEL from the shell or a secrets/*.env file; else the agent's default
+// when a provider key is set, else `scripted`. Nothing here prints a value:
 // only key names. A variable already exported in the shell always wins.
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -42,13 +42,22 @@ const set = (key, value) => {
 const notes = [];
 
 // ---- Model (D6) ----------------------------------------------------------------------------------
+const providerKey = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((k) => env[k] || fromFiles[k]);
 if (!env[`${P}AGENT_MODEL`] && !fromFiles[`${P}AGENT_MODEL`]) {
-  set(`${P}AGENT_MODEL`, "scripted");
-  notes.push(`model: scripted (set ${P}AGENT_MODEL in secrets/models.env for a real one)`);
+  // A provider key in the shell or secrets/: the agent's own default model, as before todo15.
+  // No key at all: scripted, so the assistant still answers (free, canned).
+  if (providerKey) notes.push("model: the agent's default (a provider key is set)");
+  else {
+    set(`${P}AGENT_MODEL`, "scripted");
+    notes.push(`model: scripted (no provider key; set one in secrets/models.env for a real model)`);
+  }
 } else {
   const model = env[`${P}AGENT_MODEL`] || fromFiles[`${P}AGENT_MODEL`];
   notes.push(`model: ${model}`);
 }
+
+// ---- The web talks to the api this script starts (not the seed server) -------------------------
+set(`${P}API_URL`, "http://127.0.0.1:8000");
 
 // ---- Sign-in (D8) --------------------------------------------------------------------------------
 if (signin) {

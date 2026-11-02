@@ -221,7 +221,9 @@ export default defineConfig({
   optimizeDeps: {
     // Cornerstone's loaders resolve their codec WASM and workers via import.meta.url, which pre-bundling breaks.
     exclude: ["@cornerstonejs/dicom-image-loader"],
-    include: ["dicom-parser"],
+    // hash-wasm loads on the first upload: discovered then, Vite would re-optimize and reload the
+    // page mid-upload ("Failed to fetch"). Pre-bundle it at startup.
+    include: ["dicom-parser", "hash-wasm"],
   },
   worker: { format: "es" },
   assetsInclude: ["**/*.wasm"],

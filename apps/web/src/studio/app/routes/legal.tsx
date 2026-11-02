@@ -15,7 +15,7 @@ export function legalKind(pathname: string): LegalKind | null {
 
 const name = NAMING.displayName;
 
-const PAGES: Record<LegalKind, { title: string; sections: { heading: string; body: ReactNode }[] }> = {
+const PAGES: Record<LegalKind, { title: string; sections: { id?: string; heading: string; body: ReactNode }[] }> = {
   privacy: {
     title: "Privacy",
     sections: [
@@ -26,6 +26,17 @@ const PAGES: Record<LegalKind, { title: string; sections: { heading: string; bod
           <>
             Your messages, the project's title and tasks, file and folder names, kinds, counts and detected technical facts, and the Studio's setup and labels. Never images, signals, video or any other file
             contents. You approve everything it suggests.
+          </>
+        ),
+      },
+      {
+        id: "uploads",
+        heading: "What you can upload",
+        body: (
+          <>
+            De-identified, synthetic or public research data you're allowed to use. De-identified means names, record numbers, birth dates and other identifiers are removed from file
+            contents, headers and folder names. {name} also checks headers and names and holds what it finds for your review, but that check is a safety net, not
+            de-identification. Unsure? Ask your data protection office first.
           </>
         ),
       },
@@ -52,7 +63,7 @@ export function LegalPage({ kind }: { kind: LegalKind }) {
         <a href="/" className="text-sm text-muted-foreground hover:text-foreground">{name}</a>
         <h1 className="text-header-2 font-semibold">{page.title}</h1>
         {page.sections.map((s) => (
-          <section key={s.heading} className="flex flex-col gap-1.5">
+          <section key={s.heading} id={s.id} className="flex scroll-mt-8 flex-col gap-1.5">
             <h2 className="text-body-2 font-semibold">{s.heading}</h2>
             <p className="text-sm leading-relaxed text-muted-foreground">{s.body}</p>
           </section>

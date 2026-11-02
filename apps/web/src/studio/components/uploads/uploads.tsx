@@ -1,4 +1,3 @@
-import { NAMING } from "@studio/contracts/naming";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -196,25 +195,20 @@ function AttestationDialog() {
     <Dialog open={!!attestation} onOpenChange={(open) => !open && answer(false)}>
       <DialogContent className="max-w-md" data-testid="attestation">
         <DialogHeader>
-          <DialogTitle>Before these files upload</DialogTitle>
-          <DialogDescription>
-            {attestation?.count.toLocaleString()} {attestation?.count === 1 ? "file" : "files"} will be added to this project. Originals are kept exactly as they are.
-          </DialogDescription>
+          <DialogTitle>
+            Upload {attestation?.count.toLocaleString()} {attestation?.count === 1 ? "file" : "files"}?
+          </DialogTitle>
+          <DialogDescription className="sr-only">Confirm you may use these files before they upload.</DialogDescription>
         </DialogHeader>
         <div className="flex items-start gap-2.5">
           <Checkbox id="attest" checked={ok} onCheckedChange={(v) => setOk(v === true)} />
           <Label htmlFor="attest" className="leading-snug">
-            I'm allowed to use these files for research, and they're de-identified or synthetic.
+            I may use these files, and they're de-identified or synthetic.{" "}
+            <a href="/privacy#uploads" target="_blank" rel="noreferrer" className="font-normal text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              What counts?
+            </a>
           </Label>
         </div>
-        <details className="text-sm text-muted-foreground">
-          <summary className="cursor-pointer text-brand">What counts?</summary>
-          <p className="mt-2">
-            De-identified means names, record numbers, birth dates and other identifiers are removed from file contents, headers and folder names.
-            Synthetic or public research data is fine. If you're unsure, ask your data protection office first. {NAMING.displayName} also checks headers and names for
-            identifiers and holds what it finds for your review, but that check is a safety net, not de-identification.
-          </p>
-        </details>
         <DialogFooter>
           <Button variant="outline" size="lg" onClick={() => answer(false)}>Cancel</Button>
           <Button size="lg" disabled={!ok} onClick={() => answer(true)} data-testid="attest-confirm">

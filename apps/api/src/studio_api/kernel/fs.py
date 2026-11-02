@@ -50,7 +50,7 @@ from ..models import (
     SourceNode,
     now,
 )
-from . import assets, audit, events, privacy_names, tree
+from . import approvals, assets, audit, events, privacy_names, tree
 
 LOCKED = "Sample data can't be changed. Copy it to make your own"
 TRASH_DAYS = 30
@@ -75,14 +75,12 @@ PROJECT_WRITE = "project.write"
 def only_people(ctx: RequestContext, *, destroy: bool = False) -> None:
     """Who may change files (todo16 D8): people, and an assistant acting with the delegated token
     of the person who sent the message (the person's project role still applies). Other scoped
-    tokens propose only. A *destroy* (purge) by an assistant needs the approval id the person gave
-    in chat (`X-Approval-Id`)."""
+    tokens propose only. A *destroy* (purge) by an assistant also needs the person's signed
+    approval from chat (`X-Approval-Id`), checked by `approvals.verify` where the destroy runs."""
     if not ctx.scopes:
         return
     if not ctx.on_behalf_of or not ctx.allows(PROJECT_WRITE):
         raise HTTPException(403, "Only people change files and folders; the assistant can propose a reorganization")
-    if destroy and not ctx.approval_id:
-        raise HTTPException(403, "Deleting forever needs the person's approval in chat (X-Approval-Id)")
 
 
 # ---- The drive (D1) ----------------------------------------------------------------------------
@@ -765,7 +763,10 @@ def _iso(d: datetime | None) -> str | None:
 def apply(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> dict:
     """`POST /v1/projects/:id/fs/ops`: all or nothing."""
     ops = body.get("ops")
-    only_people(ctx, destroy=isinstance(ops, list) and any(isinstance(o, dict) and o.get("kind") == "purge" for o in ops))
+    purges = [o for o in ops if isinstance(o, dict) and o.get("kind") == "purge"] if isinstance(ops, list) else []
+    only_people(ctx, destroy=bool(purges))
+    if purges:
+        approvals.verify(db, ctx, operation="source.purge", project_id=p.id, targets=[str(i) for o in purges for i in (o.get("nodeIds") if isinstance(o.get("nodeIds"), list) else [])])
     if not isinstance(ops, list) or not ops:
         raise HTTPException(422, "ops must list at least one operation")
     if len(ops) > 1000:
@@ -1174,6 +1175,7 @@ def trash_page(db: Session, p: ProjectRow, cursor: str | None = None, limit: int
 def empty_trash(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = False, older_than: datetime | None = None) -> dict:
     if not dry_run and older_than is None:
         only_people(ctx, destroy=True)
+        approvals.verify(db, ctx, operation="trash.empty", project_id=p.id)
     q = select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.trashed_at.is_not(None))
     if older_than is not None:
         q = q.where(SourceNode.trashed_at < older_than)

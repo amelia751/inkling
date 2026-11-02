@@ -117,6 +117,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from .naming import REPO_ROOT, naming
 
 
+# todo16 D8: the agent's config module has the same dev value, so dev approvals verify unset.
+DEV_APPROVAL_SECRET = "dev-approval-secret-not-for-production"
+
+
 class SettingsError(RuntimeError):
     """Configuration is missing or invalid. The message names keys, never values; `hints` say
     which rule a key broke (still names only)."""
@@ -280,6 +284,9 @@ class Settings(BaseModel):
     # ---- Trash (todo16 D2/D5): days in Trash before purge; the assistant asks above this many items. ----
     trash_days: int = 30
     agent_trash_ask_over: int = 100
+    # todo16 D8: HMAC key the agent signs destroy approvals with (its AGENT_APPROVAL_SECRET, same
+    # value). Required in production; dev and tests share DEV_APPROVAL_SECRET with the agent.
+    approval_secret: str = ""
 
     @property
     def production(self) -> bool:
@@ -370,6 +377,7 @@ _KEYS: dict[str, str] = {
     # Trash (todo16).
     "trash_days": "API_TRASH_DAYS",
     "agent_trash_ask_over": "API_AGENT_TRASH_ASK_OVER",
+    "approval_secret": "API_APPROVAL_SECRET",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 
@@ -427,7 +435,7 @@ def load_settings(**overrides) -> Settings:
 
     missing: list[str] = []
     if production:
-        for f in ("secret_key", "database_url", "worker_token"):
+        for f in ("secret_key", "database_url", "worker_token", "approval_secret"):
             if not values.get(f):
                 missing.append(key_name(f))
     if values.get("signer") == "gcpkms" and not values.get("signer_kms_key"):
@@ -449,6 +457,8 @@ def load_settings(**overrides) -> Settings:
             key_file.write_text(pysecrets.token_urlsafe(48))
         values["secret_key"] = key_file.read_text().strip()
     values.setdefault("database_url", f"sqlite:///{data_dir / 'api.db'}")
+    if not production:
+        values.setdefault("approval_secret", DEV_APPROVAL_SECRET)
     values.setdefault("secret_key", "")
     hints = _check_auth(values, missing, invalid_early)
     invalid: list[str] = list(invalid_early)

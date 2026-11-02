@@ -1,4 +1,6 @@
+import { createHash, createHmac } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
+import { DEV_APPROVAL_SECRET } from "../../src/config.ts";
 import { OPERATIONS, operationRequest, operationToolName } from "@studio/contracts/operations";
 import { OPERATION_TOOLS, decideOperation, operationForTool } from "../../src/tools/operations.ts";
 import { harness } from "./harness.ts";
@@ -154,7 +156,14 @@ describe("assistant operates the project (scripted model)", () => {
     const a = await say(id, "empty the trash", "approve");
     expect(a.approvals[0].summary).toMatch(/can't be undone/);
     const post = api.seen.find((s) => s.path === "/projects/demo/trash/empty")!;
-    expect(post.approval).toBe(a.approvals[0].approvalId);
+    // todo16 D8: a signed approval bound to the approval, the person's token, the op and project.
+    const [v, body, mac] = post.approval!.split(".");
+    expect(v).toBe("v1");
+    expect(createHmac("sha256", DEV_APPROVAL_SECRET).update(`v1.${body}`).digest("base64url")).toBe(mac);
+    const claims = JSON.parse(Buffer.from(body!, "base64url").toString());
+    expect(claims).toMatchObject({ aid: a.approvals[0].approvalId, dlg: createHash("sha256").update(KTOKEN).digest("hex"), op: "trash.empty", pid: "demo", tgt: [] });
+    const left = claims.exp - Date.now() / 1000;
+    expect(left > 0 && left <= 600).toBe(true);
     expect(JSON.parse(a.results.find((x) => x.name === "trash_empty")!.text)).toMatchObject({ deletedForever: true });
   });
 
@@ -172,5 +181,16 @@ describe("assistant operates the project (scripted model)", () => {
     const r = a.results.find((x) => x.name === "source_trash")!;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/view this project but not delete/);
+  });
+});
+
+describe("signed approvals (todo16 D8)", () => {
+  it("binds targets and signs with the secret", async () => {
+    const { approvalToken, operationTargets } = await import("../../src/tools/approval-token.ts");
+    expect(operationTargets({ nodeIds: ["a", "b"], name: "x" })).toEqual(["a", "b"]);
+    const t = approvalToken({ approvalId: "appr_1", kernelToken: KTOKEN, opId: "source.purge", projectId: "demo", targets: ["a"], secret: "s3cret", now: 1_000_000 });
+    const [, body, mac] = t.split(".");
+    expect(createHmac("sha256", "s3cret").update(`v1.${body}`).digest("base64url")).toBe(mac);
+    expect(JSON.parse(Buffer.from(body!, "base64url").toString())).toEqual({ aid: "appr_1", dlg: createHash("sha256").update(KTOKEN).digest("hex"), op: "source.purge", pid: "demo", tgt: ["a"], exp: 1300 });
   });
 });

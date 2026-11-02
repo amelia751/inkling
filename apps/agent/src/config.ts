@@ -44,6 +44,8 @@ const schema = z.object({
   AGENT_HOST: z.string().default("127.0.0.1"),
   AGENT_PORT: int(8100),
   AGENT_TOKEN: optional,
+  /** todo16 D8: HMAC key for signed destroy approvals (the api's API_APPROVAL_SECRET, same value). */
+  AGENT_APPROVAL_SECRET: optional,
   /**
    * Who the browser's calls act as (todo9 Phase 5). `dev`: the service token alone, every person is
    * the one local principal. `workos`: browser-proxied calls also carry the person's WorkOS access
@@ -169,6 +171,8 @@ export interface Config {
   host: string;
   port: number;
   serviceToken: string | undefined;
+  /** todo16 D8: signs destroy approvals the api verifies (DEV_APPROVAL_SECRET outside production). */
+  approvalSecret: string;
   /** How callers are identified (todo9 Phase 5); `workos` carries what verifying access tokens needs. */
   auth: { mode: "dev" } | { mode: "workos"; clientId: string; issuer: string | undefined; baseUrl: string | undefined };
   model: { provider: string; id: string; allowlist: string[]; thinking: Env["AGENT_THINKING"] };
@@ -214,6 +218,9 @@ export interface Config {
   sweeperEnabled: boolean;
   gitSha: string | undefined;
 }
+
+/** The api's config module has the same dev value, so dev approvals verify with nothing set. */
+export const DEV_APPROVAL_SECRET = "dev-approval-secret-not-for-production";
 
 export const SCRIPTED_PROVIDER = "scripted";
 /** pi's Vertex AI provider. Its key is the marker pi reads as "use Application Default Credentials". */
@@ -273,6 +280,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   }
   if (e.ENV === "production") {
     if (!e.AGENT_TOKEN) missing.push(envName("AGENT_TOKEN"));
+    if (!e.AGENT_APPROVAL_SECRET) missing.push(envName("AGENT_APPROVAL_SECRET"));
     missing.push(...backend);
     if (missing.length) throw new ConfigError(`missing required settings: ${missing.join(", ")}`);
   } else {
@@ -287,6 +295,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       host: e.AGENT_HOST,
       port: e.AGENT_PORT,
       serviceToken: e.AGENT_TOKEN,
+      approvalSecret: e.AGENT_APPROVAL_SECRET ?? DEV_APPROVAL_SECRET,
       auth:
         e.AGENT_AUTH_MODE === "workos"
           ? { mode: "workos", clientId: e.AGENT_WORKOS_CLIENT_ID!, issuer: e.AGENT_WORKOS_ISSUER, baseUrl: e.AGENT_WORKOS_BASE_URL }

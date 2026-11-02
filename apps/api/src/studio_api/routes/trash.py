@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
@@ -65,9 +65,9 @@ def restore(project_id: str, batch_id: str, ctx: RequestContext = Depends(get_co
 
 
 @router.delete("/projects/{project_id}/trash/{batch_id}")
-def destroy(project_id: str, batch_id: str, x_approval_id: str | None = Header(default=None), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def destroy(project_id: str, batch_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id)
-    trash.require_destroy(db, ctx, p, x_approval_id)
+    trash.require_destroy(db, ctx, p, "trash.destroy", [batch_id])
     return trash.destroy(db, ctx, p, batch_id)
 
 
@@ -149,6 +149,6 @@ def deleted_projects(ctx: RequestContext = Depends(get_context), db: Session = D
 
 
 @router.delete("/org/deleted-projects/{project_id}")
-def destroy_project(project_id: str, x_approval_id: str | None = Header(default=None), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def destroy_project(project_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = trash.require_trash(db, ctx, project_id, include_trashed=True)
-    return trash.destroy_project(db, ctx, p, x_approval_id)
+    return trash.destroy_project(db, ctx, p)

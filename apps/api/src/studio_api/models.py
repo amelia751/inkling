@@ -1141,3 +1141,16 @@ def _hide_trashed(state) -> None:  # noqa: ANN001
     if not state.is_select or state.is_column_load or state.is_relationship_load or state.execution_options.get("include_trashed"):
         return
     state.statement = state.statement.options(*(with_loader_criteria(m, _not_trashed, include_aliases=True) for m in TRASHABLE))
+
+
+class ApprovalUsed(Base):
+    """todo16 D8: an assistant's destroy approval (a signed token from the agent) is good once.
+    Its id lands here when the api honours it; a second use is refused."""
+
+    __tablename__ = "approvals_used"
+    approval_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    person: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    operation: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    project_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

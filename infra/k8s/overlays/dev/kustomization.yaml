@@ -45,6 +45,7 @@ secretGenerator:
       - INKLING_API_SECRET_KEY=dev-only-api-secret-key-not-for-production-0000
       - INKLING_API_WORKER_TOKEN=dev-only-worker-token
       - INKLING_API_PIPELINE_TOKEN=dev-only-pipeline-token
+      - INKLING_API_APPROVAL_SECRET=dev-only-approval-secret
       - AWS_ACCESS_KEY_ID=dev-only-s3-access
       - AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
   - name: worker-secrets
@@ -54,6 +55,7 @@ secretGenerator:
     literals:
       - INKLING_AGENT_TOKEN=dev-only-agent-service-token
       - INKLING_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent
+      - INKLING_AGENT_APPROVAL_SECRET=dev-only-approval-secret
   - name: versioning-secrets
     literals:
       - INKLING_VERSIONING_DATABASE_URL=postgres://versioning_app:dev-only-app-pw@postgres:5432/studio?sslmode=disable

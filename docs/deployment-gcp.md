@@ -226,6 +226,14 @@ switch on only when that milestone ships.
 - Pods use Workload Identity; app secrets are Secret Manager secrets synced by the External
   Secrets Operator into the usual `<app>-secrets`. Cloud Storage is reached through its native API
   (`BLOB_STORE=gcs` in apps/api, `OBJECT_STORE=gcs` in apps/versioning), never HMAC keys.
+- Destroy approvals (todo16 D8): the agent signs the person's "delete forever" approval with
+  HMAC-SHA256 and the api verifies it (person, operation, project, targets, ten-minute expiry,
+  single use in `approvals_used`). The key is one random value (`openssl rand -base64 48`) held
+  twice: Secret Manager secret `approval-secret` in **`spurby-ai`** synced into `agent-secrets`
+  as `INKLING_AGENT_APPROVAL_SECRET`, and the same value in **`spurby-phi`** synced into
+  `api-secrets` as `INKLING_API_APPROVAL_SECRET`. Both services refuse to start in production
+  without it. Rotate by updating both, then restarting api and agent (approvals in flight fail
+  and are asked again).
 - The agent's model is on Vertex AI in `spurby-ai` (`AGENT_MODEL=google-vertex:…`, D8) and its
   allowlist holds only Vertex models. Confirm that the BAA covers `spurby-ai` (a separate billing
   account outside the organization) and that the model is on the HIPAA covered list.

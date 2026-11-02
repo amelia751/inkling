@@ -36,7 +36,7 @@ from ..models import (
     User,
     now,
 )
-from . import fs, tree
+from . import approvals, fs, tree
 from .projects import person, project_role, require_project
 
 VIEWER_DENIED = "You can view this project but not delete from it"
@@ -96,13 +96,13 @@ def require_trash(db: Session, ctx: RequestContext, project_id: str, *, include_
         raise
 
 
-def require_destroy(db: Session, ctx: RequestContext, p: ProjectRow, approval_id: str | None = None) -> None:
+def require_destroy(db: Session, ctx: RequestContext, p: ProjectRow, operation: str, targets: list[str]) -> None:
     """Deleting forever: the project's owners (org admins are owners). An assistant (delegated
-    token) also needs the person's approval (`X-Approval-Id`, checked by the broker)."""
+    token) also needs the person's signed approval for this operation and these targets
+    (`X-Approval-Id`, `approvals.verify`: person, project, expiry, single use)."""
     if project_role(db, ctx, p) != "owner":
         raise HTTPException(403, "Only the project's owners can delete forever")
-    if ctx.scopes and not approval_id:
-        raise HTTPException(403, "Deleting forever needs the person's approval")
+    approvals.verify(db, ctx, operation=operation, project_id=p.id, targets=targets)
 
 
 # ---- What a deletion takes with it -------------------------------------------------------------
@@ -313,8 +313,8 @@ def deleted_projects(db: Session, ctx: RequestContext) -> dict:
     return {"projects": [{"id": r.id, "name": r.title, "trashedAt": _iso(r.trashed_at), "trashedBy": _who(db, r.trashed_by, _actor(db, r.trash_batch_id)), "daysLeft": days_left(r.trashed_at)} for r in rows]}
 
 
-def destroy_project(db: Session, ctx: RequestContext, p: ProjectRow, approval_id: str | None = None) -> dict:
-    require_destroy(db, ctx, p, approval_id)
+def destroy_project(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
+    require_destroy(db, ctx, p, "project.destroy", [p.id])
     if p.trashed_at is None:
         raise HTTPException(409, "move the project to Deleted projects first")
     org = p.org_id

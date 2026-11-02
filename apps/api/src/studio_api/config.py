@@ -24,6 +24,8 @@ that are missing or invalid, never their values.
 | API_SAMPLES_ENABLED       | 1                                | todo14 §8: "Try a sample" (served as `samples` in `GET /api/v1/features`) |
 | API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
 | API_IMPORT_STALL_MINUTES  | 15                               | todo18 D6: an import `inspecting` longer than this fails with a reason (0 = off) |
+| API_SCHEDULED_RECLAIM_MINUTES | 30                           | todo18 D6: a scheduled run (`files.empty_trash`) stuck `running` this long is reclaimed |
+| API_IDEMPOTENCY_STALL_MINUTES | 10                           | todo18 D6: an Idempotency-Key `in_progress` this long is swept (a retry runs) |
 | API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
 | API_VERSIONING_URL        | (none)                           | apps/versioning base URL; unset = versioning routes answer 503 |
 | API_VERSIONING_TENANT     | default                          | tenant sent to the versioning service |
@@ -251,6 +253,9 @@ class Settings(BaseModel):
     rules_scan_hour: int = Field(default=3, ge=0, le=23)
     # todo18 D6: an import `inspecting` longer than this fails with a reason (0 = never).
     import_stall_minutes: int = Field(default=15, ge=0)
+    # todo18 D6: a scheduled run stuck `running` / an idempotency key `in_progress` this long is released.
+    scheduled_reclaim_minutes: int = Field(default=30, ge=1)
+    idempotency_stall_minutes: int = Field(default=10, ge=1)
 
     # ---- Accounts (todo9 Phase 1): `dev` = trusted headers, `workos` = AuthKit sessions. ----
     auth_mode: Literal["dev", "workos"] = "dev"
@@ -371,6 +376,8 @@ _KEYS: dict[str, str] = {
     "idempotency_ttl_hours": "API_IDEMPOTENCY_TTL_HOURS",
     "rules_scan_hour": "API_RULES_SCAN_HOUR",
     "import_stall_minutes": "API_IMPORT_STALL_MINUTES",
+    "scheduled_reclaim_minutes": "API_SCHEDULED_RECLAIM_MINUTES",
+    "idempotency_stall_minutes": "API_IDEMPOTENCY_STALL_MINUTES",
     # Accounts (todo9).
     "auth_mode": "API_AUTH_MODE",
     "workos_api_key": "API_WORKOS_API_KEY",

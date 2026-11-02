@@ -273,7 +273,7 @@ def empty_trash_job(body: dict = Body(default={}), db: Session = Depends(get_ses
         if row is None or row.result is not None:
             return {"ran": False, "period": period, "result": row.result if row else None}
         # Claim the period: only the request whose UPDATE moved `result` from NULL runs it.
-        claimed = db.execute(update(ScheduledRun).where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"})).rowcount  # type: ignore[attr-defined]
+        claimed = db.execute(update(ScheduledRun).where(ScheduledRun.name == "files.empty_trash", ScheduledRun.period == period, ScheduledRun.result.is_(None)).values(result={"state": "running"}, at=datetime.now(UTC))).rowcount  # type: ignore[attr-defined]
         if not claimed:
             return {"ran": False, "period": period, "result": None}
     days = int(body["days"]) if isinstance(body.get("days"), int) else trash.days()

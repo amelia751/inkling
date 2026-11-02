@@ -185,7 +185,10 @@ agent.
    pushed to `spurby-ai`'s registry (CI has no federation there yet).
 9. [x] Rendered from `live/{phi,ai}`, validated (kubeconform), applied. Hosts are sslip.io names
    on the two ingress addresses until real DNS exists. The Studio host admits only
-   `STUDIO_ALLOW_CIDRS`: people don't sign in yet and the api trusts dev headers.
+   `STUDIO_ALLOW_CIDRS`: people don't sign in yet and the api trusts dev headers. Sign-in with
+   WorkOS (todo9) is ready but off: ExternalSecret and Secret Manager secret `workos-secrets`
+   exist, `overlays/gke/phi/components/workos` turns it on (`infra/k8s/README.md`, "WorkOS
+   runbook"); the allow-list stays until a sign-in is verified.
 10. [~] Smoke test (2026-11-01): every service's `/healthz`, `/readyz` and `/version` pass; web →
     agent → api works across the projects; outside callers get 403 on both agent hosts; a
     synthetic upload lands in Cloud Storage. **Blocked:** the worker (GKE Sandbox) can't get a

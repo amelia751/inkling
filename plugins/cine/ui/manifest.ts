@@ -9,17 +9,36 @@ import { NS, ns } from "@studio/contracts/naming";
 export const CINE = ns("cine");
 const core = (n: string) => `${NS}.core.commands.${n}`;
 
-/** The whole study (cine + reference segmentations) is one item. */
+/**
+ * One item per study: the files that share a Data folder (an uploaded `patient101/` with its
+ * 4D series, Info.cfg and frame segmentations), or, for seeds without folders, the whole
+ * project. A dropped tree with several studies gives several items, never one.
+ */
 function groupItems(project: Project): StudioItem[] {
-  const cine = project.assets.find((a) => a.role === "cine")?.path.split("/")[1];
-  return [{
-    id: cine ?? project.id,
-    name: cine ?? "Study",
-    group: "Studies",
-    assets: project.assets,
-    sourceLabel: project.meta?.group ? `${project.meta.group}` : undefined,
-    dataKind: `${CINE}.dataKinds.volume-time`,
-  }];
+  const studies = new Map<string, Project["assets"]>();
+  for (const a of project.assets) {
+    const key = a.subject ?? (Array.isArray(a.folder) && a.folder.length ? a.folder.join("/") : "");
+    studies.set(key, [...(studies.get(key) ?? []), a]);
+  }
+  if (studies.size <= 1) {
+    // One study (every seed): the id stays what annotations were saved against.
+    const cine = project.assets.find((a) => a.role === "cine")?.path.split("/")[1];
+    const nii = project.assets.find((a) => /\.nii(\.gz)?$/i.test(a.name ?? ""))?.name?.replace(/\.nii(\.gz)?$/i, "");
+    return [{ id: cine ?? project.id, name: cine ?? nii ?? "Study", group: "Studies", assets: project.assets, sourceLabel: project.meta?.group ? `${project.meta.group}` : undefined, dataKind: `${CINE}.dataKinds.volume-time` }];
+  }
+  return [...studies.entries()].map(([key, assets]) => {
+    const cine = assets.find((a) => a.role === "cine") ?? assets.find((a) => /\.nii(\.gz)?$/i.test(a.name ?? a.path));
+    const seedFolder = cine?.path.split("/")[1];
+    const name = key ? key.split("/").pop()! : (cine?.role === "cine" && seedFolder) || (cine?.name ?? "Study").replace(/\.nii(\.gz)?$/i, "");
+    return {
+      id: key || (cine?.role === "cine" && seedFolder) || project.id,
+      name,
+      group: "Studies",
+      assets,
+      sourceLabel: project.meta?.group ? `${project.meta.group}` : undefined,
+      dataKind: `${CINE}.dataKinds.volume-time`,
+    };
+  });
 }
 
 export default defineModule({

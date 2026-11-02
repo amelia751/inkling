@@ -198,7 +198,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
       {message.stopped && <p className="text-hint">Stopped.</p>}
       {!streaming && message.runId && message.parts.some((p) => p.type === "tool" && !!movedToTrash(p)) && <TurnUndo projectId={projectId} turnId={message.runId} />}
       {!streaming && (text || message.usage) && (
-        <div className={cn("-mt-0.5 flex h-6 items-center gap-1 text-muted-foreground transition-opacity", !latest && "opacity-0 group-hover/message:opacity-100 focus-within:opacity-100")}>
+        <div className={cn("-mt-0.5 flex h-6 items-center gap-1 text-muted-foreground transition-opacity", !latest && "opacity-0 group-hover/message:opacity-100 focus-within:opacity-100")} data-testid="agent-reply-done">
           {text && <CopyButton text={text} label="Copy response" size="icon-sm" />}
           {onRetry && !message.error && (
             <Tooltip>
@@ -209,16 +209,6 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
               </TooltipTrigger>
               <TooltipContent>Regenerate response</TooltipContent>
             </Tooltip>
-          )}
-          {message.usage && (
-            <span
-              className="ml-auto truncate pl-2 text-caption text-hint"
-              title={`${message.usage.inputTokens.toLocaleString()} tokens in (${(message.usage.cachedTokens ?? 0).toLocaleString()} cached) · ${message.usage.outputTokens.toLocaleString()} out`}
-              data-testid="agent-usage"
-            >
-              {message.model} · {(message.usage.inputTokens + (message.usage.cachedTokens ?? 0) + message.usage.outputTokens).toLocaleString()} tokens
-              {message.usage.costUsd > 0 && ` · $${message.usage.costUsd < 0.01 ? message.usage.costUsd.toFixed(4) : message.usage.costUsd.toFixed(2)}`}
-            </span>
           )}
         </div>
       )}

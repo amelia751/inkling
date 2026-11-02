@@ -11,13 +11,38 @@ export const VOLUME_KIND = `${VOLUME}.dataKinds.volume`;
 
 const isDicomPath = (p: string) => /\.dcm$/i.test(p);
 
+/** Sequence / reference tokens recognised as a `<subject>_<sequence>` file-name suffix (BraTS-style). */
+export const SEQUENCE_TOKENS = ["t1", "t1ce", "t1c", "t1gd", "t2", "flair", "t2f", "t2w", "t1w", "t1n", "pd", "dwi", "adc", "seg", "gt"];
+const SUFFIX = new RegExp(`^(.+?)[_-](${SEQUENCE_TOKENS.join("|")})$`, "i");
+
+const fileName = (a: Pick<SeedAsset, "path" | "name">) => a.name ?? a.path.split("/").pop() ?? a.path;
+const stem = (name: string) => name.replace(/\.(nii\.gz|nii|dcm|gz)$/i, "");
+
+/**
+ * Subject and sequence of a file the kernel didn't tag (an upload, a dropped folder): a
+ * `<subject>_<sequence>` stem gives both; a DICOM file is its folder's series; anything else
+ * is its own subject. The folder path is part of the key, so same-named files in different
+ * folders stay apart.
+ */
+export function inferSubject(a: Pick<SeedAsset, "path" | "name" | "subject" | "sequence" | "folder">): { subject: string; sequence?: string } {
+  if (a.subject) return { subject: a.subject, sequence: a.sequence };
+  const folder = Array.isArray(a.folder) ? a.folder : [];
+  const s = stem(fileName(a));
+  const m = SUFFIX.exec(s);
+  if (m) return { subject: m[1], sequence: a.sequence ?? m[2].toLowerCase() };
+  if (isDicomPath(fileName(a)) && folder.length) return { subject: folder[folder.length - 1], sequence: a.sequence };
+  return { subject: s, sequence: a.sequence };
+}
+
 export function groupItems(project: Project): StudioItem[] {
   const bySubject = new Map<string, StudioItem>();
-  for (const asset of project.assets) {
-    const subject = asset.subject ?? "subject";
-    const item = bySubject.get(subject) ?? { id: subject, name: subject, group: "Subjects", assets: [], dataKind: VOLUME_KIND };
+  for (const raw of project.assets) {
+    const { subject, sequence } = inferSubject(raw);
+    const asset = sequence && !raw.sequence ? { ...raw, sequence } : raw;
+    const key = raw.subject ? subject : [...(Array.isArray(raw.folder) ? raw.folder : []), subject].join("/");
+    const item = bySubject.get(key) ?? { id: key, name: subject, group: "Subjects", assets: [], dataKind: VOLUME_KIND };
     item.assets.push(asset);
-    bySubject.set(subject, item);
+    bySubject.set(key, item);
   }
   return [...bySubject.values()];
 }
@@ -38,17 +63,17 @@ export function isReferencePath(path: string): boolean {
   return /_(seg|gt)\.(nii\.gz|nii)$/i.test(path);
 }
 
-function isReference(a: Pick<SeedAsset, "path" | "sequence">): boolean {
-  return a.sequence === REFERENCE_SEQUENCE || (!a.sequence && isReferencePath(a.path)) || a.sequence?.toLowerCase() === "seg";
+function isReference(a: Pick<SeedAsset, "path" | "sequence" | "name">): boolean {
+  return a.sequence === REFERENCE_SEQUENCE || (!a.sequence && isReferencePath(a.path)) || ["seg", "gt"].includes(a.sequence?.toLowerCase() ?? "") || (!a.sequence && isReferencePath(a.name ?? ""));
 }
 
-export function volumeSources(assets: Pick<SeedAsset, "path" | "sequence">[]): VolumeSource[] {
+export function volumeSources(assets: Pick<SeedAsset, "path" | "sequence" | "name">[]): VolumeSource[] {
   const groups = new Map<string, VolumeSource>();
   for (const a of assets) {
     if (isReference(a)) continue;
     const dicom = isDicomPath(a.path);
     const key = a.sequence ?? (dicom ? "series" : a.path);
-    const g = groups.get(key) ?? { key, label: a.sequence ?? (dicom ? "Series" : a.path.split("/").pop()!), kind: dicom ? "dicom" : "nifti", paths: [] };
+    const g = groups.get(key) ?? { key, label: a.sequence ?? (dicom ? "Series" : fileName(a)), kind: dicom ? "dicom" : "nifti", paths: [] };
     g.paths.push(a.path);
     groups.set(key, g);
   }
@@ -60,6 +85,6 @@ export function initialSource(sources: VolumeSource[], preferred?: string): Volu
   return sources.find((s) => s.key === preferred) ?? sources[0];
 }
 
-export function referenceAsset<A extends Pick<SeedAsset, "sequence" | "path">>(assets: A[]): A | undefined {
+export function referenceAsset<A extends Pick<SeedAsset, "sequence" | "path" | "name">>(assets: A[]): A | undefined {
   return assets.find((a) => a.sequence === REFERENCE_SEQUENCE) ?? assets.find((a) => isReference(a));
 }

@@ -148,7 +148,7 @@ def t_environment_edit(browser, port):
         page.get_by_test_id("agent-change").get_by_role("button", name="Undo").click()
         undone = wait(lambda: "mitosis" not in st.store("s => s.env.labels[0].classes.map(c => c.id)"))
         check("environment: Undo reverts and saves as the expert", bool(undone) and saved[-1].get("author") == "local-expert", str([d.get("author") for d in saved]))
-        check("environment: usage line shown", page.get_by_test_id("agent-usage").count() >= 1)
+        check("environment: reply finished", page.get_by_test_id("agent-reply-done").count() >= 1)
         check("environment: no console errors", not st.errors, str(st.errors[:2]))
     finally:
         page.context.close()

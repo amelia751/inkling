@@ -6,7 +6,7 @@ import { resolveEnvironment } from "@/extension-host/resolve";
 import { migrateAnnotation } from "@studio/contracts/migrations/annotations-v1-to-v2";
 import type { Annotation, Project, StudioItem } from "@studio/contracts/types";
 import { cellsFor, gridClass, mprConfig, mprConfigSchema } from "./config";
-import { groupItems, initialSource, referenceAsset, volumeSources } from "./dataKind";
+import { groupItems, inferSubject, initialSource, referenceAsset, volumeSources } from "./dataKind";
 import { labelmapNifti, masksJsonDocument } from "./exporters";
 import { describeLandmark, point3dSchema } from "./geometries";
 import { labelIndexForValue, labelValue } from "./labelValues";
@@ -27,6 +27,30 @@ const brats = {
 } as unknown as Project;
 
 describe("volume data kind", () => {
+  it("splits an untagged dropped folder into subjects by file name and folder", () => {
+    const up = (name: string, folder: string[]) => ({ path: `sources/p/${name.length}${folder.join("")}.nii.gz`, sha256: "", bytes: 0, name, folder });
+    const dropped = { id: "drop", assets: [
+      up("BraTS2021_00621_t1.nii.gz", ["2-brain-mri-3d"]),
+      up("BraTS2021_00621_flair.nii.gz", ["2-brain-mri-3d"]),
+      up("BraTS2021_00621_seg.nii.gz", ["2-brain-mri-3d"]),
+      up("patient101_4d.nii.gz", ["5-cardiac-cine-4d"]),
+      up("scan.nii.gz", ["a"]),
+      up("scan.nii.gz", ["b"]),
+    ] } as unknown as Project;
+    const items = groupItems(dropped);
+    expect(items.map((i) => [i.id, i.name, i.assets.length])).toEqual([
+      ["2-brain-mri-3d/BraTS2021_00621", "BraTS2021_00621", 3],
+      ["5-cardiac-cine-4d/patient101_4d", "patient101_4d", 1],
+      ["a/scan", "scan", 1],
+      ["b/scan", "scan", 1],
+    ]);
+    expect(volumeSources(items[0].assets).map((s) => s.label)).toEqual(["t1", "flair"]);
+    expect(referenceAsset(items[0].assets)?.name).toBe("BraTS2021_00621_seg.nii.gz");
+    expect(volumeSources(items[1].assets).map((s) => s.label)).toEqual(["patient101_4d.nii.gz"]);
+    expect(inferSubject({ path: "x", name: "IM0001.dcm", folder: ["ct", "series-3"] })).toEqual({ subject: "series-3", sequence: undefined });
+    expect(inferSubject({ path: "x", name: "a_t1.nii", subject: "S9", sequence: "t2" })).toEqual({ subject: "S9", sequence: "t2" });
+  });
+
   it("groups assets by subject and splits sequences / DICOM series", () => {
     const items = groupItems(brats);
     expect(items.map((i) => [i.id, i.assets.length, i.dataKind])).toEqual([

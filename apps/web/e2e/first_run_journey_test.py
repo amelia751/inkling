@@ -305,8 +305,8 @@ def run(page, base: str) -> None:
         check("J1: the chat shows the drop card", card.get_by_test_id("drop-chip").count() == 12, str(card.get_by_test_id("drop-chip").count()))
     except Exception:  # noqa: BLE001
         check("J1: the chat shows the drop card", False)
-    # A finished assistant turn carries its usage line (model · tokens) under the reply.
-    reply = page.get_by_test_id("agent-log").get_by_test_id("agent-usage")
+    # A finished assistant turn shows its action row (copy, regenerate) under the reply.
+    reply = page.get_by_test_id("agent-log").get_by_test_id("agent-reply-done")
     check("J1: the assistant replies to the drop", bool(wait(lambda: reply.count() > 0, timeout=120 if MODEL else 45)), str(reply.count()))
     TIMES["J1 reply s"] = time.time() - t1
     check("J1: still no consent screen", no_consent(page))

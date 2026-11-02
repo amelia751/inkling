@@ -10,7 +10,8 @@
     }
   },
   "scripts": {
-    "dev": "turbo run dev --env-mode=loose --filter=@studio/web --filter=@studio/api --filter=@studio/agent --filter=@studio/worker",
+    "dev": "node tools/dev.mjs",
+    "dev:signin": "node tools/dev.mjs --signin",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",

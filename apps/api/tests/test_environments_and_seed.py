@@ -103,6 +103,8 @@ def test_validation_and_catalog_are_served_by_the_api(c):
     cat = c.get("/api/catalog").json()
     assert cat["version"] == 1 and cat["modules"] and cat["contributions"]
     assert c.get("/api/catalog/schema").json()["$ref"] == "#/$defs/EnvironmentSpec"
+    prompt = c.get("/api/catalog/prompt")  # todo17 M0: the MCP `catalog` tool reads it from the API
+    assert prompt.status_code == 200 and prompt.headers["content-type"].startswith("text/markdown") and "# " in prompt.text
     assert c.get("/api/catalog/capabilities").status_code == 501
 
 

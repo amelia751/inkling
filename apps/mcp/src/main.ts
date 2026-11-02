@@ -3,17 +3,18 @@
 // HTTP API, so every edit is validated by the app's own registry and resolver,
 // saved with author `agent:mcp`, and picked up by the Studio on reload.
 //
-//   <envPrefix>URL=http://localhost:5173 pnpm mcp
+//   <envPrefix>MCP_STUDIO_URL=http://127.0.0.1:8000 pnpm mcp   # default: the api's dev URL
 //   claude mcp add <resourcePrefix> -- pnpm --dir /abs/path/to/repo mcp
 // Names (env vars, server name, copy) come from schemas/naming.json (`pnpm emit:schemas`).
-// The catalogue and environment routes are still served by the web dev server
-// (apps/web/dev/seed-server.ts); point <envPrefix>URL at apps/api once it serves them.
+// The api serves the environment and catalogue routes; `list_capabilities` and `inspect_plugin`
+// still need the web dev server (<envPrefix>WEB_URL), which proxies the rest to the api.
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { authHeaders, loadConfig, NAMING } from "./config.js";
 import { createViewers } from "./viewers.js";
 import { kernelRequest, kernelTools } from "./kernel-tools.js";
+import { writeEnvironment } from "./environment-write.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -22,7 +23,7 @@ const BASE = config.webUrl;
 /** With an API key the API knows the author; `author` is the keyless dev fallback (todo9 Phase 8). */
 const authored = <T extends object>(body: T) => (config.apiKey ? body : { ...body, author: config.author });
 // Sandboxed viewers (todo10 Phase 5) of this workspace's active plugins, served as MCP Apps.
-// The kernel's Workspace and Plugin APIs answer at <envPrefix>API_URL (default: the web URL, which proxies /api).
+// The kernel's Workspace and Plugin APIs answer at <envPrefix>API_URL (default: the Studio URL above).
 const viewers = createViewers({
   prefix: NAMING.resourcePrefix,
   displayName: NAMING.displayName,
@@ -83,12 +84,12 @@ const TOOLS = [
   {
     name: "patch_environment",
     description: "Apply a JSON Patch to a project's environment. Validated first; nothing is saved on error. The Studio shows it on its next load of the project.",
-    inputSchema: obj({ projectId: { type: "string" }, patch: PATCH }, ["projectId", "patch"]),
+    inputSchema: obj({ projectId: { type: "string" }, patch: PATCH, revision: { type: "integer", description: "The revision you edited (from get_environment). Omitted: the current one is fetched; a stale one is a conflict error." } }, ["projectId", "patch"]),
   },
   {
     name: "set_environment",
     description: "Replace a project's environment with a complete spec (validated first). Use to boot a brand-new environment for a dataset.",
-    inputSchema: obj({ projectId: { type: "string" }, spec: { type: "object" } }, ["projectId", "spec"]),
+    inputSchema: obj({ projectId: { type: "string" }, spec: { type: "object" }, revision: { type: "integer", description: "The revision you edited (from get_environment). Omitted: the current one is fetched; a stale one is a conflict error." } }, ["projectId", "spec"]),
   },
 ];
 
@@ -139,9 +140,9 @@ async function call(name: string, args: Record<string, any>): Promise<Result> {
     case "validate_environment":
       return http("POST", "/api/environments/validate", args.spec);
     case "patch_environment":
-      return http("PATCH", `/api/environments/${encodeURIComponent(args.projectId)}`, authored({ patch: args.patch }));
+      return writeEnvironment(http, "PATCH", String(args.projectId), authored({ patch: args.patch }), args.revision);
     case "set_environment":
-      return http("PUT", `/api/environments/${encodeURIComponent(args.projectId)}`, authored({ environment: args.spec }));
+      return writeEnvironment(http, "PUT", String(args.projectId), authored({ environment: args.spec }), args.revision);
     default:
       return { ok: false, data: { error: `Unknown tool "${name}"` } };
   }

@@ -16,6 +16,7 @@ seed-server.ts exactly, so the Studio runs unchanged against either.
     GET          /api/environments/{projectId}/audit → the workspace's hash-chained audit verifies
     POST         /api/environments/validate            → shape and reference checks (todo11 D2)
     GET          /api/catalog, /api/catalog/schema     → schemas/catalog.json, schemas/environment.v1.json
+    GET          /api/catalog/prompt                   → schemas/catalog.md (the MCP `catalog` tool)
     GET          /api/catalog/{capabilities,plugins/…} → 501: dev server only
 
 Every write is checked here (kernel/environment_policy.py, todo11 D2): required `revision`,
@@ -159,6 +160,18 @@ def catalog(kind: str | None = None):
 @router.api_route("/api/catalog/schema", methods=["GET"], include_in_schema=False)
 def catalog_schema():
     return _static_json("environment.v1.json")
+
+
+@router.api_route("/api/catalog/prompt", methods=["GET"], include_in_schema=False)
+def catalog_prompt():
+    """The catalogue as Markdown (`schemas/catalog.md`, served by the web as /catalog.md): what an
+    outside agent reads before writing an environment (todo17 M0)."""
+    from ..config import settings
+
+    try:
+        return Response((settings().repo_root / "schemas" / "catalog.md").read_text(), media_type="text/markdown; charset=utf-8")
+    except FileNotFoundError:
+        return _json(404, {"error": "schemas/catalog.md isn't in this image"})
 
 
 @router.api_route("/api/catalog/{rest:path}", methods=["GET", "POST"], include_in_schema=False)

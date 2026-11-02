@@ -11,6 +11,7 @@ from sqlalchemy import delete, select
 from studio_api import db
 from studio_api.auth import sync
 from studio_api.models import (
+    ProjectRow,
     AuditEvent,
     Organization,
     OrganizationMember,
@@ -190,6 +191,8 @@ def test_invitation_accepted_applies_pending_project_grants(client, stats):
     inv = {"object": "invitation", "id": "invitation_1", "email": "new@example.com", "state": "pending", "organization_id": "org_I", "inviter_user_id": "user_1", "accepted_user_id": None, "role_slug": "member", "expires_at": "2026-11-08T00:00:00Z", "created_at": "2026-11-01T10:00:00Z", "updated_at": "2026-11-01T10:00:00Z"}
     sync.process([ev("invitation.created", inv)], stats)
     with db.session_scope() as d:
+        # Grants only apply to projects of the invitation's organization.
+        d.get(ProjectRow, pid).org_id = d.get(OrgInvitation, "invitation_1").org_id
         d.add(PendingProjectGrant(invitation_id="invitation_1", project_id=pid, role="reviewer", added_by="user:local-expert"))
     accepted = {**inv, "state": "accepted", "accepted_user_id": "user_new", "updated_at": "2026-11-01T11:00:00Z"}
     sync.process([ev("invitation.accepted", accepted), ev("organization_membership.created", membership("om_new", "user_new", "org_I"))], stats)
@@ -205,7 +208,7 @@ def test_apply_accepted_invitation_keeps_an_existing_role(client):
         d.add(ProjectMember(project_id=pid, principal="user:x", role="viewer"))
         d.add(PendingProjectGrant(invitation_id="inv_1", project_id=pid, role="owner"))
     with db.session_scope() as d:
-        assert sync.apply_accepted_invitation(d, "inv_1", "user:x") == 1
+        assert sync.apply_accepted_invitation(d, "inv_1", "user:x") == 0  # nothing added: the existing role wins
     with db.session_scope() as d:
         assert d.get(ProjectMember, (pid, "user:x")).role == "viewer"
 

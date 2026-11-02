@@ -63,7 +63,6 @@ from ..models import (
     OrganizationMember,
     OrgInvitation,
     PendingProjectGrant,
-    ProjectMember,
     User,
     WorkosEventCursor,
     WorkosEventProcessed,
@@ -71,6 +70,7 @@ from ..models import (
 )
 from . import client as wclient
 from .bootstrap import _dt, forget_memberships, org_for_workos_id, principal_of
+from .invitations import apply_accepted_invitation
 
 log = logging.getLogger(__name__)
 
@@ -314,22 +314,6 @@ def _on_membership(db: Session, ev: dict[str, Any], fx: Effects) -> None:
 
 
 # ---- Invitations ------------------------------------------------------------------------------
-
-
-def apply_accepted_invitation(db: Session, invitation_id: str, principal: str) -> int:
-    """Pending project grants of an accepted invitation become `project_members` rows (todo9
-    Phase 6). `invitation_id` is ours or WorkOS's; grants under either are applied. A role the
-    person already has on a project is kept. Returns how many grants were applied."""
-    ids = {invitation_id}
-    inv = db.get(OrgInvitation, invitation_id) or db.scalar(select(OrgInvitation).where(OrgInvitation.workos_invitation_id == invitation_id))
-    if inv is not None:
-        ids |= {inv.id, *([inv.workos_invitation_id] if inv.workos_invitation_id else [])}
-    grants = list(db.scalars(select(PendingProjectGrant).where(PendingProjectGrant.invitation_id.in_(ids))))
-    if grants:
-        insert_ignore(db, ProjectMember, [{"project_id": g.project_id, "principal": principal, "role": g.role, "added_by": g.added_by, "added_at": now()} for g in grants])
-        db.execute(delete(PendingProjectGrant).where(PendingProjectGrant.invitation_id.in_(ids)))
-        db.flush()
-    return len(grants)
 
 
 _INVITATION_STATE = {"invitation.created": "pending", "invitation.accepted": "accepted", "invitation.revoked": "revoked"}

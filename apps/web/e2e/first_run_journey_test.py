@@ -267,7 +267,7 @@ def run(page, base: str) -> None:
     page.get_by_test_id("home-composer").wait_for(timeout=30000)
     files = [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": base64.b64encode(png(i)).decode()} for i in range(12)]
     t1 = time.time()
-    page.evaluate(DROP_JS, ["[data-testid=home-composer]", files])
+    page.evaluate(DROP_JS, ["[data-testid=home-drop]", files])
     target = page.get_by_test_id("home-target-new")
     try:
         target.wait_for(timeout=2500)

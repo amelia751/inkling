@@ -177,34 +177,47 @@ function ComposerEmptyState({
     </DropdownMenu>
   )
 
+  // With a composer, only its box takes a drop (and lights up), not the page around it (Home).
+  // Without one, the whole empty state is the target (an empty Studio canvas, an empty section).
+  const dropProps = {
+    onDragEnter: (e: React.DragEvent) => {
+      if (!canFiles || !hasFiles(e.dataTransfer)) return
+      depth.current++
+      setOver(true)
+    },
+    onDragLeave: () => {
+      if (--depth.current <= 0) {
+        depth.current = 0
+        setOver(false)
+      }
+    },
+    onDragOver: (e: React.DragEvent) => {
+      if (canFiles && hasFiles(e.dataTransfer)) e.preventDefault()
+    },
+    onDrop: (e: React.DragEvent) => {
+      if (!canFiles || !hasFiles(e.dataTransfer)) return
+      e.preventDefault()
+      e.stopPropagation()
+      depth.current = 0
+      setOver(false)
+      onFiles!(e.dataTransfer)
+    },
+  }
+  const overlay = over && (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-ring bg-background/80" aria-hidden>
+      <span className="flex items-center gap-2 rounded-lg bg-float px-3 py-2 text-sm font-medium shadow-float-lg">
+        <AddDataIcon className="size-4" /> {dropLabel}
+      </span>
+    </div>
+  )
+
   return (
     <div
       className={cn("relative flex w-full flex-col", v.root, variant === "hero" && align === "center" && "items-center justify-center text-center", className)}
       data-testid={testId}
       data-variant={variant}
       data-align={variant === "hero" ? align : undefined}
-      onDragEnter={(e) => {
-        if (!canFiles || !hasFiles(e.dataTransfer)) return
-        depth.current++
-        setOver(true)
-      }}
-      onDragLeave={() => {
-        if (--depth.current <= 0) {
-          depth.current = 0
-          setOver(false)
-        }
-      }}
-      onDragOver={(e) => {
-        if (canFiles && hasFiles(e.dataTransfer)) e.preventDefault()
-      }}
-      onDrop={(e) => {
-        if (!canFiles || !hasFiles(e.dataTransfer)) return
-        e.preventDefault()
-        e.stopPropagation()
-        depth.current = 0
-        setOver(false)
-        onFiles!(e.dataTransfer)
-      }}
+      {...(composer ? {} : dropProps)}
     >
       {inputs}
       <div className={cn("flex w-full flex-col gap-1.5", v.width, centered && "mx-auto items-center")}>
@@ -216,12 +229,14 @@ function ComposerEmptyState({
         <div className={cn("flex w-full flex-col gap-2", v.width, centered && "mx-auto")}>
           <div
             className={cn(
-              "flex cursor-text flex-col rounded-xl border bg-background p-3 text-left transition-colors focus-within:border-brand-heavy",
+              "relative flex cursor-text flex-col rounded-xl border bg-background p-3 text-left transition-colors focus-within:border-brand-heavy",
               over ? "border-ring bg-selection" : "border-border",
             )}
             onClick={(e) => e.target === e.currentTarget && area.current?.focus()}
             data-testid={dropTestId}
+            {...dropProps}
           >
+            {overlay}
             <textarea
               ref={area}
               value={text}
@@ -278,7 +293,7 @@ function ComposerEmptyState({
       ) : (
         <div
           className={cn(
-            "flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 transition-colors",
+            "relative flex w-full flex-col items-center gap-3 rounded-xl border-2 border-dashed px-6 py-8 transition-colors",
             v.width,
             "mx-auto",
             over ? "border-ring bg-selection" : "border-border-hover",
@@ -318,14 +333,7 @@ function ComposerEmptyState({
       )}
 
       {children}
-
-      {over && (
-        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-ring bg-background/70" aria-hidden>
-          <span className="flex items-center gap-2 rounded-lg bg-float px-3 py-2 text-sm font-medium shadow-float-lg">
-            <AddDataIcon className="size-4" /> {dropLabel}
-          </span>
-        </div>
-      )}
+      {!composer && overlay}
     </div>
   )
 }

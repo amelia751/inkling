@@ -199,7 +199,7 @@ def t_home(browser, port):
         # A cold dev server can take several seconds for the first render: wait, don't sample.
         page.get_by_test_id("home-composer").wait_for(timeout=20000)
         before = {p["id"] for p in kernel("GET", "/projects")[1]["projects"]}
-        page.evaluate(DROP_JS, ["[data-testid=home-composer]", [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": b64(png(i))} for i in range(12)]])
+        page.evaluate(DROP_JS, ["[data-testid=home-drop]", [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": b64(png(i))} for i in range(12)]])
         # On a reused API data dir Home has projects already: start a new one (§3.4's question).
         target = page.get_by_test_id("home-target-new")
         try:

@@ -318,7 +318,7 @@ def home_drop(page, port: int, files: dict[str, bytes]) -> tuple[str | None, flo
     page.goto(f"http://localhost:{port}/?timeline=1")
     page.get_by_test_id("home-composer").wait_for(timeout=30000)
     t0 = time.time()
-    page.evaluate(DROP_JS, ["[data-testid=home-composer]", b64files(files), None])
+    page.evaluate(DROP_JS, ["[data-testid=home-drop]", b64files(files), None])
     target = page.get_by_test_id("home-target-new")
     try:
         target.wait_for(timeout=2000)

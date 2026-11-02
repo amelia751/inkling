@@ -3,30 +3,30 @@
   "title": "Satellite tiles",
   "description": "Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m\u00b2 from metres per pixel.",
   "spec": {
-    "$schema": "inkling://schema/environment/v1",
+    "$schema": "studio://schema/environment/v1",
     "id": "satellite-tiles",
     "title": "Satellite tiles",
     "data": {
-      "kind": "inkling.wsi.dataKinds.raster-pyramid"
+      "kind": "studio.wsi.dataKinds.raster-pyramid"
     },
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.wsi.renderers.osd",
+        "renderer": "studio.wsi.renderers.osd",
         "config": {
           "mpp": 500000
         }
       }
     ],
     "tools": [
-      "inkling.core.tools.select",
-      "inkling.core.tools.pan",
-      "inkling.overlay2d.tools.box",
-      "inkling.overlay2d.tools.polygon",
-      "inkling.wsi.tools.brush",
-      "inkling.wsi.tools.eraser",
-      "inkling.wsi.tools.mark",
-      "inkling.wsi.tools.length"
+      "studio.core.tools.select",
+      "studio.core.tools.pan",
+      "studio.overlay2d.tools.box",
+      "studio.overlay2d.tools.polygon",
+      "studio.wsi.tools.brush",
+      "studio.wsi.tools.eraser",
+      "studio.wsi.tools.mark",
+      "studio.wsi.tools.length"
     ],
     "labels": [
       {
@@ -59,20 +59,20 @@
       }
     ],
     "exporters": [
-      "inkling.wsi.exporters.qupath-geojson",
-      "inkling.wsi.exporters.point-counts-csv"
+      "studio.wsi.exporters.qupath-geojson",
+      "studio.wsi.exporters.point-counts-csv"
     ],
     "panels": {
       "left": [
-        "inkling.core.panels.files",
-        "inkling.core.panels.labels"
+        "studio.core.panels.files",
+        "studio.core.panels.labels"
       ],
       "right": [
-        "inkling.core.panels.ai"
+        "studio.core.panels.ai"
       ]
     },
     "reviewRules": [
-      "inkling.core.reviewRules.unlabeled-items"
+      "studio.core.reviewRules.unlabeled-items"
     ],
     "layout": null
   },

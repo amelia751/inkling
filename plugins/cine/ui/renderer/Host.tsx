@@ -54,7 +54,7 @@ const COPY_DIRS: [number, number][] = [[0, -1], [0, 1], [-1, 0], [1, 0]];
  * React host of the slice × frame renderer: loads the cine and its reference volumes,
  * owns view state, wires pointer and command input to the engine (engine.ts, edits.ts) and
  * publishes `grid`, `playhead`, references and coverage to the runtime for inspectors and
- * panels (e.g. inkling.cardiac-metrics).
+ * panels (e.g. studio.cardiac-metrics).
  */
 export function CineHost({ project, item, config: rawConfig, runtime }: RendererProps) {
   const config = useMemo(() => CineConfigSchema.parse(rawConfig), [rawConfig]);
@@ -219,7 +219,7 @@ export function CineHost({ project, item, config: rawConfig, runtime }: Renderer
     setFrame(f);
   }, []);
 
-  // Panels and the agent navigate with `inkling.cine.commands.goTo` ({ slice?, frame? }).
+  // Panels and the agent navigate with `studio.cine.commands.goTo` ({ slice?, frame? }).
   const pos = useRef({ slice, frame });
   pos.current = { slice, frame };
   useEffect(

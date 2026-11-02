@@ -26,5 +26,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/approval.v1"
+  "$id": "studio://schema/pipeline/approval.v1"
 }

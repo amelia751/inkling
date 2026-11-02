@@ -1,27 +1,27 @@
 # Non-secret settings for apps/agent (its keys are unprefixed: apps/agent/src/config.ts).
-# agent-secrets holds INKLING_AGENT_TOKEN, INKLING_AGENT_DATABASE_URL, the model keys and
+# agent-secrets holds STUDIO_AGENT_TOKEN, STUDIO_AGENT_DATABASE_URL, the model keys and
 # DAYTONA_API_KEY (infra/k8s/README.md).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: agent-config
 data:
-  INKLING_ENV: production
-  INKLING_AGENT_HOST: 0.0.0.0
-  INKLING_AGENT_PORT: "8100"
-  INKLING_AGENT_STORE: postgres
+  STUDIO_ENV: production
+  STUDIO_AGENT_HOST: 0.0.0.0
+  STUDIO_AGENT_PORT: "8100"
+  STUDIO_AGENT_STORE: postgres
   # Schema migrations run in the agent-migrate Job (base/jobs), not at startup.
-  INKLING_AGENT_AUTO_MIGRATE: "false"
-  INKLING_AGENT_EVENT_BUS: redis
-  INKLING_AGENT_REDIS_URL: redis://redis:6379/1
+  STUDIO_AGENT_AUTO_MIGRATE: "false"
+  STUDIO_AGENT_EVENT_BUS: redis
+  STUDIO_AGENT_REDIS_URL: redis://redis:6379/1
   # The agent-sweeper CronJob (base/jobs) sweeps leaked sandboxes instead of every replica.
-  INKLING_AGENT_SWEEPER_ENABLED: "false"
-  INKLING_API_URL: http://api
+  STUDIO_AGENT_SWEEPER_ENABLED: "false"
+  STUDIO_API_URL: http://api
   # The seed and environment APIs (/seed, /api/…): apps/api serves them under the same paths.
-  INKLING_WEB_URL: http://api
-  INKLING_AGENT_DATA_DIR: /tmp/agent
+  STUDIO_WEB_URL: http://api
+  STUDIO_AGENT_DATA_DIR: /tmp/agent
   # Sign-in (todo9 Phase 5): `workos` verifies the person's access token on proxied calls and
-  # needs INKLING_AGENT_WORKOS_CLIENT_ID (overlays/prod; gke/ai when the Studio flips).
-  INKLING_AGENT_AUTH_MODE: dev
-  INKLING_AGENT_SHUTDOWN_GRACE_S: "100"
-  INKLING_LOG_LEVEL: info
+  # needs STUDIO_AGENT_WORKOS_CLIENT_ID (overlays/prod; gke/ai when the Studio flips).
+  STUDIO_AGENT_AUTH_MODE: dev
+  STUDIO_AGENT_SHUTDOWN_GRACE_S: "100"
+  STUDIO_LOG_LEVEL: info

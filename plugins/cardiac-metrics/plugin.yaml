@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.cardiac-metrics
+schemaVersion: studio.plugins/v1
+id: studio.cardiac-metrics
 name: Cardiac function metrics
 version: 1.0.0
 description: "EDV, ESV, SV, EF, LV mass and Dice vs reference for a cardiac cine, as a panel and a CSV export."
@@ -11,7 +11,7 @@ compatibility:
   studio: ">=0.1.0 <1.0.0"
   pluginApi: "^1"
 requires:
-  inkling.cine: "^1"
+  studio.cine: "^1"
 capabilities:
   - id: cine.metrics
     mediaTypes: [application/x-nifti]

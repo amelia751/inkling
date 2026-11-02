@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  INKLING_E2E: "1"
+  STUDIO_E2E: "1"
 
 jobs:
   stack:
@@ -62,7 +62,7 @@ jobs:
         run: GIT_SHA="${GITHUB_SHA::7}" pnpm stack:up
       - name: Upload seeds to the stack's object store
         env:
-          INKLING_S3_ENDPOINT: http://127.0.0.1:9000
+          STUDIO_S3_ENDPOINT: http://127.0.0.1:9000
           AWS_ACCESS_KEY_ID: dev-only-s3-access
           AWS_SECRET_ACCESS_KEY: dev-only-s3-secret
         run: uv run tools/fetch-seeds.py --upload-only
@@ -74,8 +74,8 @@ jobs:
       - name: "Dev servers (frozen): seed mode on 5199, kernel mode (the stack api) on 5198"
         working-directory: apps/web
         run: |
-          INKLING_E2E=1 nohup pnpm exec vite --port 5199 --strictPort > /tmp/vite-5199.log 2>&1 &
-          INKLING_E2E=1 INKLING_API_URL=http://127.0.0.1:8080 \
+          STUDIO_E2E=1 nohup pnpm exec vite --port 5199 --strictPort > /tmp/vite-5199.log 2>&1 &
+          STUDIO_E2E=1 STUDIO_API_URL=http://127.0.0.1:8080 \
             nohup pnpm exec vite --port 5198 --strictPort > /tmp/vite-5198.log 2>&1 &
           for p in 5199 5198; do
             for _ in $(seq 1 60); do curl -fsS "http://127.0.0.1:$p/" >/dev/null && break; sleep 2; done
@@ -97,10 +97,10 @@ jobs:
       - name: Agent and builder e2e (scripted model, their own agent process, the stack's api)
         working-directory: apps/web
         env:
-          INKLING_AGENT_URL: http://127.0.0.1:8299
-          INKLING_AGENT_TOKEN: e2e-agent-token
-          INKLING_API_URL: http://127.0.0.1:8080
-          INKLING_E2E_API_URL: http://127.0.0.1:8080
+          STUDIO_AGENT_URL: http://127.0.0.1:8299
+          STUDIO_AGENT_TOKEN: e2e-agent-token
+          STUDIO_API_URL: http://127.0.0.1:8080
+          STUDIO_E2E_API_URL: http://127.0.0.1:8080
         run: |
           nohup pnpm exec vite --port 5299 --strictPort > /tmp/vite-5299.log 2>&1 &
           for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:5299/ >/dev/null && break; sleep 2; done
@@ -152,13 +152,13 @@ jobs:
           grep -v COOKIE /tmp/auth-stack.log; exit 1
       - name: Agent behind sign-in
         env:
-          INKLING_E2E_WORKOS_EMULATE_URL: http://localhost:58700
+          STUDIO_E2E_WORKOS_EMULATE_URL: http://localhost:58700
         run: uv run --package studio-web-e2e python tests/e2e/agent_auth_test.py --port 58702
       - name: Web sign-in (apps/web/e2e/auth_test.py)
         working-directory: apps/web
         env:
-          INKLING_E2E_WORKOS_EMULATE_URL: http://localhost:58700
-          INKLING_E2E_AUTH_BASE: http://localhost:58702
+          STUDIO_E2E_WORKOS_EMULATE_URL: http://localhost:58700
+          STUDIO_E2E_AUTH_BASE: http://localhost:58702
         run: |
           if [ ! -f e2e/auth_test.py ]; then echo "no e2e/auth_test.py yet"; exit 0; fi
           uv run --package studio-web-e2e python e2e/auth_test.py --port 58702

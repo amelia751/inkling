@@ -5,11 +5,11 @@ The test starts the agent itself (scripted model, no sandbox, a temp data dir) o
 <envPrefix>E2E_AGENT_PORT (default 8252), pointed at the API. Start the API and a frozen dev server
 first (from the repo root; the API on SQLite in a temp dir):
 
-    INKLING_API_DATA_DIR=$(mktemp -d) uv run --package studio-api uvicorn studio_api.app:app --port 8251 &
-    cd apps/web && INKLING_API_URL=http://127.0.0.1:8251 INKLING_E2E=1 \\
-      INKLING_AGENT_URL=http://127.0.0.1:8252 INKLING_AGENT_TOKEN=e2e-agent-token \\
+    STUDIO_API_DATA_DIR=$(mktemp -d) uv run --package studio-api uvicorn studio_api.app:app --port 8251 &
+    cd apps/web && STUDIO_API_URL=http://127.0.0.1:8251 STUDIO_E2E=1 \\
+      STUDIO_AGENT_URL=http://127.0.0.1:8252 STUDIO_AGENT_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5251 --strictPort
-    INKLING_E2E_API_URL=http://127.0.0.1:8251 python3 ../../tests/e2e/live_boot_test.py --port 5251
+    STUDIO_E2E_API_URL=http://127.0.0.1:8251 python3 ../../tests/e2e/live_boot_test.py --port 5251
 
 Covers:
 - "explain pneumothorax" in the Overview drawer boots nothing;
@@ -240,7 +240,7 @@ def main() -> int:
     except Exception as e:  # noqa: BLE001
         print(f"FAIL no API at {KERNEL} ({e}); see this file's docstring")
         return 1
-    agent = start_agent(tempfile.mkdtemp(prefix="inkling-live-boot-"))
+    agent = start_agent(tempfile.mkdtemp(prefix="studio-live-boot-"))
     try:
         status = get_json(f"http://localhost:{args.port}/api/agent/status")
         if status.get("provider") != "scripted":

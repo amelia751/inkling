@@ -16,7 +16,7 @@ RUN mkdir -p /out && cp pyproject.toml uv.lock .python-version /out/ \
 
 FROM ${UV_IMAGE} AS build
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/app/.venv \
-    INKLING_WORKER_ENVS_DIR=/app/.plugin-envs
+    STUDIO_WORKER_ENVS_DIR=/app/.plugin-envs
 WORKDIR /app
 COPY --from=manifests /out/ ./
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -57,10 +57,10 @@ ENV PATH=/app/.venv/bin:$PATH \
     UV_PYTHON_DOWNLOADS=never \
     UV_NO_PROGRESS=1 \
     GIT_SHA=${GIT_SHA} \
-    INKLING_REPO_ROOT=/app \
-    INKLING_WORKER_DATA_DIR=/tmp/worker \
-    INKLING_WORKER_ENVS_DIR=/app/.plugin-envs \
-    INKLING_WORKER_BUILD_ENVS=0
+    STUDIO_REPO_ROOT=/app \
+    STUDIO_WORKER_DATA_DIR=/tmp/worker \
+    STUDIO_WORKER_ENVS_DIR=/app/.plugin-envs \
+    STUDIO_WORKER_BUILD_ENVS=0
 USER 10001:10001
 EXPOSE 8081
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

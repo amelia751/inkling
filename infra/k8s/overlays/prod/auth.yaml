@@ -1,18 +1,18 @@
 # Sign-in with WorkOS (todo9 D8, D9: prod → the WorkOS production environment). Secret
-# workos-secrets (created out of band, infra/k8s/README.md) holds INKLING_API_WORKOS_API_KEY,
-# INKLING_API_WORKOS_COOKIE_PASSWORD and INKLING_API_WORKOS_CLIENT_ID. Hosts are placeholders,
+# workos-secrets (created out of band, infra/k8s/README.md) holds STUDIO_API_WORKOS_API_KEY,
+# STUDIO_API_WORKOS_COOKIE_PASSWORD and STUDIO_API_WORKOS_CLIENT_ID. Hosts are placeholders,
 # like the Ingress host in kustomization.yaml; the redirect URI must match the dashboard exactly.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: api-config
 data:
-  INKLING_API_AUTH_MODE: workos
+  STUDIO_API_AUTH_MODE: workos
   # workos mode refuses to start with trusted dev headers.
-  INKLING_API_DEV_TRUST_HEADERS: "0"
-  INKLING_API_WORKOS_REDIRECT_URI: https://studio.example.com/api/auth/callback
-  INKLING_API_PUBLIC_URL: https://studio.example.com
-  # INKLING_API_WORKOS_ISSUER: set once Phase 0 records the production `iss`
+  STUDIO_API_DEV_TRUST_HEADERS: "0"
+  STUDIO_API_WORKOS_REDIRECT_URI: https://studio.example.com/api/auth/callback
+  STUDIO_API_PUBLIC_URL: https://studio.example.com
+  # STUDIO_API_WORKOS_ISSUER: set once Phase 0 records the production `iss`
   # (expected https://api.workos.com/user_management/<client id>); unchecked while unset.
 ---
 apiVersion: v1
@@ -20,6 +20,6 @@ kind: ConfigMap
 metadata:
   name: agent-config
 data:
-  INKLING_AGENT_AUTH_MODE: workos
+  STUDIO_AGENT_AUTH_MODE: workos
   # Not secret: the production AuthKit client id (placeholder), the same as in workos-secrets.
-  INKLING_AGENT_WORKOS_CLIENT_ID: client_00000000000000000000000000
+  STUDIO_AGENT_WORKOS_CLIENT_ID: client_00000000000000000000000000

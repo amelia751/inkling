@@ -401,5 +401,5 @@
       ]
     }
   },
-  "$id": "inkling://schema/workspace/v1"
+  "$id": "studio://schema/workspace/v1"
 }

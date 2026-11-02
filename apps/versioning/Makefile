@@ -35,7 +35,7 @@ test:
 test-integration:
 	go test -race -tags integration -timeout 20m ./...
 
-## load: 100k entries by default; INKLING_VERSIONING_LOAD_ENTRIES=1000000 for the 1M run
+## load: 100k entries by default; STUDIO_VERSIONING_LOAD_ENTRIES=1000000 for the 1M run
 load:
 	go test -tags load -timeout 2h -v ./tests/load/
 

@@ -6,7 +6,7 @@
 #                            same tree, same manifest digest; fails if registry/index.json is stale)
 #   cosign sign-blob       → a Sigstore bundle per manifest (<id>@<version>.sigstore.json)
 #   cosign verify-blob     → checked against this workflow's identity before anything is published
-#   on main: oras copy     → ghcr.io/<owner>/<repo>/plugins/<id>:<version>, then `cosign sign`
+#   on main: oras copy     → ghcr.io/<owner>/studio-plugins/<name>:<version> (<name> = <id> without its namespace), then `cosign sign`
 #                            on the registry digest (keyless, same identity) so the signature
 #                            travels with the artifact (`oras copy -r`, Phase 8)
 #
@@ -81,11 +81,12 @@ jobs:
         run: |
           echo "$GH_TOKEN" | oras login "$REGISTRY" -u "$GH_ACTOR" --password-stdin
           echo "$GH_TOKEN" | cosign login "$REGISTRY" -u "$GH_ACTOR" --password-stdin
-          repo=$(tr '[:upper:]' '[:lower:]' <<<"$REGISTRY/${{ github.repository }}/plugins")
+          repo=$(tr '[:upper:]' '[:lower:]' <<<"$REGISTRY/${{ github.repository_owner }}/studio-plugins")
           jq -c '.[]' "$OUT/manifests.json" | while read -r e; do
             id=$(jq -r .id <<<"$e"); ver=$(jq -r .version <<<"$e"); digest=$(jq -r .manifestDigest <<<"$e")
-            oras copy --from-oci-layout "$OUT@$digest" "$repo/$id:$ver"
-            cosign sign --yes "$repo/$id@$digest"
+            name=${id#*.}
+            oras copy --from-oci-layout "$OUT@$digest" "$repo/$name:$ver"
+            cosign sign --yes "$repo/$name@$digest"
             # The keyless bundle from sign-blob rides along as a referrer, too.
-            oras attach --artifact-type application/vnd.dev.sigstore.bundle.v0.3+json "$repo/$id@$digest" "$OUT/$id@$ver.sigstore.json:application/vnd.dev.sigstore.bundle.v0.3+json"
+            oras attach --artifact-type application/vnd.dev.sigstore.bundle.v0.3+json "$repo/$name@$digest" "$OUT/$id@$ver.sigstore.json:application/vnd.dev.sigstore.bundle.v0.3+json"
           done

@@ -1,7 +1,7 @@
 # Segmentation (reference plugin)
 
 `image.segment` for 2D images (docs/plugins.md §12): the toolbar's **Segment** action calls
-`inkling.segmentation.segment_objects` through the kernel's command gateway; a worker runs
+`studio.segmentation.segment_objects` through the kernel's command gateway; a worker runs
 it in this plugin's own `uv` environment; the result is normalised into canonical mask
 annotations (`ai-suggested`, `review_status: pending`, with provider, model and prompt), and
 the trusted `studio.mask-review.v1` panel lets the expert accept, reject or edit each mask.

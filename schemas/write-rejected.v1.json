@@ -84,5 +84,5 @@
     "violations",
     "retryable"
   ],
-  "$id": "inkling://schema/write-rejected/v1"
+  "$id": "studio://schema/write-rejected/v1"
 }

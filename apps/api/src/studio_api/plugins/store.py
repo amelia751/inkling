@@ -1,6 +1,6 @@
 """Content-addressed artifact store and verification (todo10 Phase 3, D4/D5).
 
-Blobs live at `artifacts/sha256/<hex>` in `blobstore.artifacts()` (the `INKLING_API_ARTIFACTS_BUCKET`
+Blobs live at `artifacts/sha256/<hex>` in `blobstore.artifacts()` (the `STUDIO_API_ARTIFACTS_BUCKET`
 bucket when set, else the BlobStore's data namespace): immutable, written
 once, named by their own hash (a CDN can cache them forever). The registry entry is a
 `plugin_artifacts` row. Verification runs on every load, not only at install:
@@ -66,7 +66,7 @@ def _signer(kind: str, key_file: str, kms_key: str | None) -> Signer:
 
 
 def signer() -> Signer:
-    """The installation's signer (`INKLING_API_SIGNER`): signs what this kernel builds."""
+    """The installation's signer (`STUDIO_API_SIGNER`): signs what this kernel builds."""
     s = settings()
     if s.production and s.signer == "local" and not s.signer_key_file:
         # A key generated into a replica's /tmp would differ per pod and vanish on restart.
@@ -75,7 +75,7 @@ def signer() -> Signer:
 
 
 def trusted_keys() -> dict[str, PublicKeyVerifier]:
-    """Other installations' public keys accepted on import (`INKLING_API_SIGNER_TRUSTED_KEYS_FILE`:
+    """Other installations' public keys accepted on import (`STUDIO_API_SIGNER_TRUSTED_KEYS_FILE`:
     a JSON object `{keyId: PEM}`), e.g. the curated tier's key. Never used to sign."""
     f = settings().signer_trusted_keys_file
     if not f:

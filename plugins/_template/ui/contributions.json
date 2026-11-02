@@ -6,7 +6,7 @@
       "surface": "command.palette",
       "title": "Count points",
       "description": "Example action: runs the plugin's count_points tool through the gateway",
-      "command": "inkling.example.count_points",
+      "command": "studio.example.count_points",
       "visibleWhen": { "assetMediaType": ["image/*"] }
     }
   ],

@@ -66,7 +66,7 @@ def t_sensor(browser, port):
     st = open_studio(browser, port, "sensor-demo", extra_projects=[p], fixtures={"sensor-demo/accelerometer.csv": csv}, fixture_annotations=[])
     try:
         env = wait(lambda: env_summary(st))
-        check("sensor: environment resolves from preset JSON", bool(env) and env["renderer"] == "inkling.timeseries.renderers.strip-chart", str(env and env["renderer"]))
+        check("sensor: environment resolves from preset JSON", bool(env) and env["renderer"] == "studio.timeseries.renderers.strip-chart", str(env and env["renderer"]))
         check("sensor: plain grid, no ECG paper", env["config"].get("grid") == "plain" and env["config"].get("reader") == "csv", str(env["config"].get("grid")))
         st.page.wait_for_selector("[data-testid='signal-canvas']", timeout=30000)
         info = wait(lambda: runtime(st, "sensor-demo/accelerometer.csv", "signalInfo"))
@@ -83,7 +83,7 @@ def t_drone(browser, port):
         env = wait(lambda: env_summary(st))
         # todo8 D4 Rule 1: the preset's event tool has no label group that accepts events, so it
         # is in env.unusableTools, not the toolbar.
-        check("drone: video renderer with box tracks, MOT and CVAT", bool(env) and env["renderer"] == "inkling.video.renderers.frame-canvas" and env["tools"] == ["select", "pan", "box"] and env["exporters"] == ["inkling.video.exporters.mot", "inkling.video.exporters.cvat-video"], str(env))
+        check("drone: video renderer with box tracks, MOT and CVAT", bool(env) and env["renderer"] == "studio.video.renderers.frame-canvas" and env["tools"] == ["select", "pan", "box"] and env["exporters"] == ["studio.video.exporters.mot", "studio.video.exporters.cvat-video"], str(env))
         unusable = st.store("s => s.env.unusableTools.map(u => u.tool.name)")
         check("drone: the event tool is unusable without an event label group (Rule 1)", unusable == ["event"], str(unusable))
         st.page.wait_for_selector("[data-testid='video-stage'][data-clock='ready']", timeout=45000)
@@ -99,7 +99,7 @@ def t_satellite(browser, port):
     st = open_studio(browser, port, "satellite-demo", extra_projects=[project("satellite-demo", "satellite-tiles", [asset])], fixture_annotations=[])
     try:
         env = wait(lambda: env_summary(st))
-        check("satellite: deep-zoom renderer with metres-per-pixel config", bool(env) and env["renderer"] == "inkling.wsi.renderers.osd" and env["config"].get("mpp") == 500000, str(env and env["config"]))
+        check("satellite: deep-zoom renderer with metres-per-pixel config", bool(env) and env["renderer"] == "studio.wsi.renderers.osd" and env["config"].get("mpp") == 500000, str(env and env["config"]))
         st.page.wait_for_selector("[data-testid='wsi-viewer']", timeout=30000)
         classes = st.store("s => s.env.labels.flatMap(g => g.classes.map(c => c.id))")
         check("satellite: land-use classes from the preset", classes == ["building", "field", "water", "tree"], str(classes))
@@ -135,7 +135,7 @@ def t_text(browser, port):
     st = open_studio(browser, port, "ner-demo", extra_projects=[p], fixtures={"ner-demo/ner.txt": txt}, fixture_annotations=[])
     try:
         env = wait(lambda: env_summary(st))
-        check("text: a module written from outside boots preset:ner", bool(env) and env["renderer"] == "inkling.text-spans.renderers.reader", str(env and env["renderer"]))
+        check("text: a module written from outside boots preset:ner", bool(env) and env["renderer"] == "studio.text-spans.renderers.reader", str(env and env["renderer"]))
         st.page.wait_for_selector("[data-testid='text-reader'] [data-start]", timeout=20000)
         st.page.mouse.click(5, 300)
         st.page.keyboard.press("e")
@@ -148,12 +148,12 @@ def t_text(browser, port):
           const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
           seg.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         }""")
-        spans = wait(lambda: st.store("s => s.annotations.filter(a => a.geometry.type === 'inkling.text-spans.span').map(a => ({ label: a.label, g: a.geometry }))"))
-        ok = bool(spans) and spans[0]["label"] == "LOC" and spans[0]["g"] == {"type": "inkling.text-spans.span", "start": 44, "end": 50, "text": "London"}
+        spans = wait(lambda: st.store("s => s.annotations.filter(a => a.geometry.type === 'studio.text-spans.span').map(a => ({ label: a.label, g: a.geometry }))"))
+        ok = bool(spans) and spans[0]["label"] == "LOC" and spans[0]["g"] == {"type": "studio.text-spans.span", "start": 44, "end": 50, "text": "London"}
         check("text: selecting text stores a span with the active class", ok, str(spans))
         out = st.page.evaluate("""async () => {
           const { registry } = await import('/src/extension-host/registry.ts');
-          const ex = await registry.loadImpl('inkling.text-spans.exporters.jsonl');
+          const ex = await registry.loadImpl('studio.text-spans.exporters.jsonl');
           const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
           const items = s.env.dataKind.groupItems({ assets: [{ path: 'ner-demo/ner.txt' }] });
           return await (await ex.build({ project: {}, items, annotations: s.annotations })).text();
@@ -168,8 +168,8 @@ SANDBOX_HTML = """<!doctype html><html><head></head><body><p id=out>starting</p>
 (async () => {
   let net = "blocked";
   try { await fetch("https://example.com/"); net = "allowed"; } catch { net = "blocked"; }
-  const { item, annotations } = await inkling.getAnnotations();
-  const r = await inkling.propose([
+  const { item, annotations } = await studio.getAnnotations();
+  const r = await studio.propose([
     { label: "cat", geometry: { type: "box", x: 10, y: 20, w: 30, h: 40 }, attributes: { net, seen: annotations.length } },
     { label: "unicorn", geometry: { type: "box", x: 0, y: 0, w: 1, h: 1 } },
   ]);
@@ -185,13 +185,13 @@ def t_agent_panels(browser, port):
     p["environment"] = {
         "extends": "preset:generic-image",
         "labels": [{"name": "objects", "control": "RectangleLabels", "classes": [{"id": "cat"}]}],
-        "panels": {"right": ["inkling.experimental.panels.declarative", "inkling.experimental.panels.sandbox"]},
+        "panels": {"right": ["studio.experimental.panels.declarative", "studio.experimental.panels.sandbox"]},
         "overrides": [
-            {"id": "inkling.experimental.panels.declarative", "config": {"title": "Progress", "blocks": [{"type": "stat", "label": "On this item", "value": {"store": "annotations.item"}}]}},
-            {"id": "inkling.experimental.panels.sandbox", "config": {"title": "Auto-boxer", "html": SANDBOX_HTML, "height": 160}},
+            {"id": "studio.experimental.panels.declarative", "config": {"title": "Progress", "blocks": [{"type": "stat", "label": "On this item", "value": {"store": "annotations.item"}}]}},
+            {"id": "studio.experimental.panels.sandbox", "config": {"title": "Auto-boxer", "html": SANDBOX_HTML, "height": 160}},
         ],
     }
-    st = open_studio(browser, port, "agent-panels", extra_projects=[p], fixture_annotations=[], init_script="localStorage.setItem('inkling.flags', 'agentPanels')")
+    st = open_studio(browser, port, "agent-panels", extra_projects=[p], fixture_annotations=[], init_script="localStorage.setItem('studio.flags', 'agentPanels')")
     try:
         st.page.wait_for_selector("[data-testid='agent-declarative-panel']", timeout=30000)
         check("agent panels: tier 2 declarative panel renders from JSON", st.page.get_by_test_id("agent-stat").inner_text().strip() == "0")

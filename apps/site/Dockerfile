@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # apps/site: the public marketing page, static files behind nginx. Build from the repo root:
 #   docker build -f apps/site/Dockerfile -t studio-site:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) \
-#     --build-arg INKLING_SITE_APP_URL=https://app.example.com .
+#     --build-arg STUDIO_SITE_APP_URL=https://app.example.com .
 # The app URL ("Sign in", "Start") is baked into the bundle at build time.
 ARG NODE_IMAGE=node:24-trixie-slim
 ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.29-alpine
@@ -18,8 +18,8 @@ COPY . .
 RUN turbo prune @studio/site --docker --out-dir /out
 
 FROM base AS build
-ARG INKLING_SITE_APP_URL
-ENV INKLING_SITE_APP_URL=${INKLING_SITE_APP_URL}
+ARG STUDIO_SITE_APP_URL
+ENV STUDIO_SITE_APP_URL=${STUDIO_SITE_APP_URL}
 COPY --from=prune /out/json/ ./
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir /pnpm/store

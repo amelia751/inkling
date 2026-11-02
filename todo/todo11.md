@@ -127,7 +127,7 @@ This file plus `AGENTS.md` is the whole brief.
 - **Tools.** `list_projects` (seed manifest), `catalog`, `list_modules`, `describe_contribution`,
   `list_capabilities`, `inspect_plugin`, `get_environment`, `validate_environment`,
   `patch_environment`, `set_environment`, plus `view_*` and MCP Apps viewers when
-  `INKLING_MCP_WORKSPACE` is set.
+  `STUDIO_MCP_WORKSPACE` is set.
 - **Missing:** no upload, no task creation, no way to find the tab the user is looking at, no auth,
   and no client config committed.
 - **Split brain.** Catalogue and validation live only in Vite (`apps/web/dev/seed-server.ts`); the API
@@ -502,7 +502,7 @@ A user can create a Studio from chat without opening the Studio first.
        are byte-identical.
      - **Intent table:** it lives at **`registry/intents.json`**, not `registry/presets/`. The web
        globs `registry/presets/*.json` as presets.
-     - **Env vars:** `INKLING_AGENT_CATALOG_FILE` and `INKLING_AGENT_INTENTS_FILE`.
+     - **Env vars:** `STUDIO_AGENT_CATALOG_FILE` and `STUDIO_AGENT_INTENTS_FILE`.
      - **Dockerfile:** it now copies `registry/intents.json`.
      - ✅ **D4 guardrails, done (`todo11-protocol`, merged).**
        - **Mapping table:** `packages/agent-protocol/src/ag-ui-map.ts` (`AG_UI_MAP`) is checked

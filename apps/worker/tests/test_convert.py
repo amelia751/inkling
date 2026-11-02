@@ -66,7 +66,7 @@ def test_python_converter_metaimage_to_nifti(tmp_path, compressed):
     src = write_mha(tmp_path / "Doe^Jane_scan.mha", arr, compressed=compressed)
     s = convert(FIX / "metaimage-py", src, tmp_path / "out")
     assert s["ok"], s
-    assert s["shape"] == "assets" and s["dataKind"] == "inkling.volume.dataKinds.volume"
+    assert s["shape"] == "assets" and s["dataKind"] == "studio.volume.dataKinds.volume"
     [f] = s["files"]
     assert f["path"] == "volume.nii.gz" and f["mediaType"] == "application/x-nifti"
     assert f["dims"] == [16, 12, 8] and f["dtype"] == "int16" and f["range"] == [-100.0, 1000.0]

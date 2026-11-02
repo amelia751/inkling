@@ -3,16 +3,16 @@
   "title": "Sensor events",
   "description": "Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).",
   "spec": {
-    "$schema": "inkling://schema/environment/v1",
+    "$schema": "studio://schema/environment/v1",
     "id": "sensor-timeseries-events",
     "title": "Sensor events",
     "data": {
-      "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
+      "kind": "studio.timeseries.dataKinds.multichannel-timeseries"
     },
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.timeseries.renderers.strip-chart",
+        "renderer": "studio.timeseries.renderers.strip-chart",
         "config": {
           "reader": "csv",
           "grid": "plain",
@@ -48,12 +48,12 @@
       }
     ],
     "tools": [
-      "inkling.core.tools.select",
-      "inkling.core.tools.pan",
-      "inkling.timeseries.tools.interval",
-      "inkling.timeseries.tools.beat",
-      "inkling.timeseries.tools.rhythm",
-      "inkling.timeseries.tools.caliper"
+      "studio.core.tools.select",
+      "studio.core.tools.pan",
+      "studio.timeseries.tools.interval",
+      "studio.timeseries.tools.beat",
+      "studio.timeseries.tools.rhythm",
+      "studio.timeseries.tools.caliper"
     ],
     "labels": [
       {
@@ -73,7 +73,7 @@
     ],
     "keybindings": [
       {
-        "command": "inkling.timeseries.commands.setBeatCode",
+        "command": "studio.timeseries.commands.setBeatCode",
         "keys": [
           "shift+s",
           "shift+f"
@@ -82,20 +82,20 @@
     ],
     "panels": {
       "left": [
-        "inkling.core.panels.files",
-        "inkling.core.panels.labels"
+        "studio.core.panels.files",
+        "studio.core.panels.labels"
       ],
       "right": [
-        "inkling.timeseries.panels.measurements",
-        "inkling.core.panels.ai"
+        "studio.timeseries.panels.measurements",
+        "studio.core.panels.ai"
       ]
     },
     "exporters": [
-      "inkling.timeseries.exporters.ecg-intervals-csv",
-      "inkling.timeseries.exporters.ecg-json"
+      "studio.timeseries.exporters.ecg-intervals-csv",
+      "studio.timeseries.exporters.ecg-json"
     ],
     "reviewRules": [
-      "inkling.core.reviewRules.unlabeled-items"
+      "studio.core.reviewRules.unlabeled-items"
     ],
     "layout": null
   },

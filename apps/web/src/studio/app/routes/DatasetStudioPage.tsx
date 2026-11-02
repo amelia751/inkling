@@ -779,7 +779,7 @@ function useAutosave(projectId: string) {
 }
 
 /**
- * Studio-wide `inkling.core` commands. Renderers register at a higher priority and so run
+ * Studio-wide `studio.core` commands. Renderers register at a higher priority and so run
  * first; anything they decline (e.g. Escape with no shape in progress) falls through here.
  */
 function useStudioShortcuts(env: ResolvedEnv, items: StudioItem[], showShortcuts: () => void) {

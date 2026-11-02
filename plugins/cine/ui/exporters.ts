@@ -7,7 +7,7 @@ import { cellKey, cellLabelMap, groupCells, isContour, myoArea, perimeterMm, res
 import { cineConfigFor, structuresOf } from "./public";
 import { NAMING } from "@studio/contracts/naming";
 
-/** Label map (NIfTI) and contours (JSON). The cardiac function CSV lives in inkling.cardiac-metrics. */
+/** Label map (NIfTI) and contours (JSON). The cardiac function CSV lives in studio.cardiac-metrics. */
 export const cineExporters: Record<string, ExporterImpl> = {
   "acdc-nifti": {
     filename: (p: Project) => `${p.id}_labels.nii.gz`,

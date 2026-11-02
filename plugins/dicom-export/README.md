@@ -1,7 +1,7 @@
-# DICOM export (`inkling.dicom-export`)
+# DICOM export (`studio.dicom-export`)
 
 Two exporters for items whose source images are DICOM (the Cornerstone renderers in
-`inkling.image2d` and `inkling.volume`). The module is UI-only (`runtime.kind:
+`studio.image2d` and `studio.volume`). The module is UI-only (`runtime.kind:
 browser-bundled`) and asks for no permissions: it runs in the trusted origin and writes a
 file the browser downloads.
 

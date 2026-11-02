@@ -1,8 +1,10 @@
 {
-  "displayName": "Inkling",
-  "namespace": "inkling",
-  "schemaPrefix": "inkling",
-  "resourcePrefix": "inkling",
-  "envPrefix": "INKLING_",
-  "legacyNamespaces": []
+  "displayName": "Spurby",
+  "namespace": "studio",
+  "schemaPrefix": "studio",
+  "resourcePrefix": "studio",
+  "envPrefix": "STUDIO_",
+  "legacyNamespaces": [
+    "inkling"
+  ]
 }

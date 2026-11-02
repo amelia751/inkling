@@ -1,9 +1,9 @@
 # Modules, environments and presets
 
-Inkling Studio is a shell that runs an **environment**: a JSON document that picks a data
+The Studio is a shell that runs an **environment**: a JSON document that picks a data
 kind, viewports (renderers), tools, panels, exporters and label groups from **modules**.
 Medical Studios are presets (`preset:pathology`, `preset:ecg`, …), not special code paths.
-An agent can boot a Studio for a data type Inkling has never seen by writing environment
+An agent can boot a Studio for a data type Spurby has never seen by writing environment
 JSON, as long as the modules it needs are registered.
 
 The generated contribution reference (every id, description and edge) is
@@ -91,7 +91,7 @@ own code in the main origin.
 
 ## Contribution types
 
-Ids are `<moduleId>.<type>.<name>` (OHIF style), e.g. `inkling.wsi.renderers.osd`. Every
+Ids are `<moduleId>.<type>.<name>` (OHIF style), e.g. `studio.wsi.renderers.osd`. Every
 contribution has a one-line `description`, may have a `configSchema` (zod) and an `example`.
 
 Module ids are `${namespace}.<module>`. The namespace comes from the naming config
@@ -163,17 +163,17 @@ heading it gets in the shortcuts sheet. Declarative plugins' toolbar actions
 
 ```jsonc
 {
-  "$schema": "inkling://schema/environment/v1",
+  "$schema": "studio://schema/environment/v1",
   "extends": "preset:image-2d",            // presets deep-merge first
-  "data": { "kind": "inkling.image2d.dataKinds.raster" },
+  "data": { "kind": "studio.image2d.dataKinds.raster" },
   "labels": [{ "name": "products", "control": "RectangleLabels",
                "classes": [{ "id": "cereal", "color": "#e66", "hotkey": "shift+1" }] }],
-  "viewports": [{ "name": "main", "renderer": "inkling.image2d.renderers.canvas-raster" }],
-  "tools": ["inkling.core.tools.select", "inkling.overlay2d.tools.box"],
-  "panels": { "left": ["inkling.core.panels.files", "inkling.core.panels.labels"] },
-  "exporters": ["inkling.image2d.exporters.coco"],
-  "keybindings": [{ "command": "inkling.image2d.commands.fitView", "keys": ["f"] }],
-  "overrides": [{ "id": "inkling.cornerstone.tools.cobb", "disabled": true }],
+  "viewports": [{ "name": "main", "renderer": "studio.image2d.renderers.canvas-raster" }],
+  "tools": ["studio.core.tools.select", "studio.overlay2d.tools.box"],
+  "panels": { "left": ["studio.core.panels.files", "studio.core.panels.labels"] },
+  "exporters": ["studio.image2d.exporters.coco"],
+  "keybindings": [{ "command": "studio.image2d.commands.fitView", "keys": ["f"] }],
+  "overrides": [{ "id": "studio.cornerstone.tools.cobb", "disabled": true }],
   "layout": null
 }
 ```
@@ -247,7 +247,7 @@ singletons for this.
 
 ## Agent surface and safety tiers
 
-The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
+The assistant (`studio.core.panels.ai`) and the dev API expose: `list_modules`,
 `describe_contribution`, `get_environment`, `validate_environment`, `patch_environment`
 (RFC 6902), `preview_environment` and `run_command`. Every agent edit is one undoable
 `setEnv` step, recorded with author `agent:<model>` in the environment history.
@@ -255,25 +255,25 @@ The assistant (`inkling.core.panels.ai`) and the dev API expose: `list_modules`,
 ### From outside the app (MCP)
 
 `pnpm mcp` starts a stdio MCP server (`apps/mcp/src/main.ts`) over a running dev server
-(`<envPrefix>WEB_URL`, e.g. `INKLING_WEB_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
+(`<envPrefix>WEB_URL`, e.g. `STUDIO_WEB_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
 `patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.
 
 ```bash
-claude mcp add inkling -- pnpm --dir /abs/path/to/inkling mcp
+claude mcp add studio -- pnpm --dir /abs/path/to/repo mcp
 ```
 
 1. **Tier 1 (on):** the agent references trusted, bundled modules only.
-2. **Tier 2 (flag `agentPanels`):** `inkling.experimental.panels.declarative`. The agent writes
+2. **Tier 2 (flag `agentPanels`):** `studio.experimental.panels.declarative`. The agent writes
    JSON blocks (`text`, `stat`, `list`, `progress`) bound to `{ runtime: key }` or one of the
    whitelisted `{ store: selector }`s (`annotations.count`, `annotations.item`, `items.total`,
    `items.annotated`, `selection.count`, `activeLabel`, `tool`, `labels.counts`). The block
    schema is the panel's `configSchema`, so bad blocks are resolver errors. No code runs.
-3. **Tier 3 (flag `agentPanels`):** `inkling.experimental.panels.sandbox`. Agent-written HTML/JS
+3. **Tier 3 (flag `agentPanels`):** `studio.experimental.panels.sandbox`. Agent-written HTML/JS
    runs in an `<iframe sandbox="allow-scripts">` (opaque origin: no app DOM, storage or
    cookies; no navigation, popups or forms) under a CSP that blocks all network access. Its
-   only API is `window.inkling.getAnnotations()` and `window.inkling.propose([...])` over
+   only API is `window.studio.getAnnotations()` and `window.studio.propose([...])` over
    postMessage. Proposals are vetted (known label, a geometry type the environment's tools
    create, plain attribute values, bounded size) and land as `ai-suggested`, author
    `agent:sandbox`, so the expert reviews them like any AI suggestion. Never in the main bundle.
@@ -316,6 +316,6 @@ Claude, ChatGPT or any MCP Apps host (`apps/mcp/README.md`). Tests: `apps/web/e2
 (isolation), `tests/e2e/viewer_test.py` (install, approval, render), `tests/e2e/mcp_apps_host_test.py`
 (outside the Studio).
 
-Enable the flag per browser with `localStorage.setItem("inkling.flags", "agentPanels")`, or for
-a build with `VITE_INKLING_FLAGS=agentPanels`. Without it the experimental module isn't
+Enable the flag per browser with `localStorage.setItem("studio.flags", "agentPanels")`, or for
+a build with `VITE_STUDIO_FLAGS=agentPanels`. Without it the experimental module isn't
 registered, so environments can't reference its panels.

@@ -5,7 +5,7 @@ Folder… picker (the same walk as a drop), and drives the Files page. Drags use
 `DragEvent`s with a real `DataTransfer` (the page's drag controller reads only those), because
 Playwright's emulated native drag is flaky across rows that re-render.
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_edit_test.py --port 5199   # from apps/web
 """
 
@@ -208,8 +208,8 @@ def fetch_bytes(page, path: str, method: str = "GET", body: dict | None = None) 
 def add_member(pid: str, principal: str, role: str = "editor") -> bool:
     """Make `principal` a member of the project's organization, for tests with a second person.
     The kernel has no members API yet, so this writes the API's SQLite database directly: it
-    needs the same `INKLING_API_DATA_DIR` the API was started with (default database only)."""
-    data = os.environ.get("INKLING_API_DATA_DIR")
+    needs the same `STUDIO_API_DATA_DIR` the API was started with (default database only)."""
+    data = os.environ.get("STUDIO_API_DATA_DIR")
     db = Path(data) / "api.db" if data else None
     if not db or not db.exists():
         return False

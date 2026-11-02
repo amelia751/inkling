@@ -7,7 +7,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "const": "inkling.dev/v1"
+          "const": "studio.dev/v1"
         },
         "kind": {
           "type": "string",
@@ -427,5 +427,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/graph.v1"
+  "$id": "studio://schema/pipeline/graph.v1"
 }

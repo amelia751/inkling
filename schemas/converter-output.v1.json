@@ -206,5 +206,5 @@
       ]
     }
   },
-  "$id": "inkling://schema/converter-output/v1"
+  "$id": "studio://schema/converter-output/v1"
 }

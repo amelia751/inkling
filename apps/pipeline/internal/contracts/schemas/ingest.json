@@ -1,5 +1,5 @@
 {
-  "apiVersion": "inkling.dev/v1",
+  "apiVersion": "studio.dev/v1",
   "kind": "Pipeline",
   "metadata": {
     "name": "ingest",
@@ -18,14 +18,14 @@
   "steps": [
     {
       "id": "inspect",
-      "uses": "inkling.ingest.inspect@1",
+      "uses": "studio.ingest.inspect@1",
       "inputs": {
         "source": "${inputs.upload}"
       }
     },
     {
       "id": "derivatives",
-      "uses": "inkling.ingest.derivatives@1",
+      "uses": "studio.ingest.derivatives@1",
       "needs": [
         "inspect"
       ],
@@ -41,7 +41,7 @@
     },
     {
       "id": "validate",
-      "uses": "inkling.pipeline.validate@1",
+      "uses": "studio.pipeline.validate@1",
       "needs": [
         "inspect",
         "derivatives"
@@ -54,7 +54,7 @@
     },
     {
       "id": "propose",
-      "uses": "inkling.pipeline.propose@1",
+      "uses": "studio.pipeline.propose@1",
       "needs": [
         "validate",
         "derivatives"

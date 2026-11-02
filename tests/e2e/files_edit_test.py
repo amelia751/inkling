@@ -4,7 +4,7 @@ Make a folder (⇧⌘N, type, Enter), rename a file with F2 (only the stem is se
 on a duplicate name with the sentence shown, confirm an extension change, drop an untouched new
 folder with Esc, and select three files with ⇧↓ so the selection bar says "3 selected".
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_edit_test.py --port 5199   # from apps/web
 """
 

@@ -25,7 +25,7 @@ function exposeForTests(api: Record<string, unknown> | null) {
 }
 
 /**
- * `inkling.image2d.renderers.canvas-raster`: a lightweight renderer for natural images
+ * `studio.image2d.renderers.canvas-raster`: a lightweight renderer for natural images
  * (PNG / JPEG / WebP) on a plain `<canvas>`. Pan and zoom through a camera; boxes,
  * polygons and keypoints drawn, hit-tested and edited through the overlay2d ShapeUtils
  * (`RasterEditor`). No Cornerstone, no window/level.

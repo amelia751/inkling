@@ -5,7 +5,7 @@ its counts. Undo (⌘Z) works after a reload, because the journal is on the serv
 colleague (a second principal) renamed one of the files is refused, naming it. Empty Trash keeps
 bytes a version still uses, and its confirmation says so.
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_trash_test.py --port 5199   # from apps/web
 """
 
@@ -102,7 +102,7 @@ def main() -> int:
         dlg.get_by_test_id("move-dialog-confirm").click()
         check("I move report.txt into x", bool(wait(lambda: child(page, pid, x["id"], "report.txt"), 10)), str(names(page, pid, x["id"])))
         if not add_member(pid, COLLEAGUE):
-            print("  (INKLING_API_DATA_DIR not set: the colleague can't be made a member; the next checks fail)")
+            print("  (STUDIO_API_DATA_DIR not set: the colleague can't be made a member; the next checks fail)")
         r = as_colleague(page, f"/projects/{pid}/fs/ops", {"ops": [{"kind": "rename", "nodeId": report["id"], "name": "report-final.txt"}]})
         check("a colleague renames it", r["status"] == 200, str(r)[:200])
         page.wait_for_timeout(2500)

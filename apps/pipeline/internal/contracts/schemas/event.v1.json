@@ -982,5 +982,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/event.v1"
+  "$id": "studio://schema/pipeline/event.v1"
 }

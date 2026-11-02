@@ -58,7 +58,7 @@ export function commandDef(id: string): (ResolvedCommand | (Omit<ResolvedCommand
 }
 
 /**
- * `stepFrame` + scope `inkling.cine` → `inkling.cine.commands.stepFrame`; full ids pass
+ * `stepFrame` + scope `studio.cine` → `studio.cine.commands.stepFrame`; full ids pass
  * through. With several scopes, the first whose command is active (or registered) wins, so
  * a renderer can bind its own commands and shared core ones in one map.
  */

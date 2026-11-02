@@ -6,7 +6,7 @@ attestation referrers, so `oras copy -r --from-oci-layout <dir>:<version> <regis
 pushes it with its signatures to any OCI registry (zot, GHCR, Artifact Registry, Harbor), and
 `oras copy -r` mirrors it into an air-gapped registry unchanged (tools/oras-plugins.sh). Import
 reads such a layout back. It verifies every byte from the manifest down, plus the signature and
-attestation by a key this installation trusts (its own Signer or `INKLING_API_SIGNER_TRUSTED_KEYS_FILE`).
+attestation by a key this installation trusts (its own Signer or `STUDIO_API_SIGNER_TRUSTED_KEYS_FILE`).
 Then it stores the blobs and registers the artifact. Both directions need `plugins.approve`
 (a person): a new signer or new code is capability-widening (§3.4).
 

@@ -88,5 +88,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/fixtures.v1"
+  "$id": "studio://schema/boundary/fixtures.v1"
 }

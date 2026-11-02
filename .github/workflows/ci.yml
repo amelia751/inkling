@@ -81,8 +81,8 @@ jobs:
         run: for _ in $(seq 1 60); do curl -fsS http://localhost:4100/health && exit 0; sleep 1; done; docker logs workos-emulate; exit 1
       - name: Emulate api tests
         env:
-          INKLING_TEST_WORKOS_EMULATE_URL: http://localhost:4100
-          INKLING_TEST_WORKOS_EMULATE_REQUIRED: "1" # fail, don't skip, when the emulator is missing
+          STUDIO_TEST_WORKOS_EMULATE_URL: http://localhost:4100
+          STUDIO_TEST_WORKOS_EMULATE_REQUIRED: "1" # fail, don't skip, when the emulator is missing
         run: uv run --package studio-api pytest apps/api/tests/emulate -q
       - name: Emulator logs
         if: failure()

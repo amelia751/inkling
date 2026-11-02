@@ -25,7 +25,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /**
- * `inkling.timeseries.panels.measurements` (slot right): rate and RR from instants, wave
+ * `studio.timeseries.panels.measurements` (slot right): rate and RR from instants, wave
  * intervals (with `ecg` config), track episodes, and record-level statements from the
  * environment's `multiple` Choices group (toggled as class annotations carrying the class's
  * code attribute; codes listed in the item's source label can be adopted).

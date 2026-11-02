@@ -520,5 +520,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/run.v1"
+  "$id": "studio://schema/pipeline/run.v1"
 }

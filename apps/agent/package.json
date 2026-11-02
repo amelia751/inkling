@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Inkling agent runtime: pi harness + Daytona sandboxes, private HTTP/SSE service",
+  "description": "Studio agent runtime: pi harness + Daytona sandboxes, private HTTP/SSE service",
   "engines": {
     "node": ">=22.19"
   },

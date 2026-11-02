@@ -9,7 +9,7 @@ token gets 401; the per-token rate limit answers 429 with Retry-After.
 Needs the api in dev mode (trusted dev headers, so the test can make a project and an API key):
 
     pnpm dev                                    # or: (cd apps/api && uv run uvicorn studio_api.app:app --port 8000)
-    INKLING_E2E_API_URL=http://127.0.0.1:8000 python3 tests/e2e/mcp_remote_test.py
+    STUDIO_E2E_API_URL=http://127.0.0.1:8000 python3 tests/e2e/mcp_remote_test.py
 
 The test starts apps/mcp itself (`src/main.ts --http`, port 8345, in-process rate-limit counters);
 set `<envPrefix>E2E_MCP_URL` to test a running one instead. Skips when the api isn't reachable.

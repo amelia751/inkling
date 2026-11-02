@@ -1,5 +1,5 @@
 /**
- * Manual GC for Inkling sandboxes (todo1 §4.6). Only `app=inkling` sandboxes in one env are touched.
+ * Manual GC for our sandboxes (todo1 §4.6). Only `app=<resourcePrefix>` sandboxes in one env are touched.
  * Also the `agent-sweeper` CronJob when replicas run with SWEEPER_ENABLED=false: known and active
  * sessions come from the configured store (AGENT_STORE), so runs on any replica are respected.
  *

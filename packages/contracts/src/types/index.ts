@@ -159,7 +159,7 @@ export interface TrackKeyframe {
  */
 export type Geometry = CoreGeometry | ModuleGeometry | LegacyGeometry;
 
-/** A module-defined geometry, e.g. `{ type: "inkling.text.span", start, end }`. */
+/** A module-defined geometry, e.g. `{ type: "studio.text.span", start, end }`. */
 export interface ModuleGeometry {
   type: `${string}.${string}`;
   [k: string]: unknown;

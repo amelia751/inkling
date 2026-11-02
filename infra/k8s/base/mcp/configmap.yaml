@@ -5,16 +5,16 @@ kind: ConfigMap
 metadata:
   name: mcp-config
 data:
-  INKLING_ENV: production
-  INKLING_MCP_TRANSPORT: http
-  INKLING_MCP_HOST: 0.0.0.0
-  INKLING_MCP_PORT: "8300"
-  INKLING_API_URL: http://api
-  INKLING_MCP_STUDIO_URL: http://api
+  STUDIO_ENV: production
+  STUDIO_MCP_TRANSPORT: http
+  STUDIO_MCP_HOST: 0.0.0.0
+  STUDIO_MCP_PORT: "8300"
+  STUDIO_API_URL: http://api
+  STUDIO_MCP_STUDIO_URL: http://api
   # The OAuth resource (token audience) and where clients find its metadata: overlays set the host.
-  INKLING_MCP_PUBLIC_URL: http://localhost/mcp
+  STUDIO_MCP_PUBLIC_URL: http://localhost/mcp
   # WorkOS AuthKit domain (the authorization server); overlays/gke with components/workos.
-  INKLING_MCP_AUTH_SERVER: ""
-  INKLING_MCP_RATE_LIMIT_PER_MIN: "120"
-  INKLING_MCP_WRITE_QUOTA_PER_DAY: "5000"
-  INKLING_MCP_REDIS_URL: redis://redis:6379/3
+  STUDIO_MCP_AUTH_SERVER: ""
+  STUDIO_MCP_RATE_LIMIT_PER_MIN: "120"
+  STUDIO_MCP_WRITE_QUOTA_PER_DAY: "5000"
+  STUDIO_MCP_REDIS_URL: redis://redis:6379/3

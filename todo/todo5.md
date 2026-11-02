@@ -30,7 +30,7 @@ There are three kinds of name, and today they're mixed up.
 
 | Kind | What it is | Where it may appear | Value |
 |---|---|---|---|
-| **Brand** | The product name users see; white-label-able | only `packages/plugin-contracts/src/naming.ts` → `schemas/naming.json`, user-facing docs, the repo folder | `Inkling` / `inkling` / `INKLING_` |
+| **Brand** | The product name users see; white-label-able | only `packages/plugin-contracts/src/naming.ts` → `schemas/naming.json`, user-facing docs, the repo folder | `Inkling` / `inkling` / `STUDIO_` |
 | **Scope** | The fixed, brand-free code name of the platform | package names, Python imports, the Go module, image names | `studio` |
 | **Role** | What one folder is for | the folder name, the k8s Deployment, the env-var segment, the ingress path | `api`, `agent`, `worker`, `web`, `mcp`, `versioning` |
 
@@ -47,7 +47,7 @@ There are three kinds of name, and today they're mixed up.
 | `packages/<x>` | `@studio/<x>` | `studio-<x>` / `studio_<x>` | — | — | — |
 | `plugins/<x>` | `@studio/plugin-<x>` | `studio-plugin-<x>` / `studio_plugin_<x>` | — | — | — |
 
-`<P>` is `NAMING.envPrefix` (`INKLING_`).
+`<P>` is `NAMING.envPrefix` (`STUDIO_`).
 
 ### Why `apps/api` holds `studio_api` and not `studio`
 
@@ -64,7 +64,7 @@ So `studio_api` is the right pattern. It looked messy only because the pattern w
 - [x] **D2. "Kernel" or "api".** **Recommended: the service is `api` everywhere it's configured or deployed.**
   - That covers env vars, URLs, images and docs headings.
   - "Kernel" stays an architecture word for the stable core inside it (`studio_api/kernel/`, `docs/plugins.md` §6).
-  - Today one service has three names: the `INKLING_KERNEL` and `INKLING_KERNEL_URL` env vars, the `apps/api` folder, and "Kernel and control plane" in its README.
+  - Today one service has three names: the `STUDIO_KERNEL` and `STUDIO_KERNEL_URL` env vars, the `apps/api` folder, and "Kernel and control plane" in its README.
 - [x] **D3. Env-var scheme.** **Recommended:** `<P><ROLE>_<KEY>` for settings a service owns, and `<P><ROLE>_URL` and `<P><ROLE>_TOKEN` for how other services reach it.
   - Settings every service shares: `<P>ENV` (`development|test|production`) and `<P>LOG_LEVEL`.
   - Unprefixed names are allowed only for third-party standards (`DAYTONA_*`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OTEL_*`) and for `NAMING_FILE`. `NAMING_FILE` can't carry the prefix because the prefix is read from that file.
@@ -152,19 +152,19 @@ So `studio_api` is the right pattern. It looked messy only because the pattern w
 
 ## Phase 3. Env vars and config (D2, D3)
 
-Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the web dev server uses `INKLING_KERNEL`, `INKLING_KERNEL_URL` and `VITE_INKLING_KERNEL`; the worker uses `INKLING_KERNEL_URL`; the agent's are unprefixed (`AGENT_*`, `APP_ENV`, `LOG_LEVEL`, `INTERNAL_AGENT_SERVICE_TOKEN`); and versioning uses `INKLING_VERSIONING_*` plus an unprefixed `NAMING_CONFIG`.
+Today each service invents its own names: `apps/api` uses `STUDIO_API_*`; the web dev server uses `STUDIO_KERNEL`, `STUDIO_KERNEL_URL` and `VITE_INKLING_KERNEL`; the worker uses `STUDIO_KERNEL_URL`; the agent's are unprefixed (`AGENT_*`, `APP_ENV`, `LOG_LEVEL`, `INTERNAL_AGENT_SERVICE_TOKEN`); and versioning uses `STUDIO_VERSIONING_*` plus an unprefixed `NAMING_CONFIG`.
 
 | Today | New | Read by |
 |---|---|---|
-| `INKLING_KERNEL=1` and `VITE_INKLING_KERNEL` | removed: the web dev server uses the API when `INKLING_API_URL` is set; Vite passes the boolean through `define` | web |
-| `INKLING_KERNEL_URL` | `INKLING_API_URL` | web, worker (and agent, todo2 Phase 7) |
-| `AGENT_PORT`, `AGENT_MODEL`, `AGENT_SCRIPT`, `AGENT_SANDBOX`, `AGENT_DATA_DIR`, `AGENT_THINKING`, `AGENT_PLUGIN_TEMPLATE_DIR` | `INKLING_AGENT_*` | agent |
-| `INTERNAL_AGENT_SERVICE_TOKEN` | `INKLING_AGENT_TOKEN` | agent, web proxy |
-| `APP_ENV` | `INKLING_ENV` | all |
-| `LOG_LEVEL` | `INKLING_LOG_LEVEL` | all |
+| `STUDIO_KERNEL=1` and `VITE_INKLING_KERNEL` | removed: the web dev server uses the API when `STUDIO_API_URL` is set; Vite passes the boolean through `define` | web |
+| `STUDIO_KERNEL_URL` | `STUDIO_API_URL` | web, worker (and agent, todo2 Phase 7) |
+| `AGENT_PORT`, `AGENT_MODEL`, `AGENT_SCRIPT`, `AGENT_SANDBOX`, `AGENT_DATA_DIR`, `AGENT_THINKING`, `AGENT_PLUGIN_TEMPLATE_DIR` | `STUDIO_AGENT_*` | agent |
+| `INTERNAL_AGENT_SERVICE_TOKEN` | `STUDIO_AGENT_TOKEN` | agent, web proxy |
+| `APP_ENV` | `STUDIO_ENV` | all |
+| `LOG_LEVEL` | `STUDIO_LOG_LEVEL` | all |
 | `AGENT_NAMING_FILE` (agent), `NAMING_CONFIG` (versioning) | `NAMING_FILE` (the one deliberately unprefixed name) | agent, versioning, api, worker |
-| `LOAD_ENTRIES`, `LOAD_RESULTS`, `VERBOSE` (versioning load test) | `INKLING_VERSIONING_LOAD_*` | `make load` only |
-| `INKLING_API_*`, `INKLING_VERSIONING_*`, `INKLING_AGENT_URL`, `INKLING_E2E` | unchanged | — |
+| `LOAD_ENTRIES`, `LOAD_RESULTS`, `VERBOSE` (versioning load test) | `STUDIO_VERSIONING_LOAD_*` | `make load` only |
+| `STUDIO_API_*`, `STUDIO_VERSIONING_*`, `STUDIO_AGENT_URL`, `STUDIO_E2E` | unchanged | — |
 
 - [x] Each service reads env vars in exactly one place, through an `env("<ROLE>_KEY")` helper that adds the prefix:
   - `apps/agent/src/config.ts`
@@ -180,7 +180,7 @@ Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the w
   - Nothing is deployed yet, so no fallback to the old names.
 - [x] `apps/api/README.md` heading: "API service (`apps/api`): kernel and plugin control plane". `docs/plugins.md` keeps "kernel" for the concept.
 
-**Exit:** `rg -n 'KERNEL_URL|INKLING_KERNEL|APP_ENV|INTERNAL_AGENT_SERVICE_TOKEN|AGENT_NAMING_FILE|NAMING_CONFIG'` finds nothing outside `todo/`. The agent e2e and plugins e2e pass with the new names.
+**Exit:** `rg -n 'KERNEL_URL|STUDIO_KERNEL|APP_ENV|INTERNAL_AGENT_SERVICE_TOKEN|AGENT_NAMING_FILE|NAMING_CONFIG'` finds nothing outside `todo/`. The agent e2e and plugins e2e pass with the new names.
 
 ---
 
@@ -190,8 +190,8 @@ Today each service invents its own names: `apps/api` uses `INKLING_API_*`; the w
 
 - [x] `plugins/volume/ui/renderer/MprEngine.ts`: the e2e hook is `` `__inkling3d` `` (a template literal). Change it to `` `__${RES}3d` ``, update `apps/web/e2e/volume3d_test.py` to read the name from `schemas/naming.json`, and add template-literal text to the brand check.
 - [x] `plugins/wsi/ui/io.ts`: exported GeoJSON uses the metadata keys `inkling_item` and `inkling_provenance`. Change them to `${RES}_item` and `${RES}_provenance`. The importer also accepts `legacyNamespaces` prefixes, so files exported before a rename still load. Update `wsi.test.ts`.
-- [x] `plugins/*/plugin.yaml` hard-codes `schemaVersion: inkling.plugins/v1` and `id: inkling.<x>`. That's allowed (they're data, and `tools/rename-namespace.mjs` rewrites them). Add one test asserting that every `plugin.yaml` id starts with `NAMING.namespace`, so a rename can't half-apply.
-- [x] Generated `apps/api/.../_generated/plugin_v1.py` contains `Literal['inkling.plugins/v1']`. That's fine because it's generated, but put `_generated/` on the brand check's skip list explicitly.
+- [x] `plugins/*/plugin.yaml` hard-codes `schemaVersion: studio.plugins/v1` and `id: inkling.<x>`. That's allowed (they're data, and `tools/rename-namespace.mjs` rewrites them). Add one test asserting that every `plugin.yaml` id starts with `NAMING.namespace`, so a rename can't half-apply.
+- [x] Generated `apps/api/.../_generated/plugin_v1.py` contains `Literal['studio.plugins/v1']`. That's fine because it's generated, but put `_generated/` on the brand check's skip list explicitly.
 
 **Exit:** `rg -i inkling` outside `naming.ts`, `schemas/naming.json`, `plugin.yaml`, `_generated/`, `docs/`, `todo/`, READMEs and e2e assertions on visible text returns nothing.
 

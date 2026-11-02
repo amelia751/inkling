@@ -1,5 +1,5 @@
 {
-  "$id": "inkling://schema/viewer-runtime/v1",
+  "$id": "studio://schema/viewer-runtime/v1",
   "protocolVersion": "2026-01-26",
   "mimeType": "text/html;profile=mcp-app",
   "tools": {

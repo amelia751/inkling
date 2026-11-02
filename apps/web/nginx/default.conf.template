@@ -1,13 +1,13 @@
 # Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
 # Only ${VAR}s defined in the environment are substituted (Dockerfile ENV sets defaults):
-#   INKLING_AGENT_URL              the agent service (default http://agent:8100); a name the
+#   STUDIO_AGENT_URL              the agent service (default http://agent:8100); a name the
 #                                  resolver can answer without search domains (k8s: the FQDN)
 #   NGINX_LOCAL_RESOLVERS          the nameservers in /etc/resolv.conf (set by the image's
 #                                  entrypoint, NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1)
-#   INKLING_AGENT_TOKEN            service token the proxy adds; it never reaches the browser
-#   INKLING_WEB_AUTH_MODE          `dev` (default) or `workos`: picks agent-auth/<mode>.inc (todo9 Phase 5)
+#   STUDIO_AGENT_TOKEN            service token the proxy adds; it never reaches the browser
+#   STUDIO_WEB_AUTH_MODE          `dev` (default) or `workos`: picks agent-auth/<mode>.inc (todo9 Phase 5)
 #                                  and is written into /config.json's `auth`
-#   INKLING_API_URL                the API (default http://api:8000); `workos` mode asks its
+#   STUDIO_API_URL                the API (default http://api:8000); `workos` mode asks its
 #                                  /api/auth/verify for the person's access token
 #   GIT_SHA                        build revision for /version
 server {
@@ -36,7 +36,7 @@ server {
     add_header Cache-Control "no-store" always;
     sub_filter_types application/json;
     sub_filter_once on;
-    sub_filter '{' '{"auth":{"mode":"${INKLING_WEB_AUTH_MODE}"},';
+    sub_filter '{' '{"auth":{"mode":"${STUDIO_WEB_AUTH_MODE}"},';
     try_files /config.json =404;
   }
 
@@ -44,7 +44,7 @@ server {
   # `X-Access-Token: <WorkOS access token>` (refreshed if needed) or 401. Never routed from outside.
   location = /_auth {
     internal;
-    set $api_upstream ${INKLING_API_URL};
+    set $api_upstream ${STUDIO_API_URL};
     proxy_pass $api_upstream/api/auth/verify;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
@@ -67,8 +67,8 @@ server {
   location ^~ /api/agent/internal { return 404; }
 
   location /api/agent/ {
-    include /tmp/nginx/conf.d/agent-auth/${INKLING_WEB_AUTH_MODE}.inc;
-    set $agent_upstream ${INKLING_AGENT_URL};
+    include /tmp/nginx/conf.d/agent-auth/${STUDIO_WEB_AUTH_MODE}.inc;
+    set $agent_upstream ${STUDIO_AGENT_URL};
     rewrite ^/api/agent/(.*)$ /v1/$1 break;
     proxy_pass $agent_upstream;
     proxy_http_version 1.1;

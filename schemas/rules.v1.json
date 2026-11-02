@@ -215,5 +215,5 @@
       }
     }
   },
-  "$id": "inkling://schema/rules/v1"
+  "$id": "studio://schema/rules/v1"
 }

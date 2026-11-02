@@ -2,7 +2,7 @@
 
 | Doc | What it covers |
 |---|---|
-| [`product.md`](product.md) | What the product is: users, data types, the Studio, the backend split (was `inkling.md` at the root). |
+| [`product.md`](product.md) | What the product is: users, data types, the Studio, the backend split (was `studio.md` at the root). |
 | [`ux.md`](ux.md) | The product's information architecture: projects, their sections (Overview, Sources (the drive), Explore, Datasets, Studio, Review, Activity) and the assistant. |
 | [`ui.md`](ui.md) | Studio rules: layout, provenance colours, saving states, keyboard. |
 | [`modules.md`](modules.md) | The modular Studio: environments, modules (a plugin's UI half), contributions, presets. |
@@ -85,7 +85,7 @@ the word in the right-hand column.
 
 | Old path | New path |
 |---|---|
-| `inkling.md` | `docs/product.md` |
+| `studio.md` | `docs/product.md` |
 | `ui.md`, `agent.md`, `plugins.md`, `versioning.md` | `docs/ui.md`, `docs/agent.md`, `docs/plugins.md`, `docs/versioning.md` |
 | `scripts/fetch-seeds.py`, `scripts/build-registry.mjs`, `scripts/rename-namespace.mjs` | `tools/…` |
 | `apps/web/scripts/check-boundaries.mjs` (+ `boundaries-allowlist.json`) | `tools/check-boundaries.mjs`, now with the repo-wide rules (the empty allowlist was dropped in todo5) |

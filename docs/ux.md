@@ -1,15 +1,15 @@
-# Inkling UX Specification
+# UX Specification
 
 **Status:** Proposed product UX, v0.2  
 **Scope:** Workspace, Projects, Project Overview, Sources, Explore, Datasets, Studio, Review, Activity, and persistent AI assistant  
 **Primary audience:** Domain experts who are not programmers, initially medical-imaging researchers  
-**Reference:** Existing Inkling 2D X-ray annotation canvas and current dataset dashboard. This document replaces the earlier *statistics-heavy Project Overview* concept; it does **not** replace the working annotation editor.
+**Reference:** Existing Spurby 2D X-ray annotation canvas and current dataset dashboard. This document replaces the earlier *statistics-heavy Project Overview* concept; it does **not** replace the working annotation editor.
 
 ## 1. Product vision
 
-Inkling is an **AI-native data studio for domain experts**. A user can bring messy files and folders, understand their structure, organize them into usable datasets, annotate them with appropriate viewers, review the work, and publish versioned outputs without needing to know programming, schema design, or ML conventions.
+Spurby is an **AI-native data studio for domain experts**. A user can bring messy files and folders, understand their structure, organize them into usable datasets, annotate them with appropriate viewers, review the work, and publish versioned outputs without needing to know programming, schema design, or ML conventions.
 
-**North-star interaction:** A user drops in a folder of heterogeneous medical research materials and says, “Help me build a cardiac imaging dataset.” Inkling identifies file types and candidate relationships, proposes a sensible environment, asks for confirmation where needed, and opens the right editor.
+**North-star interaction:** A user drops in a folder of heterogeneous medical research materials and says, “Help me build a cardiac imaging dataset.” Spurby identifies file types and candidate relationships, proposes a sensible environment, asks for confirmation where needed, and opens the right editor.
 
 Design influences:
 - **GitHub:** persistent projects, traceable changes, collaboration, versioned datasets, review requests—without exposing Git jargon to beginners.
@@ -46,7 +46,7 @@ Workspace (personal or organization)
         ├── Review         ← annotation issues, import conflicts, mappings
         └── Activity       ← audit-friendly change history
 
-Persistent contextual Inkling AI panel can accompany any Project section.
+Persistent contextual Spurby AI panel can accompany any Project section.
 ```
 
 **Terms:**
@@ -87,7 +87,7 @@ Screen elements:
 
 1. User names a project or states a goal in natural language.
 2. User may drag/drop files or whole folders immediately, or create an empty project.
-3. Inkling creates the project, preserves original source paths, and begins safe file inspection.
+3. Spurby creates the project, preserves original source paths, and begins safe file inspection.
 4. Clean 2D image import can offer **Open Studio** directly. Mixed or ambiguous imports offer **Explore results** first.
 
 Avoid making users define labels, JSON schemas, medical modality or export formats before they've supplied data.
@@ -144,7 +144,7 @@ A calm, useful home screen that quickly answers:
 ### Recommended desktop hierarchy
 
 ```text
-Inkling / Cardiac Research                             [•••]
+Spurby / Cardiac Research                             [•••]
 
 PROJECT WORKSPACE
 Cardiac Research
@@ -214,7 +214,7 @@ Replace Resume + existing-data cards with a primary upload surface:
 Cardiac Research
 Let's start with your data.
 [ Drop files or folders here ]    [ Browse files ]
-Or tell Inkling what you're trying to create…
+Or tell Spurby what you're trying to create…
 ```
 
 Examples can be optional, not a mandatory wizard. Chat may suggest next steps but should not dominate Overview.
@@ -227,7 +227,7 @@ Examples can be optional, not a mandatory wizard. Chat may suggest next steps bu
 
 ### Visual treatment
 
-Match current Inkling dark theme: restrained near-black surfaces, subtle borders, indigo/purple accent, compact typography, generous whitespace around the primary resume card, and minimal decorative icons. Prefer understated cards over metric-heavy dashboards. Avoid making Overview look like business intelligence software.
+Match current Spurby dark theme: restrained near-black surfaces, subtle borders, indigo/purple accent, compact typography, generous whitespace around the primary resume card, and minimal decorative icons. Prefer understated cards over metric-heavy dashboards. Avoid making Overview look like business intelligence software.
 
 ## 5. Project sections — unchanged responsibilities
 
@@ -346,7 +346,7 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 
 ```text
 [Header]  project ▸ task ▾   ·   Your draft · Saved ✓ ▾        [Request review] [✦] [⋯]
-[Context sidebar]       [Main viewer / canvas]        [Inkling AI]
+[Context sidebar]       [Main viewer / canvas]        [Spurby AI]
  Items | Labels          Toolbar (usable tools only)    Conversation
  Folders or Queue        Modality-specific canvas       Proposals
  On this image           Decision bar (classification)  Approvals
@@ -562,4 +562,4 @@ Persist project/task selection in URLs. Do not encode sensitive medical content 
 
 ---
 
-**One-sentence design rule:** *Overview helps you resume and decide what to do; Data keeps your files, tidy and undoable, with what you brought preserved; Explore explains what it means; Datasets organizes what you're building; Studio lets you work; Review protects quality; Activity shows what changed; and Inkling AI connects them without taking control away from the expert.*
+**One-sentence design rule:** *Overview helps you resume and decide what to do; Data keeps your files, tidy and undoable, with what you brought preserved; Explore explains what it means; Datasets organizes what you're building; Studio lets you work; Review protects quality; Activity shows what changed; and Spurby AI connects them without taking control away from the expert.*

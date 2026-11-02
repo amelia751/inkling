@@ -150,5 +150,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/reproducibility.v1"
+  "$id": "studio://schema/pipeline/reproducibility.v1"
 }

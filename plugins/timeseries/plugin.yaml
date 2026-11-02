@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.timeseries
+schemaVersion: studio.plugins/v1
+id: studio.timeseries
 name: Multichannel time series
 version: 1.1.0
 description: "Sampled signals (WFDB, CSV) on a strip chart: spans and instants per channel, delineation, beat detection and calipers."

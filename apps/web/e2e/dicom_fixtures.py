@@ -33,12 +33,12 @@ def base(sop_class: str, sop_uid: str, modality: str) -> FileDataset:
     meta.MediaStorageSOPClassUID = sop_class
     meta.MediaStorageSOPInstanceUID = sop_uid
     meta.TransferSyntaxUID = ExplicitVRLittleEndian
-    meta.ImplementationClassUID = uid("inkling-impl")
+    meta.ImplementationClassUID = uid("studio-impl")
     ds = FileDataset(None, {}, file_meta=meta, preamble=b"\0" * 128)
     ds.SOPClassUID = sop_class
     ds.SOPInstanceUID = sop_uid
     ds.Modality = modality
-    ds.PatientName = "Phantom^Inkling"
+    ds.PatientName = "Phantom^Synthetic"
     ds.PatientID = "INK-0001"
     ds.PatientBirthDate = ""
     ds.PatientSex = "O"
@@ -47,7 +47,7 @@ def base(sop_class: str, sop_uid: str, modality: str) -> FileDataset:
     ds.AccessionNumber = "INK1"
     ds.ReferringPhysicianName = ""
     ds.StudyID = "1"
-    ds.Manufacturer = "Inkling test fixtures"
+    ds.Manufacturer = "Synthetic test fixtures"
     return ds
 
 
@@ -103,7 +103,7 @@ def make_ct(out: Path) -> dict:
         ds = base("1.2.840.10008.5.1.4.1.1.2", uid(f"ct-sop-{k}"), "CT")
         ds.StudyInstanceUID, ds.SeriesInstanceUID, ds.FrameOfReferenceUID = study, series, for_uid
         ds.SeriesNumber = 2
-        ds.SeriesDescription = "Inkling CT phantom"
+        ds.SeriesDescription = "Synthetic CT phantom"
         ds.InstanceNumber = k + 1
         ds.ImageType = ["ORIGINAL", "PRIMARY", "AXIAL"]
         ds.ImagePositionPatient = [origin[0], origin[1], float(z[k])]

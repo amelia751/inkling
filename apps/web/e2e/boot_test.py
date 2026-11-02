@@ -1,6 +1,6 @@
 """Studio boot timeline and Milestone 1 budgets (todo11 §4, §7).
 
-    INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort      # in apps/web
+    STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort      # in apps/web
     python3 e2e/boot_test.py --port 5199 [--runs 3] [--report-only]
 
 Per preset (image-2d, video, volume-3d, ecg, pathology) it prints, in ms:

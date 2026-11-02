@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.dicom-export
+schemaVersion: studio.plugins/v1
+id: studio.dicom-export
 name: DICOM export
 version: 1.0.0
 description: "Masks as DICOM SEG and measurements as DICOM SR (TID 1500), referencing the source DICOM images."

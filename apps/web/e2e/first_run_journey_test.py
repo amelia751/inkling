@@ -14,11 +14,11 @@ Needs the API with its worker; the test starts the agent service itself (scripte
 tests/e2e/fixtures/journey-script.json, or <envPrefix>E2E_AGENT_SCRIPT) on <envPrefix>E2E_AGENT_PORT
 (default 8316):
 
-    INKLING_API_DATA_DIR=/tmp/first-run-e2e uv run --package studio-api uvicorn studio_api.app:app --port 8226 &
+    STUDIO_API_DATA_DIR=/tmp/first-run-e2e uv run --package studio-api uvicorn studio_api.app:app --port 8226 &
     uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8226 &
-    cd apps/web && INKLING_E2E=1 INKLING_API_URL=http://127.0.0.1:8226 INKLING_AGENT_URL=http://127.0.0.1:8316 \\
-      INKLING_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5216 --strictPort &
-    INKLING_E2E_API_URL=http://127.0.0.1:8226 python3 e2e/first_run_journey_test.py --port 5216 [--shots DIR]
+    cd apps/web && STUDIO_E2E=1 STUDIO_API_URL=http://127.0.0.1:8226 STUDIO_AGENT_URL=http://127.0.0.1:8316 \\
+      STUDIO_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5216 --strictPort &
+    STUDIO_E2E_API_URL=http://127.0.0.1:8226 python3 e2e/first_run_journey_test.py --port 5216 [--shots DIR]
 """
 
 from __future__ import annotations

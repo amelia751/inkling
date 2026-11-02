@@ -1,5 +1,5 @@
 // Minimal MCP Apps host harness (todo10 Phase 5 exit: "the same viewer renders in an MCP Apps
-// host outside Inkling"). Spawns apps/mcp over stdio with the official MCP client, serves a host
+// host outside our web app"). Spawns apps/mcp over stdio with the official MCP client, serves a host
 // page that uses the official ext-apps AppBridge (host.ts, bundled with esbuild) on one port and
 // the reference sandbox proxy on another, and prints `READY <url>` for a browser to open.
 //

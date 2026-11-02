@@ -102,7 +102,7 @@ function TurnEntry({ projectId, entry: e }: { projectId: string; entry: Activity
   );
 }
 
-/** "Ana", "Assistant for Ana", or Inkling's own parts ("Inspection", "Sample data"). */
+/** "Ana", "Assistant for Ana", or the product's own parts ("Inspection", "Sample data"). */
 export function actorName(who: ActivityActor): string {
   if (who.kind === "assistant") return who.onBehalfOf ? `Assistant for ${who.onBehalfOf}` : "Assistant";
   return who.name;

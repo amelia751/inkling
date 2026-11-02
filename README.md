@@ -1,4 +1,4 @@
-# Inkling
+# Studio
 
 A studio for viewing, annotating and exporting medical and scientific data: 2-D images and DICOM,
 3-D volumes, cardiac cine, video, ECG and other signals, whole-slide pathology and text.
@@ -72,7 +72,7 @@ todo/        the current plan and BACKLOG.md; finished plans are in todo/done/
 | `versioning` | Go, Postgres | Dataset versioning: branches, commits, review requests, semantic diffs, merges |
 | `mcp` | Node | MCP server, so outside agents (Claude Desktop, Cursor) can drive the Studio |
 
-Every service is stateless, reads its config only from `INKLING_<ROLE>_*` env vars, and serves
+Every service is stateless, reads its config only from `STUDIO_<ROLE>_*` env vars, and serves
 `/healthz`, `/readyz` and `/version`.
 
 ### Plugins (`plugins/`)

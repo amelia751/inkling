@@ -18,7 +18,7 @@ import { brushSizeOf, execute, markFirstFrame, toolOption, useCommands, useHost 
 /**
  * React host of the MPR renderer: owns the UI state (sequence, layout, view toggles), mounts
  * the cells and drives MprEngine. Keys go through commands declared in the manifests
- * (inkling.volume, inkling.cornerstone, inkling.core); the bar's buttons run the same commands.
+ * (studio.volume, studio.cornerstone, studio.core); the bar's buttons run the same commands.
  */
 export function MprRenderer({ project, item, config, runtime }: RendererProps) {
   const cfg = useMemo(() => mprConfig(config), [config]);

@@ -6,7 +6,7 @@ of its name. Renaming it to `case_014.dcm` in Files clears the hold, with an aud
 `case_014.dcm`: never the name it arrived with. While typing a name like a person's, the rename
 field warns (never blocks).
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_privacy_test.py --port 5199   # from apps/web
 """
 

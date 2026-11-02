@@ -2,11 +2,11 @@
 signing out, and a deep link that survives the sign-in round trip.
 
 Needs a `workos`-mode stack, so it's skipped unless run with --workos: the API in
-`INKLING_API_AUTH_MODE=workos` against WorkOS Emulate started with `--interactive` (its login
+`STUDIO_API_AUTH_MODE=workos` against WorkOS Emulate started with `--interactive` (its login
 pages) and seeded with a user in two organizations (infra/workos/emulate.yaml), and the dev
 server started with the API and the auth mode:
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_WEB_AUTH_MODE=workos INKLING_E2E=1 \\
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_WEB_AUTH_MODE=workos STUDIO_E2E=1 \\
         pnpm exec vite --port 5199 --strictPort
     python3 e2e/auth_test.py --port 5199 --workos --email ada@example.org [--password …]
 

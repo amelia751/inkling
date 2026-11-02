@@ -47,7 +47,7 @@ ENV PATH=/app/.venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp \
     GIT_SHA=${GIT_SHA} \
-    INKLING_API_DATA_DIR=/tmp/api
+    STUDIO_API_DATA_DIR=/tmp/api
 USER 10001:10001
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=3 \

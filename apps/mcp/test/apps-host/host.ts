@@ -1,6 +1,6 @@
 // A minimal MCP Apps host page built on the official SDK (@modelcontextprotocol/ext-apps
 // AppBridge + PostMessageTransport), with nothing from the Studio: it proves a viewer renders
-// outside Inkling. The page asks run.mjs (which holds the MCP client) for tools, the UI
+// outside our web app. The page asks run.mjs (which holds the MCP client) for tools, the UI
 // resource and tool calls, and embeds the View through a sandbox proxy on another origin.
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
 

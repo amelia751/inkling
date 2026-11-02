@@ -15,7 +15,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.overlay2d.tools.box"
+            "renderer": "studio.overlay2d.tools.box"
           }
         ]
       },
@@ -31,8 +31,8 @@
       "environment": {
         "extends": "preset:image-2d",
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.panels.files"
+          "studio.core.tools.select",
+          "studio.core.panels.files"
         ]
       },
       "expect": [
@@ -47,7 +47,7 @@
       "environment": {
         "extends": "preset:image-2d",
         "data": {
-          "kind": "inkling.generic.dataKinds.files"
+          "kind": "studio.generic.dataKinds.files"
         }
       },
       "expect": [
@@ -86,8 +86,8 @@
       "environment": {
         "extends": "preset:image-2d",
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.select"
+          "studio.core.tools.select",
+          "studio.core.tools.select"
         ]
       },
       "expect": [
@@ -102,8 +102,8 @@
       "environment": {
         "extends": "preset:image-2d",
         "exporters": [
-          "inkling.image2d.exporters.coco",
-          "inkling.timeseries.exporters.ecg-intervals-csv"
+          "studio.image2d.exporters.coco",
+          "studio.timeseries.exporters.ecg-intervals-csv"
         ]
       },
       "expect": [

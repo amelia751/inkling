@@ -1,5 +1,5 @@
 {
-  "$id": "inkling://schema/lint-rules/v1",
+  "$id": "studio://schema/lint-rules/v1",
   "severities": [
     "error",
     "warn",

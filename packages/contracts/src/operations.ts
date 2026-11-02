@@ -41,7 +41,7 @@ export interface Operation {
   published?: "change-request";
 }
 
-/** Over this many files, the assistant asks before trashing (`INKLING_API_AGENT_TRASH_ASK_OVER`). */
+/** Over this many files, the assistant asks before trashing (`STUDIO_API_AGENT_TRASH_ASK_OVER`). */
 export const AGENT_TRASH_ASK_OVER_DEFAULT = 100;
 
 const id = z.string().min(1);

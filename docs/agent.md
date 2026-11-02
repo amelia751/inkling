@@ -1,8 +1,8 @@
-# Inkling Agent Runtime — Architecture & Integration Specification
+# Agent Runtime — Architecture & Integration Specification
 
 **Status:** implemented in part (see §15); `apps/agent` exists as a Node + pi service  
 **Last reviewed:** 2026-10-30  
-**Owner:** Inkling engineering  
+**Owner:** engineering  
 **Scope:** `apps/agent` and its integration with `apps/web`, `apps/api`, `apps/worker`, and external providers  
 **Technology:** `apps/agent` is TypeScript on Node ≥ 22.19 with **pi** (`@earendil-works/pi-coding-agent` 1.4.0), Hono and Daytona (`@daytona/sdk` 0.227.0); `apps/api` stays Python/FastAPI with PostgreSQL. Temporal optionally, later.
 
@@ -10,7 +10,7 @@
 
 ## 1. Product goals and non-goals
 
-Inkling is a collaborative, no-code data studio. Its embedded agent must be able to **reason, research, write code, execute that code in isolated sandboxes, inspect artifacts, and orchestrate pipelines**, while operating on authorized datasets and supporting ordinary knowledge questions. It is not exclusively a coding assistant.
+Spurby is a collaborative, no-code data studio. Its embedded agent must be able to **reason, research, write code, execute that code in isolated sandboxes, inspect artifacts, and orchestrate pipelines**, while operating on authorized datasets and supporting ordinary knowledge questions. It is not exclusively a coding assistant.
 
 **Initial goals**
 
@@ -75,7 +75,7 @@ Object storage: immutable dataset versions, sandbox artifact exports
 `apps/agent` is a package in the pnpm repo workspace (`@studio/agent`), not a Python package. The wire types live in `packages/agent-protocol`, imported by both the service and the web app (apps never import each other).
 
 ```text
-inkling/
+<repo>/
 ├── docs/agent.md                    # THIS specification
 ├── todo/done/todo1.md                    # the pi + Daytona plan this section implements
 ├── secrets/                         # git-ignored except README.md and *.example (dev only)
@@ -85,7 +85,7 @@ inkling/
 │   │   └── src/
 │   │       ├── lib/agent/           # protocol re-export, HTTP/SSE client, card tools, snapshot
 │   │       ├── stores/agent.ts      # threads, sessions, active run (reattach after reload)
-│   │       └── modules/core/panels/ai.tsx   # the Inkling AI panel; runs client tools
+│   │       └── modules/core/panels/ai.tsx   # the AI panel; runs client tools
 │   ├── agent/                       # Node service (@studio/agent)
 │   │   ├── src/
 │   │   │   ├── main.ts / app.ts     # boot; Hono routes (§9)
@@ -108,7 +108,7 @@ inkling/
 
 pi is a TypeScript agent harness with a mature loop: steering and follow-up queues, compaction, JSONL session trees, per-message cost, retries, and `tool_call` hooks that can block a call. Its built-in tools take pluggable `operations`, which is how they are pointed at Daytona. What the Pydantic AI Harness plan expected maps as follows:
 
-| Pydantic AI Harness | pi equivalent in Inkling |
+| Pydantic AI Harness | pi equivalent in Spurby |
 |---|---|
 | Coder | pi's bash/read/write/edit/ls tool definitions with Daytona `operations`, plus remote find/grep, `run_python`, `preview_url`, `export_artifact` (`tools/sandbox.ts`); `get_fingerprint`, `get_fixtures` (`tools/boundary.ts`): no dataset file ever enters a sandbox (todo10 Phase 7) |
 | Skills | pi skills (not enabled; host discovery is off) |
@@ -127,9 +127,9 @@ The client picks a profile by **name**; it never grants capabilities. Client-dec
 | `environment-designer` (Studio default) | above + environment client tools (`list_modules`, `describe_contribution`, `get_environment`, `validate_environment`, `preview_environment`, `patch_environment`, `run_command`) | none |
 | `coder` | above + sandbox tools | Daytona, created lazily on the first sandbox tool call |
 
-**Studio tools (todo11 Milestone 2).** `assistant`, `environment-designer` and `coder` also get four server tools from `packages/studio-tools` (`boot_studio`, `patch_studio`, `get_studio_state`, `search_catalog`) plus `offer_studio` (a card, creates nothing). They call the API with the session's kernel token, so no Studio tab needs to be open. `boot_studio` posts `POST /api/v1/projects/:id/boots` as soon as it runs (preset from the call, else from `registry/intents.json`), with a bootId derived from run + call id so a retry is idempotent, and the policy runs it only when the person's own words ask to create (D5; otherwise a soft deny steers to `offer_studio`). The browser's `catalogPrompt` is no longer injected: the system prompt carries a compact preset and module index (`apps/agent/src/agent/catalog.ts`) and the model looks ids up with `search_catalog`. Prompt parts and tools are in a fixed order for prompt caching. Env: `INKLING_AGENT_CATALOG_FILE`, `INKLING_AGENT_INTENTS_FILE` (default: the repo's `schemas/catalog.json`, `registry/intents.json`).
+**Studio tools (todo11 Milestone 2).** `assistant`, `environment-designer` and `coder` also get four server tools from `packages/studio-tools` (`boot_studio`, `patch_studio`, `get_studio_state`, `search_catalog`) plus `offer_studio` (a card, creates nothing). They call the API with the session's kernel token, so no Studio tab needs to be open. `boot_studio` posts `POST /api/v1/projects/:id/boots` as soon as it runs (preset from the call, else from `registry/intents.json`), with a bootId derived from run + call id so a retry is idempotent, and the policy runs it only when the person's own words ask to create (D5; otherwise a soft deny steers to `offer_studio`). The browser's `catalogPrompt` is no longer injected: the system prompt carries a compact preset and module index (`apps/agent/src/agent/catalog.ts`) and the model looks ids up with `search_catalog`. Prompt parts and tools are in a fixed order for prompt caching. Env: `STUDIO_AGENT_CATALOG_FILE`, `STUDIO_AGENT_INTENTS_FILE` (default: the repo's `schemas/catalog.json`, `registry/intents.json`).
 
-pi's own built-in tools would run on the host, so sessions are created with `noTools: "builtin"` and only Inkling's tools are registered. Nothing is discovered from disk: no `AGENTS.md`, skills, prompt templates, themes or extensions from the host or `~/.pi`.
+pi's own built-in tools would run on the host, so sessions are created with `noTools: "builtin"` and only the Studio's tools are registered. Nothing is discovered from disk: no `AGENTS.md`, skills, prompt templates, themes or extensions from the host or `~/.pi`.
 
 ### 4.2 Capability selection policy
 
@@ -178,7 +178,7 @@ Dependencies are pinned exactly (`@earendil-works/pi-coding-agent` and `pi-ai` 1
 
 ### 6.3 Configuration
 
-Non-secret settings are documented in `apps/agent/.env.example` (`AGENT_*`); secrets come from the real environment or, outside production, from `secrets/*.env` (never overriding real env). In production missing keys fail startup; in development they only disable the feature. `INKLING_AGENT_MODEL` must be in `INKLING_AGENT_MODEL_ALLOWLIST`; `INKLING_AGENT_MODEL=scripted` (dev/test only) replays a fixture instead of calling a provider.
+Non-secret settings are documented in `apps/agent/.env.example` (`AGENT_*`); secrets come from the real environment or, outside production, from `secrets/*.env` (never overriding real env). In production missing keys fail startup; in development they only disable the feature. `STUDIO_AGENT_MODEL` must be in `STUDIO_AGENT_MODEL_ALLOWLIST`; `STUDIO_AGENT_MODEL=scripted` (dev/test only) replays a fixture instead of calling a provider.
 
 ### 6.4 Smoke test
 
@@ -199,7 +199,7 @@ pnpm agent        # tsx watch src/main.ts → http://127.0.0.1:8100
 pnpm dev          # Vite; /api/agent/* is proxied to the service with the service token
 ```
 
-`/health/live` makes no Daytona or model calls; `/health/ready` reports config, model key, Daytona reachability (cached 60 s) and the egress tier. On first start in development the service writes `secrets/agent.env` with a random `INKLING_AGENT_TOKEN` that the Vite proxy reads. Do **not** expose port 8100.
+`/health/live` makes no Daytona or model calls; `/health/ready` reports config, model key, Daytona reachability (cached 60 s) and the egress tier. On first start in development the service writes `secrets/agent.env` with a random `STUDIO_AGENT_TOKEN` that the Vite proxy reads. Do **not** expose port 8100.
 
 ### 6.7 Startup order
 
@@ -221,12 +221,12 @@ zod-validated settings; fails closed in production. Model allowlist, budgets, co
 
 ### 7.2 `agent/factory.ts`
 
-`createInklingSession()` builds one pi `AgentSession` from a server-chosen profile: `DefaultResourceLoader` with only the policy extension (`extensionFactories`), host discovery off, the system prompt passed as an override; `SettingsManager.inMemory` with compaction and retries; the session's `SessionManager` (restored from JSONL when resuming); `customTools` from the profile; `noTools: "builtin"`. Everything per session (bridge, approvals, dataset snapshot, sandbox handle) lives in a `SessionContext` captured by tool closures; there is no module-level mutable state.
+`createStudioSession()` builds one pi `AgentSession` from a server-chosen profile: `DefaultResourceLoader` with only the policy extension (`extensionFactories`), host discovery off, the system prompt passed as an override; `SettingsManager.inMemory` with compaction and retries; the session's `SessionManager` (restored from JSONL when resuming); `customTools` from the profile; `noTools: "builtin"`. Everything per session (bridge, approvals, dataset snapshot, sandbox handle) lives in a `SessionContext` captured by tool closures; there is no module-level mutable state.
 
 ### 7.3 Application tools (three execution sites)
 
 - **Server tools** (`tools/dataset.ts`): `dataset_overview`, `list_items`, `get_item_annotations`, `run_validation` over the snapshot the Studio shares with each message (seed API fallback). The project comes from the session record; a `projectId` argument naming another project is an error.
-- **Client tools** (`tools/client.ts`): declared by the browser at session creation, validated against the profile allowlist. `execute` emits `client-tool { callId, name, input }` and awaits `POST /v1/runs/:runId/client-tools/:callId` (timeout `INKLING_AGENT_CLIENT_TOOL_TIMEOUT_S`). Environment tools run against the live registry and store, so each edit stays one undoable `setEnv` step; card tools return `{ shown: true }` at once and only act on the expert's click.
+- **Client tools** (`tools/client.ts`): declared by the browser at session creation, validated against the profile allowlist. `execute` emits `client-tool { callId, name, input }` and awaits `POST /v1/runs/:runId/client-tools/:callId` (timeout `STUDIO_AGENT_CLIENT_TOOL_TIMEOUT_S`). Environment tools run against the live registry and store, so each edit stays one undoable `setEnv` step; card tools return `{ shown: true }` at once and only act on the expert's click.
 - **Project tools** (`tools/project.ts`, every profile with a kernel token): read the project through kernel routes (`project_overview`, `list_sources`, `describe_source_node`, `list_proposals`, `list_import_issues`) and the Files drive (`list_folder`, `find_files`: current names, kinds and counts, never contents or the names files were uploaded with), and create proposals behind an approval. Organizing Files is a card, not a write: `propose_reorganization` (a card tool) shows a plan of mkdir / move / rename ops, and the web applies it as the user in one `fs/ops` batch (one undo); the kernel answers 403 to `fs/ops` with an agent token (todo7 Phase 8).
 - **Sandbox tools** (`tools/sandbox.ts`): resolve the session's sandbox lazily and throw if there is none; they never fall back to the host.
 
@@ -314,11 +314,11 @@ Prefer workspace reference serialization using the installed SDK's documented fo
 
 ### 8.3 Daytona specifics (SDK 0.227)
 
-- One sandbox per chat session, created lazily, named `inkling-<env>-<sessionId>` so `daytona.get(name)` reattaches after a restart; the id is also recorded in the session (`daytona-sandbox` custom entry and `meta.json`). Labels `{ app, env, session, project, owner, profile }` are the only basis for sweeping and never contain PHI.
+- One sandbox per chat session, created lazily, named `studio-<env>-<sessionId>` so `daytona.get(name)` reattaches after a restart; the id is also recorded in the session (`daytona-sandbox` custom entry and `meta.json`). Labels `{ app, env, session, project, owner, profile }` are the only basis for sweeping and never contain PHI.
 - Lifecycle: `autoStopInterval` 15 min, `autoArchiveInterval` 1 day, `autoDeleteInterval` 7 days (dev), `ttlMinutes` 24 h; `public: false`. While a run is active the manager calls `refreshActivity()` every 5 minutes (background processes don't count as activity).
 - Recovery (`withRecovery`): on failure inspect the real state; stopped/archived → start and retry once; 404 → `SandboxUnavailableError`. Never run on the host.
 - Exec: short commands use `executeCommand` with a background-safe wrapper; `bash` streams through a session command (`getSessionCommandLogs`), and abort/timeout delete the session (Daytona has no per-command kill). `cd` goes on its own line: `cd X && cmd &` would background the whole list with the log pipe open and hang the stream.
-- Snapshot `inkling-agent-<sha256(recipe + requirements)[:12]>` (Debian slim, Python 3.12, pinned scientific stack, ripgrep). If it isn't active, sandboxes use Daytona's default image with a warning; a chat never waits for a build.
+- Snapshot `studio-agent-<sha256(recipe + requirements)[:12]>` (Debian slim, Python 3.12, pinned scientific stack, ripgrep). If it isn't active, sandboxes use Daytona's default image with a warning; a chat never waits for a build.
 - Egress: per-sandbox `domainAllowList` / `networkBlockAll` only on Tier 3+ orgs (Tier 1–2 get an API error); a cached probe at startup decides. Without it, network-ish commands need approval. Never put credentials in `envVars`; use Daytona Secrets if sandbox code ever needs one. Daytona does inject its own metadata variables (`DAYTONA_SANDBOX_ID`, `DAYTONA_ORGANIZATION_ID`, …); host keys never reach the sandbox (live-tested).
 - Signed preview URLs (`getSignedPreviewUrl(port, ttl)`) only open one port; the standard preview token is never handed out.
 - Ending a run does not delete the sandbox. The sweeper (every 10 minutes and at startup) stops idle `started` sandboxes and deletes orphans/expired ones, at most 5 per pass; quota errors stop the oldest idle sandboxes first. Deleting a chat session deletes its sandbox. Every deletion is logged with its labels.
@@ -330,9 +330,9 @@ Prefer workspace reference serialization using the installed SDK's documented fo
 - Persist message history and job references with a pinned model/profile version; distinguish resume conversation, resume agent workflow, and reattach sandbox—they are not the same operation.
 - Configure idle TTL, maximum lifetime, maximum parallel workspaces, and organization-specific quotas.
 
-## 9. Public API and event contract (Inkling-owned)
+## 9. Public API and event contract (Studio-owned)
 
-**Do not rely on an SDK's built-in web UI protocol for persistent cloud sandbox sessions.** The Coder documentation notes `to_web()` may start a new remote sandbox on each message because its protocol doesn't carry the workspace ref. Use Inkling-owned session IDs and store workspace refs server-side.
+**Do not rely on an SDK's built-in web UI protocol for persistent cloud sandbox sessions.** The Coder documentation notes `to_web()` may start a new remote sandbox on each message because its protocol doesn't carry the workspace ref. Use Studio-owned session IDs and store workspace refs server-side.
 
 Suggested API routes (all protected by existing auth):
 
@@ -504,7 +504,7 @@ Use `pytest` for business-logic/security tests, integration tests with synthetic
 
 ## 16. Definition of done for first customer-ready release
 
-A tenant member can open Inkling, start an agent session, request a **read-only dataset inspection**, instruct the agent to build/test a Python transformation in an isolated sandbox, see a replayable activity timeline, preview outputs, approve publishing a candidate version, and launch a durable worker job. An unrelated tenant cannot see or affect any of that run's data or sandbox. A process restart does not orphan accepted jobs or permanently lose session state. Sandboxes are recycled/destroyed under a documented retention policy. Costs, artifacts, approvals, and audit decisions are traceable. Agent-generated code cannot access production secrets or unrestricted storage.
+A tenant member can open Spurby, start an agent session, request a **read-only dataset inspection**, instruct the agent to build/test a Python transformation in an isolated sandbox, see a replayable activity timeline, preview outputs, approve publishing a candidate version, and launch a durable worker job. An unrelated tenant cannot see or affect any of that run's data or sandbox. A process restart does not orphan accepted jobs or permanently lose session state. Sandboxes are recycled/destroyed under a documented retention policy. Costs, artifacts, approvals, and audit decisions are traceable. Agent-generated code cannot access production secrets or unrestricted storage.
 
 ## 17. Official sources and maintenance checklist
 
@@ -524,8 +524,8 @@ A tenant member can open Inkling, start an agent session, request a **read-only 
 3. Diff the `createAgentSession` options, `AgentSessionEvent`, `*Operations` and `ToolCallEvent` declarations; the projection (`runtime/events.ts`) and ops (`sandbox/ops.ts`) depend on them.
 4. Re-record `test/unit/fixtures/pi-events.jsonl` if the event stream changed, then run `pnpm agent:test`, `pnpm agent:live`, `pnpm --filter @studio/agent smoke` and `tests/e2e/agent_test.py`.
 5. Check `@daytona/pi` for fixes worth porting into `apps/agent/src/sandbox/` (keep the NOTICE).
-6. Review cost deltas and the default model list (`INKLING_AGENT_MODEL_ALLOWLIST`).
+6. Review cost deltas and the default model list (`STUDIO_AGENT_MODEL_ALLOWLIST`).
 
 ---
 
-**Executive decision:** Keep `apps/web` for UI, `apps/api` for the public and authorization boundary, `apps/agent` for the pi harness and runtime, and `apps/worker` for deterministic execution. Start with host-owned profiles (assistant, environment designer, coder with Daytona) and authorized Inkling tools, and add research, skills, memory, subagents and workflow integration deliberately. Prefer boring explicit interfaces and hard backend authorization over exposing every capability by default.
+**Executive decision:** Keep `apps/web` for UI, `apps/api` for the public and authorization boundary, `apps/agent` for the pi harness and runtime, and `apps/worker` for deterministic execution. Start with host-owned profiles (assistant, environment designer, coder with Daytona) and authorized Spurby tools, and add research, skills, memory, subagents and workflow integration deliberately. Prefer boring explicit interfaces and hard backend authorization over exposing every capability by default.

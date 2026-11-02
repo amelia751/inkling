@@ -4,7 +4,7 @@ import type { Recording } from "./readers";
 import { isEditable, newAnnotation, useHost } from "@studio/plugin-ui-sdk";
 
 /**
- * `inkling.timeseries.commands.detectBeats`: Pan–Tompkins R peaks on one channel become
+ * `studio.timeseries.commands.detectBeats`: Pan–Tompkins R peaks on one channel become
  * `ai-suggested` instants on every channel. One undo step replaces the previous unreviewed
  * detector beats; instants within 150 ms of a kept beat are not suggested again.
  * Returns the notice shown over the chart.

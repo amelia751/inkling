@@ -51,10 +51,10 @@ COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 USER 101
 ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
-    INKLING_AGENT_URL=http://agent:8100 \
-    INKLING_AGENT_TOKEN="" \
-    INKLING_WEB_AUTH_MODE=dev \
-    INKLING_API_URL=http://api:8000 \
+    STUDIO_AGENT_URL=http://agent:8100 \
+    STUDIO_AGENT_TOKEN="" \
+    STUDIO_WEB_AUTH_MODE=dev \
+    STUDIO_API_URL=http://api:8000 \
     GIT_SHA=${GIT_SHA}
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

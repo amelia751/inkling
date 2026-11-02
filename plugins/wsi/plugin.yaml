@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.wsi
+schemaVersion: studio.plugins/v1
+id: studio.wsi
 name: Tiled image pyramids
 version: 1.1.0
 description: "Deep-zoom image pyramids (DZI) with vector regions, magic wand, point counting and µm measurements."
@@ -11,7 +11,7 @@ compatibility:
   studio: ">=0.1.0 <1.0.0"
   pluginApi: "^1"
 requires:
-  inkling.overlay2d: "^1"
+  studio.overlay2d: "^1"
 capabilities:
   - id: pyramid.view
     mediaTypes: [application/x-dzi, image/tiff]

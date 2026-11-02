@@ -20,7 +20,7 @@ replacements:
   - source: { kind: ConfigMap, name: gke-values, fieldPath: data.REDIS_HOST }
     targets:
       - select: { kind: ConfigMap, name: agent-config }
-        fieldPaths: [data.INKLING_AGENT_REDIS_URL]
+        fieldPaths: [data.STUDIO_AGENT_REDIS_URL]
         options: { delimiter: /, index: 2 }
   - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_SERVICE_ACCOUNT }
     targets:
@@ -33,4 +33,4 @@ replacements:
   - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_API_URL }
     targets:
       - select: { kind: ConfigMap, name: agent-config }
-        fieldPaths: [data.INKLING_API_URL, data.INKLING_WEB_URL]
+        fieldPaths: [data.STUDIO_API_URL, data.STUDIO_WEB_URL]

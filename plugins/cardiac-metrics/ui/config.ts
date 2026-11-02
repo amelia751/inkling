@@ -1,6 +1,6 @@
 import * as z from "zod";
 
-/** Which key frames (inkling.cine `keyFrames` ids) are end-diastole and end-systole. */
+/** Which key frames (studio.cine `keyFrames` ids) are end-diastole and end-systole. */
 export const MetricsConfigSchema = z.object({
   phases: z
     .object({

@@ -12,7 +12,7 @@ export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
  * Module contract (docs/modules.md). A module is a static, data-only manifest plus a lazy
  * `load()` returning the heavy implementations (React components, functions) keyed by the
  * same contribution ids. The registry indexes every contribution under its full id
- * `<moduleId>.<type>.<name>` (OHIF style), e.g. `inkling.wsi.renderers.osd`.
+ * `<moduleId>.<type>.<name>` (OHIF style), e.g. `studio.wsi.renderers.osd`.
  */
 
 /** Fields every contribution carries. `id` is the local name; the registry adds the full id. */
@@ -253,7 +253,7 @@ export interface ModuleImpl {
 }
 
 export interface ModuleManifest {
-  /** Reverse-DNS-ish id, e.g. `inkling.wsi`. */
+  /** Reverse-DNS-ish id, e.g. `studio.wsi`. */
   id: string;
   /** Semver. */
   version: string;

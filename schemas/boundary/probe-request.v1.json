@@ -229,5 +229,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/probe-request.v1"
+  "$id": "studio://schema/boundary/probe-request.v1"
 }

@@ -14,7 +14,7 @@ const ROWS: { key: keyof Adjustments; label: string; min: number; max: number }[
 ];
 
 /**
- * `inkling.wsi.panels.adjust` (slot viewport-bar): brightness, contrast, gamma and
+ * `studio.wsi.panels.adjust` (slot viewport-bar): brightness, contrast, gamma and
  * saturation of the slide's tiles. The value goes to the runtime as `adjust` for the
  * current item; the renderer applies it as a CSS filter and the wand samples through it.
  */

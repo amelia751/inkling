@@ -1,5 +1,5 @@
 # Deletes leaked/expired Daytona sandboxes every 15 min, instead of an in-process sweeper on
-# every agent replica (agent-config INKLING_AGENT_SWEEPER_ENABLED=false). Runs apps/agent/scripts/sweep.ts
+# every agent replica (agent-config STUDIO_AGENT_SWEEPER_ENABLED=false). Runs apps/agent/scripts/sweep.ts
 # as bundled by the agent's build (dist/scripts/sweep.js).
 apiVersion: batch/v1
 kind: CronJob

@@ -1,17 +1,17 @@
 """The agent behind WorkOS sign-in (todo9 Phase 5). Skeleton: skips unless a workos-mode stack is up.
 
-Needs the API in workos mode (INKLING_API_AUTH_MODE=workos, against WorkOS Emulate or staging),
-the agent in workos mode (INKLING_AGENT_AUTH_MODE=workos, INKLING_AGENT_WORKOS_CLIENT_ID, and for
-Emulate INKLING_AGENT_WORKOS_BASE_URL=http://localhost:4100), and the web proxy in workos mode
-(Vite: INKLING_WEB_AUTH_MODE=workos with INKLING_API_URL; nginx: the same env var).
+Needs the API in workos mode (STUDIO_API_AUTH_MODE=workos, against WorkOS Emulate or staging),
+the agent in workos mode (STUDIO_AGENT_AUTH_MODE=workos, STUDIO_AGENT_WORKOS_CLIENT_ID, and for
+Emulate STUDIO_AGENT_WORKOS_BASE_URL=http://localhost:4100), and the web proxy in workos mode
+(Vite: STUDIO_WEB_AUTH_MODE=workos with STUDIO_API_URL; nginx: the same env var).
 `python3 tests/e2e/auth/stack.py up` starts Emulate, the api and Vite that way and prints the env
-below (tests/e2e/auth/README.md); with INKLING_E2E_WORKOS_EMULATE_URL set and no cookies, this test
+below (tests/e2e/auth/README.md); with STUDIO_E2E_WORKOS_EMULATE_URL set and no cookies, this test
 signs member@example.com (Acme) and admin@example.com (Globex) in itself. Otherwise sign in as two
 people in two organizations once (browser or Emulate), then hand their session cookies over:
 
-    INKLING_E2E_COOKIE_A='<naming id>_session=…'   # person A, org A
-    INKLING_E2E_COOKIE_B='<naming id>_session=…'   # person B, org B
-    INKLING_E2E_PROJECT_B=<a project id in org B>  # optional: the cross-org check
+    STUDIO_E2E_COOKIE_A='<naming id>_session=…'   # person A, org A
+    STUDIO_E2E_COOKIE_B='<naming id>_session=…'   # person B, org B
+    STUDIO_E2E_PROJECT_B=<a project id in org B>  # optional: the cross-org check
     python3 tests/e2e/agent_auth_test.py --port 5173
 
 Covers: an agent call without a session is 401; with one, the session is created and listed for

@@ -17,7 +17,7 @@ ahead of time, apps/worker/tests/fixtures/converters/metaimage-py), and register
 as a dataset asset (a job-start/asset route belongs to todo10-boundary; here the converted file
 is served to the Studio by the test harness).
 
-    INKLING_E2E=1 pnpm exec vite --port 5240 --strictPort           # apps/web
+    STUDIO_E2E=1 pnpm exec vite --port 5240 --strictPort           # apps/web
     python3 ../../tests/e2e/converter_test.py --port 5240           # from apps/web
 """
 from __future__ import annotations

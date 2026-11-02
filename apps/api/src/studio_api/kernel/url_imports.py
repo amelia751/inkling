@@ -21,7 +21,7 @@ Links: `https://` (no credentials in the URL, no private, loopback, link-local o
 address, redirects re-checked hop by hop) and `gs://bucket/object` read with the service's own
 identity. DNS rebinding: each hop's host is resolved once, every address checked, and the
 connection goes to that checked address (Host header and TLS SNI = the host name, so the
-certificate is still verified for it). The size cap is `INKLING_API_URL_IMPORT_MAX_BYTES` (5 GB); the fetch stops as soon
+certificate is still verified for it). The size cap is `STUDIO_API_URL_IMPORT_MAX_BYTES` (5 GB); the fetch stops as soon
 as it passes it. The fetcher is a module-level hook so tests replace it.
 """
 

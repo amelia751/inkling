@@ -3,7 +3,7 @@
   "version": 1,
   "plugins": [
     {
-      "id": "inkling.cardiac-metrics",
+      "id": "studio.cardiac-metrics",
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -31,8 +31,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.cardiac-metrics",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.cardiac-metrics",
         "name": "Cardiac function metrics",
         "version": "1.0.0",
         "description": "EDV, ESV, SV, EF, LV mass and Dice vs reference for a cardiac cine, as a panel and a CSV export.",
@@ -43,7 +43,7 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.cine": "^1"
+          "studio.cine": "^1"
         },
         "capabilities": [
           {
@@ -66,7 +66,7 @@
       }
     },
     {
-      "id": "inkling.cine",
+      "id": "studio.cine",
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -95,8 +95,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.cine",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.cine",
         "name": "Slice × frame cine",
         "version": "1.0.0",
         "description": "Slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, playback and copy-forward.",
@@ -107,7 +107,7 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.overlay2d": "^1"
+          "studio.overlay2d": "^1"
         },
         "capabilities": [
           {
@@ -136,7 +136,7 @@
       }
     },
     {
-      "id": "inkling.dicom-export",
+      "id": "studio.dicom-export",
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -164,8 +164,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.dicom-export",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.dicom-export",
         "name": "DICOM export",
         "version": "1.0.0",
         "description": "Masks as DICOM SEG and measurements as DICOM SR (TID 1500), referencing the source DICOM images.",
@@ -196,7 +196,7 @@
       }
     },
     {
-      "id": "inkling.image2d",
+      "id": "studio.image2d",
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -228,8 +228,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.image2d",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.image2d",
         "name": "2D images",
         "version": "1.1.0",
         "description": "Single-frame raster and DICOM images on Cornerstone3D or a canvas, with shapes, masks and measurements.",
@@ -240,7 +240,7 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.cornerstone": "^1"
+          "studio.cornerstone": "^1"
         },
         "capabilities": [
           {
@@ -275,7 +275,7 @@
       }
     },
     {
-      "id": "inkling.segmentation",
+      "id": "studio.segmentation",
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -324,8 +324,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.segmentation",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.segmentation",
         "name": "Segmentation",
         "version": "1.0.0",
         "description": "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers.",
@@ -439,7 +439,7 @@
       }
     },
     {
-      "id": "inkling.text-spans",
+      "id": "studio.text-spans",
       "version": "0.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -468,8 +468,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.text-spans",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.text-spans",
         "name": "Text spans",
         "version": "0.1.0",
         "description": "Plain-text documents with character-offset span labels; JSONL export in the spaCy / doccano shape.",
@@ -501,7 +501,7 @@
       }
     },
     {
-      "id": "inkling.timeseries",
+      "id": "studio.timeseries",
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -532,8 +532,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.timeseries",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.timeseries",
         "name": "Multichannel time series",
         "version": "1.1.0",
         "description": "Sampled signals (WFDB, CSV) on a strip chart: spans and instants per channel, delineation, beat detection and calipers.",
@@ -574,7 +574,7 @@
       }
     },
     {
-      "id": "inkling.video",
+      "id": "studio.video",
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -604,8 +604,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.video",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.video",
         "name": "Video",
         "version": "1.0.0",
         "description": "Frame-accurate video with tracks interpolated between keyframes, per-frame shapes, segments and events on a timeline.",
@@ -616,8 +616,8 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.overlay2d": "^1",
-          "inkling.timeline": "^1"
+          "studio.overlay2d": "^1",
+          "studio.timeline": "^1"
         },
         "capabilities": [
           {
@@ -648,7 +648,7 @@
       }
     },
     {
-      "id": "inkling.volume",
+      "id": "studio.volume",
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -678,8 +678,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.volume",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.volume",
         "name": "3D volumes",
         "version": "1.1.0",
         "description": "NIfTI and DICOM series on Cornerstone3D MPR viewports with crosshairs, 3D labelmaps and measurements.",
@@ -690,7 +690,7 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.cornerstone": "^1"
+          "studio.cornerstone": "^1"
         },
         "capabilities": [
           {
@@ -721,7 +721,7 @@
       }
     },
     {
-      "id": "inkling.wsi",
+      "id": "studio.wsi",
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
@@ -751,8 +751,8 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "schemaVersion": "inkling.plugins/v1",
-        "id": "inkling.wsi",
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.wsi",
         "name": "Tiled image pyramids",
         "version": "1.1.0",
         "description": "Deep-zoom image pyramids (DZI) with vector regions, magic wand, point counting and µm measurements.",
@@ -763,7 +763,7 @@
           "pluginApi": "^1"
         },
         "requires": {
-          "inkling.overlay2d": "^1"
+          "studio.overlay2d": "^1"
         },
         "capabilities": [
           {
@@ -794,7 +794,7 @@
       }
     },
     {
-      "id": "inkling.core",
+      "id": "studio.core",
       "version": "1.0.0",
       "publisher": "studio",
       "trustTier": "builtin",
@@ -814,7 +814,7 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "id": "inkling.core",
+        "id": "studio.core",
         "name": "Studio core",
         "version": "1.0.0",
         "description": "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries.",
@@ -824,7 +824,7 @@
       }
     },
     {
-      "id": "inkling.overlay2d",
+      "id": "studio.overlay2d",
       "version": "1.0.0",
       "publisher": "studio",
       "trustTier": "builtin",
@@ -844,7 +844,7 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "id": "inkling.overlay2d",
+        "id": "studio.overlay2d",
         "name": "2D overlay tools",
         "version": "1.0.0",
         "description": "Box, ellipse, polygon, freehand, polyline, spline, keypoint, brush and eraser on any image-plane renderer.",
@@ -854,7 +854,7 @@
       }
     },
     {
-      "id": "inkling.cornerstone",
+      "id": "studio.cornerstone",
       "version": "1.0.0",
       "publisher": "studio",
       "trustTier": "builtin",
@@ -874,7 +874,7 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "id": "inkling.cornerstone",
+        "id": "studio.cornerstone",
         "name": "Cornerstone3D tools",
         "version": "1.0.0",
         "description": "Radiology tools on Cornerstone3D viewports: zoom, crosshairs, ROI shapes, measurements, threshold brush, flood fill, view transforms.",
@@ -884,7 +884,7 @@
       }
     },
     {
-      "id": "inkling.timeline",
+      "id": "studio.timeline",
       "version": "1.0.0",
       "publisher": "studio",
       "trustTier": "builtin",
@@ -904,7 +904,7 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "id": "inkling.timeline",
+        "id": "studio.timeline",
         "name": "Timeline tools",
         "version": "1.0.0",
         "description": "Label spans and point-in-time events on any renderer with a time axis.",
@@ -914,7 +914,7 @@
       }
     },
     {
-      "id": "inkling.presets",
+      "id": "studio.presets",
       "version": "1.0.0",
       "publisher": "studio",
       "trustTier": "builtin",
@@ -934,7 +934,7 @@
         "pluginApi": "^1"
       },
       "manifest": {
-        "id": "inkling.presets",
+        "id": "studio.presets",
         "name": "Presets",
         "version": "1.0.0",
         "description": "Ready-made environments: the six medical Studios and generic starting points. Use with `extends`.",

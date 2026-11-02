@@ -158,5 +158,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/capabilities/image.segment/result"
+  "$id": "studio://schema/capabilities/image.segment/result"
 }

@@ -5,7 +5,7 @@ B (still on the old revision) draws a different box and saves. B's save gets 409
 document, merges per annotation id and saves again, so both boxes survive. Then both tabs move
 the same box: the later tab shows the Theirs / Mine notice (`save-conflict-notice`).
 
-    INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/edge_concurrency_test.py --port 5199
 
 The dev annotations server (`dev/seed-server.ts`) answers a stale revision with 409 + `current`,

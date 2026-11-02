@@ -1,5 +1,5 @@
 /**
- * What other modules may import from inkling.cine (e.g. inkling.cardiac-metrics): ids,
+ * What other modules may import from studio.cine (e.g. studio.cardiac-metrics): ids,
  * the renderer config, the runtime values the renderer publishes, and the pure
  * slice × frame model.
  */

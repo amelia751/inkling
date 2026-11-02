@@ -12,7 +12,7 @@ backend. `--live` drives the real API instead and skips when those routes aren't
 - Settings > Rules: a rejected save shows each violation by its field (path -> message).
 - Settings > Connected agents: list and Revoke; empty state after.
 
-    INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/todo17_changes_health_test.py --port 5199 [--live]
 """
 

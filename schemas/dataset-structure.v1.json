@@ -235,5 +235,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/dataset-structure/v1"
+  "$id": "studio://schema/dataset-structure/v1"
 }

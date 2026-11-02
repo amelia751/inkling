@@ -129,7 +129,7 @@
      "op": "add",
      "path": "/tools",
      "value": [
-      "inkling.core.tools.select"
+      "studio.core.tools.select"
      ]
     }
    ],
@@ -196,7 +196,7 @@
      }
     ],
     "tools": [
-     "inkling.core.tools.select"
+     "studio.core.tools.select"
     ]
    },
    "patch": [
@@ -220,7 +220,7 @@
    "name": "agent adds an installed module",
    "principal": "agent",
    "installed": [
-    "inkling.video"
+    "studio.video"
    ],
    "base": {
     "extends": "preset:image-2d",
@@ -258,7 +258,7 @@
    "name": "agent adds an installed module by id",
    "principal": "agent",
    "installed": [
-    "inkling.video"
+    "studio.video"
    ],
    "base": {
     "extends": "preset:image-2d",
@@ -279,7 +279,7 @@
    "patch": [
     {
      "op": "add",
-     "path": "/modules/inkling.video",
+     "path": "/modules/studio.video",
      "value": "^1"
     }
    ],
@@ -311,7 +311,7 @@
    "patch": [
     {
      "op": "add",
-     "path": "/modules/inkling.video",
+     "path": "/modules/studio.video",
      "value": "^1"
     }
    ],
@@ -345,7 +345,7 @@
     "viewports": [
      {
       "name": "main",
-      "renderer": "inkling.image2d.renderers.canvas-raster"
+      "renderer": "studio.image2d.renderers.canvas-raster"
      }
     ]
    },
@@ -383,7 +383,7 @@
     "viewports": [
      {
       "name": "main",
-      "renderer": "inkling.image2d.renderers.canvas-raster"
+      "renderer": "studio.image2d.renderers.canvas-raster"
      }
     ]
    },
@@ -391,7 +391,7 @@
     {
      "op": "replace",
      "path": "/viewports/0/renderer",
-     "value": "inkling.image2d.renderers.cornerstone-stack"
+     "value": "studio.image2d.renderers.cornerstone-stack"
     }
    ],
    "expect": {
@@ -487,7 +487,7 @@
     "viewports": [
      {
       "name": "main",
-      "renderer": "inkling.image2d.renderers.nope"
+      "renderer": "studio.image2d.renderers.nope"
      }
     ]
    },
@@ -588,14 +588,14 @@
      }
     ],
     "modules": {
-     "inkling.nope": "^1"
+     "studio.nope": "^1"
     }
    },
    "expect": {
     "status": 422,
     "errors": [
      {
-      "path": "/modules/inkling.nope",
+      "path": "/modules/studio.nope",
       "code": "reference"
      }
     ]
@@ -619,12 +619,12 @@
      }
     ],
     "tools": [
-     "inkling.core.tools.select",
-     "inkling.core.tools.nope"
+     "studio.core.tools.select",
+     "studio.core.tools.nope"
     ],
     "panels": {
      "left": [
-      "inkling.core.panels.nope"
+      "studio.core.panels.nope"
      ]
     }
    },

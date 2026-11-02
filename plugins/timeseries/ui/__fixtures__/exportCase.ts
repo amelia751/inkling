@@ -18,8 +18,8 @@ export const project = {
 } as unknown as Project;
 
 export const items: StudioItem[] = [
-  { id: "ecg/REC1.json", name: "REC1", group: "Recordings", dataKind: "inkling.timeseries.dataKinds.multichannel-timeseries", assets: [{ path: "ecg/REC1.json", record: "REC1", raw: ["ecg/raw/REC1.hea"] } as never] },
-  { id: "ecg/REC2.json", name: "REC2", group: "Recordings", dataKind: "inkling.timeseries.dataKinds.multichannel-timeseries", assets: [{ path: "ecg/REC2.json", record: "REC2" } as never] },
+  { id: "ecg/REC1.json", name: "REC1", group: "Recordings", dataKind: "studio.timeseries.dataKinds.multichannel-timeseries", assets: [{ path: "ecg/REC1.json", record: "REC1", raw: ["ecg/raw/REC1.hea"] } as never] },
+  { id: "ecg/REC2.json", name: "REC2", group: "Recordings", dataKind: "studio.timeseries.dataKinds.multichannel-timeseries", assets: [{ path: "ecg/REC2.json", record: "REC2" } as never] },
 ];
 
 const base = (id: string, itemId: string, label: string, geometry: unknown, extra: Partial<Annotation> = {}): Annotation =>

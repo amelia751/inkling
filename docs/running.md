@@ -39,7 +39,7 @@ pnpm infra:down     # stop the deps (add `-v` to the compose command to drop the
 | Postgres 17 | 5432 | user `studio`, password `dev-only-pg-password`, databases `studio` and `agent` |
 | Redis 7 | 6379 | none |
 | S3-compatible store (RustFS) | 9000 (API), 9001 (console) | access key `dev-only-s3-access`, secret `dev-only-s3-secret` |
-| `s3-init` (one-shot) | | creates the buckets `assets`, `inkling-objects`, `inkling-manifests` |
+| `s3-init` (one-shot) | | creates the buckets `assets`, `studio-objects`, `studio-manifests` |
 | WorkOS Emulate (`workos-emulate`) | 4100 | key `sk_test_default`, any client id; users and orgs from `infra/workos/emulate.yaml` ([Signing in](#signing-in)) |
 
 MinIO's images are no longer published on Docker Hub, so the stack uses RustFS (already pinned
@@ -49,10 +49,10 @@ Point the apps at the deps through env (prefix from `schemas/naming.json`), e.g.
 `secrets/api.env`:
 
 ```sh
-INKLING_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@localhost:5432/studio
-INKLING_REDIS_URL=redis://localhost:6379/0
-INKLING_BLOB_STORE=s3
-INKLING_S3_ENDPOINT=http://localhost:9000
+STUDIO_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@localhost:5432/studio
+STUDIO_REDIS_URL=redis://localhost:6379/0
+STUDIO_BLOB_STORE=s3
+STUDIO_S3_ENDPOINT=http://localhost:9000
 AWS_ACCESS_KEY_ID=dev-only-s3-access
 AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
 ```
@@ -65,7 +65,7 @@ the file store for the agent, the Vite seed server for `/seed`).
 uploads, `--upload-only` uploads what's already in `seed-data/`:
 
 ```sh
-export INKLING_S3_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=dev-only-s3-access \
+export STUDIO_S3_ENDPOINT=http://localhost:9000 AWS_ACCESS_KEY_ID=dev-only-s3-access \
   AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
 pnpm seeds:upload                              # or: uv run tools/fetch-seeds.py --upload-only
 ```
@@ -76,29 +76,29 @@ Google Cloud takes the target as a URL and gets public templates only
 
 ### Real model
 
-`pnpm dev` runs the agent on `INKLING_AGENT_MODEL` if set; otherwise on the agent's default model
+`pnpm dev` runs the agent on `STUDIO_AGENT_MODEL` if set; otherwise on the agent's default model
 when a provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) is in your shell or `secrets/`, and on
 the `scripted` model (free, deterministic) when there's no key. `pnpm dev` also points the web at
-the api it starts (`INKLING_API_URL=http://127.0.0.1:8000`), not the seed server. To pick a model, copy `secrets/models.env.example` to
+the api it starts (`STUDIO_API_URL=http://127.0.0.1:8000`), not the seed server. To pick a model, copy `secrets/models.env.example` to
 `secrets/models.env` and set one provider key and the model:
 
 ```sh
 ANTHROPIC_API_KEY=sk-ant-…                       # or OPENAI_API_KEY=… with an openai: model
-INKLING_AGENT_MODEL=anthropic:claude-sonnet-5-5  # provider:model from INKLING_AGENT_MODEL_ALLOWLIST
+STUDIO_AGENT_MODEL=anthropic:claude-sonnet-5-5  # provider:model from STUDIO_AGENT_MODEL_ALLOWLIST
 ```
 
 `pnpm dev` (`tools/dev.mjs`) sees the model in the file and stops defaulting to `scripted`; the
 agent reads the key and model from `secrets/*.env` itself and refuses a model outside its allowlist
 (`apps/agent/src/config.ts`). It prints which model it runs (never the key). `GET
 /api/agent/status` says `provider` and `model`. A value exported in your shell wins over the file;
-`INKLING_AGENT_MODEL=scripted pnpm dev` goes back to scripted without editing it. Real-model runs
+`STUDIO_AGENT_MODEL=scripted pnpm dev` goes back to scripted without editing it. Real-model runs
 cost money: keep them few (`AGENTS.md`, "Testing the product"); tests and e2e always use
 `scripted`.
 
 ### Seed mode, or the API and worker
 
 The web app runs in one of two modes. Which one depends on whether the Vite dev server knows
-where the API is (`INKLING_API_URL`).
+where the API is (`STUDIO_API_URL`).
 
 **Seed mode** (`pnpm --filter @studio/web dev`, or `pnpm exec vite` in `apps/web`). Vite's seed
 server stands in for the API, read-only (`apps/web/dev/project-stand-in.ts`). Each seed in
@@ -124,7 +124,7 @@ task.
 `pnpm dev` starts all four apps, but Vite only proxies to the API when told where it is:
 
 ```sh
-INKLING_API_URL=http://127.0.0.1:8000 pnpm dev
+STUDIO_API_URL=http://127.0.0.1:8000 pnpm dev
 ```
 
 None of this needs Docker: without the env above, the API uses SQLite and local files under
@@ -133,19 +133,19 @@ three by hand (as the `tests/e2e/` docstrings do, each on its own ports and data
 repo root:
 
 ```sh
-INKLING_API_DATA_DIR=/tmp/studio-dev uv run --package studio-api uvicorn studio_api.app:app --port 8205
+STUDIO_API_DATA_DIR=/tmp/studio-dev uv run --package studio-api uvicorn studio_api.app:app --port 8205
 uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8205
-cd apps/web && INKLING_API_URL=http://127.0.0.1:8205 pnpm exec vite --port 5205 --strictPort
+cd apps/web && STUDIO_API_URL=http://127.0.0.1:8205 pnpm exec vite --port 5205 --strictPort
 ```
 
-Add `INKLING_E2E=1` to the Vite line for a frozen dev server, and `INKLING_AGENT_URL` (with
-`INKLING_AGENT_TOKEN`) to reach an agent elsewhere than :8100. `tests/e2e/sources_test.py`,
+Add `STUDIO_E2E=1` to the Vite line for a frozen dev server, and `STUDIO_AGENT_URL` (with
+`STUDIO_AGENT_TOKEN`) to reach an agent elsewhere than :8100. `tests/e2e/sources_test.py`,
 `mixed_import_test.py`, `review_activity_test.py` and the project part of `agent_test.py` run
 against this setup; their docstrings give the exact commands.
 
 Versions (branches, reviews and releases on Datasets › Versions) also need the API, plus the
 versioning service: `pnpm infra:up` runs `apps/versioning`, and without Docker or Go,
-`INKLING_API_VERSIONING_URL=memory:` on the API line gives it an in-process stand-in whose state
+`STUDIO_API_VERSIONING_URL=memory:` on the API line gives it an in-process stand-in whose state
 is lost on restart (`tests/e2e/versioning/README.md`). Without either, the Versions tab says
 versions aren't turned on; saving still works.
 
@@ -170,12 +170,12 @@ Upload limits, read by the API (`apps/api/src/studio_api/config.py`):
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `INKLING_API_UPLOAD_MAX_FILE_BYTES` | 2147483648 (2 GB) | largest file an import session accepts |
-| `INKLING_API_URL_IMPORT_MAX_BYTES` | 5368709120 (5 GB) | largest file an import from a link (`POST …/imports/url`) accepts |
-| `INKLING_API_UPLOAD_MAX_SESSION_FILES` | 20000 | most files in one import session |
+| `STUDIO_API_UPLOAD_MAX_FILE_BYTES` | 2147483648 (2 GB) | largest file an import session accepts |
+| `STUDIO_API_URL_IMPORT_MAX_BYTES` | 5368709120 (5 GB) | largest file an import from a link (`POST …/imports/url`) accepts |
+| `STUDIO_API_UPLOAD_MAX_SESSION_FILES` | 20000 | most files in one import session |
 
-Uploaded bytes go to the API's data BlobStore (`INKLING_API_DATA_DIR` locally, the `assets`
-bucket under its data prefix with `INKLING_BLOB_STORE=s3`), never to `/seed`.
+Uploaded bytes go to the API's data BlobStore (`STUDIO_API_DATA_DIR` locally, the `assets`
+bucket under its data prefix with `STUDIO_BLOB_STORE=s3`), never to `/seed`.
 
 ## 2. `pnpm stack:up` (prod-like, local)
 
@@ -192,7 +192,7 @@ Profile `full` of `infra/docker/compose.yaml`: the deps above plus
 | `api-migrate` | `studio-api:dev` | `alembic upgrade head`, then exits |
 | `api` | `studio-api:dev` | :8000 inside the network |
 | `worker` | `studio-worker:dev` | health on :8081; prebuilt plugin environments |
-| `agent` | `studio-agent:dev` | :8100; `INKLING_AGENT_MODEL=scripted`, `INKLING_AGENT_SANDBOX=off` by default |
+| `agent` | `studio-agent:dev` | :8100; `STUDIO_AGENT_MODEL=scripted`, `STUDIO_AGENT_SANDBOX=off` by default |
 | `web` | `studio-web:dev` | nginx: the SPA, `/config.json` (from `infra/docker/web/config.json`), `/api/agent` proxy |
 | `versioning-keys`, `versioning-bootstrap`, `versioning-migrate` | `studio-versioning:dev` | dev JWT key pair, roles + schema, migrations |
 | `versioning` | `studio-versioning:dev` | :8090 inside the network (called by api only) |
@@ -212,11 +212,11 @@ from the git-ignored `secrets/*.env` files when present (a later file wins):
 | api, api-migrate | `env/api.env`, `secrets/api.env` |
 | worker | `env/worker.env`, `secrets/worker.env` |
 | agent | `env/agent.env`, `secrets/agent.env`, `secrets/models.env`, `secrets/daytona.env` |
-| web | `env/web.env`, `secrets/agent.env` (only `INKLING_AGENT_TOKEN`) |
+| web | `env/web.env`, `secrets/agent.env` (only `STUDIO_AGENT_TOKEN`) |
 | versioning, versioning-* | `env/versioning.env` |
 
-To use a real model and sandboxes, set `INKLING_AGENT_MODEL=<provider:model>` and
-`INKLING_AGENT_SANDBOX=daytona` in `secrets/agent.env` next to the keys in `secrets/models.env` and
+To use a real model and sandboxes, set `STUDIO_AGENT_MODEL=<provider:model>` and
+`STUDIO_AGENT_SANDBOX=daytona` in `secrets/agent.env` next to the keys in `secrets/models.env` and
 `secrets/daytona.env`. Seeds: run `pnpm seeds:upload` as in mode 1 (the stack's S3 is on the
 same host port).
 
@@ -281,11 +281,11 @@ Notes:
 
   ```sh
   kubectl -n studio-dev create secret generic agent-secrets \
-    --from-literal=INKLING_AGENT_TOKEN=dev-only-agent-service-token \
-    --from-literal=INKLING_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent \
+    --from-literal=STUDIO_AGENT_TOKEN=dev-only-agent-service-token \
+    --from-literal=STUDIO_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent \
     --from-env-file=secrets/models.env --from-env-file=secrets/daytona.env \
     --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n studio-dev set env deployment/agent INKLING_AGENT_MODEL=openai:gpt-6.1-sol INKLING_AGENT_SANDBOX=daytona
+  kubectl -n studio-dev set env deployment/agent STUDIO_AGENT_MODEL=openai:gpt-6.1-sol STUDIO_AGENT_SANDBOX=daytona
   ```
 
 - Migration Jobs (`api-migrate`, `versioning-migrate`, `pipeline-migrate`) are garbage-collected
@@ -307,22 +307,22 @@ Staging and prod overlays, Secrets, scaling knobs and adding an app: `infra/k8s/
 ## Signing in
 
 People sign in with WorkOS AuthKit (todo/todo9.md). The api has two modes,
-`INKLING_API_AUTH_MODE`:
+`STUDIO_API_AUTH_MODE`:
 
 | Mode | Who you are | Where |
 |---|---|---|
-| `dev` (default) | the dev principal, from trusted dev headers (`INKLING_API_DEV_TRUST_HEADERS=1`); no sign-in page, `GET /api/auth/session` answers with every permission | `pnpm dev`, the seed-mode e2e suite, `stack:up`, the k8s `dev` and `staging` overlays, GKE until the flip |
+| `dev` (default) | the dev principal, from trusted dev headers (`STUDIO_API_DEV_TRUST_HEADERS=1`); no sign-in page, `GET /api/auth/session` answers with every permission | `pnpm dev`, the seed-mode e2e suite, `stack:up`, the k8s `dev` and `staging` overlays, GKE until the flip |
 | `workos` | whoever signed in through AuthKit; organization roles and permissions come from WorkOS, project roles from the api | WorkOS Emulate locally and in CI, WorkOS staging by hand, the `prod` overlay |
 
-`workos` mode refuses to start without `INKLING_API_WORKOS_API_KEY`, `…_CLIENT_ID`,
+`workos` mode refuses to start without `STUDIO_API_WORKOS_API_KEY`, `…_CLIENT_ID`,
 `…_COOKIE_PASSWORD` (a Fernet key) and `…_REDIRECT_URI`, or with dev headers trusted. The web,
-agent and api must agree: the SPA's mode is `INKLING_WEB_AUTH_MODE` (Vite) or `/config.json`'s
-`auth.mode` (images), the agent's `INKLING_AGENT_AUTH_MODE`. Never set the SDKs' unprefixed
+agent and api must agree: the SPA's mode is `STUDIO_WEB_AUTH_MODE` (Vite) or `/config.json`'s
+`auth.mode` (images), the agent's `STUDIO_AGENT_AUTH_MODE`. Never set the SDKs' unprefixed
 `WORKOS_*` variables. Key names: `secrets/workos.env.example`; roles and permissions:
 `infra/workos/`.
 
 In `workos` mode the api also pulls the WorkOS Events API every 5 s
-(`INKLING_API_WORKOS_SYNC_INTERVAL_S`, 0 = off) into its mirror of users, organizations,
+(`STUDIO_API_WORKOS_SYNC_INTERVAL_S`, 0 = off) into its mirror of users, organizations,
 memberships and invitations, on one replica at a time, and reconciles everything once a day
 (`apps/api/src/studio_api/auth/sync.py`). By hand: `uv run python -m studio_api.auth.sync
 status|once|reconcile` from `apps/api`.
@@ -338,21 +338,21 @@ Nothing to do. Everything in sections 1 to 3 runs this way.
 organizations. Point the api at it (in `secrets/api.env`, or `secrets/workos.env`):
 
 ```sh
-INKLING_API_AUTH_MODE=workos
-INKLING_API_DEV_TRUST_HEADERS=0
-INKLING_API_WORKOS_BASE_URL=http://localhost:4100/
-INKLING_API_WORKOS_API_KEY=sk_test_default
-INKLING_API_WORKOS_CLIENT_ID=client_emulated
-INKLING_API_WORKOS_ISSUER=http://localhost:4100/user_management/client_emulated
-INKLING_API_WORKOS_REDIRECT_URI=http://localhost:5173/api/auth/callback
-INKLING_API_PUBLIC_URL=http://localhost:5173
-INKLING_API_WORKOS_COOKIE_PASSWORD=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
+STUDIO_API_AUTH_MODE=workos
+STUDIO_API_DEV_TRUST_HEADERS=0
+STUDIO_API_WORKOS_BASE_URL=http://localhost:4100/
+STUDIO_API_WORKOS_API_KEY=sk_test_default
+STUDIO_API_WORKOS_CLIENT_ID=client_emulated
+STUDIO_API_WORKOS_ISSUER=http://localhost:4100/user_management/client_emulated
+STUDIO_API_WORKOS_REDIRECT_URI=http://localhost:5173/api/auth/callback
+STUDIO_API_PUBLIC_URL=http://localhost:5173
+STUDIO_API_WORKOS_COOKIE_PASSWORD=<python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())">
 ```
 
-and start the web with `INKLING_API_URL=http://localhost:8000 INKLING_WEB_AUTH_MODE=workos pnpm
+and start the web with `STUDIO_API_URL=http://localhost:8000 STUDIO_WEB_AUTH_MODE=workos pnpm
 dev` (the callback reaches the api through Vite's `/api` proxy, so it is same-origin). For the
-agent, add `INKLING_AGENT_AUTH_MODE=workos`, `INKLING_AGENT_WORKOS_CLIENT_ID=client_emulated`,
-`INKLING_AGENT_WORKOS_BASE_URL=http://localhost:4100` and the same issuer to `secrets/agent.env`.
+agent, add `STUDIO_AGENT_AUTH_MODE=workos`, `STUDIO_AGENT_WORKOS_CLIENT_ID=client_emulated`,
+`STUDIO_AGENT_WORKOS_BASE_URL=http://localhost:4100` and the same issuer to `secrets/agent.env`.
 In `stack:up`, use `http://workos-emulate:4100/` as the base URL and `localhost:8080` for the
 redirect and public URLs (commented in `infra/docker/env/api.env`); the issuer stays
 `localhost:4100`.
@@ -377,15 +377,15 @@ agree on, unless set in the shell or the file:
 
 | Key | Default |
 |---|---|
-| `INKLING_API_AUTH_MODE`, `INKLING_WEB_AUTH_MODE`, `INKLING_AGENT_AUTH_MODE` | `workos` |
-| `INKLING_API_DEV_TRUST_HEADERS` | `0` |
-| `INKLING_API_PUBLIC_URL` | `http://localhost:5173` |
-| `INKLING_API_WORKOS_REDIRECT_URI` | `<public URL>/api/auth/callback` |
-| `INKLING_API_URL` (Vite's api) | `http://localhost:8000` |
-| `INKLING_AGENT_WORKOS_CLIENT_ID`, `…_ISSUER`, `…_BASE_URL` | the api's `INKLING_API_WORKOS_*` values |
+| `STUDIO_API_AUTH_MODE`, `STUDIO_WEB_AUTH_MODE`, `STUDIO_AGENT_AUTH_MODE` | `workos` |
+| `STUDIO_API_DEV_TRUST_HEADERS` | `0` |
+| `STUDIO_API_PUBLIC_URL` | `http://localhost:5173` |
+| `STUDIO_API_WORKOS_REDIRECT_URI` | `<public URL>/api/auth/callback` |
+| `STUDIO_API_URL` (Vite's api) | `http://localhost:8000` |
+| `STUDIO_AGENT_WORKOS_CLIENT_ID`, `…_ISSUER`, `…_BASE_URL` | the api's `STUDIO_API_WORKOS_*` values |
 
 It stops with the missing key names if `secrets/workos.env` lacks the api key, client id or cookie
-password. With `INKLING_API_WORKOS_BASE_URL` unset it talks to WorkOS **staging** (redirect
+password. With `STUDIO_API_WORKOS_BASE_URL` unset it talks to WorkOS **staging** (redirect
 `http://localhost:5173/api/auth/callback` is registered there); set it to
 `http://localhost:4100/` (and the Emulate issuer) for Emulate. `pnpm dev` stays dev auth for
 everyday work and the e2e suites.
@@ -394,7 +394,7 @@ everyday work and the e2e suites.
 
 For checking hosted pages, emails, SSO and Radar by hand. Copy `secrets/workos.env.example` to
 `secrets/workos.env` and fill in the **staging** key (`sk_test_…`) and client id; leave
-`INKLING_API_WORKOS_BASE_URL` unset. The staging environment's Redirects tab lists
+`STUDIO_API_WORKOS_BASE_URL` unset. The staging environment's Redirects tab lists
 `http://localhost:5173/api/auth/callback` (and `:5175`), so keep that redirect URI and port. Use
 your own test users; staging is shared, so don't delete organizations you didn't create. Roles
 and permissions come from `infra/workos/seed.yml`; change them there, not on the dashboard.

@@ -607,7 +607,7 @@ def b64(c: Cine, exporter_id: str) -> bytes:
 
 
 def t_exporters(c: Cine):
-    nii, name = b64(c, "inkling.cine.exporters.acdc-nifti")
+    nii, name = b64(c, "studio.cine.exporters.acdc-nifti")
     assert name == "4d-cardiac_labels.nii.gz"
     path = OUT / name
     path.write_bytes(nii)
@@ -643,14 +643,14 @@ print('nifti ok', img.shape, [int((d[..., 0] == v).sum()) for v in (1, 2, 3)])
     assert check.returncode == 0, check.stderr[-2000:]
     print("   ", check.stdout.strip())
 
-    csv, name = b64(c, "inkling.cardiac-metrics.exporters.function-csv")
+    csv, name = b64(c, "studio.cardiac-metrics.exporters.function-csv")
     (OUT / name).write_bytes(csv)
     text = csv.decode()
     assert text.startswith("section,item,frame,phase,slice,rv_area_mm2,myo_area_mm2,lv_area_mm2")
     assert re.search(r"^LV EF,70\.\d,%$", text, re.M) and re.search(r"^RV EF,49\.\d,%$", text, re.M), text[-800:]
     assert re.search(r"^LV mass \(ED\),78\.\d\d,g$", text, re.M) and "BSA (Mosteller),1.803,m2" in text
 
-    js, name = b64(c, "inkling.cine.exporters.cine-contours-json")
+    js, name = b64(c, "studio.cine.exporters.cine-contours-json")
     (OUT / name).write_bytes(js)
     doc = json.loads(js)
     contours = [a for a in c.anns() if a["geometry"]["type"] in ("spline", "polygon")]

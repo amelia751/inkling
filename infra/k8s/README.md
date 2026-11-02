@@ -50,27 +50,27 @@ key in the Secret wins). **No Secret is ever committed.** `node infra/k8s/check-
 - **staging/prod:** create the Secrets out of band, for now by hand (below); move to the
   External Secrets Operator backed by the cloud secret manager once staging exists.
 
-Key names per Secret (names only; env prefix `INKLING_` from `schemas/naming.json`):
+Key names per Secret (names only; env prefix `STUDIO_` from `schemas/naming.json`):
 
 | Secret | Keys | Notes |
 |---|---|---|
-| `web-secrets` | `INKLING_AGENT_TOKEN` | Same value as in `agent-secrets`: nginx adds it as the bearer on `/api/agent/*`. |
-| `api-secrets` | `INKLING_API_DATABASE_URL`, `INKLING_API_SECRET_KEY`, `INKLING_API_WORKER_TOKEN`, `INKLING_API_PIPELINE_TOKEN`, `INKLING_API_APPROVAL_SECRET` (equals the agent's `INKLING_AGENT_APPROVAL_SECRET`), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | The pipeline token equals `INKLING_PIPELINE_API_TOKEN` in `pipeline-secrets` (principal `service:pipeline`). Add `INKLING_REDIS_URL` here if Redis needs a password (overrides the ConfigMap). Omit the AWS keys when the pod uses workload identity. |
-| `worker-secrets` | `INKLING_API_WORKER_TOKEN`, `KEDA_REDIS_PASSWORD` (staging/prod) | The worker token equals the api's. `KEDA_REDIS_PASSWORD` is read only by KEDA's TriggerAuthentication. Plugin provider keys are brokered by api, never mounted here. |
-| `agent-secrets` | `INKLING_AGENT_TOKEN`, `INKLING_AGENT_APPROVAL_SECRET`, `INKLING_AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `INKLING_AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
-| `versioning-secrets` | `INKLING_VERSIONING_DATABASE_URL` (role `versioning_app`), `INKLING_VERSIONING_MIGRATE_DATABASE_URL` (role `versioning_owner`), `INKLING_VERSIONING_S3_ACCESS_KEY_ID`, `INKLING_VERSIONING_S3_SECRET_ACCESS_KEY` | S3 keys scoped to the two versioning buckets. Add `INKLING_VERSIONING_REDIS_URL` if Redis needs a password. |
-| `pipeline-secrets` | `INKLING_PIPELINE_DATABASE_URL` (database `studio`, role `pipeline_app`, `search_path=pipeline`), `INKLING_PIPELINE_ENGINE_DATABASE_URL` (database `pipeline_engine`, same role), `INKLING_PIPELINE_API_TOKEN` | `sslmode=require` outside dev. Both URLs count against `pipeline_app`'s `CONNECTION LIMIT`. |
-| `workos-secrets` | `INKLING_API_WORKOS_API_KEY`, `INKLING_API_WORKOS_COOKIE_PASSWORD`, `INKLING_API_WORKOS_CLIENT_ID` | Sign-in (todo9). Optional everywhere: absent means `dev` mode. api reads all three (`envFrom`, before `api-secrets`), for sign-in and the WorkOS event sync; the worker reads none. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
+| `web-secrets` | `STUDIO_AGENT_TOKEN` | Same value as in `agent-secrets`: nginx adds it as the bearer on `/api/agent/*`. |
+| `api-secrets` | `STUDIO_API_DATABASE_URL`, `STUDIO_API_SECRET_KEY`, `STUDIO_API_WORKER_TOKEN`, `STUDIO_API_PIPELINE_TOKEN`, `STUDIO_API_APPROVAL_SECRET` (equals the agent's `STUDIO_AGENT_APPROVAL_SECRET`), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | The pipeline token equals `STUDIO_PIPELINE_API_TOKEN` in `pipeline-secrets` (principal `service:pipeline`). Add `STUDIO_REDIS_URL` here if Redis needs a password (overrides the ConfigMap). Omit the AWS keys when the pod uses workload identity. |
+| `worker-secrets` | `STUDIO_API_WORKER_TOKEN`, `KEDA_REDIS_PASSWORD` (staging/prod) | The worker token equals the api's. `KEDA_REDIS_PASSWORD` is read only by KEDA's TriggerAuthentication. Plugin provider keys are brokered by api, never mounted here. |
+| `agent-secrets` | `STUDIO_AGENT_TOKEN`, `STUDIO_AGENT_APPROVAL_SECRET`, `STUDIO_AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `STUDIO_AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
+| `versioning-secrets` | `STUDIO_VERSIONING_DATABASE_URL` (role `versioning_app`), `STUDIO_VERSIONING_MIGRATE_DATABASE_URL` (role `versioning_owner`), `STUDIO_VERSIONING_S3_ACCESS_KEY_ID`, `STUDIO_VERSIONING_S3_SECRET_ACCESS_KEY` | S3 keys scoped to the two versioning buckets. Add `STUDIO_VERSIONING_REDIS_URL` if Redis needs a password. |
+| `pipeline-secrets` | `STUDIO_PIPELINE_DATABASE_URL` (database `studio`, role `pipeline_app`, `search_path=pipeline`), `STUDIO_PIPELINE_ENGINE_DATABASE_URL` (database `pipeline_engine`, same role), `STUDIO_PIPELINE_API_TOKEN` | `sslmode=require` outside dev. Both URLs count against `pipeline_app`'s `CONNECTION LIMIT`. |
+| `workos-secrets` | `STUDIO_API_WORKOS_API_KEY`, `STUDIO_API_WORKOS_COOKIE_PASSWORD`, `STUDIO_API_WORKOS_CLIENT_ID` | Sign-in (todo9). Optional everywhere: absent means `dev` mode. api reads all three (`envFrom`, before `api-secrets`), for sign-in and the WorkOS event sync; the worker reads none. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
 | `db-bootstrap-secrets` | `ADMIN_DATABASE_URL`, `API_APP_PASSWORD`, `PIPELINE_APP_PASSWORD`, `VERSIONING_OWNER_PASSWORD`, `VERSIONING_APP_PASSWORD` | Read by the db-bootstrap Job's psql only (no env prefix: not an app setting). Present only while bootstrapping; dev uses placeholders. |
-| `versioning-bootstrap-secrets` | `INKLING_VERSIONING_ADMIN_DATABASE_URL`, `INKLING_VERSIONING_OWNER_PASSWORD`, `INKLING_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
+| `versioning-bootstrap-secrets` | `STUDIO_VERSIONING_ADMIN_DATABASE_URL`, `STUDIO_VERSIONING_OWNER_PASSWORD`, `STUDIO_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
 | `studio-tls` | (type `kubernetes.io/tls`) | Issued by cert-manager for the Ingress host. |
 
 Service calls are signed with Ed25519 keys (PKCS8 PEM, key `jwt.key`):
 
 | Signer | Secret (mounted at) | kid | Verified by |
 |---|---|---|---|
-| api → versioning, api → pipeline | `api-versioning-jwt` (`/etc/api/versioning`) | `api` (`INKLING_API_VERSIONING_JWT_KID`, `INKLING_API_PIPELINE_JWT_KID`) | versioning (`versioning-jwks`), pipeline (`api-jwks`) |
-| pipeline → versioning | `pipeline-versioning-jwt` (`/etc/pipeline/versioning`) | `pipeline` (`INKLING_PIPELINE_VERSIONING_JWT_KID`) | versioning (`versioning-jwks`) |
+| api → versioning, api → pipeline | `api-versioning-jwt` (`/etc/api/versioning`) | `api` (`STUDIO_API_VERSIONING_JWT_KID`, `STUDIO_API_PIPELINE_JWT_KID`) | versioning (`versioning-jwks`), pipeline (`api-jwks`) |
+| pipeline → versioning | `pipeline-versioning-jwt` (`/etc/pipeline/versioning`) | `pipeline` (`STUDIO_PIPELINE_VERSIONING_JWT_KID`) | versioning (`versioning-jwks`) |
 
 The public halves are ConfigMaps (key `jwks.json`, not secret): `versioning-jwks` holds both
 keys, `api-jwks` only the api's. None of them is in any overlay; `node tools/versioning-keys.mjs
@@ -87,10 +87,10 @@ the repo):
 NS=studio-staging
 TOKEN=$(openssl rand -base64 32)
 kubectl -n $NS create secret generic agent-secrets \
-  --from-literal=INKLING_AGENT_TOKEN="$TOKEN" \
-  --from-literal=INKLING_AGENT_DATABASE_URL=… --from-literal=OPENAI_API_KEY=… \
+  --from-literal=STUDIO_AGENT_TOKEN="$TOKEN" \
+  --from-literal=STUDIO_AGENT_DATABASE_URL=… --from-literal=OPENAI_API_KEY=… \
   --from-literal=ANTHROPIC_API_KEY=… --from-literal=DAYTONA_API_KEY=…
-kubectl -n $NS create secret generic web-secrets --from-literal=INKLING_AGENT_TOKEN="$TOKEN"
+kubectl -n $NS create secret generic web-secrets --from-literal=STUDIO_AGENT_TOKEN="$TOKEN"
 kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-manager export api)
 # …and so on per the table. Rotate with `kubectl create … --dry-run=client -o yaml | kubectl apply -f -`,
 # then `kubectl rollout restart deployment/<app>`.
@@ -118,17 +118,17 @@ Elsewhere, replace the Secret with `kubectl create secret generic workos-secrets
 
    ```sh
    python3 -c 'import getpass, json; from cryptography.fernet import Fernet; print(json.dumps({
-     "INKLING_API_WORKOS_API_KEY": getpass.getpass("WorkOS API key: "),
-     "INKLING_API_WORKOS_CLIENT_ID": input("Client id: "),
-     "INKLING_API_WORKOS_COOKIE_PASSWORD": Fernet.generate_key().decode()}))' \
+     "STUDIO_API_WORKOS_API_KEY": getpass.getpass("WorkOS API key: "),
+     "STUDIO_API_WORKOS_CLIENT_ID": input("Client id: "),
+     "STUDIO_API_WORKOS_COOKIE_PASSWORD": Fernet.generate_key().decode()}))' \
      | gcloud secrets versions add workos-secrets --project=spurby-phi --data-file=-
    kubectl -n $NS get externalsecret workos-secrets     # SecretSynced
    ```
 
 3. Add `components/workos` to `overlays/gke/phi/kustomization.yaml` (before `values`), set
-   `INKLING_API_WORKOS_ISSUER` in its `configmap.yaml` to the `iss` Phase 0 recorded, render from
-   `live/phi`, apply. In `overlays/gke/ai`, set `INKLING_AGENT_AUTH_MODE=workos` and
-   `INKLING_AGENT_WORKOS_CLIENT_ID` (and the issuer) in `agent-config`, apply.
+   `STUDIO_API_WORKOS_ISSUER` in its `configmap.yaml` to the `iss` Phase 0 recorded, render from
+   `live/phi`, apply. In `overlays/gke/ai`, set `STUDIO_AGENT_AUTH_MODE=workos` and
+   `STUDIO_AGENT_WORKOS_CLIENT_ID` (and the issuer) in `agent-config`, apply.
 4. **Keep the ingress allow-list (`STUDIO_ALLOW_CIDRS`).** From an allowed address: sign in,
    switch organization, invite someone, create and revoke an API key, sign out. Check that
    `GET /api/auth/session` without a cookie is 401, and that a request with only the dev headers
@@ -141,12 +141,12 @@ only safe while the allow-list is still on, so never remove the allow-list and t
 the same change.
 
 **Rotate the cookie password.** Every session ends: everyone signs in again. Do it off-hours, or
-at once if the key leaked. Replace only `INKLING_API_WORKOS_COOKIE_PASSWORD`, then restart api:
+at once if the key leaked. Replace only `STUDIO_API_WORKOS_COOKIE_PASSWORD`, then restart api:
 
 ```sh
 gcloud secrets versions access latest --secret=workos-secrets --project=spurby-phi \
   | python3 -c 'import json, sys; from cryptography.fernet import Fernet; d = json.load(sys.stdin)
-d["INKLING_API_WORKOS_COOKIE_PASSWORD"] = Fernet.generate_key().decode(); print(json.dumps(d))' \
+d["STUDIO_API_WORKOS_COOKIE_PASSWORD"] = Fernet.generate_key().decode(); print(json.dumps(d))' \
   | gcloud secrets versions add workos-secrets --project=spurby-phi --data-file=-
 # force-sync (above), then:
 kubectl -n $NS rollout restart deployment/api && kubectl -n $NS rollout status deployment/api
@@ -156,7 +156,7 @@ During the rollout old and new pods disagree, so a person may be signed out twic
 previous secret version afterwards (`gcloud secrets versions disable`).
 
 **Rotate the WorkOS API key.** No downtime: WorkOS keeps both keys valid until you revoke one.
-Create a new key in the dashboard (API Keys), put it in `INKLING_API_WORKOS_API_KEY` the same way,
+Create a new key in the dashboard (API Keys), put it in `STUDIO_API_WORKOS_API_KEY` the same way,
 force-sync, `kubectl rollout restart deployment/api deployment/worker`, check `/readyz`, a
 sign-in and the worker's event sync log, then revoke the old key in the dashboard and disable the
 old secret version. A leaked key: revoke first (sign-in and member management fail until the new
@@ -185,11 +185,11 @@ principal (`user:<workos id>`).
 |---|---|---|---|---|---|
 | web | HPA, CPU 70 % | 2–6 | 2–4 | 3–10 | Static files and the agent proxy; cheap. |
 | api | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Stateless (Postgres, S3, Redis). |
-| agent | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Scale-down stabilization 600 s and 1 pod/min, so long SSE runs aren't cut often; `terminationGracePeriodSeconds: 120` with `INKLING_AGENT_SHUTDOWN_GRACE_S=100`. |
-| worker | KEDA `redis` scaler on list `inkling:jobs:ready` | 1–10, 1 pod per 5 queued jobs | 1–6 | 1–30 | `pollingInterval` 10 s, `cooldownPeriod` 300 s before scaling back to one; grace 300 s. Never zero: the event subscriptions (inspection, unpack, item probes) and scheduled tasks put nothing on the job lists. |
+| agent | HPA, CPU 70 % | 2–10 | 2–6 | 3–20 | Scale-down stabilization 600 s and 1 pod/min, so long SSE runs aren't cut often; `terminationGracePeriodSeconds: 120` with `STUDIO_AGENT_SHUTDOWN_GRACE_S=100`. |
+| worker | KEDA `redis` scaler on list `studio:jobs:ready` | 1–10, 1 pod per 5 queued jobs | 1–6 | 1–30 | `pollingInterval` 10 s, `cooldownPeriod` 300 s before scaling back to one; grace 300 s. Never zero: the event subscriptions (inspection, unpack, item probes) and scheduled tasks put nothing on the job lists. |
 | versioning | fixed replicas | 2 | 2 | 3 | River jobs run in-process; add an HPA when load needs it. |
-| pipeline | HPA, CPU 70 % | 2–4 | 2–4 | 2–4 | The maximum is the connection budget: pods × `INKLING_PIPELINE_DB_POOL_MAX` (4) must stay under `pipeline_app`'s `CONNECTION LIMIT` (20). DBOS resumes a lost pod's workflows on another replica. |
-| worker-gpu (gke, Milestone 4) | KEDA on `inkling:jobs:ready:gpu` | — | — | 0–4 | `overlays/gke/phi/components/gpu-worker`; bounded by the L4 quota. |
+| pipeline | HPA, CPU 70 % | 2–4 | 2–4 | 2–4 | The maximum is the connection budget: pods × `STUDIO_PIPELINE_DB_POOL_MAX` (4) must stay under `pipeline_app`'s `CONNECTION LIMIT` (20). DBOS resumes a lost pod's workflows on another replica. |
+| worker-gpu (gke, Milestone 4) | KEDA on `studio:jobs:ready:gpu` | — | — | 0–4 | `overlays/gke/phi/components/gpu-worker`; bounded by the L4 quota. |
 
 Where to change them: `minReplicas`/`maxReplicas`/`averageUtilization` in `base/<app>/hpa.yaml`
 (and the overlay patches), `listLength`/`maxReplicaCount`/`cooldownPeriod` in
@@ -219,8 +219,8 @@ pod must not block node drains forever).
 ## Renaming the product
 
 Kubernetes, compose and CI config can't read the naming config at run time, so they spell out
-its env prefix (`INKLING_…`) and resource prefix (`inkling-objects` buckets, the
-`inkling:jobs:ready` Redis list). `node tools/rename-namespace.mjs --from <old> --to <new>`
+its env prefix (`STUDIO_…`) and resource prefix (`studio-objects` buckets, the
+`studio:jobs:ready` Redis list). `node tools/rename-namespace.mjs --from <old> --to <new>`
 (with `--dry-run` to preview) rewrites both in `infra/**`, `.github/**`, `apps/*/Dockerfile`
 and `apps/web/nginx/*`, along with the stored documents it already covers. Resource names
 themselves (`web`, `api`, `studio-<app>` images, the `studio*` namespaces) are brand-free.

@@ -49,16 +49,16 @@ def test_workos_mode_requires_its_keys_and_a_fernet_cookie_password(tmp_path):
     with pytest.raises(config.SettingsError) as e:
         # Explicit Nones: a developer's secrets/workos.env overlay must not fill them in.
         _settings(tmp_path, auth_mode="workos", workos_api_key=None, workos_client_id=None, workos_cookie_password=None, workos_redirect_uri=None)
-    assert {"INKLING_API_WORKOS_API_KEY", "INKLING_API_WORKOS_CLIENT_ID", "INKLING_API_WORKOS_COOKIE_PASSWORD", "INKLING_API_WORKOS_REDIRECT_URI"} <= set(e.value.missing)
+    assert {"STUDIO_API_WORKOS_API_KEY", "STUDIO_API_WORKOS_CLIENT_ID", "STUDIO_API_WORKOS_COOKIE_PASSWORD", "STUDIO_API_WORKOS_REDIRECT_URI"} <= set(e.value.missing)
     keys = {"workos_api_key": "sk_test_secret_value", "workos_client_id": "client_x", "workos_redirect_uri": REDIRECT}
     with pytest.raises(config.SettingsError) as e:
         _settings(tmp_path, auth_mode="workos", workos_cookie_password="a-plain-password-of-32-characters", **keys)
-    assert e.value.invalid == ["INKLING_API_WORKOS_COOKIE_PASSWORD"] and "Fernet" in str(e.value)
+    assert e.value.invalid == ["STUDIO_API_WORKOS_COOKIE_PASSWORD"] and "Fernet" in str(e.value)
     assert "a-plain-password" not in str(e.value) and "sk_test_secret_value" not in str(e.value)
     good = Fernet.generate_key().decode()
     with pytest.raises(config.SettingsError) as e:
         _settings(tmp_path, auth_mode="workos", workos_cookie_password=good, dev_trust_headers="1", **keys)
-    assert "INKLING_API_DEV_TRUST_HEADERS" in e.value.invalid
+    assert "STUDIO_API_DEV_TRUST_HEADERS" in e.value.invalid
     s = _settings(tmp_path, auth_mode="workos", workos_cookie_password=good, **keys)
     assert s.workos and not s.dev_trust_headers
     assert _settings(tmp_path).auth_mode == "dev"

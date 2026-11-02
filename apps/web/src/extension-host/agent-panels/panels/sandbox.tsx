@@ -8,10 +8,10 @@ import { SandboxFrame } from "../../sandbox/SandboxFrame";
 
 type Config = z.infer<typeof SandboxConfig>;
 
-/** The View document for a sandbox config: a viewer module (rung 4), else tier-3 HTML with the `window.inkling` shim. */
+/** The View document for a sandbox config: a viewer module (rung 4), else tier-3 HTML with the `window.<resourcePrefix>` shim. */
 export function sandboxDocument(cfg: Pick<Config, "html" | "module" | "title">): string {
   if (cfg.module) return viewerDocument({ source: cfg.module, title: cfg.title });
-  // Inject the bridge before the agent's own markup so `window.inkling` exists for its scripts.
+  // Inject the bridge before the agent's own markup so `window.<resourcePrefix>` exists for its scripts.
   return /<head[^>]*>/i.test(cfg.html) ? cfg.html.replace(/<head[^>]*>/i, (m) => `${m}${BRIDGE_SCRIPT}`) : `${BRIDGE_SCRIPT}${cfg.html}`;
 }
 

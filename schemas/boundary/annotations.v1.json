@@ -203,5 +203,5 @@
       ]
     }
   },
-  "$id": "inkling://schema/boundary/annotations.v1"
+  "$id": "studio://schema/boundary/annotations.v1"
 }

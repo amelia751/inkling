@@ -1,4 +1,4 @@
-Inkling agent runtime (@studio/agent)
+Studio agent runtime (@studio/agent)
 
 This package includes code adapted from @daytona/pi 0.191.2
 (https://github.com/daytonaio/daytona, libs/pi), the official pi integration for Daytona:
@@ -21,4 +21,4 @@ License.
 
 Modifications: per-session sandboxes instead of one global sandbox (no CLI flags), lazy
 acquisition through a session manager, background-safe and streaming exec, ripgrep with a grep/find
-fallback, Inkling-specific tools (run_python, preview_url, export_artifact).
+fallback, Studio-specific tools (run_python, preview_url, export_artifact).

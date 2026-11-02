@@ -48,7 +48,7 @@ line links back to the section that explains it. Take an item by moving it into 
 - Plugin-contributed `diffPreview`s (mask, span) through module manifests; only the built-in box/polygon preview is registered. [todo4 Phase 6](done/todo4.md#whats-left)
 
 ## Versioning
-- Complete and record the `INKLING_VERSIONING_LOAD_ENTRIES=1000000` load run in `apps/versioning/README.md` (100k is recorded; run it alone, with more Docker memory). [todo4 Phase 3/7](done/todo4.md#whats-left)
+- Complete and record the `STUDIO_VERSIONING_LOAD_ENTRIES=1000000` load run in `apps/versioning/README.md` (100k is recorded; run it alone, with more Docker memory). [todo4 Phase 3/7](done/todo4.md#whats-left)
 - Write `docs/adr/0002-versioning-storage.md`. [todo4 Phase 5](done/todo4.md#whats-left)
 
 ## Observability

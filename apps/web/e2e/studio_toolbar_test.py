@@ -1,6 +1,6 @@
 """The calmer Studio toolbar, decision bar and shortcuts sheet (todo/todo8.md D4, D5, D6, D10).
 
-    INKLING_E2E=1 pnpm exec vite --port 5223 --strictPort     # in apps/web
+    STUDIO_E2E=1 pnpm exec vite --port 5223 --strictPort     # in apps/web
     python3 e2e/studio_toolbar_test.py --port 5223
 
 - The 2D X-ray sample is a classification task: no drawing tools (Rule 1), a decision bar whose

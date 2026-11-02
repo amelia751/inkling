@@ -114,5 +114,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/capabilities/image.segment/request"
+  "$id": "studio://schema/capabilities/image.segment/request"
 }

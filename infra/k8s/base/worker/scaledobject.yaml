@@ -20,7 +20,7 @@ spec:
       metadata:
         addressFromEnv: KEDA_REDIS_ADDRESS
         databaseIndex: "0"
-        listName: inkling:jobs:ready
+        listName: studio:jobs:ready
         listLength: "5"
         activationListLength: "0"
     # Memory-class jobs (WORKER_RESOURCE_CLASSES=cpu,memory) have their own ready list.
@@ -28,6 +28,6 @@ spec:
       metadata:
         addressFromEnv: KEDA_REDIS_ADDRESS
         databaseIndex: "0"
-        listName: inkling:jobs:ready:memory
+        listName: studio:jobs:ready:memory
         listLength: "5"
         activationListLength: "0"

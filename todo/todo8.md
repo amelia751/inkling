@@ -110,7 +110,7 @@ as region labels.
 
 A dialog that renders a generated (RJSF) form for **every** contribution with a `configSchema`:
 viewers, the data kind, every panel, every exporter. Each section has a title taken from the
-contribution's *description*, the module id in monospace (`inkling.image2d.renderers.cornerstone-stack`),
+contribution's *description*, the module id in monospace (`studio.image2d.renderers.cornerstone-stack`),
 an "Apply" button of its own, and a paragraph explaining that edits are validated and can be
 undone. It is the right engine (the same JSON-Patch path the assistant uses) with the wrong
 audience and the wrong place.
@@ -220,9 +220,9 @@ Settings, a ⋯ menu, or the user menu.
     new elements. `branch-switcher` moves to the popover's switch control.
 
 - [x] **D2. Left panel: Items | Labels. The Studio Review tab goes.**
-  - **Items** (`inkling.core.panels.files`, id unchanged). The tab title is the data kind's plural
+  - **Items** (`studio.core.panels.files`, id unchanged). The tab title is the data kind's plural
     `itemNoun`: Images, Studies, Slides. A count follows only when it's under 1,000.
-  - **Labels** (`inkling.core.panels.labels`) gets three sections, top to bottom:
+  - **Labels** (`studio.core.panels.labels`) gets three sections, top to bottom:
     - **Classes**: today's list. The ⋯ on a row holds hide, lock and change color; the key and count
       stay visible.
     - **On this image**: the current item's annotations as compact rows (color dot, label, geometry
@@ -234,7 +234,7 @@ Settings, a ⋯ menu, or the user menu.
     presets and invert).
   - **The project-wide annotation feed** moves to the Review page's per-task annotation section,
     which exists already.
-  - `inkling.core.panels.review` stays **registered** (stored environments reference it, and the
+  - `studio.core.panels.review` stays **registered** (stored environments reference it, and the
     resolver rejects unknown ids). It is re-titled "All annotations" and dropped from every preset.
     Owners can add it back in Task setup. `pnpm emit:schemas` regenerates the catalogue.
   - **Recommended over the alternative**: Items on the left and a Figma-style inspector (Labels, On

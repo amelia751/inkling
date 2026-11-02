@@ -1,7 +1,7 @@
 """End-to-end tests for the Cornerstone 2D viewer (chest X-ray JPEGs + a synthetic DICOM DX).
 
     pnpm exec vite --port 5181 --strictPort          # in apps/web
-    INKLING_DICOM_DIR=… python3 e2e/image2d_test.py --port 5181
+    STUDIO_DICOM_DIR=… python3 e2e/image2d_test.py --port 5181
 
 Every gesture is real mouse / keyboard input. Saves are intercepted by harness.open_studio,
 so seed-data/.annotations is never modified.
@@ -98,7 +98,7 @@ def main() -> int:
     args = parse_args()
     out = Path(args.out) / "image2d"
     out.mkdir(parents=True, exist_ok=True)
-    dicom_dir = Path(os.environ.get("INKLING_DICOM_DIR", str(Path(args.out) / "dicom")))
+    dicom_dir = Path(os.environ.get("STUDIO_DICOM_DIR", str(Path(args.out) / "dicom")))
     R = Results(out)
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed, args=["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"])
@@ -461,7 +461,7 @@ def main() -> int:
             tool(st, "k")
             click(st.page, img(st, 900, 1100))
             only_new(st, before, n=3)
-            raw = blob_from_exporter(st, "inkling.image2d.exporters.coco")
+            raw = blob_from_exporter(st, "studio.image2d.exporters.coco")
             doc = json.loads(raw)
             (out / "coco.json").write_bytes(raw)
             im = next(i for i in doc["images"] if i["file_name"] == ITEM)
@@ -508,7 +508,7 @@ def main() -> int:
             mask = next(a for a in item_annotations(st, DX) if a["geometry"]["type"] == "mask")
             check(abs(mask["geometry"]["volumeMm3"] - mask["geometry"]["voxels"] * 0.0225) < 1, "mask area in mm²")
             st.shot("dicom-dx", out)
-            seg = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-seg")
+            seg = blob_from_exporter(st, "studio.dicom-export.exporters.dicom-seg")
             (out / "dx-seg.dcm").write_bytes(seg)
             v = validate_dicom(out / "dx-seg.dcm", "seg")
             check(v["sopClassUID"] == "1.2.840.10008.5.1.4.1.1.66.4", v["sopClassUID"])
@@ -516,7 +516,7 @@ def main() -> int:
             check([s["label"] for s in v["segments"]] == ["opacity"], v["segments"])
             check(v["studyUID"] == cr["studyUID"] and cr["seriesUID"] in v["referencedSeries"], "references the DX study/series")
             check(v["totalPixels"] == mask["geometry"]["voxels"], f"SEG pixels {v['totalPixels']} vs mask {mask['geometry']['voxels']}")
-            sr = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-sr")
+            sr = blob_from_exporter(st, "studio.dicom-export.exporters.dicom-sr")
             (out / "dx-sr.dcm").write_bytes(sr)
             s = validate_dicom(out / "dx-sr.dcm", "sr")
             check(s["template"] == "1500", s)

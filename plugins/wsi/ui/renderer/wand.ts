@@ -129,7 +129,7 @@ async function runInWorker(job: WandJob): Promise<Region> {
 
 
 /**
- * `inkling.wsi.tools.wand` as an overlay2d tool machine: a click grows a region (async, on
+ * `studio.wsi.tools.wand` as an overlay2d tool machine: a click grows a region (async, on
  * tile pixels the host fetches); Shift adds it to the selected region, Alt subtracts.
  */
 export function wandTool(run: (p: Pt, shift: boolean, alt: boolean, ctx: ToolContext) => Promise<void>): ToolMachine {

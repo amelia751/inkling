@@ -31,7 +31,7 @@ interface ShellState {
   recent: RecentProject[];
   /** The assistant drawer outside the Studio (todo6 Phase 6); its open state is per person. */
   assistantOpen: boolean;
-  /** Set when something asked the composer to take focus ("Or tell Inkling…"). */
+  /** Set when something asked the composer to take focus ("Or tell <displayName>…"). */
   assistantFocus: number;
   /** The drawer's width in px (300–480, default 340), per person like its open state. */
   assistantWidth: number;

@@ -1,4 +1,4 @@
-# Working on Inkling
+# Working in this repo
 
 pnpm + uv monorepo, orchestrated by Turborepo. Deployables are `apps/*` (`web`: React 19,
 Vite 7, TypeScript, zustand, Tailwind + shadcn; `api` and `worker`: Python 3.12; `agent` and
@@ -46,7 +46,7 @@ In `apps/web` before you hand work back:
 - `pnpm test` (vitest unit tests: extension host, packages, plugins)
 - `pnpm check:boundaries`, `pnpm check:names` and `pnpm check:icons`
 - `pnpm emit:schemas --check` (fails if generated schemas are stale; run `pnpm emit:schemas`)
-- e2e: start a frozen dev server with `INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort`
+- e2e: start a frozen dev server with `STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort`
   (it serves annotations from a temp copy of `e2e/fixtures/annotations/`, never your
   `seed-data/.annotations`), then run `python3 e2e/<name>_test.py --port 5199`. Tests that span services (agent,
   plugin install + worker) are in `tests/e2e/`. The `data-testid`s and store fields
@@ -115,15 +115,18 @@ Read `docs/modules.md`.
 
 - Names are scope + role, where the role is the folder: `apps/<x>` and `packages/<x>` are
   `@studio/<x>` (Python `studio-<x>` / `studio_<x>`), `plugins/<x>` is `@studio/plugin-<x>`;
-  images `studio-<x>`. Env vars are `INKLING_<ROLE>_<KEY>` (the prefix is `NAMING.envPrefix`),
+  images `studio-<x>`. Env vars are `STUDIO_<ROLE>_<KEY>` (the prefix is `NAMING.envPrefix`),
   read in each service's config module only (`secrets/README.md`). `pnpm check:names` enforces both.
 - Layers (enforced by `tools/check-boundaries.mjs`): `@studio/contracts` and `@studio/ui` import
   nothing internal; `@studio/plugin-ui-sdk` only contracts; `@studio/renderers` the SDK,
   contracts and ui; plugins those plus
   other plugins' `manifest.ts` / `public.ts`; the shell never imports `@plugins/*` and
   reaches plugins only through the registry.
-- The product name appears in code only in `packages/contracts/src/naming.ts`; use
-  `NAMING`, `ns()`, `NS` and `RES` everywhere else.
+- Internal names are the neutral word `studio` and never follow the brand: ids `studio.<x>`,
+  schemas `studio://schema/…`, resources `studio:…` / `studio-…`, env `STUDIO_…`. The product
+  name (`NAMING.displayName`) and past namespaces (`legacyNamespaces`) appear in code only in
+  `packages/contracts/src/naming.ts`; use `NAMING`, `ns()`, `NS` and `RES` everywhere else, and
+  `NAMING.displayName` for user-visible copy. A rebrand edits `displayName` and nothing else.
 - Domain constants (WFDB codes, cardiac structures, CT presets) live in module config
   defaults or preset vocabularies, never in kits or the platform.
 - Core geometries are domain-neutral (`box`, `polygon`, `span`, `instant`…); domain meaning

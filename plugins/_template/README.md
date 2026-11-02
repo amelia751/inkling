@@ -6,10 +6,10 @@ it in `apps/web/src/extension-host/bundled.ts`, and boot it with:
 
 ```json
 {
-  "data": { "kind": "inkling.example.dataKinds.file" },
-  "viewports": [{ "name": "main", "renderer": "inkling.example.renderers.canvas" }],
-  "tools": ["inkling.core.tools.select", "inkling.example.tools.dot"],
-  "panels": { "left": ["inkling.core.panels.files", "inkling.core.panels.labels"], "right": ["inkling.example.panels.count"] },
+  "data": { "kind": "studio.example.dataKinds.file" },
+  "viewports": [{ "name": "main", "renderer": "studio.example.renderers.canvas" }],
+  "tools": ["studio.core.tools.select", "studio.example.tools.dot"],
+  "panels": { "left": ["studio.core.panels.files", "studio.core.panels.labels"], "right": ["studio.example.panels.count"] },
   "labels": [{ "name": "points", "control": "KeyPointLabels", "classes": [{ "id": "dot" }] }]
 }
 ```

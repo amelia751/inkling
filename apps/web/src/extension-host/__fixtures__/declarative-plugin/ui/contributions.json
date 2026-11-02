@@ -4,7 +4,7 @@
       "id": "segment",
       "surface": "image.viewer.toolbar",
       "title": "Segment",
-      "command": "inkling.fixture-segment.segment_objects",
+      "command": "studio.fixture-segment.segment_objects",
       "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg"] }
     }
   ],

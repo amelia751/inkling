@@ -5,17 +5,17 @@ kind: ConfigMap
 metadata:
   name: api-config
 data:
-  INKLING_REDIS_URL: rediss://redis.internal.example.com:6380/0
-  INKLING_S3_ENDPOINT: https://s3.us-east-1.amazonaws.com
-  INKLING_S3_BUCKET: prod-assets
-  INKLING_S3_REGION: us-east-1
+  STUDIO_REDIS_URL: rediss://redis.internal.example.com:6380/0
+  STUDIO_S3_ENDPOINT: https://s3.us-east-1.amazonaws.com
+  STUDIO_S3_BUCKET: prod-assets
+  STUDIO_S3_REGION: us-east-1
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: agent-config
 data:
-  INKLING_AGENT_REDIS_URL: rediss://redis.internal.example.com:6380/1
+  STUDIO_AGENT_REDIS_URL: rediss://redis.internal.example.com:6380/1
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -29,11 +29,11 @@ kind: ConfigMap
 metadata:
   name: versioning-config
 data:
-  INKLING_VERSIONING_OBJECT_ENDPOINT: ""
-  INKLING_VERSIONING_OBJECT_PATH_STYLE: "false"
-  INKLING_VERSIONING_OBJECT_BUCKET: prod-versioning-objects
-  INKLING_VERSIONING_MANIFEST_BUCKET: prod-versioning-manifests
-  INKLING_VERSIONING_REDIS_URL: rediss://redis.internal.example.com:6380/2
+  STUDIO_VERSIONING_OBJECT_ENDPOINT: ""
+  STUDIO_VERSIONING_OBJECT_PATH_STYLE: "false"
+  STUDIO_VERSIONING_OBJECT_BUCKET: prod-versioning-objects
+  STUDIO_VERSIONING_MANIFEST_BUCKET: prod-versioning-manifests
+  STUDIO_VERSIONING_REDIS_URL: rediss://redis.internal.example.com:6380/2
 # Database URLs carry credentials, so they are in the Secrets; for reference the hosts are
 #   pg.internal.example.com:5432  databases `studio` (api, versioning schema) and `agent`.
 ---
@@ -42,4 +42,4 @@ kind: ConfigMap
 metadata:
   name: mcp-config
 data:
-  INKLING_MCP_REDIS_URL: rediss://redis.internal.example.com:6380/3
+  STUDIO_MCP_REDIS_URL: rediss://redis.internal.example.com:6380/3

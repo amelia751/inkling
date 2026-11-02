@@ -5,7 +5,7 @@ folder can't go into its own subfolder (the Move to… dialog says why); paste w
 and "Keep both" for all gives `(2)` names; a dataset made from files keeps the same files after
 they move; the Move to… dialog works with the keyboard only.
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_move_test.py --port 5199   # from apps/web
 """
 

@@ -67,7 +67,7 @@ const PROFILE_BLURB: Record<ProfileName, string> = {
 };
 
 /**
- * `inkling.core.panels.ai`: Inkling AI in the Studio's right slot (ui.md §3), the Studio host of
+ * `studio.core.panels.ai`: the assistant in the Studio's right slot (ui.md §3), the Studio host of
  * the shared `AssistantPanel` (todo6 Phase 6). The model gets a text snapshot of the dataset,
  * never pixels. Tools that act on the Studio run here, in the browser: environment edits are
  * normal undoable `setEnv` steps, cards only act on the expert's click, and consequential steps

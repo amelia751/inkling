@@ -2,8 +2,8 @@
 preset:generic-image: the canvas-raster renderer (no Cornerstone) with overlay2d box /
 polygon / keypoint tools and COCO export, on the x-ray JPEG seed assets.
 
-    INKLING_E2E=1 pnpm exec vite --port 5302 --strictPort    # in apps/web
-    python3 e2e/generic_test.py --port 5302 [INKLING_ONLY=box,coco]
+    STUDIO_E2E=1 pnpm exec vite --port 5302 --strictPort    # in apps/web
+    python3 e2e/generic_test.py --port 5302 [STUDIO_ONLY=box,coco]
 
 The project is injected into the served manifest (harness.open_studio extra_projects), and
 annotations are answered with an empty fixture, so nothing in seed-data/ is read or written.
@@ -96,9 +96,9 @@ def main() -> int:
 
         def t_env(st, item):
             env = st.store("s => ({ renderer: s.env.viewports[0].renderer.id, tools: s.env.tools.map(t => t.id), exporters: s.env.exporters.map(e => e.id) })")
-            check(env["renderer"] == "inkling.image2d.renderers.canvas-raster", env)
-            check(env["tools"] == ["inkling.core.tools.select", "inkling.core.tools.pan", "inkling.overlay2d.tools.box", "inkling.overlay2d.tools.polygon", "inkling.overlay2d.tools.keypoint"], env["tools"])
-            check(env["exporters"] == ["inkling.image2d.exporters.coco"], env["exporters"])
+            check(env["renderer"] == "studio.image2d.renderers.canvas-raster", env)
+            check(env["tools"] == ["studio.core.tools.select", "studio.core.tools.pan", "studio.overlay2d.tools.box", "studio.overlay2d.tools.polygon", "studio.overlay2d.tools.keypoint"], env["tools"])
+            check(env["exporters"] == ["studio.image2d.exporters.coco"], env["exporters"])
             check(st.page.evaluate(f"() => !window.{HOOK_2D} && !document.querySelector('canvas.cornerstone-canvas')"), "no Cornerstone viewport")
             check(st.page.locator("[data-testid=raster-canvas]").count() == 1, "raster canvas")
             size = st.page.evaluate(f"() => window.{HOOK_RASTER}.size")
@@ -216,7 +216,7 @@ def main() -> int:
             tool(st, "k", "keypoint")
             click(st.page, img(st, 900, 600))
             wait_for(lambda: len(item_annotations(st, item)) == 3, "3 annotations", 10)
-            doc = json.loads(blob_from_exporter(st, "inkling.image2d.exporters.coco"))
+            doc = json.loads(blob_from_exporter(st, "studio.image2d.exporters.coco"))
             (out / "coco.json").write_text(json.dumps(doc, indent=2))
             im = next(i for i in doc["images"] if i["file_name"] == item)
             check((im["width"], im["height"]) == (1857, 1317), im)

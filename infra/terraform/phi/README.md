@@ -48,7 +48,7 @@ Irreversible switches, off by default: `artifacts_retention_locked`, `audit_rete
   `api_app` and `pipeline_app`, schema `pipeline`, owner of `pipeline_engine`. Then versioning's
   `migrate bootstrap` (`apps/versioning/README.md`). Destroy the `db-bootstrap-secrets` version after.
 - Secret values: one JSON object per secret, e.g.
-  `gcloud secrets versions add api-secrets --data-file=- <<< '{"INKLING_API_DATABASE_URL":"…",…}'`.
+  `gcloud secrets versions add api-secrets --data-file=- <<< '{"STUDIO_API_DATABASE_URL":"…",…}'`.
   Keys per secret are in `infra/k8s/README.md`; `workos-secrets` stays empty until sign-in is turned on (todo9; `docs/running.md`, "Signing in"). `api-versioning-jwt` and `pipeline-versioning-jwt` hold `{"jwt.key":"<PEM>"}`, written by
   `node tools/versioning-keys.mjs --gcp-project spurby-phi …` (it never prints a key).
 - Copy the outputs into `infra/k8s/overlays/gke/live/phi/local.env` (git-ignored;

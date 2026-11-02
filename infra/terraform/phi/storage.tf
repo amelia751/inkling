@@ -1,8 +1,8 @@
 # Every bucket: CMEK, uniform access, public access prevented, object versioning on.
 locals {
   buckets = merge({
-    # apps/api BlobStore (INKLING_GCS_BUCKET): sample template bytes under samples/
-    # (INKLING_API_SAMPLES_PREFIX; public data copied in by tools/fetch-seeds.py, todo14 §3),
+    # apps/api BlobStore (STUDIO_GCS_BUCKET): sample template bytes under samples/
+    # (STUDIO_API_SAMPLES_PREFIX; public data copied in by tools/fetch-seeds.py, todo14 §3),
     # uploads and kernel-written data under .data/.
     objects = { retention_days = 0, locked = false }
     # Plugin bundles, content-addressed (artifacts/sha256/<digest>, todo10 Phase 3): objects

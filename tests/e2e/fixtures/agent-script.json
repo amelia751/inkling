@@ -61,7 +61,7 @@
             {
               "name": "run_command",
               "arguments": {
-                "id": "inkling.wsi.commands.toggleClassNames"
+                "id": "studio.wsi.commands.toggleClassNames"
               }
             }
           ]

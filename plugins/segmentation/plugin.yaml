@@ -1,8 +1,8 @@
 # Reference python-worker plugin (docs/plugins.md §5.1, §12). One capability, several
 # providers; output is always the provider-independent image.segment result, which the
 # kernel normalises into canonical mask annotations.
-schemaVersion: inkling.plugins/v1
-id: inkling.segmentation
+schemaVersion: studio.plugins/v1
+id: studio.segmentation
 name: Segmentation
 version: 1.0.0
 description: "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."

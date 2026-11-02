@@ -3,7 +3,7 @@ import { toAsapXml, toCountsCsv, toQuPathGeoJSON } from "./io";
 
 const blob = (text: string, type: string) => new Blob([text], { type });
 
-/** `inkling.wsi.exporters.*` (labels, descriptions and `accepts` are in manifest.ts). */
+/** `studio.wsi.exporters.*` (labels, descriptions and `accepts` are in manifest.ts). */
 export const exporters: Record<string, ExporterImpl> = {
   "qupath-geojson": {
     filename: (p) => `${p.id}-qupath.geojson`,

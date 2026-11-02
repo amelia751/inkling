@@ -1,7 +1,7 @@
 {
   "steps": [
     {
-      "id": "inkling.ingest.inspect",
+      "id": "studio.ingest.inspect",
       "version": "1.0.0",
       "runtime": "kernel_job",
       "job_kind": "inspect",
@@ -28,7 +28,7 @@
       "default_timeout_seconds": 1800
     },
     {
-      "id": "inkling.ingest.derivatives",
+      "id": "studio.ingest.derivatives",
       "version": "1.0.0",
       "runtime": "kernel_job",
       "job_kind": "derivatives",
@@ -55,7 +55,7 @@
       "default_timeout_seconds": 1800
     },
     {
-      "id": "inkling.pipeline.validate",
+      "id": "studio.pipeline.validate",
       "version": "1.0.0",
       "runtime": "builtin",
       "description": "Check every item against the run's policy; split accepted from quarantined.",
@@ -93,7 +93,7 @@
       "default_timeout_seconds": 600
     },
     {
-      "id": "inkling.pipeline.propose",
+      "id": "studio.pipeline.propose",
       "version": "1.0.0",
       "runtime": "builtin",
       "description": "Stage the output manifest and create the candidate commit and review in versioning.",

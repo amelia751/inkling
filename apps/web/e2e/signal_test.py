@@ -118,8 +118,8 @@ def boot(browser, port: int, *, dsf: float = 1, display: dict | None = None, dev
     disp = {**DEFAULT_DISPLAY, **(display or {})}
     init = (
         "try {"
-        f"localStorage.setItem('inkling.signal.display.v1', {json.dumps(json.dumps(disp))});"
-        + (f"localStorage.setItem('inkling.signal.devicePxPerMm.v1', '{device_px_per_mm}');" if device_px_per_mm else "localStorage.removeItem('inkling.signal.devicePxPerMm.v1');")
+        f"localStorage.setItem('studio.signal.display.v1', {json.dumps(json.dumps(disp))});"
+        + (f"localStorage.setItem('studio.signal.devicePxPerMm.v1', '{device_px_per_mm}');" if device_px_per_mm else "localStorage.removeItem('studio.signal.devicePxPerMm.v1');")
         + f"localStorage.setItem('app-theme', '{theme}');"
         "} catch (e) {}"
     )
@@ -432,7 +432,7 @@ def t_calibration_ui(browser, port):
         dlg.get_by_role("button", name="Save").click()
         settle(st)
         k = w1 / 85.6
-        stored = float(st.page.evaluate("localStorage.getItem('inkling.signal.devicePxPerMm.v1')"))
+        stored = float(st.page.evaluate("localStorage.getItem('studio.signal.devicePxPerMm.v1')"))
         near(stored, k * dsf, 1e-6, "stored device px/mm")
         gutter = max(GUTTER, math.ceil(0.2 * 25 * k) + 48)
         b = st.page.locator("[data-testid=signal-canvas]").bounding_box()
@@ -803,7 +803,7 @@ def t_lead_menu(browser, port):
     assert menu.count() == 1
     menu.get_by_role("menuitemradio", name="20").click()
     settle(st, 150)
-    disp = json.loads(st.page.evaluate("localStorage.getItem('inkling.signal.display.v1')"))
+    disp = json.loads(st.page.evaluate("localStorage.getItem('studio.signal.display.v1')"))
     assert disp["leadGain"] == {"V1": 20}, disp["leadGain"]
     # V1's calibration pulse is twice V2's (fit mode: 10 mm/mV ≙ row/3).
     x0 = GUTTER - min(0.2 * g.pps, GUTTER - 48) - 8
@@ -817,13 +817,13 @@ def t_lead_menu(browser, port):
     click(st, (g.cx + 14, g.y(6)))
     st.page.get_by_role("menuitem", name="Focus this lead").click()
     settle(st, 150)
-    disp = json.loads(st.page.evaluate("localStorage.getItem('inkling.signal.display.v1')"))
+    disp = json.loads(st.page.evaluate("localStorage.getItem('studio.signal.display.v1')"))
     assert disp["layout"] == "single" and disp["focus"] == "V1", disp
     st.shot("signal-focus-v1", OUT)
     g = Geo(st, rows=1)
     click(st, (g.cx + 14, g.y(0)))
     st.page.get_by_role("menuitem", name="Show all leads").click()
-    disp = json.loads(st.page.evaluate("localStorage.getItem('inkling.signal.display.v1')"))
+    disp = json.loads(st.page.evaluate("localStorage.getItem('studio.signal.display.v1')"))
     assert disp["layout"] == "12x1", disp
     assert not st.errors, st.errors
 
@@ -920,7 +920,7 @@ def t_exporters(browser, port):
         const ctx = { project, items: items.projectItems(project), annotations: st.useStudio.getState().annotations };
         const out = {};
         for (const id of ['wfdb-atr', 'ecg-json', 'ecg-intervals-csv']) {
-          const e = await registry.loadImpl('inkling.timeseries.exporters.' + id);
+          const e = await registry.loadImpl('studio.timeseries.exporters.' + id);
           const u = new Uint8Array(await (await e.build(ctx)).arrayBuffer()); let s = '';
           for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000));
           out[id] = { name: e.filename(project), data: btoa(s) };
@@ -993,7 +993,7 @@ def t_light_theme_and_inspect(browser, port):
     sid = st.store("s => s.selectedId")
     rows = st.page.evaluate(
         f"""async () => {{ const {{ registry }} = await import('/src/extension-host/registry.ts'); const st = await import('/src/studio/stores/studio.ts');
-        const {{ runtimeFor }} = await import('{RUNTIME}'); const inspect = await registry.loadImpl('inkling.timeseries.inspectors.main');
+        const {{ runtimeFor }} = await import('{RUNTIME}'); const inspect = await registry.loadImpl('studio.timeseries.inspectors.main');
         const s = st.useStudio.getState(); const a = s.annotations.find(x => x.id === '{sid}');
         return inspect(a, {{ env: s.env, project: null, item: {{ id: '{ITEM}' }}, runtime: runtimeFor('{ITEM}') }}); }}"""
     )

@@ -8,14 +8,14 @@ in Files, and deleting the File shows "Deleted file" in the chat.
 Needs the API (with its worker), and starts the agent service itself (scripted model,
 tests/e2e/fixtures/agent-script.json) on <envPrefix>E2E_AGENT_PORT (default 8306):
 
-    INKLING_API_DATA_DIR=/tmp/drops-e2e uv run --package studio-api uvicorn studio_api.app:app --port 8216 &
+    STUDIO_API_DATA_DIR=/tmp/drops-e2e uv run --package studio-api uvicorn studio_api.app:app --port 8216 &
     uv run --package studio-worker studio-worker --kernel http://127.0.0.1:8216 &
-    cd apps/web && INKLING_E2E=1 INKLING_API_URL=http://127.0.0.1:8216 INKLING_AGENT_URL=http://127.0.0.1:8306 \\
-      INKLING_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5206 --strictPort &
-    INKLING_E2E_API_URL=http://127.0.0.1:8216 INKLING_E2E_API_DATA_DIR=/tmp/drops-e2e \\
+    cd apps/web && STUDIO_E2E=1 STUDIO_API_URL=http://127.0.0.1:8216 STUDIO_AGENT_URL=http://127.0.0.1:8306 \\
+      STUDIO_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5206 --strictPort &
+    STUDIO_E2E_API_URL=http://127.0.0.1:8216 STUDIO_E2E_API_DATA_DIR=/tmp/drops-e2e \\
       python3 e2e/chat_drop_test.py --port 5206
 
-`INKLING_E2E_API_DATA_DIR` (the API's SQLite data dir) lets the test make a viewer member; without
+`STUDIO_E2E_API_DATA_DIR` (the API's SQLite data dir) lets the test make a viewer member; without
 it the viewer's 403 is covered by apps/api/tests/test_drops.py and reported as skipped here. The
 Home part drops 12 PNGs on Home's composer (`home-composer`) with no non-sample project yet.
 """

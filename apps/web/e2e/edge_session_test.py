@@ -1,6 +1,6 @@
 """todo18 D7 edges: leaving stops uploads you own, and says so.
 
-    INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/edge_session_test.py --port 5199
 
 Drives the real tray and store in the page (no kernel needed): requests to the kernel are

@@ -13,7 +13,7 @@ import { assetUrl, brushSizeOf, toolOption, useCommands, useHost } from "@studio
 const SCOPES = [ns("image2d"), ns("cornerstone"), ns("core")];
 
 /**
- * Thin React host for `inkling.image2d.renderers.cornerstone-stack`: mounts the engine,
+ * Thin React host for `studio.image2d.renderers.cornerstone-stack`: mounts the engine,
  * forwards the studio tool / brush / label to it, binds its commands and publishes the
  * view state + actions the viewport-bar panel (`panels/viewControls.tsx`) renders.
  */

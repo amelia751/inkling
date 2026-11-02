@@ -3,23 +3,23 @@
   "title": "Drone video tracks",
   "description": "Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export.",
   "spec": {
-    "$schema": "inkling://schema/environment/v1",
+    "$schema": "studio://schema/environment/v1",
     "id": "drone-video-tracks",
     "title": "Drone video tracks",
     "data": {
-      "kind": "inkling.video.dataKinds.video"
+      "kind": "studio.video.dataKinds.video"
     },
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.video.renderers.frame-canvas"
+        "renderer": "studio.video.renderers.frame-canvas"
       }
     ],
     "tools": [
-      "inkling.core.tools.select",
-      "inkling.core.tools.pan",
-      "inkling.overlay2d.tools.box",
-      "inkling.timeline.tools.event"
+      "studio.core.tools.select",
+      "studio.core.tools.pan",
+      "studio.overlay2d.tools.box",
+      "studio.timeline.tools.event"
     ],
     "labels": [
       {
@@ -47,20 +47,20 @@
       }
     ],
     "exporters": [
-      "inkling.video.exporters.mot",
-      "inkling.video.exporters.cvat-video"
+      "studio.video.exporters.mot",
+      "studio.video.exporters.cvat-video"
     ],
     "panels": {
       "left": [
-        "inkling.core.panels.files",
-        "inkling.core.panels.labels"
+        "studio.core.panels.files",
+        "studio.core.panels.labels"
       ],
       "right": [
-        "inkling.core.panels.ai"
+        "studio.core.panels.ai"
       ]
     },
     "reviewRules": [
-      "inkling.core.reviewRules.unlabeled-items"
+      "studio.core.reviewRules.unlabeled-items"
     ],
     "layout": null
   },

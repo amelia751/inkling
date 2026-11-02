@@ -7,7 +7,7 @@
       "properties": {
         "schemaVersion": {
           "type": "string",
-          "const": "inkling.converters/v1"
+          "const": "studio.converters/v1"
         },
         "id": {
           "type": "string",
@@ -224,5 +224,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/converter/v1"
+  "$id": "studio://schema/converter/v1"
 }

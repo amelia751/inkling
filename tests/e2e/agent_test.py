@@ -1,9 +1,9 @@
-"""Inkling AI against the real agent service (apps/agent) with a scripted model (todo1 §8.4).
+"""The assistant against the real agent service (apps/agent) with a scripted model (todo1 §8.4).
 
-The test starts the agent service itself (INKLING_AGENT_MODEL=scripted, INKLING_AGENT_SANDBOX=off, a temp data
+The test starts the agent service itself (STUDIO_AGENT_MODEL=scripted, STUDIO_AGENT_SANDBOX=off, a temp data
 dir) on --agent-port, replaying tests/e2e/fixtures/agent-script.json. Start the dev server pointed at it:
 
-    INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8299 INKLING_AGENT_TOKEN=e2e-agent-token \\
+    STUDIO_E2E=1 STUDIO_AGENT_URL=http://127.0.0.1:8299 STUDIO_AGENT_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5299 --strictPort
     python3 ../../tests/e2e/agent_test.py --port 5299   # from apps/web
 
@@ -15,9 +15,9 @@ routes to read and its 403 is the real one. Start the API and point both the dev
 agent at it (the test passes <envPrefix>API_URL on to the agent it starts):
 
     (cd apps/api && uv run uvicorn studio_api.app:app --port 8216) &
-    INKLING_API_URL=http://127.0.0.1:8216 INKLING_E2E=1 INKLING_AGENT_URL=http://127.0.0.1:8206 \
-      INKLING_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5206 --strictPort
-    INKLING_E2E_AGENT_PORT=8206 INKLING_E2E_API_URL=http://127.0.0.1:8216 \
+    STUDIO_API_URL=http://127.0.0.1:8216 STUDIO_E2E=1 STUDIO_AGENT_URL=http://127.0.0.1:8206 \
+      STUDIO_AGENT_TOKEN=e2e-agent-token pnpm exec vite --port 5206 --strictPort
+    STUDIO_E2E_AGENT_PORT=8206 STUDIO_E2E_API_URL=http://127.0.0.1:8216 \
       python3 ../../tests/e2e/agent_test.py --port 5206   # from apps/web
 
 Without a reachable kernel the project-assistant run is skipped (reported, not failed).
@@ -52,6 +52,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).parent / "fixtures" / "agent-script.json"
 TOKEN = "e2e-agent-token"
 P = NAMING["envPrefix"]
+AI = f"{NAMING['displayName']} AI"
 AGENT_PORT = int(os.environ.get(f"{P}E2E_AGENT_PORT", "8299"))
 KERNEL = os.environ.get(f"{P}E2E_API_URL")
 
@@ -117,16 +118,16 @@ def open_panel(browser, port: int, saved: list[dict]):
     page.route("**/api/environments/**", envs)
     page.reload()
     page.wait_for_selector("[data-testid='wsi-viewer']", timeout=30000)
-    page.get_by_label("Inkling AI panel").click()
+    page.get_by_label(f"{AI} panel").click()
     consent = page.get_by_role("button", name="Turn on for this browser")
-    consent.or_(page.get_by_label("Message Inkling AI")).first.wait_for(timeout=20000)
+    consent.or_(page.get_by_label(f"Message {AI}")).first.wait_for(timeout=20000)
     if consent.count():
         consent.click()
     return st
 
 
 def ask(page, text: str) -> None:
-    box = page.get_by_label("Message Inkling AI")
+    box = page.get_by_label(f"Message {AI}")
     box.fill(text)
     box.press("Enter")
 
@@ -165,8 +166,8 @@ def t_approval_and_reattach(browser, port):
         # Reload mid-run: the panel reattaches to the run and replays the pending approval.
         page.reload()
         page.wait_for_selector("[data-testid='wsi-viewer']", timeout=30000)
-        if not page.get_by_label("Message Inkling AI").count():
-            page.get_by_label("Inkling AI panel").click()
+        if not page.get_by_label(f"Message {AI}").count():
+            page.get_by_label(f"{AI} panel").click()
         card = page.get_by_test_id("agent-approval")
         card.wait_for(timeout=20000)
         check("reattach: pending approval survives a reload", card.get_by_role("button", name="Approve").count() == 1)
@@ -218,7 +219,7 @@ def t_project_assistant(browser, port):
         drawer.wait_for(timeout=10000)
         check("drawer: opens at 340px in the project shell", 330 <= drawer.bounding_box()["width"] <= 350, str(drawer.bounding_box()))
         consent = page.get_by_role("button", name="Turn on for this browser")
-        consent.or_(page.get_by_label("Message Inkling AI")).first.wait_for(timeout=20000)
+        consent.or_(page.get_by_label(f"Message {AI}")).first.wait_for(timeout=20000)
         if consent.count():
             consent.click()
         chip = page.get_by_test_id("agent-context")
@@ -339,7 +340,7 @@ def t_files_reorganize(browser, port):
         page.get_by_test_id("sources-page").wait_for(timeout=30000)
         page.get_by_label(f"{NAMING['displayName']} AI panel").click()
         consent = page.get_by_role("button", name="Turn on for this browser")
-        consent.or_(page.get_by_label("Message Inkling AI")).first.wait_for(timeout=20000)
+        consent.or_(page.get_by_label(f"Message {AI}")).first.wait_for(timeout=20000)
         if consent.count():
             consent.click()
         chips = [t for t in ("Group these scans by patient", "Rename files to remove dates", "Put all spreadsheets in one folder") if page.get_by_role("button", name=t).count() == 1]
@@ -455,7 +456,7 @@ def t_drop_screening(browser, port):
 
 def main() -> int:
     args = parse_args()
-    data_dir = tempfile.mkdtemp(prefix="inkling-agent-e2e-")
+    data_dir = tempfile.mkdtemp(prefix="studio-agent-e2e-")
     DATA_DIR.append(data_dir)
     if KERNEL:
         os.environ[f"{P}API_URL"] = KERNEL  # the agent the test starts calls this API

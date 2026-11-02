@@ -13,7 +13,12 @@ export interface paths {
         };
         /** Get Annotations */
         get: operations["get_annotations_api_annotations__project_id__get"];
-        /** Put Annotations */
+        /**
+         * Put Annotations
+         * @description The Studio's autosave, through admit() (todo17): labels checked against the project's rules
+         *     and the Studio's labels (synonyms rewritten), every violation at once as 422 problem JSON,
+         *     warnings as `findings`; `dryRun=true` saves nothing; `Idempotency-Key` replays a retry.
+         */
         put: operations["put_annotations_api_annotations__project_id__put"];
         post?: never;
         delete?: never;
@@ -119,8 +124,8 @@ export interface paths {
         /**
          * Validate Environment
          * @description todo11 D2: the same checks a write gets (shape and references against the generated
-         *     schema and the workspace's installed plugins), without saving. Body: the spec. Resolve-level
-         *     checks (extends merge, overrides) stay in the Studio's resolver.
+         *     schema and the workspace's installed plugins), without saving. Body: the spec. todo17 D2: the
+         *     resolver's deterministic checks run too; errors reject, warnings come back as `warnings`.
          */
         post: operations["validate_environment_api_environments_validate_post"];
         delete?: never;
@@ -142,7 +147,10 @@ export interface paths {
          * Save Environment
          * @description todo11 D2: the API is the authority on every write, whoever the caller is: who may write
          *     this task, a required `revision` (409 when stale), the agent's mutation scope (403), and
-         *     shape and references (422) — `kernel/environment_policy.py`.
+         *     shape and references (422) — `kernel/environment_policy.py`. todo17: through admit():
+         *     an environment that doesn't resolve is 422 problem JSON (`env.unresolved`, with the legacy
+         *     `errors[]`), label drift from the project's rules comes back as `findings`; `dryRun=true`
+         *     runs everything without saving; `Idempotency-Key` replays a retry.
          */
         put: operations["put_environment"];
         post?: never;
@@ -153,7 +161,10 @@ export interface paths {
          * Save Environment
          * @description todo11 D2: the API is the authority on every write, whoever the caller is: who may write
          *     this task, a required `revision` (409 when stale), the agent's mutation scope (403), and
-         *     shape and references (422) — `kernel/environment_policy.py`.
+         *     shape and references (422) — `kernel/environment_policy.py`. todo17: through admit():
+         *     an environment that doesn't resolve is 422 problem JSON (`env.unresolved`, with the legacy
+         *     `errors[]`), label drift from the project's rules comes back as `findings`; `dryRun=true`
+         *     runs everything without saving; `Idempotency-Key` replays a retry.
          */
         patch: operations["patch_environment"];
         trace?: never;
@@ -321,6 +332,57 @@ export interface paths {
         put?: never;
         /** Review */
         post: operations["review_api_v1_annotations__annotation_id__review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Approval */
+        get: operations["get_approval_api_v1_approvals__approval_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve */
+        post: operations["approve_api_v1_approvals__approval_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{approval_id}/deny": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deny */
+        post: operations["deny_api_v1_approvals__approval_id__deny_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1030,6 +1092,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dev/oauth/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mint Dev Token */
+        post: operations["mint_dev_token_api_v1_dev_oauth_tokens_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/drops/{drop_id}": {
         parameters: {
             query?: never;
@@ -1321,6 +1400,40 @@ export interface paths {
         patch: operations["patch_me_api_v1_me_patch"];
         trace?: never;
     };
+    "/api/v1/me/connected-agents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Connected */
+        get: operations["list_connected_api_v1_me_connected_agents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/connected-agents/{conn_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke Connected */
+        delete: operations["revoke_connected_api_v1_me_connected_agents__conn_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/email-change": {
         parameters: {
             query?: never;
@@ -1556,6 +1669,40 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/org/deleted-projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Deleted Projects */
+        get: operations["deleted_projects_api_v1_org_deleted_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/org/deleted-projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroy Project */
+        delete: operations["destroy_project_api_v1_org_deleted_projects__project_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1981,7 +2128,11 @@ export interface paths {
         /** List Projects */
         get: operations["list_projects_api_v1_projects_get"];
         put?: never;
-        /** Create Project */
+        /**
+         * Create Project
+         * @description `{title, description?, visibility?, preset?}`; with a preset the project starts with that
+         *     preset's rules (todo17 D3, revision 1).
+         */
         post: operations["create_project_api_v1_projects_post"];
         delete?: never;
         options?: never;
@@ -2021,7 +2172,8 @@ export interface paths {
         get: operations["get_project_api_v1_projects__project_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete Project */
+        delete: operations["delete_project_api_v1_projects__project_id__delete"];
         options?: never;
         head?: never;
         /** Patch Project */
@@ -2056,6 +2208,144 @@ export interface paths {
         put?: never;
         /** Create Boot */
         post: operations["create_boot_api_v1_projects__project_id__boots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Changes */
+        get: operations["list_changes_api_v1_projects__project_id__changes_get"];
+        put?: never;
+        /** Open Change */
+        post: operations["open_change_api_v1_projects__project_id__changes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes/{cid}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Change */
+        get: operations["get_change_api_v1_projects__project_id__changes__cid__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes/{cid}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Close Change */
+        post: operations["close_change_api_v1_projects__project_id__changes__cid__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes/{cid}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Comment Change */
+        post: operations["comment_change_api_v1_projects__project_id__changes__cid__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes/{cid}/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge Change */
+        post: operations["merge_change_api_v1_projects__project_id__changes__cid__merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/changes/{cid}/operations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Operations */
+        post: operations["add_operations_api_v1_projects__project_id__changes__cid__operations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/collections/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Collection */
+        delete: operations["delete_collection_api_v1_projects__project_id__collections__item_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Collection */
+        patch: operations["patch_collection_api_v1_projects__project_id__collections__item_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Project Context */
+        get: operations["project_context_api_v1_projects__project_id__context_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2126,6 +2416,10 @@ export interface paths {
         /**
          * Create Dataset
          * @description The simple form (pick folders, pick a preset); the guided path is confirming a proposal.
+         *
+         *     todo17: name and metadata (`metadata: {modality, license, source}`, `description`) run the
+         *     datasets rules (dataset.metadata-missing, dataset.name-taken, dataset.mixed-modality); an
+         *     enforced error is a 422 listing every violation, the rest come back as `findings`.
          */
         post: operations["create_dataset_api_v1_projects__project_id__datasets_post"];
         delete?: never;
@@ -2258,6 +2552,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/datasets/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Dataset */
+        delete: operations["delete_dataset_api_v1_projects__project_id__datasets__item_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Patch Dataset
+         * @description `{ name?, description?, metadata? }`; todo17: the result runs the datasets rules (the
+         *     dataset's own name doesn't count as taken). Errors are a 422 listing every violation.
+         */
+        patch: operations["patch_dataset_api_v1_projects__project_id__datasets__item_id__patch"];
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/drops": {
         parameters: {
             query?: never;
@@ -2309,6 +2625,40 @@ export interface paths {
         get: operations["explore_summary_api_v1_projects__project_id__explore_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Findings */
+        get: operations["list_findings_api_v1_projects__project_id__findings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/findings/{finding_id}/fix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fix Finding */
+        post: operations["fix_finding_api_v1_projects__project_id__findings__finding_id__fix_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2375,7 +2725,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ops */
+        /**
+         * Ops
+         * @description todo17: every path the batch leaves behind runs the layout rules (layout.*, name.*):
+         *     an enforced error rejects the whole batch with every violation (422 problem JSON); warnings
+         *     come back as `findings`. `?dryRun=true` applies it, reports, and saves nothing.
+         */
         post: operations["ops_api_v1_projects__project_id__fs_ops_post"];
         delete?: never;
         options?: never;
@@ -2409,7 +2764,11 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Undo */
+        /**
+         * Undo
+         * @description Undo restores names that were already admitted, so no layout check; retries are safe
+         *     with an Idempotency-Key.
+         */
         post: operations["undo_api_v1_projects__project_id__fs_undo_post"];
         delete?: never;
         options?: never;
@@ -2430,9 +2789,28 @@ export interface paths {
          * Zip Download
          * @description A folder or a selection as one ZIP, streamed (stored entries, constant memory). Entry
          *     names are current paths, never the names files arrived with. Files held for privacy
-         *     review are left out and listed in `_held_files.txt`.
+         *     review are left out and listed in `_held_files.txt`. Imaging checks (todo17 D11) are queued
+         *     for what is exported; open error-severity imaging findings answer 422 problem JSON with
+         *     `findings` unless a person sends `force: true`; others are counted in `X-Imaging-Findings`.
          */
         post: operations["zip_download_api_v1_projects__project_id__fs_zip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/gardener": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Gardener */
+        post: operations["gardener_api_v1_projects__project_id__gardener_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2449,8 +2827,99 @@ export interface paths {
         /** List Imports */
         get: operations["list_imports_api_v1_projects__project_id__imports_get"];
         put?: never;
-        /** Start Import */
+        /**
+         * Start Import
+         * @description todo17: the paths the files land at run the layout rules. Forbidden characters are
+         *     replaced (an upload is never refused for them); rules in evaluate mode only report
+         *     (`findings`); a promoted error rejects the import with every violation. `?dryRun=true`
+         *     plans the import and saves nothing.
+         */
         post: operations["start_import_api_v1_projects__project_id__imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/imports/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy Into Project */
+        post: operations["copy_into_project_api_v1_projects__project_id__imports_copy_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/imports/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import From Url */
+        post: operations["import_from_url_api_v1_projects__project_id__imports_url_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/labels/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Merge Labels */
+        post: operations["merge_labels_api_v1_projects__project_id__labels_merge_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/labels/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rename Label */
+        post: operations["rename_label_api_v1_projects__project_id__labels_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/labels/undo/{history_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Label Op */
+        post: operations["undo_label_op_api_v1_projects__project_id__labels_undo__history_id__post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2562,6 +3031,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Project */
+        post: operations["restore_project_api_v1_projects__project_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/resume": {
         parameters: {
             query?: never;
@@ -2595,6 +3081,76 @@ export interface paths {
         get: operations["project_review_api_v1_projects__project_id__review_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Rules */
+        get: operations["get_rules_api_v1_projects__project_id__rules_get"];
+        /** Put Rules */
+        put: operations["put_rules_api_v1_projects__project_id__rules_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Patch Rules */
+        patch: operations["patch_rules_api_v1_projects__project_id__rules_patch"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/rules/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Rules History */
+        get: operations["rules_history_api_v1_projects__project_id__rules_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/rules/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Promote Rule */
+        post: operations["promote_rule_api_v1_projects__project_id__rules_promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan */
+        post: operations["scan_api_v1_projects__project_id__scan_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2652,6 +3208,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/studios/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Studio */
+        delete: operations["delete_studio_api_v1_projects__project_id__studios__item_id__delete"];
+        options?: never;
+        head?: never;
+        /** Patch Studio */
+        patch: operations["patch_studio_api_v1_projects__project_id__studios__item_id__patch"];
+        trace?: never;
+    };
     "/api/v1/projects/{project_id}/trash": {
         parameters: {
             query?: never;
@@ -2659,8 +3233,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Trash */
-        get: operations["trash_api_v1_projects__project_id__trash_get"];
+        /** List Trash */
+        get: operations["list_trash_api_v1_projects__project_id__trash_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2697,6 +3271,96 @@ export interface paths {
         get: operations["empty_preview_api_v1_projects__project_id__trash_empty_preview_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/trash/impact": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** File Impact */
+        get: operations["file_impact_api_v1_projects__project_id__trash_impact_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/trash/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Destroy */
+        delete: operations["destroy_api_v1_projects__project_id__trash__batch_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/trash/{batch_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore
+         * @description `{ batchIds? }` restores those batches too, in this one request and transaction
+         *     (todo18 B: a dataset's "Restore files" with several batches); `{ resolutions? }` answers name
+         *     conflicts (keep both / replace / skip).
+         */
+        post: operations["restore_api_v1_projects__project_id__trash__batch_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/turns/{turn_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Turn */
+        get: operations["get_turn_api_v1_projects__project_id__turns__turn_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/turns/{turn_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo Turn */
+        post: operations["undo_turn_api_v1_projects__project_id__turns__turn_id__undo_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2934,6 +3598,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/service/projects/{project_id}/findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Findings */
+        post: operations["record_findings_api_v1_service_projects__project_id__findings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/sessions": {
         parameters: {
             query?: never;
@@ -3158,7 +3839,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Task */
+        /**
+         * Get Task
+         * @description `includeTrashed=true` (the Studio page): a Studio in Trash with its dataset still answers, with
+         *     `trashed: true` and the batch that restores it, so the page can offer Restore (todo16).
+         */
         get: operations["get_task_api_v1_tasks__task_id__get"];
         put?: never;
         post?: never;
@@ -3421,6 +4106,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/worker/derivatives/claim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim Derivatives */
+        post: operations["claim_derivatives_api_v1_worker_derivatives_claim_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/derivatives/{did}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derivative Complete */
+        post: operations["derivative_complete_api_v1_worker_derivatives__did__complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/derivatives/{did}/fail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derivative Fail */
+        post: operations["derivative_fail_api_v1_worker_derivatives__did__fail_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/derivatives/{did}/files/{rel}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Derivative File */
+        put: operations["derivative_file_api_v1_worker_derivatives__did__files__rel__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/derivatives/{did}/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Derivative Progress */
+        post: operations["derivative_progress_api_v1_worker_derivatives__did__progress_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/worker/events/deliver": {
         parameters: {
             query?: never;
@@ -3432,6 +4202,23 @@ export interface paths {
         put?: never;
         /** Deliver */
         post: operations["deliver_api_v1_worker_events_deliver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/imports/jobs/{job_id}/run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Run Import Job */
+        post: operations["run_import_job_api_v1_worker_imports_jobs__job_id__run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3648,6 +4435,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/worker/scheduled/blobs.retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Blobs Retry Job
+         * @description todo18 D8: once a day, retry the after-commit blob and repo deletes that failed
+         *     (`blob_delete_retries`). `force` runs it again the same day.
+         */
+        post: operations["blobs_retry_job_api_v1_worker_scheduled_blobs_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/worker/scheduled/files.empty_trash": {
         parameters: {
             query?: never;
@@ -3681,6 +4489,44 @@ export interface paths {
          *     it always takes what is still unscreened. Concurrent calls only share the work.
          */
         post: operations["screen_names_job_api_v1_worker_scheduled_files_screen_names_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/scheduled/rules.scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rules Scan Job
+         * @description todo17 D10: drain the queued per-project scans (every rules change enqueues one), and run
+         *     the daily scan of every project once per UTC day from API_RULES_SCAN_HOUR on.
+         */
+        post: operations["rules_scan_job_api_v1_worker_scheduled_rules_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/worker/scheduled/trash.purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Empty Trash Job */
+        post: operations["empty_trash_job_api_v1_worker_scheduled_trash_purge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3840,7 +4686,12 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Put Environment */
+        /**
+         * Put Environment
+         * @description Replace the task's environment. Runs the same policy as every other environment write
+         *     (todo17 M0): shape and references → 422; an API key needs `environments:write` (or `admin`)
+         *     and, without `admin`, may only change what the agent path allow-list permits → 403.
+         */
         put: operations["put_environment_api_v1_workspaces__workspace_id__environment_put"];
         post?: never;
         delete?: never;
@@ -4142,8 +4993,12 @@ export interface operations {
     };
     put_annotations_api_annotations__project_id__put: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -4375,8 +5230,12 @@ export interface operations {
     };
     put_environment: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -4406,8 +5265,12 @@ export interface operations {
     };
     patch_environment: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -4718,8 +5581,12 @@ export interface operations {
     };
     write_annotations_api_v1_annotations_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -4767,6 +5634,99 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_approval_api_v1_approvals__approval_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_api_v1_approvals__approval_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deny_api_v1_approvals__approval_id__deny_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                approval_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -6242,6 +7202,41 @@ export interface operations {
             };
         };
     };
+    mint_dev_token_api_v1_dev_oauth_tokens_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_drop_api_v1_drops__drop_id__get: {
         parameters: {
             query?: {
@@ -6827,6 +7822,55 @@ export interface operations {
             };
         };
     };
+    list_connected_api_v1_me_connected_agents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    revoke_connected_api_v1_me_connected_agents__conn_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     send_email_change_api_v1_me_email_change_post: {
         parameters: {
             query?: never;
@@ -7255,6 +8299,57 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleted_projects_api_v1_org_deleted_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    destroy_project_api_v1_org_deleted_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -8110,8 +9205,12 @@ export interface operations {
     };
     create_project_api_v1_projects_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -8181,6 +9280,39 @@ export interface operations {
     get_project_api_v1_projects__project_id__get: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_api_v1_projects__project_id__delete: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -8299,6 +9431,351 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_changes_api_v1_projects__project_id__changes_get: {
+        parameters: {
+            query?: {
+                state?: string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_change_api_v1_projects__project_id__changes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_change_api_v1_projects__project_id__changes__cid__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_change_api_v1_projects__project_id__changes__cid__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    comment_change_api_v1_projects__project_id__changes__cid__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_change_api_v1_projects__project_id__changes__cid__merge_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_operations_api_v1_projects__project_id__changes__cid__operations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                cid: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_collection_api_v1_projects__project_id__collections__item_id__delete: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_collection_api_v1_projects__project_id__collections__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    project_context_api_v1_projects__project_id__context_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8446,8 +9923,12 @@ export interface operations {
     };
     create_dataset_api_v1_projects__project_id__datasets_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -8749,6 +10230,82 @@ export interface operations {
             };
         };
     };
+    delete_dataset_api_v1_projects__project_id__datasets__item_id__delete: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_dataset_api_v1_projects__project_id__datasets__item_id__patch: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_drops_api_v1_projects__project_id__drops_get: {
         parameters: {
             query?: {
@@ -8882,6 +10439,72 @@ export interface operations {
             };
         };
     };
+    list_findings_api_v1_projects__project_id__findings_get: {
+        parameters: {
+            query?: {
+                state?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    fix_finding_api_v1_projects__project_id__findings__finding_id__fix_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                finding_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     drive_api_v1_projects__project_id__fs_get: {
         parameters: {
             query?: never;
@@ -8983,8 +10606,12 @@ export interface operations {
     };
     ops_api_v1_projects__project_id__fs_ops_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -9020,8 +10647,12 @@ export interface operations {
     };
     redo_api_v1_projects__project_id__fs_redo_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -9057,8 +10688,12 @@ export interface operations {
     };
     undo_api_v1_projects__project_id__fs_undo_post: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -9129,6 +10764,37 @@ export interface operations {
             };
         };
     };
+    gardener_api_v1_projects__project_id__gardener_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_imports_api_v1_projects__project_id__imports_get: {
         parameters: {
             query?: never;
@@ -9162,6 +10828,47 @@ export interface operations {
     };
     start_import_api_v1_projects__project_id__imports_post: {
         parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    copy_into_project_api_v1_projects__project_id__imports_copy_post: {
+        parameters: {
             query?: never;
             header?: never;
             path: {
@@ -9179,6 +10886,161 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_from_url_api_v1_projects__project_id__imports_url_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    merge_labels_api_v1_projects__project_id__labels_merge_post: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_label_api_v1_projects__project_id__labels_rename_post: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_label_op_api_v1_projects__project_id__labels_undo__history_id__post: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+                history_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9499,6 +11361,41 @@ export interface operations {
             };
         };
     };
+    restore_project_api_v1_projects__project_id__restore_post: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_resume_api_v1_projects__project_id__resume_get: {
         parameters: {
             query?: never;
@@ -9574,6 +11471,220 @@ export interface operations {
                 severity?: string | null;
                 dataset?: string | null;
             };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_rules_api_v1_projects__project_id__rules_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_rules_api_v1_projects__project_id__rules_put: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_rules_api_v1_projects__project_id__rules_patch: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_history_api_v1_projects__project_id__rules_history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    promote_rule_api_v1_projects__project_id__rules_promote_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_api_v1_projects__project_id__scan_post: {
+        parameters: {
+            query?: never;
             header?: never;
             path: {
                 project_id: string;
@@ -9699,9 +11810,82 @@ export interface operations {
             };
         };
     };
-    trash_api_v1_projects__project_id__trash_get: {
+    delete_studio_api_v1_projects__project_id__studios__item_id__delete: {
         parameters: {
             query?: {
+                dryRun?: boolean;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    patch_studio_api_v1_projects__project_id__studios__item_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_trash_api_v1_projects__project_id__trash_get: {
+        parameters: {
+            query?: {
+                kind?: string;
                 cursor?: string | null;
             };
             header?: never;
@@ -9734,7 +11918,9 @@ export interface operations {
     };
     empty_api_v1_projects__project_id__trash_empty_post: {
         parameters: {
-            query?: never;
+            query?: {
+                kind?: string;
+            };
             header?: never;
             path: {
                 project_id: string;
@@ -9765,10 +11951,183 @@ export interface operations {
     };
     empty_preview_api_v1_projects__project_id__trash_empty_preview_get: {
         parameters: {
+            query?: {
+                kind?: string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    file_impact_api_v1_projects__project_id__trash_impact_get: {
+        parameters: {
+            query?: {
+                nodeIds?: string;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    destroy_api_v1_projects__project_id__trash__batch_id__delete: {
+        parameters: {
             query?: never;
             header?: never;
             path: {
                 project_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_api_v1_projects__project_id__trash__batch_id__restore_post: {
+        parameters: {
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                project_id: string;
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_turn_api_v1_projects__project_id__turns__turn_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                turn_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_turn_api_v1_projects__project_id__turns__turn_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                turn_id: string;
             };
             cookie?: never;
         };
@@ -10301,6 +12660,45 @@ export interface operations {
             };
         };
     };
+    record_findings_api_v1_service_projects__project_id__findings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     new_session_api_v1_sessions_post: {
         parameters: {
             query?: never;
@@ -10759,7 +13157,9 @@ export interface operations {
     };
     get_task_api_v1_tasks__task_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                includeTrashed?: boolean;
+            };
             header?: never;
             path: {
                 task_id: string;
@@ -11264,6 +13664,194 @@ export interface operations {
             };
         };
     };
+    claim_derivatives_api_v1_worker_derivatives_claim_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    derivative_complete_api_v1_worker_derivatives__did__complete_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                did: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    derivative_fail_api_v1_worker_derivatives__did__fail_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                did: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    derivative_file_api_v1_worker_derivatives__did__files__rel__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                did: string;
+                rel: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    derivative_progress_api_v1_worker_derivatives__did__progress_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                did: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     deliver_api_v1_worker_events_deliver_post: {
         parameters: {
             query?: never;
@@ -11274,6 +13862,45 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_import_job_api_v1_worker_imports_jobs__job_id__run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11733,6 +14360,43 @@ export interface operations {
             };
         };
     };
+    blobs_retry_job_api_v1_worker_scheduled_blobs_retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     empty_trash_job_api_v1_worker_scheduled_files_empty_trash_post: {
         parameters: {
             query?: never;
@@ -11771,6 +14435,80 @@ export interface operations {
         };
     };
     screen_names_job_api_v1_worker_scheduled_files_screen_names_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rules_scan_job_api_v1_worker_scheduled_rules_scan_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    empty_trash_job_api_v1_worker_scheduled_trash_purge_post: {
         parameters: {
             query?: never;
             header?: {
@@ -12098,8 +14836,12 @@ export interface operations {
     };
     put_environment_api_v1_workspaces__workspace_id__environment_put: {
         parameters: {
-            query?: never;
-            header?: never;
+            query?: {
+                dryRun?: boolean;
+            };
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 workspace_id: string;
             };

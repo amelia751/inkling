@@ -20,5 +20,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/cancel-run.v1"
+  "$id": "studio://schema/pipeline/cancel-run.v1"
 }

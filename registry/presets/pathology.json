@@ -3,53 +3,53 @@
   "title": "Whole-slide",
   "description": "Whole-slide images: vector regions, region brush and wand, cell counting, \u00b5m measurements; QuPath GeoJSON, ASAP XML and counts export.",
   "spec": {
-    "$schema": "inkling://schema/environment/v1",
+    "$schema": "studio://schema/environment/v1",
     "id": "pathology",
     "title": "Whole-slide",
     "data": {
-      "kind": "inkling.wsi.dataKinds.raster-pyramid"
+      "kind": "studio.wsi.dataKinds.raster-pyramid"
     },
     "viewports": [
       {
         "name": "main",
-        "renderer": "inkling.wsi.renderers.osd"
+        "renderer": "studio.wsi.renderers.osd"
       }
     ],
     "tools": [
-      "inkling.core.tools.select",
-      "inkling.core.tools.pan",
-      "inkling.overlay2d.tools.box",
-      "inkling.overlay2d.tools.ellipse",
-      "inkling.overlay2d.tools.polygon",
-      "inkling.overlay2d.tools.freehand",
-      "inkling.overlay2d.tools.polyline",
-      "inkling.wsi.tools.brush",
-      "inkling.wsi.tools.eraser",
-      "inkling.wsi.tools.wand",
-      "inkling.wsi.tools.mark",
-      "inkling.wsi.tools.length"
+      "studio.core.tools.select",
+      "studio.core.tools.pan",
+      "studio.overlay2d.tools.box",
+      "studio.overlay2d.tools.ellipse",
+      "studio.overlay2d.tools.polygon",
+      "studio.overlay2d.tools.freehand",
+      "studio.overlay2d.tools.polyline",
+      "studio.wsi.tools.brush",
+      "studio.wsi.tools.eraser",
+      "studio.wsi.tools.wand",
+      "studio.wsi.tools.mark",
+      "studio.wsi.tools.length"
     ],
     "exporters": [
-      "inkling.wsi.exporters.qupath-geojson",
-      "inkling.wsi.exporters.asap-xml",
-      "inkling.wsi.exporters.point-counts-csv"
+      "studio.wsi.exporters.qupath-geojson",
+      "studio.wsi.exporters.asap-xml",
+      "studio.wsi.exporters.point-counts-csv"
     ],
     "panels": {
       "left": [
-        "inkling.core.panels.files",
-        "inkling.core.panels.labels"
+        "studio.core.panels.files",
+        "studio.core.panels.labels"
       ],
       "right": [
-        "inkling.core.panels.ai",
-        "inkling.wsi.panels.counts"
+        "studio.core.panels.ai",
+        "studio.wsi.panels.counts"
       ],
       "viewport-bar": [
-        "inkling.wsi.panels.adjust"
+        "studio.wsi.panels.adjust"
       ]
     },
     "reviewRules": [
-      "inkling.core.reviewRules.source-label-disagreement",
-      "inkling.core.reviewRules.unlabeled-items"
+      "studio.core.reviewRules.source-label-disagreement",
+      "studio.core.reviewRules.unlabeled-items"
     ],
     "layout": null
   },

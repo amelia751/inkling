@@ -10,7 +10,7 @@ import type { PanelProps } from "@studio/plugin-ui-sdk/module";
 import { useStudio } from "@/studio/stores/studio";
 import { ProvenanceBadge } from "./provenance";
 
-/** `inkling.core.panels.review`: every annotation with provenance, and the items with none yet. */
+/** `studio.core.panels.review`: every annotation with provenance, and the items with none yet. */
 export function ReviewPanel({ env, items }: PanelProps) {
   const [filter, setFilter] = useState<"all" | "unlabeled">("all");
   const annotations = useStudio((s) => s.annotations);

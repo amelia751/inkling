@@ -254,5 +254,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/verify-report.v1"
+  "$id": "studio://schema/boundary/verify-report.v1"
 }

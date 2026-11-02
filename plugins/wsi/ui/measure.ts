@@ -56,7 +56,7 @@ export function countPoints(annotations: Annotation[], itemId: string, region: R
   return counts;
 }
 
-/** Rows for the sidebar selection inspector (`inkling.wsi.inspectors.main`); `mpp` comes from the runtime. */
+/** Rows for the sidebar selection inspector (`studio.wsi.inspectors.main`); `mpp` comes from the runtime. */
 export function inspectRows(a: Annotation, mpp: number | null, all: Annotation[]): [string, string][] {
   const g = a.geometry;
   const rows: [string, string][] = [["Class", a.label]];

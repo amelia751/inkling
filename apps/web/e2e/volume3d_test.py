@@ -1,7 +1,7 @@
 """End-to-end tests for the Cornerstone 3D viewer (BraTS NIfTI subjects + a synthetic DICOM CT series).
 
     pnpm exec vite --port 5181 --strictPort          # in apps/web
-    INKLING_DICOM_DIR=… python3 e2e/volume3d_test.py --port 5181
+    STUDIO_DICOM_DIR=… python3 e2e/volume3d_test.py --port 5181
 
 Real mouse / keyboard input throughout; saves are intercepted by harness.open_studio.
 """
@@ -115,7 +115,7 @@ def main() -> int:
     args = parse_args()
     out = Path(args.out) / "volume3d"
     out.mkdir(parents=True, exist_ok=True)
-    dicom_dir = Path(os.environ.get("INKLING_DICOM_DIR", str(Path(args.out) / "dicom")))
+    dicom_dir = Path(os.environ.get("STUDIO_DICOM_DIR", str(Path(args.out) / "dicom")))
     R = Results(out)
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=not args.headed, args=["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"])
@@ -479,7 +479,7 @@ def main() -> int:
         def t_nifti(st):
             button(st.page, "Copy to my mask").click()
             wait_for(lambda: len(masks(st, SUBJECT)) == 3, "masks")
-            raw = blob_from_exporter(st, "inkling.volume.exporters.nifti-labelmap")
+            raw = blob_from_exporter(st, "studio.volume.exporters.nifti-labelmap")
             (out / "labels.nii.gz").write_bytes(raw)
             nii = gzip.decompress(raw)
             hdr = struct.unpack_from("<i8h", nii, 0)[0], struct.unpack_from("<8h", nii, 40), struct.unpack_from("<h", nii, 70)[0], struct.unpack_from("<f", nii, 108)[0]
@@ -487,7 +487,7 @@ def main() -> int:
             body = nii[352:]
             counts = {v: body.count(bytes([v])) for v in (1, 2, 4)}
             check(counts == {1: 20808, 2: 46447, 4: 32047}, counts)
-            js = json.loads(blob_from_exporter(st, "inkling.volume.exporters.masks-json"))
+            js = json.loads(blob_from_exporter(st, "studio.volume.exporters.masks-json"))
             sub = next(s for s in js["subjects"] if s["subject"] == SUBJECT)
             check({m["label"]: m["voxels"] for m in sub["masks"]} == REF_COUNTS, sub["masks"])
             return f"NIfTI uint8 240×240×155 BraTS values {counts}; masks JSON ok"
@@ -537,7 +537,7 @@ def main() -> int:
             drag(st.page, at(st, "axial", (20, 64, k)), at(st, "axial", (60, 64, k)))
             lg = only_new(st, before, item="CT1")[0]["geometry"]
             close(lg["stats"]["length"], 60, 0.5, "40 px × 1.5 mm")
-            inspect = st.page.evaluate("""async () => { const inspect = await (await import('/src/extension-host/registry.ts')).registry.loadImpl('inkling.volume.inspectors.main');
+            inspect = st.page.evaluate("""async () => { const inspect = await (await import('/src/extension-host/registry.ts')).registry.loadImpl('studio.volume.inspectors.main');
                 const runtime = (await import('""" + RUNTIME + """')).runtimeFor('CT1'); const s = (await import('/src/studio/stores/studio.ts')).useStudio.getState();
                 const a = s.annotations.filter(a => a.itemId === 'CT1' && a.geometry.kind === 'probe')[0]; return inspect(a, { env: s.env, project: {}, item: { assets: [{ path: 'dicom-ct/CT1/IM0001.dcm' }] }, runtime }) }""")
             check(any("HU" in v for _, v in inspect), f"inspect shows HU: {inspect}")
@@ -550,7 +550,7 @@ def main() -> int:
             expected = 4 / 3 * 3.14159 * 12**3 / (1.5 * 1.5 * 2.5)
             close(vox, expected, expected * 0.25, "lesion voxels ≈ sphere volume")
             st.shot("ct-lesion", out)
-            seg = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-seg")
+            seg = blob_from_exporter(st, "studio.dicom-export.exporters.dicom-seg")
             (out / "ct-seg.dcm").write_bytes(seg)
             sv = validate_dicom(out / "ct-seg.dcm", "seg")
             check(sv["sopClassUID"] == "1.2.840.10008.5.1.4.1.1.66.4", sv["sopClassUID"])
@@ -564,7 +564,7 @@ def main() -> int:
                 r2 = 12**2 - f["position"][2] ** 2
                 area = 3.14159 * max(r2, 0) / (1.5 * 1.5)
                 check(f["pixels"] == 0 or abs(f["pixels"] - area) <= max(25, area * 0.35), f"frame z={f['position'][2]}: {f['pixels']} px vs {area:.0f}")
-            sr = blob_from_exporter(st, "inkling.dicom-export.exporters.dicom-sr")
+            sr = blob_from_exporter(st, "studio.dicom-export.exporters.dicom-sr")
             (out / "ct-sr.dcm").write_bytes(sr)
             s = validate_dicom(out / "ct-sr.dcm", "sr")
             lengths = [n for n in s["nums"] if n["name"] == "Length"]

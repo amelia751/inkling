@@ -186,5 +186,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/build.v1"
+  "$id": "studio://schema/boundary/build.v1"
 }

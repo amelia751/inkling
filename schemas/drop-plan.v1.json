@@ -110,5 +110,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/drop-plan/v1"
+  "$id": "studio://schema/drop-plan/v1"
 }

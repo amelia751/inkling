@@ -22,7 +22,7 @@ import { ns } from "@studio/contracts/naming";
 import { isEditable, markFirstFrame, useCommands, useHost, useToolOption, visibleFor } from "@studio/plugin-ui-sdk";
 
 /**
- * `inkling.timeseries.renderers.strip-chart`: the React host. Loads the recording through
+ * `studio.timeseries.renderers.strip-chart`: the React host. Loads the recording through
  * its reader, runs display filters in the DSP worker, keeps the expert's display settings
  * (per `displayKey`), binds the module's commands and hands pointer work and drawing to the
  * engine.

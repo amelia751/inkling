@@ -305,7 +305,7 @@ def display_name(db: Session, principal: str | None) -> str:
 
 def who(actor: str | None, on_behalf_of: str | None = None) -> dict:
     """Who did it, in words: a person, the assistant for a person (SessionDelegation), or
-    Inkling itself (the inspection worker, the sample loader)."""
+    the product itself (the inspection worker, the sample loader)."""
     actor = actor or ""
     kind, _, name = actor.partition(":") if ":" in actor else ("user", "", actor)
     person = (on_behalf_of or "").partition(":")[2] or on_behalf_of or None

@@ -596,7 +596,7 @@ The core of this plan. It looks like Drive, behaves like Finder, and stays as ca
   "Already in this project" and are skipped.
 - [x] Concurrency of 4 files, chunked above 64 MB, exponential backoff, and per-file errors with plain
   reasons ("The connection dropped. Retry", "Too large: limit is 2 GB per file").
-- [x] Limits come from env (`INKLING_API_UPLOAD_MAX_FILE_BYTES`, `…_MAX_SESSION_FILES`), read in
+- [x] Limits come from env (`STUDIO_API_UPLOAD_MAX_FILE_BYTES`, `…_MAX_SESSION_FILES`), read in
   `apps/api/src/studio_api/config.py`.
 
 ### 4.5 Server side of uploads
@@ -839,7 +839,7 @@ attention is the queue's top 5. Tests: `apps/api/tests/test_review_activity.py`,
   behalf of, from `SessionDelegation`) or system.
 - The per-task annotation list lives at `/projects/:p/review/:taskId`.
 - `review_activity_test.py` writes a privacy flag, an unknown kind and a version-review audit row
-  straight to the kernel DB, so it must share the API's `INKLING_API_DATABASE_URL`.
+  straight to the kernel DB, so it must share the API's `STUDIO_API_DATABASE_URL`.
 - Not done: Settings › Members (backlog); seed-mode activity has only the sample-load entry.
 ---
 

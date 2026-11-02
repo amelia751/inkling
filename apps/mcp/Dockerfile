@@ -2,8 +2,8 @@
 # apps/mcp: `studio-mcp`, the remote MCP server (streamable HTTP on :8300, todo17 D12). Build from
 # the repo root:
 #   docker build -f apps/mcp/Dockerfile -t studio-mcp:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) .
-#   docker run --rm -p 8300:8300 -e INKLING_API_URL=http://host.docker.internal:8000 studio-mcp:dev
-# The same image runs over stdio with `-e INKLING_MCP_TRANSPORT=stdio` and `docker run -i`.
+#   docker run --rm -p 8300:8300 -e STUDIO_API_URL=http://host.docker.internal:8000 studio-mcp:dev
+# The same image runs over stdio with `-e STUDIO_MCP_TRANSPORT=stdio` and `docker run -i`.
 ARG NODE_IMAGE=node:24-trixie-slim
 
 FROM ${NODE_IMAGE} AS base
@@ -47,7 +47,7 @@ COPY --from=build /repo/schemas/naming.json schemas/naming.json
 COPY --from=build /repo/schemas/operations.json schemas/operations.json
 COPY --from=build /repo/schemas/viewer-runtime.v1.json schemas/viewer-runtime.v1.json
 ENV NODE_ENV=production HOME=/tmp GIT_SHA=${GIT_SHA} \
-    INKLING_MCP_TRANSPORT=http INKLING_MCP_HOST=0.0.0.0 INKLING_MCP_PORT=8300
+    STUDIO_MCP_TRANSPORT=http STUDIO_MCP_HOST=0.0.0.0 STUDIO_MCP_PORT=8300
 USER node
 EXPOSE 8300
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 \

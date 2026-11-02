@@ -5,9 +5,9 @@ kind: ConfigMap
 metadata:
   name: api-auth-config
 data:
-  INKLING_API_AUTH_MODE: workos
-  INKLING_API_DEV_TRUST_HEADERS: "0"
-  INKLING_API_WORKOS_REDIRECT_URI: https://STUDIO_HOST/api/auth/callback
-  INKLING_API_PUBLIC_URL: https://STUDIO_HOST
-  # INKLING_API_WORKOS_ISSUER: add once Phase 0 records the real `iss`
+  STUDIO_API_AUTH_MODE: workos
+  STUDIO_API_DEV_TRUST_HEADERS: "0"
+  STUDIO_API_WORKOS_REDIRECT_URI: https://STUDIO_HOST/api/auth/callback
+  STUDIO_API_PUBLIC_URL: https://STUDIO_HOST
+  # STUDIO_API_WORKOS_ISSUER: add once Phase 0 records the real `iss`
   # (expected https://api.workos.com/user_management/<client id>); unchecked while unset.

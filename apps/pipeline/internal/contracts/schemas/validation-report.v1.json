@@ -71,5 +71,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/validation-report.v1"
+  "$id": "studio://schema/pipeline/validation-report.v1"
 }

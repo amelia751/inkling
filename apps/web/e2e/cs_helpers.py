@@ -22,7 +22,7 @@ class Results:
         self.rows: list[tuple[str, bool, str, float]] = []
 
     def run(self, name: str, fn: Callable[[], str | None]) -> None:
-        only = os.environ.get("INKLING_ONLY")
+        only = os.environ.get("STUDIO_ONLY")
         if only and not any(o.strip().lower() in name.lower() for o in only.split(",")):
             return
         t0 = time.time()
@@ -114,7 +114,7 @@ def masks(st, item_id: str) -> dict[str, int]:
 
 
 def blob_from_exporter(st, exporter_id: str) -> bytes:
-    """Run an exporter contribution (full id, e.g. inkling.dicom-export.exporters.dicom-seg)
+    """Run an exporter contribution (full id, e.g. studio.dicom-export.exporters.dicom-seg)
     in the page with the live store, through the app's registry, and return the file bytes."""
     b64 = st.page.evaluate(
         f"""async () => {{

@@ -192,5 +192,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/job-summary.v1"
+  "$id": "studio://schema/boundary/job-summary.v1"
 }

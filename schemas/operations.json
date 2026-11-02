@@ -1,5 +1,5 @@
 {
-  "$id": "inkling://schema/operations/v1",
+  "$id": "studio://schema/operations/v1",
   "operations": [
     {
       "id": "source.list",

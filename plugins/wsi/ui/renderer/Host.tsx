@@ -19,7 +19,7 @@ const fmtMag = (m: number) => (m < 10 ? m.toFixed(1) : String(Math.round(m)));
 const IMPORT = `${WSI}.commands.importGeoJSON`;
 
 /**
- * `inkling.wsi.renderers.osd`: the thin React host around WsiController. It owns the
+ * `studio.wsi.renderers.osd`: the thin React host around WsiController. It owns the
  * stage element, the magnification / rotation bar and the GeoJSON file input, publishes
  * `mpp` to the runtime and binds keys through commands; colour adjustments arrive from
  * the `adjust` viewport-bar panel through the runtime (`adjust`).
@@ -183,7 +183,7 @@ function OsdHost({ project, item, config, runtime }: RendererProps) {
   );
 }
 
-/** `inkling.wsi.commands.importGeoJSON`: a hidden file input; one undo step adds every imported object. */
+/** `studio.wsi.commands.importGeoJSON`: a hidden file input; one undo step adds every imported object. */
 function useImport(itemId: string, labels: string[]) {
   const ref = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);

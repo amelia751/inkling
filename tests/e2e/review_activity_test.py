@@ -6,9 +6,9 @@ privacy flag and "can't read" kind (Phase 5) and apps/versioning's review (the k
 `versioning.review.open`, which is what the queue reads). Both go straight to the kernel's
 database, so the API must run on the same `<envPrefix>API_DATABASE_URL` as this script:
 
-    export INKLING_API_DATABASE_URL=sqlite:////tmp/p8.sqlite INKLING_API_DATA_DIR=/tmp/p8-data
+    export STUDIO_API_DATABASE_URL=sqlite:////tmp/p8.sqlite STUDIO_API_DATA_DIR=/tmp/p8-data
     uv run --package studio-api uvicorn studio_api.app:app --port 8208          # repo root
-    INKLING_API_URL=http://127.0.0.1:8208 INKLING_E2E=1 pnpm exec vite --port 5208 --strictPort   # apps/web
+    STUDIO_API_URL=http://127.0.0.1:8208 STUDIO_E2E=1 pnpm exec vite --port 5208 --strictPort   # apps/web
     uv run --package studio-api python tests/e2e/review_activity_test.py --port 5208       # repo root
 """
 

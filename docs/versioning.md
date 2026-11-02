@@ -1,16 +1,16 @@
-# Inkling Dataset Versioning — Implementation Specification
+# Dataset Versioning — Implementation Specification
 
 **Status:** Proposed architecture / implementation-ready design, subject to load testing  
-**Owner:** Inkling platform  
+**Owner:** platform  
 **Primary implementation:** Go service (`apps/versioning`) using `go-git`  
 **Last reviewed:** 2026-10-29  
 **Scope:** Dataset commits, branching, review requests, semantic diffs, merges, releases, and manifest/object lifecycle. **Pipeline orchestration is intentionally out of scope.**
 
 ## 0. Decision summary
 
-Inkling presents each dataset as a **stateful, Git-like repository**. Collaborators and agents create branches, commit changes, request review, resolve semantic conflicts, merge and publish immutable releases. Use the open-source **`go-git` library** to write and read real Git commits, trees, blobs (metadata only), and history. Use object storage (S3/MinIO/GCS through a storage adapter) for raw scientific data, images, DICOM, masks, videos and large tables. Store transactionally authoritative application state and branch heads in PostgreSQL.
+Spurby presents each dataset as a **stateful, Git-like repository**. Collaborators and agents create branches, commit changes, request review, resolve semantic conflicts, merge and publish immutable releases. Use the open-source **`go-git` library** to write and read real Git commits, trees, blobs (metadata only), and history. Use object storage (S3/MinIO/GCS through a storage adapter) for raw scientific data, images, DICOM, masks, videos and large tables. Store transactionally authoritative application state and branch heads in PostgreSQL.
 
-**Do not put large data inside Git. Do not model each file as a Git blob. Do not rely on go-git to perform a complete merge:** its v5 documentation explicitly notes missing high-level merge porcelain. Implement a **three-way semantic merge** for datasets, backed by common-ancestor calculations from the commit graph. Pull requests / feedback requests are an Inkling application feature, not a Git feature.
+**Do not put large data inside Git. Do not model each file as a Git blob. Do not rely on go-git to perform a complete merge:** its v5 documentation explicitly notes missing high-level merge porcelain. Implement a **three-way semantic merge** for datasets, backed by common-ancestor calculations from the commit graph. Pull requests / feedback requests are an Spurby application feature, not a Git feature.
 
 ### Non-goals for v1
 
@@ -26,7 +26,7 @@ Inkling presents each dataset as a **stateful, Git-like repository**. Collaborat
 The existing repo uses `apps/*` for separately deployable services; applications must not import each other. Keep `apps/api` (Python/FastAPI) as authenticated kernel/command gateway, `apps/agent` (Node + Pi/Daytona as presently specified), `apps/worker` (Python for medical/scientific operations), `apps/mcp` and `apps/web`. The new Go versioning service communicates **only via versioned APIs and events**. Shared cross-language contracts remain in `schemas/`, with generated clients in `packages/`.
 
 ```text
-inkling/
+<repo>/
 ├── apps/
 │   ├── web/                         # Existing React UI; dataset history/review UI only
 │   │   └── src/studio/core/versioning/  # Or plugin contribution, per extension-host policy
@@ -153,9 +153,9 @@ Browser / Agent / MCP / Plugin
 ### 3.2 Object layout
 
 ```text
-s3://inkling-objects/{tenant-id}/sha256/ab/cd/<content-sha256>
-s3://inkling-manifests/{tenant-id}/{repo-id}/chunks/<sha256>.parquet
-s3://inkling-manifests/{tenant-id}/{repo-id}/roots/<sha256>.json
+s3://studio-objects/{tenant-id}/sha256/ab/cd/<content-sha256>
+s3://studio-manifests/{tenant-id}/{repo-id}/chunks/<sha256>.parquet
+s3://studio-manifests/{tenant-id}/{repo-id}/roots/<sha256>.json
 # Git objects: persistent go-git Storer, tenant-scoped and backup-enabled.
 # Never use mutable human-readable paths as proof of identity or authorization.
 ```
@@ -180,7 +180,7 @@ An annotation is not a rewrite of the image. Store immutable annotation revision
 
 ## 4. Why go-git, and its limits
 
-Use `github.com/go-git/go-git/v5` **at a pinned audited release** initially. Evaluate stable v6 only after compatibility and migration tests. go-git supports lower-level Git objects and a pluggable `storage.Storer` interface; built-in filesystem and memory storers are documented. Use a persistent storer backed by durable storage with clear consistency semantics; **never use memory storer in production**. The go-git v5 documentation states that its higher-level merge porcelain is incomplete; Inkling must supply three-way semantic merge. See sources at the end.
+Use `github.com/go-git/go-git/v5` **at a pinned audited release** initially. Evaluate stable v6 only after compatibility and migration tests. go-git supports lower-level Git objects and a pluggable `storage.Storer` interface; built-in filesystem and memory storers are documented. Use a persistent storer backed by durable storage with clear consistency semantics; **never use memory storer in production**. The go-git v5 documentation states that its higher-level merge porcelain is incomplete; Spurby must supply three-way semantic merge. See sources at the end.
 
 Avoid assuming the library supplies a transactional distributed ref registry. PostgreSQL remains authoritative for branches. Persist Git objects first, then conditionally move the authoritative Postgres branch head after verification. Provide a repair process for orphaned objects and incomplete operations. Treat `git clone`, `fetch`, and `push` as a later optional Git transport gateway rather than automatic functionality of this service.
 
@@ -368,8 +368,8 @@ go run ./cmd/server
 VERSIONING_HTTP_ADDR=:8090
 VERSIONING_DATABASE_URL=postgres://versioning:***@localhost:5432/studio?sslmode=disable
 VERSIONING_OBJECT_ENDPOINT=http://localhost:9000
-VERSIONING_OBJECT_BUCKET=inkling-objects
-VERSIONING_MANIFEST_BUCKET=inkling-manifests
+VERSIONING_OBJECT_BUCKET=studio-objects
+VERSIONING_MANIFEST_BUCKET=studio-manifests
 VERSIONING_GIT_STORAGE_DIR=./.dev-git-objects
 VERSIONING_MAX_COMMIT_ENTRIES=100000
 VERSIONING_DEFAULT_BRANCH=main
@@ -549,4 +549,4 @@ its own. Restoring a definition (`restore_definition`) leaves the kernel's struc
 
 ---
 
-**Architecture invariant:** Git commits describe **which immutable dataset artifacts and annotation revisions belong to a snapshot**; object storage holds the bytes; PostgreSQL controls authoritative refs and review policy; only authorized Inkling services may publish changes. Pipelines and agents produce proposals through this boundary, never silently mutate a published dataset.
+**Architecture invariant:** Git commits describe **which immutable dataset artifacts and annotation revisions belong to a snapshot**; object storage holds the bytes; PostgreSQL controls authoritative refs and review policy; only authorized Spurby services may publish changes. Pipelines and agents produce proposals through this boundary, never silently mutate a published dataset.

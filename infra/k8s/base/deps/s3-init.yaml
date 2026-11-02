@@ -36,7 +36,7 @@ spec:
               done
           env:
             - name: BUCKETS
-              value: assets inkling-objects inkling-manifests
+              value: assets studio-objects studio-manifests
             - name: HOME
               value: /tmp
             - name: AWS_DEFAULT_REGION

@@ -7,7 +7,7 @@
       "properties": {
         "schemaVersion": {
           "type": "string",
-          "const": "inkling.plugins/v1"
+          "const": "studio.plugins/v1"
         },
         "id": {
           "type": "string",
@@ -482,5 +482,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/plugin/v1"
+  "$id": "studio://schema/plugin/v1"
 }

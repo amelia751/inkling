@@ -1,7 +1,7 @@
 """Pipeline runs under Sources (todo12 Milestone 1): the run list and one run's detail against
 fixtures, live from the project event stream.
 
-    INKLING_E2E=1 pnpm exec vite --port 5201 --strictPort      # in apps/web
+    STUDIO_E2E=1 pnpm exec vite --port 5201 --strictPort      # in apps/web
     python3 e2e/pipeline_runs_test.py --port 5201 [--browser chromium] [--out e2e/.artifacts]
 
 The gateway routes (`/api/v1/projects/:id/pipeline-runs`, `/api/v1/pipeline-runs/:id`,

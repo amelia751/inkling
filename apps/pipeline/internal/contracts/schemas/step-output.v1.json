@@ -264,5 +264,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/step-output.v1"
+  "$id": "studio://schema/pipeline/step-output.v1"
 }

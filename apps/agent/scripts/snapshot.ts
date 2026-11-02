@@ -1,5 +1,5 @@
 /**
- * Build (or confirm) the content-hashed sandbox snapshot `inkling-agent-<hash>` (todo1 §4.3).
+ * Build (or confirm) the content-hashed sandbox snapshot `studio-agent-<hash>` (todo1 §4.3).
  * Takes several minutes the first time; sessions fall back to Daytona's default image until it's active.
  *
  *   pnpm --filter @studio/agent snapshot            build if missing, rebuild if errored

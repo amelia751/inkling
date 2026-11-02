@@ -6,7 +6,7 @@ import { ns } from "@studio/contracts/naming";
 /**
  * Named-entity / span labelling on plain text. Written from the outside, against the
  * public contract only: it changes no file outside this folder except its one line in
- * src/bundle.ts. Spans are a module geometry (`inkling.text-spans.span`, character offsets).
+ * src/bundle.ts. Spans are a module geometry (`studio.text-spans.span`, character offsets).
  */
 export const TEXT = ns("text-spans");
 export const SPAN = `${TEXT}.span` as const;

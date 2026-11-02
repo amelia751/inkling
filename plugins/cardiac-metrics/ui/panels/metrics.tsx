@@ -33,7 +33,7 @@ import { execute, newAnnotation, useHost } from "@studio/plugin-ui-sdk";
  * Right-slot panel: ventricular function (EDV, ESV, SV, EF), LV mass, the LV volume curve
  * with an ED/ES suggestion, per-slice areas of the current frame, Dice against reference
  * segmentations and body size. Reads what the cine renderer publishes to the runtime
- * (grid, playhead, coverage, references); navigates with `inkling.cine.commands.goTo`.
+ * (grid, playhead, coverage, references); navigates with `studio.cine.commands.goTo`.
  */
 export function CardiacMetricsPanel({ env, project, item, config: rawConfig }: PanelProps) {
   const config = useMemo(() => MetricsConfigSchema.parse(rawConfig), [rawConfig]);

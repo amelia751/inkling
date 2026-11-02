@@ -15,7 +15,7 @@ import {
 /**
  * Pure slice × frame model: contour geometry, label maps, per-structure areas and slice
  * coverage per frame, and key frames (phases). Shared by the renderer, the inspector, the
- * exporters and (through public.ts) modules such as inkling.cardiac-metrics.
+ * exporters and (through public.ts) modules such as studio.cardiac-metrics.
  *
  * Structures are configured, never guessed from label text: `structures` maps the roles
  * rv / myo / lv to label ids (renderer config, set by preset:cine-4d). With none

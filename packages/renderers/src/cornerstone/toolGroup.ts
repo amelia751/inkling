@@ -15,7 +15,7 @@ export interface ToolGroupConfig {
   promptText: (initial?: string) => Promise<string | null>;
 }
 
-/** One tool group with every tool Inkling binds; navigation always on middle/right/wheel. */
+/** One tool group with every tool we bind; navigation always on middle/right/wheel. */
 export function createToolGroup({ id, mode, promptText }: ToolGroupConfig): ToolGroup {
   tools.ToolGroupManager.destroyToolGroup(id);
   const tg = tools.ToolGroupManager.createToolGroup(id)!;

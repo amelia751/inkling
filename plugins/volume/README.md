@@ -1,4 +1,4 @@
-# Volume module (`inkling.volume`)
+# Volume module (`studio.volume`)
 
 3D volumes (NIfTI sequences, DICOM series) on Cornerstone3D. The `volume` data kind groups
 a project's assets by subject; `volumeSources()` splits a subject into the volumes the
@@ -13,10 +13,10 @@ masks JSON (all subjects).
 Layout: `renderer/MprEngine.ts` (imperative engine: session per subject, view per layout /
 sequence, view actions, labelmap commands), `renderer/Host.tsx` (React host: UI state,
 `useCommands`, cells and overlays), `renderer/ViewBar.tsx` (the viewport bar). Keys are
-commands: `inkling.volume.commands.{stepSlice, firstLastSlice, fitView, cancelManipulation,
+commands: `studio.volume.commands.{stepSlice, firstLastSlice, fitView, cancelManipulation,
 interpolateSlices, removeIslands, smartFill, similarFill}`, plus
-`inkling.cornerstone.commands.*` (invert, flips, rotate left, magnifier) and
-`inkling.core.commands.{rotateView, holdToPan}`. The renderer publishes `volume`
+`studio.cornerstone.commands.*` (invert, flips, rotate left, magnifier) and
+`studio.core.commands.{rotateView, holdToPan}`. The renderer publishes `volume`
 (`{ dims, spacing, modality, frameOfReferenceUID }`) and `viewportState`
 (`{ layout, sequence, activePlane, slices }`) to the runtime.
 
@@ -28,7 +28,7 @@ Renderer config: `layout` (`mpr` 1×3, `main` 1 + 2, `single`, `mpr3d` 2×2 with
 ```json
 {
   "extends": "preset:volume-3d",
-  "viewports": [{ "name": "main", "renderer": "inkling.volume.renderers.cornerstone-mpr",
+  "viewports": [{ "name": "main", "renderer": "studio.volume.renderers.cornerstone-mpr",
                   "config": { "layout": "plane3d", "layouts": ["mpr", "mpr3d", "plane3d"], "sequence": "t1ce" } }],
   "labels": [{ "name": "tumour", "control": "BrushLabels", "classes": [{ "id": "edema", "color": "#e6c84f" }] }]
 }

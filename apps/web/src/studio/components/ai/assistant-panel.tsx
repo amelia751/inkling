@@ -443,7 +443,7 @@ function Composer({
     el.style.height = `${Math.min(el.scrollHeight, 220)}px`;
   }, [text]);
 
-  // Something asked the composer to take focus ("Or tell Inkling…" on Overview).
+  // Something asked the composer to take focus ("Or tell <displayName>…" on Overview).
   const focusTick = useShell((s) => s.assistantFocus);
   useEffect(() => {
     if (focusTick) area.current?.focus();

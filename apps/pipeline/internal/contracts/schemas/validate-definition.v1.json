@@ -19,7 +19,7 @@
       "properties": {
         "apiVersion": {
           "type": "string",
-          "const": "inkling.dev/v1"
+          "const": "studio.dev/v1"
         },
         "kind": {
           "type": "string",
@@ -439,5 +439,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/validate-definition.v1"
+  "$id": "studio://schema/pipeline/validate-definition.v1"
 }

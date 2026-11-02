@@ -4,7 +4,7 @@ output "buckets" {
 }
 
 output "plugin_signing_key" {
-  description = "Signer gcpkms key version (INKLING_API_SIGNER_KMS_KEY)."
+  description = "Signer gcpkms key version (STUDIO_API_SIGNER_KMS_KEY)."
   value       = "${google_kms_crypto_key.plugin_signing.id}/cryptoKeyVersions/1"
 }
 

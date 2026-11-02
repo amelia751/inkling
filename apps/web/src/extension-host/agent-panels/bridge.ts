@@ -78,10 +78,10 @@ export function vetProposals(raw: unknown, env: ResolvedEnv, types: Set<string> 
 /**
  * Prepended to every tier-3 sandbox document: a CSP that blocks all network access (so
  * annotations can't leave the machine; only inline script/style and data:/blob: images run),
- * then `window.inkling`, kept as the agent-facing API but carried over the MCP Apps bridge
+ * then `window.<resourcePrefix>`, kept as the agent-facing API but carried over the MCP Apps bridge
  * (todo10 Phase 5): `ui/initialize`, then `tools/call` to the viewer tools
  * (`viewer_list_annotations`, `viewer_propose_annotations`); the item arrives as a tool result
- * and is re-dispatched as the `inkling:item` event.
+ * and is re-dispatched as the `studio:item` event.
  */
 export const SANDBOX_CSP = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:">`;
 export const BRIDGE_SCRIPT = SANDBOX_CSP + `<script>

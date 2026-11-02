@@ -7,21 +7,21 @@ metadata:
   name: api-config
 data:
   # Cloud Storage with Workload Identity (no keys): bucket `buckets.objects`.
-  INKLING_BLOB_STORE: gcs
-  INKLING_GCS_BUCKET: spurby-phi-objects
+  STUDIO_BLOB_STORE: gcs
+  STUDIO_GCS_BUCKET: spurby-phi-objects
   # Sample templates (todo14 §3): the public sample set, copied once into this bucket's
   # samples/ prefix (docs/deployment-gcp.md, "Sample templates"). Seed assets, /seed/* and
   # sample copies read there; derived data and uploads stay under .data/.
-  INKLING_API_SAMPLES_PREFIX: samples
+  STUDIO_API_SAMPLES_PREFIX: samples
   # Memorystore (redis_host, TLS on 6378). The full URL with the AUTH string is in api-secrets:
   #   rediss://:<auth>@<host>:6378/0?ssl_cert_reqs=required&ssl_ca_certs=/etc/redis-ca/ca.crt
-  INKLING_REDIS_URL: rediss://10.30.0.3:6378/0?ssl_cert_reqs=required&ssl_ca_certs=/etc/redis-ca/ca.crt
+  STUDIO_REDIS_URL: rediss://10.30.0.3:6378/0?ssl_cert_reqs=required&ssl_ca_certs=/etc/redis-ca/ca.crt
   # Platform signing key (todo10 D5): Cloud KMS, HSM (output plugin_signing_key).
-  INKLING_API_SIGNER: gcpkms
-  INKLING_API_SIGNER_KMS_KEY: projects/spurby-phi/locations/us-central1/keyRings/studio/cryptoKeys/plugin-signing/cryptoKeyVersions/1
+  STUDIO_API_SIGNER: gcpkms
+  STUDIO_API_SIGNER_KMS_KEY: projects/spurby-phi/locations/us-central1/keyRings/studio/cryptoKeys/plugin-signing/cryptoKeyVersions/1
   # Name screening calls Sensitive Data Protection here, in us-central1 (todo13 §7.2): enabled,
   # inside the perimeter, and the api's service account has roles/dlp.user (terraform/phi).
-  INKLING_API_NAME_SCREEN_PROJECT: spurby-phi
+  STUDIO_API_NAME_SCREEN_PROJECT: spurby-phi
   # todo13 flags stay off (base) until a person turns them on, one a day (§7.4).
 ---
 apiVersion: v1
@@ -30,10 +30,10 @@ metadata:
   name: mcp-config
 data:
   # Rate-limit counters (db 3); the URL with the AUTH string is in mcp-secrets.
-  INKLING_MCP_REDIS_URL: rediss://10.30.0.3:6378/3
-  INKLING_MCP_REDIS_CA_FILE: /etc/redis-ca/ca.crt
+  STUDIO_MCP_REDIS_URL: rediss://10.30.0.3:6378/3
+  STUDIO_MCP_REDIS_CA_FILE: /etc/redis-ca/ca.crt
   # https://STUDIO_HOST/mcp (values/): the OAuth resource and token audience.
-  INKLING_MCP_PUBLIC_URL: https://studio.example.com/mcp
+  STUDIO_MCP_PUBLIC_URL: https://studio.example.com/mcp
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -49,11 +49,11 @@ metadata:
 data:
   # Cloud Storage, native API with Workload Identity (no HMAC keys): buckets
   # `buckets.versioning-objects` / `buckets.versioning-manifests`.
-  INKLING_VERSIONING_OBJECT_STORE: gcs
-  INKLING_VERSIONING_OBJECT_ENDPOINT: ""
-  INKLING_VERSIONING_OBJECT_BUCKET: spurby-phi-versioning-objects
-  INKLING_VERSIONING_MANIFEST_BUCKET: spurby-phi-versioning-manifests
-  INKLING_VERSIONING_REDIS_URL: rediss://10.30.0.3:6378/2
-  INKLING_VERSIONING_REDIS_CA_FILE: /etc/redis-ca/ca.crt
+  STUDIO_VERSIONING_OBJECT_STORE: gcs
+  STUDIO_VERSIONING_OBJECT_ENDPOINT: ""
+  STUDIO_VERSIONING_OBJECT_BUCKET: spurby-phi-versioning-objects
+  STUDIO_VERSIONING_MANIFEST_BUCKET: spurby-phi-versioning-manifests
+  STUDIO_VERSIONING_REDIS_URL: rediss://10.30.0.3:6378/2
+  STUDIO_VERSIONING_REDIS_CA_FILE: /etc/redis-ca/ca.crt
 # Database URLs carry credentials, so they are in the Secrets; the host is sql_private_ip
 # (database `studio`, sslmode=require).

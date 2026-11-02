@@ -1,4 +1,4 @@
-# Inkling Studio — UI/UX Specification
+# Studio — UI/UX Specification
 
 **Status:** MVP design proposal  
 **Platform:** Browser-first, desktop-first responsive web application  
@@ -45,7 +45,7 @@ Studio / :projectId / :taskId
 ├── Labels & layers (left tab)
 ├── Review queue (left tab)
 ├── Viewer / canvas (center)
-└── Inkling AI assistant (right)
+└── Spurby AI assistant (right)
 ```
 
 Public marketplace browsing, paid licensing, and creator storefronts are later phases.
@@ -54,10 +54,10 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐
-│ Inkling  /  Cardiac MRI Dataset          Draft · Saved             Share   Review  Export │
+│ Spurby   /  Cardiac MRI Dataset          Draft · Saved             Share   Review  Export │
 ├───────────────────────┬───────────────────────────────────────────┬──────────────────────┤
 │ LEFT SIDEBAR          │ MAIN CANVAS                               │ RIGHT SIDEBAR        │
-│ Files | Labels |      │ Select  Pan  Draw  Brush  Erase  Measure  │ Inkling AI           │
+│ Files | Labels |      │ Select  Pan  Draw  Brush  Erase  Measure  │ Spurby AI            │
 │ Review                │                                           │                      │
 │                       │                                           │ Context: Scan 001    │
 │ Patient scans         │           [MEDICAL IMAGE VIEWER]          │                      │
@@ -67,7 +67,7 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 │  ▸ Study 002          │                                           │ Suggest contour      │
 │                       │                                           │ [Preview] [Discard]  │
 │ Annotation layers     │                                           │                      │
-│  ◉ Left ventricle    │                                           │ Ask Inkling...       │
+│  ◉ Left ventricle    │                                           │ Ask Spurby...        │
 │  ◉ Right ventricle   │                                           │                      │
 ├───────────────────────┼───────────────────────────────────────────┼──────────────────────┤
 │ Add files             │ Slice 12/64  [────────●──────] Zoom 100%  │ Current task         │
@@ -101,7 +101,7 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 - Safe empty state: `Upload images to begin` with accepted formats and privacy reminder.
 - Never overwrite original image files during annotation.
 
-### Right sidebar — Inkling AI
+### Right sidebar — Spurby AI
 
 - Conversation scoped to current dataset, selected image/series, selected annotations, and user permissions.
 - Sample prompts: “Help me define labels,” “Suggest a contour,” “Find unlabeled scans,” “Explain validation warnings,” “Prepare dataset documentation.”
@@ -116,7 +116,7 @@ message, "New chat" before that) and gains a bottom rule only once the thread sc
 is anchored to the bottom with 24px between messages:
 
 - **You:** a `generic` bubble, right-aligned, at most 88% wide, with a copy button on hover.
-- **The assistant:** no bubble; markdown in `text-chat` (14/22). While it works, "INKLING AI" in
+- **The assistant:** no bubble; markdown in `text-chat` (14/22). While it works, "SPURBY AI" in
   small caps sits over a spinner. Tool calls are a step list ("Read environment · 12 tools"), and
   each step opens into a "Tool: name" code card.
 - **Under each reply:** copy, regenerate (latest only) and the token count. On older replies these
@@ -127,7 +127,7 @@ is anchored to the bottom with 24px between messages:
 - **Errors:** the same label, the message in italics, and a Retry button.
 - **Composer:** a 120px card with the context chip and a 36px send button; before the first message
   it has a drifting `--g-echo-*` gradient ring. The disclaimer sits centred under it.
-- **Toggle:** "Ask Inkling", a 32px pill with the same faint gradient. All motion stops under
+- **Toggle:** "Ask Spurby", a 32px pill with the same faint gradient. All motion stops under
   `prefers-reduced-motion`.
 
 ### Bottom status/navigation bar
@@ -157,7 +157,7 @@ For the MVP, support **2D images first**, followed by one **3D CT/MRI** workflow
 2. Plain-language prompt: “What do you want to teach or evaluate?”
 3. Select task: classification, detection, segmentation (MVP); advanced tasks later.
 4. Upload approved data or use a sample dataset.
-5. Inkling identifies supported formats, groups studies/series, and extracts metadata safely.
+5. Spurby identifies supported formats, groups studies/series, and extracts metadata safely.
 6. Confirm import results and resolve unsupported files.
 7. Studio opens with the correct viewer, initial label suggestions optional.
 

@@ -50,7 +50,7 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
-          name: INKLING_WEB_AUTH_MODE
+          name: STUDIO_WEB_AUTH_MODE
           value: workos
   - target:
       kind: HorizontalPodAutoscaler

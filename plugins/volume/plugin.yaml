@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.volume
+schemaVersion: studio.plugins/v1
+id: studio.volume
 name: 3D volumes
 version: 1.1.0
 description: "NIfTI and DICOM series on Cornerstone3D MPR viewports with crosshairs, 3D labelmaps and measurements."
@@ -11,7 +11,7 @@ compatibility:
   studio: ">=0.1.0 <1.0.0"
   pluginApi: "^1"
 requires:
-  inkling.cornerstone: "^1"
+  studio.cornerstone: "^1"
 capabilities:
   - id: volume.view
     mediaTypes: [application/x-nifti, application/dicom]

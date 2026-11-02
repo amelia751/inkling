@@ -4,7 +4,7 @@ The test starts the API itself (SQLite in a temp dir, auto-apply and the fast pa
 asks) on
 <envPrefix>E2E_API_PORT (default 8261). Start a frozen dev server pointed at it first:
 
-    cd apps/web && INKLING_API_URL=http://127.0.0.1:8261 INKLING_E2E=1 pnpm exec vite --port 5261 --strictPort
+    cd apps/web && STUDIO_API_URL=http://127.0.0.1:8261 STUDIO_E2E=1 pnpm exec vite --port 5261 --strictPort
     python3 ../../tests/e2e/drop_plan_test.py --port 5261
 
 Drops are made the way todo13-drops will make them (an import session tagged with a drop id;

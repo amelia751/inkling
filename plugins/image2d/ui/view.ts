@@ -29,7 +29,7 @@ export const DEFAULT_COLORMAPS = [
 
 const flag = (what: string) => z.boolean().default(true).describe(what);
 
-/** Config of `inkling.image2d.renderers.cornerstone-stack`: each viewport-bar control and its keys can be switched off. */
+/** Config of `studio.image2d.renderers.cornerstone-stack`: each viewport-bar control and its keys can be switched off. */
 export const StackConfigSchema = z.object({
   windowLevel: flag("Window/level presets and the W/L readout; false for natural photos"),
   invert: flag("Invert button and its key"),

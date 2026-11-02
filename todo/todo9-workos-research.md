@@ -33,7 +33,7 @@ Conventions in this file:
 2. Services validate **WorkOS access-token JWTs against JWKS**
    (`https://api.workos.com/sso/jwks/<client_id>`). `api` reads it out of the sealed cookie;
    `agent` receives it as a Bearer that **nginx injects via `auth_request`** (replacing the shared
-   `INKLING_AGENT_TOKEN` for user traffic). `versioning`, `worker` keep their internal
+   `STUDIO_AGENT_TOKEN` for user traffic). `versioning`, `worker` keep their internal
    Inkling-minted credentials (no WorkOS needed). `mcp` becomes an OAuth resource server with
    **AuthKit as the authorization server** when it goes remote (HTTP transport); stdio stays on
    user API keys or CLI Auth (device flow).
@@ -141,10 +141,10 @@ WorkOS ──(Events API pull by worker; or webhooks)──► api/worker → mi
 |---|---|---|---|
 | **api** (Python) | Sealed cookie from the browser | `workos_client.user_management.load_sealed_session(session_data=..., cookie_password=...)` → `.authenticate()` (verifies RS256 against JWKS with PyJWT, returns `organization_id`, `role`, `roles`, `permissions`, `entitlements`, `feature_flags`, `session_id`, `user`, `impersonator`). On `authenticated=False` with an expired JWT call `.refresh()` and re-set the cookie. SDK source: `workos/session.py` (v10.6.0). | Keep the existing Bearer path for Inkling session tokens (agents/workers) and the dev header path behind `dev_trust_headers`. |
 | **api** | `Authorization: Bearer <WorkOS API key>` (customer API keys / stdio MCP) | `workos_client.api_keys.create_validation(value=token)` → `result.api_key` (owner org/user, permissions) or `None`. [api-keys#validating-api-keys](https://workos.com/docs/authkit/api-keys) | Cache validation result for a short TTL keyed by a hash of the key (it's a network call per request; counts toward 6,000 req/min/API key). Distinguish WorkOS API keys from Inkling session tokens by prefix (**UNVERIFIED** what prefix WorkOS user/org API keys carry — check one in staging). |
-| **agent** (Node, Hono) | `Authorization: Bearer <WorkOS access token>` injected by nginx | `new WorkOS(apiKey, { clientId, issuer })` then `await workos.userManagement.verifyAccessToken(token)` → claims or `null`. README: checks signature vs JWKS, expiry, issuer (if configured), and "that the token is a user access token rather than one WorkOS signed for another purpose, such as an agent or widget token". [workos-node README](https://github.com/workos/workos-node) | Keep `INKLING_AGENT_TOKEN` only for internal service calls (api→agent if any). SSE streams are long-lived; verify once at connect, then rely on exp of the *stream*, not the token (access tokens are short). |
+| **agent** (Node, Hono) | `Authorization: Bearer <WorkOS access token>` injected by nginx | `new WorkOS(apiKey, { clientId, issuer })` then `await workos.userManagement.verifyAccessToken(token)` → claims or `null`. README: checks signature vs JWKS, expiry, issuer (if configured), and "that the token is a user access token rather than one WorkOS signed for another purpose, such as an agent or widget token". [workos-node README](https://github.com/workos/workos-node) | Keep `STUDIO_AGENT_TOKEN` only for internal service calls (api→agent if any). SSE streams are long-lived; verify once at connect, then rely on exp of the *stream*, not the token (access tokens are short). |
 | **versioning** (Go) | Inkling Ed25519 JWT minted by api (60 s) | Unchanged. | Put `actor.id = user:<workos user id>`, `org` claim into the minted JWT. Go SDK (`github.com/workos/workos-go/v10`) not needed here. If ever needed: `workos.NewSession(client, cookie, password).Authenticate()` or verify JWT with JWKS. |
 | **worker** (Python) | Inkling session token | Unchanged. | Worker is a good home for the **Events API consumer** (single consumer, cursor in Postgres). |
-| **mcp** (stdio, now) | User API key from env (`INKLING_MCP_API_KEY`), or tokens from CLI Auth device flow | api validates as above. | Device flow: `POST https://api.workos.com/user_management/authorize/device` then poll `/user_management/authenticate` with `grant_type=urn:ietf:params:oauth:grant-type:device_code`. [cli-auth](https://workos.com/docs/authkit/cli-auth) |
+| **mcp** (stdio, now) | User API key from env (`STUDIO_MCP_API_KEY`), or tokens from CLI Auth device flow | api validates as above. | Device flow: `POST https://api.workos.com/user_management/authorize/device` then poll `/user_management/authenticate` with `grant_type=urn:ietf:params:oauth:grant-type:device_code`. [cli-auth](https://workos.com/docs/authkit/cli-auth) |
 | **mcp** (HTTP, later) | Connect access token (`aud` = MCP resource URL) | `jose.jwtVerify(token, createRemoteJWKSet('https://<authkit_domain>/oauth2/jwks'), { issuer: 'https://<authkit_domain>', audience: '<MCP URL>' })`; 401 with `WWW-Authenticate: Bearer … resource_metadata="…/.well-known/oauth-protected-resource"`. [authkit/mcp](https://workos.com/docs/authkit/mcp) | Connect tokens **have no `permissions` claim**: resolve via membership + role API (cache ~60 s) or add `roles` with a JWT template. [connect/token-claims](https://workos.com/docs/authkit/connect/token-claims) |
 
 Why not forward the sealed cookie to the agent: **sealed cookies are not interoperable across
@@ -195,8 +195,8 @@ keeps "no tokens in JS".
 # apps/api — config module only (AGENTS.md: env read in config)
 from workos import AsyncWorkOSClient
 workos = AsyncWorkOSClient(
-    api_key=settings().workos_api_key,       # INKLING_API_WORKOS_API_KEY
-    client_id=settings().workos_client_id,   # INKLING_API_WORKOS_CLIENT_ID
+    api_key=settings().workos_api_key,       # STUDIO_API_WORKOS_API_KEY
+    client_id=settings().workos_client_id,   # STUDIO_API_WORKOS_CLIENT_ID
     jwt_issuer=settings().workos_issuer,     # optional; enforces `iss` (else not validated)
     # base_url=... for the emulator (WORKOS_BASE_URL also read from env)
 )
@@ -231,9 +231,9 @@ tokens are `widgets.create_token(...)` (skill says `get_token`).
 ```ts
 // apps/agent
 import { WorkOS } from '@workos-inc/node';
-const workos = new WorkOS(process.env.INKLING_AGENT_WORKOS_API_KEY, {
-  clientId: process.env.INKLING_AGENT_WORKOS_CLIENT_ID,
-  issuer: process.env.INKLING_AGENT_WORKOS_ISSUER,   // optional
+const workos = new WorkOS(process.env.STUDIO_AGENT_WORKOS_API_KEY, {
+  clientId: process.env.STUDIO_AGENT_WORKOS_CLIENT_ID,
+  issuer: process.env.STUDIO_AGENT_WORKOS_ISSUER,   // optional
 });
 const claims = await workos.userManagement.verifyAccessToken(bearer); // null if invalid
 ```
@@ -245,22 +245,22 @@ agent doesn't need the API key at all, which is preferable. Otherwise use `jose`
 
 ### 3.3 Environment variables
 
-AGENTS.md requires `INKLING_<ROLE>_<KEY>` names read only in each service's config module. The
+AGENTS.md requires `STUDIO_<ROLE>_<KEY>` names read only in each service's config module. The
 SDK also auto-reads `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_BASE_URL`, `WORKOS_ISSUER` (Python
 README) / `WORKOS_API_KEY` (Node README) — **do not set those unprefixed names in k8s**; pass values
 explicitly so `pnpm check:names` stays green and nothing is picked up implicitly.
 
 | Var | Service | Secret? | Purpose |
 |---|---|---|---|
-| `INKLING_API_WORKOS_API_KEY` | api, worker | yes | `sk_…` server key (prod key shown **once** at creation) |
-| `INKLING_API_WORKOS_CLIENT_ID` | api, worker | no | `client_…`; also used for JWKS URL |
-| `INKLING_API_WORKOS_COOKIE_PASSWORD` | api | yes | Session seal key. **Python needs a Fernet key** (32 url-safe-base64 bytes). Tested: `openssl rand -base64 32` output is accepted by `Fernet()`; an arbitrary 32-char ASCII password is **rejected** ("Fernet key must be 32 url-safe base64-encoded bytes"). Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Same value on all replicas. |
-| `INKLING_API_WORKOS_REDIRECT_URI` | api | no | e.g. `https://<host>/api/auth/callback`; must match a dashboard Redirect URI exactly (trailing slash included) |
-| `INKLING_API_WORKOS_ISSUER` | api | no | expected `iss` (see §5 — exact value **UNVERIFIED**) |
-| `INKLING_API_WORKOS_WEBHOOK_SECRET` | api | yes | only if webhooks are used; shown once |
-| `INKLING_API_WORKOS_BASE_URL` | api, worker | no | emulator override in dev/CI (`http://localhost:4100/`) |
-| `INKLING_AGENT_WORKOS_CLIENT_ID` (+ `_API_KEY` if required, `_ISSUER`) | agent | — | access-token verification |
-| `INKLING_MCP_WORKOS_AUTHKIT_DOMAIN`, `INKLING_MCP_RESOURCE_URL` | mcp (HTTP) | no | Connect JWKS/issuer + `aud` |
+| `STUDIO_API_WORKOS_API_KEY` | api, worker | yes | `sk_…` server key (prod key shown **once** at creation) |
+| `STUDIO_API_WORKOS_CLIENT_ID` | api, worker | no | `client_…`; also used for JWKS URL |
+| `STUDIO_API_WORKOS_COOKIE_PASSWORD` | api | yes | Session seal key. **Python needs a Fernet key** (32 url-safe-base64 bytes). Tested: `openssl rand -base64 32` output is accepted by `Fernet()`; an arbitrary 32-char ASCII password is **rejected** ("Fernet key must be 32 url-safe base64-encoded bytes"). Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Same value on all replicas. |
+| `STUDIO_API_WORKOS_REDIRECT_URI` | api | no | e.g. `https://<host>/api/auth/callback`; must match a dashboard Redirect URI exactly (trailing slash included) |
+| `STUDIO_API_WORKOS_ISSUER` | api | no | expected `iss` (see §5 — exact value **UNVERIFIED**) |
+| `STUDIO_API_WORKOS_WEBHOOK_SECRET` | api | yes | only if webhooks are used; shown once |
+| `STUDIO_API_WORKOS_BASE_URL` | api, worker | no | emulator override in dev/CI (`http://localhost:4100/`) |
+| `STUDIO_AGENT_WORKOS_CLIENT_ID` (+ `_API_KEY` if required, `_ISSUER`) | agent | — | access-token verification |
+| `STUDIO_MCP_WORKOS_AUTHKIT_DOMAIN`, `STUDIO_MCP_RESOURCE_URL` | mcp (HTTP) | no | Connect JWKS/issuer + `aud` |
 | `/config.json` additions | web | no | Nothing secret. Maybe `auth.loginPath` (`/api/auth/login`); client id only if Widgets/authkit-react are used. |
 
 ### 3.4 WorkOS Dashboard configuration (per WorkOS env: staging, production, + optional dev)
@@ -664,7 +664,7 @@ or CLI client sharing the user base. [applications](https://workos.com/docs/auth
 
 - Keep `dev_trust_headers` path (X-Dev-Principal) for existing e2e tests (`data-testid`
   contracts) — they must keep working.
-- Add `INKLING_API_AUTH_MODE = dev-headers | workos`.
+- Add `STUDIO_API_AUTH_MODE = dev-headers | workos`.
 - **Emulator**: `npx @workos/emulate` or `brew install workos/tap/workos-emulate`; `workos-emulate --seed workos-emulate.config.yaml [--interactive] [--signing-key …] [--issuer …]`; listens on `:4100`, key `sk_test_default`, `/health` probe; seed users/orgs/memberships/roles/permissions (pin ids). `--interactive` serves login pages for browser e2e. Check [SUPPORTED.md](https://github.com/workos/emulate/blob/main/SUPPORTED.md) before relying on an endpoint. Point Python SDK at it via `base_url`/`WORKOS_BASE_URL`, Node via `{ apiHostname: 'localhost', port: 4100, https: false }`.
 - e2e against real staging: don't drive hosted AuthKit (Radar challenges, rate limits); create a
   user per worker with `create_user(email, password, email_verified=True)`, authenticate with
@@ -763,7 +763,7 @@ history, 30 days per query; webhooks retried 6× over 3 days; refresh replay gra
 35. **Feature flags in the token reflect org/user targeting only**; custom targets need the Node runtime client.
 36. **FGA soft limit ~5,000 resources per type per org**; don't model annotations/items.
 37. **Widgets bring Radix Themes + TanStack Query peers** and need CORS; Inkling is shadcn — prefer headless or backend proxies.
-38. **SDK auto-reads unprefixed `WORKOS_*` env vars** — don't set them in k8s (conflicts with `INKLING_<ROLE>_<KEY>` naming check and makes config implicit).
+38. **SDK auto-reads unprefixed `WORKOS_*` env vars** — don't set them in k8s (conflicts with `STUDIO_<ROLE>_<KEY>` naming check and makes config implicit).
 39. **US-only data hosting; BAA only on enterprise plans** — a procurement gate, not an engineering one; start that conversation in parallel.
 40. **Terminology collision**: WorkOS "environment" vs Inkling "environment"; WorkOS "organization as workspace" vs Inkling kernel "Workspace". Name code `workos_env`, `workos_org_id`.
 

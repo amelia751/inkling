@@ -35,17 +35,17 @@ jobs:
     timeout-minutes: 10
     env:
       # Prefixed names only: the WorkOS SDKs read unprefixed WORKOS_* variables on their own.
-      INKLING_E2E_WORKOS_API_KEY: ${{ secrets.E2E_WORKOS_STAGING_API_KEY }}
-      INKLING_E2E_WORKOS_CLIENT_ID: ${{ secrets.E2E_WORKOS_STAGING_CLIENT_ID }}
-      INKLING_E2E_WORKOS_EMAIL: ${{ secrets.E2E_WORKOS_STAGING_EMAIL }}
-      INKLING_E2E_WORKOS_PASSWORD: ${{ secrets.E2E_WORKOS_STAGING_PASSWORD }}
-      INKLING_E2E_WORKOS_ISSUER: ${{ secrets.E2E_WORKOS_STAGING_ISSUER }}
+      STUDIO_E2E_WORKOS_API_KEY: ${{ secrets.E2E_WORKOS_STAGING_API_KEY }}
+      STUDIO_E2E_WORKOS_CLIENT_ID: ${{ secrets.E2E_WORKOS_STAGING_CLIENT_ID }}
+      STUDIO_E2E_WORKOS_EMAIL: ${{ secrets.E2E_WORKOS_STAGING_EMAIL }}
+      STUDIO_E2E_WORKOS_PASSWORD: ${{ secrets.E2E_WORKOS_STAGING_PASSWORD }}
+      STUDIO_E2E_WORKOS_ISSUER: ${{ secrets.E2E_WORKOS_STAGING_ISSUER }}
     steps:
       - name: Secrets present?
         id: gate
         run: |
-          if [ -n "$INKLING_E2E_WORKOS_API_KEY" ] && [ -n "$INKLING_E2E_WORKOS_CLIENT_ID" ] \
-             && [ -n "$INKLING_E2E_WORKOS_EMAIL" ] && [ -n "$INKLING_E2E_WORKOS_PASSWORD" ]; then
+          if [ -n "$STUDIO_E2E_WORKOS_API_KEY" ] && [ -n "$STUDIO_E2E_WORKOS_CLIENT_ID" ] \
+             && [ -n "$STUDIO_E2E_WORKOS_EMAIL" ] && [ -n "$STUDIO_E2E_WORKOS_PASSWORD" ]; then
             echo "ready=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::WorkOS staging secrets aren't set; skipping (see .github/workflows/auth-nightly.yml)"

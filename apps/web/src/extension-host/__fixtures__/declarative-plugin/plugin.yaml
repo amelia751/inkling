@@ -1,6 +1,6 @@
 # A plugin with no code: only this manifest and ui/contributions.json (todo2 §2.3 test).
-schemaVersion: inkling.plugins/v1
-id: inkling.fixture-segment
+schemaVersion: studio.plugins/v1
+id: studio.fixture-segment
 name: Fixture segmentation
 version: 0.1.0
 publisher: test

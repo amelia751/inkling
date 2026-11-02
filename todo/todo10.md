@@ -437,7 +437,7 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 | Worker running untrusted plugin code | GKE Sandbox (gVisor) node pool, a NetworkPolicy denying all egress, read-only input |
 | Fingerprint and de-identification (§6.1 step 1) | Cloud Healthcare API DICOM de-identify; Sensitive Data Protection for other formats |
 | Free-text check (probe answers, annotation notes) | Sensitive Data Protection instead of running Presidio ourselves |
-| Secrets | Secret Manager + Workload Identity for pods (no key files); still surfaced as `INKLING_*` env vars |
+| Secrets | Secret Manager + Workload Identity for pods (no key files); still surfaced as `STUDIO_*` env vars |
 | Queue and events | keep Postgres (`SqlJobQueue`, `SqlEventBus`) or Memorystore (Redis); Pub/Sub only if we outgrow both |
 | Audit (§3.4) | Cloud Audit Logs with Data Access logs on, sunk to a locked bucket; Access Transparency |
 
@@ -550,7 +550,7 @@ This turns "real data never leaves" from a code rule into an infrastructure rule
 
 5. **Done 2026-10-31** (`todo10-artifacts`): `packages/signing` (`studio_signing`: `Signer` with
    `local` and `gcpkms`, DSSE, OCI layout), bundles at `artifacts/sha256/<digest>` (`plugin_artifacts`,
-   migration `0007`, optional separate bucket `INKLING_API_ARTIFACTS_BUCKET`), SLSA provenance
+   migration `0007`, optional separate bucket `STUDIO_API_ARTIFACTS_BUCKET`), SLSA provenance
    attestations, verify on every load in the API and in the browser (fetch-and-hash), refusals audited
    as `plugins.artifact.refused`; cosign keyless CI in `.github/workflows/sign-plugins.yml` (not run
    yet: needs GitHub). e2e `tests/e2e/artifacts_test.py`. The worker's `build_plugin` signs with
@@ -718,7 +718,7 @@ recreate them. Reading list, setup, the data boundary and the hand-back format a
 
 - Lockfile entry: `{id, version, digest: "sha256:<hex>", signer, permissions, configRevision}`.
 - `Signer`, owned by `todo10-artifacts`: `sign(digest) -> signature`, `verify(digest, signature)`,
-  `key_id`; implementations `local` (Ed25519 dev key) and `gcpkms`, chosen by `INKLING_API_SIGNER`.
+  `key_id`; implementations `local` (Ed25519 dev key) and `gcpkms`, chosen by `STUDIO_API_SIGNER`.
   `todo10-boundary`'s `build_plugin` calls a local interface with the same shape and a dev
   implementation until merge.
 - Agent-scoped routes (`todo10-boundary`): `get_fingerprint`, `get_fixtures`, `verify_on_sample`,

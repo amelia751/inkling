@@ -1,4 +1,4 @@
-"""todo10 Phase 5 exit: the rung-4 PLY viewer renders in an MCP Apps host outside Inkling.
+"""todo10 Phase 5 exit: the rung-4 PLY viewer renders in an MCP Apps host outside our web app.
 
 apps/mcp serves each active sandboxed viewer of a workspace as an MCP Apps UI resource plus a
 `view_*` tool. The host here (apps/mcp/test/apps-host) is not the Studio: it uses the official
@@ -11,7 +11,7 @@ Needs the kernel with the plugin approved in workspace `ply-demo` (viewer_test.p
 this test does too if it's missing):
 
     (cd apps/api && uv run uvicorn studio_api.app:app --port 8241) &
-    INKLING_E2E_API_URL=http://127.0.0.1:8241 python3 tests/e2e/mcp_apps_host_test.py
+    STUDIO_E2E_API_URL=http://127.0.0.1:8241 python3 tests/e2e/mcp_apps_host_test.py
 
 Ports: 8242 (a static stand-in for the Studio's /seed files), 8243 (host), 8244 (sandbox proxy).
 """

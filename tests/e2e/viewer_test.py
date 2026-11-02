@@ -12,10 +12,10 @@ What is real and what is scripted:
   agent's build_plugin_artifact tool does (Daytona isn't involved). The person's approval is a
   kernel call with the person's identity, the same call InstallReview makes.
 
-    (cd apps/api && INKLING_API_DATA_DIR=/tmp/k uv run uvicorn studio_api.app:app --port 8241) &
-    (cd apps/worker && INKLING_WORKER_SIGNING_KEY_FILE=/tmp/k/plugin-signing.key uv run studio-worker --kernel http://127.0.0.1:8241) &
-    INKLING_E2E=1 pnpm exec vite --port 5240 --strictPort          # from apps/web
-    INKLING_E2E_API_URL=http://127.0.0.1:8241 python3 ../../tests/e2e/viewer_test.py --port 5240
+    (cd apps/api && STUDIO_API_DATA_DIR=/tmp/k uv run uvicorn studio_api.app:app --port 8241) &
+    (cd apps/worker && STUDIO_WORKER_SIGNING_KEY_FILE=/tmp/k/plugin-signing.key uv run studio-worker --kernel http://127.0.0.1:8241) &
+    STUDIO_E2E=1 pnpm exec vite --port 5240 --strictPort          # from apps/web
+    STUDIO_E2E_API_URL=http://127.0.0.1:8241 python3 ../../tests/e2e/viewer_test.py --port 5240
 
 Without a kernel the test is skipped (reported).
 """

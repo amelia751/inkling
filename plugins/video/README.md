@@ -1,4 +1,4 @@
-# Video (`inkling.video`)
+# Video (`studio.video`)
 
 Frame-accurate video annotation. The `frame-canvas` renderer decodes every frame exactly with
 WebCodecs (falling back to `<video>` seeking), plays through a requestVideoFrameCallback clock
@@ -17,14 +17,14 @@ host), `renderer/FrameEditor.ts` (per-frame 2D editing), `renderer/VideoTimeline
 
 ```json
 {
-  "data": { "kind": "inkling.video.dataKinds.video" },
-  "viewports": [{ "name": "main", "renderer": "inkling.video.renderers.frame-canvas" }],
+  "data": { "kind": "studio.video.dataKinds.video" },
+  "viewports": [{ "name": "main", "renderer": "studio.video.renderers.frame-canvas" }],
   "tools": [
-    "inkling.core.tools.select", "inkling.core.tools.pan",
-    "inkling.overlay2d.tools.box", "inkling.overlay2d.tools.polygon", "inkling.overlay2d.tools.keypoint",
-    "inkling.timeline.tools.segment", "inkling.timeline.tools.event"
+    "studio.core.tools.select", "studio.core.tools.pan",
+    "studio.overlay2d.tools.box", "studio.overlay2d.tools.polygon", "studio.overlay2d.tools.keypoint",
+    "studio.timeline.tools.segment", "studio.timeline.tools.event"
   ],
   "labels": [{ "name": "objects", "control": "VideoRectangle", "classes": [{ "id": "car" }, { "id": "person" }] }],
-  "exporters": ["inkling.video.exporters.cvat-video", "inkling.video.exporters.mot", "inkling.video.exporters.temporal-json"]
+  "exporters": ["studio.video.exporters.cvat-video", "studio.video.exporters.mot", "studio.video.exporters.temporal-json"]
 }
 ```

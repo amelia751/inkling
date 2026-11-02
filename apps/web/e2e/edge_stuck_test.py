@@ -1,6 +1,6 @@
 """todo18 D6 edges: nothing waits forever, and leaving while it works warns.
 
-    INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 e2e/edge_stuck_test.py --port 5199
 
 The kernel side (imports stuck `inspecting` failing after API_IMPORT_STALL_MINUTES, poison

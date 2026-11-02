@@ -4,7 +4,7 @@ import { MetricsConfigSchema } from "./config";
 import { CARDIAC } from "./ids";
 
 /**
- * Cardiac function on top of inkling.cine: include it in a cardiac environment, leave it
+ * Cardiac function on top of studio.cine: include it in a cardiac environment, leave it
  * out for any other slice × frame data. Structure roles (rv / myo / lv) come from the cine
  * renderer's `structures` config.
  */

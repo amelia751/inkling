@@ -171,7 +171,7 @@ def test_real_gcs_store():
 
 
 def test_artifacts_go_to_their_own_bucket(monkeypatch, tmp_path):
-    """INKLING_API_ARTIFACTS_BUCKET: content-addressed bundles land in the retention-locked bucket."""
+    """STUDIO_API_ARTIFACTS_BUCKET: content-addressed bundles land in the retention-locked bucket."""
     from studio_api import config
 
     built: list[str] = []

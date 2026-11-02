@@ -93,7 +93,7 @@ services:
       AWS_DEFAULT_REGION: us-east-1
       AWS_REQUEST_CHECKSUM_CALCULATION: when_required
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
-      BUCKETS: assets inkling-objects inkling-manifests
+      BUCKETS: assets studio-objects studio-manifests
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -110,7 +110,7 @@ services:
   # infra/workos/README.md). Environment key sk_test_default, any client id. `iss` is pinned to
   # the host URL so it's the same for apps on the host and in containers; the signing key is
   # generated per start, so restart a workos-mode api after restarting this. Only the api uses it
-  # (sign-in and the event sync), and only with INKLING_API_AUTH_MODE=workos (docs/running.md, "Signing in").
+  # (sign-in and the event sync), and only with STUDIO_API_AUTH_MODE=workos (docs/running.md, "Signing in").
   workos-emulate:
     image: ghcr.io/workos/emulate:0.18.0
     profiles: [deps, full]

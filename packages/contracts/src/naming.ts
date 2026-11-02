@@ -9,12 +9,12 @@
  * `node tools/rename-namespace.mjs --from <old> --to <new>` for stored documents.
  */
 export const NAMING = {
-  displayName: "Inkling",
-  namespace: "inkling",
-  schemaPrefix: "inkling",
-  resourcePrefix: "inkling",
-  envPrefix: "INKLING_",
-  legacyNamespaces: [] as string[],
+  displayName: "Spurby",
+  namespace: "studio",
+  schemaPrefix: "studio",
+  resourcePrefix: "studio",
+  envPrefix: "STUDIO_",
+  legacyNamespaces: ["inkling"] as string[],
 } as const;
 
 export type Naming = { -readonly [K in keyof typeof NAMING]: (typeof NAMING)[K] extends readonly string[] ? string[] : string };

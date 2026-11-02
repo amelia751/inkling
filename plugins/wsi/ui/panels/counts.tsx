@@ -10,7 +10,7 @@ import { useHost } from "@studio/plugin-ui-sdk";
 const total = (m: Map<string, number>) => [...m.values()].reduce((s, n) => s + n, 0);
 
 /**
- * `inkling.wsi.panels.counts` (slot right): QuPath-style point counts per class on the
+ * `studio.wsi.panels.counts` (slot right): QuPath-style point counts per class on the
  * current slide, and inside the selected region with density in points/mm² when the
  * renderer has published `mpp`.
  */

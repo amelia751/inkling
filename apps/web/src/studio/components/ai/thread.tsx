@@ -48,7 +48,7 @@ const textOf = (message: ChatMessage) =>
     .filter(Boolean)
     .join("\n\n");
 
-/** "INKLING AI" over a pending or failed reply, as Nebius Echo labels its own. */
+/** "<displayName> AI" over a pending or failed reply, as Nebius Echo labels its own. */
 function Meta() {
   return <div className="mb-1 text-caption tracking-[0.4px] text-muted-foreground uppercase">{NAMING.displayName} AI</div>;
 }

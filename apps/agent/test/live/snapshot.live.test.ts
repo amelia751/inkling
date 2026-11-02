@@ -9,7 +9,7 @@ const RES = NAMING.resourcePrefix;
 
 /**
  * Slow and manual: builds the snapshot if it's missing (minutes), then checks a sandbox from it has
- * the scientific stack. Run with INKLING_SNAPSHOT_LIVE=1 pnpm agent:live.
+ * the scientific stack. Run with STUDIO_SNAPSHOT_LIVE=1 pnpm agent:live.
  */
 const enabled = live && process.env[envKey("AGENT_SNAPSHOT_LIVE")] === "1";
 let sandbox: Sandbox | undefined;

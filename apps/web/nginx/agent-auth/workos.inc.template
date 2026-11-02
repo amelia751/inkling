@@ -1,10 +1,10 @@
-# INKLING_WEB_AUTH_MODE=workos (todo9 Phase 5): the API turns the session cookie into the person's
+# STUDIO_WEB_AUTH_MODE=workos (todo9 Phase 5): the API turns the session cookie into the person's
 # WorkOS access token; no session → 401 to the browser. The agent verifies the bearer itself and
 # still requires the service token, so its ingress stays closed to anything but this proxy.
 auth_request /_auth;
 auth_request_set $access_token $upstream_http_x_access_token;
 proxy_set_header Authorization "Bearer $access_token";
-proxy_set_header X-Agent-Service-Token "${INKLING_AGENT_TOKEN}";
+proxy_set_header X-Agent-Service-Token "${STUDIO_AGENT_TOKEN}";
 # A verify that refreshed the session rotates the cookie: hand the new one to the browser, or it
 # keeps a spent refresh token (apps/api auth/routes.py `verify`). Also on the 401 (cleared cookie).
 auth_request_set $auth_cookie $upstream_http_set_cookie;

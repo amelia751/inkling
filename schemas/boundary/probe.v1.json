@@ -227,5 +227,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/probe.v1"
+  "$id": "studio://schema/boundary/probe.v1"
 }

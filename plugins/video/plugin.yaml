@@ -1,7 +1,7 @@
 # Data-only manifest (docs/plugins.md §5.2). The TS manifest in ui/manifest.ts stays the
 # source of truth for trusted UI code; this file is what the registry, installer and agent read.
-schemaVersion: inkling.plugins/v1
-id: inkling.video
+schemaVersion: studio.plugins/v1
+id: studio.video
 name: Video
 version: 1.0.0
 description: "Frame-accurate video with tracks interpolated between keyframes, per-frame shapes, segments and events on a timeline."
@@ -11,8 +11,8 @@ compatibility:
   studio: ">=0.1.0 <1.0.0"
   pluginApi: "^1"
 requires:
-  inkling.overlay2d: "^1"
-  inkling.timeline: "^1"
+  studio.overlay2d: "^1"
+  studio.timeline: "^1"
 capabilities:
   - id: video.view
     mediaTypes: [video/mp4, video/webm]

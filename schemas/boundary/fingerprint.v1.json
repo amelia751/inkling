@@ -578,5 +578,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/boundary/fingerprint.v1"
+  "$id": "studio://schema/boundary/fingerprint.v1"
 }

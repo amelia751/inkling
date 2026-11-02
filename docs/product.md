@@ -1,8 +1,8 @@
-# Inkling — Technical Architecture & MVP Implementation Specification
+# Technical Architecture & MVP Implementation Specification
 
 **Status:** Proposed engineering plan, v0.1  
 **Date:** 2026-10-29  
-**Audience:** Inkling cofounders and implementation contributors  
+**Audience:** cofounders and implementation contributors  
 **Product:** Browser-first, no-code studio for domain experts to create, annotate, validate, version, and eventually distribute high-quality datasets. **Initial vertical: medical imaging research.**
 
 > This document describes an implementation proposal, not a claim of HIPAA compliance or medical-device clearance. The initial product must use appropriately licensed, de-identified or synthetic data; no unrestricted uploads of clinical PHI. Confirm licenses of all libraries, models, datasets, and transitive dependencies at the exact pinned versions before release.
@@ -84,7 +84,7 @@ Use actual shadcn CLI generation for UI primitives, rather than assuming every s
 
 - **Extension host** (`apps/web/src/extension-host/`, contract in `packages/plugin-ui-sdk`): module contract, registry, environment schema (zod), resolver with structured errors, `when`-clause evaluator, runtime context, command registry, agent catalogue. No domain code.
 - **Kits** (`kits/`): domain-neutral building blocks: 2D vector overlay, viewport chrome, timeline, file I/O (NIfTI, DICOM, WFDB, video), Cornerstone glue.
-- **Modules** (`plugins/<name>/ui/`): a pure-data `manifest.ts` plus a lazy `load()` returning implementations keyed by contribution id. Contributions are addressed `<module>.<type>.<name>`, e.g. `inkling.wsi.renderers.osd`.
+- **Modules** (`plugins/<name>/ui/`): a pure-data `manifest.ts` plus a lazy `load()` returning implementations keyed by contribution id. Contributions are addressed `<module>.<type>.<name>`, e.g. `studio.wsi.renderers.osd`.
 - **Environments**: JSON documents (seed manifest, `registry/presets/*.json`, or agent-written) that pick modules and configure them. Validated against a JSON Schema generated from the live registry.
 
 ```ts
@@ -122,7 +122,7 @@ export interface ModuleManifest {
 | DICOM archive | Orthanc + DICOMweb plugin (P1) | Standards-based DICOM studies and image retrieval |
 | Tests/lint | pytest, pytest-asyncio, httpx, Ruff, mypy | Tests and static checks |
 | Observability | OpenTelemetry + error reporting | Traces, failures, job metrics without exposing PHI |
-| Agent runtime | **Node + pi** (`apps/agent`, TypeScript) with Daytona sandboxes | The Inkling AI agent loop, tools and approvals; a private service only the API (dev: the Vite proxy) talks to. See `agent.md` |
+| Agent runtime | **Node + pi** (`apps/agent`, TypeScript) with Daytona sandboxes | The Spurby AI agent loop, tools and approvals; a private service only the API (dev: the Vite proxy) talks to. See `agent.md` |
 
 The API, validation and workers stay Python/FastAPI. Only the agent runtime is Node: pi is a TypeScript harness, so it shares wire types with `apps/web` (`@studio/agent-protocol`) and keeps model keys and sandbox credentials server-side.
 
@@ -151,7 +151,7 @@ Use version constraints and lockfiles (`uv.lock`, `pnpm-lock.yaml`) in the repo.
 ## 4. Monorepo layout
 
 ```text
-inkling/
+<repo>/
 ├── docs/product.md                   # This specification
 ├── README.md
 ├── pnpm-workspace.yaml
@@ -370,7 +370,7 @@ For medical images, preserve **original DICOM UIDs where authorized, frame-of-re
 }
 ```
 
-This is **Inkling internal JSON**, not DICOM SEG. Write and test explicit converters rather than describing proprietary annotations as medical standards.
+This is **our internal JSON**, not DICOM SEG. Write and test explicit converters rather than describing proprietary annotations as medical standards.
 
 ## 7. API design (initial endpoints)
 
@@ -457,7 +457,7 @@ For future ePHI deployments, seek security/legal review and applicable BAAs with
 
 Support these possible operational modes over time:
 
-1. **Managed cloud:** approved datasets upload to Inkling-controlled infrastructure.
+1. **Managed cloud:** approved datasets upload to our infrastructure.
 2. **Browser-local preview:** where feasible, decode/annotate without transmitting originals; document what is transmitted for account, telemetry, or AI features.
 3. **Institutional/private deployment:** identical studio UI backed by organization-approved compute/storage/DICOM archive, requiring separately validated security and administration.
 
@@ -569,4 +569,4 @@ These are starting points, not a substitute for checking exact dependency versio
 
 ---
 
-**Founder principle:** Inkling should make medical dataset creation straightforward for experts who do not know machine learning, while preserving rigorous technical provenance, reproducibility, privacy controls, and exportability underneath the interface.
+**Founder principle:** Spurby should make medical dataset creation straightforward for experts who do not know machine learning, while preserving rigorous technical provenance, reproducibility, privacy controls, and exportability underneath the interface.

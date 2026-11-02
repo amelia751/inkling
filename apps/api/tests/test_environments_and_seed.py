@@ -98,7 +98,7 @@ def test_validation_and_catalog_are_served_by_the_api(c):
     """todo11 D2: no more 501 split brain for validation and the catalogue."""
     r = c.post("/api/environments/validate", json=ENV)
     assert r.status_code == 200 and r.json()["ok"], r.text
-    bad = c.post("/api/environments/validate", json={**ENV, "tools": ["inkling.core.tools.nope"]})
+    bad = c.post("/api/environments/validate", json={**ENV, "tools": ["studio.core.tools.nope"]})
     assert bad.status_code == 422 and bad.json()["errors"][0] == {"path": "/tools/0", "code": "reference", "message": bad.json()["errors"][0]["message"]}
     cat = c.get("/api/catalog").json()
     assert cat["version"] == 1 and cat["modules"] and cat["contributions"]

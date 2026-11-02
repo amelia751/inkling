@@ -1,6 +1,6 @@
 """todo8 Phase 3 (D3, D8): the Items panel follows the file system.
 
-    INKLING_E2E=1 pnpm exec vite --port 5225 --strictPort      # in apps/web
+    STUDIO_E2E=1 pnpm exec vite --port 5225 --strictPort      # in apps/web
     python3 e2e/studio_items_test.py --port 5225
 
 - the 3D sample's items (studies, never raw sequences) render in the Folders view;

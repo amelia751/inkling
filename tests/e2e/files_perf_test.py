@@ -9,7 +9,7 @@ Measures (and prints) rather than gating hard, except where the plan sets a bar:
 - context menus open from the keyboard (Shift+F10 and the Menu key) in the listing and the tree;
 - the keyboard twins of drags: ⌘C / ⌘V copies (⌥-drag), ⌘X / ⌘V and Move to… move (drag).
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_perf_test.py --port 5199   # from apps/web
 """
 

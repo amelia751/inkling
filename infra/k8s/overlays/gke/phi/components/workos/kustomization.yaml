@@ -11,10 +11,10 @@
 # What it changes:
 #   - ConfigMap api-auth-config, after api-config in the api's envFrom: AUTH_MODE=workos,
 #     DEV_TRUST_HEADERS=0, the redirect URI and public URL (host from STUDIO_HOST, values/);
-#   - web: INKLING_WEB_AUTH_MODE=workos (the SPA's /config.json);
+#   - web: STUDIO_WEB_AUTH_MODE=workos (the SPA's /config.json);
 #   - NetworkPolicy workos-egress: api may open 443 to public addresses (network.yaml).
-# The agent (spurby-ai, ../../ai) flips separately: INKLING_AGENT_AUTH_MODE=workos and
-# INKLING_AGENT_WORKOS_CLIENT_ID in its agent-config.
+# The agent (spurby-ai, ../../ai) flips separately: STUDIO_AGENT_AUTH_MODE=workos and
+# STUDIO_AGENT_WORKOS_CLIENT_ID in its agent-config.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
@@ -38,5 +38,5 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value:
-          name: INKLING_WEB_AUTH_MODE
+          name: STUDIO_WEB_AUTH_MODE
           value: workos

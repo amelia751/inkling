@@ -16,7 +16,7 @@ export { lengthTool } from "./length";
 export { pointTool } from "./point";
 
 /**
- * The overlay2d tool machines by tool name (the local names of `inkling.overlay2d.tools.*`
+ * The overlay2d tool machines by tool name (the local names of `studio.overlay2d.tools.*`
  * and the shared names modules reuse: `mark` is a keypoint for cell counting, `brush` /
  * `eraser` paint vector regions). `pan` has no machine: the host pans. A module adds its
  * own (the wsi wand) through OverlayEngine's `tools` option.

@@ -66,5 +66,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/plugins-lock/v1"
+  "$id": "studio://schema/plugins-lock/v1"
 }

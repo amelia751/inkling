@@ -8,16 +8,16 @@ metadata:
 data:
   # D8: the model on Vertex AI in this project, with Workload Identity (studio-agent has
   # roles/aiplatform.user). Only Vertex models are allowed, so no prompt leaves Google.
-  INKLING_AGENT_MODEL: google-vertex:gemini-3.1-pro-preview
-  INKLING_AGENT_MODEL_ALLOWLIST: google-vertex:gemini-3.1-pro-preview,google-vertex:gemini-3.5-flash
+  STUDIO_AGENT_MODEL: google-vertex:gemini-3.1-pro-preview
+  STUDIO_AGENT_MODEL_ALLOWLIST: google-vertex:gemini-3.1-pro-preview,google-vertex:gemini-3.5-flash
   GOOGLE_CLOUD_PROJECT: spurby-ai
   GOOGLE_CLOUD_LOCATION: us-central1
   # spurby-phi's agent-only host (overlays/gke/phi/agent-api-ingress.yaml).
-  INKLING_API_URL: https://agent-api.example.com
-  INKLING_WEB_URL: https://agent-api.example.com
+  STUDIO_API_URL: https://agent-api.example.com
+  STUDIO_WEB_URL: https://agent-api.example.com
   # Memorystore (output redis_host); the URL with the AUTH string is in agent-secrets.
-  INKLING_AGENT_REDIS_URL: rediss://10.60.0.3:6378/1
-  INKLING_AGENT_REDIS_CA_FILE: /etc/redis-ca/ca.crt
+  STUDIO_AGENT_REDIS_URL: rediss://10.60.0.3:6378/1
+  STUDIO_AGENT_REDIS_CA_FILE: /etc/redis-ca/ca.crt
   # D9 trial: Daytona stays the provider until the GKE Sandbox provider (todo10-boundary's
   # SandboxProvider) lands; then `gke` with the settings in ../README.md.
-  INKLING_AGENT_SANDBOX: daytona
+  STUDIO_AGENT_SANDBOX: daytona

@@ -1,8 +1,8 @@
 import * as z from "zod";
 
 /**
- * Renderer config of `inkling.cine.renderers.slice-frame-canvas` (pure data, read by the
- * manifest, the renderer, the inspector, the exporters and inkling.cardiac-metrics).
+ * Renderer config of `studio.cine.renderers.slice-frame-canvas` (pure data, read by the
+ * manifest, the renderer, the inspector, the exporters and studio.cardiac-metrics).
  * Domain vocabulary (which label is the LV, what ED / ES mean) lives here as config set by
  * a preset, never as code that guesses from label text.
  */

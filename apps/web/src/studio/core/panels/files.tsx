@@ -66,7 +66,7 @@ const STATE_TREE_ICON = Object.fromEntries(
 const ITEM = "item:";
 
 /**
- * `inkling.core.panels.files`, the Items panel (todo8 D3): the task's items (never raw slices
+ * `studio.core.panels.files`, the Items panel (todo8 D3): the task's items (never raw slices
  * nor the project's whole drive, docs/ux.md §8) in two views. **Folders** follows Data (same
  * tree, compaction and numbered runs, folder progress) and is the default when the items span
  * more than one folder; **Queue** is the flat work order with status chips. The view is

@@ -4,8 +4,8 @@ The test starts the API (SQLite in a temp dir, schema by Alembic), the worker an
 service (scripted model, tests/e2e/fixtures/journey-script.json) itself, plus a second API with
 every `API_FEATURE_*` off for J12. Start a frozen dev server pointed at them first:
 
-    cd apps/web && INKLING_E2E=1 INKLING_API_URL=http://127.0.0.1:8271 \\
-      INKLING_AGENT_URL=http://127.0.0.1:8371 INKLING_AGENT_TOKEN=e2e-agent-token \\
+    cd apps/web && STUDIO_E2E=1 STUDIO_API_URL=http://127.0.0.1:8271 \\
+      STUDIO_AGENT_URL=http://127.0.0.1:8371 STUDIO_AGENT_TOKEN=e2e-agent-token \\
       pnpm exec vite --port 5271 --strictPort
     python3 ../../tests/e2e/journey_test.py --port 5271 [--only J1,J4] [--out DIR]
 

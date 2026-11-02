@@ -52,10 +52,10 @@ COPY --from=build /repo/schemas schemas
 COPY --from=build /repo/registry/intents.json registry/intents.json
 # Read-only root filesystem: run data (pi agent dir, scratch) under /tmp only.
 ENV NODE_ENV=production \
-    INKLING_ENV=production \
-    INKLING_AGENT_HOST=0.0.0.0 \
-    INKLING_AGENT_PORT=8100 \
-    INKLING_AGENT_DATA_DIR=/tmp/agent \
+    STUDIO_ENV=production \
+    STUDIO_AGENT_HOST=0.0.0.0 \
+    STUDIO_AGENT_PORT=8100 \
+    STUDIO_AGENT_DATA_DIR=/tmp/agent \
     HOME=/tmp \
     GIT_SHA=${GIT_SHA}
 USER node

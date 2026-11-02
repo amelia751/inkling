@@ -40,40 +40,40 @@ secretGenerator:
       - S3_SECRET_KEY=dev-only-s3-secret
   - name: web-secrets
     literals:
-      - INKLING_AGENT_TOKEN=dev-only-agent-service-token
+      - STUDIO_AGENT_TOKEN=dev-only-agent-service-token
   - name: api-secrets
     literals:
-      - INKLING_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@postgres:5432/studio
-      - INKLING_API_SECRET_KEY=dev-only-api-secret-key-not-for-production-0000
-      - INKLING_API_WORKER_TOKEN=dev-only-worker-token
-      - INKLING_API_PIPELINE_TOKEN=dev-only-pipeline-token
-      - INKLING_API_APPROVAL_SECRET=dev-only-approval-secret
+      - STUDIO_API_DATABASE_URL=postgresql+psycopg://studio:dev-only-pg-password@postgres:5432/studio
+      - STUDIO_API_SECRET_KEY=dev-only-api-secret-key-not-for-production-0000
+      - STUDIO_API_WORKER_TOKEN=dev-only-worker-token
+      - STUDIO_API_PIPELINE_TOKEN=dev-only-pipeline-token
+      - STUDIO_API_APPROVAL_SECRET=dev-only-approval-secret
       - AWS_ACCESS_KEY_ID=dev-only-s3-access
       - AWS_SECRET_ACCESS_KEY=dev-only-s3-secret
   - name: worker-secrets
     literals:
-      - INKLING_API_WORKER_TOKEN=dev-only-worker-token
+      - STUDIO_API_WORKER_TOKEN=dev-only-worker-token
   - name: agent-secrets
     literals:
-      - INKLING_AGENT_TOKEN=dev-only-agent-service-token
-      - INKLING_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent
-      - INKLING_AGENT_APPROVAL_SECRET=dev-only-approval-secret
+      - STUDIO_AGENT_TOKEN=dev-only-agent-service-token
+      - STUDIO_AGENT_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/agent
+      - STUDIO_AGENT_APPROVAL_SECRET=dev-only-approval-secret
   - name: versioning-secrets
     literals:
-      - INKLING_VERSIONING_DATABASE_URL=postgres://versioning_app:dev-only-app-pw@postgres:5432/studio?sslmode=disable
-      - INKLING_VERSIONING_MIGRATE_DATABASE_URL=postgres://versioning_owner:dev-only-owner-pw@postgres:5432/studio?sslmode=disable
-      - INKLING_VERSIONING_S3_ACCESS_KEY_ID=dev-only-s3-access
-      - INKLING_VERSIONING_S3_SECRET_ACCESS_KEY=dev-only-s3-secret
+      - STUDIO_VERSIONING_DATABASE_URL=postgres://versioning_app:dev-only-app-pw@postgres:5432/studio?sslmode=disable
+      - STUDIO_VERSIONING_MIGRATE_DATABASE_URL=postgres://versioning_owner:dev-only-owner-pw@postgres:5432/studio?sslmode=disable
+      - STUDIO_VERSIONING_S3_ACCESS_KEY_ID=dev-only-s3-access
+      - STUDIO_VERSIONING_S3_SECRET_ACCESS_KEY=dev-only-s3-secret
   - name: versioning-bootstrap-secrets
     literals:
-      - INKLING_VERSIONING_ADMIN_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/studio?sslmode=disable
-      - INKLING_VERSIONING_OWNER_PASSWORD=dev-only-owner-pw
-      - INKLING_VERSIONING_APP_PASSWORD=dev-only-app-pw
+      - STUDIO_VERSIONING_ADMIN_DATABASE_URL=postgres://studio:dev-only-pg-password@postgres:5432/studio?sslmode=disable
+      - STUDIO_VERSIONING_OWNER_PASSWORD=dev-only-owner-pw
+      - STUDIO_VERSIONING_APP_PASSWORD=dev-only-app-pw
   - name: pipeline-secrets
     literals:
-      - INKLING_PIPELINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/studio?sslmode=disable&search_path=pipeline
-      - INKLING_PIPELINE_ENGINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/pipeline_engine?sslmode=disable
-      - INKLING_PIPELINE_API_TOKEN=dev-only-pipeline-token
+      - STUDIO_PIPELINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/studio?sslmode=disable&search_path=pipeline
+      - STUDIO_PIPELINE_ENGINE_DATABASE_URL=postgres://pipeline_app:dev-only-pipeline-pw@postgres:5432/pipeline_engine?sslmode=disable
+      - STUDIO_PIPELINE_API_TOKEN=dev-only-pipeline-token
   # Read by the db-bootstrap Job's psql (not an app setting, so no env prefix).
   - name: db-bootstrap-secrets
     literals:
@@ -133,7 +133,7 @@ patches:
       name: pipeline-config
     patch: |-
       - op: replace
-        path: /data/INKLING_ENV
+        path: /data/STUDIO_ENV
         value: development
   # Worker: at most two, still scaled from zero by KEDA.
   - target:
@@ -157,19 +157,19 @@ patches:
       name: api-config
     patch: |-
       - op: replace
-        path: /data/INKLING_API_FEATURE_CHAT_DROPS
+        path: /data/STUDIO_API_FEATURE_CHAT_DROPS
         value: "true"
       - op: replace
-        path: /data/INKLING_API_FEATURE_DATASETS_TAB
+        path: /data/STUDIO_API_FEATURE_DATASETS_TAB
         value: "true"
       - op: replace
-        path: /data/INKLING_API_FEATURE_FAST_PATH
+        path: /data/STUDIO_API_FEATURE_FAST_PATH
         value: "true"
       - op: replace
-        path: /data/INKLING_API_FEATURE_AUTO_APPLY
+        path: /data/STUDIO_API_FEATURE_AUTO_APPLY
         value: "true"
       - op: replace
-        path: /data/INKLING_API_NAME_SCREEN_MODE
+        path: /data/STUDIO_API_NAME_SCREEN_MODE
         value: regex
   # No model or Daytona key needed: scripted model, sandboxes off (both refused in production).
   - target:
@@ -177,13 +177,13 @@ patches:
       name: agent-config
     patch: |-
       - op: replace
-        path: /data/INKLING_ENV
+        path: /data/STUDIO_ENV
         value: development
       - op: add
-        path: /data/INKLING_AGENT_MODEL
+        path: /data/STUDIO_AGENT_MODEL
         value: scripted
       - op: add
-        path: /data/INKLING_AGENT_SANDBOX
+        path: /data/STUDIO_AGENT_SANDBOX
         value: "off"
   # The dev Postgres has no DBA: bootstrap the versioning roles and schema first.
   - target:

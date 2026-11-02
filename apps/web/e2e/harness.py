@@ -1,7 +1,7 @@
 """Shared Playwright helpers for Studio viewer tests.
 
-Run a dev server first (`INKLING_E2E=1 pnpm exec vite --port <port> --strictPort` in apps/web;
-INKLING_E2E turns off hot reload so concurrent edits can't reload the page mid-test), then
+Run a dev server first (`STUDIO_E2E=1 pnpm exec vite --port <port> --strictPort` in apps/web;
+STUDIO_E2E turns off hot reload so concurrent edits can't reload the page mid-test), then
 `python3 e2e/<viewer>_test.py --port <port> [--browser chromium|webkit|firefox]`.
 
 The e2e dev server keeps annotations in a temp copy of e2e/fixtures/annotations/ (see

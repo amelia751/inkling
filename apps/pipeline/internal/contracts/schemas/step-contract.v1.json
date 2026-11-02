@@ -123,5 +123,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/step-contract.v1"
+  "$id": "studio://schema/pipeline/step-contract.v1"
 }

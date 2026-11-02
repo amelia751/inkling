@@ -148,5 +148,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/conversion-summary/v1"
+  "$id": "studio://schema/conversion-summary/v1"
 }

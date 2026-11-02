@@ -20,7 +20,7 @@ MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 def mutating_routes() -> dict[str, bool]:
-    os.environ.setdefault("INKLING_API_DATABASE_URL", "sqlite:///:memory:")
+    os.environ.setdefault("STUDIO_API_DATABASE_URL", "sqlite:///:memory:")
     from studio_api.app import create_app
     from studio_api.kernel.admission.http import OPERATION_KEY
 

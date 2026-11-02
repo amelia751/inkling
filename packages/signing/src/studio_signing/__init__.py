@@ -13,7 +13,7 @@ artifact. Implementations:
   `gcpkms://` URI cosign also accepts, so `cosign verify-blob --key <key_id>` works.
 
 The service picks one with `make_signer(kind, ...)`; which kind comes from the service's
-own config module (`INKLING_API_SIGNER`, `INKLING_WORKER_SIGNER`). This package reads no
+own config module (`STUDIO_API_SIGNER`, `STUDIO_WORKER_SIGNER`). This package reads no
 environment variables and imports no app.
 
 `envelope` / `check_envelope` wrap a signature with its algorithm and key id;

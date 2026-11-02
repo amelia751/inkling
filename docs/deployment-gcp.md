@@ -160,7 +160,7 @@ agent.
 | GPU steps (pipeline Milestone 4) | `worker-gpu` Deployment on Autopilot's Accelerator class (NVIDIA L4, GKE Sandbox, Spot), regional L4 quota requested by a person; `gpu_workers_enabled` |
 | Kubernetes | GKE Autopilot; a `gke` overlay next to `infra/k8s/overlays/{dev,staging,prod}` |
 | Worker running untrusted plugin code | GKE Sandbox (gVisor) node pool, NetworkPolicy denying egress, read-only input |
-| Secrets | Secret Manager + Workload Identity, surfaced as the usual `INKLING_*` env vars |
+| Secrets | Secret Manager + Workload Identity, surfaced as the usual `STUDIO_*` env vars |
 | Audit | Cloud Audit Logs with Data Access logs on, sunk to a locked bucket; Access Transparency |
 
 ## Setup order
@@ -210,6 +210,10 @@ agent.
     and automatic increases were denied. A person must request the increase in the console
     (IAM & Admin → Quotas, `SSD_TOTAL_GB` in us-central1, 500 GB). Until then imports stop at
     `inspecting`.
+11. **Paused (2026-11-02).** The MVP runs locally. Every Deployment in both clusters is scaled to
+    0, the worker's ScaledObject paused, CronJobs suspended, both Cloud SQL instances stopped
+    (data kept). Nothing was deleted. To resume, and to avoid the quota by running the worker
+    without GKE Sandbox while data is synthetic: `todo/todo15.md` §8.
 
 Steps 1–3 come before any customer data arrives; the pipeline's Milestone 3 (Pub/Sub,
 `pipeline_connectors_enabled`) and Milestone 4 (GPU, `gpu_workers_enabled` and the L4 quota) each
@@ -243,8 +247,8 @@ switch on only when that milestone ships.
   HMAC-SHA256 and the api verifies it (person, operation, project, targets, ten-minute expiry,
   single use in `approvals_used`). The key is one random value (`openssl rand -base64 48`) held
   twice: Secret Manager secret `approval-secret` in **`spurby-ai`** synced into `agent-secrets`
-  as `INKLING_AGENT_APPROVAL_SECRET`, and the same value in **`spurby-phi`** synced into
-  `api-secrets` as `INKLING_API_APPROVAL_SECRET`. Both services refuse to start in production
+  as `STUDIO_AGENT_APPROVAL_SECRET`, and the same value in **`spurby-phi`** synced into
+  `api-secrets` as `STUDIO_API_APPROVAL_SECRET`. Both services refuse to start in production
   without it. Rotate by updating both, then restarting api and agent (approvals in flight fail
   and are asked again).
 - The agent's model is on Vertex AI in `spurby-ai` (`AGENT_MODEL=google-vertex:…`, D8) and its
@@ -265,7 +269,7 @@ the `samples/` prefix of the api's bucket (`gs://spurby-phi-objects/samples/`):
 | A copy's rows | the person's organization, like any project |
 | A copy's bytes | the template's keys under `samples/`; uploads to a copy go under `.data/` like any upload |
 
-The api reads seed assets under `INKLING_API_SAMPLES_PREFIX` (`samples` in
+The api reads seed assets under `STUDIO_API_SAMPLES_PREFIX` (`samples` in
 `overlays/gke/phi/patches/endpoints.yaml`): the seed manifest, `/seed/*`, signed asset URLs for
 templates and copies. `.data/` (uploads, derived data) is unaffected. Its service account has
 `roles/storage.objectUser` on the whole bucket (`infra/terraform/phi/storage.tf`), so no extra

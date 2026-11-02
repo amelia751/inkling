@@ -2,116 +2,116 @@
   "version": 1,
   "modules": [
     {
-      "id": "inkling.core",
+      "id": "studio.core",
       "version": "1.0.0",
       "title": "Studio core",
       "description": "Items, labels, all-annotations and AI panels; selection and navigation commands; select / pan / window-level tools; core geometries."
     },
     {
-      "id": "inkling.overlay2d",
+      "id": "studio.overlay2d",
       "version": "1.0.0",
       "title": "2D overlay tools",
       "description": "Box, ellipse, polygon, freehand, polyline, spline, keypoint, brush and eraser on any image-plane renderer."
     },
     {
-      "id": "inkling.cornerstone",
+      "id": "studio.cornerstone",
       "version": "1.0.0",
       "title": "Cornerstone3D tools",
       "description": "Radiology tools on Cornerstone3D viewports: zoom, crosshairs, ROI shapes, measurements, threshold brush, flood fill, view transforms."
     },
     {
-      "id": "inkling.timeline",
+      "id": "studio.timeline",
       "version": "1.0.0",
       "title": "Timeline tools",
       "description": "Label spans and point-in-time events on any renderer with a time axis."
     },
     {
-      "id": "inkling.generic",
+      "id": "studio.generic",
       "version": "0.1.0",
       "title": "Generic files",
       "description": "One item per file of any format, for sandboxed viewers (studio.sandbox-frame.v1 renderers) of formats the Studio doesn't read."
     },
     {
-      "id": "inkling.image2d",
+      "id": "studio.image2d",
       "version": "1.1.0",
       "title": "2D images",
       "description": "Single-frame images (PNG, JPEG, single-frame DICOM): a Cornerstone3D stack viewport with window/level, measurements and masks for radiology, or a light canvas renderer with boxes, polygons and keypoints for natural images.",
       "requires": [
-        "inkling.cornerstone"
+        "studio.cornerstone"
       ]
     },
     {
-      "id": "inkling.volume",
+      "id": "studio.volume",
       "version": "1.1.0",
       "title": "3D volumes",
       "description": "NIfTI and DICOM series on Cornerstone3D MPR viewports (axial / coronal / sagittal + 3D) with crosshairs, 3D labelmaps and measurements.",
       "requires": [
-        "inkling.cornerstone"
+        "studio.cornerstone"
       ]
     },
     {
-      "id": "inkling.timeseries",
+      "id": "studio.timeseries",
       "version": "1.1.0",
       "title": "Multichannel time series",
       "description": "Sampled signals (WFDB, CSV) on a strip chart: spans and instants per channel, a record-level track, delineation, beat detection and calipers."
     },
     {
-      "id": "inkling.video",
+      "id": "studio.video",
       "version": "1.0.0",
       "title": "Video",
       "description": "Frame-accurate video (mp4 / webm) with tracks interpolated between keyframes, per-frame shapes, segments and events on a timeline.",
       "requires": [
-        "inkling.overlay2d",
-        "inkling.timeline"
+        "studio.overlay2d",
+        "studio.timeline"
       ]
     },
     {
-      "id": "inkling.cine",
+      "id": "studio.cine",
       "version": "1.0.0",
       "title": "Slice × frame cine",
       "description": "Any slice × frame image series (4D NIfTI, e.g. cardiac cine MRI): contours and masks per slice and frame, key frames, playback, copy-forward, interpolation and reference import.",
       "requires": [
-        "inkling.overlay2d"
+        "studio.overlay2d"
       ]
     },
     {
-      "id": "inkling.cardiac-metrics",
+      "id": "studio.cardiac-metrics",
       "version": "1.0.0",
       "title": "Cardiac function metrics",
       "description": "EDV, ESV, SV, EF, LV mass and Dice vs reference for a cardiac cine (Simpson's method of discs), as a right panel and a CSV export.",
       "requires": [
-        "inkling.cine"
+        "studio.cine"
       ]
     },
     {
-      "id": "inkling.wsi",
+      "id": "studio.wsi",
       "version": "1.1.0",
       "title": "Tiled image pyramids",
       "description": "Deep-zoom image pyramids (DZI) on OpenSeadragon with vector regions, brush/eraser on regions, magic wand, point counting and µm measurements.",
       "requires": [
-        "inkling.overlay2d"
+        "studio.overlay2d"
       ]
     },
     {
-      "id": "inkling.dicom-export",
+      "id": "studio.dicom-export",
       "version": "1.0.0",
       "title": "DICOM export",
       "description": "Masks as DICOM SEG and measurements as DICOM SR (TID 1500), referencing the source DICOM images."
     },
     {
-      "id": "inkling.text-spans",
+      "id": "studio.text-spans",
       "version": "0.1.0",
       "title": "Text spans",
       "description": "Plain-text documents with character-offset span labels (named entities, phrases); JSONL export in the spaCy / doccano shape."
     },
     {
-      "id": "inkling.segmentation",
+      "id": "studio.segmentation",
       "version": "1.0.0",
       "title": "Segmentation",
       "description": "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
     },
     {
-      "id": "inkling.presets",
+      "id": "studio.presets",
       "version": "1.0.0",
       "title": "Presets",
       "description": "Ready-made environments: the six medical Studios and generic starting points. Use with `extends`."
@@ -119,21 +119,21 @@
   ],
   "contributions": [
     {
-      "id": "inkling.generic.dataKinds.files",
+      "id": "studio.generic.dataKinds.files",
       "type": "dataKinds",
-      "module": "inkling.generic",
+      "module": "studio.generic",
       "description": "One item per file, any format; shown by a sandboxed viewer renderer",
       "label": "Files",
       "example": {
         "data": {
-          "kind": "inkling.generic.dataKinds.files"
+          "kind": "studio.generic.dataKinds.files"
         }
       }
     },
     {
-      "id": "inkling.image2d.dataKinds.raster",
+      "id": "studio.image2d.dataKinds.raster",
       "type": "dataKinds",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Single-frame images, one item per file",
       "label": "2D image",
       "fileKinds": [
@@ -142,14 +142,14 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.image2d.dataKinds.raster"
+          "kind": "studio.image2d.dataKinds.raster"
         }
       }
     },
     {
-      "id": "inkling.volume.dataKinds.volume",
+      "id": "studio.volume.dataKinds.volume",
       "type": "dataKinds",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Volumes grouped by subject; each subject's sequences (NIfTI) or series (DICOM) feed the sequence picker, `sequence: seg` is the read-only reference segmentation",
       "label": "3D volume",
       "fileKinds": [
@@ -159,14 +159,14 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.volume.dataKinds.volume"
+          "kind": "studio.volume.dataKinds.volume"
         }
       }
     },
     {
-      "id": "inkling.timeseries.dataKinds.multichannel-timeseries",
+      "id": "studio.timeseries.dataKinds.multichannel-timeseries",
       "type": "dataKinds",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "One item per recording; channels are leads / signals. Read by the strip chart's `reader` (wfdb, csv; EDF next)",
       "label": "Waveform",
       "fileKinds": [
@@ -174,14 +174,14 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
+          "kind": "studio.timeseries.dataKinds.multichannel-timeseries"
         }
       }
     },
     {
-      "id": "inkling.video.dataKinds.video",
+      "id": "studio.video.dataKinds.video",
       "type": "dataKinds",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "One item per video file (or frame archive)",
       "label": "Video",
       "fileKinds": [
@@ -189,26 +189,26 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.video.dataKinds.video"
+          "kind": "studio.video.dataKinds.video"
         }
       }
     },
     {
-      "id": "inkling.cine.dataKinds.volume-time",
+      "id": "studio.cine.dataKinds.volume-time",
       "type": "dataKinds",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "A 4D series plus reference segmentations, as one study",
       "label": "4D cine",
       "example": {
         "data": {
-          "kind": "inkling.cine.dataKinds.volume-time"
+          "kind": "studio.cine.dataKinds.volume-time"
         }
       }
     },
     {
-      "id": "inkling.wsi.dataKinds.raster-pyramid",
+      "id": "studio.wsi.dataKinds.raster-pyramid",
       "type": "dataKinds",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "One item per pyramid (slide); thumbnails are skipped",
       "label": "Whole-slide",
       "fileKinds": [
@@ -216,14 +216,14 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.wsi.dataKinds.raster-pyramid"
+          "kind": "studio.wsi.dataKinds.raster-pyramid"
         }
       }
     },
     {
-      "id": "inkling.text-spans.dataKinds.text",
+      "id": "studio.text-spans.dataKinds.text",
       "type": "dataKinds",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "One item per UTF-8 text file",
       "label": "Text",
       "fileKinds": [
@@ -231,17 +231,17 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.text-spans.dataKinds.text"
+          "kind": "studio.text-spans.dataKinds.text"
         }
       }
     },
     {
-      "id": "inkling.image2d.renderers.cornerstone-stack",
+      "id": "studio.image2d.renderers.cornerstone-stack",
       "type": "renderers",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Cornerstone3D stack viewport: window/level, invert, flip, rotate, magnifier, measurements, labelmaps; each view control can be switched off in config",
       "consumes": [
-        "inkling.image2d.dataKinds.raster"
+        "studio.image2d.dataKinds.raster"
       ],
       "space": "image2d",
       "capabilities": [
@@ -257,7 +257,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.image2d.renderers.cornerstone-stack",
+            "renderer": "studio.image2d.renderers.cornerstone-stack",
             "config": {
               "windowLevel": false,
               "colormap": false
@@ -266,7 +266,7 @@
         ],
         "panels": {
           "viewport-bar": [
-            "inkling.image2d.panels.viewControls"
+            "studio.image2d.panels.viewControls"
           ]
         }
       },
@@ -427,12 +427,12 @@
       }
     },
     {
-      "id": "inkling.image2d.renderers.canvas-raster",
+      "id": "studio.image2d.renderers.canvas-raster",
       "type": "renderers",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Plain <canvas> for natural images (PNG/JPEG/WebP, no DICOM): pan, wheel zoom, select / move / resize, and the overlay2d box, polygon and keypoint tools",
       "consumes": [
-        "inkling.image2d.dataKinds.raster"
+        "studio.image2d.dataKinds.raster"
       ],
       "space": "image2d",
       "capabilities": [
@@ -447,25 +447,25 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.image2d.renderers.canvas-raster"
+            "renderer": "studio.image2d.renderers.canvas-raster"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.overlay2d.tools.keypoint"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.overlay2d.tools.polygon",
+          "studio.overlay2d.tools.keypoint"
         ]
       }
     },
     {
-      "id": "inkling.volume.renderers.cornerstone-mpr",
+      "id": "studio.volume.renderers.cornerstone-mpr",
       "type": "renderers",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Cornerstone3D orthographic MPR with linked crosshairs and VOI, layouts 1×3, 1 + 2, single, 2×2 with 3D and 1 + 3D",
       "consumes": [
-        "inkling.volume.dataKinds.volume"
+        "studio.volume.dataKinds.volume"
       ],
       "space": "volume",
       "capabilities": [
@@ -483,7 +483,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.volume.renderers.cornerstone-mpr",
+            "renderer": "studio.volume.renderers.cornerstone-mpr",
             "config": {
               "layout": "mpr3d",
               "layouts": [
@@ -564,12 +564,12 @@
       }
     },
     {
-      "id": "inkling.timeseries.renderers.strip-chart",
+      "id": "studio.timeseries.renderers.strip-chart",
       "type": "renderers",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Strip chart: stacked or column layouts, ECG paper or plain grid, zero-phase display filters, calipers",
       "consumes": [
-        "inkling.timeseries.dataKinds.multichannel-timeseries"
+        "studio.timeseries.dataKinds.multichannel-timeseries"
       ],
       "space": "time",
       "capabilities": [
@@ -582,7 +582,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.timeseries.renderers.strip-chart",
+            "renderer": "studio.timeseries.renderers.strip-chart",
             "config": {
               "reader": "csv",
               "grid": "plain",
@@ -843,7 +843,7 @@
             "type": "boolean"
           },
           "displayKey": {
-            "default": "inkling.timeseries.display.v1",
+            "default": "studio.timeseries.display.v1",
             "description": "localStorage key for the expert's display settings",
             "type": "string"
           }
@@ -870,12 +870,12 @@
       }
     },
     {
-      "id": "inkling.video.renderers.frame-canvas",
+      "id": "studio.video.renderers.frame-canvas",
       "type": "renderers",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "WebCodecs frame canvas with a playback clock, A–B range, filmstrip timeline and track overlays",
       "consumes": [
-        "inkling.video.dataKinds.video"
+        "studio.video.dataKinds.video"
       ],
       "space": "image2d",
       "capabilities": [
@@ -888,23 +888,23 @@
       ],
       "example": {
         "data": {
-          "kind": "inkling.video.dataKinds.video"
+          "kind": "studio.video.dataKinds.video"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.video.renderers.frame-canvas"
+            "renderer": "studio.video.renderers.frame-canvas"
           }
         ]
       }
     },
     {
-      "id": "inkling.cine.renderers.slice-frame-canvas",
+      "id": "studio.cine.renderers.slice-frame-canvas",
       "type": "renderers",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage",
       "consumes": [
-        "inkling.cine.dataKinds.volume-time"
+        "studio.cine.dataKinds.volume-time"
       ],
       "space": "image2d",
       "capabilities": [
@@ -919,7 +919,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.cine.renderers.slice-frame-canvas",
+            "renderer": "studio.cine.renderers.slice-frame-canvas",
             "config": {
               "structures": {
                 "lv": "left ventricle"
@@ -994,12 +994,12 @@
       }
     },
     {
-      "id": "inkling.wsi.renderers.osd",
+      "id": "studio.wsi.renderers.osd",
       "type": "renderers",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments",
       "consumes": [
-        "inkling.wsi.dataKinds.raster-pyramid"
+        "studio.wsi.dataKinds.raster-pyramid"
       ],
       "space": "image2d",
       "capabilities": [
@@ -1015,7 +1015,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.wsi.renderers.osd",
+            "renderer": "studio.wsi.renderers.osd",
             "config": {
               "mpp": 0.5,
               "showNavigator": true
@@ -1050,298 +1050,298 @@
       }
     },
     {
-      "id": "inkling.text-spans.renderers.reader",
+      "id": "studio.text-spans.renderers.reader",
       "type": "renderers",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Reading view: select text to label a span; click a span to select it",
       "consumes": [
-        "inkling.text-spans.dataKinds.text"
+        "studio.text-spans.dataKinds.text"
       ],
       "space": "text",
       "capabilities": [],
       "example": {
         "data": {
-          "kind": "inkling.text-spans.dataKinds.text"
+          "kind": "studio.text-spans.dataKinds.text"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.text-spans.renderers.reader"
+            "renderer": "studio.text-spans.renderers.reader"
           }
         ]
       }
     },
     {
-      "id": "inkling.core.geometries.class",
+      "id": "studio.core.geometries.class",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Item-level class (whole image, recording or study)",
       "label": "class"
     },
     {
-      "id": "inkling.core.geometries.box",
+      "id": "studio.core.geometries.box",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Axis-aligned rectangle in item pixels",
       "label": "box"
     },
     {
-      "id": "inkling.core.geometries.ellipse",
+      "id": "studio.core.geometries.ellipse",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Ellipse in item pixels",
       "label": "ellipse"
     },
     {
-      "id": "inkling.core.geometries.polygon",
+      "id": "studio.core.geometries.polygon",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Closed contour, optionally with holes",
       "label": "polygon"
     },
     {
-      "id": "inkling.core.geometries.multipolygon",
+      "id": "studio.core.geometries.multipolygon",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Several disjoint regions with holes",
       "label": "multipolygon"
     },
     {
-      "id": "inkling.core.geometries.polyline",
+      "id": "studio.core.geometries.polyline",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open line through points",
       "label": "polyline"
     },
     {
-      "id": "inkling.core.geometries.spline",
+      "id": "studio.core.geometries.spline",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Smooth closed contour through control points",
       "label": "spline"
     },
     {
-      "id": "inkling.core.geometries.keypoint",
+      "id": "studio.core.geometries.keypoint",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Single 2D location (landmark, cell)",
       "label": "keypoint"
     },
     {
-      "id": "inkling.core.geometries.point3d",
+      "id": "studio.core.geometries.point3d",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "3D landmark in voxel indices",
       "label": "point3d"
     },
     {
-      "id": "inkling.core.geometries.measurement",
+      "id": "studio.core.geometries.measurement",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Measurement or ROI with computed stats (length, angle, area…)",
       "label": "measurement"
     },
     {
-      "id": "inkling.core.geometries.mask",
+      "id": "studio.core.geometries.mask",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Run-length encoded pixel / voxel mask",
       "label": "mask"
     },
     {
-      "id": "inkling.core.geometries.span",
+      "id": "studio.core.geometries.span",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Span on a time axis (seconds), optionally on one channel",
       "label": "span"
     },
     {
-      "id": "inkling.core.geometries.instant",
+      "id": "studio.core.geometries.instant",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Point in time (seconds or frame), optionally on one channel",
       "label": "instant"
     },
     {
-      "id": "inkling.core.geometries.track",
+      "id": "studio.core.geometries.track",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Object tracked across frames by keyframes",
       "label": "track"
     },
     {
-      "id": "inkling.core.geometries.mark",
+      "id": "studio.core.geometries.mark",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use keypoint",
       "label": "mark"
     },
     {
-      "id": "inkling.core.geometries.point",
+      "id": "studio.core.geometries.point",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use point3d",
       "label": "point"
     },
     {
-      "id": "inkling.core.geometries.interval",
+      "id": "studio.core.geometries.interval",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use span with channel",
       "label": "interval"
     },
     {
-      "id": "inkling.core.geometries.beat",
+      "id": "studio.core.geometries.beat",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use instant with attributes.code",
       "label": "beat"
     },
     {
-      "id": "inkling.core.geometries.wave",
+      "id": "studio.core.geometries.wave",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use span with attributes.wave",
       "label": "wave"
     },
     {
-      "id": "inkling.core.geometries.rhythm",
+      "id": "studio.core.geometries.rhythm",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use span with attributes.rhythm",
       "label": "rhythm"
     },
     {
-      "id": "inkling.core.geometries.segment",
+      "id": "studio.core.geometries.segment",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use span",
       "label": "segment"
     },
     {
-      "id": "inkling.core.geometries.event",
+      "id": "studio.core.geometries.event",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use instant",
       "label": "event"
     },
     {
-      "id": "inkling.core.geometries.phase",
+      "id": "studio.core.geometries.phase",
       "type": "geometries",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deprecated: use instant with attributes.phase",
       "label": "phase"
     },
     {
-      "id": "inkling.volume.geometries.landmark",
+      "id": "studio.volume.geometries.landmark",
       "type": "geometries",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "3D landmark: voxel indices (i, j, k) plus the plane and slice it was placed on",
       "label": "point3d"
     },
     {
-      "id": "inkling.timeseries.geometries.span",
+      "id": "studio.timeseries.geometries.span",
       "type": "geometries",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Strip-chart span: an interval, a delineated wave (attributes.wave, .peak) or a track episode (attributes.rhythm), by attributes.kind",
       "label": "span"
     },
     {
-      "id": "inkling.timeseries.geometries.instant",
+      "id": "studio.timeseries.geometries.instant",
       "type": "geometries",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Strip-chart instant with a code (attributes.kind = beat, attributes.code)",
       "label": "instant"
     },
     {
-      "id": "inkling.video.geometries.segment",
+      "id": "studio.video.geometries.segment",
       "type": "geometries",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "A labelled segment of the video (seconds); was v1 `segment`",
       "label": "span"
     },
     {
-      "id": "inkling.video.geometries.event",
+      "id": "studio.video.geometries.event",
       "type": "geometries",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "A point-in-time event on a frame; was v1 `event`",
       "label": "instant"
     },
     {
-      "id": "inkling.video.geometries.track",
+      "id": "studio.video.geometries.track",
       "type": "geometries",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Object track with keyframes, interpolated between them (CVAT track semantics)",
       "label": "track"
     },
     {
-      "id": "inkling.cine.geometries.phase",
+      "id": "studio.cine.geometries.phase",
       "type": "geometries",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Key frame (phase) marker: instant { frame } with attributes { kind: \"phase\", phase }",
       "label": "instant"
     },
     {
-      "id": "inkling.wsi.geometries.keypoint",
+      "id": "studio.wsi.geometries.keypoint",
       "type": "geometries",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "A counted point (cell) on a slide, in level-0 pixels",
       "label": "keypoint"
     },
     {
-      "id": "inkling.text-spans.geometries.span",
+      "id": "studio.text-spans.geometries.span",
       "type": "geometries",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Character span [start, end) of a text item",
-      "label": "inkling.text-spans.span"
+      "label": "studio.text-spans.span"
     },
     {
-      "id": "inkling.core.tools.select",
+      "id": "studio.core.tools.select",
       "type": "tools",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Select, move and edit annotations",
       "label": "Select",
       "hotkey": "v",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.select"
+          "studio.core.tools.select",
+          "studio.core.tools.select"
         ]
       }
     },
     {
-      "id": "inkling.core.tools.pan",
+      "id": "studio.core.tools.pan",
       "type": "tools",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Pan and zoom the view",
       "label": "Pan",
       "hotkey": "h",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan"
+          "studio.core.tools.select",
+          "studio.core.tools.pan"
         ]
       }
     },
     {
-      "id": "inkling.core.tools.windowLevel",
+      "id": "studio.core.tools.windowLevel",
       "type": "tools",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Adjust contrast and brightness by dragging",
       "label": "Window/level",
       "when": "'windowLevel' in renderer.capabilities",
       "hotkey": "w",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.windowLevel"
+          "studio.core.tools.select",
+          "studio.core.tools.windowLevel"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.box",
+      "id": "studio.overlay2d.tools.box",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Axis-aligned box",
       "label": "Box",
       "creates": "box",
@@ -1349,15 +1349,15 @@
       "hotkey": "r",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.box"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.box"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.ellipse",
+      "id": "studio.overlay2d.tools.ellipse",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Ellipse",
       "label": "Ellipse",
       "creates": "ellipse",
@@ -1365,15 +1365,15 @@
       "hotkey": "o",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.ellipse"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.ellipse"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.polygon",
+      "id": "studio.overlay2d.tools.polygon",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Click-to-place polygon",
       "label": "Polygon",
       "creates": "polygon",
@@ -1381,15 +1381,15 @@
       "hotkey": "p",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.polygon"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.polygon"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.freehand",
+      "id": "studio.overlay2d.tools.freehand",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Freehand closed outline",
       "label": "Freehand",
       "creates": "polygon",
@@ -1397,15 +1397,15 @@
       "hotkey": "f",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.freehand"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.freehand"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.polyline",
+      "id": "studio.overlay2d.tools.polyline",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Open polyline",
       "label": "Polyline",
       "creates": "polyline",
@@ -1413,15 +1413,15 @@
       "hotkey": "y",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.polyline"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.polyline"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.spline",
+      "id": "studio.overlay2d.tools.spline",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Smooth closed spline contour",
       "label": "Spline contour",
       "creates": "spline",
@@ -1429,15 +1429,15 @@
       "hotkey": "s",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.spline"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.spline"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.keypoint",
+      "id": "studio.overlay2d.tools.keypoint",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Single landmark",
       "label": "Keypoint",
       "creates": "keypoint",
@@ -1445,15 +1445,15 @@
       "hotkey": "k",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.keypoint"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.keypoint"
         ]
       }
     },
     {
-      "id": "inkling.overlay2d.tools.brush",
+      "id": "studio.overlay2d.tools.brush",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Paint a raster mask",
       "label": "Brush",
       "creates": "mask",
@@ -1461,8 +1461,8 @@
       "hotkey": "b",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.brush"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.brush"
         ]
       },
       "configSchema": {
@@ -1484,9 +1484,9 @@
       }
     },
     {
-      "id": "inkling.overlay2d.tools.eraser",
+      "id": "studio.overlay2d.tools.eraser",
       "type": "tools",
-      "module": "inkling.overlay2d",
+      "module": "studio.overlay2d",
       "description": "Erase a raster mask",
       "label": "Eraser",
       "creates": "mask",
@@ -1494,8 +1494,8 @@
       "hotkey": "e",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.overlay2d.tools.eraser"
+          "studio.core.tools.select",
+          "studio.overlay2d.tools.eraser"
         ]
       },
       "configSchema": {
@@ -1517,39 +1517,39 @@
       }
     },
     {
-      "id": "inkling.cornerstone.tools.zoom",
+      "id": "studio.cornerstone.tools.zoom",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Drag to zoom",
       "label": "Zoom",
       "when": "'cornerstone' in renderer.capabilities",
       "hotkey": "z",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.zoom"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.zoom"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.crosshairs",
+      "id": "studio.cornerstone.tools.crosshairs",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Linked MPR crosshairs",
       "label": "Crosshairs",
       "when": "'cornerstone' in renderer.capabilities && 'planes' in renderer.capabilities",
       "hotkey": "c",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.crosshairs"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.crosshairs"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.box",
+      "id": "studio.cornerstone.tools.box",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Rectangle ROI with stats",
       "label": "Box",
       "creates": "measurement",
@@ -1557,15 +1557,15 @@
       "hotkey": "r",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.box"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.box"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.ellipse",
+      "id": "studio.cornerstone.tools.ellipse",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Ellipse ROI with stats",
       "label": "Ellipse",
       "creates": "measurement",
@@ -1573,15 +1573,15 @@
       "hotkey": "o",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.ellipse"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.ellipse"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.polygon",
+      "id": "studio.cornerstone.tools.polygon",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Spline / polygon ROI with stats",
       "label": "Polygon",
       "creates": "measurement",
@@ -1589,15 +1589,15 @@
       "hotkey": "p",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.polygon"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.polygon"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.freehand",
+      "id": "studio.cornerstone.tools.freehand",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Freehand ROI with stats",
       "label": "Freehand",
       "creates": "measurement",
@@ -1605,15 +1605,15 @@
       "hotkey": "f",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.freehand"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.freehand"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.keypoint",
+      "id": "studio.cornerstone.tools.keypoint",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Landmark with the pixel value",
       "label": "Keypoint",
       "creates": "measurement",
@@ -1621,15 +1621,15 @@
       "hotkey": "k",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.keypoint"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.keypoint"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.length",
+      "id": "studio.cornerstone.tools.length",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Distance in mm",
       "label": "Length",
       "creates": "measurement",
@@ -1637,15 +1637,15 @@
       "hotkey": "l",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.length"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.length"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.angle",
+      "id": "studio.cornerstone.tools.angle",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Three-point angle",
       "label": "Angle",
       "creates": "measurement",
@@ -1653,15 +1653,15 @@
       "hotkey": "a",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.angle"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.angle"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.cobb",
+      "id": "studio.cornerstone.tools.cobb",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Cobb angle between two lines",
       "label": "Cobb angle",
       "creates": "measurement",
@@ -1669,15 +1669,15 @@
       "hotkey": "j",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.cobb"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.cobb"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.bidirectional",
+      "id": "studio.cornerstone.tools.bidirectional",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "RECIST long and short axes",
       "label": "Bidirectional",
       "creates": "measurement",
@@ -1685,30 +1685,30 @@
       "hotkey": "d",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.bidirectional"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.bidirectional"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.probe",
+      "id": "studio.cornerstone.tools.probe",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Pixel value (HU for CT); saved as a measurement but not a drawing tool",
       "label": "Probe",
       "when": "'cornerstone' in renderer.capabilities",
       "hotkey": "i",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.probe"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.probe"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.arrow",
+      "id": "studio.cornerstone.tools.arrow",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Arrow with a note",
       "label": "Arrow",
       "creates": "measurement",
@@ -1716,15 +1716,15 @@
       "hotkey": "x",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.arrow"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.arrow"
         ]
       }
     },
     {
-      "id": "inkling.cornerstone.tools.brush",
+      "id": "studio.cornerstone.tools.brush",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Paint a labelmap, optionally thresholded to the window",
       "label": "Brush",
       "creates": "mask",
@@ -1732,8 +1732,8 @@
       "hotkey": "b",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.brush"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.brush"
         ]
       },
       "configSchema": {
@@ -1761,9 +1761,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.tools.eraser",
+      "id": "studio.cornerstone.tools.eraser",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Erase a labelmap",
       "label": "Eraser",
       "creates": "mask",
@@ -1771,8 +1771,8 @@
       "hotkey": "e",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.eraser"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.eraser"
         ]
       },
       "configSchema": {
@@ -1794,9 +1794,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.tools.wand",
+      "id": "studio.cornerstone.tools.wand",
       "type": "tools",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Flood-fill a connected region of similar intensity",
       "label": "Fill",
       "creates": "mask",
@@ -1804,15 +1804,15 @@
       "hotkey": "g",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.cornerstone.tools.wand"
+          "studio.core.tools.select",
+          "studio.cornerstone.tools.wand"
         ]
       }
     },
     {
-      "id": "inkling.timeline.tools.segment",
+      "id": "studio.timeline.tools.segment",
       "type": "tools",
-      "module": "inkling.timeline",
+      "module": "studio.timeline",
       "description": "Drag along the timeline to label a span",
       "label": "Segment",
       "creates": "span",
@@ -1820,15 +1820,15 @@
       "hotkey": "s",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeline.tools.segment"
+          "studio.core.tools.select",
+          "studio.timeline.tools.segment"
         ]
       }
     },
     {
-      "id": "inkling.timeline.tools.event",
+      "id": "studio.timeline.tools.event",
       "type": "tools",
-      "module": "inkling.timeline",
+      "module": "studio.timeline",
       "description": "Mark the current frame as an event",
       "label": "Event",
       "creates": "instant",
@@ -1836,15 +1836,15 @@
       "hotkey": "t",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeline.tools.event"
+          "studio.core.tools.select",
+          "studio.timeline.tools.event"
         ]
       }
     },
     {
-      "id": "inkling.volume.tools.point",
+      "id": "studio.volume.tools.point",
       "type": "tools",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "3D landmark in voxel indices",
       "label": "Point",
       "creates": "point3d",
@@ -1852,40 +1852,40 @@
       "hotkey": "k",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.volume.tools.point"
+          "studio.core.tools.select",
+          "studio.volume.tools.point"
         ]
       }
     },
     {
-      "id": "inkling.timeseries.tools.interval",
+      "id": "studio.timeseries.tools.interval",
       "type": "tools",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Time span on one channel or all (attributes.kind = interval)",
       "label": "Interval",
       "creates": "span",
-      "when": "renderer == inkling.timeseries.renderers.strip-chart",
+      "when": "renderer == studio.timeseries.renderers.strip-chart",
       "hotkey": "i",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeseries.tools.interval"
+          "studio.core.tools.select",
+          "studio.timeseries.tools.interval"
         ]
       }
     },
     {
-      "id": "inkling.timeseries.tools.beat",
+      "id": "studio.timeseries.tools.beat",
       "type": "tools",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Instant with a code from `instantCodes` (attributes.kind = beat, .code)",
       "label": "Beat",
       "creates": "instant",
-      "when": "renderer == inkling.timeseries.renderers.strip-chart",
+      "when": "renderer == studio.timeseries.renderers.strip-chart",
       "hotkey": "b",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeseries.tools.beat"
+          "studio.core.tools.select",
+          "studio.timeseries.tools.beat"
         ]
       },
       "configSchema": {
@@ -1905,34 +1905,34 @@
       }
     },
     {
-      "id": "inkling.timeseries.tools.wave",
+      "id": "studio.timeseries.tools.wave",
       "type": "tools",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Wave onset / peak / offset (attributes.kind = wave, .wave, .peak)",
       "label": "Wave",
       "creates": "span",
-      "when": "renderer == inkling.timeseries.renderers.strip-chart",
+      "when": "renderer == studio.timeseries.renderers.strip-chart",
       "hotkey": "q",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeseries.tools.wave"
+          "studio.core.tools.select",
+          "studio.timeseries.tools.wave"
         ]
       }
     },
     {
-      "id": "inkling.timeseries.tools.rhythm",
+      "id": "studio.timeseries.tools.rhythm",
       "type": "tools",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Episode on the record-level track (attributes.kind = rhythm, .rhythm)",
       "label": "Rhythm",
       "creates": "span",
-      "when": "renderer == inkling.timeseries.renderers.strip-chart",
+      "when": "renderer == studio.timeseries.renderers.strip-chart",
       "hotkey": "y",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeseries.tools.rhythm"
+          "studio.core.tools.select",
+          "studio.timeseries.tools.rhythm"
         ]
       },
       "configSchema": {
@@ -1952,33 +1952,33 @@
       }
     },
     {
-      "id": "inkling.timeseries.tools.caliper",
+      "id": "studio.timeseries.tools.caliper",
       "type": "tools",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Measure Δt and Δamplitude (not saved)",
       "label": "Caliper",
-      "when": "renderer == inkling.timeseries.renderers.strip-chart",
+      "when": "renderer == studio.timeseries.renderers.strip-chart",
       "hotkey": "c",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.timeseries.tools.caliper"
+          "studio.core.tools.select",
+          "studio.timeseries.tools.caliper"
         ]
       }
     },
     {
-      "id": "inkling.wsi.tools.brush",
+      "id": "studio.wsi.tools.brush",
       "type": "tools",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Paint vector regions with the active label",
       "label": "Brush",
       "creates": "multipolygon",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "hotkey": "b",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.wsi.tools.brush"
+          "studio.core.tools.select",
+          "studio.wsi.tools.brush"
         ]
       },
       "configSchema": {
@@ -2000,18 +2000,18 @@
       }
     },
     {
-      "id": "inkling.wsi.tools.eraser",
+      "id": "studio.wsi.tools.eraser",
       "type": "tools",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Erase from vector regions",
       "label": "Eraser",
       "creates": "multipolygon",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "hotkey": "e",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.wsi.tools.eraser"
+          "studio.core.tools.select",
+          "studio.wsi.tools.eraser"
         ]
       },
       "configSchema": {
@@ -2033,18 +2033,18 @@
       }
     },
     {
-      "id": "inkling.wsi.tools.wand",
+      "id": "studio.wsi.tools.wand",
       "type": "tools",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Magic wand on tile pixels",
       "label": "Fill",
       "creates": "polygon",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "hotkey": "g",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.wsi.tools.wand"
+          "studio.core.tools.select",
+          "studio.wsi.tools.wand"
         ]
       },
       "configSchema": {
@@ -2066,57 +2066,57 @@
       }
     },
     {
-      "id": "inkling.wsi.tools.mark",
+      "id": "studio.wsi.tools.mark",
       "type": "tools",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Point (cell) counting",
       "label": "Points",
       "creates": "keypoint",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "hotkey": ".",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.wsi.tools.mark"
+          "studio.core.tools.select",
+          "studio.wsi.tools.mark"
         ]
       }
     },
     {
-      "id": "inkling.wsi.tools.length",
+      "id": "studio.wsi.tools.length",
       "type": "tools",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Distance in µm",
       "label": "Length",
       "creates": "measurement",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "hotkey": "l",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.wsi.tools.length"
+          "studio.core.tools.select",
+          "studio.wsi.tools.length"
         ]
       }
     },
     {
-      "id": "inkling.text-spans.tools.entity",
+      "id": "studio.text-spans.tools.entity",
       "type": "tools",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Label a selected text span",
       "label": "Span",
-      "creates": "inkling.text-spans.span",
+      "creates": "studio.text-spans.span",
       "when": "renderer.space == text",
       "hotkey": "e",
       "example": {
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.text-spans.tools.entity"
+          "studio.core.tools.select",
+          "studio.text-spans.tools.entity"
         ]
       }
     },
     {
-      "id": "inkling.core.commands.undo",
+      "id": "studio.core.commands.undo",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Undo the last change (an annotation in the Studio; a file operation in Sources)",
       "label": "Undo",
       "keys": [
@@ -2125,7 +2125,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.undo",
+            "command": "studio.core.commands.undo",
             "keys": [
               "mod+z"
             ]
@@ -2134,9 +2134,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.redo",
+      "id": "studio.core.commands.redo",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Redo the last undone change",
       "label": "Redo",
       "keys": [
@@ -2146,7 +2146,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.redo",
+            "command": "studio.core.commands.redo",
             "keys": [
               "shift+mod+z",
               "mod+y"
@@ -2156,9 +2156,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.deleteSelection",
+      "id": "studio.core.commands.deleteSelection",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Delete the selected, unlocked annotations",
       "label": "Delete selected annotations",
       "keys": [
@@ -2168,7 +2168,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.deleteSelection",
+            "command": "studio.core.commands.deleteSelection",
             "keys": [
               "Backspace",
               "Delete"
@@ -2178,9 +2178,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.deselect",
+      "id": "studio.core.commands.deselect",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Clear the selection",
       "label": "Clear selection",
       "keys": [
@@ -2189,7 +2189,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.deselect",
+            "command": "studio.core.commands.deselect",
             "keys": [
               "Escape"
             ]
@@ -2198,9 +2198,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.selectAll",
+      "id": "studio.core.commands.selectAll",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Select every visible annotation on the current item",
       "label": "Select every annotation on this item",
       "keys": [
@@ -2209,7 +2209,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.selectAll",
+            "command": "studio.core.commands.selectAll",
             "keys": [
               "mod+a"
             ]
@@ -2218,9 +2218,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.nextItem",
+      "id": "studio.core.commands.nextItem",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Go to the next item",
       "label": "Next item",
       "keys": [
@@ -2231,7 +2231,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.nextItem",
+            "command": "studio.core.commands.nextItem",
             "keys": [
               "ArrowRight",
               "ArrowDown",
@@ -2242,9 +2242,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.prevItem",
+      "id": "studio.core.commands.prevItem",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Go to the previous item",
       "label": "Previous item",
       "keys": [
@@ -2255,7 +2255,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.prevItem",
+            "command": "studio.core.commands.prevItem",
             "keys": [
               "ArrowLeft",
               "ArrowUp",
@@ -2266,9 +2266,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.nextTodo",
+      "id": "studio.core.commands.nextTodo",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Go to the next item nobody has annotated yet, in queue order (the task's item order)",
       "label": "Next to do",
       "keys": [
@@ -2277,7 +2277,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.nextTodo",
+            "command": "studio.core.commands.nextTodo",
             "keys": [
               "n"
             ]
@@ -2286,9 +2286,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.pickLabel",
+      "id": "studio.core.commands.pickLabel",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Make the n-th label class active",
       "label": "Pick label by position",
       "keys": [
@@ -2305,7 +2305,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.pickLabel",
+            "command": "studio.core.commands.pickLabel",
             "keys": [
               "1",
               "2",
@@ -2322,9 +2322,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.brushSmaller",
+      "id": "studio.core.commands.brushSmaller",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Shrink the active tool's size",
       "label": "Smaller brush",
       "when": "'size' in tool.options",
@@ -2334,7 +2334,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.brushSmaller",
+            "command": "studio.core.commands.brushSmaller",
             "keys": [
               "["
             ]
@@ -2343,9 +2343,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.brushLarger",
+      "id": "studio.core.commands.brushLarger",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Grow the active tool's size",
       "label": "Larger brush",
       "when": "'size' in tool.options",
@@ -2355,7 +2355,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.brushLarger",
+            "command": "studio.core.commands.brushLarger",
             "keys": [
               "]"
             ]
@@ -2364,9 +2364,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.showShortcuts",
+      "id": "studio.core.commands.showShortcuts",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open the keyboard shortcuts sheet",
       "label": "Keyboard shortcuts",
       "keys": [
@@ -2375,7 +2375,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.showShortcuts",
+            "command": "studio.core.commands.showShortcuts",
             "keys": [
               "?"
             ]
@@ -2384,9 +2384,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.toggleNavigation",
+      "id": "studio.core.commands.toggleNavigation",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)",
       "label": "Show or hide the project navigation",
       "keys": [
@@ -2395,7 +2395,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.toggleNavigation",
+            "command": "studio.core.commands.toggleNavigation",
             "keys": [
               "mod+b"
             ]
@@ -2404,9 +2404,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.quickLook",
+      "id": "studio.core.commands.quickLook",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Preview the selected file large; arrows step through its folder",
       "label": "Quick Look",
       "when": "section == sources",
@@ -2416,7 +2416,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.quickLook",
+            "command": "studio.core.commands.quickLook",
             "keys": [
               "space"
             ]
@@ -2425,9 +2425,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.openItem",
+      "id": "studio.core.commands.openItem",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open the selected folder, or show the selected file's details",
       "label": "Open folder or details",
       "when": "section == sources",
@@ -2437,7 +2437,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.openItem",
+            "command": "studio.core.commands.openItem",
             "keys": [
               "Enter"
             ]
@@ -2446,9 +2446,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.parentFolder",
+      "id": "studio.core.commands.parentFolder",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Show the folder that contains the current one",
       "label": "Go to the enclosing folder",
       "when": "section == sources",
@@ -2458,7 +2458,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.parentFolder",
+            "command": "studio.core.commands.parentFolder",
             "keys": [
               "mod+ArrowUp"
             ]
@@ -2467,9 +2467,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.focusSearch",
+      "id": "studio.core.commands.focusSearch",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Search file names across the project's files",
       "label": "Search in sources",
       "when": "section == sources",
@@ -2479,7 +2479,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.focusSearch",
+            "command": "studio.core.commands.focusSearch",
             "keys": [
               "mod+f"
             ]
@@ -2488,9 +2488,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.newFolder",
+      "id": "studio.core.commands.newFolder",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Make a folder in the folder shown, and name it",
       "label": "New folder",
       "when": "section == sources",
@@ -2500,7 +2500,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.newFolder",
+            "command": "studio.core.commands.newFolder",
             "keys": [
               "shift+mod+n"
             ]
@@ -2509,9 +2509,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.rename",
+      "id": "studio.core.commands.rename",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Rename the selected file or folder",
       "label": "Rename",
       "when": "section == sources",
@@ -2521,7 +2521,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.rename",
+            "command": "studio.core.commands.rename",
             "keys": [
               "F2"
             ]
@@ -2530,9 +2530,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.cut",
+      "id": "studio.core.commands.cut",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Mark the selection to be moved by Paste",
       "label": "Cut",
       "when": "section == sources",
@@ -2542,7 +2542,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.cut",
+            "command": "studio.core.commands.cut",
             "keys": [
               "mod+x"
             ]
@@ -2551,9 +2551,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.copy",
+      "id": "studio.core.commands.copy",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Mark the selection to be copied by Paste (copies share the same bytes)",
       "label": "Copy",
       "when": "section == sources",
@@ -2563,7 +2563,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.copy",
+            "command": "studio.core.commands.copy",
             "keys": [
               "mod+c"
             ]
@@ -2572,9 +2572,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.paste",
+      "id": "studio.core.commands.paste",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Move or copy what was cut or copied into the focused or shown folder",
       "label": "Paste",
       "when": "section == sources",
@@ -2584,7 +2584,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.paste",
+            "command": "studio.core.commands.paste",
             "keys": [
               "mod+v"
             ]
@@ -2593,9 +2593,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.duplicate",
+      "id": "studio.core.commands.duplicate",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Make a copy next to the original, named “name (copy)”",
       "label": "Duplicate",
       "when": "section == sources",
@@ -2605,7 +2605,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.duplicate",
+            "command": "studio.core.commands.duplicate",
             "keys": [
               "mod+d"
             ]
@@ -2614,9 +2614,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.moveToTrash",
+      "id": "studio.core.commands.moveToTrash",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Move the selection to Trash (undo brings it back)",
       "label": "Move to Trash",
       "when": "section == sources",
@@ -2626,7 +2626,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.moveToTrash",
+            "command": "studio.core.commands.moveToTrash",
             "keys": [
               "Delete"
             ]
@@ -2635,9 +2635,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.clearSelection",
+      "id": "studio.core.commands.clearSelection",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Deselect every file and folder",
       "label": "Clear selection",
       "when": "section == sources",
@@ -2647,7 +2647,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.clearSelection",
+            "command": "studio.core.commands.clearSelection",
             "keys": [
               "Escape"
             ]
@@ -2656,9 +2656,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.expandAllBelow",
+      "id": "studio.core.commands.expandAllBelow",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open the focused folder and every folder in it (up to 2,000 rows)",
       "label": "Expand all below",
       "when": "section == sources",
@@ -2668,7 +2668,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.expandAllBelow",
+            "command": "studio.core.commands.expandAllBelow",
             "keys": [
               "alt+ArrowRight"
             ]
@@ -2677,9 +2677,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.toggleInspector",
+      "id": "studio.core.commands.toggleInspector",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Show or hide the inspector (Info)",
       "label": "Show or hide details",
       "when": "section == sources",
@@ -2689,7 +2689,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.toggleInspector",
+            "command": "studio.core.commands.toggleInspector",
             "keys": [
               "mod+i"
             ]
@@ -2698,9 +2698,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.filterItems",
+      "id": "studio.core.commands.filterItems",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Filter the Items panel by name (while the panel has focus)",
       "label": "Filter items",
       "when": "section == studio",
@@ -2710,7 +2710,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.filterItems",
+            "command": "studio.core.commands.filterItems",
             "keys": [
               "mod+f"
             ]
@@ -2719,9 +2719,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.contextMenu",
+      "id": "studio.core.commands.contextMenu",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open the menu of the focused file or folder, as a right-click does",
       "label": "Open the context menu",
       "when": "section == sources",
@@ -2732,7 +2732,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.contextMenu",
+            "command": "studio.core.commands.contextMenu",
             "keys": [
               "shift+F10",
               "ContextMenu"
@@ -2742,9 +2742,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.toggleSidePanel",
+      "id": "studio.core.commands.toggleSidePanel",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Hide the Studio's left panel (Items and Labels) so the canvas takes its width, or show it again",
       "label": "Show or hide items and labels",
       "keys": [
@@ -2753,7 +2753,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.toggleSidePanel",
+            "command": "studio.core.commands.toggleSidePanel",
             "keys": [
               "shift+mod+b"
             ]
@@ -2762,18 +2762,18 @@
       }
     },
     {
-      "id": "inkling.core.commands.toggleAssistant",
+      "id": "studio.core.commands.toggleAssistant",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Open or close the assistant, in any project section",
-      "label": "Show or hide Inkling AI",
+      "label": "Show or hide Spurby AI",
       "keys": [
         "mod+j"
       ],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.toggleAssistant",
+            "command": "studio.core.commands.toggleAssistant",
             "keys": [
               "mod+j"
             ]
@@ -2782,9 +2782,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.finishShape",
+      "id": "studio.core.commands.finishShape",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Close the shape being drawn",
       "label": "Close the polygon",
       "when": "'drafting' in renderer.capabilities",
@@ -2794,7 +2794,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.finishShape",
+            "command": "studio.core.commands.finishShape",
             "keys": [
               "Enter"
             ]
@@ -2803,9 +2803,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.cancelShape",
+      "id": "studio.core.commands.cancelShape",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Cancel the shape being drawn",
       "label": "Cancel the shape in progress",
       "when": "'drafting' in renderer.capabilities",
@@ -2815,7 +2815,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.cancelShape",
+            "command": "studio.core.commands.cancelShape",
             "keys": [
               "Escape"
             ]
@@ -2824,9 +2824,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.removeLastVertex",
+      "id": "studio.core.commands.removeLastVertex",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Remove the last vertex of the shape being drawn",
       "label": "Remove the last vertex",
       "when": "'vertexUndo' in renderer.capabilities",
@@ -2836,7 +2836,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.removeLastVertex",
+            "command": "studio.core.commands.removeLastVertex",
             "keys": [
               "Backspace"
             ]
@@ -2845,9 +2845,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.holdToPan",
+      "id": "studio.core.commands.holdToPan",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Pan while Space is held, whatever the tool",
       "label": "Hold and drag to pan",
       "when": "'holdToPan' in renderer.capabilities",
@@ -2857,7 +2857,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.holdToPan",
+            "command": "studio.core.commands.holdToPan",
             "keys": [
               "space"
             ]
@@ -2866,9 +2866,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.rotateView",
+      "id": "studio.core.commands.rotateView",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Rotate the view 90° clockwise",
       "label": "Rotate 90°",
       "when": "'rotate' in renderer.capabilities",
@@ -2878,7 +2878,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.rotateView",
+            "command": "studio.core.commands.rotateView",
             "keys": [
               "shift+r"
             ]
@@ -2887,9 +2887,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.playPause",
+      "id": "studio.core.commands.playPause",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Play or pause",
       "label": "Play or pause",
       "when": "'playback' in renderer.capabilities",
@@ -2899,7 +2899,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.playPause",
+            "command": "studio.core.commands.playPause",
             "keys": [
               "space"
             ]
@@ -2908,9 +2908,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.prevFrame",
+      "id": "studio.core.commands.prevFrame",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Step one frame back",
       "label": "Previous frame",
       "when": "'playback' in renderer.capabilities",
@@ -2920,7 +2920,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.prevFrame",
+            "command": "studio.core.commands.prevFrame",
             "keys": [
               ","
             ]
@@ -2929,9 +2929,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.nextFrame",
+      "id": "studio.core.commands.nextFrame",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Step one frame forward",
       "label": "Next frame",
       "when": "'playback' in renderer.capabilities",
@@ -2941,7 +2941,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.nextFrame",
+            "command": "studio.core.commands.nextFrame",
             "keys": [
               "."
             ]
@@ -2950,9 +2950,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.nextSuggestion",
+      "id": "studio.core.commands.nextSuggestion",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Select the next unreviewed AI suggestion",
       "label": "Next AI suggestion",
       "when": "'suggestions' in renderer.capabilities",
@@ -2962,7 +2962,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.nextSuggestion",
+            "command": "studio.core.commands.nextSuggestion",
             "keys": [
               "Tab"
             ]
@@ -2971,9 +2971,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.prevSuggestion",
+      "id": "studio.core.commands.prevSuggestion",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Select the previous unreviewed AI suggestion",
       "label": "Previous AI suggestion",
       "when": "'suggestions' in renderer.capabilities",
@@ -2983,7 +2983,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.prevSuggestion",
+            "command": "studio.core.commands.prevSuggestion",
             "keys": [
               "shift+Tab"
             ]
@@ -2992,9 +2992,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.acceptSuggestion",
+      "id": "studio.core.commands.acceptSuggestion",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Mark the selected AI suggestions as reviewed",
       "label": "Accept selected AI suggestions",
       "when": "'suggestions' in renderer.capabilities",
@@ -3004,7 +3004,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.acceptSuggestion",
+            "command": "studio.core.commands.acceptSuggestion",
             "keys": [
               "Enter"
             ]
@@ -3013,9 +3013,9 @@
       }
     },
     {
-      "id": "inkling.core.commands.rejectSuggestion",
+      "id": "studio.core.commands.rejectSuggestion",
       "type": "commands",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Delete the selected AI suggestion and select the next",
       "label": "Reject the AI suggestion and go to the next",
       "when": "'suggestions' in renderer.capabilities",
@@ -3026,7 +3026,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.core.commands.rejectSuggestion",
+            "command": "studio.core.commands.rejectSuggestion",
             "keys": [
               "Delete",
               "Backspace"
@@ -3036,9 +3036,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.commands.rotateViewLeft",
+      "id": "studio.cornerstone.commands.rotateViewLeft",
       "type": "commands",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Rotate the view 90° counter-clockwise",
       "label": "Rotate 90° left",
       "when": "'cornerstone' in renderer.capabilities",
@@ -3048,7 +3048,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cornerstone.commands.rotateViewLeft",
+            "command": "studio.cornerstone.commands.rotateViewLeft",
             "keys": [
               "shift+l"
             ]
@@ -3057,9 +3057,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.commands.toggleMagnifier",
+      "id": "studio.cornerstone.commands.toggleMagnifier",
       "type": "commands",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Show or hide the hover magnifier",
       "label": "Toggle magnifier",
       "when": "'cornerstone' in renderer.capabilities",
@@ -3069,7 +3069,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cornerstone.commands.toggleMagnifier",
+            "command": "studio.cornerstone.commands.toggleMagnifier",
             "keys": [
               "m"
             ]
@@ -3078,9 +3078,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.commands.invertImage",
+      "id": "studio.cornerstone.commands.invertImage",
       "type": "commands",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Invert the grayscale",
       "label": "Invert",
       "when": "'cornerstone' in renderer.capabilities",
@@ -3090,7 +3090,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cornerstone.commands.invertImage",
+            "command": "studio.cornerstone.commands.invertImage",
             "keys": [
               "shift+i"
             ]
@@ -3099,9 +3099,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.commands.flipHorizontal",
+      "id": "studio.cornerstone.commands.flipHorizontal",
       "type": "commands",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Mirror left–right",
       "label": "Flip horizontally",
       "when": "'cornerstone' in renderer.capabilities",
@@ -3111,7 +3111,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cornerstone.commands.flipHorizontal",
+            "command": "studio.cornerstone.commands.flipHorizontal",
             "keys": [
               "shift+h"
             ]
@@ -3120,9 +3120,9 @@
       }
     },
     {
-      "id": "inkling.cornerstone.commands.flipVertical",
+      "id": "studio.cornerstone.commands.flipVertical",
       "type": "commands",
-      "module": "inkling.cornerstone",
+      "module": "studio.cornerstone",
       "description": "Mirror top–bottom",
       "label": "Flip vertically",
       "when": "'cornerstone' in renderer.capabilities",
@@ -3132,7 +3132,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cornerstone.commands.flipVertical",
+            "command": "studio.cornerstone.commands.flipVertical",
             "keys": [
               "shift+v"
             ]
@@ -3141,9 +3141,9 @@
       }
     },
     {
-      "id": "inkling.image2d.commands.fitView",
+      "id": "studio.image2d.commands.fitView",
       "type": "commands",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Reset zoom and pan (and, on the Cornerstone stack, flips, rotation and the window)",
       "label": "Fit image to view",
       "keys": [
@@ -3153,7 +3153,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.image2d.commands.fitView",
+            "command": "studio.image2d.commands.fitView",
             "keys": [
               "0",
               "="
@@ -3163,19 +3163,19 @@
       }
     },
     {
-      "id": "inkling.image2d.commands.cancelManipulation",
+      "id": "studio.image2d.commands.cancelManipulation",
       "type": "commands",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Abort a Cornerstone tool drag or an unfinished measurement; otherwise Escape clears the selection",
       "label": "Cancel the drag or drawing in progress",
-      "when": "renderer == inkling.image2d.renderers.cornerstone-stack",
+      "when": "renderer == studio.image2d.renderers.cornerstone-stack",
       "keys": [
         "Escape"
       ],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.image2d.commands.cancelManipulation",
+            "command": "studio.image2d.commands.cancelManipulation",
             "keys": [
               "Escape"
             ]
@@ -3184,19 +3184,19 @@
       }
     },
     {
-      "id": "inkling.volume.commands.fitView",
+      "id": "studio.volume.commands.fitView",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Reset every viewport (zoom, pan, flips, rotation, window)",
       "label": "Fit to view",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "keys": [
         "="
       ],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.fitView",
+            "command": "studio.volume.commands.fitView",
             "keys": [
               "="
             ]
@@ -3205,12 +3205,12 @@
       }
     },
     {
-      "id": "inkling.volume.commands.stepSlice",
+      "id": "studio.volume.commands.stepSlice",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Scroll the active plane (↑ previous, ↓ next)",
       "label": "Previous or next slice",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "keys": [
         "ArrowUp",
         "ArrowDown"
@@ -3218,7 +3218,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.stepSlice",
+            "command": "studio.volume.commands.stepSlice",
             "keys": [
               "ArrowUp",
               "ArrowDown"
@@ -3228,12 +3228,12 @@
       }
     },
     {
-      "id": "inkling.volume.commands.firstLastSlice",
+      "id": "studio.volume.commands.firstLastSlice",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Jump to the first (Home) or last (End) slice of the active plane",
       "label": "First or last slice",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "keys": [
         "Home",
         "End"
@@ -3241,7 +3241,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.firstLastSlice",
+            "command": "studio.volume.commands.firstLastSlice",
             "keys": [
               "Home",
               "End"
@@ -3251,19 +3251,19 @@
       }
     },
     {
-      "id": "inkling.volume.commands.cancelManipulation",
+      "id": "studio.volume.commands.cancelManipulation",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Cancel an in-progress Cornerstone drag (drawing, handle move); otherwise Escape falls through to clearing the selection",
       "label": "Cancel the drag in progress",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "keys": [
         "Escape"
       ],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.cancelManipulation",
+            "command": "studio.volume.commands.cancelManipulation",
             "keys": [
               "Escape"
             ]
@@ -3272,73 +3272,73 @@
       }
     },
     {
-      "id": "inkling.volume.commands.interpolateSlices",
+      "id": "studio.volume.commands.interpolateSlices",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Fill the slices between painted slices of the active label along the active plane (shape-based interpolation)",
       "label": "Interpolate mask slices",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.interpolateSlices",
+            "command": "studio.volume.commands.interpolateSlices",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.volume.commands.removeIslands",
+      "id": "studio.volume.commands.removeIslands",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Keep only the largest 3D connected region of the active label",
       "label": "Remove mask islands",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.removeIslands",
+            "command": "studio.volume.commands.removeIslands",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.volume.commands.smartFill",
+      "id": "studio.volume.commands.smartFill",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Wand clicks grow a 3D region from the clicked structure's intensity statistics (confidence-connected, ±40 mm)",
       "label": "Wand: smart fill",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr && tool == wand",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.smartFill",
+            "command": "studio.volume.commands.smartFill",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.volume.commands.similarFill",
+      "id": "studio.volume.commands.similarFill",
       "type": "commands",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Wand clicks flood the connected region on the clicked slice within ±8% of the window",
       "label": "Wand: similar intensity",
-      "when": "renderer == inkling.volume.renderers.cornerstone-mpr && tool == wand",
+      "when": "renderer == studio.volume.renderers.cornerstone-mpr && tool == wand",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.volume.commands.similarFill",
+            "command": "studio.volume.commands.similarFill",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.timeseries.commands.scrollWindow",
+      "id": "studio.timeseries.commands.scrollWindow",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Scroll the visible time window",
       "label": "Scroll the time window",
       "keys": [
@@ -3350,7 +3350,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.scrollWindow",
+            "command": "studio.timeseries.commands.scrollWindow",
             "keys": [
               "ArrowLeft",
               "ArrowRight",
@@ -3362,9 +3362,9 @@
       }
     },
     {
-      "id": "inkling.timeseries.commands.zoomTime",
+      "id": "studio.timeseries.commands.zoomTime",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Zoom the time axis",
       "label": "Zoom time (paper: speed)",
       "keys": [
@@ -3375,7 +3375,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.zoomTime",
+            "command": "studio.timeseries.commands.zoomTime",
             "keys": [
               "=",
               "+",
@@ -3386,16 +3386,16 @@
       }
     },
     {
-      "id": "inkling.timeseries.commands.setBeatCode",
+      "id": "studio.timeseries.commands.setBeatCode",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Set the code whose `hotkey` (strip-chart `instantCodes`) was pressed on the selected instants; bind the same keys to this command",
       "label": "Set code of selected instants",
       "keys": [],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.setBeatCode",
+            "command": "studio.timeseries.commands.setBeatCode",
             "keys": [
               "shift+n",
               "shift+v"
@@ -3405,9 +3405,9 @@
       }
     },
     {
-      "id": "inkling.timeseries.commands.clearCaliper",
+      "id": "studio.timeseries.commands.clearCaliper",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Clear the caliper",
       "label": "Clear caliper / close menu",
       "keys": [
@@ -3416,7 +3416,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.clearCaliper",
+            "command": "studio.timeseries.commands.clearCaliper",
             "keys": [
               "Escape"
             ]
@@ -3425,39 +3425,39 @@
       }
     },
     {
-      "id": "inkling.timeseries.commands.detectBeats",
+      "id": "studio.timeseries.commands.detectBeats",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "R-peak detection on the primary (or focused) channel; results are ai-suggested instants for review. Needs strip-chart config `ecg: true`",
       "label": "Detect beats (Pan–Tompkins)",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.detectBeats",
+            "command": "studio.timeseries.commands.detectBeats",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.timeseries.commands.calibrateScreen",
+      "id": "studio.timeseries.commands.calibrateScreen",
       "type": "commands",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Match an on-screen bar to a credit card so mm/s and mm per unit are true (grid: ecg)",
       "label": "Calibrate screen for paper scale",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.calibrateScreen",
+            "command": "studio.timeseries.commands.calibrateScreen",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.video.commands.stepFrame",
+      "id": "studio.video.commands.stepFrame",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Step one frame",
       "label": "Previous or next frame",
       "keys": [
@@ -3467,7 +3467,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.stepFrame",
+            "command": "studio.video.commands.stepFrame",
             "keys": [
               "ArrowLeft",
               "ArrowRight"
@@ -3477,9 +3477,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.step10",
+      "id": "studio.video.commands.step10",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Step ten frames",
       "label": "Back or forward 10 frames",
       "keys": [
@@ -3491,7 +3491,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.step10",
+            "command": "studio.video.commands.step10",
             "keys": [
               "shift+ArrowLeft",
               "shift+ArrowRight",
@@ -3503,9 +3503,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.firstLastFrame",
+      "id": "studio.video.commands.firstLastFrame",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Jump to the first or last frame",
       "label": "First or last frame (of the A–B range if set)",
       "keys": [
@@ -3515,7 +3515,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.firstLastFrame",
+            "command": "studio.video.commands.firstLastFrame",
             "keys": [
               "Home",
               "End"
@@ -3525,9 +3525,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.toggleLoop",
+      "id": "studio.video.commands.toggleLoop",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Toggle looping",
       "label": "Loop playback",
       "keys": [
@@ -3536,7 +3536,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.toggleLoop",
+            "command": "studio.video.commands.toggleLoop",
             "keys": [
               "l"
             ]
@@ -3545,9 +3545,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.fitView",
+      "id": "studio.video.commands.fitView",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Fit the frame to the viewport",
       "label": "Fit video to view",
       "keys": [
@@ -3556,7 +3556,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.fitView",
+            "command": "studio.video.commands.fitView",
             "keys": [
               "f"
             ]
@@ -3565,9 +3565,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.toggleKeyframe",
+      "id": "studio.video.commands.toggleKeyframe",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Toggle a keyframe at the playhead",
       "label": "Add or remove a keyframe on the selected tracks",
       "keys": [
@@ -3576,7 +3576,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.toggleKeyframe",
+            "command": "studio.video.commands.toggleKeyframe",
             "keys": [
               "shift+k"
             ]
@@ -3585,9 +3585,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.toggleOutside",
+      "id": "studio.video.commands.toggleOutside",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Toggle outside at the playhead",
       "label": "Mark selected tracks outside / back in view",
       "keys": [
@@ -3596,7 +3596,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.toggleOutside",
+            "command": "studio.video.commands.toggleOutside",
             "keys": [
               "o"
             ]
@@ -3605,9 +3605,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.toggleOccluded",
+      "id": "studio.video.commands.toggleOccluded",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Toggle occluded at the playhead",
       "label": "Toggle occluded on the selected tracks",
       "keys": [
@@ -3616,7 +3616,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.toggleOccluded",
+            "command": "studio.video.commands.toggleOccluded",
             "keys": [
               "shift+o"
             ]
@@ -3625,9 +3625,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.prevKeyframe",
+      "id": "studio.video.commands.prevKeyframe",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Jump to the previous keyframe",
       "label": "Previous keyframe",
       "keys": [
@@ -3636,7 +3636,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.prevKeyframe",
+            "command": "studio.video.commands.prevKeyframe",
             "keys": [
               "alt+,"
             ]
@@ -3645,9 +3645,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.nextKeyframe",
+      "id": "studio.video.commands.nextKeyframe",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Jump to the next keyframe",
       "label": "Next keyframe",
       "keys": [
@@ -3656,7 +3656,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.nextKeyframe",
+            "command": "studio.video.commands.nextKeyframe",
             "keys": [
               "alt+."
             ]
@@ -3665,9 +3665,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.copyToNextFrame",
+      "id": "studio.video.commands.copyToNextFrame",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Propagate the selection one frame",
       "label": "Copy selected shapes to the next frame",
       "keys": [
@@ -3676,7 +3676,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.copyToNextFrame",
+            "command": "studio.video.commands.copyToNextFrame",
             "keys": [
               "alt+b"
             ]
@@ -3685,9 +3685,9 @@
       }
     },
     {
-      "id": "inkling.video.commands.addEvent",
+      "id": "studio.video.commands.addEvent",
       "type": "commands",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Add an event at the playhead",
       "label": "Mark an event at the current frame",
       "when": "tool == event",
@@ -3697,7 +3697,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.video.commands.addEvent",
+            "command": "studio.video.commands.addEvent",
             "keys": [
               "Enter"
             ]
@@ -3706,9 +3706,9 @@
       }
     },
     {
-      "id": "inkling.cine.commands.fitView",
+      "id": "studio.cine.commands.fitView",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Fit the image to the viewport",
       "label": "Fit to view",
       "keys": [
@@ -3717,7 +3717,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.fitView",
+            "command": "studio.cine.commands.fitView",
             "keys": [
               "="
             ]
@@ -3726,9 +3726,9 @@
       }
     },
     {
-      "id": "inkling.cine.commands.stepFrame",
+      "id": "studio.cine.commands.stepFrame",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Step one frame",
       "label": "Previous or next frame",
       "keys": [
@@ -3738,7 +3738,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.stepFrame",
+            "command": "studio.cine.commands.stepFrame",
             "keys": [
               "ArrowLeft",
               "ArrowRight"
@@ -3748,9 +3748,9 @@
       }
     },
     {
-      "id": "inkling.cine.commands.stepSlice",
+      "id": "studio.cine.commands.stepSlice",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Step one slice",
       "label": "Previous or next slice",
       "keys": [
@@ -3760,7 +3760,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.stepSlice",
+            "command": "studio.cine.commands.stepSlice",
             "keys": [
               "ArrowUp",
               "ArrowDown"
@@ -3770,9 +3770,9 @@
       }
     },
     {
-      "id": "inkling.cine.commands.copyContourReplace",
+      "id": "studio.cine.commands.copyContourReplace",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Copy the selected contours, replacing the target's",
       "label": "Copy contour, replacing what is at the target",
       "keys": [
@@ -3784,7 +3784,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.copyContourReplace",
+            "command": "studio.cine.commands.copyContourReplace",
             "keys": [
               "shift+alt+ArrowLeft",
               "shift+alt+ArrowRight",
@@ -3796,9 +3796,9 @@
       }
     },
     {
-      "id": "inkling.cine.commands.copyContour",
+      "id": "studio.cine.commands.copyContour",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Copy the selected contours to the neighbouring cell",
       "label": "Copy contour to the next frame or slice",
       "keys": [
@@ -3810,7 +3810,7 @@
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.copyContour",
+            "command": "studio.cine.commands.copyContour",
             "keys": [
               "alt+ArrowLeft",
               "alt+ArrowRight",
@@ -3822,34 +3822,34 @@
       }
     },
     {
-      "id": "inkling.cine.commands.goTo",
+      "id": "studio.cine.commands.goTo",
       "type": "commands",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Show a slice and frame; args { slice?, frame? } (0-based)",
       "label": "Go to slice and frame",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.cine.commands.goTo",
+            "command": "studio.cine.commands.goTo",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.wsi.commands.toggleClassNames",
+      "id": "studio.wsi.commands.toggleClassNames",
       "type": "commands",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Toggle class names on regions (takes N from Next to do)",
       "label": "Show or hide class names",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "keys": [
         "n"
       ],
       "example": {
         "keybindings": [
           {
-            "command": "inkling.wsi.commands.toggleClassNames",
+            "command": "studio.wsi.commands.toggleClassNames",
             "keys": [
               "n"
             ]
@@ -3858,117 +3858,117 @@
       }
     },
     {
-      "id": "inkling.wsi.commands.importGeoJSON",
+      "id": "studio.wsi.commands.importGeoJSON",
       "type": "commands",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step",
       "label": "Import QuPath GeoJSON",
-      "when": "renderer == inkling.wsi.renderers.osd",
+      "when": "renderer == studio.wsi.renderers.osd",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.wsi.commands.importGeoJSON",
+            "command": "studio.wsi.commands.importGeoJSON",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.segmentation.commands.segment",
+      "id": "studio.segmentation.commands.segment",
       "type": "commands",
-      "module": "inkling.segmentation",
+      "module": "studio.segmentation",
       "description": "Segment objects in this image (selected label, or the provider's)",
       "label": "Segment",
       "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
       "example": {
         "keybindings": [
           {
-            "command": "inkling.segmentation.commands.segment",
+            "command": "studio.segmentation.commands.segment",
             "keys": []
           }
         ]
       }
     },
     {
-      "id": "inkling.core.panels.files",
+      "id": "studio.core.panels.files",
       "type": "panels",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides)",
       "slot": "left",
       "example": {
         "panels": {
           "left": [
-            "inkling.core.panels.files"
+            "studio.core.panels.files"
           ]
         }
       }
     },
     {
-      "id": "inkling.core.panels.labels",
+      "id": "studio.core.panels.labels",
       "type": "panels",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Item-level classes, label classes (pick; hide, lock and color in each row's menu), the current item's annotations (\"On this item\") and the selection",
       "slot": "left",
       "example": {
         "panels": {
           "left": [
-            "inkling.core.panels.labels"
+            "studio.core.panels.labels"
           ]
         }
       }
     },
     {
-      "id": "inkling.core.panels.review",
+      "id": "studio.core.panels.review",
       "type": "panels",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Every annotation in the task with provenance, and the items with none yet; not in any preset (the project's Review page has the same feed), add it when a task needs it in the Studio",
       "slot": "left",
       "example": {
         "panels": {
           "left": [
-            "inkling.core.panels.review"
+            "studio.core.panels.review"
           ]
         }
       }
     },
     {
-      "id": "inkling.core.panels.ai",
+      "id": "studio.core.panels.ai",
       "type": "panels",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Assistant that can read and edit this environment (agent tools)",
       "slot": "right",
       "example": {
         "panels": {
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         }
       }
     },
     {
-      "id": "inkling.image2d.panels.viewControls",
+      "id": "studio.image2d.panels.viewControls",
       "type": "panels",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Window/level presets, invert, flip, rotate, fit, color map, interpolation and magnifier for the Cornerstone stack (controls follow the renderer config), plus wand mode and remove-islands for mask tools",
       "slot": "viewport-bar",
       "example": {
         "panels": {
           "viewport-bar": [
-            "inkling.image2d.panels.viewControls"
+            "studio.image2d.panels.viewControls"
           ]
         }
       }
     },
     {
-      "id": "inkling.timeseries.panels.measurements",
+      "id": "studio.timeseries.panels.measurements",
       "type": "panels",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Rate and RR from instants, wave intervals (ecg), track episodes and record statements (a `multiple` Choices group)",
       "slot": "right",
       "example": {
         "panels": {
           "right": [
-            "inkling.timeseries.panels.measurements"
+            "studio.timeseries.panels.measurements"
           ]
         }
       },
@@ -4003,15 +4003,15 @@
       }
     },
     {
-      "id": "inkling.cardiac-metrics.panels.metrics",
+      "id": "studio.cardiac-metrics.panels.metrics",
       "type": "panels",
-      "module": "inkling.cardiac-metrics",
+      "module": "studio.cardiac-metrics",
       "description": "Ventricular volumes and function, LV mass, the volume curve with an ED/ES suggestion, per-slice areas, Dice vs reference and body size",
       "slot": "right",
       "example": {
         "panels": {
           "right": [
-            "inkling.cardiac-metrics.panels.metrics"
+            "studio.cardiac-metrics.panels.metrics"
           ]
         }
       },
@@ -4051,66 +4051,66 @@
       }
     },
     {
-      "id": "inkling.wsi.panels.counts",
+      "id": "studio.wsi.panels.counts",
       "type": "panels",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Point counts per class on the slide, and inside the selected region with density per mm²",
       "slot": "right",
       "example": {
         "panels": {
           "right": [
-            "inkling.wsi.panels.counts"
+            "studio.wsi.panels.counts"
           ]
         }
       }
     },
     {
-      "id": "inkling.wsi.panels.adjust",
+      "id": "studio.wsi.panels.adjust",
       "type": "panels",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Brightness, contrast, gamma and saturation of the slide tiles (display only; the wand samples them)",
       "slot": "viewport-bar",
       "example": {
         "panels": {
           "viewport-bar": [
-            "inkling.wsi.panels.adjust"
+            "studio.wsi.panels.adjust"
           ]
         }
       }
     },
     {
-      "id": "inkling.segmentation.panels.mask-review",
+      "id": "studio.segmentation.panels.mask-review",
       "type": "panels",
-      "module": "inkling.segmentation",
+      "module": "studio.segmentation",
       "description": "Review AI-suggested masks: accept, reject or edit each instance",
       "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
       "slot": "right",
       "example": {
         "panels": {
           "right": [
-            "inkling.segmentation.panels.mask-review"
+            "studio.segmentation.panels.mask-review"
           ]
         }
       }
     },
     {
-      "id": "inkling.image2d.inspectors.main",
+      "id": "studio.image2d.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Physical measurements (mm, mm², HU) for Cornerstone annotations",
       "geometries": "*"
     },
     {
-      "id": "inkling.volume.inspectors.main",
+      "id": "studio.volume.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Volumes (mL), lengths and ROI stats in patient space; HU for CT",
       "geometries": "*"
     },
     {
-      "id": "inkling.timeseries.inspectors.main",
+      "id": "studio.timeseries.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Times in s and ms, sample index (runtime.signalInfo), channel, code names and statement codes",
       "geometries": [
         "span",
@@ -4119,39 +4119,39 @@
       ]
     },
     {
-      "id": "inkling.video.inspectors.main",
+      "id": "studio.video.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Frames, times and sizes; a track's shape at the playhead",
       "geometries": "*"
     },
     {
-      "id": "inkling.cine.inspectors.main",
+      "id": "studio.cine.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Areas, perimeters and structure roles in mm (from runtime.grid); key frame names",
       "geometries": "*"
     },
     {
-      "id": "inkling.wsi.inspectors.main",
+      "id": "studio.wsi.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Areas and lengths in µm from the runtime's `mpp`, and points inside regions",
       "geometries": "*"
     },
     {
-      "id": "inkling.text-spans.inspectors.main",
+      "id": "studio.text-spans.inspectors.main",
       "type": "inspectors",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Offsets, length and covered text",
       "geometries": [
-        "inkling.text-spans.span"
+        "studio.text-spans.span"
       ]
     },
     {
-      "id": "inkling.image2d.exporters.coco",
+      "id": "studio.image2d.exporters.coco",
       "type": "exporters",
-      "module": "inkling.image2d",
+      "module": "studio.image2d",
       "description": "Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels.",
       "label": "COCO JSON",
       "accepts": [
@@ -4164,14 +4164,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.image2d.exporters.coco"
+          "studio.image2d.exporters.coco"
         ]
       }
     },
     {
-      "id": "inkling.volume.exporters.nifti-labelmap",
+      "id": "studio.volume.exporters.nifti-labelmap",
       "type": "exporters",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "One .nii.gz labelmap of the subject open in the studio; geometry copied from its own scan. BraTS values 1/2/4, otherwise label index + 1.",
       "label": "NIfTI labelmap (current subject)",
       "accepts": [
@@ -4179,14 +4179,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.volume.exporters.nifti-labelmap"
+          "studio.volume.exporters.nifti-labelmap"
         ]
       }
     },
     {
-      "id": "inkling.volume.exporters.masks-json",
+      "id": "studio.volume.exporters.masks-json",
       "type": "exporters",
-      "module": "inkling.volume",
+      "module": "studio.volume",
       "description": "Every subject's masks as run-length encoded voxel grids (x fastest, background first) with label values, voxel counts and volumes.",
       "label": "Masks JSON (all subjects)",
       "accepts": [
@@ -4194,14 +4194,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.volume.exporters.masks-json"
+          "studio.volume.exporters.masks-json"
         ]
       }
     },
     {
-      "id": "inkling.timeseries.exporters.wfdb-atr",
+      "id": "studio.timeseries.exporters.wfdb-atr",
       "type": "exporters",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "MIT-format <record>.atr (beats, rhythm changes, noise) plus LUDB-style per-lead wave files (<record>.i, .ii … with ( peak ) triplets), the source .hea headers and a RECORDS list. Readable with rdann / wfdb-python.",
       "label": "WFDB annotations (.tar)",
       "accepts": [
@@ -4211,7 +4211,7 @@
       ],
       "example": {
         "exporters": [
-          "inkling.timeseries.exporters.wfdb-atr"
+          "studio.timeseries.exporters.wfdb-atr"
         ]
       },
       "configSchema": {
@@ -4285,9 +4285,9 @@
       }
     },
     {
-      "id": "inkling.timeseries.exporters.ecg-json",
+      "id": "studio.timeseries.exporters.ecg-json",
       "type": "exporters",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "Per record: beats, P/QRS/T waves (onset/peak/offset), rhythm episodes, intervals and record statements, in seconds and sample indices.",
       "label": "ECG delineation (LUDB JSON)",
       "accepts": [
@@ -4297,14 +4297,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.timeseries.exporters.ecg-json"
+          "studio.timeseries.exporters.ecg-json"
         ]
       }
     },
     {
-      "id": "inkling.timeseries.exporters.ecg-intervals-csv",
+      "id": "studio.timeseries.exporters.ecg-intervals-csv",
       "type": "exporters",
-      "module": "inkling.timeseries",
+      "module": "studio.timeseries",
       "description": "One row per interval, wave and rhythm episode: record, kind, lead, label, start/end in s and samples, duration in ms, provenance.",
       "label": "Intervals & waves (CSV)",
       "accepts": [
@@ -4312,14 +4312,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.timeseries.exporters.ecg-intervals-csv"
+          "studio.timeseries.exporters.ecg-intervals-csv"
         ]
       }
     },
     {
-      "id": "inkling.video.exporters.cvat-video",
+      "id": "studio.video.exporters.cvat-video",
       "type": "exporters",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "One annotations XML per video: tracks with every frame interpolated (keyframe, outside, occluded flags); per-frame shapes as one-frame tracks.",
       "label": "CVAT for video 1.1",
       "accepts": [
@@ -4330,14 +4330,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.video.exporters.cvat-video"
+          "studio.video.exporters.cvat-video"
         ]
       }
     },
     {
-      "id": "inkling.video.exporters.mot",
+      "id": "studio.video.exporters.mot",
       "type": "exporters",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Box tracks per video as gt/gt.txt (frame, id, x, y, w, h, conf, class, visibility; 1-based frames) with seqinfo.ini.",
       "label": "MOT challenge CSV",
       "accepts": [
@@ -4346,14 +4346,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.video.exporters.mot"
+          "studio.video.exporters.mot"
         ]
       }
     },
     {
-      "id": "inkling.video.exporters.temporal-json",
+      "id": "studio.video.exporters.temporal-json",
       "type": "exporters",
-      "module": "inkling.video",
+      "module": "studio.video",
       "description": "Labeled segments and point-in-time events per video, in seconds and frames.",
       "label": "Temporal JSON",
       "accepts": [
@@ -4362,14 +4362,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.video.exporters.temporal-json"
+          "studio.video.exporters.temporal-json"
         ]
       }
     },
     {
-      "id": "inkling.cine.exporters.acdc-nifti",
+      "id": "studio.cine.exporters.acdc-nifti",
       "type": "exporters",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "4D uint8 .nii.gz on the cine's grid and orientation; value = label position (1 = RV, 2 = MYO, 3 = LV for ACDC labels). Frames without contours are zero.",
       "label": "ACDC labelmap (NIfTI)",
       "accepts": [
@@ -4379,14 +4379,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.cine.exporters.acdc-nifti"
+          "studio.cine.exporters.acdc-nifti"
         ]
       }
     },
     {
-      "id": "inkling.cine.exporters.cine-contours-json",
+      "id": "studio.cine.exporters.cine-contours-json",
       "type": "exporters",
-      "module": "inkling.cine",
+      "module": "studio.cine",
       "description": "Every contour with its spline control points, densely sampled outline, slice, frame, area and source.",
       "label": "Contours (JSON)",
       "accepts": [
@@ -4395,14 +4395,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.cine.exporters.cine-contours-json"
+          "studio.cine.exporters.cine-contours-json"
         ]
       }
     },
     {
-      "id": "inkling.cardiac-metrics.exporters.function-csv",
+      "id": "studio.cardiac-metrics.exporters.function-csv",
       "type": "exporters",
-      "module": "inkling.cardiac-metrics",
+      "module": "studio.cardiac-metrics",
       "description": "Per-frame, per-slice RV/MYO/LV areas and volumes, plus EDV, ESV, SV, EF and LV mass (Simpson's method of discs).",
       "label": "Cardiac function (CSV)",
       "accepts": [
@@ -4412,14 +4412,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.cardiac-metrics.exporters.function-csv"
+          "studio.cardiac-metrics.exporters.function-csv"
         ]
       }
     },
     {
-      "id": "inkling.wsi.exporters.qupath-geojson",
+      "id": "studio.wsi.exporters.qupath-geojson",
       "type": "exporters",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Regions, lines and per-class point sets in level-0 pixels with classifications and measurements. Opens in QuPath (File › Import objects), Cytomine and DSA.",
       "label": "QuPath GeoJSON",
       "accepts": [
@@ -4433,14 +4433,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.wsi.exporters.qupath-geojson"
+          "studio.wsi.exporters.qupath-geojson"
         ]
       }
     },
     {
-      "id": "inkling.wsi.exporters.asap-xml",
+      "id": "studio.wsi.exporters.asap-xml",
       "type": "exporters",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "ASAP / CAMELYON annotation XML: polygons, rectangles, point sets and groups per class; holes become <class>_exclusion polygons.",
       "label": "ASAP XML",
       "accepts": [
@@ -4454,14 +4454,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.wsi.exporters.asap-xml"
+          "studio.wsi.exporters.asap-xml"
         ]
       }
     },
     {
-      "id": "inkling.wsi.exporters.point-counts-csv",
+      "id": "studio.wsi.exporters.point-counts-csv",
       "type": "exporters",
-      "module": "inkling.wsi",
+      "module": "studio.wsi",
       "description": "Per-slide, per-class point counts with region count, region area and points/mm².",
       "label": "Cell counts CSV",
       "accepts": [
@@ -4469,14 +4469,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.wsi.exporters.point-counts-csv"
+          "studio.wsi.exporters.point-counts-csv"
         ]
       }
     },
     {
-      "id": "inkling.dicom-export.exporters.dicom-seg",
+      "id": "studio.dicom-export.exporters.dicom-seg",
       "type": "exporters",
-      "module": "inkling.dicom-export",
+      "module": "studio.dicom-export",
       "description": "Masks as a DICOM Segmentation object referencing the source DICOM images (one segment per label). DICOM inputs only.",
       "label": "DICOM SEG (current item)",
       "accepts": [
@@ -4484,14 +4484,14 @@
       ],
       "example": {
         "exporters": [
-          "inkling.dicom-export.exporters.dicom-seg"
+          "studio.dicom-export.exporters.dicom-seg"
         ]
       }
     },
     {
-      "id": "inkling.dicom-export.exporters.dicom-sr",
+      "id": "studio.dicom-export.exporters.dicom-sr",
       "type": "exporters",
-      "module": "inkling.dicom-export",
+      "module": "studio.dicom-export",
       "description": "Lengths, angles, ROIs, probes and arrows as a DICOM Structured Report (TID 1500). DICOM inputs only.",
       "label": "DICOM SR measurements (current item)",
       "accepts": [
@@ -4499,29 +4499,29 @@
       ],
       "example": {
         "exporters": [
-          "inkling.dicom-export.exporters.dicom-sr"
+          "studio.dicom-export.exporters.dicom-sr"
         ]
       }
     },
     {
-      "id": "inkling.text-spans.exporters.jsonl",
+      "id": "studio.text-spans.exporters.jsonl",
       "type": "exporters",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "One line per document: {\"text\", \"spans\": [[start, end, label]…]}, readable by spaCy and doccano.",
       "label": "Spans JSONL",
       "accepts": [
-        "inkling.text-spans.span"
+        "studio.text-spans.span"
       ],
       "example": {
         "exporters": [
-          "inkling.text-spans.exporters.jsonl"
+          "studio.text-spans.exporters.jsonl"
         ]
       }
     },
     {
-      "id": "inkling.core.labelControls.Labels",
+      "id": "studio.core.labelControls.Labels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for any drawn geometry",
       "geometries": [
         "box",
@@ -4556,9 +4556,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.RectangleLabels",
+      "id": "studio.core.labelControls.RectangleLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for boxes",
       "geometries": [
         "box"
@@ -4581,9 +4581,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.EllipseLabels",
+      "id": "studio.core.labelControls.EllipseLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for ellipses",
       "geometries": [
         "ellipse"
@@ -4606,9 +4606,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.PolygonLabels",
+      "id": "studio.core.labelControls.PolygonLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for polygons and regions",
       "geometries": [
         "polygon",
@@ -4633,9 +4633,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.KeyPointLabels",
+      "id": "studio.core.labelControls.KeyPointLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for points",
       "geometries": [
         "keypoint",
@@ -4659,9 +4659,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.BrushLabels",
+      "id": "studio.core.labelControls.BrushLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for painted masks",
       "geometries": [
         "mask"
@@ -4684,9 +4684,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.TimeSeriesLabels",
+      "id": "studio.core.labelControls.TimeSeriesLabels",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for spans and instants on a time axis",
       "geometries": [
         "span",
@@ -4710,9 +4710,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.VideoRectangle",
+      "id": "studio.core.labelControls.VideoRectangle",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Classes for objects tracked through video",
       "geometries": [
         "track",
@@ -4736,9 +4736,9 @@
       }
     },
     {
-      "id": "inkling.core.labelControls.Choices",
+      "id": "studio.core.labelControls.Choices",
       "type": "labelControls",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Item-level classes; `multiple: true` allows several per item",
       "geometries": [],
       "example": {
@@ -4759,12 +4759,12 @@
       }
     },
     {
-      "id": "inkling.text-spans.labelControls.SpanLabels",
+      "id": "studio.text-spans.labelControls.SpanLabels",
       "type": "labelControls",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Classes for text spans (named entities)",
       "geometries": [
-        "inkling.text-spans.span"
+        "studio.text-spans.span"
       ],
       "example": {
         "labels": [
@@ -4784,45 +4784,45 @@
       }
     },
     {
-      "id": "inkling.core.reviewRules.source-label-disagreement",
+      "id": "studio.core.reviewRules.source-label-disagreement",
       "type": "reviewRules",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Flags item classes that differ from the source dataset's label for that item",
       "example": {
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement"
+          "studio.core.reviewRules.source-label-disagreement"
         ]
       }
     },
     {
-      "id": "inkling.core.reviewRules.unlabeled-items",
+      "id": "studio.core.reviewRules.unlabeled-items",
       "type": "reviewRules",
-      "module": "inkling.core",
+      "module": "studio.core",
       "description": "Flags items with no annotations yet",
       "example": {
         "reviewRules": [
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.unlabeled-items"
         ]
       }
     },
     {
-      "id": "inkling.text-spans.presets.ner",
+      "id": "studio.text-spans.presets.ner",
       "type": "presets",
-      "module": "inkling.text-spans",
+      "module": "studio.text-spans",
       "description": "Person / organisation / location spans on plain text, JSONL export.",
       "example": {
         "data": {
-          "kind": "inkling.text-spans.dataKinds.text"
+          "kind": "studio.text-spans.dataKinds.text"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.text-spans.renderers.reader"
+            "renderer": "studio.text-spans.renderers.reader"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.text-spans.tools.entity"
+          "studio.core.tools.select",
+          "studio.text-spans.tools.entity"
         ],
         "labels": [
           {
@@ -4846,37 +4846,37 @@
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "exporters": [
-          "inkling.text-spans.exporters.jsonl"
+          "studio.text-spans.exporters.jsonl"
         ],
         "reviewRules": [
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.unlabeled-items"
         ]
       }
     },
     {
-      "id": "inkling.presets.presets.cine-4d",
+      "id": "studio.presets.presets.cine-4d",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Cardiac cine MRI: spline contours and masks per slice and frame, copy-forward, ED/ES phases, function metrics; ACDC NIfTI export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "cine-4d",
         "title": "4D cine",
         "data": {
-          "kind": "inkling.cine.dataKinds.volume-time"
+          "kind": "studio.cine.dataKinds.volume-time"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.cine.renderers.slice-frame-canvas",
+            "renderer": "studio.cine.renderers.slice-frame-canvas",
             "config": {
               "structures": {
                 "rv": "right ventricle",
@@ -4897,60 +4897,60 @@
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.core.tools.windowLevel",
-          "inkling.overlay2d.tools.spline",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.overlay2d.tools.freehand",
-          "inkling.overlay2d.tools.brush",
-          "inkling.overlay2d.tools.eraser"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.core.tools.windowLevel",
+          "studio.overlay2d.tools.spline",
+          "studio.overlay2d.tools.polygon",
+          "studio.overlay2d.tools.freehand",
+          "studio.overlay2d.tools.brush",
+          "studio.overlay2d.tools.eraser"
         ],
         "exporters": [
-          "inkling.cine.exporters.acdc-nifti",
-          "inkling.cardiac-metrics.exporters.function-csv",
-          "inkling.cine.exporters.cine-contours-json"
+          "studio.cine.exporters.acdc-nifti",
+          "studio.cardiac-metrics.exporters.function-csv",
+          "studio.cine.exporters.cine-contours-json"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.cardiac-metrics.panels.metrics",
-            "inkling.core.panels.ai"
+            "studio.cardiac-metrics.panels.metrics",
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.drone-video-tracks",
+      "id": "studio.presets.presets.drone-video-tracks",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Aerial video: vehicles and people tracked across frames with keyframed boxes; MOT and CVAT export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "drone-video-tracks",
         "title": "Drone video tracks",
         "data": {
-          "kind": "inkling.video.dataKinds.video"
+          "kind": "studio.video.dataKinds.video"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.video.renderers.frame-canvas"
+            "renderer": "studio.video.renderers.frame-canvas"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.timeline.tools.event"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.timeline.tools.event"
         ],
         "labels": [
           {
@@ -4978,35 +4978,35 @@
           }
         ],
         "exporters": [
-          "inkling.video.exporters.mot",
-          "inkling.video.exporters.cvat-video"
+          "studio.video.exporters.mot",
+          "studio.video.exporters.cvat-video"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.ecg",
+      "id": "studio.presets.presets.ecg",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "ECG strips on paper grid: intervals, beats with WFDB codes, P/QRS/T delineation, rhythm episodes, SNOMED CT record statements, calipers and Pan–Tompkins beat detection; WFDB and LUDB export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "ecg",
         "title": "12-lead ECG",
         "data": {
-          "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
+          "kind": "studio.timeseries.dataKinds.multichannel-timeseries"
         },
         "labels": [
           {
@@ -5312,7 +5312,7 @@
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.timeseries.renderers.strip-chart",
+            "renderer": "studio.timeseries.renderers.strip-chart",
             "config": {
               "reader": "wfdb",
               "layout": "stacked",
@@ -5520,37 +5520,37 @@
               "defaultWave": "QRS",
               "instantLabel": "QRS complex",
               "ecg": true,
-              "displayKey": "inkling.signal.display.v1"
+              "displayKey": "studio.signal.display.v1"
             }
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.timeseries.tools.interval",
-          "inkling.timeseries.tools.beat",
-          "inkling.timeseries.tools.wave",
-          "inkling.timeseries.tools.rhythm",
-          "inkling.timeseries.tools.caliper"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.timeseries.tools.interval",
+          "studio.timeseries.tools.beat",
+          "studio.timeseries.tools.wave",
+          "studio.timeseries.tools.rhythm",
+          "studio.timeseries.tools.caliper"
         ],
         "exporters": [
-          "inkling.timeseries.exporters.wfdb-atr",
-          "inkling.timeseries.exporters.ecg-json",
-          "inkling.timeseries.exporters.ecg-intervals-csv"
+          "studio.timeseries.exporters.wfdb-atr",
+          "studio.timeseries.exporters.ecg-json",
+          "studio.timeseries.exporters.ecg-intervals-csv"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.timeseries.panels.measurements",
-            "inkling.core.panels.ai"
+            "studio.timeseries.panels.measurements",
+            "studio.core.panels.ai"
           ]
         },
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.setBeatCode",
+            "command": "studio.timeseries.commands.setBeatCode",
             "keys": [
               "shift+n",
               "shift+v",
@@ -5569,7 +5569,7 @@
         ],
         "overrides": [
           {
-            "id": "inkling.timeseries.panels.measurements",
+            "id": "studio.timeseries.panels.measurements",
             "config": {
               "label": "ECG measurements",
               "codeAttribute": "snomed",
@@ -5578,56 +5578,56 @@
           }
         ],
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.generic-image",
+      "id": "studio.presets.presets.generic-image",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Natural images (photos, scans, screenshots) on a light canvas renderer: boxes, polygons and keypoints with select / move / resize; COCO export. No Cornerstone, no window/level.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "generic-image",
         "title": "Generic image",
         "data": {
-          "kind": "inkling.image2d.dataKinds.raster"
+          "kind": "studio.image2d.dataKinds.raster"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.image2d.renderers.canvas-raster"
+            "renderer": "studio.image2d.renderers.canvas-raster"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.overlay2d.tools.keypoint"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.overlay2d.tools.polygon",
+          "studio.overlay2d.tools.keypoint"
         ],
         "exporters": [
-          "inkling.image2d.exporters.coco"
+          "studio.image2d.exporters.coco"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "overrides": [
           {
-            "id": "inkling.cornerstone.tools.cobb",
+            "id": "studio.cornerstone.tools.cobb",
             "disabled": true
           }
         ],
@@ -5635,154 +5635,154 @@
       }
     },
     {
-      "id": "inkling.presets.presets.image-2d",
+      "id": "studio.presets.presets.image-2d",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Radiographs and photos on a Cornerstone3D stack: window/level, ROI shapes, measurements, masks; COCO and DICOM export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "image-2d",
         "title": "2D image",
         "data": {
-          "kind": "inkling.image2d.dataKinds.raster"
+          "kind": "studio.image2d.dataKinds.raster"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.image2d.renderers.cornerstone-stack"
+            "renderer": "studio.image2d.renderers.cornerstone-stack"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.cornerstone.tools.zoom",
-          "inkling.core.tools.windowLevel",
-          "inkling.cornerstone.tools.box",
-          "inkling.cornerstone.tools.ellipse",
-          "inkling.cornerstone.tools.polygon",
-          "inkling.cornerstone.tools.freehand",
-          "inkling.cornerstone.tools.keypoint",
-          "inkling.cornerstone.tools.length",
-          "inkling.cornerstone.tools.angle",
-          "inkling.cornerstone.tools.cobb",
-          "inkling.cornerstone.tools.bidirectional",
-          "inkling.cornerstone.tools.probe",
-          "inkling.cornerstone.tools.arrow",
-          "inkling.cornerstone.tools.brush",
-          "inkling.cornerstone.tools.eraser",
-          "inkling.cornerstone.tools.wand"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.cornerstone.tools.zoom",
+          "studio.core.tools.windowLevel",
+          "studio.cornerstone.tools.box",
+          "studio.cornerstone.tools.ellipse",
+          "studio.cornerstone.tools.polygon",
+          "studio.cornerstone.tools.freehand",
+          "studio.cornerstone.tools.keypoint",
+          "studio.cornerstone.tools.length",
+          "studio.cornerstone.tools.angle",
+          "studio.cornerstone.tools.cobb",
+          "studio.cornerstone.tools.bidirectional",
+          "studio.cornerstone.tools.probe",
+          "studio.cornerstone.tools.arrow",
+          "studio.cornerstone.tools.brush",
+          "studio.cornerstone.tools.eraser",
+          "studio.cornerstone.tools.wand"
         ],
         "exporters": [
-          "inkling.image2d.exporters.coco",
-          "inkling.dicom-export.exporters.dicom-seg",
-          "inkling.dicom-export.exporters.dicom-sr"
+          "studio.image2d.exporters.coco",
+          "studio.dicom-export.exporters.dicom-seg",
+          "studio.dicom-export.exporters.dicom-sr"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ],
           "viewport-bar": [
-            "inkling.image2d.panels.viewControls"
+            "studio.image2d.panels.viewControls"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.pathology",
+      "id": "studio.presets.presets.pathology",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "pathology",
         "title": "Whole-slide",
         "data": {
-          "kind": "inkling.wsi.dataKinds.raster-pyramid"
+          "kind": "studio.wsi.dataKinds.raster-pyramid"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.wsi.renderers.osd"
+            "renderer": "studio.wsi.renderers.osd"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.overlay2d.tools.ellipse",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.overlay2d.tools.freehand",
-          "inkling.overlay2d.tools.polyline",
-          "inkling.wsi.tools.brush",
-          "inkling.wsi.tools.eraser",
-          "inkling.wsi.tools.wand",
-          "inkling.wsi.tools.mark",
-          "inkling.wsi.tools.length"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.overlay2d.tools.ellipse",
+          "studio.overlay2d.tools.polygon",
+          "studio.overlay2d.tools.freehand",
+          "studio.overlay2d.tools.polyline",
+          "studio.wsi.tools.brush",
+          "studio.wsi.tools.eraser",
+          "studio.wsi.tools.wand",
+          "studio.wsi.tools.mark",
+          "studio.wsi.tools.length"
         ],
         "exporters": [
-          "inkling.wsi.exporters.qupath-geojson",
-          "inkling.wsi.exporters.asap-xml",
-          "inkling.wsi.exporters.point-counts-csv"
+          "studio.wsi.exporters.qupath-geojson",
+          "studio.wsi.exporters.asap-xml",
+          "studio.wsi.exporters.point-counts-csv"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai",
-            "inkling.wsi.panels.counts"
+            "studio.core.panels.ai",
+            "studio.wsi.panels.counts"
           ],
           "viewport-bar": [
-            "inkling.wsi.panels.adjust"
+            "studio.wsi.panels.adjust"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.satellite-tiles",
+      "id": "studio.presets.presets.satellite-tiles",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "satellite-tiles",
         "title": "Satellite tiles",
         "data": {
-          "kind": "inkling.wsi.dataKinds.raster-pyramid"
+          "kind": "studio.wsi.dataKinds.raster-pyramid"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.wsi.renderers.osd",
+            "renderer": "studio.wsi.renderers.osd",
             "config": {
               "mpp": 500000
             }
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.wsi.tools.brush",
-          "inkling.wsi.tools.eraser",
-          "inkling.wsi.tools.mark",
-          "inkling.wsi.tools.length"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.overlay2d.tools.polygon",
+          "studio.wsi.tools.brush",
+          "studio.wsi.tools.eraser",
+          "studio.wsi.tools.mark",
+          "studio.wsi.tools.length"
         ],
         "labels": [
           {
@@ -5815,40 +5815,40 @@
           }
         ],
         "exporters": [
-          "inkling.wsi.exporters.qupath-geojson",
-          "inkling.wsi.exporters.point-counts-csv"
+          "studio.wsi.exporters.qupath-geojson",
+          "studio.wsi.exporters.point-counts-csv"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.sensor-timeseries-events",
+      "id": "studio.presets.presets.sensor-timeseries-events",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "sensor-timeseries-events",
         "title": "Sensor events",
         "data": {
-          "kind": "inkling.timeseries.dataKinds.multichannel-timeseries"
+          "kind": "studio.timeseries.dataKinds.multichannel-timeseries"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.timeseries.renderers.strip-chart",
+            "renderer": "studio.timeseries.renderers.strip-chart",
             "config": {
               "reader": "csv",
               "grid": "plain",
@@ -5884,12 +5884,12 @@
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.timeseries.tools.interval",
-          "inkling.timeseries.tools.beat",
-          "inkling.timeseries.tools.rhythm",
-          "inkling.timeseries.tools.caliper"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.timeseries.tools.interval",
+          "studio.timeseries.tools.beat",
+          "studio.timeseries.tools.rhythm",
+          "studio.timeseries.tools.caliper"
         ],
         "labels": [
           {
@@ -5909,7 +5909,7 @@
         ],
         "keybindings": [
           {
-            "command": "inkling.timeseries.commands.setBeatCode",
+            "command": "studio.timeseries.commands.setBeatCode",
             "keys": [
               "shift+s",
               "shift+f"
@@ -5918,128 +5918,128 @@
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.timeseries.panels.measurements",
-            "inkling.core.panels.ai"
+            "studio.timeseries.panels.measurements",
+            "studio.core.panels.ai"
           ]
         },
         "exporters": [
-          "inkling.timeseries.exporters.ecg-intervals-csv",
-          "inkling.timeseries.exporters.ecg-json"
+          "studio.timeseries.exporters.ecg-intervals-csv",
+          "studio.timeseries.exporters.ecg-json"
         ],
         "reviewRules": [
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.video",
+      "id": "studio.presets.presets.video",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "video",
         "title": "Video",
         "data": {
-          "kind": "inkling.video.dataKinds.video"
+          "kind": "studio.video.dataKinds.video"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.video.renderers.frame-canvas"
+            "renderer": "studio.video.renderers.frame-canvas"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.overlay2d.tools.box",
-          "inkling.overlay2d.tools.polygon",
-          "inkling.overlay2d.tools.keypoint",
-          "inkling.timeline.tools.segment",
-          "inkling.timeline.tools.event"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.overlay2d.tools.box",
+          "studio.overlay2d.tools.polygon",
+          "studio.overlay2d.tools.keypoint",
+          "studio.timeline.tools.segment",
+          "studio.timeline.tools.event"
         ],
         "exporters": [
-          "inkling.video.exporters.cvat-video",
-          "inkling.video.exporters.mot",
-          "inkling.video.exporters.temporal-json"
+          "studio.video.exporters.cvat-video",
+          "studio.video.exporters.mot",
+          "studio.video.exporters.temporal-json"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }
     },
     {
-      "id": "inkling.presets.presets.volume-3d",
+      "id": "studio.presets.presets.volume-3d",
       "type": "presets",
-      "module": "inkling.presets",
+      "module": "studio.presets",
       "description": "MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.",
       "example": {
-        "$schema": "inkling://schema/environment/v1",
+        "$schema": "studio://schema/environment/v1",
         "id": "volume-3d",
         "title": "3D volume",
         "data": {
-          "kind": "inkling.volume.dataKinds.volume"
+          "kind": "studio.volume.dataKinds.volume"
         },
         "viewports": [
           {
             "name": "main",
-            "renderer": "inkling.volume.renderers.cornerstone-mpr"
+            "renderer": "studio.volume.renderers.cornerstone-mpr"
           }
         ],
         "tools": [
-          "inkling.core.tools.select",
-          "inkling.core.tools.pan",
-          "inkling.cornerstone.tools.zoom",
-          "inkling.core.tools.windowLevel",
-          "inkling.cornerstone.tools.crosshairs",
-          "inkling.cornerstone.tools.brush",
-          "inkling.cornerstone.tools.eraser",
-          "inkling.cornerstone.tools.wand",
-          "inkling.volume.tools.point",
-          "inkling.cornerstone.tools.length",
-          "inkling.cornerstone.tools.angle",
-          "inkling.cornerstone.tools.bidirectional",
-          "inkling.cornerstone.tools.ellipse",
-          "inkling.cornerstone.tools.box",
-          "inkling.cornerstone.tools.polygon",
-          "inkling.cornerstone.tools.freehand",
-          "inkling.cornerstone.tools.probe",
-          "inkling.cornerstone.tools.arrow"
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.cornerstone.tools.zoom",
+          "studio.core.tools.windowLevel",
+          "studio.cornerstone.tools.crosshairs",
+          "studio.cornerstone.tools.brush",
+          "studio.cornerstone.tools.eraser",
+          "studio.cornerstone.tools.wand",
+          "studio.volume.tools.point",
+          "studio.cornerstone.tools.length",
+          "studio.cornerstone.tools.angle",
+          "studio.cornerstone.tools.bidirectional",
+          "studio.cornerstone.tools.ellipse",
+          "studio.cornerstone.tools.box",
+          "studio.cornerstone.tools.polygon",
+          "studio.cornerstone.tools.freehand",
+          "studio.cornerstone.tools.probe",
+          "studio.cornerstone.tools.arrow"
         ],
         "exporters": [
-          "inkling.volume.exporters.nifti-labelmap",
-          "inkling.volume.exporters.masks-json",
-          "inkling.dicom-export.exporters.dicom-seg",
-          "inkling.dicom-export.exporters.dicom-sr"
+          "studio.volume.exporters.nifti-labelmap",
+          "studio.volume.exporters.masks-json",
+          "studio.dicom-export.exporters.dicom-seg",
+          "studio.dicom-export.exporters.dicom-sr"
         ],
         "panels": {
           "left": [
-            "inkling.core.panels.files",
-            "inkling.core.panels.labels"
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
           ],
           "right": [
-            "inkling.core.panels.ai"
+            "studio.core.panels.ai"
           ]
         },
         "reviewRules": [
-          "inkling.core.reviewRules.source-label-disagreement",
-          "inkling.core.reviewRules.unlabeled-items"
+          "studio.core.reviewRules.source-label-disagreement",
+          "studio.core.reviewRules.unlabeled-items"
         ],
         "layout": null
       }

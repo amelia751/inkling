@@ -14,4 +14,4 @@ resources:
 configMapGenerator:
   - name: worker-gpu-config
     literals:
-      - INKLING_WORKER_RESOURCE_CLASSES=gpu
+      - STUDIO_WORKER_RESOURCE_CLASSES=gpu

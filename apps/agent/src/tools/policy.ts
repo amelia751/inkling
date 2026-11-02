@@ -41,7 +41,7 @@ export interface PolicyState {
   namesTask?: (text: string) => boolean;
   /** todo15 D3: the project has a task (Studio) already; `false` only when the kernel said none. */
   projectHasTask?: boolean;
-  /** todo16 D8: trashing more files than this asks first (`INKLING_API_AGENT_TRASH_ASK_OVER`). */
+  /** todo16 D8: trashing more files than this asks first (`STUDIO_API_AGENT_TRASH_ASK_OVER`). */
   trashAskOver?: number;
 }
 

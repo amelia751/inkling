@@ -5,22 +5,22 @@ kind: ConfigMap
 metadata:
   name: worker-config
 data:
-  INKLING_API_URL: http://api
-  INKLING_WORKER_DATA_DIR: /tmp/worker
-  INKLING_WORKER_ENVS_DIR: /app/.plugin-envs
-  INKLING_WORKER_BUILD_ENVS: "0"
-  INKLING_WORKER_SHUTDOWN_GRACE_S: "270"
+  STUDIO_API_URL: http://api
+  STUDIO_WORKER_DATA_DIR: /tmp/worker
+  STUDIO_WORKER_ENVS_DIR: /app/.plugin-envs
+  STUDIO_WORKER_BUILD_ENVS: "0"
+  STUDIO_WORKER_SHUTDOWN_GRACE_S: "270"
   # Kernel job classes this Deployment claims (todo12 §6). GPU jobs go to worker-gpu
   # (overlays/gke/phi/components/gpu-worker, Milestone 4).
-  INKLING_WORKER_RESOURCE_CLASSES: cpu,memory
+  STUDIO_WORKER_RESOURCE_CLASSES: cpu,memory
   # Read by KEDA (ScaledObject addressFromEnv), not by the worker: the Redis holding the job
   # queue, as KEDA's operator (in its own namespace) resolves it. Overlays set the FQDN.
   KEDA_REDIS_ADDRESS: redis:6379
   # Archive unpack (todo13 §7.1), sized to the pod (4 GiB memory, 8 GiB `/tmp` emptyDir):
   # total uncompressed bytes (20 GB) and entries per archive, uncompressed/compressed ratio per
   # entry and in total, nested archive depth, and the scratch budget under /tmp (6 GB).
-  INKLING_WORKER_UNPACK_MAX_BYTES: "21474836480"
-  INKLING_WORKER_UNPACK_MAX_FILES: "50000"
-  INKLING_WORKER_UNPACK_MAX_RATIO: "100"
-  INKLING_WORKER_UNPACK_MAX_DEPTH: "2"
-  INKLING_WORKER_UNPACK_TMP_BYTES: "6442450944"
+  STUDIO_WORKER_UNPACK_MAX_BYTES: "21474836480"
+  STUDIO_WORKER_UNPACK_MAX_FILES: "50000"
+  STUDIO_WORKER_UNPACK_MAX_RATIO: "100"
+  STUDIO_WORKER_UNPACK_MAX_DEPTH: "2"
+  STUDIO_WORKER_UNPACK_TMP_BYTES: "6442450944"

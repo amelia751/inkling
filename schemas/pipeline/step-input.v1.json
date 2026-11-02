@@ -215,5 +215,5 @@
       ]
     }
   },
-  "$id": "inkling://schema/pipeline/step-input.v1"
+  "$id": "studio://schema/pipeline/step-input.v1"
 }

@@ -173,11 +173,16 @@ for (const file of pyFiles(join(repo, "plugins"))) {
 }
 
 // ---- No brand name in code (todo/done/todo2.md D3) -------------------------------------
-// The product name lives only in packages/contracts/src/naming.ts. Comments, docs,
-// presets and fixtures may mention it; code (strings and identifiers) may not.
-// Underscores, digits and camelCase humps count as boundaries too: `__inkling3d`,
-// `inkling_item`, `__inklingRaster`, `useInkling`.
-const BRAND = /(?:(?<![A-Za-z])|(?<=[a-z]))(?:inkling|Inkling|INKLING)(?![a-z])/;
+// The product name (displayName) and every past namespace live only in
+// packages/contracts/src/naming.ts. Comments, docs, presets and fixtures may mention them;
+// code (strings and identifiers) may not. The neutral namespace itself (`studio`) is fine.
+// Underscores, digits and camelCase humps count as boundaries too: `__acme3d`, `acme_item`,
+// `__acmeRaster`, `useAcme`.
+const naming = JSON.parse(readFileSync(join(repo, "schemas/naming.json"), "utf8"));
+const brandWords = [naming.displayName, ...naming.legacyNamespaces]
+  .flatMap((w) => [w.toLowerCase(), w[0].toUpperCase() + w.slice(1).toLowerCase(), w.toUpperCase()])
+  .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+const BRAND = new RegExp(`(?:(?<![A-Za-z])|(?<=[a-z]))(?:${[...new Set(brandWords)].join("|")})(?![a-z])`);
 const brandRoots = ["apps/web/src", "apps/web/dev", "apps/web/scripts", "apps/agent/src", "apps/agent/scripts", "apps/agent/test", "apps/mcp/src", "packages", "plugins", "tools"].map((d) => join(repo, d)).filter(existsSync);
 // Generated code (`_generated/`, e.g. the kernel's plugin_v1.py `Literal['<ns>.plugins/v1']`)
 // is rewritten by its generator, never by hand.

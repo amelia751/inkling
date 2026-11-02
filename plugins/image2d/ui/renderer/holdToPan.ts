@@ -3,7 +3,7 @@ import { ns } from "@studio/contracts/naming";
 import { useCommands } from "@studio/plugin-ui-sdk";
 
 /**
- * `inkling.core.commands.holdToPan` (Space by default): pan with the primary button while
+ * `studio.core.commands.holdToPan` (Space by default): pan with the primary button while
  * the key is held, whatever the tool (Photoshop / OHIF convention). Returns whether it is
  * held. The key comes from the environment's keymap; release is whichever physical key
  * started the hold (or the window losing focus).

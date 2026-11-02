@@ -767,7 +767,7 @@ def t_exporters(v: V, ctx):
             const ctx = { project, items: items(project), annotations: window.__s.getState().annotations };
             const out = {};
             for (const id of ['cvat-video', 'mot', 'temporal-json']) {
-                const e = await registry.loadImpl(`inkling.video.exporters.${id}`);
+                const e = await registry.loadImpl(`studio.video.exporters.${id}`);
                 const buf = new Uint8Array(await (await e.build(ctx)).arrayBuffer());
                 let s = ''; for (const b of buf) s += String.fromCharCode(b);
                 out[id] = btoa(s);

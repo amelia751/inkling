@@ -287,7 +287,7 @@ class PluginManifest(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    schemaVersion: Literal['inkling.plugins/v1']
+    schemaVersion: Literal['studio.plugins/v1']
     id: Annotated[str, Field(pattern='^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$')]
     name: Annotated[str, Field(min_length=1)]
     version: Annotated[

@@ -426,9 +426,9 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
 - **Two digests.** The *manifest digest* is what's signed. The *tree digest* (sha256 over
   `<path>\0<sha256>\n`, same as `tools/build-registry.mjs`) is what workspace pins and lockfiles carry.
 - **Signing.** Generated plugins: the `Signer` from `studio_signing` (`sign(digest)`,
-  `verify(digest, signature)`, `key_id`), picked by `INKLING_API_SIGNER`: `local` (Ed25519 key
+  `verify(digest, signature)`, `key_id`), picked by `STUDIO_API_SIGNER`: `local` (Ed25519 key
   file, dev) or `gcpkms` (Cloud KMS `EC_SIGN_P256_SHA256` key version in
-  `INKLING_API_SIGNER_KMS_KEY`; the key id is a `gcpkms://` URI that cosign also accepts).
+  `STUDIO_API_SIGNER_KMS_KEY`; the key id is a `gcpkms://` URI that cosign also accepts).
   Each build also gets a DSSE-signed in-toto SLSA provenance attestation recording the agent run,
   prompt hash, model, checks and sample digests (`POST /api/v1/plugins/artifacts?runId=&promptHash=&model=&sampleDigests=`).
   Signature and attestation are OCI referrers of the manifest. First-party plugins are signed in
@@ -446,7 +446,7 @@ A provider such as Daytona can supply ephemeral coding sandboxes. Treat it as an
 - **Export / import.** `GET /api/v1/plugins/{id}/export?version=` returns a tar of an OCI
   image layout: the manifest tagged `<version>` plus its signature and attestation referrers.
   `POST /api/v1/plugins/import?tier=` takes one back. It verifies every byte and requires a
-  signature by this installation's key or one in `INKLING_API_SIGNER_TRUSTED_KEYS_FILE`; nothing
+  signature by this installation's key or one in `STUDIO_API_SIGNER_TRUSTED_KEYS_FILE`; nothing
   is stored unless all of it passes, and refusals are audited (`where: import`). Both need
   `plugins.approve`, so agent tokens can't call them. `tools/oras-plugins.sh` moves layouts
   through any OCI registry with `oras copy -r`: `export`, `import`, `mirror`, and `save`/`load`

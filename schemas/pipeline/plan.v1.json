@@ -479,5 +479,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/plan.v1"
+  "$id": "studio://schema/pipeline/plan.v1"
 }

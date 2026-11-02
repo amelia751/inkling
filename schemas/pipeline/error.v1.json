@@ -60,5 +60,5 @@
       "additionalProperties": false
     }
   },
-  "$id": "inkling://schema/pipeline/error.v1"
+  "$id": "studio://schema/pipeline/error.v1"
 }

@@ -233,7 +233,7 @@ def ellipse_and_shift_circle(p: P):
     assert near(g0["rx"], 1000, 30) and near(g0["ry"], 400, 30), g0
     assert near(g1["rx"], g1["ry"], 1), f"shift should make a circle: {g1}"
     rows = p.page.evaluate(
-        """async (a) => { const { registry } = await import('/src/extension-host/registry.ts'); const inspect = await registry.loadImpl('inkling.wsi.inspectors.main'); return inspect(a, { project: {}, item: { assets: [] }, runtime: { get: (k) => (k === 'mpp' ? 0.252 : undefined) } }); }""",
+        """async (a) => { const { registry } = await import('/src/extension-host/registry.ts'); const inspect = await registry.loadImpl('studio.wsi.inspectors.main'); return inspect(a, { project: {}, item: { assets: [] }, runtime: { get: (k) => (k === 'mpp' ? 0.252 : undefined) } }); }""",
         a[0],
     )
     area_um2 = math.pi * g0["rx"] * g0["ry"] * MPP * MPP
@@ -777,7 +777,7 @@ def exporters_content(p: P):
             const items = [{ id: itemId, name: 'slide', group: '', assets: project.assets.filter((a) => a.path.endsWith('.dzi')) }];
             const res = {};
             for (const id of ['qupath-geojson', 'asap-xml', 'point-counts-csv']) {
-                const ex = await registry.loadImpl(`inkling.wsi.exporters.${id}`);
+                const ex = await registry.loadImpl(`studio.wsi.exporters.${id}`);
                 res[id] = { name: ex.filename(project), text: await (await ex.build({ project, items, annotations })).text() };
             }
             return res;

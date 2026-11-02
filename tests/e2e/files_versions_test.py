@@ -6,7 +6,7 @@ versions; an older version downloads as `name (v1).ext`; a dataset pinned to ver
 a ZIP of a folder with one file held for privacy review has the others plus `_held_files.txt`, and
 the toast says one was left out.
 
-    INKLING_API_URL=http://127.0.0.1:8000 INKLING_E2E=1 pnpm exec vite --port 5199 --strictPort
+    STUDIO_API_URL=http://127.0.0.1:8000 STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort
     python3 ../../tests/e2e/files_versions_test.py --port 5199   # from apps/web
 """
 

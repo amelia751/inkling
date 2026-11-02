@@ -5,7 +5,7 @@ import { useCycle, useReducedMotion } from "@/lib/motion";
 
 export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
-    <a href="#top" className="flex items-center gap-2.5" aria-label={`${NAME} home`}>
+    <a href="/#top" className="flex items-center gap-2.5" aria-label={`${NAME} home`}>
       <svg viewBox="0 0 36 36" className="size-9 shrink-0" aria-hidden>
         <rect width="36" height="36" rx="10" fill="var(--color-lime)" />
         <path d="M10 15v-5h5M26 21v5h-5" stroke="var(--color-ink)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />

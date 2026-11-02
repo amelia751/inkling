@@ -1,3 +1,4 @@
+import { LEGAL_PATHS } from "@studio/contracts/legal";
 import { ArrowRightIcon } from "@studio/ui/icons";
 import { APP_URL, FOOTER, NAME } from "@/content";
 import { stagger, useReveal } from "@/lib/motion";
@@ -44,7 +45,7 @@ export function Footer() {
               <ul className="mt-4 space-y-4">
                 {col.links.map((l) => (
                   <li key={l}>
-                    <a href="#top" className="text-ui text-white/50 transition-colors hover:text-white">
+                    <a href="/#top" className="text-ui text-white/50 transition-colors hover:text-white">
                       {l}
                     </a>
                   </li>
@@ -58,13 +59,13 @@ export function Footer() {
             © {new Date().getFullYear()} {NAME}
           </span>
           <span className="flex gap-6">
-            <a href="#top" className="hover:text-white">
+            <a href={LEGAL_PATHS.privacy} className="hover:text-white">
               Privacy
             </a>
-            <a href="#top" className="hover:text-white">
+            <a href={LEGAL_PATHS.terms} className="hover:text-white">
               Terms
             </a>
-            <a href="#top" className="hover:text-white">
+            <a href="/#top" className="hover:text-white">
               Security
             </a>
           </span>

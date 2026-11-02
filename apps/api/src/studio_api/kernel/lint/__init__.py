@@ -39,6 +39,16 @@ CATALOGUE: dict[str, RuleSpec] = {
         RuleSpec("dataset.metadata-missing", "error", "Add the required metadata to the dataset."),
         RuleSpec("dataset.name-taken", "error", "Choose a dataset name that is not used in this project."),
         RuleSpec("dataset.mixed-modality", "warn", "Split the dataset so it holds one modality.", evaluate=True),
+        # Imaging checks (D11): the worker's `imaging.check` reports them (kernel/imaging_findings.py).
+        RuleSpec("dicom.series-incomplete", "warn", "Upload the missing instances, or remove the partial series.", evaluate=True),
+        RuleSpec("dicom.inconsistent-spacing", "warn", "Check the series for missing or duplicated slices, or resample it to even spacing.", evaluate=True),
+        RuleSpec("dicom.inconsistent-orientation", "warn", "Split the series: its slices belong to more than one volume.", evaluate=True),
+        RuleSpec("dicom.seg-frame-mismatch", "error", "Regenerate the segmentation against the referenced series.", evaluate=True),
+        RuleSpec("dicom.conformance", "info", "Fix the attributes dciodvfy reports, or re-export from the source system.", evaluate=True),
+        RuleSpec("nifti.orientation-mismatch", "warn", "Rewrite the header with one consistent affine (qform = sform).", evaluate=True),
+        RuleSpec("nifti.voxel-size", "error", "Set positive voxel sizes (pixdim) in the header.", evaluate=True),
+        RuleSpec("nifti.nan", "warn", "Replace NaN voxels (e.g. with 0) before labelling or training.", evaluate=True),
+        RuleSpec("nifti.grid-mismatch", "error", "Resample the mask onto the image grid (same shape and affine).", evaluate=True),
     )
 }
 

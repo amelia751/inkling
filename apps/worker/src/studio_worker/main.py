@@ -49,6 +49,7 @@ from .boundary import BoundaryRunner
 from .deid import DeidSubscriber
 from .egress import EgressProxy
 from .heartbeat import Heartbeat
+from .imaging import ImagingCheck
 from .inspect import InspectSubscriber
 from .inspect.items import ItemProcessor
 from .unpack import UnpackSubscriber
@@ -131,6 +132,8 @@ class Worker:
         self._items_thread: threading.Thread | None = None
         # Periodic kernel work: `files.empty_trash` (todo7 Phase 4), at most daily in the kernel.
         self.scheduled = Scheduled(self.http)
+        # Imaging checks (todo17 D11): the kernel job `imaging.check`, on import and export.
+        self.imaging = ImagingCheck(self.http, data_dir / "imaging")
         # Data-boundary jobs (todo10 Phase 7): fingerprint, fixtures, verify, probe, build.
         self.boundary = BoundaryRunner(self.http, worker_id, data_dir / "boundary", signer=signer, verify_python=verify_python, verify_memory_mb=verify_memory_mb)
 
@@ -383,9 +386,12 @@ class Worker:
 
     def run_service_job(self, job: dict) -> None:
         """A kernel job a service enqueued (apps/api kernel/service_jobs.py). `noop` hands its
-        input ref back as the result ref, after waiting if the ref is `sleep:<seconds>`."""
+        input ref back as the result ref, after waiting if the ref is `sleep:<seconds>`;
+        `imaging.check` runs the imaging checks (imaging.py) and reports their findings."""
         job_id = job["jobId"]
         self._attempt = job.get("attempts")
+        if job.get("tool") == "imaging.check":
+            return self.run_imaging(job)
         if job.get("tool") != "noop":
             return self.fail(job_id, f"unknown kernel job kind {job.get('tool')!r}", recoverable=False, error_class="invalid_input")
         ref = str((job.get("input") or {}).get("inputRef") or "")
@@ -400,6 +406,18 @@ class Worker:
                 return
         if not hb.lost.is_set():
             self.complete(job_id, {"result_ref": ref}, None)
+
+    def run_imaging(self, job: dict) -> None:
+        job_id = job["jobId"]
+        with self.heartbeat(job) as hb:
+            try:
+                result = self.imaging.run(job.get("input") or {}, on_progress=lambda f: hb.report(f, None))
+            except httpx.HTTPError as e:
+                if not hb.lost.is_set():
+                    self.fail(job_id, f"imaging check: {type(e).__name__}", recoverable=True, error_class="transient")
+                return
+        if not hb.lost.is_set():
+            self.complete(job_id, result, None)
 
     def run_items(self, poll_s: float = 0.2) -> None:
         """The item loop: claim, process, repeat; a short wait only when nothing is waiting."""

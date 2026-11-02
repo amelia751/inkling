@@ -507,6 +507,10 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     if ids:
         prio = {"priority": "first"} if (s.totals or {}).get("priority") == "first" else {}
         events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids, **prio}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
+        # todo17 D11: imaging checks run in the worker after the upload; they never block it.
+        from . import imaging_findings
+
+        imaging_findings.enqueue_check(db, scoped, p, ids, trigger="import", key=f"imaging.check:import:{s.id}")
     if s.drop_id:
         drops.session_completed(db, ctx, s, ids)
     _publish(db, ctx, s)

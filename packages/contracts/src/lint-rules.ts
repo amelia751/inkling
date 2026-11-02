@@ -47,6 +47,12 @@ export const LINT_RULES: readonly LintRule[] = [
   rule({ code: "dicom.series-incomplete", title: "DICOM series is incomplete", appliesTo: ["dicom"], defaultSeverity: "warn", fix: "Upload the missing instances (see the slice gaps), or remove the partial series.", fixable: false, mode: "evaluate", phi: true }),
   rule({ code: "dicom.seg-frame-mismatch", title: "SEG frame of reference doesn't match its source", appliesTo: ["dicom"], defaultSeverity: "error", fix: "Regenerate the segmentation against the referenced series.", fixable: false, mode: "evaluate", phi: true }),
   rule({ code: "nifti.orientation-mismatch", title: "NIfTI qform and sform disagree", appliesTo: ["nifti"], defaultSeverity: "warn", fix: "Rewrite the header with one consistent affine (qform = sform).", fixable: false, mode: "evaluate" }),
+  rule({ code: "dicom.inconsistent-spacing", title: "DICOM series has uneven slice or pixel spacing", appliesTo: ["dicom"], defaultSeverity: "warn", fix: "Check the series for missing or duplicated slices, or resample it to even spacing.", fixable: false, mode: "evaluate" }),
+  rule({ code: "dicom.inconsistent-orientation", title: "DICOM series mixes slice orientations", appliesTo: ["dicom"], defaultSeverity: "warn", fix: "Split the series: its slices belong to more than one volume.", fixable: false, mode: "evaluate" }),
+  rule({ code: "dicom.conformance", title: "DICOM file fails conformance checks (dciodvfy)", appliesTo: ["dicom"], defaultSeverity: "info", fix: "Fix the attributes dciodvfy reports, or re-export from the source system.", fixable: false, mode: "evaluate" }),
+  rule({ code: "nifti.voxel-size", title: "NIfTI voxel size is zero, negative or not finite", appliesTo: ["nifti"], defaultSeverity: "error", fix: "Set positive voxel sizes (pixdim) in the header.", fixable: false, mode: "evaluate" }),
+  rule({ code: "nifti.nan", title: "NIfTI image contains NaN voxels", appliesTo: ["nifti"], defaultSeverity: "warn", fix: "Replace NaN voxels (e.g. with 0) before labelling or training.", fixable: false, mode: "evaluate" }),
+  rule({ code: "nifti.grid-mismatch", title: "NIfTI mask grid differs from its image", appliesTo: ["nifti"], defaultSeverity: "error", fix: "Resample the mask onto the image grid (same shape and affine).", fixable: false, mode: "evaluate" }),
 ];
 
 export const LINT_RULE_CODES = LINT_RULES.map((r) => r.code);

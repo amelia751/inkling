@@ -107,6 +107,7 @@ POST /api/v1/proposals/{proposal_id}/recompute
 POST /api/v1/secrets/proxy
 POST /api/v1/service/events
 POST /api/v1/service/jobs
+POST /api/v1/service/projects/{project_id}/findings
 POST /api/v1/sessions
 POST /api/v1/source-nodes/{node_id}/privacy/clear
 POST /api/v1/source-nodes/{node_id}/star

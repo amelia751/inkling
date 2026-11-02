@@ -16,6 +16,7 @@ import { fetchAnnotations, fetchEnvironment, fetchTaskDocument, saveAnnotations 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@studio/ui/ui/alert-dialog";
 import { mergeAnnotations, resolveConflict, useSaveConflicts } from "@/studio/lib/annotation-merge";
 import { toProblem } from "@/studio/lib/problem";
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { retryDelayMs, useSaveProblem } from "@/studio/lib/save-problem";
 import { useLiveDropItems } from "@/studio/core/drops";
 import { setLabelClasses } from "@studio/plugin-ui-sdk/labels";
@@ -678,6 +679,8 @@ function useAutosave(projectId: string) {
   const dirty = useStudio((s) => s.dirty);
   const inFlight = useRef(false);
   const merges = useRef(0);
+  const qc = useQueryClient();
+  const routeProject = useParams().projectId ?? "";
   const retry = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(retry.current), []);
 
@@ -721,6 +724,8 @@ function useAutosave(projectId: string) {
         if (!(e instanceof StaleHeadError)) console.warn("[save]", e);
         useSaveProblem.getState().set(p);
         useStudio.getState().markError();
+        // 410: the Studio (or its dataset) went to Trash under us; the page switches to "Moved to Trash" with Restore.
+        if (p.status === 410) invalidateFor(qc, routeProject, "trash.changed");
         if (p.retryable) {
           // Offline / 5xx / 429 (todo18 §2 C): keep the edits in this tab and retry with back-off.
           stashUnsaved();
@@ -735,7 +740,7 @@ function useAutosave(projectId: string) {
       if (useStudio.getState().dirty) await run();
     };
     await run();
-  }, [projectId]);
+  }, [projectId, qc, routeProject]);
 
   useEffect(() => {
     if (!dirty) return;

@@ -23,6 +23,7 @@ const listeners = new Map<string, Set<ProjectEventListener>>();
  */
 export const FORWARDED = [
   "fs.changed",
+  "trash.changed", // todo18 D1 (published by the trash kernel)
   "import.updated",
   "source.node.inspected",
   "environment.updated",

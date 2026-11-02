@@ -39,6 +39,9 @@ EVENT_TYPES = {
     "proposal.decided",
     # Files (todo7): a namespace batch changed these folders' children.
     "fs.changed",
+    # todo18 D1: something was trashed, restored or destroyed ({projectId, batchId, kinds, ids});
+    # an open Studio or dataset that went to Trash shows "Moved to Trash" with Restore.
+    "trash.changed",
     # Live boot (todo11 §6 contracts): every environment write, and a boot's progress.
     "environment.updated",
     "boot.started",
@@ -79,7 +82,7 @@ EVENT_TYPES = {
 # Project updates (the project SSE stream, GET /v1/projects/:id/events, carries these; the
 # pipeline's are all project-scoped: a run belongs to one project): never rate limited (an import of 10k files is one
 # session, but its progress events must not starve plugin events or each other).
-PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed", *PIPELINE_EVENTS, *DROP_EVENTS, "archive.unpack.requested"}
+PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", "proposal.created", "proposal.decided", "fs.changed", "trash.changed", "environment.updated", "boot.started", "boot.step", "boot.ready", "boot.failed", "item.registered", "item.uploaded", "item.probed", "item.thumb_ready", "item.preview_ready", "item.ready", "item.failed", *PIPELINE_EVENTS, *DROP_EVENTS, "archive.unpack.requested"}
 
 
 # Published by the kernel itself when a job ends: never rate limited either, or a busy

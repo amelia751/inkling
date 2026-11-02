@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { RES } from "@studio/contracts/naming";
+import { followPerson, personStorage } from "@/studio/lib/person-key";
 import type { ReorgPlan } from "@studio/agent-protocol";
 
 /**
@@ -48,13 +49,11 @@ export const useReorgPlans = create<ReorgPlansState>()(
     }),
     {
       name: `${RES}-reorg-plans`,
-      storage: createJSONStorage(() => {
-        try {
-          return sessionStorage;
-        } catch {
-          return { getItem: () => null, setItem: () => undefined, removeItem: () => undefined };
-        }
-      }),
+      // Per person (todo15 D1): the name is suffixed with the person at each read and write.
+      storage: createJSONStorage(() => personStorage(() => sessionStorage)),
     },
   ),
 );
+
+// Another person (or organization) signed in: load theirs, or start empty (todo15 D1).
+followPerson(useReorgPlans, () => sessionStorage);

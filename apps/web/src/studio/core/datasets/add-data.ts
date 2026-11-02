@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import type { DatasetProfile, DatasetSummary } from "@studio/contracts/types";
 import type { AgentContextProvider } from "@/studio/lib/agent/providers";
 import { useShell } from "@/studio/stores/shell";
@@ -65,12 +66,12 @@ export function datasetContext(projectId: string, d: Pick<DatasetSummary, "id" |
 
 // ---- Recently opened datasets (per viewer; a convenience, never relied on) ---------------------
 
-const RECENT_KEY = `${RES}-recent-datasets`;
+const RECENT_KEY = () => personKey(`${RES}-recent-datasets`);
 const RECENT_MAX = 6;
 
 export function readRecentDatasets(projectId: string): { id: string; at: number }[] {
   try {
-    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "{}") as Record<string, { id: string; at: number }[]>;
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY()) ?? "{}") as Record<string, { id: string; at: number }[]>;
     return Array.isArray(all[projectId]) ? all[projectId] : [];
   } catch {
     return [];
@@ -79,9 +80,9 @@ export function readRecentDatasets(projectId: string): { id: string; at: number 
 
 export function rememberDataset(projectId: string, datasetId: string): void {
   try {
-    const all = JSON.parse(localStorage.getItem(RECENT_KEY) ?? "{}") as Record<string, { id: string; at: number }[]>;
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY()) ?? "{}") as Record<string, { id: string; at: number }[]>;
     const list = [{ id: datasetId, at: Date.now() }, ...(Array.isArray(all[projectId]) ? all[projectId] : []).filter((x) => x.id !== datasetId)].slice(0, RECENT_MAX);
-    localStorage.setItem(RECENT_KEY, JSON.stringify({ ...all, [projectId]: list }));
+    localStorage.setItem(RECENT_KEY(), JSON.stringify({ ...all, [projectId]: list }));
   } catch {
     /* private mode or blocked storage: the list is just shorter */
   }

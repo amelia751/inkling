@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckIcon, ChevronDownIcon, CopyIcon } from "@studio/ui/icons";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
@@ -31,6 +32,7 @@ export function UserMenu({ className }: { className?: string }) {
   const userId = user.workosUserId || user.id;
   const orgId = organization.workosOrgId ?? organization.id;
   const [leaving, setLeaving] = useState(false);
+  const client = useQueryClient();
   const signOut = async () => {
     if (mode === "dev") {
       toast.info("Dev mode has no sign-in", { description: "Everyone is the dev user. Set the auth mode to workos to sign in and out." });
@@ -38,7 +40,7 @@ export function UserMenu({ className }: { className?: string }) {
     }
     setLeaving(true);
     try {
-      window.location.assign(await logout());
+      window.location.assign(await logout(client));
     } catch (e) {
       setLeaving(false);
       toast.error("Couldn't log out", { description: e instanceof Error ? e.message : String(e) });

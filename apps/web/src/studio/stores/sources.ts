@@ -1,12 +1,13 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { onPersonChange, personKey } from "@/studio/lib/person-key";
 
 /**
  * Sources browser preferences (todo6 Phase 4): the inspector's open state and the list or
  * grid view, remembered per folder *kind* ("mostly images"), never per path (paths may hold
  * identifiers). Per-viewer conveniences, so localStorage, guarded.
  */
-const KEY = `${RES}-sources`;
+const KEY = () => personKey(`${RES}-sources`);
 
 export type SourcesView = "list" | "grid";
 
@@ -22,7 +23,7 @@ interface SourcesPrefs extends Prefs {
 
 function read(): Prefs {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY());
     const v = raw ? (JSON.parse(raw) as Partial<Prefs>) : {};
     return { inspector: v.inspector ?? true, views: v.views && typeof v.views === "object" ? v.views : {} };
   } catch {
@@ -32,7 +33,7 @@ function read(): Prefs {
 
 function write(p: Prefs) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    localStorage.setItem(KEY(), JSON.stringify(p));
   } catch {
     /* storage blocked: keep the in-memory value */
   }
@@ -55,3 +56,6 @@ export const useSourcesPrefs = create<SourcesPrefs>((set, get) => ({
 export function defaultView(folderKind: string): SourcesView {
   return folderKind === "image" || folderKind === "dicom" || folderKind === "slide" ? "grid" : "list";
 }
+
+// Another person (or organization) signed in: their own preferences (todo15 D1).
+onPersonChange(() => useSourcesPrefs.setState(read()));

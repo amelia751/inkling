@@ -18,6 +18,7 @@ import type {
   TrashPage,
 } from "@studio/contracts/types";
 import { RES } from "@studio/contracts/naming";
+import { personKey } from "@/studio/lib/person-key";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { api, ApiError, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
@@ -268,7 +269,7 @@ export async function replaceFile(nodeId: string, file: File, { onProgress, sign
 
 // ---- Local stars (the seed stand-in, D12) --------------------------------------------------------
 
-const STAR_KEY = `${RES}-files-stars`;
+const STAR_KEY = () => personKey(`${RES}-files-stars`);
 
 interface LocalStars {
   /** By project: starred node snapshots. */
@@ -278,7 +279,7 @@ interface LocalStars {
 
 function readStars(): LocalStars["byProject"] {
   try {
-    return JSON.parse(localStorage.getItem(STAR_KEY) ?? "{}") as LocalStars["byProject"];
+    return JSON.parse(localStorage.getItem(STAR_KEY()) ?? "{}") as LocalStars["byProject"];
   } catch {
     return {};
   }
@@ -294,7 +295,7 @@ export const useLocalStars = create<LocalStars>((set) => ({
       else delete mine[node.id];
       const byProject = { ...s.byProject, [projectId]: mine };
       try {
-        localStorage.setItem(STAR_KEY, JSON.stringify(byProject));
+        localStorage.setItem(STAR_KEY(), JSON.stringify(byProject));
       } catch {
         // Storage may be unavailable (private mode): stars last for the session.
       }

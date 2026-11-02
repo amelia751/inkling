@@ -57,15 +57,8 @@ export function backToDefaultPrincipal(): void {
   }
 }
 
-/**
- * A per-person storage key: unchanged for the default principal (so existing local state stays),
- * suffixed with the dev principal otherwise, so a new person starts without the default's recents
- * and conversations.
- */
-export function personKey(key: string): string {
-  const p = devPrincipal();
-  return p ? `${key}:${p}` : key;
-}
+/** Per-person storage keys live in person-key.ts (todo15 D1); re-exported for existing imports. */
+export { personKey } from "@/studio/lib/person-key";
 
 /** Our own api and agent: same-origin `/api/…` (the default bases), or the configured bases. */
 function ours(url: URL, bases: string[]): boolean {

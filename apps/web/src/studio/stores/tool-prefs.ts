@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
+import { onPersonChange, personKey } from "@/studio/lib/person-key";
 
 /**
  * Toolbar and shortcuts-sheet preferences (todo8 D4, D6): the last tool used in each folded
@@ -8,7 +9,7 @@ import { RES } from "@studio/contracts/naming";
  * choosing" (todo8 D5, on by default). Per-viewer conveniences, so
  * localStorage, guarded; never in `useStudio`, whose fields are a test contract.
  */
-const KEY = `${RES}-tool-prefs`;
+const KEY = () => personKey(`${RES}-tool-prefs`);
 
 interface Prefs {
   /** envId → tool group → tool name. */
@@ -27,7 +28,7 @@ interface ToolPrefs extends Prefs {
 
 function read(): Prefs {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY());
     const v = raw ? (JSON.parse(raw) as Partial<Prefs>) : {};
     return { lastUsed: v.lastUsed && typeof v.lastUsed === "object" ? v.lastUsed : {}, shortcutsSeen: v.shortcutsSeen === true, advance: v.advance !== false };
   } catch {
@@ -37,7 +38,7 @@ function read(): Prefs {
 
 function write(p: Prefs) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(p));
+    localStorage.setItem(KEY(), JSON.stringify(p));
   } catch {
     /* storage blocked: keep the in-memory value */
   }
@@ -66,3 +67,6 @@ export const useToolPrefs = create<ToolPrefs>((set, get) => {
 export function rememberTool(envId: string, tool: { name: string; group: string }): void {
   useToolPrefs.getState().remember(envId, tool.group, tool.name);
 }
+
+// Another person (or organization) signed in: their own preferences (todo15 D1).
+onPersonChange(() => useToolPrefs.setState(read()));

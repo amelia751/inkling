@@ -4,6 +4,7 @@ import { ORG_PERMISSIONS, type OrgPermission, type Session, type SessionOrg } fr
 import { apiFetch, onUnauthorized } from "@/extension-host/http";
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import { ACCOUNT, ORG } from "@/studio/lib/account-mock";
+import { forgetClient, setPersonSession } from "@/studio/lib/person-key";
 
 /**
  * Who is signed in (todo9 Phase 4): `GET /api/auth/session`, the API's view of the cookie
@@ -51,6 +52,13 @@ export const isUnauthorized = (e: unknown): boolean => !!e && typeof e === "obje
 const isJson = (res: Response) => (res.headers.get("content-type") ?? "").includes("json");
 
 export async function fetchSession(): Promise<Session> {
+  const session = await loadSession();
+  // Per-person storage keys follow the signed-in person and organization (todo15 D1).
+  setPersonSession(session);
+  return session;
+}
+
+async function loadSession(): Promise<Session> {
   const { auth, kernel } = runtimeConfig();
   const dev = auth.mode === "dev";
   // Seed mode: the Vite seed server has no /api/auth.
@@ -161,8 +169,11 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 /** `POST /api/auth/logout` → the WorkOS logout URL to go to (the cookie is already cleared). */
-export async function logout(): Promise<string> {
+export async function logout(client?: QueryClient): Promise<string> {
   const { url } = await post<{ url?: string }>("/auth/logout");
+  // Forget what this browser holds for them (todo15 D1) before leaving.
+  forgetClient(client);
+  setPersonSession(null);
   return url || "/";
 }
 

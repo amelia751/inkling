@@ -1,6 +1,7 @@
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import type { ProfileName } from "@studio/agent-protocol";
 import { apiFetch } from "@/extension-host/http";
+import { personSuffix } from "@/studio/lib/person-key";
 
 /**
  * Kernel session tokens for the agent (docs/plugins.md §8). The Studio, acting as the signed-in
@@ -21,14 +22,20 @@ export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
 };
 
 const TTL_S = 3600;
+/** Keyed by person + organization (personSuffix) + workspace + profile; `forgetClient` clears it. */
 const cache = new Map<string, { token: string; expiresAt: number }>();
+
+/** Drop every cached token (sign-out, organization switch). */
+export function clearKernelTokens(): void {
+  cache.clear();
+}
 
 /** A token for this workspace and profile, reused until 10 minutes before it expires; undefined if the kernel isn't reachable. */
 export async function kernelToken(workspaceId: string, profile: ProfileName): Promise<string | undefined> {
   const scopes = KERNEL_SCOPES[profile];
   // Without the kernel (the dev seed server) there is nothing to mint a token from.
   if (!scopes || !runtimeConfig().kernel) return undefined;
-  const key = `${workspaceId}:${profile}`;
+  const key = `${personSuffix()}|${workspaceId}:${profile}`;
   const hit = cache.get(key);
   if (hit && hit.expiresAt - Date.now() > 10 * 60_000) return hit.token;
   try {

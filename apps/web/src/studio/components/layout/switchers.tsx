@@ -13,6 +13,7 @@ import {
 } from "@studio/ui/ui/dropdown-menu";
 import { Loader } from "@studio/ui/ui/loader";
 import { useDatasets, useProjectList, useProjectSummary } from "@/studio/lib/projects-api";
+import { forgetClient } from "@/studio/lib/person-key";
 import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from "@/studio/lib/session";
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
@@ -70,6 +71,9 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     setSwitching(id);
     try {
       const { redirect } = await switchOrg(id);
+      // Nothing this browser holds for the old organization carries over (todo15 D1).
+      forgetClient();
+      client.removeQueries({ queryKey: ["agent-status"] });
       // The organization needs its own sign-in (SSO, MFA): the API comes back here after it.
       if (redirect) return window.location.assign(redirect);
       await resetForOrg(client);

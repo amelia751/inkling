@@ -1,18 +1,15 @@
-# api and worker → api.workos.com:443 (todo9: AuthKit, sessions, members, API keys, the Events
-# API). NetworkPolicy can't match FQDNs and WorkOS is behind a CDN, so this allows 443 to public
+# api → api.workos.com:443 (todo9: AuthKit, sessions, members, API keys, the Events API sync).
+# NetworkPolicy can't match FQDNs and WorkOS is behind a CDN, so this allows 443 to public
 # addresses only; tighten with an egress gateway or a FQDN-aware CNI policy where available.
-# The worker also runs plugin code on real data: if the event sync moves out of the plugin worker
-# (to api or its own Deployment), drop `worker` here.
+# Only api: the worker runs plugin code on real data and never talks to WorkOS.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: workos-egress
 spec:
   podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values: [api, worker]
+    matchLabels:
+      app.kubernetes.io/name: api
   policyTypes: [Egress]
   egress:
     - to:

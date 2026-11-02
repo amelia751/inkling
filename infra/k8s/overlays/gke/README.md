@@ -69,10 +69,10 @@ Image digests are not in `local.env`: CI pushes to each project's `images` regis
 ## Sign-in with WorkOS (todo9 Phase 14)
 
 The ExternalSecret `workos-secrets` is always on (it reports `SecretSyncedError` until the Secret
-Manager secret has a version; api and worker reference it as optional). Everything else is
+Manager secret has a version; api references it as optional). Everything else is
 `phi/components/workos`, off: api in `workos` mode with `DEV_TRUST_HEADERS=0`, the redirect URI
 and public URL from `STUDIO_HOST`, web's `INKLING_WEB_AUTH_MODE=workos`, and NetworkPolicy
-`workos-egress` (api and worker, TCP 443 to public addresses through Cloud NAT). The flip steps
+`workos-egress` (api only, TCP 443 to public addresses through Cloud NAT). The flip steps
 are in `infra/k8s/README.md` ("WorkOS runbook"); keep `STUDIO_ALLOW_CIDRS` until a sign-in works.
 
 ## Installed once per cluster (Helm, not in this repo)

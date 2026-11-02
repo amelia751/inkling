@@ -5,8 +5,8 @@
 # pipeline-versioning-jwt holds {"jwt.key": "<PEM>"} for the pipeline's versioning calls (kid
 # `pipeline`). db-bootstrap-secrets holds the admin DSN and the role passwords the db-bootstrap
 # Job sets; add a version only while bootstrapping, then disable it. workos-secrets holds the
-# WorkOS API key, session cookie password (a Fernet key) and client id (todo9), read by api and
-# worker; it stays empty until sign-in is turned on (overlays/gke/phi/components/workos).
+# WorkOS API key, session cookie password (a Fernet key) and client id (todo9), read by api
+# only; it stays empty until sign-in is turned on (overlays/gke/phi/components/workos).
 locals {
   app_secrets = toset([
     "web-secrets",

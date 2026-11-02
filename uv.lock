@@ -1668,7 +1668,6 @@ dependencies = [
     { name = "studio-observability" },
     { name = "studio-signing" },
     { name = "wasmtime" },
-    { name = "workos" },
 ]
 
 [package.optional-dependencies]
@@ -1700,7 +1699,6 @@ requires-dist = [
     { name = "studio-signing", editable = "packages/signing" },
     { name = "studio-signing", extras = ["gcpkms"], marker = "extra == 'gcpkms'", editable = "packages/signing" },
     { name = "wasmtime", specifier = ">=38.0" },
-    { name = "workos", specifier = ">=10.6,<11" },
 ]
 provides-extras = ["otel", "gcpkms"]
 

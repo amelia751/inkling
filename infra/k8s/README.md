@@ -60,7 +60,7 @@ Key names per Secret (names only; env prefix `INKLING_` from `schemas/naming.jso
 | `agent-secrets` | `INKLING_AGENT_TOKEN`, `INKLING_AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `INKLING_AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
 | `versioning-secrets` | `INKLING_VERSIONING_DATABASE_URL` (role `versioning_app`), `INKLING_VERSIONING_MIGRATE_DATABASE_URL` (role `versioning_owner`), `INKLING_VERSIONING_S3_ACCESS_KEY_ID`, `INKLING_VERSIONING_S3_SECRET_ACCESS_KEY` | S3 keys scoped to the two versioning buckets. Add `INKLING_VERSIONING_REDIS_URL` if Redis needs a password. |
 | `pipeline-secrets` | `INKLING_PIPELINE_DATABASE_URL` (database `studio`, role `pipeline_app`, `search_path=pipeline`), `INKLING_PIPELINE_ENGINE_DATABASE_URL` (database `pipeline_engine`, same role), `INKLING_PIPELINE_API_TOKEN` | `sslmode=require` outside dev. Both URLs count against `pipeline_app`'s `CONNECTION LIMIT`. |
-| `workos-secrets` | `INKLING_API_WORKOS_API_KEY`, `INKLING_API_WORKOS_COOKIE_PASSWORD`, `INKLING_API_WORKOS_CLIENT_ID` | Sign-in (todo9). Optional everywhere: absent means `dev` mode. api reads all three (`envFrom`, before `api-secrets`); the worker only the key and client id (`secretKeyRef`), for the WorkOS event sync. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
+| `workos-secrets` | `INKLING_API_WORKOS_API_KEY`, `INKLING_API_WORKOS_COOKIE_PASSWORD`, `INKLING_API_WORKOS_CLIENT_ID` | Sign-in (todo9). Optional everywhere: absent means `dev` mode. api reads all three (`envFrom`, before `api-secrets`), for sign-in and the WorkOS event sync; the worker reads none. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
 | `db-bootstrap-secrets` | `ADMIN_DATABASE_URL`, `API_APP_PASSWORD`, `PIPELINE_APP_PASSWORD`, `VERSIONING_OWNER_PASSWORD`, `VERSIONING_APP_PASSWORD` | Read by the db-bootstrap Job's psql only (no env prefix: not an app setting). Present only while bootstrapping; dev uses placeholders. |
 | `versioning-bootstrap-secrets` | `INKLING_VERSIONING_ADMIN_DATABASE_URL`, `INKLING_VERSIONING_OWNER_PASSWORD`, `INKLING_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
 | `studio-tls` | (type `kubernetes.io/tls`) | Issued by cert-manager for the Ingress host. |
@@ -167,7 +167,7 @@ against the cached JWKS, and a refresh that fails with 408, 429, 5xx or a networ
 session and is retried (never a sign-out). New sign-ins, sign-out, switching organization,
 invitations, member, role and key changes, the Admin Portal and the security page fail with a
 WorkOS error. API keys keep working while their validation is cached, then fail closed. The
-worker's event sync stops and catches up from its Postgres cursor afterwards (WorkOS keeps 90
+api's event sync stops and catches up from its Postgres cursor afterwards (WorkOS keeps 90
 days of events). Nothing to do but watch the refresh-error and sync-lag dashboards and
 status.workos.com; don't restart pods (a restart drops the JWKS and key caches).
 

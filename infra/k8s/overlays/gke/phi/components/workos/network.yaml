@@ -1,22 +1,20 @@
-# api and worker → api.workos.com:443 (AuthKit, sessions, members, API keys, the Events API),
+# api → api.workos.com:443 (AuthKit, sessions, members, API keys, the Events API sync),
 # through Cloud NAT (infra/terraform/phi/network.tf). Plain NetworkPolicy can't match an FQDN and
 # WorkOS sits behind a CDN, so this allows TCP 443 to public addresses only (private, CGNAT and
 # link-local ranges excluded, so nothing inside the VPC opens). GKE's FQDNNetworkPolicy
 # (api.workos.com only) needs GKE Enterprise and `enable_fqdn_network_policy` on the cluster,
 # which infra/terraform/phi doesn't turn on; switch to it if that changes.
 #
-# PHI note: the worker runs plugin code on real data (gVisor). Opening 443 on it widens what that
-# code can reach. If the WorkOS event sync moves to api or to its own Deployment, drop `worker`.
+# PHI note: only api. The worker runs plugin code on real data (gVisor) and gets no public 443;
+# the WorkOS event sync runs in api (studio_api/auth/sync.py).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: workos-egress
 spec:
   podSelector:
-    matchExpressions:
-      - key: app.kubernetes.io/name
-        operator: In
-        values: [api, worker]
+    matchLabels:
+      app.kubernetes.io/name: api
   policyTypes: [Egress]
   egress:
     - to:

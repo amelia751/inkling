@@ -3,6 +3,7 @@ import { migrateDocument } from "@studio/contracts/migrations/annotations-v1-to-
 import type { AnnotationDocument, Project } from "@studio/contracts/types";
 import { canonicalId } from "@studio/contracts/naming";
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
+import { apiFetch } from "@/extension-host/http";
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -79,14 +80,14 @@ export const MIGRATED_V1_TYPES = new Set<string>([
 ]);
 
 export async function fetchAnnotations(projectId: string): Promise<AnnotationDocument> {
-  const doc = migrateDocument(await json<AnnotationDocument>(await fetch(apiUrl(`/annotations/${projectId}`))), MIGRATED_V1_TYPES);
+  const doc = migrateDocument(await json<AnnotationDocument>(await apiFetch(apiUrl(`/annotations/${projectId}`))), MIGRATED_V1_TYPES);
   // Module geometry types are full ids (`<namespace>.<module>.<name>`); keep old namespaces readable.
   return { ...doc, annotations: doc.annotations.map((a) => (canonicalId(a.geometry.type) === a.geometry.type ? a : { ...a, geometry: { ...a.geometry, type: canonicalId(a.geometry.type) } as typeof a.geometry })) };
 }
 
 export async function saveAnnotations(projectId: string, doc: AnnotationDocument): Promise<AnnotationDocument> {
   return json(
-    await fetch(apiUrl(`/annotations/${projectId}`), {
+    await apiFetch(apiUrl(`/annotations/${projectId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),
@@ -116,12 +117,12 @@ export interface ChangeProvenance {
 
 /** The project's saved environment edits (agent or human), or `environment: null` when it runs its manifest environment. */
 export async function fetchEnvironment(projectId: string): Promise<EnvironmentDocument> {
-  return json(await fetch(apiUrl(`/environments/${projectId}`)));
+  return json(await apiFetch(apiUrl(`/environments/${projectId}`)));
 }
 
 export async function saveEnvironment(projectId: string, doc: { revision: number; environment: EnvironmentSpec; author?: string; provenance?: ChangeProvenance }): Promise<EnvironmentDocument> {
   return json(
-    await fetch(apiUrl(`/environments/${projectId}`), {
+    await apiFetch(apiUrl(`/environments/${projectId}`), {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(doc),
@@ -140,10 +141,10 @@ export async function fetchTaskDocument(taskId: string): Promise<Project | undef
   const { kernel } = runtimeConfig();
   if (!kernel) {
     // Seeds: one project, dataset and task per manifest entry, sharing its id (todo6 D2).
-    const listed = await json<{ projects: { id: string }[] }>(await fetch(apiUrl("/v1/projects")));
+    const listed = await json<{ projects: { id: string }[] }>(await apiFetch(apiUrl("/v1/projects")));
     if (!listed.projects.some((p) => p.id === taskId)) return (await fetchProjects()).find((p) => p.id === taskId);
   }
-  const res = await fetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
+  const res = await apiFetch(apiUrl(`/v1/tasks/${encodeURIComponent(taskId)}/document`));
   if (res.status === 404) return undefined;
   return normalizeProject(await json<RawProject>(res));
 }

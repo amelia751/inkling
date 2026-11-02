@@ -6,6 +6,7 @@ import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { markTimeline } from "@/studio/lib/drop-timeline";
+import { apiFetch } from "@/extension-host/http";
 
 /**
  * Uploads (todo6 Phase 4.4): a Drive-style tray that never blocks. One entry per import:
@@ -119,7 +120,7 @@ export const useUploads = create<UploadsState>((set, get) => {
     let attempt = 0;
     while (offset < f.size || (f.size === 0 && offset === 0 && attempt === 0)) {
       try {
-        const res = await fetch(apiUrl(`/v1/uploads/${importId}/files/${encodeURIComponent(f.clientFileId)}?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + CHUNK), signal });
+        const res = await apiFetch(apiUrl(`/v1/uploads/${importId}/files/${encodeURIComponent(f.clientFileId)}?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + CHUNK), signal });
         const body = (await res.json().catch(() => ({}))) as { state?: UploadFileState; received?: number; reason?: string | null; detail?: string };
         if (res.status === 409 && /expected offset (\d+)/.test(body.detail ?? "")) {
           offset = Number(/expected offset (\d+)/.exec(body.detail!)![1]);

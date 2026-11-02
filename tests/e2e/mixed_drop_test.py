@@ -158,6 +158,9 @@ def run_api(db: Path) -> dict:
     doc = call("GET", f"/api/v1/tasks/{task}/document")
     accepts = doc.get("accepts") or []
     check("the Studio accepts every kind in the drop (≥ 6)", len(set(accepts)) >= 6, json.dumps(accepts))
+    # todo20 D4/D6: it's the project's default Studio, named "Studio".
+    check("it's the project's default Studio", call("GET", f"/api/v1/projects/{project}").get("defaultTaskId") == task, task)
+    check("the plan says it made the default Studio", st.get("outcome") == "new_default_studio" and st.get("studioTaskId") == task, json.dumps({k: st.get(k) for k in ("outcome", "studioTaskId")}))
 
     assets = doc.get("assets") or []
     names = [a.get("name") or "" for a in assets]

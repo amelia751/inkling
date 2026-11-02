@@ -326,6 +326,8 @@ export interface ProjectSummary {
   sample: boolean;
   /** todo14 D2: the template this project was copied from ("Try a sample"); null or absent for templates and ordinary projects. */
   sampleOf?: string | null;
+  /** todo20 D4: the project's default Studio (task id) that drops add to; null before the first drop. */
+  defaultTaskId?: string | null;
   archived: boolean;
   createdBy: string;
   createdAt: string;

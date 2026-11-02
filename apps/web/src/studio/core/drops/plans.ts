@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DropAction, DropGroup, DropPlan, DropPlanState } from "@studio/contracts/drop-plan";
+import type { DropAction, DropApplyOutcome, DropGroup, DropPlan, DropPlanState } from "@studio/contracts/drop-plan";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { onProjectEvent } from "@/studio/lib/use-project-events";
 import { api } from "@/studio/lib/projects-api";
@@ -35,6 +35,11 @@ export interface PlanView {
   collectionIds: string[];
   undoUntil: string | null;
   pipelineRunIds?: string[];
+  /** todo20 D4/D5: where the files went ("Added 35 files to Studio", "Already in this project"). */
+  outcome?: DropApplyOutcome | null;
+  studioTaskId?: string | null;
+  newCount?: number;
+  alreadyHere?: number;
   failed?: { step: string; errorClass: string };
   /** Archives the worker refused to unpack (zip bomb, traversal, …): node id → reason. */
   refused: Record<string, string>;
@@ -119,6 +124,10 @@ export const usePlans = create<PlansState>()((set, get) => {
       collectionIds: st.collectionIds,
       undoUntil: st.undoUntil,
       pipelineRunIds: st.pipelineRunIds,
+      outcome: st.outcome ?? p.outcome,
+      studioTaskId: st.studioTaskId ?? p.studioTaskId,
+      newCount: st.new ?? p.newCount,
+      alreadyHere: st.alreadyHere ?? p.alreadyHere,
       failed: st.error ? { step: st.error.step, errorClass: st.error.errorClass } : p.failed,
     }));
 
@@ -133,7 +142,7 @@ export const usePlans = create<PlansState>()((set, get) => {
     put(e.dropId, projectId, (p) => ({ ...p, plan: e.plan, auto: !!e.auto, state: e.auto ? "applying" : "planned", failed: undefined }));
   });
   onProjectEvent("drop.applied", (data, projectId) => {
-    const e = data as { dropId?: string; datasetId?: string; taskIds?: string[]; undoUntil?: string | null; collectionIds?: string[]; pipelineRunIds?: string[]; undone?: boolean; fastPath?: boolean } | null;
+    const e = data as { dropId?: string; datasetId?: string; taskIds?: string[]; undoUntil?: string | null; collectionIds?: string[]; pipelineRunIds?: string[]; undone?: boolean; fastPath?: boolean; outcome?: DropApplyOutcome | null; studioTaskId?: string | null; new?: number; alreadyHere?: number } | null;
     if (!e?.dropId) return;
     const before = get().plans[e.dropId];
     put(e.dropId, projectId, (p) => ({
@@ -145,6 +154,10 @@ export const usePlans = create<PlansState>()((set, get) => {
       undoUntil: e.undone ? null : (e.undoUntil ?? null),
       pipelineRunIds: e.pipelineRunIds ?? p.pipelineRunIds,
       fastPath: !!e.fastPath || p.fastPath,
+      outcome: e.undone ? null : (e.outcome ?? p.outcome),
+      studioTaskId: e.undone ? null : (e.studioTaskId ?? p.studioTaskId),
+      newCount: e.new ?? p.newCount,
+      alreadyHere: e.alreadyHere ?? p.alreadyHere,
     }));
     const p = get().plans[e.dropId];
     // The fast path opens the new Studio in the tab that dropped (principle 3), once, and only

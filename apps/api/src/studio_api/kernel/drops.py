@@ -412,6 +412,15 @@ def person_view(db: Session, d: Drop) -> dict:
     }
 
 
+def settled_state(d: Drop, states: dict[str, int], already: int | None = None) -> str:
+    """The drop's state, or `duplicate` (todo20 D5) when every file was already in the project."""
+    total = sum(states.values())
+    already = states.get("duplicate", 0) if already is None else already
+    if total and already >= total and d.state not in ("failed", "uploading"):
+        return "duplicate"
+    return d.state
+
+
 def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -> dict:
     """The `DropSummary` (D3): ids, screened names, kinds and technical facts; never names."""
     rows = _rows(db, d)
@@ -437,11 +446,17 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
             facts["columns"] = [{"name": c.get("name"), "type": c.get("type")} if isinstance(c, dict) else c for c in cols][:200]
         files.append({"nodeId": n.id, "agentName": name_screen.agent_name(n), **({"kind": n.detected_kind} if n.detected_kind else {}), **({"facts": facts} if facts else {})})
     total = sum(states.values())
+    # todo20 D5: files whose bytes were already in the project vs new ones; a drop of only
+    # known files settles as `duplicate`, never silently.
+    already = states.get("duplicate", 0) + sum(1 for _s, f, n in rows if n is not None and f.state == "uploaded" and ((f.reason or "").startswith("Same file as") or (n.flags or {}).get("duplicate_of")))
+    new = sum(v for k, v in states.items() if k in ("ready", "kept", "checking")) - (already - states.get("duplicate", 0))
     out = {
         "dropId": d.id,
         "origin": d.origin,
-        "state": d.state,
+        "state": settled_state(d, states, already),
         "total": total,
+        "new": max(new, 0),
+        "alreadyHere": already,
         "byKind": by_kind,
         "bytes": total_bytes,
         "states": states,

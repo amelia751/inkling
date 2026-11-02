@@ -305,6 +305,19 @@ def last_activity(db: Session, p: ProjectRow) -> datetime:
     return max(vals)
 
 
+def default_task(db: Session, p: ProjectRow) -> TaskRow | None:
+    """todo20 D4: the project's default Studio, if it still exists and isn't in Trash."""
+    if not p.default_task_id:
+        return None
+    t = db.get(TaskRow, p.default_task_id)
+    return t if t is not None and t.project_id == p.id and t.trashed_at is None else None
+
+
+def default_task_id(db: Session, p: ProjectRow) -> str | None:
+    t = default_task(db, p)
+    return t.id if t is not None else None
+
+
 def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     out = {
         "id": p.id,
@@ -323,6 +336,8 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "attested": db.scalar(select(ImportSession.id).where(ImportSession.project_id == p.id, ImportSession.attested_by == person(ctx)).limit(1)) is not None,
         # todo13 D14: viewers can't drop; the composer reads this to disable attach.
         "role": project_role(db, ctx, p),
+        # todo20 D4: the Studio drops add to (null until the first drop boots it).
+        "defaultTaskId": default_task_id(db, p),
     }
     if (p.seed or p.sample_of) and (raw := seed_entry(p.sample_of or p.id)):
         out["license"] = raw.get("license")

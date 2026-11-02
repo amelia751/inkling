@@ -15,7 +15,8 @@
 
 export type DropOriginKind = "chat" | "files" | "studio" | "home";
 
-export type DropState = "uploading" | "inspecting" | "classified" | "planned" | "applied" | "failed";
+/** `duplicate` (todo20 D5): every file was already in the project (the summary's state only). */
+export type DropState = "uploading" | "inspecting" | "classified" | "planned" | "applied" | "failed" | "duplicate";
 
 /** The `origin` of an import that belongs to a drop. */
 export interface DropOrigin {
@@ -117,6 +118,9 @@ export interface DropSummary {
   byKind: Record<string, number>;
   bytes: number;
   states: Partial<Record<DropFileState, number>>;
+  /** todo20 D5: files new to the project, and files whose bytes were already here. */
+  new?: number;
+  alreadyHere?: number;
   groups: DropSummaryGroup[];
   files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
   nextOffset?: number;

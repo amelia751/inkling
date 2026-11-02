@@ -135,8 +135,17 @@ export interface DropPlanState {
   undoUntil: string | null;
   /** Pipeline runs the apply started (D9, after todo12 Milestone 1). */
   pipelineRunIds?: string[];
+  /** todo20 D4: the apply made the project's default Studio, or added to an existing one. */
+  outcome?: DropApplyOutcome | null;
+  /** todo20 D4: the Studio the drop's files are in (the new default, or the one added to). */
+  studioTaskId?: string | null;
+  /** todo20 D5: files this apply put into the Studio, and files it already had. */
+  new?: number;
+  alreadyHere?: number;
   error?: { step: string; errorClass: string; message?: string };
 }
+
+export type DropApplyOutcome = "new_default_studio" | "add_to_studio";
 
 /** Event payloads (project SSE; kernel outbox envelope). `drop.*` events are typed in `drops.ts`. */
 export interface DropClassifiedEvent {
@@ -155,6 +164,10 @@ export interface DropAppliedEvent {
   undoUntil: string | null;
   collectionIds?: string[];
   pipelineRunIds?: string[];
+  outcome?: DropApplyOutcome | null;
+  studioTaskId?: string | null;
+  new?: number;
+  alreadyHere?: number;
   /** The apply was reverted (Undo) — same event type, so the card follows one stream. */
   undone?: boolean;
 }

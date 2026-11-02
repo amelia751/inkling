@@ -75,7 +75,7 @@ export function ProjectOverviewPage() {
               ) : (
                 <div className="flex flex-col gap-8">
                   <ImportResult overview={o} />
-                  {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} tasks={o.tasks} />}
+                  {o.resume ? <ResumeWorkCard projectId={projectId} resume={o.resume} /> : o.tasks.length > 0 && <StartCard projectId={projectId} tasks={o.tasks} defaultTaskId={o.project.defaultTaskId} />}
                   <SourceSummaryCards projectId={projectId} cards={o.data ?? []} onAdd={(p) => void addData(p)} />
                   <AttentionQueue projectId={projectId} items={o.attention ?? []} total={o.attentionTotal ?? 0} />
                   {/* todo17 M3: what's stored that breaks the project's rules. */}
@@ -271,7 +271,7 @@ function ResumeWorkCard({ projectId, resume }: { projectId: string; resume: Resu
 }
 
 /** A task exists but nothing to resume: an encouraging start, never an empty progress bar. */
-function StartCard({ projectId, tasks }: { projectId: string; tasks: { id: string }[] }) {
+function StartCard({ projectId, tasks, defaultTaskId }: { projectId: string; tasks: { id: string }[]; defaultTaskId?: string | null }) {
   return (
     <Card className="flex flex-wrap items-center gap-3 p-5" data-testid="start-card">
       <p className="min-w-0 flex-1 text-body-2">Pick up where the data is.</p>
@@ -281,7 +281,8 @@ function StartCard({ projectId, tasks }: { projectId: string; tasks: { id: strin
         </Button>
       )}
       <Button size="lg" asChild>
-        <Link to={studioUrl(projectId)} data-testid="open-studio">Open Studio <ArrowRightIcon /></Link>
+        {/* todo20 D4: the project's default Studio, where drops land. */}
+        <Link to={studioUrl(projectId, defaultTaskId ?? undefined)} data-testid="open-studio">Open Studio <ArrowRightIcon /></Link>
       </Button>
     </Card>
   );

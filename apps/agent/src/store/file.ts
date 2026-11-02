@@ -2,7 +2,8 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSyn
 import { join } from "node:path";
 import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionStore, type StoredMeta, type StoredRunStatus, isActiveStatus } from "./types.ts";
 
-const SESSION_ID = /^ses_[0-9a-f-]{36}$/;
+/** `ses_<uuid>` or (todo20 W3) the browser's `conv-<uuid>`; never a path. */
+const SESSION_ID = /^(ses_|conv-)[A-Za-z0-9-]{8,64}$/;
 const RUN_ID = /^run_[0-9a-f-]{36}$/;
 
 /**

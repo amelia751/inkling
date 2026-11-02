@@ -87,6 +87,8 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # Project reads and proposals (names, kinds, counts, inspection facts; no contents)
         ("GET", f"{P}/projects/{{project_id}}"),
         ("GET", f"{P}/projects/{{project_id}}/overview"),
+        # Org settings (todo15 D2): the agent refuses runs when `aiAssist` is off.
+        ("GET", f"{P}/org"),
         ("GET", f"{P}/projects/{{project_id}}/sources"),
         ("GET", f"{P}/projects/{{project_id}}/proposals"),
         ("POST", f"{P}/projects/{{project_id}}/proposals"),

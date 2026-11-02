@@ -6,7 +6,8 @@
 People only, in the browser (session cookie or dev identity): an agent, plugin or service
 token, or an API key, gets 403. Keys are `[a-zA-Z0-9._-]{1,64}`;
 a value is at most 16 KiB of JSON, and a person keeps at most 100 keys. The web stores
-`firstRunHintsDismissed` here, so a second browser doesn't show the first-run hints again.
+`firstRunHintsDismissed` here, so a second browser doesn't show the first-run hints again, and
+`aiNoticeSeen` (todo15 D2: the person's first send acknowledges the one-line AI notice).
 """
 
 from __future__ import annotations

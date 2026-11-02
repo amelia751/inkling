@@ -27,7 +27,7 @@ interface Seen {
 }
 
 /** A fake API: boots are idempotent on bootId; `mode` picks a refusal. */
-function fakeApi(mode: "ok" | "422" | "403" = "ok") {
+function fakeApi(mode: "ok" | "422" | "403" | "ai-off" | "empty-project" = "ok") {
   const seen: Seen[] = [];
   const boots = new Map<string, { bootId: string; taskIds: string[]; state: string; preset: string; ms: number }>();
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -38,6 +38,8 @@ function fakeApi(mode: "ok" | "422" | "403" = "ok") {
     seen.push({ method, path: url.pathname, auth: h.get("authorization"), workspace: h.get("x-workspace-id"), run: h.get("x-agent-run"), body });
     const send = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
     if (h.get("authorization") !== `Bearer ${KTOKEN}`) return send(401, { detail: "invalid token" });
+    if (method === "GET" && url.pathname === "/api/v1/org") return send(200, { aiAssist: mode !== "ai-off" });
+    if (method === "GET" && url.pathname === "/api/v1/projects/demo/overview") return send(200, { tasks: mode === "empty-project" ? [] : [{ id: "tsk-0" }] });
     if (method === "POST" && url.pathname === "/api/v1/projects/demo/boots") {
       if (mode === "422") return send(422, { ok: false, errors: [{ path: "/labels/0/control", code: "reference", message: "unknown label control Nope" }] });
       if (mode === "403") return send(403, { detail: { ok: false, error: "outside agent scope", errors: [{ path: "/data", code: "scope", message: "agents may not change /data" }] } });
@@ -60,6 +62,7 @@ const FIXTURE = {
     { when: "^retry", turns: [{ toolCalls: [{ name: "boot_studio", arguments: { preset: "preset:image-2d", bootId: "boot_fixed" } }] }, { toolCalls: [{ name: "boot_studio", arguments: { preset: "preset:image-2d", bootId: "boot_fixed" } }] }, { text: "Done." }] },
     { when: "^could", turns: [BOOT, { toolCalls: [{ name: "offer_studio", arguments: { preset: "preset:image-2d", title: "Create X-ray Studio", reason: "Triage chest X-rays" } }] }, { text: "Click to create it." }] },
     { when: "^stale", turns: [{ toolCalls: [{ name: "patch_studio", arguments: { taskId: "tsk-1", revision: 0, patch: [{ op: "replace", path: "/title", value: "X" }] } }] }, { text: "Stale." }] },
+    { when: "^chest", turns: [BOOT, { text: "Your chest X-ray Studio is ready." }] },
     { when: "^find", turns: [{ toolCalls: [{ name: "search_catalog", arguments: { query: "polygon tool" } }] }, { text: "Found." }] },
   ],
 };
@@ -176,7 +179,8 @@ describe("Studio server tools", () => {
     await say(id, "find a polygon tool");
     const [r] = await toolResults(id);
     expect(JSON.parse(r!.text).results[0].id).toMatch(/\.tools\.polygon$/);
-    expect(api.seen).toHaveLength(0);
+    // Only the per-message preflight reads (todo15: org aiAssist, whether the project has a task).
+    expect(api.seen.filter((s) => !/\/api\/v1\/(org|projects\/[^/]+\/overview)$/.test(s.path))).toHaveLength(0);
   });
 });
 
@@ -220,5 +224,26 @@ describe("prompt and tool list", () => {
     const sys = systemPrompt(PROFILES.assistant, { studioIndex: "INDEX", dynamic: ["LAST"] });
     expect(sys.indexOf("INDEX")).toBeGreaterThan(sys.indexOf("boot_studio"));
     expect(sys.endsWith("INDEX\n\nLAST")).toBe(true);
+  });
+
+  it("todo15 D3: a described task boots in a project without a Studio, not in one that has one", async () => {
+    let api = fakeApi("empty-project");
+    let id = await session(api, "assistant");
+    await say(id, "chest X-ray classification with five labels");
+    expect(api.seen.filter((s) => s.method === "POST" && s.path.endsWith("/boots"))).toHaveLength(1);
+    await h!.cleanup();
+    api = fakeApi();
+    id = await session(api, "assistant");
+    await say(id, "chest X-ray classification with five labels");
+    expect(api.seen.filter((s) => s.method === "POST" && s.path.endsWith("/boots"))).toHaveLength(0);
+    expect((await toolResults(id))[0]).toMatchObject({ name: "boot_studio", isError: true });
+  });
+
+  it("todo15 D2: refuses runs with 403 ai_assist_off when the org turned the assistant off", async () => {
+    const api = fakeApi("ai-off");
+    const id = await session(api, "assistant");
+    const r = await h!.json("POST", `/v1/sessions/${id}/messages`, { text: "hello" });
+    expect(r.status).toBe(403);
+    expect(r.body).toEqual({ error: "ai_assist_off", message: "The assistant is off for this organization" });
   });
 });

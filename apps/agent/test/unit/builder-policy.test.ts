@@ -218,7 +218,8 @@ describe("install flow through the approval broker", () => {
     expect(approval).toMatchObject({ toolName: "request_install_approval", detail: { kind: "plugin-install", requestId: "req_1", workspaceId: "demo" } });
     const last = events.filter((e) => e.type === "tool-result").at(-1) as Extract<AgentEvent, { type: "tool-result" }>;
     expect(last).toMatchObject({ ok: true, summary: `Activated ${SEG}@1.0.0` });
-    expect(k!.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+    // todo15 D2: every message first reads the org's aiAssist setting.
+    expect(k!.calls.map((c) => `${c.method} ${c.path}`).filter((c) => c !== "GET /api/v1/org")).toEqual([
       "POST /api/v1/workspaces/demo/plugins/plan",
       "POST /api/v1/workspaces/demo/plugins/stage",
       "GET /api/v1/workspaces/demo/plugins/requests/req_1",

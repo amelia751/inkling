@@ -90,6 +90,7 @@ test checks each entry exists. Change this list and that file together.
 - Project reads with no file contents: project, overview, sources, proposals (read, create),
   review, search, drive listing, imports, source nodes and their activity; asset metadata
   (`GET /api/v1/assets`: ids, paths, types, sizes).
+- Org settings (todo15 D2): `GET /api/v1/org`, so the agent can refuse runs when `aiAssist` is off.
 - Drops (todo13 D3): `GET /api/v1/drops/{id}` answers an agent with the drop's `DropSummary`
   only: counts by kind and state, groups, and per file its node id, its screened name and
   technical facts (dimensions, frames, duration, modality, column names and types, pages). The

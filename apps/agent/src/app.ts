@@ -125,7 +125,7 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
   });
 
   app.onError((err, c) => {
-    if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
+    if (err instanceof HttpError) return c.json(err.code ? { error: err.code, message: err.message } : { error: err.message }, err.status as 400);
     log.error({ err: sanitizeError(String(err?.stack ?? err)), path: c.req.path }, "unhandled error");
     return c.json({ error: "internal error" }, 500);
   });

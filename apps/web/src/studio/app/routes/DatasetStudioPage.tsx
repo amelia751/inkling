@@ -207,7 +207,7 @@ function StudioPage() {
             routeProjectId ? (
               <>
                 {trashed.datasetTrashBatchId && (
-                  <Button size="lg" disabled={restoreDataset.isPending} onClick={() => restoreDataset.mutate(trashed.datasetTrashBatchId!, { onSuccess: () => void qc.invalidateQueries({ queryKey: ["tasks", datasetId] }) })} data-testid="empty-dataset-in-trash-restore">
+                  <Button size="lg" disabled={restoreDataset.isPending} onClick={() => restoreDataset.mutate(trashed.datasetTrashBatchId!, { onSuccess: () => invalidateFor(qc, routeProjectId, "trash.changed") })} data-testid="empty-dataset-in-trash-restore">
                     Restore dataset
                   </Button>
                 )}

@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { DatasetProfile, ProjectTarget } from "@studio/contracts/types";
@@ -160,7 +161,7 @@ export function usePutStructure(projectId: string, datasetId: string) {
     },
     onSuccess: (saved, sent) => {
       qc.setQueryData(datasetKeys.structure(datasetId), saved ?? sent);
-      void qc.invalidateQueries({ queryKey: projectKeys.datasets(projectId) });
+      invalidateFor(qc, projectId, "dataset.changed");
     },
   });
 }

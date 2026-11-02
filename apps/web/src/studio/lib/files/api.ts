@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { create } from "zustand";
 import type {
@@ -623,8 +624,7 @@ export function useUpdateVersions(projectId: string, datasetId: string) {
   return useMutation({
     mutationFn: (v?: { nodeIds?: string[] }) => postUpdateVersions(projectId, datasetId, v?.nodeIds),
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: projectKeys.datasets(projectId) });
-      void qc.invalidateQueries({ queryKey: ["projects", projectId, "datasets", datasetId] });
+      invalidateFor(qc, projectId, "dataset.changed", { datasetId });
       void qc.invalidateQueries({ queryKey: projectKeys.activity(projectId) });
     },
   });
@@ -636,8 +636,7 @@ export function useAddFollowed(projectId: string, datasetId: string) {
   return useMutation({
     mutationFn: () => postAddFollowed(projectId, datasetId),
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: projectKeys.datasets(projectId) });
-      void qc.invalidateQueries({ queryKey: ["projects", projectId, "datasets", datasetId] });
+      invalidateFor(qc, projectId, "dataset.changed", { datasetId });
       void qc.invalidateQueries({ queryKey: projectKeys.activity(projectId) });
     },
   });

@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -251,7 +252,7 @@ function RelationshipInspector({ projectId, r, from, to, canEdit, onClose }: { p
     mutationFn: () => confirmProposal(r.proposalId!),
     onSuccess: () => {
       notify("Connection confirmed", { tone: "success" });
-      void qc.invalidateQueries({ queryKey: projectKeys.datasets(projectId) });
+      invalidateFor(qc, projectId, "dataset.changed");
       void qc.invalidateQueries({ queryKey: projectKeys.proposals(projectId) });
     },
   });

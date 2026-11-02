@@ -1,3 +1,4 @@
+import { invalidateFor } from "@/studio/lib/invalidate";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -44,7 +45,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
   const create = useMutation({
     mutationFn: () => createDataset(projectId, { title: title.trim(), nodeIds: [...picked.keys()], task: { title: taskTitle.trim() || "Annotate", ...(preset ? { preset } : {}) } }),
     onSuccess: (d) => {
-      void qc.invalidateQueries({ queryKey: projectKeys.datasets(projectId) });
+      invalidateFor(qc, projectId, "dataset.changed");
       void qc.invalidateQueries({ queryKey: projectKeys.overview(projectId) });
       onClose();
       navigate(datasetUrl(projectId, d.id));

@@ -15,7 +15,29 @@
 
 export type DropOriginKind = "chat" | "files" | "studio" | "home";
 
-export type DropState = "uploading" | "inspecting" | "classified" | "planned" | "applied" | "failed";
+/**
+ * todo20 D8: a drop always ends in a state. Once every session ended it's `ready`, `partly_ready`
+ * (some files failed), `duplicate` (every file was already here) or `failed` (`Drop.failure`);
+ * the classifier may move it on to `planned` / `applied`.
+ */
+export type DropState = "uploading" | "inspecting" | "classified" | "planned" | "applied" | "ready" | "partly_ready" | "duplicate" | "failed";
+
+/**
+ * Findings of a drop's imports grouped by rule and outcome (todo20 D8), never one per file:
+ * "35 files: the path contains forbidden characters, renamed automatically". `files` and
+ * `renamedTo` are samples (at most 5); `count` is the total. The agent's summary keeps only
+ * `rule`, `severity`, `outcome`, `message` and `count`.
+ */
+export interface DropFindingGroup {
+  rule: string;
+  severity: string;
+  outcome: "renamed" | "refused" | "reported";
+  message: string;
+  count: number;
+  files?: string[];
+  renamedTo?: { from: string; to: string }[];
+  headline?: string;
+}
 
 /** The `origin` of an import that belongs to a drop. */
 export interface DropOrigin {
@@ -90,6 +112,10 @@ export interface Drop {
   updatedAt: string;
   importIds: string[];
   files: DropFile[];
+  /** todo20 D8: grouped findings of the drop's imports (renamed, refused, reported). */
+  findings?: DropFindingGroup[];
+  /** Why a `failed` drop failed: `{step: "import" | "upload", reason}`. */
+  failure?: { step: string; reason: string };
   summary: DropSummary;
 }
 
@@ -120,6 +146,8 @@ export interface DropSummary {
   groups: DropSummaryGroup[];
   files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
   nextOffset?: number;
+  findings?: Pick<DropFindingGroup, "rule" | "severity" | "outcome" | "message" | "count">[];
+  failure?: { step: string; reason: string };
 }
 
 /** In `SourceNodeDetail.provenance.drop`: "Shared in chat · <conversation> · <date>". */

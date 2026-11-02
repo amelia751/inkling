@@ -69,6 +69,12 @@ class RequestContext:
     def for_scope(self, workspace_id: str, task_id: str | None) -> RequestContext:
         return replace(self, workspace_id=workspace_id, task_id=task_id)
 
+    @property
+    def workspace_bound(self) -> bool:
+        """A session token is bound to the one workspace it was minted for; an organization API
+        key (also scoped) reaches any project of its organization (`projects.require_project`)."""
+        return bool(self.scopes) and self.auth != AUTH_API_KEY
+
     def allows(self, scope: str) -> bool:
         """Session tokens carry scopes; dev header identities are full users."""
         return not self.scopes or scope in self.scopes or "*" in self.scopes
@@ -132,11 +138,13 @@ def client_ip(request: Request) -> str | None:
     return ip[:64] or None
 
 
-def _resolve_api_key(request: Request, db: Session, token: str) -> RequestContext | None:
-    """todo9 Phase 8 hook: a Bearer that isn't a kernel session token may be an organization API
-    key (principal `apikey:<id>`, org and permissions from the key). Not implemented yet:
-    None means "not an API key", and the request gets the usual 401."""
-    return None
+def _resolve_api_key(request: Request, db: Session, token: str, correlation: str, idem: str | None) -> RequestContext | None:
+    """todo9 Phase 8: a Bearer that isn't a kernel session token may be an organization API key
+    (principal `apikey:<id>`, org and permissions from the key; `auth/api_keys.py`). None means
+    "not an API key", and the request gets the usual 401."""
+    from .auth import api_keys
+
+    return api_keys.resolve(request, db, token, correlation, idem)
 
 
 def _session_token_context(request: Request, db: Session, row: SessionToken, correlation: str, idem: str | None) -> RequestContext:
@@ -174,9 +182,9 @@ def resolve_context(request: Request, db: Session) -> RequestContext:
         row = db.get(SessionToken, hash_token(token))
         if row is not None and row.expires_at.replace(tzinfo=row.expires_at.tzinfo or UTC) >= datetime.now(UTC):
             return _session_token_context(request, db, row, correlation, idem)
-        if row is None and (key_ctx := _resolve_api_key(request, db, token)) is not None:
+        if row is None and (key_ctx := _resolve_api_key(request, db, token, correlation, idem)) is not None:
             return key_ctx
-        raise HTTPException(401, "invalid or expired session token")
+        raise HTTPException(401, "invalid or expired session token or API key")
     workspace_header = request.headers.get(WORKSPACE_HEADER) or "default"
     signed_in = getattr(request.state, "auth_session", None)
     if signed_in is not None:

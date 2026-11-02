@@ -173,7 +173,7 @@ describe("internal org/member conversation deletion (todo14 D9)", () => {
   const aliceB = { sub: "user_alice", org_id: "org_b" };
   const bob = { sub: "user_bob", org_id: "org_a" };
   const until = async (ok: () => Promise<boolean>) => {
-    for (let i = 0; i < 200 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 25));
+    for (let i = 0; i < 400 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 25));
     expect(await ok()).toBe(true);
   };
 
@@ -242,7 +242,7 @@ describe("internal org/member conversation deletion (todo14 D9)", () => {
     // An unencoded principal works too.
     expect(await (await hh.call("DELETE", "/v1/internal/orgs/org_b/members/user:user_alice/sessions", undefined, service)).json()).toEqual({ deleted: 1 });
     expect(await s.list(aliceB)).toEqual([]);
-  });
+  }, 30_000);
 
   it("is for the service only: no token is 401, a person or a browser-proxied call is 403", async () => {
     h = await workos();

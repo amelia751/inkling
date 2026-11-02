@@ -36,6 +36,7 @@ class CheckResult:
     status: int  # 200, 403 (scope), 422 (patch, schema, reference)
     errors: list[dict] = field(default_factory=list)
     environment: dict | None = None
+    warnings: list[dict] = field(default_factory=list)  # resolve-level warnings (todo17 D2)
 
     @property
     def ok(self) -> bool:
@@ -252,7 +253,15 @@ def check_write(*, principal: str, installed, base: dict | None = None, patch=No
     if not isinstance(environment, dict):
         return CheckResult(422, [{"path": "", "code": "schema", "message": "environment must be an object"}])
     errors = shape_errors(environment) + reference_errors(environment, installed)
-    return CheckResult(422, errors) if errors else CheckResult(200, [], environment)
+    if errors:
+        return CheckResult(422, errors)
+    # todo17 D2: the resolver's deterministic checks (extends, wrong type, label targets, …).
+    from .environment_resolve import resolve_issues
+
+    issues = resolve_issues(environment, _root())
+    errors = [i for i in issues if i["severity"] == "error"]
+    warnings = [i for i in issues if i["severity"] != "error"]
+    return CheckResult(422, errors, warnings=warnings) if errors else CheckResult(200, [], environment, warnings)
 
 
 def installed_plugins(db, workspace_id: str) -> list[str]:

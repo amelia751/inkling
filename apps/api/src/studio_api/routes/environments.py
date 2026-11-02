@@ -132,14 +132,16 @@ def _base_environment(db: Session, c: RequestContext) -> dict | None:
 @router.post("/api/environments/validate")
 async def validate_environment(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     """todo11 D2: the same checks a write gets (shape and references against the generated
-    schema and the workspace's installed plugins), without saving. Body: the spec. Resolve-level
-    checks (extends merge, overrides) stay in the Studio's resolver."""
+    schema and the workspace's installed plugins), without saving. Body: the spec. todo17 D2: the
+    resolver's deterministic checks run too; errors reject, warnings come back as `warnings`."""
     try:
         body = await _body(request)
     except _BadBody as e:
         return _json(400, {"error": str(e)})
     checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, ctx.workspace_id), environment=body)
-    return {"ok": True, "spec": body} if checked.ok else _json(422, checked.body())
+    if not checked.ok:
+        return _json(422, {**checked.body(), "warnings": checked.warnings})
+    return {"ok": True, "spec": body, "warnings": checked.warnings}
 
 
 @router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)

@@ -24,7 +24,6 @@ PATCH /api/v1/projects/{project_id}
 PATCH /api/v1/projects/{project_id}/collections/{item_id}
 PATCH /api/v1/projects/{project_id}/datasets/{item_id}
 PATCH /api/v1/projects/{project_id}/members/{user_id}
-PATCH /api/v1/projects/{project_id}/rules
 PATCH /api/v1/projects/{project_id}/studios/{item_id}
 POST /api/auth/logout
 POST /api/auth/switch-org
@@ -154,7 +153,6 @@ PUT /api/v1/datasets/{dataset_id}/structure
 PUT /api/v1/drops/{drop_id}/plan
 PUT /api/v1/me/prefs/{key}
 PUT /api/v1/projects/{project_id}/resume
-PUT /api/v1/projects/{project_id}/rules
 PUT /api/v1/secrets/{name}
 PUT /api/v1/service/blobs/{key}
 PUT /api/v1/uploads/{session_id}/files/{file_id}

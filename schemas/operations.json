@@ -729,6 +729,129 @@
       }
     },
     {
+      "id": "rules.update",
+      "tool": "rules_update",
+      "tier": "write",
+      "method": "PUT",
+      "path": "/projects/{pid}/rules",
+      "description": "Replace the project's rules (people only; refused with label.in-use if it would orphan annotations).",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "rules": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "baseRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "rules",
+          "baseRevision"
+        ]
+      }
+    },
+    {
+      "id": "labels.rename",
+      "tool": "labels_rename",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/labels/rename",
+      "description": "Rename a label in the rules (the old name becomes a synonym) and rewrite its annotations. Undoable.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "to": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "baseRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ]
+      }
+    },
+    {
+      "id": "labels.merge",
+      "tool": "labels_merge",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/labels/merge",
+      "description": "Merge labels or synonyms into one label (they become its synonyms) and rewrite their annotations. Undoable.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "from": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            }
+          },
+          "into": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "baseRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "from",
+          "into"
+        ]
+      }
+    },
+    {
+      "id": "labels.undo",
+      "tool": "labels_undo",
+      "tier": "write",
+      "method": "POST",
+      "path": "/projects/{pid}/labels/undo/{historyId}",
+      "description": "Undo a label rename or merge (rules and annotations), if the rules haven't changed since.",
+      "input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "historyId": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "historyId"
+        ]
+      }
+    },
+    {
       "id": "project.overview",
       "tool": "project_overview",
       "tier": "read",

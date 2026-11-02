@@ -44,6 +44,30 @@
       "phi": false
     },
     {
+      "code": "label.in-use",
+      "title": "Rules change would orphan annotations",
+      "appliesTo": [
+        "rules"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Merge the label into another with labels.merge (or rename it with labels.rename) instead of removing it; the message gives the count.",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
+      "code": "label.name-taken",
+      "title": "Rename target is already a label",
+      "appliesTo": [
+        "rules"
+      ],
+      "defaultSeverity": "error",
+      "fix": "Merge into the existing label with labels.merge instead of renaming onto it.",
+      "fixable": false,
+      "mode": "enforce",
+      "phi": false
+    },
+    {
       "code": "annotation.out-of-bounds",
       "title": "Annotation lies outside the image",
       "appliesTo": [

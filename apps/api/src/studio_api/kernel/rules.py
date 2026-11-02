@@ -158,30 +158,47 @@ def _check_revision(current: int, base: Any) -> None:
         raise HTTPException(409, {"error": "stale revision", "revision": current})
 
 
-def _save(db: Session, ctx: RequestContext, p: ProjectRow, rules: dict[str, Any], base: Any) -> dict[str, Any]:
+def save_row(db: Session, ctx: RequestContext, p: ProjectRow, rules: dict[str, Any], base: Any, *, dry_run: bool = False) -> tuple[dict[str, Any], ProjectRulesHistory | None]:
+    """Save `rules` as the next revision (409 if `base` is stale) and append a history row.
+    Returns the saved rules json and the history row (None on a dry run, where nothing is written)."""
     row = db.get(ProjectRules, p.id, with_for_update=True)
     current = row.revision if row is not None else 0
     _check_revision(current, base)
     rules = validate(rules)
     at = datetime.now(UTC)
+    if dry_run:
+        return _out(rules, current + 1, source="project", updated_by=ctx.principal, updated_at=at), None
     if row is None:
         row = ProjectRules(project_id=p.id, rules=rules, revision=1, updated_by=ctx.principal, updated_at=at)
         db.add(row)
     else:
         row.rules, row.revision, row.updated_by, row.updated_at = rules, current + 1, ctx.principal, at
-    db.add(ProjectRulesHistory(project_id=p.id, revision=row.revision, rules=rules, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, created_at=at))
+    hist = ProjectRulesHistory(project_id=p.id, revision=row.revision, rules=rules, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, created_at=at)
+    db.add(hist)
     db.flush()
-    return _out(row.rules, row.revision, source="project", updated_by=row.updated_by, updated_at=row.updated_at)
+    return _out(row.rules, row.revision, source="project", updated_by=row.updated_by, updated_at=row.updated_at), hist
 
 
-def put(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any]) -> dict[str, Any]:
+def _save(db: Session, ctx: RequestContext, p: ProjectRow, rules: Any, base: Any, *, dry_run: bool = False) -> dict[str, Any]:
+    """A rules edit by a person (PUT/PATCH): refused (422 problem JSON, `label.in-use`) if it would
+    leave annotations with a label the rules no longer know (rename or merge it instead)."""
+    from . import label_ops
+
+    current = get(db, p)
+    _check_revision(current["revision"], base)
+    label_ops.check_orphans(db, p, current["rules"], validate(rules))
+    out = save_row(db, ctx, p, rules, base, dry_run=dry_run)[0]
+    return {**out, "dryRun": True} if dry_run else out
+
+
+def put(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any], *, dry_run: bool = False) -> dict[str, Any]:
     require_person(ctx)
     if "rules" not in body:
         raise HTTPException(422, {"error": "body needs rules and baseRevision"})
-    return _save(db, ctx, p, body["rules"], body.get("baseRevision"))
+    return _save(db, ctx, p, body["rules"], body.get("baseRevision"), dry_run=dry_run)
 
 
-def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any]) -> dict[str, Any]:
+def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any], *, dry_run: bool = False) -> dict[str, Any]:
     """JSON Patch (RFC 6902) on the current rules: `{ baseRevision, ops: [...] }`."""
     require_person(ctx)
     ops = body.get("ops")
@@ -193,7 +210,7 @@ def patch(db: Session, ctx: RequestContext, p: ProjectRow, body: dict[str, Any])
         rules = jsonpatch.apply_patch(copy.deepcopy(current["rules"]), ops)
     except (jsonpatch.JsonPatchException, jsonpatch.JsonPointerException, TypeError, ValueError) as e:
         raise HTTPException(422, {"error": f"patch does not apply: {e}"}) from None
-    return _save(db, ctx, p, rules, body.get("baseRevision"))
+    return _save(db, ctx, p, rules, body.get("baseRevision"), dry_run=dry_run)
 
 
 def history(db: Session, p: ProjectRow, limit: int = 50) -> dict[str, Any]:

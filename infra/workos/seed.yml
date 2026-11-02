@@ -1,0 +1,88 @@
+# WorkOS roles and permissions (todo9 D5), applied to the staging and production WorkOS
+# environments so they stay identical to each other and to infra/workos/emulate.yaml:
+#
+#   npx workos@0.24.0 seed --file=infra/workos/seed.yml --api-key="$KEY"   # staging, then production
+#
+# Format checked against `workos seed --init` / `seed --help` of workos CLI 0.24.0: the CLI reads
+# only `permissions`, `roles` (each with its permission slugs), `organizations` and `config`, in
+# that order, and skips anything that already exists (idempotent). `seed --clean` deletes what
+# the last run created on this machine. No organizations here: they are created by api (D4).
+#
+# Not expressible in a seed file (dashboard, Authorization tab; README.md has the checklist):
+#   - default role = `member`; multiple roles off;
+#   - organization API key permissions = datasets:read, annotations:write, studio:tools, admin;
+#   - redirect URIs, sign-out URI, initiate login URI (`config.redirect_uris` adds redirect URIs
+#     only, so they are set by hand per environment, exactly as listed in todo9 Phase 0).
+#
+# Code checks permissions, never role slugs. Keep slugs short: they ride in the session cookie.
+# Change this file and emulate.yaml together.
+
+permissions:
+  # Organization permissions (D5).
+  - slug: org:manage
+    name: Manage organization
+    description: Rename the organization, security settings, Admin Portal links
+  - slug: members:manage
+    name: Manage members
+    description: Invite, remove and change the role of members; project members
+  - slug: billing:manage
+    name: Manage billing
+    description: Plan, invoices and payment method
+  - slug: apikeys:manage
+    name: Manage API keys
+    description: Create and revoke organization API keys
+  - slug: audit:read
+    name: Read audit log
+    description: View and export the organization audit log
+  - slug: project:create
+    name: Create projects
+  # WorkOS widget permissions, on admin only. WorkOS may already define them in the
+  # environment; the seed then reports them as existing and skips them.
+  - slug: widgets:users-table:manage
+    name: Users table widget
+  - slug: widgets:api-keys:manage
+    name: API keys widget
+  - slug: widgets:sso:manage
+    name: SSO widget
+  - slug: widgets:domain-verification:manage
+    name: Domain verification widget
+  # Organization API key permissions (the scopes on Settings > API keys). Not given to any
+  # role; enable them for organization API keys in the dashboard.
+  - slug: datasets:read
+    name: Read datasets
+    description: API key scope
+  - slug: annotations:write
+    name: Write annotations
+    description: API key scope
+  - slug: studio:tools
+    name: Studio tools
+    description: API key scope (MCP tools)
+  - slug: admin
+    name: Admin
+    description: API key scope (organization administration)
+
+roles:
+  - slug: admin
+    name: Admin
+    description: Manages the organization, its members, keys and billing
+    permissions:
+      - org:manage
+      - members:manage
+      - billing:manage
+      - apikeys:manage
+      - audit:read
+      - project:create
+      - widgets:users-table:manage
+      - widgets:api-keys:manage
+      - widgets:sso:manage
+      - widgets:domain-verification:manage
+  - slug: member
+    name: Member
+    description: Default role; works in the projects they are added to
+    permissions:
+      - project:create
+  - slug: billing
+    name: Billing
+    description: Manages billing only
+    permissions:
+      - billing:manage

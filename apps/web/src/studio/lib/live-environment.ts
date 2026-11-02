@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import type { EnvironmentSpec } from "@studio/contracts/environment";
+import { toast } from "sonner";
+import { regionLabelNames, type EnvironmentSpec } from "@studio/contracts/environment";
 import type { Project } from "@studio/contracts/types";
 import { patchSpec, type JsonPatchOperation } from "@/extension-host/patch";
 import { registry } from "@/extension-host/registry";
 import { resolveEnvironment, type ResolvedEnv } from "@/extension-host/resolve";
-import { useStudio } from "@/studio/stores/studio";
+import { LOCAL_AUTHOR, useStudio } from "@/studio/stores/studio";
 import { fetchEnvironment, type EnvironmentDocument } from "./api";
 import { installEnvironment, knownRevision, noteRevision } from "./environment-edits";
 import { onProjectEvent } from "./use-project-events";
@@ -37,10 +38,30 @@ function resolved(spec: EnvironmentSpec | null | undefined, qc: QueryClient, tas
   return r.env;
 }
 
+/**
+ * todo18 §2 C: the label being drawn with was removed (or renamed) by a setup change. Keep it
+ * when it's still there; otherwise fall back to the first region label (or none) and say so.
+ */
+export function labelAfterSetupChange(active: string | null, labels: string[]): { active: string | null; removed: string | null } {
+  if (active == null || labels.includes(active)) return { active, removed: null };
+  return { active: labels[0] ?? null, removed: active };
+}
+
+/** "Setup updated by <who>" (todo18 P2), and the label notice when the active label went away. */
+function announce(doc: Partial<EnvironmentDocument>, removed: string | null, next: string | null) {
+  const who = doc.authorKind === "agent" ? "the assistant" : doc.author && doc.author !== LOCAL_AUTHOR ? doc.author : null;
+  const lines = [who ? `Setup updated by ${who}` : "Setup updated"];
+  if (removed) lines.push(next ? `Label "${removed}" was removed; now drawing with "${next}".` : `Label "${removed}" was removed.`);
+  toast(lines[0], { description: lines[1], id: "setup-updated" });
+}
+
 async function install(qc: QueryClient, taskId: string, env: ResolvedEnv, doc: Partial<EnvironmentDocument> & { revision: number }) {
   if (useStudio.getState().projectId !== taskId) return;
   await installEnvironment(env, { record: false });
   noteRevision(taskId, doc.revision);
+  const label = labelAfterSetupChange(useStudio.getState().activeLabel, regionLabelNames(env.labels));
+  if (label.removed) useStudio.setState({ activeLabel: label.active });
+  announce(doc, label.removed, label.active);
   qc.setQueryData<EnvironmentDocument | null>(envKey(taskId), (old) => ({ ...(old ?? {}), ...doc, environment: env.source }) as EnvironmentDocument);
 }
 

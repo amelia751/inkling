@@ -206,6 +206,7 @@ def test_wfdb_signal_files_are_part_of_their_recording():
     groups = dc.classify(files, dc.Context())
     wave = next(g for g in groups if g.kind == "waveform")
     assert wave.node_ids == ["h1", "h2", "m1", "m2"] and wave.count == 2 and wave.action == "new_dataset"
+    assert wave.slots == {"m1": ("h1", "signal"), "m2": ("h2", "signal")}
     assert [g.node_ids for g in groups if g.action == "keep_unsupported"] == [["x"]]
     p = dc.plan("drp-1", groups, dc.Context(), preset)
     a = next(a for a in p["actions"] if a["kind"] == "waveform")

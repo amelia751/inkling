@@ -110,6 +110,9 @@ class Group:
     # Node ids (also in `node_ids`) that are parts of another file's item (WFDB signal files):
     # they go into the collection with it but don't count as items.
     parts: list[str] = field(default_factory=list)
+    # todo20 D9: each part's slot in its owner's item, {part node id: (owner node id, slot)}. A
+    # subject's `_seg` is its `reference` slot (a label layer, never an item of its own).
+    slots: dict[str, tuple[str, str]] = field(default_factory=dict)
 
     @property
     def count(self) -> int:
@@ -124,6 +127,8 @@ class Group:
         for k in ("held", "existing", "spoofed"):
             if getattr(self, k):
                 out[k] = getattr(self, k)
+        if with_nodes and self.slots:
+            out["parts"] = [{"nodeId": n, "of": of, "slot": slot} for n, (of, slot) in self.slots.items()]
         return out
 
 
@@ -201,21 +206,33 @@ def file_key(f: FileIn) -> tuple[str, str]:
     return f"unsupported:{f.kind or 'unknown'}", f.kind or "unknown"
 
 
+def part_slot(f: FileIn) -> str:
+    """The slot a part fills in its owner's item: a mask is the subject's `reference` (todo20
+    D9), a consumed sidecar its `sidecar`, anything else (WFDB .mat/.dat) a `signal`."""
+    if f.kind == "mask" or f.ext_kind == "mask":
+        return "reference"
+    sc = (f.facts or {}).get("sidecar")
+    if isinstance(sc, dict) and sc.get("hidden"):
+        return "sidecar"
+    return "signal"
+
+
 def group_files(files: list[FileIn]) -> list[Group]:
     """Groups in a stable order (first appearance), each with its counts and shape."""
     buckets: OrderedDict[str, Group] = OrderedDict()
     series: dict[str, set[str]] = {}
     keys = {f.node_id: file_key(f) for f in files}
-    parts: set[str] = set()
+    parts: dict[str, tuple[str, str]] = {}
     for f in files:
         # A signal file joins its header's (viewable) group as a part of that recording.
-        head = keys.get(f.part_of) if f.part_of else None
+        owner = f.part_of if f.part_of in keys else None
+        head = keys[owner] if owner else None
         if head is None and (owner := _sidecar_of(f, keys)):
             # todo19: a sidecar consumed into its group's metadata (Info.cfg) is a hidden slot.
             head = keys[owner]
-        if head is not None and head[0].startswith("viewable:") and not f.existing:
+        if head is not None and owner and head[0].startswith("viewable:") and not f.existing:
             keys[f.node_id] = head
-            parts.add(f.node_id)
+            parts[f.node_id] = (owner, part_slot(f))
     for f in files:
         bucket, kind = keys[f.node_id]
         g = buckets.get(bucket)
@@ -227,6 +244,7 @@ def group_files(files: list[FileIn]) -> list[Group]:
         g.node_ids.append(f.node_id)
         if f.node_id in parts:
             g.parts.append(f.node_id)
+            g.slots[f.node_id] = parts[f.node_id]
             continue
         g.held += _held(f)
         g.existing += bool(f.existing or (f.flags or {}).get("duplicate_of"))

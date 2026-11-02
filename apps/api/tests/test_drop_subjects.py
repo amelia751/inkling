@@ -40,6 +40,10 @@ def test_a_seg_beside_its_subjects_volumes_is_part_of_them():
     groups = dc.classify(files, dc.Context())
     vol = next(g for g in groups if g.kind == "volume")
     assert vol.node_ids == ["t1", "t2", "seg"] and vol.count == 2
+    # todo20 D9: the seg is the subject's `reference` slot.
+    assert vol.slots == {"seg": ("t1", "reference")}
+    assert vol.as_dict()["parts"] == [{"nodeId": "seg", "of": "t1", "slot": "reference"}]
+    assert "parts" not in vol.as_dict(with_nodes=False)
     # A mask with no volume of its subject keeps a Masks collection.
     assert [g.node_ids for g in groups if g.kind == "mask"] == [["lone"]]
 
@@ -82,9 +86,14 @@ def test_the_drop_groups_subjects_and_the_document_names_them(client):
     vols = [a for a in doc["assets"] if a["kind"] == "volume"]
     got = {a["name"]: (a.get("subject"), a.get("sequence")) for a in vols}
     assert got == {**{f"{BRATS}_{s}.nii.gz": (BRATS, s) for s in seqs}, "scan.nii.gz": ("scan", None)}
-    seg = next(a for a in doc["assets"] if a["name"] == f"{BRATS}_seg.nii.gz")
-    assert (seg["kind"], seg.get("subject"), seg.get("sequence")) == ("mask", BRATS, "seg")
-    assert {a["kind"]: a["profile"] for a in doc["assets"] if a["kind"] != "mask"} == {"volume": "preset:volume-3d", "volume-time": "preset:cine-4d"}
+    # todo20 D9: the seg is the subject's `reference` slot (a part of its item), not an item.
+    assert not any(a["name"] == f"{BRATS}_seg.nii.gz" or a["kind"] == "mask" for a in doc["assets"])
+    with_parts = [a for a in doc["assets"] if a.get("parts")]
+    assert len(with_parts) == 1 and with_parts[0]["subject"] == BRATS, with_parts
+    [seg] = with_parts[0]["parts"]
+    assert (seg["slot"], seg["kind"], seg["name"], seg.get("subject"), seg.get("sequence")) == ("reference", "mask", f"{BRATS}_seg.nii.gz", BRATS, "seg")
+    assert seg["path"] and seg["nodeId"]
+    assert {a["kind"]: a["profile"] for a in doc["assets"]} == {"volume": "preset:volume-3d", "volume-time": "preset:cine-4d"}
     env = doc["environment"]
     assert sorted(env["extends"]) == ["preset:cine-4d", "preset:volume-3d"], env
     cine = [a for a in doc["assets"] if a["kind"] == "volume-time"]

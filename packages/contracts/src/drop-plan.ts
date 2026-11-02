@@ -44,6 +44,11 @@ export const DropGroup = z
     existing: z.number().int().nonnegative().optional(),
     /** Files whose extension says another kind than their content ("Looks like a ZIP"). */
     spoofed: z.number().int().nonnegative().optional(),
+    /**
+     * todo20 D9: files (also in `nodeIds`) that are a slot of another file's item, not items:
+     * a subject's `_seg` is its `reference` slot, a WFDB `.mat`/`.dat` its header's `signal`.
+     */
+    parts: z.array(z.object({ nodeId: Id, of: Id, slot: z.enum(["reference", "signal", "sidecar"]) }).strict()).optional(),
   })
   .strict()
   .meta({ id: "DropGroup" });

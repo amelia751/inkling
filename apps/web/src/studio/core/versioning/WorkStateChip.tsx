@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader } from "@studio/ui/ui/loader";
+import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BranchIcon, CheckIcon, ChevronDownIcon, ErrorIcon, HistoryIcon } from "@studio/ui/icons";
@@ -112,7 +112,7 @@ function VersionedChip({ projectId }: { projectId: string }) {
           data-branch={target?.name}
         >
           <BranchIcon />
-          {dirty ? "Save before switching" : (target?.label ?? (branches.isLoading ? <><Loader size="s" /> Loading</> : "View the published copy"))}
+          {dirty ? "Save before switching" : (target?.label ?? (branches.isLoading ? <SkeletonText className="w-32" aria-label="Loading" /> : "View the published copy"))}
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link to={datasetUrl(routeProject ?? projectId, projectId, "versions")}>

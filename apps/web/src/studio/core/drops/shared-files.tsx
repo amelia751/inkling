@@ -1,4 +1,4 @@
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { DropCard } from "./drop-card";
 import { useConversationDrops, useDropEvents } from "./hooks";
 
@@ -10,7 +10,17 @@ import { useConversationDrops, useDropEvents } from "./hooks";
 export function SharedFiles({ projectId, conversationId, canEdit }: { projectId: string; conversationId: string | undefined; canEdit: boolean }) {
   useDropEvents(projectId);
   const q = useConversationDrops(projectId, conversationId);
-  if (conversationId && q.isLoading) return <div className="flex flex-1 items-center justify-center"><Loader /></div>;
+  if (conversationId && q.isLoading)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 py-3" role="status" aria-busy aria-label="Loading shared files">
+        {Array.from({ length: 3 }, (_, i) => (
+          <section key={i} className="flex flex-col gap-1.5">
+            <SkeletonText className="w-32" />
+            <Skeleton className="h-16 w-full rounded-lg" />
+          </section>
+        ))}
+      </div>
+    );
   const drops = (q.data?.drops ?? []).filter((d) => d.files.some((f) => f.state !== "removed"));
   if (!drops.length)
     return (

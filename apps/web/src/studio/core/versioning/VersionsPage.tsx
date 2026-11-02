@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Alert } from "@studio/ui/ui/alert";
-import { Loader } from "@studio/ui/ui/loader";
+import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
 import { Link, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnnotateIcon, BranchIcon, MergeIcon, TagIcon, UndoIcon } from "@studio/ui/icons";
@@ -121,7 +121,13 @@ function History({ datasetId }: { datasetId: string }) {
             )}
           </div>
         ))}
-        {commits.isLoading && <p className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><Loader size="s" /> Loading</p>}
+        {commits.isLoading &&
+          Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3" aria-busy>
+              <div className="flex flex-1 flex-col gap-1"><SkeletonText className="w-1/2" /><SkeletonText className="w-1/4" /></div>
+              <Skeleton className="h-5 w-14 rounded-full" />
+            </div>
+          ))}
       </Card>
     </div>
   );

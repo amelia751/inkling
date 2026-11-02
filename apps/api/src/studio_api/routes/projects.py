@@ -166,8 +166,18 @@ def create_task(project_id: str, dataset_id: str, body: dict = Body(...), ctx: R
 
 
 @router.get("/tasks/{task_id}")
-def get_task(task_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+def get_task(task_id: str, includeTrashed: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):  # noqa: N803
+    """`includeTrashed=true` (the Studio page): a Studio in Trash with its dataset still answers, with
+    `trashed: true` and the batch that restores it, so the page can offer Restore (todo16)."""
     projects.ensure_seeds_once(db)
+    if includeTrashed:
+        from ..kernel import trash
+        from ..models import INCLUDE_TRASHED, TaskRow
+
+        t = db.get(TaskRow, task_id, execution_options=INCLUDE_TRASHED)
+        if t is not None and t.trashed_at is not None:
+            projects.require_project(db, ctx, t.project_id)
+            return {**projects.task_dict(db, t), "trashed": True, "datasetTrashed": True, "datasetTrashBatchId": trash.dataset_trash_batch(db, t) or t.trash_batch_id}
     t, _ = projects.require_task(db, ctx, task_id)
     return projects.task_dict(db, t)
 

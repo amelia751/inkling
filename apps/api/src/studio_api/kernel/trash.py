@@ -36,7 +36,6 @@ from ..models import (
     ProjectRow,
     SourceNode,
     TaskRow,
-    User,
     Workspace,
     now,
 )
@@ -205,6 +204,12 @@ def dataset_trash_facts(db: Session, d: DatasetRow, nodes: list[SourceNode]) -> 
 def dataset_trashed(db: Session, t: TaskRow) -> bool:
     d = _get(db, DatasetRow, t.dataset_id)
     return d is None or d.trashed_at is not None
+
+
+def dataset_trash_batch(db: Session, t: TaskRow) -> str | None:
+    """The Trash batch holding a Studio's dataset, so the Studio can offer Restore (None if not trashed)."""
+    d = _get(db, DatasetRow, t.dataset_id)
+    return d.trash_batch_id if d is not None and d.trashed_at is not None else None
 
 
 def search_trashed(db: Session, p: ProjectRow, q: str, kind: str | None = None) -> int:
@@ -477,9 +482,10 @@ def _actor(db: Session, batch_id: str | None) -> str | None:
 
 
 def _who(db: Session, principal: str | None, actor: str | None) -> dict:
+    from .overview import display_name
+
     pid = principal or ""
-    u = db.get(User, pid) if pid else None
-    name = " ".join(x for x in ((u.first_name, u.last_name) if u else ()) if x) or (u.email if u else "") or pid.split(":", 1)[-1]
+    name = display_name(db, pid) if pid else ""
     return {"id": pid, "name": name, "viaAssistant": bool(actor and actor.startswith("agent:"))}
 
 

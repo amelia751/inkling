@@ -236,3 +236,37 @@ def test_deleting_a_project_forever_removes_its_workspace_and_unshared_blobs(cli
     with kdb.session_scope() as db:
         assert db.get(Workspace, p) is None
         assert db.scalars(select(Asset).where(Asset.workspace_id == p)).first() is None
+
+
+def test_a_studio_offers_restore_explore_shows_files_in_trash_and_names_are_people(client):
+    """todo16 round 3: a Studio whose dataset is in Trash names the batch that restores it; Explore
+    keeps trashed tables and documents as greyed records with their batch; Trash and Activity use
+    the person's display name, not their id."""
+    from studio_api.models import User
+
+    p, ds, task_id = _setup(client)
+    assert client.get(f"/api/v1/tasks/{task_id}").json()["datasetTrashBatchId"] is None
+    out = client.delete(f"/api/v1/projects/{p}/datasets/{ds['id']}").json()
+    assert client.get(f"/api/v1/tasks/{task_id}").status_code == 404  # hidden by default
+    st = client.get(f"/api/v1/tasks/{task_id}", params={"includeTrashed": "true"}).json()
+    assert st["trashed"] is True and st["datasetTrashed"] is True and st["datasetTrashBatchId"] == out["batchId"]
+    with kdb.session_scope() as db:
+        db.add(User(id="user:local-expert", workos_user_id="w-1", email="ana@example.com", first_name="Ana", last_name="Lima"))
+    assert _trash(client, p)["items"][0]["trashedBy"]["name"] == "Ana Lima"
+    client.post(f"/api/v1/projects/{p}/trash/{out['batchId']}/restore")
+
+    pt, _, imp = _new(client, {"notes/readme.txt": b"hello", "notes/b.png": png(4, 4)})
+    _inspect_all(client, imp)
+    with kdb.session_scope() as db:
+        from studio_api.models import SourceNode
+
+        doc = db.scalars(select(SourceNode).where(SourceNode.project_id == pt, SourceNode.name == "readme.txt")).one()
+        doc.detected_kind = "document"
+        doc_id = doc.id
+    before = client.get(f"/api/v1/projects/{pt}/explore").json()
+    assert before["files"]["inTrash"] == 0 and not [r for r in before["records"] if r["status"] == "trashed"]
+    _ops(client, pt, [{"kind": "trash", "nodeIds": [doc_id]}])
+    after = client.get(f"/api/v1/projects/{pt}/explore").json()
+    trashed = [r for r in after["records"] if r["status"] == "trashed"]
+    assert after["files"]["inTrash"] == 1
+    assert [(r["nodeId"], r["title"], bool(r["trashBatchId"])) for r in trashed] == [(doc_id, "readme.txt", True)]

@@ -101,6 +101,8 @@ export const fetchActivity = (id: string, cursor?: string | null) => api<{ entri
 export const undoTurn = (projectId: string, turnId: string) =>
   api<{ turnId: string; undone: number; batchIds: string[] }>(`/projects/${encodeURIComponent(projectId)}/turns/${encodeURIComponent(turnId)}/undo`, { method: "POST", json: {} });
 export const fetchTask = (id: string) => api<TaskSummary>(`/tasks/${encodeURIComponent(id)}`);
+/** A Studio even when it's in Trash with its dataset (`trashed`, `datasetTrashBatchId`), for the Studio page's empty state. */
+export const fetchTaskIncludingTrashed = (id: string) => api<TaskSummary>(`/tasks/${encodeURIComponent(id)}?includeTrashed=true`);
 export const putResume = (projectId: string, r: { taskId: string; itemId?: string | null; placement?: unknown; tool?: string | null }) =>
   api<{ resume: ResumeState | null }>(`/projects/${encodeURIComponent(projectId)}/resume`, { method: "PUT", json: r });
 

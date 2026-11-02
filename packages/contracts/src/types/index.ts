@@ -831,10 +831,12 @@ export interface ExploreRecord {
   type: "series" | "table" | "documents" | "files";
   title: string;
   detail?: string | null;
-  status: "detected" | "proposed" | "confirmed";
+  /** "trashed": the file is in Trash (todo16 D4); `trashBatchId` restores it. */
+  status: "detected" | "proposed" | "confirmed" | "trashed";
   nodeId?: string | null;
   proposalId?: string;
   strength?: ProposalStrength;
+  trashBatchId?: string;
 }
 
 export interface ExploreTaskRow {
@@ -859,7 +861,7 @@ export interface QualityItem {
 
 /** GET /v1/projects/:id/explore: Summary (files → records → tasks) and the Quality list. */
 export interface ExploreSummary {
-  files: { total: number; byKind: { kind: string; label: string; count: number }[]; facts: string[] };
+  files: { total: number; /** Files in Trash (not in `total`). */ inTrash?: number; byKind: { kind: string; label: string; count: number }[]; facts: string[] };
   records: ExploreRecord[];
   tasks: ExploreTaskRow[];
   quality: QualityItem[];

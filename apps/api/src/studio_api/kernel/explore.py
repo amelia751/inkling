@@ -709,6 +709,21 @@ projects.CONFIRM_EFFECTS["task"] = _confirm_dataset
 # ---- The Summary tab and the Quality list ----------------------------------------------------------
 
 
+def _trashed_records(db: Session, p: ProjectRow) -> dict:
+    """todo16 D4: files in Trash stay visible in Explore as greyed "In Trash" records (tables and
+    documents, the kinds Explore lists one by one) with the batch that restores them, plus a count."""
+    from . import trash
+
+    nodes = list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.parent_id.is_not(None), SourceNode.is_dir.is_(False)).execution_options(include_trashed=True).limit(5000)))
+    held = trash.trashed_files(db, nodes)
+    records = [
+        {"id": f"trashed:{n.id}", "type": "table" if n.detected_kind == "table" else "documents", "title": n.name, "detail": "In Trash", "status": "trashed", "nodeId": n.id, "trashBatchId": held[n.id]}
+        for n in nodes
+        if n.id in held and n.detected_kind in ("table", "document")
+    ][:20]
+    return {"count": len(held), "records": records}
+
+
 def summary(db: Session, p: ProjectRow) -> dict:
     """Files → records → tasks (docs/ux.md §7), plus the quality list. Counts are rows, never guesses."""
     from .overview import kind_label
@@ -739,11 +754,13 @@ def summary(db: Session, p: ProjectRow) -> dict:
             tasks.append({"id": f"task:{t.id}", "title": t.title, "detail": f"{d.title} · {t.kind.replace('-', ' ')}", "status": "confirmed", "taskId": t.id, "datasetId": d.id})
     for x in [x for x in open_ if x.kind in ("dataset", "task")]:
         tasks.append({"id": f"proposal:{x.id}", "title": str((x.payload or {}).get("title") or "New dataset"), "detail": (x.payload or {}).get("summary"), "status": "proposed", "proposalId": x.id, "strength": x.strength})
+    in_trash = _trashed_records(db, p)
+    records.extend(in_trash["records"])
     quality = quality_items(db, p, files, proposals)
     ready = [x for x in open_ if x.kind == "dataset"]
     clean = bool(ready) and len(open_) == len(ready) and not [q for q in quality if q["severity"] != "low"]
     out = {
-        "files": {"total": len(files), "byKind": [{"kind": k, "label": kind_label(k if k != "checking" else None, n) if k != "checking" else "Checking…", "count": n} for k, n in by_kind.most_common()], "facts": _fact_lines(files)},
+        "files": {"total": len(files), "inTrash": in_trash["count"], "byKind": [{"kind": k, "label": kind_label(k if k != "checking" else None, n) if k != "checking" else "Checking…", "count": n} for k, n in by_kind.most_common()], "facts": _fact_lines(files)},
         "records": records,
         "tasks": tasks,
         "quality": quality,

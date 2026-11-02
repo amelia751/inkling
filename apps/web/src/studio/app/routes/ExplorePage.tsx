@@ -47,7 +47,8 @@ import {
   useProjectDetail,
 } from "@/studio/lib/projects-api";
 import { kindIcon } from "@/studio/lib/file-kinds";
-import { exploreUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
+import { exploreUrl, projectTrashUrl, sourcesUrl, studioUrl, targetUrl, taskSetupUrl } from "@/studio/lib/routes";
+import { useRestoreBatch } from "@/studio/lib/trash-api";
 import type { ExploreRecord, ExploreSummary, ExploreTaskRow, Proposal, ProposalStrength, QualityItem, RelationshipEvidence, RelationshipTargetRef } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
 import { cn } from "@studio/ui/utils";
@@ -220,6 +221,13 @@ const RECORD_ICON: Record<ExploreRecord["type"], IconComponent> = { series: Volu
 function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: string; s: ExploreSummary; proposals: Proposal[]; onPreview: (id: string) => void }) {
   const decide = useDecide(projectId);
   const byId = useMemo(() => new Map(proposals.map((p) => [p.id, p])), [proposals]);
+  const restore = useRestoreBatch(projectId);
+  if (s.files.total === 0 && s.files.inTrash)
+    return (
+      <p className="text-sm text-muted-foreground" data-testid="explore-all-in-trash">
+        All of this project's files are in Trash. <Link className="underline" to={projectTrashUrl(projectId)}>Open Trash</Link> to restore them.
+      </p>
+    );
   if (s.files.total === 0)
     return (
       <p className="text-sm text-muted-foreground" data-testid="explore-empty">
@@ -253,6 +261,11 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
               );
             })}
           </ul>
+          {!!s.files.inTrash && (
+            <Link to={projectTrashUrl(projectId)} className="mt-2 block text-sm text-muted-foreground underline-offset-2 hover:underline" data-testid="summary-files-in-trash">
+              {s.files.inTrash.toLocaleString()} {s.files.inTrash === 1 ? "file" : "files"} in Trash
+            </Link>
+          )}
           {s.files.facts.length > 0 && (
             <div className="mt-4 border-t border-border pt-3">
               <p className="mb-1.5 text-xs text-hint">Detected</p>
@@ -269,6 +282,19 @@ function ShapeSummary({ projectId, s, proposals, onPreview }: { projectId: strin
             {s.records.map((r) => {
               const Icon = RECORD_ICON[r.type];
               const p = r.proposalId ? byId.get(r.proposalId) : undefined;
+              if (r.status === "trashed")
+                return (
+                  <li key={r.id} className="flex items-start gap-2 rounded-md p-1 opacity-60" data-testid="record-in-trash">
+                    <Icon className="mt-0.5 size-4 shrink-0 text-hint" />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium">{r.title}</p>
+                    <Badge variant="outline" data-testid="item-in-trash">In Trash</Badge>
+                    {r.trashBatchId && (
+                      <Button size="xs" variant="ghost-secondary" disabled={restore.isPending} onClick={() => restore.mutate(r.trashBatchId!)} data-testid="record-restore">
+                        Restore
+                      </Button>
+                    )}
+                  </li>
+                );
               const body = (
                 <div className="flex items-start gap-2">
                   <Icon className="mt-0.5 size-4 shrink-0 text-hint" />

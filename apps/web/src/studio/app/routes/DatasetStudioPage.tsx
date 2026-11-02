@@ -1,6 +1,6 @@
 import { Component, startTransition, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ErrorInfo, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CanvasStatusBar } from "@/studio/components/studio/CanvasStatusBar";
 import { CanvasToolbar } from "@/studio/components/studio/CanvasToolbar";
 import { DecisionBar } from "@/studio/components/studio/DecisionBar";
@@ -28,8 +28,9 @@ import { fetchKnownGood, isSafeMode, reportCleanBoot, rollback, safeHref, type K
 import { bindDeclarativeCommands, itemMediaType } from "@/extension-host/contributions-loader";
 import { resolveEnvironment, type EnvError, type ResolvedEnv } from "@/extension-host/resolve";
 import { clearRuntime, publish, REQUESTED_PLACEMENT, useRuntime } from "@studio/plugin-ui-sdk/runtime";
-import { api, fetchTask, putResume, useProjectSummary } from "@/studio/lib/projects-api";
+import { api, fetchTaskIncludingTrashed, putResume, useProjectSummary } from "@/studio/lib/projects-api";
 import { projectTrashUrl } from "@/studio/lib/routes";
+import { useRestoreBatch } from "@/studio/lib/trash-api";
 import { markReloadRestored, openedByReload, placementOf } from "@/studio/lib/resume";
 import { apiUrl } from "@/extension-host/runtime-config";
 import { brushSizeOf, isEditable, useStudio, visibleFor } from "@/studio/stores/studio";
@@ -159,7 +160,9 @@ function StudioPage() {
   const { data: project, isLoading, error } = useTaskDocument(datasetId);
   // A Studio whose dataset is in Trash says so instead of opening (todo16 round 2).
   const routeProjectId = useParams().projectId ?? "";
-  const summary = useQuery({ queryKey: ["tasks", datasetId, "summary"], queryFn: () => fetchTask(datasetId), enabled: kernelEnabled() && !!datasetId, staleTime: 30_000 });
+  const summary = useQuery({ queryKey: ["tasks", datasetId, "summary", "withTrashed"], queryFn: () => fetchTaskIncludingTrashed(datasetId), enabled: kernelEnabled() && !!datasetId, staleTime: 30_000 });
+  const restoreDataset = useRestoreBatch(routeProjectId);
+  const qc = useQueryClient();
   // todo13 J3: a drop applied to this Studio's collection shows up without a reload.
   useLiveDropItems(datasetId);
   // With dataset versioning on (the kernel reports it configured), this is the user's work
@@ -184,7 +187,8 @@ function StudioPage() {
     }
   }, [project, saved.data, projectId, load, boot, setEnv]);
 
-  if ((summary.data as { datasetTrashed?: boolean } | undefined)?.datasetTrashed)
+  const trashed = summary.data as { datasetTrashed?: boolean; datasetTrashBatchId?: string | null } | undefined;
+  if (trashed?.datasetTrashed)
     return (
       <div className="flex min-h-0 flex-1 flex-col" data-testid="empty-dataset-in-trash">
         <ErrorState
@@ -192,7 +196,18 @@ function StudioPage() {
           kind="not-found"
           title="This Studio's dataset is in Trash"
           description="Restore the dataset to open its Studio again. Trash keeps it for 30 days."
-          actions={routeProjectId ? <Link to={projectTrashUrl(routeProjectId)} className={buttonVariants({ size: "lg" })}>Open Trash</Link> : undefined}
+          actions={
+            routeProjectId ? (
+              <>
+                {trashed.datasetTrashBatchId && (
+                  <Button size="lg" disabled={restoreDataset.isPending} onClick={() => restoreDataset.mutate(trashed.datasetTrashBatchId!, { onSuccess: () => void qc.invalidateQueries({ queryKey: ["tasks", datasetId] }) })} data-testid="empty-dataset-in-trash-restore">
+                    Restore dataset
+                  </Button>
+                )}
+                <Link to={projectTrashUrl(routeProjectId)} className={buttonVariants({ size: "lg", variant: trashed.datasetTrashBatchId ? "outline" : "default" })}>Open Trash</Link>
+              </>
+            ) : undefined
+          }
         />
       </div>
     );

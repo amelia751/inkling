@@ -793,7 +793,7 @@ def task_dict(db: Session, t: TaskRow) -> dict:
     anns = doc.annotations if doc else []
     from . import trash
 
-    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id, "collectionId": t.collection_id, "datasetTrashed": trash.dataset_trashed(db, t)}
+    return {"id": t.id, "datasetId": t.dataset_id, "projectId": t.project_id, "title": t.title, "kind": t.kind, "revision": t.revision, "annotationCount": len(anns), "annotatedItems": len({a.get("itemId") for a in anns}), "createdAt": iso(t.created_at), "state": t.state or "published", "bootId": t.boot_id, "collectionId": t.collection_id, "datasetTrashed": trash.dataset_trashed(db, t), "datasetTrashBatchId": trash.dataset_trash_batch(db, t)}
 
 
 def require_dataset(db: Session, ctx: RequestContext, dataset_id: str) -> tuple[DatasetRow, ProjectRow]:

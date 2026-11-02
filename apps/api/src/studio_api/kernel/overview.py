@@ -291,6 +291,18 @@ _SMALL_DETAILS = {"workspace.environment"}  # whole environments: the revision e
 PROPOSAL_WORDS = {"relationship": "a link between files", "mapping": "a table mapping", "group": "a group of files", "dataset": "a dataset", "task": "a task"}
 
 
+def display_name(db: Session, principal: str | None) -> str:
+    """A person's name for copy ("Ana Lima"), from the users mirror; their email's local part, or the
+    principal's id (`user:local-expert` -> "local-expert") when there is no name (dev principals)."""
+    from ..models import User
+
+    if not principal:
+        return "someone"
+    u = db.get(User, principal)
+    full = " ".join(x for x in ((u.first_name, u.last_name) if u else ()) if x)
+    return full or (u.email.split("@")[0] if u and u.email else "") or principal.split(":", 1)[-1]
+
+
 def who(actor: str | None, on_behalf_of: str | None = None) -> dict:
     """Who did it, in words: a person, the assistant for a person (SessionDelegation), or
     Inkling itself (the inspection worker, the sample loader)."""
@@ -364,7 +376,7 @@ def _turn_entries(db: Session, p: ProjectRow, limit: int) -> tuple[list[dict], s
             continue
         seen.update(r.id for r in rows)
         person = rows[0].on_behalf_of or rows[0].actor
-        name = person.split(":")[-1] if person else "someone"
+        name = display_name(db, person)
         out.append(
             {
                 "id": f"turn:{tid}",
@@ -375,7 +387,7 @@ def _turn_entries(db: Session, p: ProjectRow, limit: int) -> tuple[list[dict], s
                 "actor": "agent:assistant",
                 "actorLabel": f"{name}'s assistant",
                 "onBehalfOf": person,
-                "who": who("agent:assistant", person),
+                "who": {**who("agent:assistant", person), "onBehalfOf": name},
                 "target": rows[0].id,
                 "subject": None,
                 "details": {"batches": len(rows)},

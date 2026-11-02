@@ -370,3 +370,24 @@ def test_purge_rolls_back_when_the_versioning_commit_fails(client, monkeypatch):
     finally:
         vclient.set_client(None)
         service.clear_cache()
+
+
+def test_restore_into_a_taken_name_asks_and_keeps_both(client):
+    """todo18 B: a restore whose name is taken returns the Sources 409 `conflicts`; retrying with
+    `resolutions` (keep both) restores it under a new name."""
+    p, _, _ = _new(client, {"study/a.png": png(4, 4)})
+    n = _by_name(p)
+    _ops(client, p, [{"kind": "trash", "nodeIds": [n["a.png"].id]}])
+    parent = n["a.png"].parent_id
+    with kdb.session_scope() as db:
+        from studio_api.models import SourceNode
+
+        db.add(SourceNode(id="dup-a", project_id=p, parent_id=parent, name="a.png", is_dir=True))
+    b = _trash(client, p)["items"][0]["batchId"]
+    r = client.post(f"/api/v1/projects/{p}/trash/{b}/restore")
+    assert r.status_code == 409, r.text
+    conflicts = r.json()["detail"]["conflicts"]
+    assert conflicts and conflicts[0]["name"] == "a.png"
+    ok = client.post(f"/api/v1/projects/{p}/trash/{b}/restore", json={"resolutions": {"*": "keep_both"}})
+    assert ok.status_code == 200, ok.text
+    assert _trash(client, p)["count"] == 0

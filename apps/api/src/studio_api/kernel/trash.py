@@ -321,14 +321,16 @@ def _source_roots(db: Session, p: ProjectRow, batch_id: str) -> list[SourceNode]
     return list(db.scalars(select(SourceNode).where(SourceNode.project_id == p.id, SourceNode.trash_batch_id == batch_id, SourceNode.trashed_at.is_not(None))))
 
 
-def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> dict:
+def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str, resolutions: dict[str, str] | None = None) -> dict:
     lock = _claim(db, p, batch_id, "restoring")
     roots = _source_roots(db, p, batch_id)
     if roots:
         if lock is not None:
             lock.state = None  # a file batch is also an undo unit: hold the row lock only
         items = list_items(db, p, batch_id=batch_id)
-        res = fs.apply(db, ctx, p, {"ops": [{"kind": "restore", "nodeIds": [n.id for n in roots]}]})
+        # A name now taken: 409 with `conflicts`, like any Sources op; the person picks keep both /
+        # replace / skip in the same dialog and the restore retries with `resolutions` (todo18 B).
+        res = fs.apply(db, ctx, p, {"ops": [{"kind": "restore", "nodeIds": [n.id for n in roots]}], **({"resolutions": resolutions} if resolutions else {})})
         relocated = any(it.get("originalLocation") is None for it in items)
         _audit(db, ctx, p, "restore", "source", batch_id, batch_id, {"files": len(roots), "fsBatchId": res.get("batchId")})
         return {"restored": items, "relocatedToRoot": relocated}
@@ -354,12 +356,12 @@ def restore(db: Session, ctx: RequestContext, p: ProjectRow, batch_id: str) -> d
     return {"restored": items, "relocatedToRoot": relocated}
 
 
-def restore_many(db: Session, ctx: RequestContext, p: ProjectRow, batch_ids: list[str]) -> dict:
+def restore_many(db: Session, ctx: RequestContext, p: ProjectRow, batch_ids: list[str], resolutions: dict[str, str] | None = None) -> dict:
     """Restore several batches at once, all or nothing (the request's one transaction)."""
     ids = list(dict.fromkeys(batch_ids))
     out: dict = {"restored": [], "relocatedToRoot": False}
     for b in ids:
-        r = restore(db, ctx, p, b)
+        r = restore(db, ctx, p, b, resolutions)
         out["restored"].extend(r["restored"])
         out["relocatedToRoot"] = out["relocatedToRoot"] or r["relocatedToRoot"]
     return out

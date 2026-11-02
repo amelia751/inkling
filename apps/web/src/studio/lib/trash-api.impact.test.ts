@@ -39,3 +39,22 @@ describe("todo18: Restore all is one request", () => {
     expect(calls[0]!.body).toEqual({ batchIds: ["b2", "b3"] });
   });
 });
+
+describe("todo18: restore into a taken name", () => {
+  it("rejects with the Sources conflict error and retries with resolutions", async () => {
+    const bodies: unknown[] = [];
+    vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
+      bodies.push(init?.body ? JSON.parse(String(init.body)) : undefined);
+      return bodies.length === 1
+        ? new Response(JSON.stringify({ detail: { message: "a.png exists", conflicts: [{ nodeId: "n1", name: "a.png", kind: "name" }] } }), { status: 409, headers: { "Content-Type": "application/json" } })
+        : new Response(JSON.stringify({ restored: [], relocatedToRoot: false }), { status: 200, headers: { "Content-Type": "application/json" } });
+    });
+    const { restoreBatch } = await import("./trash-api");
+    const { FsConflictApiError } = await import("./files/api");
+    const e = await restoreBatch("p", "b1").catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(FsConflictApiError);
+    expect((e as InstanceType<typeof FsConflictApiError>).conflicts[0]!.name).toBe("a.png");
+    await restoreBatch("p", "b1", { n1: "keep_both" } as never);
+    expect(bodies[1]).toEqual({ resolutions: { n1: "keep_both" } });
+  });
+});

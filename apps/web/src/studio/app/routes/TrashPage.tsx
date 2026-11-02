@@ -21,6 +21,7 @@ import {
   useDestroyBatch,
   useEmptyProjectTrash,
   useProjectTrash,
+  restoreVarBatch,
   useRestoreBatch,
   type ProjectTrashItem,
   type TrashFilter,
@@ -28,6 +29,8 @@ import {
   type TrashKind,
 } from "@/studio/lib/trash-api";
 import { useCan } from "@/studio/lib/use-can";
+import type { FsConflict } from "@studio/contracts/types";
+import { ConflictDialog } from "@/studio/components/files";
 
 const FILTERS: { value: Exclude<TrashFilter, "collections">; label: string }[] = [
   { value: "all", label: "All" },
@@ -37,6 +40,8 @@ const FILTERS: { value: Exclude<TrashFilter, "collections">; label: string }[] =
 ];
 
 const ICON: Record<TrashKind, typeof SourcesIcon> = { source: SourcesIcon, dataset: DatasetsIcon, collection: DatasetsIcon, studio: AnnotateIcon };
+
+const NO_CONFLICTS: FsConflict[] = [];
 
 export const TRASH_EMPTY = "Nothing in Trash. Deleted things stay here for 30 days, then they're gone.";
 
@@ -49,7 +54,8 @@ export function TrashPage() {
   const { projectId = "" } = useParams();
   const [filter, setFilter] = useState<Exclude<TrashFilter, "collections">>("all");
   const trash = useProjectTrash(projectId, "all");
-  const restore = useRestoreBatch(projectId);
+  const [conflict, setConflict] = useState<{ batchId: string; conflicts: FsConflict[] } | null>(null);
+  const restore = useRestoreBatch(projectId, (batchId, conflicts) => setConflict({ batchId, conflicts }));
   const destroy = useDestroyBatch(projectId);
   const empty = useEmptyProjectTrash(projectId);
   const [confirmEmpty, setConfirmEmpty] = useState(false);
@@ -59,7 +65,7 @@ export function TrashPage() {
   const canRestore = useCan(projectId, "trash");
   const canDestroy = useCan(projectId, "destroy");
   // Pending per batch (todo18 B): one row's action doesn't disable the others.
-  const busyBatch = (restore.isPending ? restore.variables : undefined) ?? (destroy.isPending ? destroy.variables : undefined);
+  const busyBatch = (restore.isPending ? restoreVarBatch(restore.variables) : undefined) ?? (destroy.isPending ? destroy.variables : undefined);
 
   return (
     <AppLayout>
@@ -100,6 +106,16 @@ export function TrashPage() {
           )}
         </div>
       </div>
+
+      <ConflictDialog
+        open={!!conflict}
+        conflicts={conflict?.conflicts ?? NO_CONFLICTS}
+        onDone={(resolutions) => {
+          if (conflict) restore.mutate({ batchId: conflict.batchId, resolutions });
+          setConflict(null);
+        }}
+        onCancel={() => setConflict(null)}
+      />
 
       <AlertDialog open={confirmEmpty} onOpenChange={setConfirmEmpty}>
         <AlertDialogContent data-testid="trash-empty-confirm">

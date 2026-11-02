@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { FsConflict, FsResolution } from "@studio/contracts/types";
+import { FsConflictApiError, toFsError } from "@/studio/lib/files/api";
 import { api, ApiError, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 
 /**
@@ -158,7 +160,11 @@ export async function fetchProjectTrash(projectId: string, filter: TrashFilter =
   return { items, count: res.count ?? res.total ?? items.length };
 }
 
-export const restoreBatch = (projectId: string, batchId: string) => api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST" });
+/** A name now taken rejects with `FsConflictApiError` (its `conflicts`); retry with `resolutions` (todo18 B). */
+export const restoreBatch = (projectId: string, batchId: string, resolutions?: Record<string, FsResolution>) =>
+  api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchId)}/restore`, { method: "POST", ...(resolutions ? { json: { resolutions } } : {}) }).catch((e: unknown) => {
+    throw toFsError(e);
+  });
 /** Several batches in one request (todo18 B "Restore all"): the first in the path, the rest in the body. */
 export const restoreBatches = (projectId: string, batchIds: string[]) =>
   api<RestoreResult>(`/projects/${P(projectId)}/trash/${P(batchIds[0] ?? "")}/restore`, { method: "POST", json: { batchIds: batchIds.slice(1) } });
@@ -192,17 +198,24 @@ export function useProjectTrash(projectId: string, filter: TrashFilter) {
   return useQuery({ queryKey: trashKeys.list(projectId, filter), queryFn: () => fetchProjectTrash(projectId, filter), enabled: !!projectId });
 }
 
-export function useRestoreBatch(projectId: string) {
+export function useRestoreBatch(projectId: string, onConflict?: (batchId: string, conflicts: FsConflict[]) => void) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (batchId: string) => restoreBatch(projectId, batchId),
+    mutationFn: (v: string | { batchId: string; resolutions: Record<string, FsResolution> }) => (typeof v === "string" ? restoreBatch(projectId, v) : restoreBatch(projectId, v.batchId, v.resolutions)),
     onSuccess: (r) => {
-      invalidateAfterTrash(qc, projectId);
+      invalidateAfterTrash(qc, projectId); // todo18 D1: invalidateFor
       toast(r.relocatedToRoot ? "Restored to Sources: the folder it was in is gone" : "Restored");
     },
-    onError: (e) => toast(`Couldn't restore: ${messageOf(e)}`),
+    onError: (e, v) => {
+      // A name that's taken asks keep both / replace / skip, like any Sources op (todo18 B).
+      if (e instanceof FsConflictApiError && onConflict) return onConflict(typeof v === "string" ? v : v.batchId, e.conflicts);
+      toast(`Couldn't restore: ${messageOf(e)}`);
+    },
   });
 }
+
+/** The batch id a restore mutation's variables name. */
+export const restoreVarBatch = (v: string | { batchId: string } | undefined): string | undefined => (typeof v === "string" ? v : v?.batchId);
 
 export function useRestoreBatches(projectId: string) {
   const qc = useQueryClient();

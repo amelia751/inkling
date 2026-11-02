@@ -1,7 +1,7 @@
 """todo16 Milestone 1: delete and recover everything (docs: todo/todo16.md §2 D2-D6).
 
     GET    /api/v1/projects/{pid}/trash?kind=all|sources|datasets|collections|studios&cursor=
-    POST   /api/v1/projects/{pid}/trash/{batchId}/restore     { batchIds? } → { restored, relocatedToRoot }
+    POST   /api/v1/projects/{pid}/trash/{batchId}/restore     { batchIds?, resolutions? } → { restored, relocatedToRoot }
     DELETE /api/v1/projects/{pid}/trash/{batchId}             destroy (owners) → { purged }
     POST   /api/v1/projects/{pid}/trash/empty?kind=all|sources  → { purged, keptBytes, byKind }
     GET    /api/v1/projects/{pid}/trash/empty/preview         the same, without doing it
@@ -76,7 +76,10 @@ def restore(project_id: str, batch_id: str, body: dict | None = Body(default=Non
     more = (body or {}).get("batchIds") or []
     if not isinstance(more, list) or not all(isinstance(x, str) for x in more):
         raise HTTPException(422, "batchIds lists batch ids")
-    return trash.restore_many(db, ctx, p, [batch_id, *more])
+    res = (body or {}).get("resolutions")
+    if res is not None and not isinstance(res, dict):
+        raise HTTPException(422, "resolutions must be an object")
+    return trash.restore_many(db, ctx, p, [batch_id, *more], res)
 
 
 @router.delete("/projects/{project_id}/trash/{batch_id}")

@@ -46,6 +46,12 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/merge"),
         ("POST", f"{P}/datasets/{{dataset_id}}/reviews/{{review_id}}/resolutions"),
         ("POST", f"{P}/datasets/{{dataset_id}}/releases"),
+        # todo17 D9, D10: the project context, findings, fixes (agents get a change request)
+        # and the gardener (only opens change requests, never merges).
+        ("GET", f"{P}/projects/{{project_id}}/context"),
+        ("GET", f"{P}/projects/{{project_id}}/findings"),
+        ("POST", f"{P}/projects/{{project_id}}/findings/{{finding_id}}/fix"),
+        ("POST", f"{P}/projects/{{project_id}}/gardener"),
         # Environment control plane
         ("GET", "/api/environments/{project_id}"),
         ("PATCH", "/api/environments/{project_id}"),

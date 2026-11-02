@@ -90,6 +90,10 @@ test checks each entry exists. Change this list and that file together.
 - Project reads with no file contents: project, overview, sources, proposals (read, create),
   review, search, drive listing, imports, source nodes and their activity; asset metadata
   (`GET /api/v1/assets`: ids, paths, types, sizes).
+- Project context and health (todo17 D9, D10): `GET …/projects/{id}/context` (rules, findings by
+  rule, what's published, recent changes), `GET …/findings`, `POST …/findings/{id}/fix` and
+  `POST …/gardener`; for an agent a fix only ever opens a change request. Findings carry rule
+  codes, resource ids and messages, never file names.
 - Org settings (todo15 D2): `GET /api/v1/org`, so the agent can refuse runs when `aiAssist` is off.
 - Drops (todo13 D3): `GET /api/v1/drops/{id}` answers an agent with the drop's `DropSummary`
   only: counts by kind and state, groups, and per file its node id, its screened name and

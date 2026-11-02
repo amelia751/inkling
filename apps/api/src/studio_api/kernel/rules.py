@@ -75,6 +75,7 @@ class RulesV1(_M):
     annotations: Annotations = Annotations()
     imaging: dict[str, Any] = {}
     severityOverrides: dict[str, Severity] = {}
+    enforce: list[str] = []  # D5: rule codes promoted out of evaluate mode
     merge: Merge = Merge()
 
 
@@ -171,6 +172,10 @@ def _save(db: Session, ctx: RequestContext, p: ProjectRow, rules: dict[str, Any]
         row.rules, row.revision, row.updated_by, row.updated_at = rules, current + 1, ctx.principal, at
     db.add(ProjectRulesHistory(project_id=p.id, revision=row.revision, rules=rules, actor=ctx.principal, on_behalf_of=ctx.on_behalf_of, created_at=at))
     db.flush()
+    # D10: what's stored is re-checked against the new rules (the worker drains the queue).
+    from . import findings
+
+    findings.enqueue_scan(db, p.id, f"rules revision {row.revision}")
     return _out(row.rules, row.revision, source="project", updated_by=row.updated_by, updated_at=row.updated_at)
 
 

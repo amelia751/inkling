@@ -3,7 +3,10 @@
 The API mints a short-lived (60 s) Ed25519-signed JWT for every call: tenant (an
 organisation; `default` in dev), project (the workspace), the actor (user, agent with
 `on_behalf_of`, or service), the scopes the operation needs, the request id and the
-service's audience. apps/versioning verifies it with the public key in
+service's audience, plus (todo9 Phase 5) `org`: the organization the request acts in, when
+it has one (a signed-in person, or an agent they minted a token for). The actor of a signed-in
+person is their verified principal `user:<WorkOS user id>`. apps/versioning ignores claims it
+doesn't know (Go's encoding/json), so `org` needs no change there. apps/versioning verifies it with the public key in
 `<envPrefix>VERSIONING_JWT_PUBLIC_KEY_FILE` (a JWKS file) and re-checks scope against its own
 rows. In dev the key pair is generated under apps/api/.data on first use.
 
@@ -119,6 +122,8 @@ def mint(ctx: RequestContext, scopes: list[str], *, lifetime_s: int = LIFETIME_S
         "scopes": sorted(set(scopes)),
         "request_id": ctx.correlation_id,
     }
+    if ctx.org_id:
+        claims["org"] = ctx.org_id
     header = {"alg": "EdDSA", "typ": "JWT", "kid": settings().versioning_kid}
     signing_input = f"{_b64(json.dumps(header, separators=(',', ':')).encode())}.{_b64(json.dumps(claims, separators=(',', ':')).encode())}"
     return f"{signing_input}.{_b64(signing_key().sign(signing_input.encode()))}"

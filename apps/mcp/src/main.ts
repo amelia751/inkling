@@ -11,32 +11,30 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListResourcesRequestSchema, ListToolsRequestSchema, ReadResourceRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { readFileSync } from "node:fs";
+import { authHeaders, loadConfig, NAMING } from "./config.js";
 import { createViewers } from "./viewers.js";
 
-type Naming = { envPrefix: string; resourcePrefix: string; displayName: string };
 type Result = { ok: boolean; status?: number; data: any };
 
-const NAMING: Naming = JSON.parse(readFileSync(new URL("../../../schemas/naming.json", import.meta.url), "utf8"));
-/** The one place this server reads the environment: `env("WEB_URL")` → `<envPrefix>WEB_URL`. */
-const env = (name: string) => process.env[`${NAMING.envPrefix}${name}`];
-
-const BASE = (env("WEB_URL") ?? "http://localhost:5173").replace(/\/$/, "");
-const AUTHOR = env("MCP_AUTHOR") ?? "agent:mcp";
+const config = loadConfig();
+const BASE = config.webUrl;
+/** With an API key the API knows the author; `author` is the keyless dev fallback (todo9 Phase 8). */
+const authored = <T extends object>(body: T) => (config.apiKey ? body : { ...body, author: config.author });
 // Sandboxed viewers (todo10 Phase 5) of this workspace's active plugins, served as MCP Apps.
 // The kernel's Workspace and Plugin APIs answer at <envPrefix>API_URL (default: the web URL, which proxies /api).
 const viewers = createViewers({
   prefix: NAMING.resourcePrefix,
   displayName: NAMING.displayName,
-  apiBase: (env("API_URL") ?? BASE).replace(/\/$/, ""),
+  apiBase: config.apiUrl,
   webBase: BASE,
-  workspace: env("MCP_WORKSPACE"),
+  workspace: config.workspace,
+  auth: authHeaders(config),
 });
 
 async function http(method: string, path: string, body?: unknown): Promise<Result> {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: { ...authHeaders(config), ...(body ? { "Content-Type": "application/json" } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -126,9 +124,9 @@ async function call(name: string, args: Record<string, any>): Promise<Result> {
     case "validate_environment":
       return http("POST", "/api/environments/validate", args.spec);
     case "patch_environment":
-      return http("PATCH", `/api/environments/${encodeURIComponent(args.projectId)}`, { patch: args.patch, author: AUTHOR });
+      return http("PATCH", `/api/environments/${encodeURIComponent(args.projectId)}`, authored({ patch: args.patch }));
     case "set_environment":
-      return http("PUT", `/api/environments/${encodeURIComponent(args.projectId)}`, { environment: args.spec, author: AUTHOR });
+      return http("PUT", `/api/environments/${encodeURIComponent(args.projectId)}`, authored({ environment: args.spec }));
     default:
       return { ok: false, data: { error: `Unknown tool "${name}"` } };
   }

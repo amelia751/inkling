@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import type http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { defineConfig, type Plugin, type ProxyOptions } from "vite";
@@ -55,14 +56,47 @@ function serviceToken(): string | undefined {
   agentToken = new RegExp(`^${NAMING.envPrefix}AGENT_TOKEN=(.+)$`, "m").exec(fs.readFileSync(file, "utf8"))?.[1]?.trim();
   return agentToken;
 }
+/**
+ * <envPrefix>WEB_AUTH_MODE=workos (todo9 Phase 5, as the web nginx does): before proxying, ask the API
+ * (`/api/auth/verify` with the browser's cookie) for the person's WorkOS access token and forward it
+ * as `Authorization: Bearer`; the service token then travels in `X-Agent-Service-Token`. In `dev`
+ * mode the service token is sent in both headers, so an agent of either version accepts it.
+ */
+const agentAuthMode = env("WEB_AUTH_MODE") === "workos" ? "workos" : "dev";
+if (agentAuthMode === "workos" && !kernelUrl) throw new Error(`${NAMING.envPrefix}WEB_AUTH_MODE=workos needs ${NAMING.envPrefix}API_URL (the API answers /api/auth/verify)`);
+const AGENT_SERVICE_TOKEN_HEADER = "x-agent-service-token";
+async function verifyForAgent(req: http.IncomingMessage, res: http.ServerResponse): Promise<string | undefined> {
+  if (agentAuthMode !== "workos") return undefined;
+  const fail = (status: number, error: string) => {
+    res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify({ error }));
+    return req.url;
+  };
+  let verified: Response;
+  try {
+    verified = await fetch(`${kernelUrl}/api/auth/verify`, { headers: { cookie: req.headers.cookie ?? "" } });
+  } catch {
+    return fail(503, "the API is unreachable");
+  }
+  if (verified.status === 401) return fail(401, "sign in required");
+  if (!verified.ok) return fail(503, `the API answered ${verified.status}`);
+  const accessToken = verified.headers.get("x-access-token");
+  // 200 without a token: the API runs in dev mode; the agent then needs only the service token.
+  if (accessToken) req.headers.authorization = `Bearer ${accessToken}`;
+  else delete req.headers.authorization;
+  return undefined;
+}
 const agentProxy: Record<string, ProxyOptions> = {
   "/api/agent": {
     target: AGENT_URL,
     rewrite: (p: string) => p.replace(/^\/api\/agent/, "/v1"),
+    // Runs (awaited) before the proxy: a string means "answered here" (401/503 already written).
+    bypass: (req, res) => (res ? verifyForAgent(req, res) : undefined),
     configure: (proxy) => {
       proxy.on("proxyReq", (req) => {
         const token = serviceToken();
-        if (token) req.setHeader("authorization", `Bearer ${token}`);
+        if (!token) return;
+        req.setHeader(AGENT_SERVICE_TOKEN_HEADER, token);
+        if (agentAuthMode === "dev") req.setHeader("authorization", `Bearer ${token}`);
       });
       // Event streams must not be buffered or compressed on the way through.
       proxy.on("proxyRes", (res) => {

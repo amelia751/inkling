@@ -20,7 +20,7 @@ that are missing or invalid, never their values.
 | API_DATA_DIR              | apps/api/.data                   | dev-only local data (SQLite file, local derived blobs) |
 | API_SEED_ROOT             | <repo>/seed-data                 | the local BlobStore root for seed assets |
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
-| API_SAMPLE_MEMBERS        | user:local-expert                | todo14 D3: comma-separated dev principals that stay read-only (`viewer`) members of the Samples org; everyone else starts empty. Dev mode (trusted headers) only |
+| API_SAMPLE_MEMBERS        | user:local-expert                | todo14 D3: comma-separated dev principals that stay read-only (`viewer`) members of the Samples org; everyone else starts empty. Dev mode (trusted headers) only; ignored in `workos` mode |
 | API_SAMPLES_ENABLED       | 1                                | todo14 §8: "Try a sample" (served as `samples` in `GET /api/v1/features`) |
 | API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
 | API_HOUSEKEEPING_INTERVAL_S | 10                             | background event delivery + lease reaping when Redis backs the queue/bus (0 = off) |
@@ -61,6 +61,22 @@ that are missing or invalid, never their values.
 | API_TEXT_CHECK            | dev                              | free-text check for probe answers, names and annotation text (`dev`: vocabulary allowlist; Sensitive Data Protection later) |
 | API_DROP_UNDO_SECONDS     | 30                               | todo13 D6: how long an applied drop plan can be undone |
 
+Accounts (todo9 Phase 1). `dev` keeps today's header identity; `workos` signs people in with
+WorkOS AuthKit (`studio_api/auth/`). `workos` mode requires the four keys marked *, needs
+`API_DEV_TRUST_HEADERS` off (its default in that mode) and refuses to start otherwise. The
+SDK's own unprefixed `WORKOS_*` variables are never read.
+
+| Key (without prefix)      | Default                          | Meaning |
+|---------------------------|----------------------------------|---------|
+| API_AUTH_MODE             | dev                              | `dev` (trusted dev headers) or `workos` (AuthKit sessions) |
+| API_WORKOS_API_KEY *      | (none)                           | `sk_…` server key (secret; the worker reads the same key) |
+| API_WORKOS_CLIENT_ID *    | (none)                           | `client_…`; also names the JWKS URL |
+| API_WORKOS_COOKIE_PASSWORD * | (none)                        | seals the session cookie; must be a Fernet key (`Fernet.generate_key()`), the same on every replica (secret) |
+| API_WORKOS_REDIRECT_URI * | (none)                           | `https://<host>/api/auth/callback`, exactly as in the WorkOS dashboard |
+| API_WORKOS_ISSUER         | (none: not checked)              | expected `iss` of access tokens |
+| API_WORKOS_BASE_URL       | https://api.workos.com/          | WorkOS API base; WorkOS Emulate (`http://localhost:4100/`) in dev and CI |
+| API_PUBLIC_URL            | (none: from the redirect URI)    | the Studio's origin, for `return_to` checks and Admin Portal return URLs |
+
 Feature flags (todo13 §7.1), served at `GET /api/v1/features` and read once by the web app. Each
 gates its UI and its routes (a disabled route answers 404; `kernel/features.py`). Default: off
 in production, on in development and test (todo13 §7.4: dev runs with every flag on).
@@ -91,16 +107,17 @@ from .naming import REPO_ROOT, naming
 
 
 class SettingsError(RuntimeError):
-    """Configuration is missing or invalid. The message names keys, never values."""
+    """Configuration is missing or invalid. The message names keys, never values; `hints` say
+    which rule a key broke (still names only)."""
 
-    def __init__(self, missing: list[str], invalid: list[str]):
-        self.missing, self.invalid = missing, invalid
+    def __init__(self, missing: list[str], invalid: list[str], hints: list[str] | None = None):
+        self.missing, self.invalid, self.hints = missing, invalid, hints or []
         parts = []
         if missing:
             parts.append("missing " + ", ".join(missing))
         if invalid:
             parts.append("invalid " + ", ".join(invalid))
-        super().__init__("configuration error: " + "; ".join(parts))
+        super().__init__("configuration error: " + "; ".join(parts) + (f" ({'; '.join(self.hints)})" if self.hints else ""))
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
@@ -129,7 +146,7 @@ class Settings(BaseModel):
     dev_principal: str = "user:local-expert"
     # todo14 D3/D7: dev principals that stay (read-only) members of the Samples org, comma
     # separated. Everyone else starts with an empty personal org. Only honoured in dev mode
-    # (trusted headers); TODO(todo9): ignored once a `workos` auth mode exists.
+    # (trusted headers); ignored when API_AUTH_MODE=workos.
     sample_members: str = "user:local-expert"
     # todo14 §8: "Try a sample" (the web hides it when off).
     samples_enabled: bool = True
@@ -211,6 +228,20 @@ class Settings(BaseModel):
     # are todo13-entry's (`kernel/features.py`); drop plans read them through `drop_flags`.
     drop_undo_seconds: int = 30
 
+    # ---- Accounts (todo9 Phase 1): `dev` = trusted headers, `workos` = AuthKit sessions. ----
+    auth_mode: Literal["dev", "workos"] = "dev"
+    workos_api_key: str | None = None
+    workos_client_id: str | None = None
+    workos_cookie_password: str | None = None
+    workos_redirect_uri: str | None = None
+    workos_issuer: str | None = None
+    workos_base_url: str | None = None
+    public_url: str | None = None
+
+    @property
+    def workos(self) -> bool:
+        return self.auth_mode == "workos"
+
     # ---- Feature flags (todo13 §7.1): None = the default for `env` (off in production). ----
     feature_chat_drops: bool | None = None
     feature_auto_apply: bool | None = None
@@ -218,8 +249,9 @@ class Settings(BaseModel):
     feature_datasets_tab: bool | None = None
 
     def sample_member(self, principal: str) -> bool:
-        """todo14 D3: whether a principal keeps its Samples membership (dev mode only)."""
-        return self.dev_trust_headers and principal in {p.strip() for p in self.sample_members.split(",") if p.strip()}
+        """todo14 D3: whether a principal keeps its Samples membership (dev mode only; ignored in
+        `workos` mode, where sign-in bootstraps an empty personal org)."""
+        return not self.workos and self.dev_trust_headers and principal in {p.strip() for p in self.sample_members.split(",") if p.strip()}
 
     def feature(self, name: str) -> bool:
         """A todo13 flag by short name (`chat_drops`, `auto_apply`, `fast_path`, `datasets_tab`)."""
@@ -297,6 +329,15 @@ _KEYS: dict[str, str] = {
     "feature_fast_path": "API_FEATURE_FAST_PATH",
     "feature_datasets_tab": "API_FEATURE_DATASETS_TAB",
     "drop_undo_seconds": "API_DROP_UNDO_SECONDS",
+    # Accounts (todo9).
+    "auth_mode": "API_AUTH_MODE",
+    "workos_api_key": "API_WORKOS_API_KEY",
+    "workos_client_id": "API_WORKOS_CLIENT_ID",
+    "workos_cookie_password": "API_WORKOS_COOKIE_PASSWORD",
+    "workos_redirect_uri": "API_WORKOS_REDIRECT_URI",
+    "workos_issuer": "API_WORKOS_ISSUER",
+    "workos_base_url": "API_WORKOS_BASE_URL",
+    "public_url": "API_PUBLIC_URL",
 }
 _UNPREFIXED = {"git_sha": "GIT_SHA", "s3_access_key_id": "AWS_ACCESS_KEY_ID", "s3_secret_access_key": "AWS_SECRET_ACCESS_KEY"}
 
@@ -314,7 +355,9 @@ def _lookup() -> tuple[dict[str, str], bool]:
     """Raw string values by field name, from the environment then (dev) secrets/api.env."""
     prefix = naming()["envPrefix"]
     production = os.environ.get(f"{prefix}ENV", "development") == "production"
-    file_env = {} if production else _read_env_file(REPO_ROOT / "secrets" / "api.env")
+    # secrets/workos.env (todo9) holds the WorkOS staging key and client id for a dev api in
+    # `workos` mode; secrets/api.env wins over it.
+    file_env = {} if production else {**_read_env_file(REPO_ROOT / "secrets" / "workos.env"), **_read_env_file(REPO_ROOT / "secrets" / "api.env")}
 
     def get(name: str, *aliases: str) -> str | None:
         for n in (f"{prefix}{name}",):
@@ -375,6 +418,7 @@ def load_settings(**overrides) -> Settings:
         values["secret_key"] = key_file.read_text().strip()
     values.setdefault("database_url", f"sqlite:///{data_dir / 'api.db'}")
     values.setdefault("secret_key", "")
+    hints = _check_auth(values, missing, invalid_early)
     invalid: list[str] = list(invalid_early)
     try:
         s = Settings(**values)
@@ -382,8 +426,37 @@ def load_settings(**overrides) -> Settings:
         # Only the field names: pydantic's own message would include the offending value.
         invalid = sorted({*invalid, *(key_name(str(err["loc"][0])) for err in e.errors() if err.get("loc"))})
     if missing or invalid:
-        raise SettingsError(sorted(set(missing)), invalid)
+        raise SettingsError(sorted(set(missing)), invalid, hints)
     return s
+
+
+def _truthy(v: object) -> bool:
+    return str(v).strip().lower() in ("1", "true", "yes", "on") if not isinstance(v, bool) else v
+
+
+def _check_auth(values: dict, missing: list[str], invalid: list[str]) -> list[str]:
+    """todo9 Phase 1: `workos` mode needs its four keys, a Fernet cookie key and no trusted
+    headers. Trusted headers default to off in that mode; set on, the api refuses to start."""
+    if str(values.get("auth_mode") or "dev") != "workos":
+        return []
+    hints: list[str] = []
+    for f in ("workos_api_key", "workos_client_id", "workos_cookie_password", "workos_redirect_uri"):
+        if not values.get(f):
+            missing.append(key_name(f))
+    if "dev_trust_headers" not in values:
+        values["dev_trust_headers"] = False
+    elif _truthy(values["dev_trust_headers"]):
+        invalid.append(key_name("dev_trust_headers"))
+        hints.append(f"{key_name('dev_trust_headers')} must be 0 when {key_name('auth_mode')} is workos")
+    if pw := values.get("workos_cookie_password"):
+        from cryptography.fernet import Fernet
+
+        try:
+            Fernet(str(pw))
+        except (ValueError, TypeError):
+            invalid.append(key_name("workos_cookie_password"))
+            hints.append(f"{key_name('workos_cookie_password')} must be a Fernet key (32 url-safe base64 bytes)")
+    return hints
 
 
 _settings: Settings | None = None

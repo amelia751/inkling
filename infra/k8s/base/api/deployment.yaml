@@ -54,6 +54,11 @@ spec:
           envFrom:
             - configMapRef:
                 name: api-config
+            # WorkOS (todo9): INKLING_API_WORKOS_API_KEY, _COOKIE_PASSWORD, _CLIENT_ID. Optional:
+            # absent in dev mode. api-secrets stays last, so a key there still wins.
+            - secretRef:
+                name: workos-secrets
+                optional: true
             - secretRef:
                 name: api-secrets
           resources:

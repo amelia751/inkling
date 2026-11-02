@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { EmptyState } from "@studio/ui/ui/empty-state";
 import { Loader } from "@studio/ui/ui/loader";
 import { Link } from "react-router";
@@ -12,15 +12,32 @@ import { DropdownMenuItem } from "@studio/ui/ui/dropdown-menu";
 import { Input } from "@studio/ui/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@studio/ui/ui/select";
 import { CopyId, DataTable, Field, invalidProps, NoResults, OutlineLabel, RowMenu, SearchField, SettingsDialog, SettingsPage, fmtDate, fmtDateTime, useCopy, type Column } from "@/studio/components/settings/kit";
-import { API_KEY_SCOPES, AUDIT_ACTIONS, AUTH, ORG, useAccount, type ApiKey, type AuditEvent } from "@/studio/lib/account-mock";
+import {
+  auditCsvUrl,
+  errorText,
+  stepUpUrl,
+  toastDone,
+  toastError,
+  useAdminPortal,
+  useApiKeys,
+  useAuditLog,
+  useCreateApiKey,
+  useOrgSecurity,
+  useOrgSettings,
+  usePatchOrg,
+  usePermission,
+  useProjectMemberCounts,
+  useRevokeApiKey,
+  useSetMfaRequired,
+} from "@/studio/lib/org-api";
 import { useProjectList } from "@/studio/lib/projects-api";
 import { newProjectUrl, projectUrl, settingsUrl } from "@/studio/lib/routes";
-import type { ProjectSummary } from "@studio/contracts";
+import { API_KEY_SCOPES, type AdminPortalIntent, type ApiKey, type AuditEvent, type ProjectSummary } from "@studio/contracts";
 
 /** Organization › Projects: every project in the org, with who's in it. */
 export function OrgProjectsPage() {
   const { data: projects = [], isLoading } = useProjectList();
-  const team = useAccount((s) => s.projectTeam);
+  const counts = useProjectMemberCounts(useMemo(() => projects.map((p) => p.id), [projects]));
   const [q, setQ] = useState("");
   const rows = projects.filter((p) => !q || `${p.title} ${p.id}`.toLowerCase().includes(q.toLowerCase()));
   const columns: Column<ProjectSummary>[] = [
@@ -37,7 +54,7 @@ export function OrgProjectsPage() {
         </div>
       ),
     },
-    { key: "users", label: "Members", className: "tnum", render: (p) => <span className="text-muted-foreground">{team(p.id).length} users</span> },
+    { key: "users", label: "Members", className: "tnum", render: (p) => <span className="text-muted-foreground">{counts[p.id] === undefined ? "—" : `${counts[p.id]} ${counts[p.id] === 1 ? "user" : "users"}`}</span> },
     { key: "state", label: "Status", render: (p) => (p.archived ? <Badge theme="unknown">Archived</Badge> : <Badge theme="success">Active</Badge>) },
     { key: "created", label: "Created", render: (p) => <span className="text-muted-foreground">{fmtDate(p.createdAt)}</span> },
     {
@@ -89,76 +106,108 @@ function Section({ title, description, children, action }: { title: string; desc
   );
 }
 
-const MockNote = () => (
-  <Alert theme="info">Sign-in, SSO and directory settings are a mock. They will be set up through WorkOS (todo/todo9.md).</Alert>
-);
+/**
+ * Opens an Admin Portal link in a new tab. The link lasts 5 minutes, so it's generated on click;
+ * the tab is opened first (inside the click, so popup blockers allow it) and pointed at the link
+ * once the API answers.
+ */
+function useOpenAdminPortal() {
+  const portal = useAdminPortal();
+  const open = (intent: AdminPortalIntent) => {
+    const tab = window.open("", "_blank");
+    portal.mutate(intent, {
+      onSuccess: (url) => {
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = url;
+        } else window.open(url, "_blank", "noopener");
+      },
+      onError: (e) => {
+        tab?.close();
+        toastError(e);
+      },
+    });
+  };
+  return { open, pending: portal.isPending ? portal.variables : undefined };
+}
 
 /** Organization › Security: sign-in methods, MFA, SSO, directory sync, domains, sessions (WorkOS AuthKit + Admin Portal). */
 export function SecurityPage() {
-  const [methods, setMethods] = useState(AUTH.methods);
-  const [mfa, setMfa] = useState(AUTH.mfaRequired);
-  const [hours, setHours] = useState(String(AUTH.sessionHours));
-  const log = useAccount((s) => s.log);
+  const { data: security, isLoading, isError, error } = useOrgSecurity();
+  const canManage = usePermission("org:manage");
+  const setMfa = useSetMfaRequired();
+  const portal = useOpenAdminPortal();
+  const can = canManage && !!security;
+  const portalButton = (intent: AdminPortalIntent, label: React.ReactNode, testId: string) => (
+    <Button variant="outline" size="lg" disabled={!can || portal.pending === intent} onClick={() => portal.open(intent)} data-testid={testId}>
+      {portal.pending === intent ? <Loader size="s" /> : null}
+      {label}
+    </Button>
+  );
   return (
     <SettingsPage title="Security" description="How people sign in to this organization and how accounts are provisioned." testId="org-security">
-      <MockNote />
+      {isError && <Alert theme="danger">Couldn't load security settings: {errorText(error)}</Alert>}
+      {isLoading && (
+        <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader size="s" /> Loading
+        </span>
+      )}
       <div className="flex flex-col gap-4">
-        <Section title="Sign-in methods" description="Which ways members can sign in. Members using SSO always sign in through your identity provider.">
-          <ul className="flex flex-col gap-3">
-            {methods.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 text-sm">
-                <Checkbox id={`method-${m.id}`} checked={m.on} onCheckedChange={(v) => setMethods(methods.map((x) => (x.id === m.id ? { ...x, on: v === true } : x)))} />
-                <label htmlFor={`method-${m.id}`}>{m.name}</label>
-              </li>
-            ))}
-          </ul>
+        <Section title="Sign-in methods" description="Which ways members can sign in. These are set for every organization; members using SSO always sign in through your identity provider.">
+          {security?.methods.length ? (
+            <ul className="flex flex-col gap-3">
+              {security.methods.map((m) => (
+                <li key={m.id} className="flex items-center gap-3 text-sm">
+                  <Checkbox id={`method-${m.id}`} checked={m.on} disabled aria-readonly />
+                  <label htmlFor={`method-${m.id}`}>{m.name}</label>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">—</p>
+          )}
         </Section>
         <Section
           title="Multi-factor authentication"
-          description="Require an authenticator app for everyone who signs in with a password or magic link."
+          description="Require an authenticator app for everyone who signs in with a password or magic link. MFA doesn't apply to people who sign in with SSO: their identity provider handles it."
           action={
             <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={mfa} onCheckedChange={(v) => (setMfa(v === true), log("org.mfa_policy_changed", v ? "required" : "optional"))} data-testid="mfa-required" />
+              <Checkbox
+                checked={security?.mfaRequired ?? false}
+                disabled={!can || !security?.mfaEditable || setMfa.isPending}
+                onCheckedChange={(v) => setMfa.mutate(v === true, { onSuccess: (s) => toastDone(s.mfaRequired ? "MFA is now required" : "MFA is now optional"), onError: toastError })}
+                data-testid="mfa-required"
+              />
               Require MFA
             </label>
           }
-        />
+        >
+          {security && !security.mfaEditable ? <p className="text-sm text-muted-foreground">The MFA policy can't be changed from here yet. Contact support to change it.</p> : null}
+        </Section>
         <Section
           title="Single sign-on (SSO)"
-          description="Let members sign in with your organization's identity provider: Okta, Microsoft Entra ID, Google Workspace or any SAML/OIDC provider."
-          action={
-            <Button variant="outline" size="lg" onClick={() => log("org.admin_portal_opened", "sso")}>
-              {AUTH.sso ? "Manage" : "Set up SSO"} <ExternalLinkIcon />
-            </Button>
-          }
+          description="Let members sign in with your organization's identity provider: Okta, Microsoft Entra ID, Google Workspace or any SAML/OIDC provider. Once SSO is active, it replaces the other sign-in methods for this organization."
+          action={portalButton("sso", <>{security?.sso ? "Manage" : "Set up SSO"} <ExternalLinkIcon /></>, "admin-portal-sso")}
         >
-          <p className="text-sm text-muted-foreground">{AUTH.sso ? `${AUTH.sso.provider} · ${AUTH.sso.state}` : "Not configured. Opens the setup guide for your IT admin."}</p>
+          <p className="text-sm text-muted-foreground">{security?.sso ? `${security.sso.provider} · ${security.sso.state}` : "Not configured. Opens the setup guide for your IT admin in a new tab."}</p>
         </Section>
         <Section
           title="Directory sync (SCIM)"
           description="Add and remove members automatically from your directory, and map directory groups to roles."
-          action={
-            <Button variant="outline" size="lg" onClick={() => log("org.admin_portal_opened", "dsync")}>
-              Connect directory <ExternalLinkIcon />
-            </Button>
-          }
+          action={portalButton("dsync", <>{security?.directory ? "Manage directory" : "Connect directory"} <ExternalLinkIcon /></>, "admin-portal-dsync")}
         >
-          <p className="text-sm text-muted-foreground">{AUTH.directory ? `${AUTH.directory.provider}: ${AUTH.directory.users} users, ${AUTH.directory.groups} groups` : "No directory connected."}</p>
+          <p className="text-sm text-muted-foreground">{security?.directory ? `${security.directory.provider}: ${security.directory.users} users, ${security.directory.groups} groups` : "No directory connected."}</p>
         </Section>
         <Section
           title="Verified domains"
           description="People who sign up with an email at a verified domain join this organization automatically. Required for SSO."
-          action={
-            <Button variant="outline" size="lg" onClick={() => log("org.admin_portal_opened", "domain_verification")}>
-              <DomainIcon /> Add domain
-            </Button>
-          }
+          action={portalButton("domain_verification", <><DomainIcon /> Add domain</>, "admin-portal-domains")}
         >
-          {ORG.domains.length === 0 ? (
+          {!security?.domains.length ? (
             <p className="text-sm text-muted-foreground">No domains yet.</p>
           ) : (
             <ul className="flex flex-col gap-2 text-sm">
-              {ORG.domains.map((d) => (
+              {security.domains.map((d) => (
                 <li key={d.domain} className="flex items-center gap-2">
                   {d.domain} <Badge theme={d.state === "verified" ? "success" : "warning"}>{d.state}</Badge>
                 </li>
@@ -166,21 +215,10 @@ export function SecurityPage() {
             </ul>
           )}
         </Section>
-        <Section title="Sessions" description="How long someone stays signed in without activity.">
-          <div className="flex items-center gap-3 text-sm">
-            <Select value={hours} onValueChange={setHours}>
-              <SelectTrigger className="w-40 rounded-lg">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["1", "8", "12", "24", "168"].map((h) => (
-                  <SelectItem key={h} value={h}>
-                    {h === "168" ? "7 days" : `${h} hours`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+        <Section title="Sessions" description="How long someone stays signed in. This is the same for every organization.">
+          <p className="text-sm" data-testid="session-length">
+            {security ? `People are signed out after ${security.sessionHours === 1 ? "1 hour" : `${security.sessionHours} hours`} at most, and after an hour without activity.` : "—"}
+          </p>
         </Section>
       </div>
     </SettingsPage>
@@ -197,10 +235,13 @@ const EXPIRY = [
 
 /** Organization › API keys: org-scoped secrets for scripts, PACS bridges and MCP clients (WorkOS API keys / M2M). */
 export function ApiKeysPage() {
-  const { apiKeys, revokeKey } = useAccount();
+  const keys = useApiKeys();
+  const revoke = useRevokeApiKey();
+  const canManage = usePermission("apikeys:manage");
   const [q, setQ] = useState("");
   const [creating, setCreating] = useState(false);
-  const rows = apiKeys.filter((k) => !q || `${k.name} ${k.prefix} ${k.id}`.toLowerCase().includes(q.toLowerCase()));
+  const offline = keys.isError;
+  const rows = (keys.data ?? []).filter((k) => !q || `${k.name} ${k.prefix} ${k.id}`.toLowerCase().includes(q.toLowerCase()));
   const columns: Column<ApiKey>[] = [
     {
       key: "name",
@@ -209,7 +250,7 @@ export function ApiKeysPage() {
       render: (k) => (
         <div className="min-w-0">
           <div className="truncate font-semibold leading-5">{k.name}</div>
-          <div className="font-mono text-code text-muted-foreground">{k.prefix}••••</div>
+          <div className="font-mono text-code text-muted-foreground">{k.prefix}</div>
         </div>
       ),
     },
@@ -222,13 +263,14 @@ export function ApiKeysPage() {
       key: "menu",
       label: <span className="sr-only">Actions</span>,
       className: "w-12",
-      render: (k) => (
-        <RowMenu label={`Actions for ${k.name}`}>
-          <DropdownMenuItem className="text-danger focus:text-danger" onSelect={() => revokeKey(k.id)}>
-            <DeleteIcon /> Revoke key
-          </DropdownMenuItem>
-        </RowMenu>
-      ),
+      render: (k) =>
+        canManage && (
+          <RowMenu label={`Actions for ${k.name}`}>
+            <DropdownMenuItem className="text-danger focus:text-danger" onSelect={() => revoke.mutate(k.id, { onSuccess: () => toastDone(`Revoked ${k.name}`), onError: toastError })}>
+              <DeleteIcon /> Revoke key
+            </DropdownMenuItem>
+          </RowMenu>
+        ),
     },
   ];
   return (
@@ -238,37 +280,73 @@ export function ApiKeysPage() {
       testId="org-api-keys"
       filters={<SearchField value={q} onChange={setQ} placeholder="Search by name or key" />}
       actions={
-        <Button size="lg" onClick={() => setCreating(true)} data-testid="api-key-create">
+        <Button size="lg" onClick={() => setCreating(true)} disabled={!canManage || offline} title={offline ? "API keys need the API" : !canManage ? "You don't have permission to manage API keys" : undefined} data-testid="api-key-create">
           <ApiKeyIcon /> Create API key
         </Button>
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(k) => k.id} empty={
-          <EmptyState
-            art="key"
-            title="No API keys yet"
-            description="An API key lets scripts and pipelines upload data and read annotations on behalf of this organization."
-            actions={<Button variant="outline" size="lg" onClick={() => setCreating(true)}>Create API key</Button>}
-          />
-        } testId="api-keys-table" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(k) => k.id}
+        empty={
+          keys.isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader size="s" /> Loading keys
+            </span>
+          ) : offline ? (
+            `Couldn't load API keys: ${errorText(keys.error)}`
+          ) : q ? (
+            <NoResults what="keys" onClear={() => setQ("")} />
+          ) : (
+            <EmptyState
+              art="key"
+              title="No API keys yet"
+              description="An API key lets scripts and pipelines upload data and read annotations on behalf of this organization."
+              actions={
+                canManage ? (
+                  <Button variant="outline" size="lg" onClick={() => setCreating(true)}>
+                    Create API key
+                  </Button>
+                ) : undefined
+              }
+            />
+          )
+        }
+        testId="api-keys-table"
+      />
       <CreateKeyDialog open={creating} onOpenChange={setCreating} />
     </SettingsPage>
   );
 }
 
 function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const createKey = useAccount((s) => s.createKey);
+  const createKey = useCreateApiKey();
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const nameError = nameTouched && !name.trim() ? "Enter a name" : null;
   const [expiry, setExpiry] = useState("90");
   const [scopes, setScopes] = useState<string[]>(["datasets:read"]);
   const [secret, setSecret] = useState<string | null>(null);
+  const [stepUp, setStepUp] = useState<string | null>(null);
   const { copied, copy } = useCopy();
   const close = () => {
     onOpenChange(false);
-    setTimeout(() => (setName(""), setNameTouched(false), setExpiry("90"), setScopes(["datasets:read"]), setSecret(null)), 200);
+    setTimeout(() => (setName(""), setNameTouched(false), setExpiry("90"), setScopes(["datasets:read"]), setSecret(null), setStepUp(null), createKey.reset()), 200);
   };
+  const submit = () =>
+    createKey.mutate(
+      { name: name.trim(), expiresInDays: expiry === "never" ? null : Number(expiry), scopes },
+      {
+        onSuccess: (r) => setSecret(r.secret),
+        onError: (e) => {
+          // Creating a key needs a sign-in from the last 10 minutes (Phase 8).
+          const url = stepUpUrl(e);
+          if (url) setStepUp(url);
+          else toastError(e);
+        },
+      },
+    );
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(o) : close())}>
       {secret ? (
@@ -283,6 +361,22 @@ function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </Button>
           </div>
         </SettingsDialog>
+      ) : stepUp ? (
+        <SettingsDialog
+          title="Sign in again"
+          footer={
+            <>
+              <Button variant="outline" size="lg" onClick={close}>
+                Cancel
+              </Button>
+              <Button size="lg" onClick={() => window.location.assign(stepUp)} data-testid="api-key-step-up">
+                Sign in
+              </Button>
+            </>
+          }
+        >
+          <p className="text-sm text-complementary">Creating an API key needs a recent sign-in. Sign in again, then create the key.</p>
+        </SettingsDialog>
       ) : (
         <SettingsDialog
           title="Create API key"
@@ -291,7 +385,7 @@ function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
               <Button variant="outline" size="lg" onClick={close}>
                 Cancel
               </Button>
-              <Button size="lg" disabled={!name.trim() || scopes.length === 0} onClick={() => setSecret(createKey(name.trim(), expiry === "never" ? null : Number(expiry), scopes).secret)} data-testid="api-key-submit">
+              <Button size="lg" disabled={!name.trim() || scopes.length === 0 || createKey.isPending} onClick={submit} data-testid="api-key-submit">
                 Create key
               </Button>
             </>
@@ -331,22 +425,31 @@ function CreateKeyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
   );
 }
 
-/** Organization › Audit log: who did what, from where (WorkOS Audit Logs; exportable as CSV there). */
+/** Organization › Audit log: who did what, from where. Filtered and paged by the API; exportable as CSV. */
 export function AuditLogPage() {
-  const audit = useAccount((s) => s.audit);
-  const [q, setQ] = useState("");
+  const canRead = usePermission("audit:read");
+  const [actorInput, setActorInput] = useState("");
+  const actor = useDeferredValue(actorInput.trim());
   const [action, setAction] = useState("all");
-  const rows = useMemo(
-    () => audit.filter((e) => (action === "all" || e.action === action) && (!q || `${e.actor} ${e.target} ${e.action}`.toLowerCase().includes(q.toLowerCase()))),
-    [audit, q, action],
-  );
+  const filters = useMemo(() => ({ actor: actor || undefined, action: action === "all" ? undefined : action }), [actor, action]);
+  const log = useAuditLog(filters);
+  const rows = useMemo(() => log.data?.pages.flatMap((p) => p.events) ?? [], [log.data]);
+  // The action filter offers every action seen so far (the API has no list of them).
+  const seen = useRef(new Set<string>());
+  const [actions, setActions] = useState<string[]>([]);
+  useEffect(() => {
+    const before = seen.current.size;
+    rows.forEach((e) => seen.current.add(e.action));
+    if (seen.current.size !== before) setActions([...seen.current].sort());
+  }, [rows]);
   const columns: Column<AuditEvent>[] = [
     { key: "at", label: "Date and time (UTC)", className: "whitespace-nowrap", render: (e) => <span className="tnum text-muted-foreground">{fmtDateTime(e.at)}</span> },
-    { key: "actor", label: "Actor", render: (e) => <span className="font-semibold">{e.actor}</span> },
+    { key: "actor", label: "Actor", render: (e) => <span className="font-semibold" title={e.actorId}>{e.actor}</span> },
     { key: "action", label: "Action", render: (e) => <span className="font-mono text-code">{e.action}</span> },
     { key: "target", label: "Target", className: "w-[30%]", render: (e) => <span className="line-clamp-1">{e.target}</span> },
-    { key: "ip", label: "IP address", render: (e) => <span className="tnum font-mono text-code text-muted-foreground">{e.ip}</span> },
+    { key: "ip", label: "IP address", render: (e) => <span className="tnum font-mono text-code text-muted-foreground">{e.ip ?? "—"}</span> },
   ];
+  const filtered = !!actorInput || action !== "all";
   return (
     <SettingsPage
       title="Audit log"
@@ -354,14 +457,14 @@ export function AuditLogPage() {
       testId="org-audit-log"
       filters={
         <>
-          <SearchField value={q} onChange={setQ} placeholder="Search by person or target" />
+          <SearchField value={actorInput} onChange={setActorInput} placeholder="Filter by person" />
           <Select value={action} onValueChange={setAction}>
-            <SelectTrigger className="h-9 w-56 rounded-[10px]">
+            <SelectTrigger className="h-9 w-56 rounded-[10px]" data-testid="audit-action">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All actions</SelectItem>
-              {AUDIT_ACTIONS.map((a) => (
+              {(action === "all" || actions.includes(action) ? actions : [...actions, action]).map((a) => (
                 <SelectItem key={a} value={a}>
                   {a}
                 </SelectItem>
@@ -371,53 +474,95 @@ export function AuditLogPage() {
         </>
       }
       actions={
-        <Button variant="outline" size="lg" disabled title="Available once audit logs are stored in WorkOS">
-          Export CSV
-        </Button>
+        canRead && !log.isError ? (
+          <Button variant="outline" size="lg" asChild>
+            <a href={auditCsvUrl(filters)} download data-testid="audit-export">
+              Export CSV
+            </a>
+          </Button>
+        ) : (
+          <Button variant="outline" size="lg" disabled title={log.isError ? "The audit log needs the API" : "You don't have permission to read the audit log"}>
+            Export CSV
+          </Button>
+        )
       }
     >
-      <DataTable columns={columns} rows={rows} rowKey={(e) => e.id} empty={q || action !== "all" ? <NoResults what="events" onClear={() => (setQ(""), setAction("all"))} /> : "No events yet."} testId="audit-table" />
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(e) => e.id}
+        empty={
+          log.isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader size="s" /> Loading events
+            </span>
+          ) : log.isError ? (
+            `Couldn't load the audit log: ${errorText(log.error)}`
+          ) : filtered ? (
+            <NoResults what="events" onClear={() => (setActorInput(""), setAction("all"))} />
+          ) : (
+            "No events yet."
+          )
+        }
+        testId="audit-table"
+      />
+      {log.hasNextPage && (
+        <Button variant="outline" size="lg" className="w-fit self-center" disabled={log.isFetchingNextPage} onClick={() => void log.fetchNextPage()} data-testid="audit-more">
+          {log.isFetchingNextPage ? <Loader size="s" /> : null} Load older events
+        </Button>
+      )}
     </SettingsPage>
   );
 }
 
 /** Organization › Settings: name, data retention and AI assistance (Nebius "Enable zero data retention"). */
 export function OrgSettingsPage() {
-  const log = useAccount((s) => s.log);
-  const [name, setName] = useState(ORG.name);
-  const [zdr, setZdr] = useState(ORG.zeroRetention);
-  const [ai, setAi] = useState(ORG.aiAssist);
-  const nameError = name.trim() ? null : "Enter a name";
-  const dirty = name !== ORG.name || zdr !== ORG.zeroRetention || ai !== ORG.aiAssist;
+  const { data: org, isError, error } = useOrgSettings();
+  const canManage = usePermission("org:manage");
+  const patch = usePatchOrg();
+  const [name, setName] = useState("");
+  const [zdr, setZdr] = useState(false);
+  const [ai, setAi] = useState(false);
+  // The form starts from the saved settings, and again after each save.
+  useEffect(() => {
+    if (!org) return;
+    setName(org.name);
+    setZdr(org.zeroRetention);
+    setAi(org.aiAssist);
+  }, [org]);
+  const nameError = org && !name.trim() ? "Enter a name" : null;
+  const dirty = !!org && (name !== org.name || zdr !== org.zeroRetention || ai !== org.aiAssist);
+  const editable = !!org && canManage;
   const save = () => {
-    Object.assign(ORG, { name, zeroRetention: zdr, aiAssist: ai });
-    log("org.settings_updated", name);
-    setName(name);
+    if (!org) return;
+    const body = { ...(name !== org.name ? { name: name.trim() } : {}), ...(zdr !== org.zeroRetention ? { zeroRetention: zdr } : {}), ...(ai !== org.aiAssist ? { aiAssist: ai } : {}) };
+    patch.mutate(body, { onSuccess: () => toastDone("Organization settings saved"), onError: toastError });
   };
   return (
     <SettingsPage title="Settings" testId="org-settings">
       <div className="flex max-w-[458px] flex-col gap-6">
+        {isError && <Alert theme="danger">Couldn't load the organization: {errorText(error)}</Alert>}
         <Field label="Organization name" htmlFor="org-name" required error={nameError}>
-          <Input id="org-name" inputSize="lg" value={name} onChange={(e) => setName(e.target.value)} {...invalidProps("org-name", nameError)} />
+          <Input id="org-name" inputSize="lg" value={name} disabled={!editable} onChange={(e) => setName(e.target.value)} {...invalidProps("org-name", nameError)} />
         </Field>
         <Field label="Created">
-          <span className="text-sm text-muted-foreground">{fmtDate(ORG.createdAt)}</span>
+          <span className="text-sm text-muted-foreground">{fmtDate(org?.createdAt)}</span>
         </Field>
         <label className="flex items-start gap-2.5 text-sm">
-          <Checkbox className="mt-0.5" checked={zdr} onCheckedChange={(v) => setZdr(v === true)} data-testid="zero-retention" />
+          <Checkbox className="mt-0.5" checked={zdr} disabled={!editable} onCheckedChange={(v) => setZdr(v === true)} data-testid="zero-retention" />
           <span>
             Enable zero data retention
             <span className="mt-0.5 block leading-5 text-muted-foreground">AI providers may not store prompts, images or outputs from this organization.</span>
           </span>
         </label>
         <label className="flex items-start gap-2.5 text-sm">
-          <Checkbox className="mt-0.5" checked={ai} onCheckedChange={(v) => setAi(v === true)} />
+          <Checkbox className="mt-0.5" checked={ai} disabled={!editable} onCheckedChange={(v) => setAi(v === true)} data-testid="ai-assist" />
           <span>
             Allow AI suggestions
             <span className="mt-0.5 block leading-5 text-muted-foreground">Members can ask for AI contours and labels. Every suggestion is marked and needs a person to accept it.</span>
           </span>
         </label>
-        <Button size="lg" className="w-fit" disabled={!dirty || !name.trim()} onClick={save}>
+        <Button size="lg" className="w-fit" disabled={!editable || !dirty || !name.trim() || patch.isPending} onClick={save} data-testid="org-settings-save">
           Save changes
         </Button>
       </div>

@@ -1,5 +1,5 @@
 # Local stacks (todo/done/todo3.md D.2). Run from the repo root:
-#   pnpm infra:up    # profile deps: Postgres, Redis, S3 (RustFS) + bucket init, for `pnpm dev`
+#   pnpm infra:up    # profile deps: Postgres, Redis, S3 (RustFS) + bucket init, WorkOS Emulate, for `pnpm dev`
 #   pnpm stack:up    # profile full: deps + every app image behind one router on :8080
 #   pnpm infra:down / pnpm stack:down   (add `-v` to drop the data volumes)
 # App env: infra/docker/env/*.env (committed, non-secret dev defaults), overridden by the
@@ -105,6 +105,31 @@ services:
         done
     restart: "no"
 
+  # WorkOS Emulate (todo9 D8): the in-memory WorkOS API that a `workos`-mode api signs in against
+  # in dev and CI, seeded with infra/workos/emulate.yaml (users, orgs, roles, permissions; see
+  # infra/workos/README.md). Environment key sk_test_default, any client id. `iss` is pinned to
+  # the host URL so it's the same for apps on the host and in containers; the signing key is
+  # generated per start, so restart a workos-mode api after restarting this. Only the api (and
+  # worker) use it, and only with INKLING_API_AUTH_MODE=workos (docs/running.md, "Signing in").
+  workos-emulate:
+    image: ghcr.io/workos/emulate:0.18.0
+    profiles: [deps, full]
+    command: ["--host", "0.0.0.0", "--seed", "/seed/emulate.yaml", "--issuer", "http://localhost:${WORKOS_EMULATE_PORT:-4100}"]
+    environment:
+      NO_UPDATE_NOTIFIER: "1"
+      WORKOS_EMULATE_DISABLE_UPDATE_CHECK: "1"
+    ports: ["${WORKOS_EMULATE_PORT:-4100}:4100"]
+    volumes:
+      - ../workos/emulate.yaml:/seed/emulate.yaml:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4100/health"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
   # ---------------------------------------------------------------- full: apps ------------
   api-migrate:
     <<: *oneshot
@@ -136,7 +161,9 @@ services:
     <<: *app
     image: studio-worker:${TAG:-dev}
     build: { <<: *build, dockerfile: apps/worker/Dockerfile }
-    env_file: [env/worker.env]
+    env_file:
+      - env/worker.env
+      - { path: ../../secrets/worker.env, required: false }
     stop_grace_period: 300s
     depends_on:
       api: { condition: service_healthy }

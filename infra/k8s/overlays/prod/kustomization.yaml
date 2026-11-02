@@ -1,6 +1,6 @@
 # prod: managed Postgres/Redis/object storage (endpoints in endpoints.yaml), images pinned by
-# digest (CI bumps them; GitOps applies), more replicas, NetworkPolicies. Secrets are created
-# out of band (infra/k8s/README.md); they are never committed.
+# digest (CI bumps them; GitOps applies), more replicas, NetworkPolicies, sign-in with WorkOS
+# (auth.yaml). Secrets are created out of band (infra/k8s/README.md); they are never committed.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: studio
@@ -9,6 +9,7 @@ resources:
   - ../../base
   - trigger-auth.yaml
   - network-config.yaml
+  - workos-egress.yaml
 components:
   - ../../components/network-policies
 
@@ -37,6 +38,17 @@ patches:
   # Managed endpoints (non-secret parts; credentials and full URLs with passwords go in the
   # `<app>-secrets`, which override the ConfigMap because envFrom lists the Secret last).
   - path: endpoints.yaml
+  # Sign-in with WorkOS (todo9): api, agent and web in `workos` mode.
+  - path: auth.yaml
+  - target:
+      kind: Deployment
+      name: web
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: INKLING_WEB_AUTH_MODE
+          value: workos
   - target:
       kind: HorizontalPodAutoscaler
       name: web

@@ -37,7 +37,7 @@ def test_a_new_principal_starts_empty(client):
     assert client.put("/api/annotations/ws-a", json={"revision": 0, "annotations": [ANN]}, headers={**NEW, **ws("ws-a")}).status_code == 404
     with kdb.session_scope() as s:
         assert s.get(OrganizationMember, (projects.SAMPLES_ORG, "user:new-person")) is None
-        assert s.get(OrganizationMember, (projects.personal_org_id("user:new-person"), "user:new-person")).role == "owner"
+        assert s.get(OrganizationMember, (projects.personal_org_id("user:new-person"), "user:new-person")).role == "admin"
     # Their own projects work as before.
     p = client.post("/api/v1/projects", json={"title": "Mine"}, headers=NEW).json()
     assert [x["id"] for x in client.get("/api/v1/projects", headers=NEW).json()["projects"]] == [p["id"]]
@@ -118,3 +118,16 @@ def test_a_member_can_still_write_their_own_project(client):
 def test_features_carry_the_samples_switch(make_client):
     assert make_client().get("/api/v1/features").json()["samples"] is True
     assert make_client(samples_enabled=False).get("/api/v1/features").json()["samples"] is False
+
+
+def test_sample_members_is_ignored_in_workos_mode(make_client, fake_workos):
+    """todo14 D3: a signed-in person starts empty, even when named in API_SAMPLE_MEMBERS."""
+    from .auth_fakes import ADMIN_PERMS, signed_in, workos_settings
+
+    c = make_client(sample_editors=(), sample_members="user:user_A", **workos_settings())
+    assert not config.settings().sample_member("user:user_A")
+    signed_in(c, "user_A", "org_P1", ADMIN_PERMS)
+    r = c.get("/api/v1/projects")
+    assert r.status_code == 200 and r.json()["projects"] == [], r.text
+    with kdb.session_scope() as s:
+        assert s.get(OrganizationMember, (projects.SAMPLES_ORG, "user:user_A")) is None

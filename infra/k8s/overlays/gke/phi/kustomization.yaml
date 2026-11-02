@@ -20,6 +20,7 @@ components:
   # Off until their milestone (todo12 A10); each needs its Terraform switch applied first.
   # - components/pipeline-connectors   # Milestone 3 (pipeline_connectors_enabled)
   # - components/gpu-worker            # Milestone 4 (gpu_workers_enabled + L4 quota)
+  # - components/workos                # todo9 Phase 14: sign-in with WorkOS (see its header)
   - values   # keep last: replacements see everything above
 
 configMapGenerator:

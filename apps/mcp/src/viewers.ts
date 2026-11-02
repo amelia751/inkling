@@ -49,8 +49,8 @@ export interface Viewer {
   tool: string;
 }
 
-export function createViewers(opts: { prefix: string; displayName: string; apiBase: string; webBase: string; workspace?: string }) {
-  const headers = opts.workspace ? { "X-Workspace-Id": opts.workspace } : undefined;
+export function createViewers(opts: { prefix: string; displayName: string; apiBase: string; webBase: string; workspace?: string; auth?: Record<string, string> }) {
+  const headers: Record<string, string> = { ...opts.auth, ...(opts.workspace ? { "X-Workspace-Id": opts.workspace } : {}) };
   const get = async (url: string) => {
     const r = await fetch(url, { headers });
     if (!r.ok) throw new Error(`${url}: ${r.status}`);

@@ -1,7 +1,8 @@
 """Service conventions (todo/done/todo3.md E.4): unauthenticated probes, never in the access log.
 
     GET /healthz → the process is up (liveness)
-    GET /readyz  → DB, Redis (when a backend uses it) and the BlobStore answer (readiness)
+    GET /readyz  → DB, Redis (when a backend uses it), the BlobStore and (workos mode) the WorkOS
+                   key set answer (readiness)
     GET /version → {service, version, gitSha}
 """
 
@@ -52,6 +53,11 @@ def checks() -> dict[str, str]:
     if settings().redis_url or settings().needs_redis:
         run("redis", lambda: redis_client.client().ping())
     run("blobstore", lambda: (blobstore.assets().ping(), blobstore.data().ping()))
+    if settings().workos:
+        from ..auth import client as workos_client
+
+        # Cached (5 min when up, 30 s when down): probes never hammer WorkOS.
+        run("workos_jwks", workos_client.jwks_ready)
     return out
 
 

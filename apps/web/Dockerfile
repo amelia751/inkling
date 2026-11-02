@@ -45,6 +45,7 @@ USER root
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY apps/web/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY apps/web/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/web/nginx/agent-auth /etc/nginx/templates/agent-auth
 COPY --chmod=0755 apps/web/nginx/05-tmp-dirs.sh /docker-entrypoint.d/05-tmp-dirs.sh
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 USER 101
@@ -52,6 +53,8 @@ ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1 \
     INKLING_AGENT_URL=http://agent:8100 \
     INKLING_AGENT_TOKEN="" \
+    INKLING_WEB_AUTH_MODE=dev \
+    INKLING_API_URL=http://api:8000 \
     GIT_SHA=${GIT_SHA}
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \

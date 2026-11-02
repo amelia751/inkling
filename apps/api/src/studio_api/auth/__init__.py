@@ -1,0 +1,19 @@
+"""Accounts on WorkOS (todo9): sign-in, the session cookie, permissions and the org audit log.
+
+    client.py      the AsyncWorkOSClient, built from settings; JWKS and readiness
+    cookie.py      the sealed session cookie and the signed sign-in state
+    session.py     verify / refresh the session, the `/api/*` middleware, token revocation
+    bootstrap.py   mirror upserts at sign-in, personal organizations, the org switcher list
+    routes.py      /api/auth/{login,callback,session,switch-org,logout,verify}
+    permissions.py permission names and `require_permission(perm)` (a FastAPI dependency)
+    audit.py       `audit(db, ctx, action, target)`: rows in `audit_events`
+
+Later phases plug in here: org routes use `require_permission`, `current_org` and `audit`; the API-key
+resolver fills `context._resolve_api_key`; event handlers call `session.revoke_sessions_for`.
+"""
+
+from .audit import audit
+from .bootstrap import current_org
+from .permissions import PERMISSIONS, require_permission
+
+__all__ = ["PERMISSIONS", "audit", "current_org", "require_permission"]

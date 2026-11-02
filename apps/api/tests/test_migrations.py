@@ -183,8 +183,9 @@ def test_0011_adds_drops_and_screened_names_and_downgrades(tmp_path):
     command.upgrade(cfg, "head")
 
 
-def test_0013_makes_samples_members_viewers_and_downgrades(tmp_path):
-    """todo14 D7: Samples `editor` rows become `viewer`; other orgs and roles are untouched."""
+def test_0014_makes_samples_members_viewers_and_downgrades(tmp_path):
+    """todo14 D7: Samples members (pre-todo9 `editor`, `member` after 0013_accounts) become
+    `viewer`; other orgs and Samples admins are untouched."""
     import sqlalchemy as sa
     from alembic import command
 
@@ -194,14 +195,14 @@ def test_0013_makes_samples_members_viewers_and_downgrades(tmp_path):
     with db.engine().begin() as c:
         c.execute(sa.text("INSERT INTO organizations (id, name, kind, created_at) VALUES ('org-samples', 'Samples', 'team', CURRENT_TIMESTAMP), ('org-mine', 'Personal', 'personal', CURRENT_TIMESTAMP)"))
         c.execute(sa.text("INSERT INTO organization_members (org_id, principal, role) VALUES ('org-samples', 'user:a', 'editor'), ('org-samples', 'user:b', 'owner'), ('org-mine', 'user:a', 'editor')"))
-    command.upgrade(cfg, "0013")
+    command.upgrade(cfg, "0014")
 
     def roles() -> set[tuple[str, str, str]]:
         with db.engine().connect() as c:
             return {tuple(r) for r in c.execute(sa.text("SELECT org_id, principal, role FROM organization_members"))}
 
-    assert roles() == {("org-samples", "user:a", "viewer"), ("org-samples", "user:b", "owner"), ("org-mine", "user:a", "editor")}
-    command.downgrade(cfg, "0012")
-    assert ("org-samples", "user:a", "editor") in roles()
+    assert roles() == {("org-samples", "user:a", "viewer"), ("org-samples", "user:b", "admin"), ("org-mine", "user:a", "member")}
+    command.downgrade(cfg, "0013")
+    assert ("org-samples", "user:a", "member") in roles()
     command.upgrade(cfg, "head")
     db.reset_engine()

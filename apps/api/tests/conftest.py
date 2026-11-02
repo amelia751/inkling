@@ -14,6 +14,8 @@ from studio_api import config, db
 from studio_api.config import env
 from studio_api.naming import ns
 
+from .auth_fakes import fake_workos  # noqa: F401  (the todo9 auth tests' fake WorkOS fixture)
+
 
 def png(w: int, h: int) -> bytes:
     raw = b"".join(b"\x00" + bytes([(x * 7 + y * 3) % 256 for x in range(w)]) for y in range(h))
@@ -66,9 +68,9 @@ def grant_sample_editors(principals) -> None:
             projects.ensure_principal(s, who)
             m = s.get(OrganizationMember, (projects.SAMPLES_ORG, who))
             if m is None:
-                s.add(OrganizationMember(org_id=projects.SAMPLES_ORG, principal=who, role="editor"))
+                s.add(OrganizationMember(org_id=projects.SAMPLES_ORG, principal=who, role="member", created_at=now()))
             else:
-                m.role = "editor"
+                m.role = "member"
 
 
 @pytest.fixture
@@ -85,7 +87,7 @@ def make_client(seed: Path, tmp_path: Path):
         from studio_api.app import create_app
 
         app = create_app()
-        if sample_editors and s.create_tables:
+        if sample_editors and s.create_tables and not s.workos:  # workos mode: sign-in, no dev grants
             grant_sample_editors(sample_editors)
         return TestClient(app)
 

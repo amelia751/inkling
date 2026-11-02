@@ -9,7 +9,7 @@ import sqlalchemy as sa
 from alembic import command
 
 from studio_api import db
-from studio_api.models import Organization, ProjectRow, SourceNode, Workspace
+from studio_api.models import ProjectRow, SourceNode, Workspace
 
 from .test_migrations import _alembic_at
 
@@ -22,8 +22,9 @@ def _node(nid: str, kind: str, facts: dict | None = None) -> SourceNode:
 
 def test_0012_backfills_collections_and_task_collections_then_downgrades(tmp_path):
     cfg = _alembic_at(tmp_path, "0011")
+    with db.engine().begin() as c:  # raw SQL: the Organization model has todo9 columns 0011 lacks
+        c.execute(sa.text("INSERT INTO organizations (id, name, kind, created_at) VALUES ('o', 'O', 'team', :t)"), {"t": T})
     with db.session_scope() as s:
-        s.add(Organization(id="o", name="O", kind="team"))
         s.add(Workspace(id="p1", name="p1"))
         s.flush()
         s.add(ProjectRow(id="p1", org_id="o", title="P", created_by="user:a"))

@@ -59,7 +59,9 @@ export function derivativeNotice(asset: Pick<SeedAsset, "derivative">): { busy: 
   if (!d || d.state === "ready") return null;
   if (d.state === "failed") return { busy: false, text: d.error || "This file couldn't be converted" };
   const label = d.label || (d.kind === "slide-dzi" ? "Preparing slide" : "Converting video");
-  return { busy: true, text: d.kind === "slide-dzi" ? `${label} (${Math.round(d.progress ?? 0)} %)` : `${label}…` };
+  // A slide always shows its percentage; a video once the worker reports one (`progress`, 0–100).
+  const pct = d.progress ?? (d.kind === "slide-dzi" ? 0 : undefined);
+  return { busy: true, text: pct === undefined ? `${label}…` : `${label} (${Math.round(pct)} %)` };
 }
 
 /** Item lifecycle (todo11 §6): `item.<state>` events on the project stream move an item along. */

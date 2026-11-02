@@ -214,6 +214,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     # todo19 D2: the item filter is the dataset ∩ accepts (a dataset boot without accepts: all).
     t.accepts = accepts
     b.task_ids = [t.id]
+    # todo20 D4: the project's first Studio is its default (drops add to it).
+    if projects.default_task(db, p) is None:
+        p.default_task_id = t.id
     db.flush()
     scoped = ctx.for_scope(p.id, None)
     events.publish(db, scoped, "boot.started", {"bootId": boot_id, "taskIds": [t.id], "preset": preset, **({"extends": presets} if len(presets) > 1 else {}), **({"accepts": accepts} if accepts else {}), "initiator": initiator}, source="kernel")

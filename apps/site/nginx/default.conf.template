@@ -1,0 +1,18 @@
+# Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
+#   GIT_SHA   build revision for /version
+server {
+  listen 8080;
+  server_name _;
+  root /usr/share/nginx/html;
+
+  location = /healthz { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
+  location = /readyz  { access_log off; default_type application/json; return 200 '{"status":"ok"}'; }
+  location = /version { access_log off; default_type application/json; return 200 '{"service":"site","gitSha":"${GIT_SHA}"}'; }
+
+  # Hashed bundles and fonts never change; the page itself is revalidated.
+  location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; }
+  location / {
+    add_header Cache-Control "no-cache";
+    try_files $uri $uri/ /index.html;
+  }
+}

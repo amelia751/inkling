@@ -48,6 +48,7 @@ the word in the right-hand column.
 .
 ├── apps/            DEPLOYABLES: one Dockerfile, one k8s Deployment each, scaled independently
 │   ├── web/         the SPA: Home, projects and their sections, the Studio (static files behind nginx in production)
+│   ├── site/        the public marketing page (static, nginx; `pnpm site` on :5180)
 │   ├── api/         Python kernel (projects, sources, imports, proposals) + plugin control plane (FastAPI)
 │   ├── agent/       Node agent runtime (pi + Daytona sandboxes)
 │   ├── worker/      Python plugin job runner + built-in subscribers: de-id checks, inspection of uploads (scales on queue depth)

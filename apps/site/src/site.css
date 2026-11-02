@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Palette and type measured from nebius.com (light page-constructor theme), 2026-11-02. */
+/* The site's palette and type scale; roles and rules in ../AGENTS.md. */
 @theme {
   --color-ink: rgb(5 43 66);
   --color-ink-deep: rgb(0 26 43);

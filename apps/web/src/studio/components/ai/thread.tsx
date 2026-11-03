@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { secondsLeft } from "@/studio/lib/agent/approval";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
-import { ChevronDownIcon, CloseIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, RetryIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
+import { BranchIcon, ChevronDownIcon, CloseIcon, DoneIcon, ErrorIcon, FileIcon, InfoIcon, RetryIcon, UndoIcon, WarningIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
@@ -63,7 +63,21 @@ function Pending({ queued = false }: { queued?: boolean }) {
   );
 }
 
-export function UserMessage({ message, projectId, canEdit = true }: { message: ChatMessage; projectId?: string; canEdit?: boolean }) {
+/** todo21 D5: "Branch from here": a new chat holding the thread up to this message. */
+export function BranchButton({ onBranch, className }: { onBranch: () => void; className?: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button variant="ghost-secondary" size="icon-sm" className={cn("rounded-full", className)} onClick={onBranch} aria-label="Branch from here" data-testid="agent-branch-here">
+          <BranchIcon />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Branch from here</TooltipContent>
+    </Tooltip>
+  );
+}
+
+export function UserMessage({ message, projectId, canEdit = true, onBranch }: { message: ChatMessage; projectId?: string; canEdit?: boolean; onBranch?: () => void }) {
   const text = textOf(message);
   const drops = message.parts.filter((p): p is Extract<MessagePart, { type: "drop" }> => p.type === "drop");
   return (
@@ -78,6 +92,7 @@ export function UserMessage({ message, projectId, canEdit = true }: { message: C
         <div className="group relative max-w-[88%] self-end rounded-xl bg-generic p-3 text-chat/5 break-words whitespace-pre-wrap">
           {text}
           <CopyButton text={text} label="Copy message" className="absolute top-2.5 right-2.5 bg-float-hover opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />
+          {onBranch && <BranchButton onBranch={onBranch} className="absolute top-2.5 right-10 bg-float-hover opacity-0 group-hover:opacity-100 focus-visible:opacity-100" />}
         </div>
       )}
     </>
@@ -95,6 +110,8 @@ interface AssistantProps {
   onRetry?: () => void;
   /** Undo an environment change the agent made (the Studio's env undo). */
   onUndo?: (partId: string) => void;
+  /** todo21 D5: branch a new chat ending at this message. */
+  onBranch?: () => void;
 }
 
 const SANDBOX_TEXT: Record<string, string> = {
@@ -106,7 +123,7 @@ const SANDBOX_TEXT: Record<string, string> = {
   unavailable: "Sandbox unavailable; a new one starts on the next step",
 };
 
-export function AssistantMessage({ message, streaming, latest, projectId, studio, onRetry, onUndo }: AssistantProps) {
+export function AssistantMessage({ message, streaming, latest, projectId, studio, onRetry, onUndo, onBranch }: AssistantProps) {
   const setCardState = useAgent((s) => s.setCardState);
   const decide = useAgent((s) => s.decide);
   const groups = groupParts(message.parts);
@@ -210,6 +227,7 @@ export function AssistantMessage({ message, streaming, latest, projectId, studio
               <TooltipContent>Regenerate response</TooltipContent>
             </Tooltip>
           )}
+          {onBranch && <BranchButton onBranch={onBranch} />}
         </div>
       )}
     </div>
@@ -375,11 +393,11 @@ function ApprovalAlert({ title, children }: { title: string; children: ReactNode
 
 /** todo18 D: a send refused because another project's run is active; Stop it from here. */
 function BlockedStop() {
-  const running = useAgent((s) => s.running);
+  const running = useAgent((s) => Object.values(s.runs).find((r) => s.streaming[r.chatId]) ?? null);
   const stop = useAgent((s) => s.stop);
-  if (!running || !useAgent.getState().streaming[running]) return <p className="text-hint">That reply has finished; send again.</p>;
+  if (!running) return <p className="text-hint">That reply has finished; send again.</p>;
   return (
-    <Button variant="outline" size="sm" className="mt-2" onClick={() => stop(running)} data-testid="agent-blocked-stop">
+    <Button variant="outline" size="sm" className="mt-2" onClick={() => stop(running.projectId, running.chatId)} data-testid="agent-blocked-stop">
       <CloseIcon /> Stop it
     </Button>
   );

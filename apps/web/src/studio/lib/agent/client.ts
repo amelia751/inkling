@@ -60,7 +60,20 @@ export interface ChatSummary {
   title: string | null;
   createdAt: number | string;
   updatedAt: number | string;
+  /** todo21 D4: who named it ("person" titles are never replaced by the service). */
+  titleBy?: "auto" | "person" | null;
+  /** todo21: a run is going on the service now. */
+  running?: boolean;
+  /** todo21: when its last run started or finished (ISO): the rail's unread dot. */
+  lastRunAt?: string | null;
+  /** todo21 D5: the chat and message (0-based, the last one kept) it was branched from. */
+  branchedFrom?: { sessionId: string; messageIdx: number } | null;
+  scope?: "project" | "home";
 }
+/** todo21 D4: the person renames a chat (owner only, 1..80 characters). */
+export const renameSession = (sessionId: string, title: string) => call<{ session: ChatSummary }>("PATCH", `/sessions/${encodeURIComponent(sessionId)}`, { title });
+/** todo21 D5: a new chat with thread messages 0..messageIdx of this one. */
+export const branchSession = (sessionId: string, messageIdx: number) => call<{ session: ChatSummary }>("POST", `/sessions/${encodeURIComponent(sessionId)}/branch`, { messageIdx });
 export const listChats = (projectId: string) => call<{ sessions: ChatSummary[] }>("GET", `/sessions?projectId=${encodeURIComponent(projectId)}`);
 /** The thread rebuilt on the server (transcript plus run events), in the drawer's message shape. */
 export const fetchThread = <M>(sessionId: string) => call<{ sessionId: string; messages: M[] }>("GET", `/sessions/${encodeURIComponent(sessionId)}/thread`);

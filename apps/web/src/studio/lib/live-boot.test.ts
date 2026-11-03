@@ -22,7 +22,7 @@ const { presetFor, studioName, STUDIO_COMMAND } = await import("./studio-boot");
 describe("boots store (project boot.* events)", () => {
   beforeEach(() => {
     useBoots.setState({ boots: {}, pendingNav: null });
-    useAgent.setState({ threads: { p1: [{ id: "m1", role: "assistant", parts: [] }] }, active: { projectId: "p1", runId: "run_a", messageId: "m1", lastSeq: 0, answered: [] } });
+    useAgent.setState({ threads: { p1: [{ id: "m1", role: "assistant", parts: [] }] }, runs: { p1: { projectId: "p1", chatId: "p1", runId: "run_a", messageId: "m1", lastSeq: 0, answered: [] } } });
   });
 
   it("the tab streaming the run navigates itself and gets the card in its thread", () => {

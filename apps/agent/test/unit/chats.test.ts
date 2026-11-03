@@ -41,10 +41,11 @@ describe("chats (sessions) per project", { timeout: 30_000 }, () => {
     expect(list.body.sessions.map((s: { id: string }) => s.id)).toEqual([a.body.sessionId, b.body.sessionId]);
     const [first, second] = list.body.sessions;
     expect(first.title.length).toBeLessThanOrEqual(60);
-    expect(first.title.startsWith("hello, please xxx")).toBe(true);
+    // todo21 D4: the first completed run renames it (scripted model: the heuristic, first clause).
+    expect(first).toMatchObject({ title: "Hello", titleBy: "auto" });
     expect(first.updatedAt).toBeGreaterThanOrEqual(first.createdAt);
     expect(second.title).toBeNull();
-    expect(Object.keys(first).sort()).toEqual(["createdAt", "id", "profile", "projectId", "title", "updatedAt"]);
+    expect(Object.keys(first).sort()).toEqual(["branchedFrom", "createdAt", "id", "lastRunAt", "profile", "projectId", "running", "title", "titleBy", "updatedAt"]);
   });
 
   it("rebuilds the thread from the transcript and the run records", async () => {
@@ -78,14 +79,14 @@ describe("chats (sessions) per project", { timeout: 30_000 }, () => {
     expect(run.status).toBe(202);
     await h.drive(run.body.runId);
     const list = await h.json("GET", "/v1/sessions?projectId=demo");
-    expect(list.body.sessions).toEqual([expect.objectContaining({ id: conv, projectId: "demo", title: "hello" })]);
+    expect(list.body.sessions).toEqual([expect.objectContaining({ id: conv, projectId: "demo", title: "Hello" })]);
     const t = await h.json("GET", `/v1/sessions/${conv}/thread`);
     expect(t.body.messages.at(-1)).toMatchObject({ role: "assistant", parts: [{ type: "text", text: "Hi there." }] });
 
     // POST /v1/sessions with the same id is idempotent; another project can't claim it.
     const again = await h.json("POST", "/v1/sessions", { projectId: "demo", sessionId: conv, ...BASE });
     expect(again.status).toBe(201);
-    expect(again.body.session).toMatchObject({ id: conv, title: "hello" });
+    expect(again.body.session).toMatchObject({ id: conv, title: "Hello" });
     expect((await h.json("POST", "/v1/sessions", { projectId: "other", sessionId: conv, ...BASE })).status).toBe(409);
     expect((await h.json("POST", "/v1/sessions", { projectId: "demo", sessionId: "../x", ...BASE })).status).toBe(400);
     expect((await h.json("GET", "/v1/sessions/conv-00000000-nope/thread")).status).toBe(404);

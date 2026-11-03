@@ -46,6 +46,8 @@ const schema = z.object({
   AGENT_TOKEN: optional,
   /** todo16 D8: HMAC key for signed destroy approvals (the api's API_APPROVAL_SECRET, same value). */
   AGENT_APPROVAL_SECRET: optional,
+  /** todo21 D7: how this service calls the kernel's service routes (the api's API_AGENT_SERVICE_TOKEN, same value). */
+  AGENT_KERNEL_SERVICE_TOKEN: optional,
   /**
    * Who the browser's calls act as (todo9 Phase 5). `dev`: the service token alone, every person is
    * the one local principal. `workos`: browser-proxied calls also carry the person's WorkOS access
@@ -173,6 +175,8 @@ export interface Config {
   serviceToken: string | undefined;
   /** todo16 D8: signs destroy approvals the api verifies (DEV_APPROVAL_SECRET outside production). */
   approvalSecret: string;
+  /** todo21 D7: bearer token for the kernel's agent-service routes (chat titles); unset in production disables them. */
+  kernelServiceToken: string | undefined;
   /** How callers are identified (todo9 Phase 5); `workos` carries what verifying access tokens needs. */
   auth: { mode: "dev" } | { mode: "workos"; clientId: string; issuer: string | undefined; baseUrl: string | undefined };
   model: { provider: string; id: string; allowlist: string[]; thinking: Env["AGENT_THINKING"] };
@@ -221,6 +225,7 @@ export interface Config {
 
 /** The api's config module has the same dev value, so dev approvals verify with nothing set. */
 export const DEV_APPROVAL_SECRET = "dev-approval-secret-not-for-production";
+export const DEV_KERNEL_SERVICE_TOKEN = "dev-only-agent-service-token";
 
 export const SCRIPTED_PROVIDER = "scripted";
 /** pi's Vertex AI provider. Its key is the marker pi reads as "use Application Default Credentials". */
@@ -296,6 +301,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
       port: e.AGENT_PORT,
       serviceToken: e.AGENT_TOKEN,
       approvalSecret: e.AGENT_APPROVAL_SECRET ?? DEV_APPROVAL_SECRET,
+      kernelServiceToken: e.AGENT_KERNEL_SERVICE_TOKEN ?? (e.ENV === "production" ? undefined : DEV_KERNEL_SERVICE_TOKEN),
       auth:
         e.AGENT_AUTH_MODE === "workos"
           ? { mode: "workos", clientId: e.AGENT_WORKOS_CLIENT_ID!, issuer: e.AGENT_WORKOS_ISSUER, baseUrl: e.AGENT_WORKOS_BASE_URL }

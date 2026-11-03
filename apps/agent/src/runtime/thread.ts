@@ -123,3 +123,32 @@ export function buildThread(entries: unknown[], runs: RunRecord[], titles: Reado
       for (const p of msg.parts) if (p.type === "tool" && p.status === "running") p.status = "error";
   return out;
 }
+
+/**
+ * todo21 W4: how many transcript rows (header at 0) hold thread messages `0..messageIdx` of
+ * `buildThread(entries)`. A user message keeps itself; an assistant message (or a tool result in
+ * it) keeps its whole turn, up to the next user message. Undefined when there's no such message.
+ */
+export function transcriptCut(entries: unknown[], messageIdx: number): number | undefined {
+  if (!Number.isInteger(messageIdx) || messageIdx < 0) return undefined;
+  // Mirrors buildThread's message boundaries: each user entry opens a user and an assistant message.
+  let count = 0;
+  let open = false;
+  for (let p = 0; p < entries.length; p++) {
+    const e = (entries as Entry[])[p];
+    if (e?.type !== "message" || !e.message) continue;
+    const role = e.message.role;
+    if (role === "user") {
+      if (open && count - 1 === messageIdx) return p; // the kept assistant turn ends here
+      if (count === messageIdx) return p + 1;
+      count += 2;
+      open = true;
+    } else if (role === "assistant" || role === "toolResult") {
+      if (!open) {
+        count += 1;
+        open = true;
+      }
+    }
+  }
+  return open && count - 1 === messageIdx ? entries.length : undefined;
+}

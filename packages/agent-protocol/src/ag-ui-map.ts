@@ -77,6 +77,7 @@ export const AG_UI_MAP = {
   "approval-resolved": { targets: ["CUSTOM"], customName: "approval-resolved" },
   sandbox: { targets: ["CUSTOM"], customName: "sandbox" },
   artifact: { targets: ["CUSTOM"], customName: "artifact" },
+  "session.updated": { targets: ["CUSTOM"], customName: "session.updated" },
   custom: { targets: ["CUSTOM"], note: "name and value pass through" },
 } as const satisfies Record<AgentEventBody["type"], AgUiMapping>;
 

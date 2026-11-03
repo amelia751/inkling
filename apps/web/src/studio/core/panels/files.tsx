@@ -267,7 +267,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
         </div>
       )}
       {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-2 pb-1.5" role="group" aria-label="Kind" data-testid="kind-chips">
+        <ChipRow label="Kind" testid="kind-chips">
           {chips.map((c) => {
             const kv = c.kind in KINDS ? KINDS[c.kind as keyof typeof KINDS] : undefined;
             const Icon = kv?.icon;
@@ -277,7 +277,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
                 key={c.kind}
                 onClick={() => setKindFilter(on ? null : c.kind)}
                 aria-pressed={on}
-                className={cn("flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors", on ? "bg-selection text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground")}
+                className={cn("flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs transition-colors", on ? "bg-selection text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground")}
                 data-testid="kind-chip"
                 data-kind={c.kind}
               >
@@ -287,18 +287,18 @@ export function FilesPanel({ items, env, project }: PanelProps) {
               </button>
             );
           })}
-        </div>
+        </ChipRow>
       )}
       {view === "queue" ? (
         <>
-          <div className="flex flex-wrap gap-1 px-2 pb-1.5" role="group" aria-label="Status">
+          <ChipRow label="Status">
             {QUEUE_FILTERS.map((f) => (
               <button
                 key={f.id}
                 onClick={() => setQueueFilter(f.id)}
                 aria-pressed={queueFilter === f.id}
                 className={cn(
-                  "flex h-6 items-center gap-1 rounded-full px-2 text-xs transition-colors",
+                  "flex h-6 shrink-0 items-center gap-1 whitespace-nowrap rounded-full px-2 text-xs transition-colors",
                   queueFilter === f.id ? "bg-selection text-foreground" : "text-muted-foreground hover:bg-generic hover:text-foreground",
                 )}
                 data-testid="queue-chip"
@@ -309,7 +309,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
                 <span className="tnum text-hint">{counts[f.id]}</span>
               </button>
             ))}
-          </div>
+          </ChipRow>
           <QueueList
             taskId={taskId}
             items={items}
@@ -468,6 +468,41 @@ interface RowEvents {
   onEnter: (index: number, el: HTMLElement) => void;
   onLeave: () => void;
   onMenu: (index: number, e: { clientX: number; clientY: number; preventDefault: () => void }) => void;
+}
+
+/** One row of filter chips that scrolls sideways (a mouse wheel too); the edge fades where more hide. */
+function ChipRow({ label, testid, children }: { label: string; testid?: string; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (el) setEdges({ left: el.scrollLeft > 1, right: el.scrollLeft + el.clientWidth < el.scrollWidth - 1 });
+  }, []);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, children]);
+  const fade = edges.left || edges.right ? `linear-gradient(to right, ${edges.left ? "transparent, black 24px" : "black"}, ${edges.right ? "black calc(100% - 24px), transparent" : "black"})` : undefined;
+  return (
+    <div
+      ref={ref}
+      className="hide-scrollbar flex gap-1 overflow-x-auto px-2 pb-1.5"
+      style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+      onScroll={measure}
+      onWheel={(e) => {
+        if (ref.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) ref.current.scrollLeft += e.deltaY;
+      }}
+      role="group"
+      aria-label={label}
+      data-testid={testid}
+    >
+      {children}
+    </div>
+  );
 }
 
 function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string }; thumb?: ReactNode } & RowEvents) {

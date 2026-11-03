@@ -11,6 +11,8 @@ import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
 import { TaskSetupPage } from "./routes/TaskSetupPage";
 import { NotFoundPage, RouteError } from "./routes/errors";
 import { HomePage } from "./routes/HomePage";
+import { NewProjectHost } from "./entry/new-project-dialog";
+import { ChatParamSync } from "./entry/home-chat";
 import { ProjectsPage } from "./routes/ProjectsPage";
 import { ProjectOverviewPage } from "./routes/ProjectOverviewPage";
 import { ExplorePage } from "./routes/ExplorePage";
@@ -99,7 +101,15 @@ const routes = [
 ];
 
 // One error element for every page: a render or loader error shows RouteError, not a blank tab.
-const router = createBrowserRouter([{ element: <Outlet />, errorElement: <RouteError />, children: routes }]);
+// todo21: the new-project dialog and the `?chat=` reader are mounted once, inside the router.
+const root = (
+  <>
+    <Outlet />
+    <NewProjectHost />
+    <ChatParamSync />
+  </>
+);
+const router = createBrowserRouter([{ element: root, errorElement: <RouteError />, children: routes }]);
 
 export function AppShell() {
   // Trackpad swipes never navigate back (every page; the browser's Back button and ⌘[ still do).

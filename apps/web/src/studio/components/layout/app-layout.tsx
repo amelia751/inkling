@@ -18,9 +18,11 @@ import {
   SidebarIcon,
   SourcesIcon,
   TrashIcon,
+  PlusIcon,
   type IconComponent,
 } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
+import { useNewProjectStore } from "@/studio/app/entry/new-project-dialog";
 import { Sheet, SheetContent } from "@studio/ui/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { BrandMark } from "@/studio/components/layout/brand";
@@ -146,7 +148,7 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
   // `when` clauses outside an environment read the page (`section == sources`); the Studio
   // resolves its own context (section == studio) on top.
   const section = useSection();
-  const shellSection = studio ? "studio" : (section ?? (project ? "overview" : "home"));
+  const shellSection = studio ? "studio" : (section ?? (project ? "overview" : pathname === "/projects" ? "projects" : pathname === "/" ? "home" : "workspace"));
   useEffect(() => setShellContext({ section: shellSection }), [shellSection]);
   // Live updates for a project this person can see (one stream per page).
   useProjectEvents(useProjectSummary(project?.id).data?.id);
@@ -158,6 +160,9 @@ function AppLayoutFrame({ dataset, studio = false, children }: { dataset?: Proje
     setNav(collapsed ? "full" : "rail");
   };
   useCommands({ toggleNavigation: toggleNav }, { scope: ns("core"), global: true });
+  // todo21 D1: `N` (declared in the core manifest, `when` Home or Projects) opens the dialog.
+  const openNewProject = useNewProjectStore((s) => s.open);
+  useCommands({ newProject: () => void openNewProject() }, { scope: ns("core"), global: true });
   // The Studio binds the assistant to its own right slot; elsewhere it's the shell's drawer.
   const toggleDrawer = useShell((s) => s.toggleAssistant);
   useCommands({ toggleAssistant: studio ? () => useStudio.getState().toggleAi() : toggleDrawer }, { scope: ns("core"), global: true });
@@ -255,6 +260,25 @@ export function PageHeading({ title, description, actions }: { title: ReactNode;
   );
 }
 
+/** todo21 D1: Drive's "+ New", at the top of the sidebar on every page. */
+function NewButton({ rail }: { rail: boolean }) {
+  const open = useNewProjectStore((s) => s.open);
+  return (
+    <Button
+      variant="outline"
+      size={rail ? "icon" : "sm"}
+      className={cn(rail ? "mb-2 size-8" : "mb-4 w-fit justify-start gap-1.5 self-start px-3")}
+      onClick={() => void open()}
+      aria-label="New project"
+      title={rail ? "New project" : undefined}
+      data-testid="sidebar-new"
+    >
+      <PlusIcon className="size-4" />
+      {!rail && "New"}
+    </Button>
+  );
+}
+
 function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
   const recent = useShell((s) => s.recent);
   const sections = visibleSections({ datasetsTab: useFeature("datasetsTab") });
@@ -262,6 +286,7 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
   if (!project) {
     return (
       <nav className={cn("flex flex-col", rail ? "items-center gap-1" : "gap-5")} aria-label="Workspace">
+        <NewButton rail={rail} />
         <NavSection heading="Workspace" rail={rail}>
           <NavItem to={homeUrl()} end icon={HomeIcon} label="Home" rail={rail} />
           <NavItem to={projectsUrl()} end icon={ProjectsIcon} label="Projects" rail={rail} />
@@ -287,6 +312,7 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
   }
   return (
     <nav className={cn("flex min-h-full flex-1 flex-col", rail && "items-center")} aria-label="Project">
+      <NewButton rail={rail} />
       {rail ? (
         <RailLink to={projectsUrl()} end icon={ArrowLeftIcon} label="All projects" />
       ) : (

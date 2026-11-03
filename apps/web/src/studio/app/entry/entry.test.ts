@@ -33,10 +33,13 @@ describe("todo13 D1 project titles", () => {
   it("come from the goal", () => {
     expect(projectTitle({ goal: "Help me classify chest X-rays." })).toBe("Classify chest X-rays");
   });
-  it("come from what the files are, never their names (D3)", () => {
-    expect(projectTitle({ picked: picked("Smith_John/a.png", "Smith_John/b.png") })).toBe("2 images");
-    expect(projectTitle({ picked: picked("Smith_John_1962-04-03.dcm") })).toBe("1 DICOM image");
-    expect(projectTitle({ picked: picked("a.png", "notes.pdf") })).toBe("2 files");
+  it("todo21 D2: a drop suggests its folder, else its kinds, never \"N files\"", () => {
+    expect(projectTitle({ picked: picked("knee-mri/a.dcm", "knee-mri/sub/b.dcm") })).toBe("knee-mri");
+    expect(projectTitle({ picked: picked("cxr_001.png", "cxr_002.png") })).toBe("Chest X-rays");
+    expect(projectTitle({ picked: picked("a.png", "b.png", "clip.mp4") })).toBe("Images and videos");
+    expect(projectTitle({ picked: picked("a.dcm") })).toBe("DICOM images");
+    expect(projectTitle({ picked: picked("a.xyz") })).toBe("New project");
+    expect(projectTitle({ picked: picked("a.png", "notes.pdf"), goal: "Help me sort these" })).not.toMatch(/\d+ files/);
     expect(projectTitle({})).toBe("New project");
   });
 });
@@ -83,5 +86,15 @@ describe("drop timeline (todo13 Milestone 4 item 1)", () => {
   });
   it("builds the api's body", () => {
     expect(timelinePayload({ active: true, origin: "canvas", dropId: "drp_1", steps: [{ step: "gesture", ms: 0 }], reported: false }, "abandoned")).toEqual({ dropId: "drp_1", origin: "canvas", outcome: "abandoned", steps: { gesture: 0 } });
+  });
+});
+
+describe("todo21 D8 Home routing", () => {
+  it("reads open_in_project's target from its result, else its input", async () => {
+    const { openInProjectTarget, projectChatUrl } = await import("./home-chat");
+    expect(openInProjectTarget(JSON.stringify({ projectId: "p1", sessionId: "ses_a" }), {})).toEqual({ projectId: "p1", sessionId: "ses_a" });
+    expect(openInProjectTarget("Opened ses_b in Liver CT", { projectId: "p2" })).toEqual({ projectId: "p2", sessionId: "ses_b" });
+    expect(openInProjectTarget("nope", {})).toBeNull();
+    expect(projectChatUrl("p1", "ses_a")).toMatch(/\/projects\/p1.*\?chat=ses_a$/);
   });
 });

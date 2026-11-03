@@ -1,6 +1,7 @@
 import type {
   AgentEvent,
   AgentStatus,
+  ClientToolSpec,
   ApprovalDecisionRequest,
   ClientToolResultRequest,
   CreateSessionRequest,
@@ -62,6 +63,11 @@ export interface ChatSummary {
   updatedAt: number | string;
 }
 export const listChats = (projectId: string) => call<{ sessions: ChatSummary[] }>("GET", `/sessions?projectId=${encodeURIComponent(projectId)}`);
+/** todo21 D8: the owner's Home chats (`scope = "home"`, no project), newest first. */
+export const listHomeChats = () => call<{ sessions: ChatSummary[] }>("GET", "/sessions?scope=home");
+/** todo21 D8: a Home chat routes (list, create, open in a project); it has no project. */
+export const createHomeSession = (req: { clientTools: ClientToolSpec[]; sessionId?: string }) =>
+  call<CreateSessionResponse & { session?: ChatSummary }>("POST", "/sessions", { scope: "home", ...req });
 /** The thread rebuilt on the server (transcript plus run events), in the drawer's message shape. */
 export const fetchThread = <M>(sessionId: string) => call<{ sessionId: string; messages: M[] }>("GET", `/sessions/${encodeURIComponent(sessionId)}/thread`);
 export const deleteSession = (sessionId: string) => call<void>("DELETE", `/sessions/${sessionId}`);
@@ -135,4 +141,38 @@ export async function followRun(
     await new Promise((r) => setTimeout(r, RETRY_MS[Math.min(attempt, RETRY_MS.length - 1)]));
     if (signal.aborted) throw new DOMException("aborted", "AbortError");
   }
+}
+
+/**
+ * todo21 D8: follow a Home chat's run. Every event goes to `onEvent` (the caller reduces it with
+ * the agent store's `reduce`); `create_project` (a client tool) is answered with what
+ * `createProject` resolves to; a successful `open_in_project` result is handed to `opened`.
+ */
+export async function followHomeRun(
+  runId: string,
+  h: {
+    onEvent: (e: AgentEvent) => void;
+    createProject: (suggestion: string | undefined) => Promise<unknown>;
+    opened: (summary: string, input: unknown) => void;
+  },
+  signal: AbortSignal,
+): Promise<void> {
+  const names = new Map<string, string>();
+  const answered = new Set<string>();
+  await followRun(
+    runId,
+    0,
+    async (e) => {
+      h.onEvent(e);
+      if (e.type === "tool-call") names.set(e.id, e.name);
+      if (e.type === "client-tool" && e.name === "create_project" && !answered.has(e.callId)) {
+        answered.add(e.callId);
+        const suggestion = (e.input as { suggestion?: unknown } | null)?.suggestion;
+        const output = await h.createProject(typeof suggestion === "string" ? suggestion : undefined);
+        await answerClientTool(runId, e.callId, { ok: true, output }).catch(() => {});
+      }
+      if (e.type === "tool-result" && e.ok && names.get(e.id) === "open_in_project") h.opened(e.summary, e.input);
+    },
+    signal,
+  );
 }

@@ -1,12 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { ComposerEmptyState, type ComposerFiles } from "@studio/ui/ui/composer-empty-state";
 import { Button } from "@studio/ui/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
-import { Input } from "@studio/ui/ui/input";
-import { NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 import { projectUrl } from "@/studio/lib/routes";
 import { markTimeline, startTimeline } from "@/studio/lib/drop-timeline";
 import type { Picked } from "@/studio/lib/uploads/walk";
@@ -19,7 +15,9 @@ import { useBoots } from "@/studio/stores/boots";
 import { useDropFiles, pickedFrom } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
 import { AiNotice, useAckAiNotice } from "@/studio/components/ai/ai-notice";
-import { createProject, projectTitle } from "./start-project";
+import { projectTitle } from "./start-project";
+import { useNewProject } from "./new-project-dialog";
+import { HomeChats, useHomeChat } from "./home-chat";
 
 /** Starting points across kinds of data, so the first screen doesn't read as one domain's tool. */
 export const HOME_EXAMPLES = ["Segment liver CT", "Classify skin lesions", "Annotate ultrasound video"];
@@ -35,11 +33,12 @@ type Gesture = { kind: "send"; text: string } | { kind: "drop"; picked: Picked; 
  */
 export function HomeComposer({ projects, surface = "home", actions, className, children }: { projects: ProjectSummary[] | undefined; surface?: "home" | "projects"; actions?: ReactNode; className?: string; children?: ReactNode }) {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const drop = useDropFiles();
   const setAssistant = useShell((s) => s.setAssistant);
   const queue = usePendingAsks((s) => s.queue);
   const ackAiNotice = useAckAiNotice();
+  const { open: openNewProject } = useNewProject();
+  const sendHome = useHomeChat((s) => s.send);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,23 +68,31 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
   };
 
   const startNew = async (g: Gesture) => {
-    setBusy(true);
     setError(null);
+    const goal = g.text.trim() || undefined;
+    const picked = g.kind === "drop" ? g.picked : undefined;
+    const n = picked?.files.length ?? 0;
+    // todo21 D2: nothing is created until the person confirms the name.
+    const pending =
+      g.kind === "drop"
+        ? `${n.toLocaleString()} ${n === 1 ? "file" : "files"}${goal ? " and your message" : ""} will go to its first chat.`
+        : "Your message will go to its first chat.";
+    const p = await openNewProject({ suggestion: projectTitle({ goal, picked }), pending });
+    if (!p) {
+      // Cancel keeps the text; dropped files aren't kept (they'd need picking again).
+      if (g.kind === "drop") setError(`Not uploaded: ${n.toLocaleString()} ${n === 1 ? "file" : "files"}. Drop them again to start a project.`);
+      return;
+    }
+    setBusy(true);
     try {
-      const goal = g.text.trim() || undefined;
-      const title = projectTitle({ goal, picked: g.kind === "drop" ? g.picked : undefined });
-      const p = await createProject(title, goal && title !== goal ? goal : "");
       markTimeline("project-created");
-      // Its name is known now: the project's breadcrumb and sidebar show it at once, not its id.
-      useShell.getState().visited({ id: p.id, title: p.title });
-      void qc.invalidateQueries({ queryKey: projectKeys.all });
       // §3.5 fast path: a request that names a preset boots its Studio now (the person lands in
       // it); the message still goes to the assistant, which refines it (labels, structure).
       const match = g.kind === "send" && feature("fastPath") ? presetFor(g.text) : null;
       if (match) void useBoots.getState().start(p.id, { preset: match.preset, name: studioName(match.matched.find((m) => !m.startsWith("kind:")) ?? "") || undefined }).catch(() => undefined);
       await deliver(p.id, g);
     } catch (e) {
-      setError(e instanceof NeedsApiError ? "Creating a project needs the full stack (the API): see docs/running.md" : e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -95,7 +102,12 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
     startTimeline(g.kind === "send" ? "send" : surface);
     // D2: the first send is the acknowledgement of the notice under the composer.
     ackAiNotice();
-    // todo20 D1: a Home drop or send always starts a new project (named from the folder or the message).
+    // todo21 D8: on Home a message (not a drop) goes to Home's routing assistant; files always
+    // need a project, so a drop (or a send while the assistant is unavailable) opens the dialog.
+    if (g.kind === "send" && surface === "home") {
+      void sendHome(g.text, navigate).then((ok) => (ok ? setText("") : startNew(g)));
+      return;
+    }
     void startNew(g);
   };
 
@@ -129,64 +141,19 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
         inputTestId="goal"
         dropTestId="home-drop"
       >
+        {surface === "home" && <HomeChats />}
         {children}
       </ComposerEmptyState>
     </>
   );
 }
 
-/** todo20 D1: "New project" asks for a name, creates it and opens it with its chat. */
+/** todo20 D1, todo21 D1: "New project" opens the name dialog (`NewProjectHost`). */
 export function NewProjectButton({ className }: { className?: string }) {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const setAssistant = useShell((s) => s.setAssistant);
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const create = async () => {
-    const title = name.trim();
-    if (!title) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const p = await createProject(title);
-      useShell.getState().visited({ id: p.id, title: p.title });
-      void qc.invalidateQueries({ queryKey: projectKeys.all });
-      setOpen(false);
-      setName("");
-      setAssistant(true);
-      navigate(projectUrl(p.id));
-    } catch (e) {
-      setError(e instanceof NeedsApiError ? "Creating a project needs the full stack (the API): see docs/running.md" : e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { open } = useNewProject();
   return (
-    <>
-      <Button variant="outline" size="sm" className={className} onClick={() => setOpen(true)} data-testid="new-project">New project</Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md" data-testid="new-project-dialog">
-          <DialogHeader>
-            <DialogTitle>New project</DialogTitle>
-            <DialogDescription>Name it; you can rename it later.</DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void create();
-            }}
-          >
-            <Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Chest X-ray screening" aria-label="Project name" data-testid="new-project-name" />
-            {error && <p className="mt-2 text-sm text-danger" role="alert">{error}</p>}
-            <DialogFooter className="mt-4 gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={!name.trim() || busy} data-testid="new-project-create">{busy ? "Creating" : "Create"}</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+    <Button variant="outline" size="sm" className={className} onClick={() => void open()} data-testid="new-project">
+      New project
+    </Button>
   );
 }

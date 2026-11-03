@@ -15,24 +15,36 @@ export function titleFromGoal(goal: string): string {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/** "Chest X-rays" when the file names say so (cxr, chest, x-ray). */
+const XRAY = /(^|[^a-z])(cxr|chest|x-?rays?|xray)([^a-z]|$)/i;
+
+const plural = (k: string) => KINDS[k as keyof typeof KINDS]?.plural ?? "Files";
+const lower = (s: string) => (/^(DICOM|3D)/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1));
+
 /**
- * Home's first send or drop creates a project on the person's behalf (todo13 D1): in the
- * browser, through the person's API, never by the agent. It's named from the goal, or from
- * what the files are ("12 images"), never from a file or folder name: the title reaches the
- * assistant's context, and a name can hold an identifier (D3). Renamable in Settings.
+ * todo21 D2: the suggested name in the new-project dialog (the person confirms or edits it, so a
+ * name is never applied silently). A drop is named from its folder ("knee-mri"), else from what
+ * its files are ("Chest X-rays", "Images and videos"); a send from a short name made from the
+ * message. Never "35 files".
  */
 export function projectTitle({ goal, picked }: { goal?: string; picked?: Picked }): string {
-  if (goal?.trim()) return titleFromGoal(goal);
   const files = picked?.files ?? [];
-  if (!files.length) return "New project";
-  const kinds = new Set(files.map((f) => guessKind(f.relPath.split("/").pop() ?? "")));
-  const n = files.length;
-  if (kinds.size === 1) {
-    const [k] = [...kinds];
-    const view = KINDS[k];
-    if (view && k !== "unknown") return `${n.toLocaleString()} ${(n === 1 ? view.label : view.plural).toLowerCase().replace(/^dicom/, "DICOM").replace(/^3d/, "3D")}`;
+  if (files.length) {
+    const tops = new Set(files.map((f) => (f.relPath.includes("/") ? f.relPath.split("/")[0] : "")));
+    const [top] = [...tops];
+    if (tops.size === 1 && top) return top;
+    if (files.some((f) => XRAY.test(f.relPath))) return "Chest X-rays";
+    const counts = new Map<string, number>();
+    for (const f of files) {
+      const k = guessKind(f.relPath.split("/").pop() ?? "");
+      if (k !== "unknown") counts.set(k, (counts.get(k) ?? 0) + 1);
+    }
+    const main = [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+    if (main.length === 1) return plural(main[0]);
+    if (main.length >= 2) return `${plural(main[0])} and ${lower(plural(main[1]))}`;
   }
-  return `${n.toLocaleString()} ${n === 1 ? "file" : "files"}`;
+  if (goal?.trim()) return titleFromGoal(goal);
+  return "New project";
 }
 
 export function createProject(title: string, description = ""): Promise<ProjectSummary> {

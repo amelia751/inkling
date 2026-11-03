@@ -76,7 +76,8 @@ export class KernelClient {
   private async once<T>(method: string, path: string, opts: { json?: unknown; body?: Uint8Array; contentType?: string; idempotencyKey?: string; signal?: AbortSignal; raw?: boolean; headers?: Record<string, string> }): Promise<T> {
     const token = this.access.token();
     if (!token) throw new KernelError(401, "This session has no kernel access. Ask the user to reopen the assistant panel (the Studio passes a fresh token with each message).");
-    const headers: Record<string, string> = { ...this.access.headers?.(), ...opts.headers, Authorization: `Bearer ${token}`, "X-Workspace-Id": this.access.workspaceId };
+    // A Home chat (todo21 D8) has no workspace: its few calls name the project per request.
+    const headers: Record<string, string> = { ...this.access.headers?.(), ...opts.headers, Authorization: `Bearer ${token}`, ...(this.access.workspaceId ? { "X-Workspace-Id": this.access.workspaceId } : {}) };
     if (opts.json !== undefined) headers["Content-Type"] = "application/json";
     if (opts.body) headers["Content-Type"] = opts.contentType ?? "application/octet-stream";
     if (opts.idempotencyKey) headers["Idempotency-Key"] = opts.idempotencyKey;

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionStore, type StoredMeta, type StoredRunStatus, isActiveStatus } from "./types.ts";
+import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, isActiveStatus } from "./types.ts";
 
 /** `ses_<uuid>` or (todo20 W3) the browser's `conv-<uuid>`; never a path. */
 const SESSION_ID = /^(ses_|conv-)[A-Za-z0-9-]{8,64}$/;
@@ -67,11 +67,11 @@ export class FileSessionStore implements SessionStore {
     );
   }
 
-  async listSessions({ owner, orgId, projectId }: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]> {
+  async listSessions({ owner, orgId, projectId, scope }: { owner: string; orgId: string | undefined; projectId?: string; scope?: SessionScope }): Promise<StoredMeta[]> {
     const out: StoredMeta[] = [];
     for (const id of await this.listSessionIds()) {
       const m = await this.getMeta(id);
-      if (m && m.owner === owner && m.orgId === orgId && (projectId === undefined || m.projectId === projectId)) out.push(m);
+      if (m && m.owner === owner && m.orgId === orgId && (projectId === undefined || m.projectId === projectId) && (scope === undefined || (m.scope ?? "project") === scope)) out.push(m);
     }
     return out;
   }

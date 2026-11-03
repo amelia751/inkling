@@ -10,11 +10,16 @@ import type { RunStatus } from "@studio/agent-protocol";
  * commands addressed to the replica that runs the loop).
  */
 
+export type SessionScope = "project" | "home";
+
 /** Session meta as stored: opaque JSON apart from the fields the store indexes. */
 export interface StoredMeta {
   id: string;
   owner: string;
-  projectId: string;
+  /** null for a Home chat (todo21 D8). */
+  projectId: string | null;
+  /** todo21 D8: `home` chats route between projects; unset (stored before todo21) is `project`. */
+  scope?: SessionScope;
   /** WorkOS organization of the owner when the session was created (todo9 Phase 5); unset in dev mode. */
   orgId?: string;
   [key: string]: unknown;
@@ -80,8 +85,8 @@ export interface SessionStore {
   /** Insert or replace. Returns the session's new revision (undefined when not tracked). */
   putMeta(meta: StoredMeta): Promise<number | undefined>;
   listSessionIds(): Promise<Set<string>>;
-  /** Sessions of one owner in one organization (`orgId` unset: sessions without one), optionally one project. */
-  listSessions(filter: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]>;
+  /** Sessions of one owner in one organization (`orgId` unset: sessions without one), optionally one project or one scope. */
+  listSessions(filter: { owner: string; orgId: string | undefined; projectId?: string; scope?: SessionScope }): Promise<StoredMeta[]>;
   countSessions(): Promise<number>;
   /**
    * Sessions in one organization, or only `owner`'s there (todo14 D9: deleting an org, removing a

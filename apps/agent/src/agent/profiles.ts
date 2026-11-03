@@ -35,6 +35,11 @@ export interface Profile {
   clientTools: readonly string[];
   /** `optional`: sandbox tools when Daytona is configured, otherwise the profile runs without them. */
   sandbox: boolean | "optional";
+  /**
+   * todo21 D8: a Home chat (no project). Its tools are only list_projects, create_project (client)
+   * and open_in_project: no dataset, project, Studio, kernel or sandbox tools.
+   */
+  home?: boolean;
   /** Server tools over the kernel (tools/kernel.ts); the session needs a kernel token. */
   kernel?: "builder" | "task";
   /**
@@ -78,6 +83,8 @@ export const PROFILES: Record<ProfileName, Profile> = {
   },
   // Task tools only: uses what's installed, can't change the plugin set or the environment.
   task: { name: "task", clientTools: CARD_TOOLS, sandbox: false, kernel: "task", prompts: ["base", "task"] },
+  // todo21 D8: Home routes between projects; it never works on project data.
+  home: { name: "home", clientTools: ["create_project"], sandbox: false, home: true, prompts: ["home"] },
 };
 
 /** Whether the profile can run here (a hard sandbox requirement needs Daytona). */

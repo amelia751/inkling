@@ -20,6 +20,8 @@ export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
   coder: ["proposals.write", "samples.inspect"],
   builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
   task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+  // todo21 D8: Home only lists projects and checks access to one (open_in_project); no data scopes.
+  home: [],
 };
 
 const TTL_S = 3600;

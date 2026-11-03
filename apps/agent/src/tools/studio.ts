@@ -38,6 +38,17 @@ const SUMMARY: Record<StudioToolName, (r: any) => string> = {
   offer_studio: (r) => `Offered: ${r.offer.title}`,
 };
 
+/** The result a stale-revision write returns (todo21 D6). */
+export function studioChanged(e: StudioToolError) {
+  return {
+    ok: false,
+    conflict: true,
+    status: 409,
+    ...(e.info.current !== undefined ? { current: e.info.current } : {}),
+    message: "The Studio changed since you read it (another chat or a person edited it). Re-read it with get_studio_state, then redo your change on the current revision.",
+  };
+}
+
 export function createStudioTools(deps: StudioToolsDeps): ToolDefinition<any, any, any>[] {
   const handlers = createStudioHandlers({ client: deps.client, catalog: deps.studio.catalog, intents: deps.studio.intents, projectId: deps.projectId, activeItem: deps.activeItem });
   // STUDIO_TOOLS has a fixed order (prompt caching).
@@ -54,6 +65,9 @@ export function createStudioTools(deps: StudioToolsDeps): ToolDefinition<any, an
           const result = await handler(args, { seed: run ? `${run}/${callId}` : callId, signal });
           return out(result, SUMMARY[spec.name](result));
         } catch (e) {
+          // todo21 D6: two chats can edit one Studio; a stale revision is not a failure. The model
+          // gets an ordinary result telling it to re-read and redo the change on the current revision.
+          if (e instanceof StudioToolError && e.info.status === 409) return out(studioChanged(e), "The Studio changed; re-reading");
           // The model reads the status, the errors with their paths and the current revision.
           if (e instanceof StudioToolError) throw new Error(JSON.stringify(e.toJSON()));
           throw e;

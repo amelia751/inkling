@@ -138,6 +138,14 @@ export class FileSessionStore implements SessionStore {
     return undefined;
   }
 
+  async branchSession(sourceId: string, uptoIdx: number, meta: StoredMeta, header: unknown): Promise<void> {
+    if (!SESSION_ID.test(sourceId) || !SESSION_ID.test(meta.id)) throw new Error("bad session id");
+    const rows = (await this.readTranscript(sourceId)).slice(1, Math.max(1, uptoIdx));
+    // Transcript first: a meta file is what makes the session exist.
+    writeFileSync(this.jsonlPath(meta.id), [header, ...rows].map((e) => `${JSON.stringify(e)}\n`).join(""));
+    await this.putMeta(meta);
+  }
+
   // ---- runs ----
 
   private readRun(id: string): RunRecord | undefined {

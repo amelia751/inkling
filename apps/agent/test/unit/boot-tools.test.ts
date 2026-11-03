@@ -35,6 +35,8 @@ function fakeApi(mode: "ok" | "422" | "403" | "ai-off" | "empty-project" = "ok")
     const h = new Headers(init?.headers);
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     const method = init?.method ?? "GET";
+    // todo21 D7: the chat-title notice after a first run isn't a tool call.
+    if (url.pathname.endsWith("/title") && url.pathname.includes("/conversations/")) return new Response(JSON.stringify({ renamed: false, folder: null }), { status: 200 });
     seen.push({ method, path: url.pathname, auth: h.get("authorization"), workspace: h.get("x-workspace-id"), run: h.get("x-agent-run"), body });
     const send = (status: number, value: unknown) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
     if (h.get("authorization") !== `Bearer ${KTOKEN}`) return send(401, { detail: "invalid token" });

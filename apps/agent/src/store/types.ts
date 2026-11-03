@@ -98,6 +98,11 @@ export interface SessionStore {
   readTranscript(id: string): Promise<unknown[]>;
   /** Write `items` at positions `from`, `from + 1`, … (position 0 is the header). Idempotent per position. */
   appendTranscript(id: string, from: number, items: unknown[]): Promise<number | undefined>;
+  /**
+   * todo21 W4: a new session `meta` holding the source's transcript rows `1..uptoIdx - 1` under
+   * `header` (row 0), in one transaction. The caller checks ownership and maps the message index.
+   */
+  branchSession(sourceId: string, uptoIdx: number, meta: StoredMeta, header: unknown): Promise<void>;
 
   // ---- runs ----
   /** False when the session already has an active run (one active run per session, cluster-wide). */

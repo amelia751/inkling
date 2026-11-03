@@ -190,6 +190,32 @@ export class PostgresSessionStore implements SessionStore {
     }
   }
 
+  async branchSession(sourceId: string, uptoIdx: number, meta: StoredMeta, header: unknown): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev) VALUES ($1, $2, $3, $4, $5, 1)", [
+        meta.id,
+        meta.owner,
+        meta.projectId,
+        meta.orgId ?? null,
+        JSON.stringify(meta),
+      ]);
+      await client.query("INSERT INTO agent_transcript (session_id, idx, entry) VALUES ($1, 0, $2)", [meta.id, JSON.stringify(header)]);
+      await client.query(
+        `INSERT INTO agent_transcript (session_id, idx, entry)
+         SELECT $1, idx, entry FROM agent_transcript WHERE session_id = $2 AND idx > 0 AND idx < $3`,
+        [meta.id, sourceId, uptoIdx],
+      );
+      await client.query("COMMIT");
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   // ---- runs ----
 
   async insertRun(rec: RunRecord): Promise<boolean> {

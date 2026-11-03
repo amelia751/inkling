@@ -93,6 +93,9 @@ const schemas = {
       drop: z.object({ dropId: z.string().regex(/^drp-[a-z0-9]{8,40}$/, "dropId must look like drp-…") }).optional(),
     })
     .refine((m) => m.text.length > 0 || !!m.drop, { message: "text must not be empty (unless the message carries a drop)", path: ["text"] }),
+  // todo21 W3/W4
+  rename: z.object({ title: z.string().transform((t) => t.replace(/\s+/g, " ").trim()).pipe(z.string().min(1, "title must not be empty").max(80, "title is at most 80 characters")) }),
+  branch: z.object({ messageIdx: z.number().int().min(0) }),
   clientTool: z.object({ ok: z.boolean(), output: z.unknown() }),
   approval: z.object({ decision: z.enum(["approve", "reject"]), note: z.string().max(2000).optional() }),
 };
@@ -202,6 +205,20 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
     const { principal, orgId } = c.get("caller");
     const res: ThreadResponse = await sessions.thread(await sessions.get(c.req.param("id"), principal, orgId));
     return c.json(res);
+  });
+
+  // todo21 W3: rename (owner only: `get` 404s for anyone else).
+  app.patch("/v1/sessions/:id", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    const { title } = await body(c, schemas.rename);
+    return c.json({ session: await sessions.rename(await sessions.get(c.req.param("id"), principal, orgId), title) });
+  });
+
+  // todo21 W4: a new chat with the thread up to and including message `messageIdx`.
+  app.post("/v1/sessions/:id/branch", async (c) => {
+    const { principal, orgId } = c.get("caller");
+    const { messageIdx } = await body(c, schemas.branch);
+    return c.json({ session: await sessions.branch(await sessions.get(c.req.param("id"), principal, orgId), messageIdx) }, 201);
   });
 
   app.delete("/v1/sessions/:id", async (c) => {

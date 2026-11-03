@@ -10,7 +10,8 @@ import { MemoryRunEventBus } from "../bus/memory.ts";
 import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
 import { fileStore } from "../store/index.ts";
 import type { RunRecord, SessionStore, StoredMeta } from "../store/types.ts";
-import { buildThread, titleFrom, titleFromTranscript } from "./thread.ts";
+import { buildThread, parseUserText, titleFrom, titleFromTranscript, transcriptCut } from "./thread.ts";
+import { type TitleResult, makeTitle } from "../agent/titler.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
 import { type StudioCatalog, loadStudioCatalog } from "../agent/catalog.ts";
@@ -85,6 +86,12 @@ interface SessionMeta {
   updatedAt?: number;
   /** todo20 W3: from the first user message; unset before it (legacy sessions: read from the transcript). */
   title?: string | null;
+  /** todo21 D4: who set `title` (unset: the provisional first-message title; the titler may replace it). */
+  titleBy?: "auto" | "person";
+  /** todo21: when the last run finished (ISO). */
+  lastRunAt?: string;
+  /** todo21 D5: the chat this one was branched from. */
+  branchedFrom?: { sessionId: string; messageIdx: number };
   sandboxId?: string;
   artifacts: (ArtifactInfo & { hostPath: string })[];
 }
@@ -589,15 +596,126 @@ export class SessionService {
   /** The owner's sessions in one organization (none = dev mode's org-less sessions), newest first. */
   async list(owner = this.deps.principal ?? "local", orgId?: string, projectId?: string): Promise<SessionSummary[]> {
     const metas = await this.store.listSessions({ owner, orgId, projectId });
-    const rows = await Promise.all(metas.map((m) => this.summarize(m as unknown as SessionMeta)));
+    const active = await this.store.activeSessionIds().catch(() => new Set<string>());
+    const rows = await Promise.all(metas.map((m) => this.summarize(m as unknown as SessionMeta, { active })));
     return rows.sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt);
   }
 
   /** A `GET /v1/sessions` row. Sessions stored before todo20 have no title yet: read it from the transcript. */
-  async summarize(m: SessionMeta): Promise<SessionSummary> {
+  async summarize(m: SessionMeta, opts: { running?: boolean; active?: Set<string> } = {}): Promise<SessionSummary> {
     const createdAt = Number(m.createdAt) || 0;
     const title = m.title !== undefined ? m.title : titleFromTranscript(await this.store.readTranscript(m.id).catch(() => []));
-    return { id: m.id, projectId: m.projectId, title: title ?? null, createdAt, updatedAt: Number(m.updatedAt) || createdAt, profile: m.profile };
+    const running = opts.running ?? (this.sessions.get(m.id)?.activeRun?.done === false || (opts.active ?? (await this.store.activeSessionIds().catch(() => new Set()))).has(m.id));
+    return {
+      id: m.id,
+      projectId: m.projectId,
+      title: title ?? null,
+      createdAt,
+      updatedAt: Number(m.updatedAt) || createdAt,
+      profile: m.profile,
+      // todo21 W3/W4
+      titleBy: m.titleBy ?? null,
+      running,
+      lastRunAt: m.lastRunAt ?? null,
+      branchedFrom: m.branchedFrom ?? null,
+    };
+  }
+
+  // ---- todo21: titles and branches ------------------------------------------------------------
+
+  /** `PATCH /v1/sessions/:id`: the person's title, never replaced by the titler. */
+  async rename(ctx: SessionContext, title: string): Promise<SessionSummary> {
+    const previous = ctx.meta.title ?? null;
+    ctx.meta.title = title;
+    ctx.meta.titleBy = "person";
+    this.writeMeta(ctx.meta);
+    await this.cluster.flush(ctx.id);
+    return this.titleChanged(ctx, previous);
+  }
+
+  /** After a title change: tell the run's stream (if one is open) and the kernel (D7, best-effort). */
+  private async titleChanged(ctx: SessionContext, previous: string | null, run = ctx.activeRun): Promise<SessionSummary> {
+    const session = await this.summarize(ctx.meta);
+    if (run && !run.done) run.events.push({ type: "session.updated", session });
+    if (ctx.meta.title && ctx.meta.title !== previous) void this.notifyKernelTitle(ctx.meta, ctx.meta.title, previous);
+    return session;
+  }
+
+  /**
+   * todo21 D7: the kernel renames the chat's `Shared in chat/…` folder. Service token, a few
+   * seconds at most, never throws: a missed rename leaves the folder's old name.
+   */
+  private async notifyKernelTitle(meta: SessionMeta, title: string, previousTitle: string | null): Promise<void> {
+    const token = this.config.kernelServiceToken;
+    if (!meta.projectId || (meta as { scope?: string }).scope === "home" || !token || !this.config.kernelUrl) return;
+    try {
+      const url = new URL(`/api/v1/projects/${encodeURIComponent(meta.projectId)}/conversations/${encodeURIComponent(meta.id)}/title`, this.config.kernelUrl);
+      const res = await (this.deps.fetchImpl ?? fetch)(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Workspace-Id": meta.projectId },
+        body: JSON.stringify({ title, ...(previousTitle ? { previousTitle } : {}) }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) this.deps.log.warn({ sessionId: meta.id, status: res.status }, "kernel chat-title call failed");
+    } catch (err) {
+      this.deps.log.warn({ sessionId: meta.id, err: sanitizeError(String(err)) }, "kernel chat-title call failed");
+    }
+  }
+
+  /**
+   * todo21 D4: after the first completed run, name the chat from that run's first user message and
+   * reply text only. A person's title (here or on another replica) is never replaced.
+   */
+  private async autoTitle(ctx: SessionContext, run: Run, from: number): Promise<TitleResult | undefined> {
+    if (ctx.meta.titleBy) return undefined;
+    const entries = (ctx.piSession?.sessionManager.getEntries() ?? []).slice(from) as { type?: string; message?: { role?: string; content?: unknown } }[];
+    const text = (c: unknown) =>
+      typeof c === "string" ? c : Array.isArray(c) ? c.map((p: { type?: string; text?: string }) => (p?.type === "text" ? (p.text ?? "") : "")).join("") : "";
+    const u = entries.findIndex((e) => e.type === "message" && e.message?.role === "user");
+    if (u < 0) return undefined;
+    const userText = parseUserText(text(entries[u]!.message!.content)).text;
+    let replyText = "";
+    for (const e of entries.slice(u + 1)) {
+      if (e.type !== "message") continue;
+      if (e.message?.role === "user") break;
+      if (e.message?.role === "assistant") replyText += text(e.message.content);
+    }
+    const result = await makeTitle({ userText, replyText }, { runtime: this.deps.runtime, config: this.config, signal: run.abort.signal });
+    if (!result) return undefined;
+    const stored = await this.readMeta(ctx.id).catch(() => undefined);
+    if (stored?.titleBy === "person") {
+      ctx.meta.title = stored.title;
+      ctx.meta.titleBy = "person";
+      return result;
+    }
+    if (ctx.meta.titleBy) return result;
+    const previous = ctx.meta.title ?? null;
+    ctx.meta.title = result.title;
+    ctx.meta.titleBy = "auto";
+    this.writeMeta(ctx.meta);
+    await this.titleChanged(ctx, previous, run);
+    return result;
+  }
+
+  /**
+   * todo21 W4: a new chat holding thread messages `0..messageIdx` of `src` (no model call). The
+   * source and its runs are untouched.
+   */
+  async branch(src: SessionContext, messageIdx: number): Promise<SessionSummary> {
+    if ((await this.store.countSessions()) >= this.config.limits.maxSessions) throw new HttpError(429, `session limit (${this.config.limits.maxSessions}) reached; delete a session first`);
+    this.persist(src);
+    await this.cluster.settled(src.id);
+    const entries = await this.store.readTranscript(src.id);
+    const cut = transcriptCut(entries, messageIdx);
+    if (cut === undefined) throw new HttpError(400, `no message ${messageIdx} in that chat`);
+    const id = `ses_${randomUUID()}`;
+    const now = Date.now();
+    const { titleBy: _t, lastRunAt: _l, sandboxId: _s, branchedFrom: _b, updatedAt: _u, ...rest } = src.meta;
+    const meta: SessionMeta = { ...rest, id, createdAt: now, updatedAt: now, title: src.meta.title ?? null, artifacts: [], branchedFrom: { sessionId: src.id, messageIdx } };
+    const header = { ...(entries[0] as object), id: piId(id), timestamp: new Date(now).toISOString() };
+    await this.store.branchSession(src.id, cut, meta as unknown as StoredMeta, header);
+    this.deps.log.info({ sessionId: id, from: src.id, messageIdx, rows: cut }, "session branched");
+    return this.summarize(meta, { running: false });
   }
 
   /** todo20 W3: the visible thread, rebuilt from the stored transcript and the session's runs. */
@@ -782,21 +900,36 @@ export class SessionService {
     const timer = setTimeout(() => this.abortRun(ctx, run, "expired"), this.config.budgets.maxRunSeconds * 1000);
     timer.unref();
     log.info({ profile: ctx.meta.profile }, "run started");
+    // todo21: the chat list shows the run (and its title) live.
+    const startEntries = ctx.piSession.sessionManager.getEntries().length;
+    run.events.push({ type: "session.updated", session: await this.summarize(ctx.meta, { running: true }) });
+    let titled: TitleResult | undefined;
+    const end = async (to: RunStatus) => {
+      if (to === "completed") titled = await this.autoTitle(ctx, run, startEntries).catch((err) => (log.warn({ err: sanitizeError(String(err)) }, "titler failed"), undefined));
+      // A rename on another replica since this one loaded the meta wins over this copy.
+      const stored = await this.readMeta(ctx.id).catch(() => undefined);
+      if (stored?.titleBy === "person" && ctx.meta.titleBy !== "person") Object.assign(ctx.meta, { title: stored.title, titleBy: "person" });
+      ctx.meta.lastRunAt = new Date().toISOString();
+      this.writeMeta(ctx.meta);
+      run.events.push({ type: "session.updated", session: await this.summarize(ctx.meta, { running: false }) });
+      this.transition(ctx, to, run);
+    };
 
     try {
       const text = run.pending.splice(0).join("\n\n");
       await ctx.piSession.prompt(text);
       await ctx.piSession.waitForIdle();
-      if (run.endReason) this.transition(ctx, run.endReason === "budget" ? "failed" : run.endReason, run);
-      else this.transition(ctx, run.failed ? "failed" : "completed", run);
+      if (run.endReason) await end(run.endReason === "budget" ? "failed" : run.endReason);
+      else await end(run.failed ? "failed" : "completed");
     } catch (err) {
-      if (run.endReason) this.transition(ctx, run.endReason === "budget" ? "failed" : run.endReason, run);
+      if (run.endReason) await end(run.endReason === "budget" ? "failed" : run.endReason).catch(() => this.transition(ctx, "failed", run));
       else {
         log.error({ err: sanitizeError(String(err)) }, "run failed");
         run.events.push({ type: "error", message: providerErrorMessage(err instanceof Error ? err.message : String(err)) });
-        this.transition(ctx, "failed", run);
+        await end("failed").catch(() => this.transition(ctx, "failed", run));
       }
     } finally {
+      if (!run.done) this.transition(ctx, "failed", run);
       clearTimeout(timer);
       stopKeepalive?.();
       ctx.bridge.cancelAll("run ended");
@@ -812,6 +945,7 @@ export class SessionService {
           approvals: run.approvals,
           seconds: Math.round((Date.now() - run.startedAt) / 1000),
           ...sandboxUsage(this.sandboxes?.peek(ctx.id)),
+          ...(titled ? { title: { via: titled.via, model: titled.model, ...titled.usage } } : {}),
         },
         "run finished",
       );

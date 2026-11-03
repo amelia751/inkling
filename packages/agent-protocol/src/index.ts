@@ -151,6 +151,8 @@ export type AgentEventBody =
   | { type: "artifact"; id: string; name: string; bytes: number; sha256: string }
   | { type: "error"; message: string }
   | { type: "done"; status: RunStatus }
+  /** todo21 D4: a chat's list row changed (auto title, rename, run start/finish). */
+  | { type: "session.updated"; session: ChatSessionSummary }
   /**
    * Anything with no AG-UI 1.0 equivalent (AG-UI CUSTOM). New run events go here as
    * `{name, value}` rather than as new top-level types; see `ag-ui-map.ts`.
@@ -191,6 +193,14 @@ export interface ChatSessionSummary {
   createdAt: number;
   updatedAt: number;
   profile: ProfileName;
+  /** todo21 D4: who set the title; null while it's still the provisional first-message title. */
+  titleBy?: "auto" | "person" | null;
+  /** todo21: a run is active in this chat. */
+  running?: boolean;
+  /** todo21: when the last run finished (ISO), null before the first one. */
+  lastRunAt?: string | null;
+  /** todo21 D5: the chat this one was branched from (`messageIdx`: the last thread message kept). */
+  branchedFrom?: { sessionId: string; messageIdx: number } | null;
 }
 
 export interface CreateSessionResponse {

@@ -8,11 +8,12 @@ metadata:
 data:
   STUDIO_ENV: production
   STUDIO_API_CREATE_TABLES: "0"
-  # Sign-in (todo9 D8): `dev` trusts the dev identity headers; `workos` signs people in with
-  # WorkOS AuthKit and requires DEV_TRUST_HEADERS=0 (overlays/prod; gke/phi components/workos).
-  # The WorkOS key, cookie password and client id come from Secret workos-secrets (optional).
-  STUDIO_API_AUTH_MODE: dev
-  STUDIO_API_DEV_TRUST_HEADERS: "1"
+  # Sign-in (todo22 D2): every deployed stage signs people in with WorkOS AuthKit. Overlays set
+  # the redirect URI and public URL (overlays/prod, overlays/staging, gke/phi components/workos).
+  # The WorkOS key, cookie password and client id come from Secret workos-secrets.
+  # tools/check-deploy-auth.mjs (pnpm lint) rejects any other value here or in an overlay.
+  STUDIO_API_AUTH_MODE: workos
+  STUDIO_API_DEV_TRUST_HEADERS: "0"
   STUDIO_REDIS_URL: redis://redis:6379/0
   STUDIO_JOB_QUEUE: redis
   STUDIO_EVENT_BUS: redis

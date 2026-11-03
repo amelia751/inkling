@@ -14,14 +14,24 @@ base/
   deps/                                  dev-only Postgres, Redis, S3-compatible store (RustFS) + bucket Job
 components/network-policies/             default deny + per-app allow rules (staging, prod)
 overlays/
-  dev/        one replica each, base/deps, local `studio-<app>:dev` images, dev placeholder Secrets
-  staging/    managed endpoints, digests, 2+ replicas, NetworkPolicies, TLS host
-  prod/       same as staging with more replicas; sign-in with WorkOS (auth.yaml, workos-egress.yaml)
+  dev/        one replica each, base/deps, local `studio-<app>:dev` images, placeholder Secrets
+              (sign-in still WorkOS: create workos-secrets with staging keys)
+  staging/    managed endpoints, digests, 2+ replicas, NetworkPolicies, TLS host; WorkOS hosts
+              (auth.yaml, workos-egress.yaml)
+  prod/       same as staging with more replicas
   gke/        Google Cloud: phi/ (web, api, worker, versioning, pipeline in spurby-phi) and ai/
               (agent and its build sandboxes in spurby-ai); Workload Identity, External Secrets,
               GKE Sandbox; live/ renders them with real values from a git-ignored local.env
 check-no-secrets.mjs                     CI: fails on a committed Secret with data
 ```
+
+**Every overlay signs people in with WorkOS (todo22 D2).** Base sets `STUDIO_API_AUTH_MODE=workos`,
+`STUDIO_API_DEV_TRUST_HEADERS=0`, `STUDIO_AGENT_AUTH_MODE=workos` and `STUDIO_WEB_AUTH_MODE=workos`;
+overlays only add the redirect URI, public URL and client id. There is no dev sign-in on any
+cluster, `overlays/dev` included: laptop dev mode is `pnpm dev` and `infra/docker`. `pnpm lint`
+(and CI) runs `tools/check-deploy-auth.mjs`, which reads every file here and in
+`infra/terraform` (Cloud Run `run.tf`) and renders every overlay when `kubectl` is installed; it
+fails on any other auth mode, trusted dev headers, `STUDIO_AGENT_STORE=file` or a `sqlite:` URL.
 
 Render or validate an overlay:
 
@@ -60,7 +70,7 @@ Key names per Secret (names only; env prefix `STUDIO_` from `schemas/naming.json
 | `agent-secrets` | `STUDIO_AGENT_TOKEN`, `STUDIO_AGENT_APPROVAL_SECRET`, `STUDIO_AGENT_DATABASE_URL`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DAYTONA_API_KEY` | The only Secret with model and Daytona keys. Add `STUDIO_AGENT_REDIS_URL` if Redis needs a password. Optional: `DAYTONA_API_URL`, `DAYTONA_TARGET`. |
 | `versioning-secrets` | `STUDIO_VERSIONING_DATABASE_URL` (role `versioning_app`), `STUDIO_VERSIONING_MIGRATE_DATABASE_URL` (role `versioning_owner`), `STUDIO_VERSIONING_S3_ACCESS_KEY_ID`, `STUDIO_VERSIONING_S3_SECRET_ACCESS_KEY` | S3 keys scoped to the two versioning buckets. Add `STUDIO_VERSIONING_REDIS_URL` if Redis needs a password. |
 | `pipeline-secrets` | `STUDIO_PIPELINE_DATABASE_URL` (database `studio`, role `pipeline_app`, `search_path=pipeline`), `STUDIO_PIPELINE_ENGINE_DATABASE_URL` (database `pipeline_engine`, same role), `STUDIO_PIPELINE_API_TOKEN` | `sslmode=require` outside dev. Both URLs count against `pipeline_app`'s `CONNECTION LIMIT`. |
-| `workos-secrets` | `STUDIO_API_WORKOS_API_KEY`, `STUDIO_API_WORKOS_COOKIE_PASSWORD`, `STUDIO_API_WORKOS_CLIENT_ID` | Sign-in (todo9). Optional everywhere: absent means `dev` mode. api reads all three (`envFrom`, before `api-secrets`), for sign-in and the WorkOS event sync; the worker reads none. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
+| `workos-secrets` | `STUDIO_API_WORKOS_API_KEY`, `STUDIO_API_WORKOS_COOKIE_PASSWORD`, `STUDIO_API_WORKOS_CLIENT_ID` | Sign-in (todo9, todo22 D2). Required everywhere: every overlay runs `workos` mode. api reads all three (`envFrom`, before `api-secrets`), for sign-in and the WorkOS event sync; the worker reads none. The cookie password is a Fernet key, the same on every replica. The client id isn't secret but belongs to the same WorkOS environment as the key. Runbook below. |
 | `db-bootstrap-secrets` | `ADMIN_DATABASE_URL`, `API_APP_PASSWORD`, `PIPELINE_APP_PASSWORD`, `VERSIONING_OWNER_PASSWORD`, `VERSIONING_APP_PASSWORD` | Read by the db-bootstrap Job's psql only (no env prefix: not an app setting). Present only while bootstrapping; dev uses placeholders. |
 | `versioning-bootstrap-secrets` | `STUDIO_VERSIONING_ADMIN_DATABASE_URL`, `STUDIO_VERSIONING_OWNER_PASSWORD`, `STUDIO_VERSIONING_APP_PASSWORD` | dev only (init container of `versioning-migrate`). In staging/prod a DBA runs `migrate bootstrap` once. |
 | `studio-tls` | (type `kubernetes.io/tls`) | Issued by cert-manager for the Ingress host. |
@@ -125,10 +135,10 @@ Elsewhere, replace the Secret with `kubectl create secret generic workos-secrets
    kubectl -n $NS get externalsecret workos-secrets     # SecretSynced
    ```
 
-3. Add `components/workos` to `overlays/gke/phi/kustomization.yaml` (before `values`), set
+3. `components/workos` is on in `overlays/gke/phi` by default (todo22 D2). Set
    `STUDIO_API_WORKOS_ISSUER` in its `configmap.yaml` to the `iss` Phase 0 recorded, render from
-   `live/phi`, apply. In `overlays/gke/ai`, set `STUDIO_AGENT_AUTH_MODE=workos` and
-   `STUDIO_AGENT_WORKOS_CLIENT_ID` (and the issuer) in `agent-config`, apply.
+   `live/phi`, apply. In `live/ai/local.env`, set `AGENT_WORKOS_CLIENT_ID` (the render fails
+   without it), render `live/ai`, apply.
 4. **Keep the ingress allow-list (`STUDIO_ALLOW_CIDRS`).** From an allowed address: sign in,
    switch organization, invite someone, create and revoke an API key, sign out. Check that
    `GET /api/auth/session` without a cookie is 401, and that a request with only the dev headers
@@ -136,9 +146,9 @@ Elsewhere, replace the Secret with `kubectl create secret generic workos-secrets
 5. Only then remove the `whitelist-source-range` annotation (`overlays/gke/phi/patches`, its
    replacement in `values/` and `STUDIO_ALLOW_CIDRS` in `local.env*`) in a separate change.
 
-Roll back by removing `components/workos` and applying: the api returns to `dev` mode, which is
-only safe while the allow-list is still on, so never remove the allow-list and the component in
-the same change.
+There is no roll back to `dev` mode (`check-deploy-auth` refuses it). If sign-in is broken, fix
+the WorkOS config or secret; the allow-list keeps everyone else out meanwhile, so never remove it
+before a sign-in is verified.
 
 **Rotate the cookie password.** Every session ends: everyone signs in again. Do it off-hours, or
 at once if the key leaked. Replace only `STUDIO_API_WORKOS_COOKIE_PASSWORD`, then restart api:

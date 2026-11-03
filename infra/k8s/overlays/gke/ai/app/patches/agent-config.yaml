@@ -21,3 +21,5 @@ data:
   # D9 trial: Daytona stays the provider until the GKE Sandbox provider (todo10-boundary's
   # SandboxProvider) lands; then `gke` with the settings in ../README.md.
   STUDIO_AGENT_SANDBOX: daytona
+  # Sign-in (todo22 D2; the mode is the base default): replaced from gke-values.
+  STUDIO_AGENT_WORKOS_CLIENT_ID: AGENT_WORKOS_CLIENT_ID

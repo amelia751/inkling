@@ -80,7 +80,7 @@ patches:
       - op: add
         path: /metadata/annotations/nginx.ingress.kubernetes.io~1denylist-source-range
         value: AGENT_EGRESS_CIDR
-      # People don't sign in yet (the api trusts dev headers), so only these addresses reach it.
+      # Kept until a WorkOS sign-in is verified on the live host (todo22 W2); then remove it.
       - op: add
         path: /metadata/annotations/nginx.ingress.kubernetes.io~1whitelist-source-range
         value: STUDIO_ALLOW_CIDRS

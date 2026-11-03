@@ -1,0 +1,22 @@
+# Sign-in with WorkOS (todo9 D8, D9: staging → the WorkOS staging environment). The mode itself
+# is the base default (todo22 D2); this sets where AuthKit sends people back and the client id. Secret
+# workos-secrets (created out of band, infra/k8s/README.md) holds STUDIO_API_WORKOS_API_KEY,
+# STUDIO_API_WORKOS_COOKIE_PASSWORD and STUDIO_API_WORKOS_CLIENT_ID. Hosts are placeholders,
+# like the Ingress host in kustomization.yaml; the redirect URI must match the dashboard exactly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+data:
+  STUDIO_API_WORKOS_REDIRECT_URI: https://staging.studio.example.com/api/auth/callback
+  STUDIO_API_PUBLIC_URL: https://staging.studio.example.com
+  # STUDIO_API_WORKOS_ISSUER: set once Phase 0 records the staging `iss`
+  # (expected https://api.workos.com/user_management/<client id>); unchecked while unset.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+data:
+  # Not secret: the staging AuthKit client id (placeholder), the same as in workos-secrets.
+  STUDIO_AGENT_WORKOS_CLIENT_ID: client_00000000000000000000000000

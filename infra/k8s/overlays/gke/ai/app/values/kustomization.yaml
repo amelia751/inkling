@@ -34,3 +34,7 @@ replacements:
     targets:
       - select: { kind: ConfigMap, name: agent-config }
         fieldPaths: [data.STUDIO_API_URL, data.STUDIO_WEB_URL]
+  - source: { kind: ConfigMap, name: gke-values, fieldPath: data.AGENT_WORKOS_CLIENT_ID }
+    targets:
+      - select: { kind: ConfigMap, name: agent-config }
+        fieldPaths: [data.STUDIO_AGENT_WORKOS_CLIENT_ID]

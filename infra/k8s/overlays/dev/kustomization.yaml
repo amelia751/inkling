@@ -172,6 +172,14 @@ patches:
       - op: replace
         path: /data/STUDIO_API_NAME_SCREEN_MODE
         value: regex
+      # Sign-in is WorkOS here too (todo22 D2; dev auth is only `pnpm dev` and infra/docker):
+      # point AuthKit at the port-forwarded host and fill workos-secrets (infra/k8s/README.md).
+      - op: add
+        path: /data/STUDIO_API_WORKOS_REDIRECT_URI
+        value: http://localhost:8080/api/auth/callback
+      - op: add
+        path: /data/STUDIO_API_PUBLIC_URL
+        value: http://localhost:8080
   # No model or Daytona key needed: scripted model, sandboxes off (both refused in production).
   - target:
       kind: ConfigMap
@@ -186,6 +194,10 @@ patches:
       - op: add
         path: /data/STUDIO_AGENT_SANDBOX
         value: "off"
+      # The WorkOS staging client id (placeholder; the same as in workos-secrets).
+      - op: add
+        path: /data/STUDIO_AGENT_WORKOS_CLIENT_ID
+        value: client_00000000000000000000000000
   # The dev Postgres has no DBA: bootstrap the versioning roles and schema first.
   - target:
       kind: Job

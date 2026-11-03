@@ -1,20 +1,15 @@
-# Sign-in with WorkOS (todo9 Phase 14). OFF: the Studio still trusts dev headers behind the
-# ingress allow-list (STUDIO_ALLOW_CIDRS). Turn on, staging first (docs/running.md, "Signing in";
-# infra/k8s/README.md, "WorkOS runbook"):
-#   1. the WorkOS production environment is seeded (infra/workos/seed.yml) and its redirect URI is
-#      exactly https://<STUDIO_HOST>/api/auth/callback;
-#   2. Secret Manager secret workos-secrets has a version (key, Fernet cookie password, client id)
-#      and the ExternalSecret of the same name reports SecretSynced;
-#   3. add `components/workos` to ../../kustomization.yaml, before `values`, and apply;
-#   4. sign in; only then remove the ingress whitelist-source-range (STUDIO_ALLOW_CIDRS).
-#
-# What it changes:
-#   - ConfigMap api-auth-config, after api-config in the api's envFrom: AUTH_MODE=workos,
-#     DEV_TRUST_HEADERS=0, the redirect URI and public URL (host from STUDIO_HOST, values/);
-#   - web: STUDIO_WEB_AUTH_MODE=workos (the SPA's /config.json);
+# Sign-in with WorkOS (todo9 Phase 14; on by default since todo22 D2). Base already sets
+# STUDIO_API_AUTH_MODE=workos, STUDIO_API_DEV_TRUST_HEADERS=0 and STUDIO_WEB_AUTH_MODE=workos;
+# this component adds what is specific to gke/phi (infra/k8s/README.md, "WorkOS runbook"):
+#   - ConfigMap api-auth-config, after api-config in the api's envFrom: the redirect URI and
+#     public URL (host from STUDIO_HOST, values/);
 #   - NetworkPolicy workos-egress: api may open 443 to public addresses (network.yaml).
-# The agent (spurby-ai, ../../ai) flips separately: STUDIO_AGENT_AUTH_MODE=workos and
-# STUDIO_AGENT_WORKOS_CLIENT_ID in its agent-config.
+# Before the first apply: the WorkOS environment is seeded (infra/workos/seed.yml) with redirect
+# URI exactly https://<STUDIO_HOST>/api/auth/callback, and Secret Manager secret workos-secrets has
+# a version (key, Fernet cookie password, client id) that its ExternalSecret reports SecretSynced.
+# The ingress IP allow-list (STUDIO_ALLOW_CIDRS, patches/) stays until a sign-in is verified on
+# the live host; then remove it.
+# The agent (spurby-ai, ../../ai) reads STUDIO_AGENT_WORKOS_CLIENT_ID from its gke-values.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
@@ -31,12 +26,3 @@ patches:
         value:
           configMapRef:
             name: api-auth-config
-  - target:
-      kind: Deployment
-      name: web
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: STUDIO_WEB_AUTH_MODE
-          value: workos

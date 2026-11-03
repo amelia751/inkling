@@ -70,9 +70,10 @@ Image digests are not in `local.env`: CI pushes to each project's `images` regis
 
 The ExternalSecret `workos-secrets` is always on (it reports `SecretSyncedError` until the Secret
 Manager secret has a version; api references it as optional). Everything else is
-`phi/components/workos`, off: api in `workos` mode with `DEV_TRUST_HEADERS=0`, the redirect URI
-and public URL from `STUDIO_HOST`, web's `STUDIO_WEB_AUTH_MODE=workos`, and NetworkPolicy
-`workos-egress` (api only, TCP 443 to public addresses through Cloud NAT). The flip steps
+`phi/components/workos`, on by default (todo22 D2; base already runs api, agent and web in
+`workos` mode): the redirect URI and public URL from `STUDIO_HOST`, and NetworkPolicy
+`workos-egress` (api only, TCP 443 to public addresses through Cloud NAT). gke/ai reads the
+agent's `STUDIO_AGENT_WORKOS_CLIENT_ID` from `AGENT_WORKOS_CLIENT_ID` in its local.env. The flip steps
 are in `infra/k8s/README.md` ("WorkOS runbook"); keep `STUDIO_ALLOW_CIDRS` until a sign-in works.
 
 ## Installed once per cluster (Helm, not in this repo)

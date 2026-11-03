@@ -416,7 +416,7 @@ Production keys (`sk_live_…`) never go on a laptop.
 ### Production (runbook)
 
 The `prod` overlay runs `workos` mode against the WorkOS production environment; on Google Cloud
-it is `infra/k8s/overlays/gke/phi/components/workos`, off until Phase 14. The steps are in
+it is `infra/k8s/overlays/gke/phi/components/workos`, on by default (todo22 D2). The steps are in
 `infra/k8s/README.md` ("WorkOS runbook"), in short:
 
 - **Turning it on:** staging for a week first; seed and configure the production environment,

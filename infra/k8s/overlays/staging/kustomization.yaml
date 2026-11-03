@@ -1,5 +1,6 @@
 # staging: managed Postgres/Redis/object storage (endpoints in endpoints.yaml), images pinned by
-# digest (CI bumps them; GitOps applies), more replicas, NetworkPolicies. Secrets are created
+# digest (CI bumps them; GitOps applies), more replicas, NetworkPolicies, sign-in
+# with WorkOS (auth.yaml). Secrets are created
 # out of band (infra/k8s/README.md); they are never committed.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -9,6 +10,7 @@ resources:
   - ../../base
   - trigger-auth.yaml
   - network-config.yaml
+  - workos-egress.yaml
 components:
   - ../../components/network-policies
 
@@ -40,6 +42,8 @@ patches:
   # Managed endpoints (non-secret parts; credentials and full URLs with passwords go in the
   # `<app>-secrets`, which override the ConfigMap because envFrom lists the Secret last).
   - path: endpoints.yaml
+  # Sign-in with WorkOS: the hosts and client id (the mode is the base default).
+  - path: auth.yaml
   - target:
       kind: HorizontalPodAutoscaler
       name: web

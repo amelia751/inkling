@@ -118,6 +118,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: No committed Secrets under infra/
         run: node infra/k8s/check-no-secrets.mjs
+      - name: No dev sign-in in deploy config (todo22 D2)
+        run: node tools/check-deploy-auth.mjs && node --test tools/check-deploy-auth.test.mjs
       - name: Render overlays
         run: |
           mkdir -p rendered

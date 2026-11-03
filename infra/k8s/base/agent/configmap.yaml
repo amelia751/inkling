@@ -20,8 +20,8 @@ data:
   # The seed and environment APIs (/seed, /api/…): apps/api serves them under the same paths.
   STUDIO_WEB_URL: http://api
   STUDIO_AGENT_DATA_DIR: /tmp/agent
-  # Sign-in (todo9 Phase 5): `workos` verifies the person's access token on proxied calls and
-  # needs STUDIO_AGENT_WORKOS_CLIENT_ID (overlays/prod; gke/ai when the Studio flips).
-  STUDIO_AGENT_AUTH_MODE: dev
+  # Sign-in (todo22 D2): the agent verifies the person's access token on proxied calls. It
+  # needs STUDIO_AGENT_WORKOS_CLIENT_ID, which each overlay sets (prod, staging, gke/ai values).
+  STUDIO_AGENT_AUTH_MODE: workos
   STUDIO_AGENT_SHUTDOWN_GRACE_S: "100"
   STUDIO_LOG_LEVEL: info

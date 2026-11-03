@@ -41,17 +41,8 @@ patches:
   # Managed endpoints (non-secret parts; credentials and full URLs with passwords go in the
   # `<app>-secrets`, which override the ConfigMap because envFrom lists the Secret last).
   - path: endpoints.yaml
-  # Sign-in with WorkOS (todo9): api, agent and web in `workos` mode.
+  # Sign-in with WorkOS: the hosts and client id (the mode is the base default).
   - path: auth.yaml
-  - target:
-      kind: Deployment
-      name: web
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value:
-          name: STUDIO_WEB_AUTH_MODE
-          value: workos
   - target:
       kind: HorizontalPodAutoscaler
       name: web

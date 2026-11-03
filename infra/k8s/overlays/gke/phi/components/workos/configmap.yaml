@@ -1,12 +1,11 @@
-# api in `workos` mode. STUDIO_HOST is replaced from gke-values (values/kustomization.yaml).
+# Where AuthKit sends people back (the mode itself is the base default, todo22 D2). STUDIO_HOST
+# is replaced from gke-values (values/kustomization.yaml).
 # Secrets (key, cookie password, client id) come from workos-secrets.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: api-auth-config
 data:
-  STUDIO_API_AUTH_MODE: workos
-  STUDIO_API_DEV_TRUST_HEADERS: "0"
   STUDIO_API_WORKOS_REDIRECT_URI: https://STUDIO_HOST/api/auth/callback
   STUDIO_API_PUBLIC_URL: https://STUDIO_HOST
   # STUDIO_API_WORKOS_ISSUER: add once Phase 0 records the real `iss`

@@ -59,6 +59,9 @@ spec:
                   fieldPath: metadata.namespace
             - name: STUDIO_AGENT_URL
               value: http://agent.$(POD_NAMESPACE).svc.cluster.local:8100
+            # The SPA's sign-in (/config.json): WorkOS on every deployed stage (todo22 D2).
+            - name: STUDIO_WEB_AUTH_MODE
+              value: workos
           envFrom:
             - secretRef:
                 name: web-secrets

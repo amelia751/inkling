@@ -20,6 +20,23 @@ describe("bundled presets", () => {
     expect(r.env!.panels.left.map((p) => p.name)).toEqual(["files", "labels"]);
   });
 
+  it("a Studio extending every preset keeps one profile per kind, the first preset's view as the shorthand (todo19 D4)", () => {
+    const r = resolveEnvironment({ extends: ["preset:volume-3d", "preset:cine-4d", "preset:image-2d", "preset:ecg", "preset:video", "preset:pathology"] }, registry);
+    expect(r.errors).toBeUndefined();
+    const env = r.env!;
+    expect(env.dataKind.id).toBe(ns("volume.dataKinds.volume"));
+    expect(env.viewports[0].renderer.id).toBe(ns("volume.renderers.cornerstone-mpr"));
+    const renderers = Object.fromEntries(Object.entries(env.spec.data?.kinds ?? {}).map(([k, v]) => [k, v.renderer]));
+    expect(renderers).toEqual({
+      [ns("volume.dataKinds.volume")]: ns("volume.renderers.cornerstone-mpr"),
+      [ns("cine.dataKinds.volume-time")]: ns("cine.renderers.slice-frame-canvas"),
+      [ns("image2d.dataKinds.raster")]: ns("image2d.renderers.cornerstone-stack"),
+      [ns("timeseries.dataKinds.multichannel-timeseries")]: ns("timeseries.renderers.strip-chart"),
+      [ns("video.dataKinds.video")]: ns("video.renderers.frame-canvas"),
+      [ns("wsi.dataKinds.raster-pyramid")]: ns("wsi.renderers.osd"),
+    });
+  });
+
   it("drops the Studio's Review tab from every preset but keeps the panel registered (todo8 D2)", () => {
     for (const p of presets.contributes.presets!) {
       const left = resolveEnvironment({ extends: `preset:${p.id}` }, registry).env?.panels.left.map((x) => x.name) ?? [];

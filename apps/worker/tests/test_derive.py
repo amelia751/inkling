@@ -219,6 +219,24 @@ def test_a_busy_kernel_is_retried_per_file_not_per_derivative(tmp_path, monkeypa
     assert k.calls[-1][0].endswith("/complete")
 
 
+def test_a_file_put_in_trash_stops_the_conversion_without_reporting(tmp_path):
+    k = _FakeKernel()
+    real_post = k.post
+
+    def post(url, json=None):
+        r = real_post(url, json)
+        return _Resp(status_code=409) if url.endswith("/progress") else r
+
+    k.post = post
+
+    def convert(kind, src, out, sha, progress):
+        progress(10)
+        raise AssertionError("kept converting after a 409")
+
+    assert derive.DeriveWorker(k, tmp_path, convert=convert).tick() == 1
+    assert not any(u.endswith(("/fail", "/complete")) for u, _ in k.calls)
+
+
 def test_worker_loop_reports_the_codec_failure(tmp_path):
     k = _FakeKernel()
 

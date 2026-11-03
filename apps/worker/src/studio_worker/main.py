@@ -135,7 +135,11 @@ class Worker:
         # kinds only to a worker that can serve them and re-queues what was waiting for one.
         self.capabilities = capabilities.detect()
         self._caps_reported_at = 0.0
+        # On their own thread and client in `run_forever`: a slide takes minutes to tile, and
+        # inspection of the next drop must not wait behind it.
         self.derive = DeriveWorker(self.http, data_dir / "derive", derive_limits or config.DeriveLimits(), kinds=capabilities.kinds_for(self.capabilities))
+        self._derive_http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
+        self._derive_thread: threading.Thread | None = None
         # Item derivatives (todo11 D8): on their own thread and client in `run_forever`, so a
         # long inspection or plugin job never holds up the thumbnails a person is waiting for.
         self.items = ItemProcessor(httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]}))
@@ -376,10 +380,11 @@ class Worker:
             did += int(bool(self.unpack.tick()))
         except httpx.HTTPError as e:
             log.warning("unpack: %s", type(e).__name__)
-        try:
-            did += self.derive.tick() or 0
-        except httpx.HTTPError as e:
-            log.warning("derive: %s", type(e).__name__)
+        if self._derive_thread is None:
+            try:
+                did += self.derive.tick() or 0
+            except httpx.HTTPError as e:
+                log.warning("derive: %s", type(e).__name__)
         try:
             self.scheduled.tick()
         except httpx.HTTPError as e:
@@ -463,10 +468,25 @@ class Worker:
             if not had:
                 self.stopping.wait(poll_s)
 
+    def run_derive(self, poll_s: float = 1.0) -> None:
+        """The conversion loop (video → MP4, slide → DZI), one at a time."""
+        self.derive.http = self._derive_http
+        while not self.stopping.is_set():
+            try:
+                had = self.derive.tick()
+            except httpx.HTTPError as e:
+                log.warning("derive: %s", type(e).__name__)
+                had = 0
+            if not had:
+                self.stopping.wait(poll_s)
+
     def run_forever(self, poll_s: float = 1.0, once: bool = False) -> int:
         if not once and self._items_thread is None:
             self._items_thread = threading.Thread(target=self.run_items, name="items", daemon=True)
             self._items_thread.start()
+        if not once and self._derive_thread is None:
+            self._derive_thread = threading.Thread(target=self.run_derive, name="derive", daemon=True)
+            self._derive_thread.start()
         while not self.stopping.is_set():
             try:
                 had = self.tick()

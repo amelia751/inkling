@@ -52,6 +52,10 @@ class DeriveError(RuntimeError):
         self.converter = converter
 
 
+class Stopped(Exception):
+    """The kernel answered 409: the file went to Trash mid-conversion. Drop the work, report nothing."""
+
+
 @dataclass
 class Derived:
     kind: str  # "video-mp4" | "slide-dzi"
@@ -357,14 +361,18 @@ def _deepzoom_parallel(src: Path, slide: Any, out_dir: Path, sha: str, progress:
     progress(0)
     with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 1), initializer=_dz_init, initargs=(str(src),)) as pool:
         results = [pool.submit(_dz_small, j) for j in small] + [pool.submit(_dz_block, j) for j in blocks]
-        for fut in as_completed(results):
-            rels = fut.result()
-            for rel in rels:
-                files[f"derived/{rel}"] = out_dir / rel
-            done += len(rels)
-            if (pct := min(99, done * 100 // total)) != last:
-                last = pct
-                progress(pct)
+        try:
+            for fut in as_completed(results):
+                rels = fut.result()
+                for rel in rels:
+                    files[f"derived/{rel}"] = out_dir / rel
+                done += len(rels)
+                if (pct := min(99, done * 100 // total)) != last:
+                    last = pct
+                    progress(pct)
+        except BaseException:
+            pool.shutdown(wait=False, cancel_futures=True)
+            raise
     dzi = out_dir / f"{sha}.dzi"
     dzi.write_text(dz.get_dzi("jpeg"))
     files[f"derived/{sha}.dzi"] = dzi
@@ -419,11 +427,19 @@ class DeriveWorker:
                         f.write(chunk)
             sha = h.hexdigest()
 
+            import threading
+
+            stopped = threading.Event()
+
             def progress(pct: int) -> None:
-                self.http.post(f"/api/v1/worker/derivatives/{did}/progress", json={"progress": pct})
+                if self.http.post(f"/api/v1/worker/derivatives/{did}/progress", json={"progress": pct}).status_code == 409:
+                    raise Stopped
 
             try:
                 d = self.convert(row["kind"], src, Path(tmp) / "out", sha, progress)
+            except Stopped:
+                log.info("derivative stopped: its file is in Trash", extra={"derivative": did})
+                return "stopped"
             except DeriveError as e:
                 body = {"reason": e.reason, "retry": e.retry, "maxAttempts": self.limits.max_attempts}
                 if e.unavailable:
@@ -436,11 +452,16 @@ class DeriveWorker:
                 import httpx
 
                 rel, path = item
+                if stopped.is_set():
+                    raise Stopped
                 ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
                 for attempt in range(UPLOAD_RETRIES + 1):
                     try:
                         with path.open("rb") as body:  # streamed, never read whole
                             up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=body, headers={"Content-Type": ctype})
+                        if up.status_code == 409:
+                            stopped.set()
+                            raise Stopped
                         if up.status_code < 500:
                             up.raise_for_status()
                             return up.json()["key"]
@@ -460,6 +481,9 @@ class DeriveWorker:
             try:
                 with ThreadPoolExecutor(max_workers=UPLOAD_THREADS if len(items) > 1 else 1) as pool:
                     keys = list(pool.map(upload, items))
+            except Stopped:
+                log.info("derivative stopped: its file is in Trash", extra={"derivative": did})
+                return "stopped"
             except DeriveError as e:
                 self.http.post(f"/api/v1/worker/derivatives/{did}/fail", json={"reason": e.reason, "retry": e.retry, "maxAttempts": self.limits.max_attempts})
                 return "failed"

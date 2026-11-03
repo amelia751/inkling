@@ -12,7 +12,6 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from .. import blobstore
 from ..context import AUTH_API_KEY, RequestContext, ensure_workspace, get_context, issue_session, scope_of
 from ..db import get_session
 from ..kernel import annotations, assets, audit, environment_admission, environment_policy, events, gateway, jobs, projects, secrets
@@ -135,7 +134,7 @@ def asset_file(workspace_id: str, path: str, exp: str, sig: str, request: Reques
     ctx = RequestContext(workspace_id, "signed-url", "")
     ensure_workspace(db, workspace_id)
     if (key := assets.companion_key(db, ctx, path)) is not None:
-        return blob_response(blobstore.assets(), key, mimetypes.guess_type(path)[0] or "application/octet-stream", request)
+        return blob_response(assets.store_of(key), key, mimetypes.guess_type(path)[0] or "application/octet-stream", request)
     a = assets.get_asset(db, ctx, path)
     return blob_response(assets.store_of(a.path), assets.asset_key(a), a.media_type or mimetypes.guess_type(a.path)[0] or "application/octet-stream", request)
 

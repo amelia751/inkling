@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import logging
 import posixpath
 import re
 import shutil
@@ -31,8 +32,11 @@ VIDEO_EXTS = {".avi", ".mov", ".mkv", ".mpg", ".mpeg", ".wmv", ".flv", ".3gp", "
 SLIDE_EXTS = {".svs", ".ndpi", ".mrxs", ".scn", ".vms", ".bif", ".tif", ".tiff"}
 TILE = 254
 OVERLAP = 1
+UPLOAD_THREADS = 8
+UPLOAD_RETRIES = 5
 
 Progress = Callable[[int], None]
+log = logging.getLogger(__name__)
 
 
 class DeriveError(RuntimeError):
@@ -195,9 +199,11 @@ def tile_slide(
         if vips is not None:
             try:
                 return _dzsave(vips, slide, src, out_dir, sha, progress)
-            except Exception:  # noqa: BLE001 — vips can't load it (no openslide loader): fall back
+            except Exception:  # noqa: BLE001 — vips can't decode it (no JPEG 2000 in the wheel): fall back
                 if engine == "pyvips":
                     raise
+        if openslide is None:
+            return _deepzoom_parallel(src, slide, out_dir, sha, progress)
         return _deepzoom(osl, slide, out_dir, sha, progress)
     finally:
         slide.close()
@@ -277,6 +283,98 @@ def _deepzoom(osl: Any, slide: Any, out_dir: Path, sha: str, progress: Progress)
     return Derived("slide-dzi", f"derived/{sha}.dzi", files, _header_meta(slide, dz.level_count, "openslide"))
 
 
+BLOCK = TILE * 16  # level-0 pixels per block: tile-aligned at the block's 4 halvings
+HALVINGS = 4
+_SLIDE: Any = None  # per tiling process (_dz_init)
+_DZ: Any = None
+
+
+def _dz_init(src: str) -> None:
+    global _SLIDE, _DZ
+    osl = _load_openslide()
+    gen = getattr(osl, "DeepZoomGenerator", None) or importlib.import_module("openslide.deepzoom").DeepZoomGenerator
+    _SLIDE = osl.OpenSlide(src)
+    _DZ = gen(_SLIDE, tile_size=TILE, overlap=OVERLAP, limit_bounds=False)
+
+
+def _save_tile(img: Any, out_dir: str, rel: str) -> str:
+    p = Path(out_dir) / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    img.save(p, "JPEG", quality=85)
+    return rel
+
+
+def _dz_block(job: tuple[int, int, str, str]) -> list[str]:
+    """One BLOCK² region of level 0, read once (each JPEG 2000 source tile decodes once), cut into
+    the top DZ level's tiles, then halved HALVINGS times for the next levels' tiles."""
+    bx, by, out_dir, sha = job
+    top = _DZ.level_count - 1
+    margin = 2**HALVINGS  # one overlap pixel at the smallest halving
+    ox, oy = bx * BLOCK - margin, by * BLOCK - margin
+    img = _SLIDE.read_region((ox, oy), 0, (BLOCK + 2 * margin, BLOCK + 2 * margin)).convert("RGB")
+    rels = []
+    for k in range(HALVINGS + 1):
+        level = top - k
+        if level < 0:
+            break
+        if k:
+            img = img.reduce(2)
+        w, h = _DZ.level_dimensions[level]
+        n = 16 >> k
+        for col in range(bx * n, min((bx + 1) * n, _DZ.level_tiles[level][0])):
+            for row in range(by * n, min((by + 1) * n, _DZ.level_tiles[level][1])):
+                x0, y0 = max(0, col * TILE - OVERLAP), max(0, row * TILE - OVERLAP)
+                x1, y1 = min(w, (col + 1) * TILE + OVERLAP), min(h, (row + 1) * TILE + OVERLAP)
+                tile = img.crop((x0 - (ox >> k), y0 - (oy >> k), x1 - (ox >> k), y1 - (oy >> k)))
+                rels.append(_save_tile(tile, out_dir, f"{sha}_files/{level}/{col}_{row}.jpeg"))
+    return rels
+
+
+def _dz_small(job: tuple[int, str, str]) -> list[str]:
+    """A whole low DZ level (below the block halvings) through DeepZoomGenerator: few tiles, read
+    from the slide's own low-resolution levels."""
+    level, out_dir, sha = job
+    cols, rows = _DZ.level_tiles[level]
+    return [_save_tile(_DZ.get_tile(level, (c, r)).convert("RGB"), out_dir, f"{sha}_files/{level}/{c}_{r}.jpeg") for c in range(cols) for r in range(rows)]
+
+
+def _deepzoom_parallel(src: Path, slide: Any, out_dir: Path, sha: str, progress: Progress) -> Derived:
+    """`_deepzoom` over every core, reading level 0 in blocks: JPEG 2000 slides (most Aperio SVS)
+    decode only in OpenSlide, ~25 ms per source tile, so tile-by-tile on one core takes hours."""
+    import os
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    osl = _load_openslide()
+    gen = getattr(osl, "DeepZoomGenerator", None) or importlib.import_module("openslide.deepzoom").DeepZoomGenerator
+    dz = gen(slide, tile_size=TILE, overlap=OVERLAP, limit_bounds=False)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    total = sum(c * r for c, r in dz.level_tiles) or 1
+    w, h = slide.dimensions
+    blocks = [(bx, by, str(out_dir), sha) for by in range(-(-h // BLOCK)) for bx in range(-(-w // BLOCK))]
+    small = [(level, str(out_dir), sha) for level in range(max(0, dz.level_count - 1 - HALVINGS))]
+    files: dict[str, Path] = {}
+    done = last = 0
+    progress(0)
+    with ProcessPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 1), initializer=_dz_init, initargs=(str(src),)) as pool:
+        results = [pool.submit(_dz_small, j) for j in small] + [pool.submit(_dz_block, j) for j in blocks]
+        for fut in as_completed(results):
+            rels = fut.result()
+            for rel in rels:
+                files[f"derived/{rel}"] = out_dir / rel
+            done += len(rels)
+            if (pct := min(99, done * 100 // total)) != last:
+                last = pct
+                progress(pct)
+    dzi = out_dir / f"{sha}.dzi"
+    dzi.write_text(dz.get_dzi("jpeg"))
+    files[f"derived/{sha}.dzi"] = dzi
+    thumb = out_dir / f"{sha}_thumb.png"
+    slide.get_thumbnail((256, 256)).save(thumb, "PNG")
+    files[f"derived/{sha}_thumb.png"] = thumb
+    progress(100)
+    return Derived("slide-dzi", f"derived/{sha}.dzi", files, _header_meta(slide, dz.level_count, "openslide"))
+
+
 # ---- The worker loop: claim → read source → convert → upload → complete ------------------------
 
 
@@ -332,15 +430,39 @@ class DeriveWorker:
                     body["unavailable"] = True
                 self.http.post(f"/api/v1/worker/derivatives/{did}/fail", json=body)
                 return "waiting" if e.unavailable else "failed"
-            keys = []
-            main = ""
-            for rel, path in d.files.items():
+            def upload(item: tuple[str, Path]) -> str:
+                import time
+
+                import httpx
+
+                rel, path = item
                 ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
-                with path.open("rb") as body:  # streamed, never read whole
-                    up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=body, headers={"Content-Type": ctype})
-                up.raise_for_status()
-                keys.append(up.json()["key"])
-                if rel == d.key:
-                    main = keys[-1]
+                for attempt in range(UPLOAD_RETRIES + 1):
+                    try:
+                        with path.open("rb") as body:  # streamed, never read whole
+                            up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=body, headers={"Content-Type": ctype})
+                        if up.status_code < 500:
+                            up.raise_for_status()
+                            return up.json()["key"]
+                        reason = f"HTTP {up.status_code}"
+                    except httpx.TransportError as e:
+                        reason = type(e).__name__
+                    if attempt == UPLOAD_RETRIES:
+                        log.warning("derivative upload failed", extra={"derivative": did, "file": rel, "reason": reason})
+                        raise DeriveError(f"Uploading the converted files failed ({reason})", retry=True)
+                    time.sleep(0.5 * 2**attempt)
+                raise AssertionError("unreachable")
+
+            from concurrent.futures import ThreadPoolExecutor
+
+            items = list(d.files.items())
+            # A slide pyramid is ~100 k small tiles: one request at a time is most of the wait.
+            try:
+                with ThreadPoolExecutor(max_workers=UPLOAD_THREADS if len(items) > 1 else 1) as pool:
+                    keys = list(pool.map(upload, items))
+            except DeriveError as e:
+                self.http.post(f"/api/v1/worker/derivatives/{did}/fail", json={"reason": e.reason, "retry": e.retry, "maxAttempts": self.limits.max_attempts})
+                return "failed"
+            main = next((k for (rel, _), k in zip(items, keys) if rel == d.key), "")
             self.http.post(f"/api/v1/worker/derivatives/{did}/complete", json={"sha": sha, "key": main, "keys": keys, "meta": d.meta}).raise_for_status()
             return "ready"

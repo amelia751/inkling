@@ -56,6 +56,52 @@ export function mergeSpecs(a: EnvironmentSpec, b: EnvironmentSpec): EnvironmentS
   }
   return out as EnvironmentSpec;
 }
+/**
+ * One preset as a profile of its kind (todo19 D4, kernel `as_profile`): its renderer, tools,
+ * panels, exporters and review rules in `data.kinds.<kind>` (with `profile: pid`), its labels
+ * `appliesTo: [kind]`.
+ */
+export function asProfile(spec: EnvironmentSpec, pid: string): EnvironmentSpec {
+  const kind = spec.data?.kind;
+  if (!kind) return spec;
+  const out = normalizeEnvironment(spec);
+  const entry: Record<string, unknown> = { ...out.data!.kinds![kind] };
+  for (const k of ["tools", "panels", "exporters", "reviewRules"] as const) if (spec[k] !== undefined && !(k in entry)) entry[k] = spec[k];
+  entry.profile = pid;
+  const labels = (spec.labels ?? []).map((g) => (g.appliesTo ? g : { ...g, appliesTo: [kind] }));
+  const { accepts: _accepts, ...rest } = out;
+  return { ...rest, data: { ...out.data!, kinds: { ...out.data!.kinds, [kind]: entry as KindProfile } }, labels };
+}
+
+/**
+ * Several profiles composed (kernel `compose`): the first stays the shorthand (data.kind,
+ * viewports, panels, tools, exporters); every part adds its `data.kinds` entry; labels of the
+ * same name join their appliesTo and classes; review rules are the union.
+ */
+export function composeProfiles(parts: EnvironmentSpec[]): EnvironmentSpec {
+  if (!parts.length) return {};
+  const out: Record<string, unknown> = { ...parts[0] };
+  for (const part of parts.slice(1)) {
+    const data = { ...((out.data as EnvironmentSpec["data"]) ?? {}) } as NonNullable<EnvironmentSpec["data"]>;
+    data.kinds = { ...(data.kinds ?? {}), ...(part.data?.kinds ?? {}) };
+    out.data = data;
+    const labels = ((out.labels as LabelGroup[] | undefined) ?? []).map((g) => ({ ...g }));
+    for (const g of part.labels ?? []) {
+      const same = labels.find((x) => x.name === g.name);
+      if (!same) labels.push(g);
+      else if (same.appliesTo && g.appliesTo) {
+        const ids = new Set((same.classes ?? []).map((c) => c.id));
+        same.classes = [...(same.classes ?? []), ...(g.classes ?? []).filter((c) => !ids.has(c.id))];
+        same.appliesTo = [...new Set([...same.appliesTo, ...g.appliesTo])];
+      }
+    }
+    out.labels = labels;
+    if (part.reviewRules !== undefined) out.reviewRules = [...new Set([...((out.reviewRules as string[] | undefined) ?? []), ...part.reviewRules])];
+    for (const [k, v] of Object.entries(part)) if (!(k in out)) out[k] = v;
+  }
+  return out as EnvironmentSpec;
+}
+
 /** Groups of `b` replace same-named groups of `a` in place; new ones are appended. */
 function mergeLabelGroups(a: LabelGroup[], b: LabelGroup[]): LabelGroup[] {
   const byName = new Map(b.map((g) => [g.name, g]));
@@ -142,14 +188,16 @@ export function resolveEnvironment(input: unknown, registry: Registry, options: 
   // 1. extends (presets resolve their own extends first), then the spec itself.
   const expand = (spec: EnvironmentSpec, path: string, seen: string[]): EnvironmentSpec => {
     const parents = spec.extends === undefined ? [] : Array.isArray(spec.extends) ? spec.extends : [spec.extends];
-    let base: EnvironmentSpec = {};
+    const got: [string, EnvironmentSpec][] = [];
     parents.forEach((pid, i) => {
       const p = `${path}/extends${Array.isArray(spec.extends) ? `/${i}` : ""}`;
       if (seen.includes(pid)) return err({ path: p, code: "extends-cycle", message: `Preset "${pid}" extends itself (${[...seen, pid].join(" → ")})` });
       const preset = registry.get("presets", pid) ?? registry.get("presets", pid.replace(/^preset:/, ""));
       if (!preset) return err({ path: p, code: "unknown-contribution", message: `Unknown preset "${pid}"`, suggestion: suggestPreset(registry, pid) });
-      base = mergeSpecs(base, expand(canonicalDoc(preset.spec), p, [...seen, pid]));
+      got.push([pid, expand(canonicalDoc(preset.spec), p, [...seen, pid])]);
     });
+    // One preset merges as before; several compose as one profile per kind (D4).
+    const base = got.length <= 1 ? (got[0]?.[1] ?? {}) : composeProfiles(got.map(([pid, x]) => asProfile(x, pid)));
     return mergeSpecs(base, spec);
   };
   const spec = expand(parsed.data, "", []);

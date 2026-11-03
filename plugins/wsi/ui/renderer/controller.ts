@@ -133,6 +133,8 @@ export class WsiController {
       this.syncView();
       this.engine.setReady();
     });
+    // OSD's own open-failed box prints the tile source as "[object Object]"; the Studio shows the error.
+    (this.viewer as unknown as { _showMessage: (m: string) => void })._showMessage = () => {};
     this.viewer.addHandler("open-failed", () => this.setUi({ error: "This slide's tile pyramid could not be opened." }));
     // todo18: missing tiles are one error, not holes in the slide.
     let tileErrors = 0;

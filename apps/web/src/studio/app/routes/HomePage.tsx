@@ -1,8 +1,7 @@
 import { Link } from "react-router";
 import { problemMessage } from "@/studio/lib/problem";
-import { LicenseIcon, LockIcon, ProjectsIcon } from "@studio/ui/icons";
+import { ProjectsIcon } from "@studio/ui/icons";
 import { AppLayout } from "@/studio/components/layout/app-layout";
-import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
@@ -10,8 +9,8 @@ import { useProjectList } from "@/studio/lib/projects-api";
 import { TrySample } from "@/studio/app/entry/sample-picker";
 import { projectsUrl, projectUrl, studioUrl, deletedProjectsUrl } from "@/studio/lib/routes";
 import { HomeComposer, NewProjectButton } from "@/studio/app/entry/HomeComposer";
-import type { ProjectSummary } from "@studio/contracts/types";
-import { cn } from "@studio/ui/utils";
+import type { DetectedKind, ProjectSummary } from "@studio/contracts/types";
+import { KINDS, kindIcon } from "@/studio/lib/file-kinds";
 
 /**
  * Home (todo6 Phase 3.1, todo13 D1 and §3.1): "What are you working on?" as the composer. A
@@ -102,14 +101,7 @@ export function ProjectCard({ project: p }: { project: ProjectSummary }) {
             <Link to={projectUrl(p.id)} className="after:absolute after:inset-0 after:rounded-lg">{p.title}</Link>
           </h3>
           {p.description && <p className="mt-0.5 truncate text-sm text-muted-foreground">{p.description}</p>}
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {(p.sample || p.sampleOf) && <Badge theme="info" data-testid="sample-badge">Sample</Badge>}
-            {p.restricted && (
-              <Badge theme="warning" title="The source license restricts commercial use or redistribution">
-                <LockIcon />Local dev only
-              </Badge>
-            )}
-          </div>
+          <KindTags kinds={p.kinds ?? []} />
         </div>
       </div>
       <div className="mt-auto flex items-center gap-2 pt-3">
@@ -120,12 +112,34 @@ export function ProjectCard({ project: p }: { project: ProjectSummary }) {
           </Button>
         )}
       </div>
-      {(p.sample || p.sampleOf) && p.license && (
-        <div className={cn("mt-2 flex items-start gap-1.5 border-t border-border pt-2 text-xs text-muted-foreground")}>
-          <LicenseIcon className="mt-0.5 size-3 shrink-0" />
-          <span className="line-clamp-1" data-testid="sample-license">{p.license}</span>
-        </div>
-      )}
     </Card>
+  );
+}
+
+const MAX_TAGS = 3;
+
+/** "12 Images · 5 3D volumes · +2": the first few kinds; the rest are named in the "+N" tooltip. */
+function KindTags({ kinds }: { kinds: { kind: DetectedKind; count: number }[] }) {
+  if (kinds.length === 0) return null;
+  const word = (k: { kind: DetectedKind; count: number }) => `${k.count.toLocaleString()} ${k.count === 1 ? KINDS[k.kind].label : KINDS[k.kind].plural}`;
+  const shown = kinds.length > MAX_TAGS ? kinds.slice(0, MAX_TAGS - 1) : kinds;
+  const rest = kinds.slice(shown.length);
+  return (
+    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5" data-testid="project-kinds">
+      {shown.map((k) => {
+        const Icon = kindIcon(k.kind);
+        return (
+          <span key={k.kind} className="inline-flex items-center gap-1 rounded-md bg-generic px-1.5 py-0.5 text-xs text-muted-foreground" data-testid="project-kind">
+            <Icon className="size-3 shrink-0" aria-hidden />
+            {word(k)}
+          </span>
+        );
+      })}
+      {rest.length > 0 && (
+        <span className="rounded-md bg-generic px-1.5 py-0.5 text-xs text-muted-foreground" title={rest.map(word).join(", ")}>
+          +{rest.length}
+        </span>
+      )}
+    </div>
   );
 }

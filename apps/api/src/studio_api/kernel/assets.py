@@ -126,7 +126,7 @@ def companion_key(db: Session, ctx: RequestContext, path: str) -> str | None:
         key = blobstore.safe_key(path)
     except blobstore.BlobNotFound:
         return None
-    return key if blobstore.assets().stat(key) is not None else None
+    return key if store_of(key).stat(key) is not None else None
 
 
 # Uploaded files (todo6 Phase 4) are content-addressed in the data store under this prefix:

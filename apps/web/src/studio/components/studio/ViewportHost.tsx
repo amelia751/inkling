@@ -3,6 +3,7 @@ import type { RendererProps } from "@studio/plugin-ui-sdk/module";
 import type { ResolvedEnv, ResolvedViewport } from "@/extension-host/resolve";
 import { runtimeFor } from "@studio/plugin-ui-sdk/runtime";
 import type { Project, StudioItem } from "@studio/contracts/types";
+import { labelsFor } from "@studio/contracts/environment";
 import { ModuleSlot } from "./ModuleSlot";
 
 /**
@@ -20,8 +21,10 @@ export const remountsOnItemSwitch = (viewport: ResolvedViewport): boolean => !vi
  * config and a runtime scoped to the item.
  */
 export function ViewportHost({ env, viewport, project, item }: { env: ResolvedEnv; viewport: ResolvedViewport; project: Project; item: StudioItem }) {
-  // Renderers read labels from the live environment, so agent label edits reach them.
-  const scoped = useMemo(() => ({ ...project, labels: env.labels, environment: env.spec }), [project, env]);
+  // Renderers read labels from the live environment, so agent label edits reach them; only the
+  // groups that apply to this item's kind (todo19 D7), or a video lists the ECG's classes.
+  const kind = item.dataKind ?? env.dataKind?.id;
+  const scoped = useMemo(() => ({ ...project, labels: labelsFor(env.labels, kind), environment: env.spec }), [project, env, kind]);
   const runtime = useMemo(() => runtimeFor(item.id), [item.id]);
   return (
     <ModuleSlot<React.ComponentType<RendererProps>> id={viewport.renderer.id} kind="viewport">

@@ -318,6 +318,21 @@ def default_task_id(db: Session, p: ProjectRow) -> str | None:
     return t.id if t is not None else None
 
 
+# The kinds a project card names, most specific first (ties sort in this order): what the files
+# are, not their masks, notes or unreadable files.
+CARD_KINDS = ("slide", "volume", "dicom-series", "video", "waveform", "dicom", "image", "table")
+
+
+def file_kinds(db: Session, p: ProjectRow) -> list[dict]:
+    """[{kind, count}] of the project's live files, most first."""
+    rows = db.execute(
+        select(SourceNode.detected_kind, func.count())
+        .where(SourceNode.project_id == p.id, SourceNode.is_dir.is_(False), SourceNode.trashed_at.is_(None), SourceNode.detected_kind.in_(CARD_KINDS))
+        .group_by(SourceNode.detected_kind)
+    ).all()
+    return [{"kind": k, "count": n} for k, n in sorted(rows, key=lambda r: (-r[1], CARD_KINDS.index(r[0])))]
+
+
 def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     out = {
         "id": p.id,
@@ -338,6 +353,7 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "role": project_role(db, ctx, p),
         # todo20 D4: the Studio drops add to (null until the first drop boots it).
         "defaultTaskId": default_task_id(db, p),
+        "kinds": file_kinds(db, p),
     }
     if (p.seed or p.sample_of) and (raw := seed_entry(p.sample_of or p.id)):
         out["license"] = raw.get("license")

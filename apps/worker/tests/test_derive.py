@@ -144,8 +144,8 @@ def test_real_ffmpeg_transcode_when_installed(tmp_path):
 
 
 class _Resp:
-    def __init__(self, body=None, chunks=()):
-        self._body, self._chunks = body or {}, chunks
+    def __init__(self, body=None, chunks=(), status_code=200):
+        self._body, self._chunks, self.status_code = body or {}, chunks, status_code
 
     def raise_for_status(self):
         pass
@@ -197,6 +197,28 @@ def test_worker_loop_uploads_and_completes(tmp_path):
     assert done["key"].startswith("uploads/p/derived/") and done["key"].endswith(".mp4")
 
 
+def test_a_busy_kernel_is_retried_per_file_not_per_derivative(tmp_path, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda _s: None)
+    k = _FakeKernel()
+    real_put, busy = k.put, {"left": 2}
+
+    def put(url, content=b"", headers=None):
+        if busy["left"]:
+            busy["left"] -= 1
+            return _Resp(status_code=503)
+        return real_put(url, content, headers)
+
+    k.put = put
+
+    def convert(kind, src, out, sha, progress):
+        out.mkdir(parents=True)
+        (out / "x.mp4").write_bytes(b"m")
+        return derive.Derived(kind, f"derived/{sha}.mp4", {f"derived/{sha}.mp4": out / "x.mp4"})
+
+    assert derive.DeriveWorker(k, tmp_path, convert=convert).tick() == 1
+    assert k.calls[-1][0].endswith("/complete")
+
+
 def test_worker_loop_reports_the_codec_failure(tmp_path):
     k = _FakeKernel()
 
@@ -235,6 +257,30 @@ def test_real_tiling_of_a_generated_slide(tmp_path, engine):
     assert tiles and "derived/abc_thumb.png" in d.files
     assert d.meta["width"] == 600 and d.meta["height"] == 400 and d.meta["engine"] == engine
     assert seen[0] == 0 and seen[-1] == 100
+
+
+def test_block_tiling_matches_the_deep_zoom_grid_across_blocks(tmp_path):
+    """JPEG 2000 slides take the parallel block path: every tile must have the size the DZI grid
+    declares, including at block seams and the image edge."""
+    openslide = pytest.importorskip("openslide")
+    pyvips = pytest.importorskip("pyvips")
+    p = tmp_path / "wide.tif"
+    w, h = derive.BLOCK + 937, derive.BLOCK + 211
+    img = (pyvips.Image.xyz(w, h)[0] % 256).cast("uchar").bandjoin([(pyvips.Image.xyz(w, h)[1] % 256).cast("uchar"), 128])
+    img.tiffsave(str(p), tile=True, pyramid=True, compression="jpeg", tile_width=256, tile_height=256)
+    d = derive.tile_slide(p, tmp_path / "out", "abc", engine="openslide")
+    from openslide.deepzoom import DeepZoomGenerator
+    from PIL import Image
+
+    dz = DeepZoomGenerator(openslide.OpenSlide(str(p)), tile_size=derive.TILE, overlap=derive.OVERLAP, limit_bounds=False)
+    top = dz.level_count - 1
+    for level in range(top - derive.HALVINGS, top + 1):
+        cols, rows = dz.level_tiles[level]
+        for col in range(cols):
+            for row in range(rows):
+                rel = f"derived/abc_files/{level}/{col}_{row}.jpeg"
+                assert Image.open(d.files[rel]).size == dz.get_tile_dimensions(level, (col, row)), rel
+    assert len([k for k in d.files if k.endswith(".jpeg")]) == sum(c * r for c, r in dz.level_tiles)
 
 
 def test_missing_openslide_is_unavailable_not_failed(tmp_path, monkeypatch):

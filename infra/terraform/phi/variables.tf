@@ -19,13 +19,13 @@ variable "data_project" {
 variable "sql_tier" {
   description = "Cloud SQL machine tier."
   type        = string
-  default     = "db-custom-2-7680"
+  default     = "db-custom-1-3840"
 }
 
 variable "sql_high_availability" {
   description = "REGIONAL (failover replica) instead of ZONAL."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "redis_memory_gb" {

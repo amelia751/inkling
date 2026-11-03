@@ -46,6 +46,8 @@ server {
     internal;
     set $api_upstream ${STUDIO_API_URL};
     proxy_pass $api_upstream/api/auth/verify;
+    # An https upstream on Cloud Run's front end needs SNI (harmless for plain http).
+    proxy_ssl_server_name on;
     proxy_pass_request_body off;
     proxy_set_header Content-Length "";
     proxy_set_header Cookie $http_cookie;
@@ -71,6 +73,7 @@ server {
     set $agent_upstream ${STUDIO_AGENT_URL};
     rewrite ^/api/agent/(.*)$ /v1/$1 break;
     proxy_pass $agent_upstream;
+    proxy_ssl_server_name on;
     proxy_http_version 1.1;
     proxy_set_header Connection "";
     proxy_set_header X-Request-Id $request_id;

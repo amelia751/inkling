@@ -317,6 +317,36 @@ Notes:
 
 Staging and prod overlays, Secrets, scaling knobs and adding an app: `infra/k8s/README.md`.
 
+## Dev mode and signed-in stages
+
+There are two modes and nothing in between (todo/todo22.md D1). `pnpm dev:signin` is the one
+crossover: the real sign-in, still with local data.
+
+| | `pnpm dev` | `pnpm dev:signin` | `workos` (every deployed stage: staging, production) |
+|---|---|---|---|
+| Runs on | a laptop only | a laptop only | Cloud Run (`docs/deployment-gcp.md`) |
+| Sign-in | none: trusted dev headers (`STUDIO_API_AUTH_MODE=dev`) | WorkOS **staging** AuthKit (or Emulate), `AUTH_MODE=workos` | WorkOS AuthKit (staging or production environment) |
+| Who you are | `user:local-expert`, or a per-tab `user:dev-<id>` ("Start as a new person") | the person who signed in, in their organization | the person who signed in, in their organization |
+| api database | SQLite in `apps/api/.data/` (or Postgres from `pnpm infra:up`) | the same local database | Cloud SQL Postgres (`JOB_QUEUE=sql`, `EVENT_BUS=sql`) |
+| Blobs | local folder under `apps/api/.data/` (or the `infra:up` S3) | the same | Cloud Storage |
+| Agent store | file store in `apps/agent/.data/` | the same | Postgres (`STUDIO_AGENT_STORE=postgres`) |
+| Annotations without the kernel | `seed-data/.annotations` (Vite's file store, `STUDIO_WEB_ANNOTATIONS_DIR`) | the kernel | the kernel |
+| Where the data lives | git-ignored folders on the laptop (`**/.data/`, `seed-data/`) | git-ignored folders on the laptop | the stage's own cloud project; never on a laptop |
+
+- **A deployed stage refuses dev mode.** With `STUDIO_ENV=production` the api won't start with
+  dev auth, trusted dev headers, a `sqlite:` database or the local blob store, and the agent
+  won't start without `STUDIO_AGENT_AUTH_MODE=workos` and `STUDIO_AGENT_STORE=postgres`
+  (todo22 W1). The error names the keys, never their values.
+- **Dev data never meets cloud data** (D7). Local config never points at a deployed database,
+  bucket or a WorkOS production key: `secrets/workos.env` holds **staging** keys only. Local data
+  is never imported into a deployed stage; demo projects there are recreated from synthetic files.
+- **Start over:** stop `pnpm dev`, then `pnpm dev:reset`. It asks first (`--yes` skips the
+  question, `--dry-run` only lists) and removes `apps/api/.data`, `apps/agent/.data` and the dev
+  annotations folder (`seed-data/.annotations`, or `STUDIO_WEB_ANNOTATIONS_DIR` when it is inside
+  the repo). It never touches `secrets/` or the `seed-data/` samples, and refuses any path that
+  resolves outside the repo. With Postgres from `pnpm infra:up`, `pnpm infra:down` and a volume
+  removal reset that database too.
+
 ## Signing in
 
 People sign in with WorkOS AuthKit (todo/todo9.md). The api has two modes,
@@ -342,7 +372,8 @@ status|once|reconcile` from `apps/api`.
 
 ### Dev mode
 
-Nothing to do. Everything in sections 1 to 3 runs this way.
+Nothing to do. Everything in sections 1 to 3 runs this way. What it keeps where, and how to
+start over (`pnpm dev:reset`): [Dev mode and signed-in stages](#dev-mode-and-signed-in-stages).
 
 ### WorkOS Emulate (offline, no account)
 

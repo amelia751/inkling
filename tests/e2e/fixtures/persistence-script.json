@@ -1,0 +1,33 @@
+{
+  "scripts": [
+    {
+      "when": "persistence card",
+      "turns": [
+        {
+          "text": "Drafting the notes.",
+          "toolCalls": [
+            {
+              "name": "draft_document",
+              "arguments": {
+                "title": "Persistence notes",
+                "filename": "persistence-notes.md",
+                "markdown": "# Persistence notes\n\nSaved on the server, seen on any device."
+              }
+            }
+          ]
+        },
+        {
+          "text": "The notes card is above."
+        }
+      ]
+    },
+    {
+      "when": "second chat",
+      "turns": [
+        {
+          "text": "Second chat answered."
+        }
+      ]
+    }
+  ]
+}

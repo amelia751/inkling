@@ -187,14 +187,17 @@ class AuthStack:
     `<envPrefix>E2E_WORKOS_EMULATE_URL` reuses a running emulator instead (it must have been
     started with `--issuer` equal to that URL and seeded with infra/workos/emulate.yaml)."""
 
-    def __init__(self, web: bool = True, agent: bool = False, base_port: int = _BASE):
-        self.web, self.agent = web or agent, agent
+    def __init__(self, web: bool = True, agent: bool = False, base_port: int = _BASE, agent_script: Path = AGENT_SCRIPT, worker: bool = False):
+        self.web, self.agent, self.worker = web or agent, agent, worker
+        self.worker_token = secrets.token_urlsafe(24)
+        self.agent_script = agent_script
         self.emulate_port, self.api_port, self.web_port, self.agent_port = base_port, base_port + 1, base_port + 2, base_port + 3
         self.emulate_url = (os.environ.get(f"{P}E2E_WORKOS_EMULATE_URL") or "").rstrip("/") or f"http://localhost:{self.emulate_port}"
         self.api = f"http://127.0.0.1:{self.api_port}"
         self.origin = f"http://localhost:{self.web_port}"
         self.cookie_password = fernet_key()
         self.procs: list[tuple[str, subprocess.Popen]] = []
+        self.specs: dict[str, tuple[list[str], dict[str, str], Path]] = {}
         self.container: str | None = None
         self.tmp = Path(tempfile.mkdtemp(prefix="auth-e2e-"))
 
@@ -217,10 +220,40 @@ class AuthStack:
         self.stop()
 
     def _spawn(self, name: str, cmd: list[str], env: dict[str, str], cwd: Path) -> subprocess.Popen:
-        out = open(self.tmp / f"{name}.log", "wb")  # noqa: SIM115 — closed with the process
+        out = open(self.tmp / f"{name}.log", "ab")  # noqa: SIM115 — closed with the process
         proc = subprocess.Popen(cmd, env={**os.environ, **env}, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
         self.procs.append((name, proc))
+        self.specs[name] = (cmd, env, cwd)
         return proc
+
+    def restart(self, *names: str) -> None:
+        """Stop `names` (e.g. "api", "agent") and start them again with the same command, env and
+        data (the SQLite file and the agent's data dir live in `self.tmp`): a redeploy, locally."""
+        for name in names:
+            for i, (n, proc) in enumerate(self.procs):
+                if n == name:
+                    self._kill(proc)
+                    del self.procs[i]
+                    break
+            cmd, env, cwd = self.specs[name]
+            proc = self._spawn(name, cmd, env, cwd)
+            ready = {"api": f"{self.api}/healthz", "agent": f"http://127.0.0.1:{self.agent_port}/health/live", "web": f"{self.origin}/"}.get(name)
+            if ready:
+                wait_for(ready, name, timeout=120, proc=proc)
+            log(f"restarted {name}")
+
+    @staticmethod
+    def _kill(proc: subprocess.Popen) -> None:
+        if proc.poll() is not None:
+            return
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+            proc.wait(timeout=10)
+        except (ProcessLookupError, subprocess.TimeoutExpired):
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
     def start(self) -> None:
         if not os.environ.get(f"{P}E2E_WORKOS_EMULATE_URL"):
@@ -240,14 +273,18 @@ class AuthStack:
             f"{P}API_DATA_DIR": str(self.tmp / "api"),
             f"{P}API_DATABASE_URL": f"sqlite:///{self.tmp / 'api.db'}",
             f"{P}API_SECRET_KEY": secrets.token_urlsafe(32),
+            f"{P}API_WORKER_TOKEN": self.worker_token,
         }
         (self.tmp / "api").mkdir(exist_ok=True)
         api = self._spawn("api", ["uv", "run", "--package", "studio-api", "uvicorn", "studio_api.app:app", "--host", "127.0.0.1", "--port", str(self.api_port), "--log-level", "warning"], api_env, REPO / "apps" / "api")
         wait_for(f"{self.api}/healthz", "api", timeout=120, proc=api)
         log(f"api (workos mode) on {self.api}, Emulate on {self.emulate_url}")
+        if self.worker:  # inspection and conversion of imports (drops)
+            self._spawn("worker", ["uv", "run", "--package", "studio-worker", "studio-worker", "--kernel", self.api], {f"{P}API_WORKER_TOKEN": self.worker_token}, REPO)
+            log("worker")
         if self.agent:
             agent_env = {
-                f"{P}ENV": "test", f"{P}AGENT_MODEL": "scripted", f"{P}AGENT_SCRIPT": str(AGENT_SCRIPT), f"{P}AGENT_SANDBOX": "off",
+                f"{P}ENV": "test", f"{P}AGENT_MODEL": "scripted", f"{P}AGENT_SCRIPT": str(self.agent_script), f"{P}AGENT_SANDBOX": "off",
                 f"{P}AGENT_PORT": str(self.agent_port), f"{P}AGENT_DATA_DIR": str(self.tmp / "agent"), f"{P}AGENT_TOKEN": AGENT_TOKEN,
                 f"{P}AGENT_AUTH_MODE": "workos", f"{P}AGENT_WORKOS_CLIENT_ID": CLIENT_ID, f"{P}AGENT_WORKOS_ISSUER": issuer,
                 f"{P}AGENT_WORKOS_BASE_URL": self.emulate_url, f"{P}API_URL": self.api, f"{P}LOG_LEVEL": "warn",

@@ -9,6 +9,7 @@ model. Hosted AuthKit is never driven (Radar and rate limits): people sign in by
 |---|---|
 | `stack.py` | `AuthStack` (start and stop everything), `sign_in(email, password) -> cookie`, `playwright_cookie`, the seeded `USERS` and org ids |
 | `smoke_test.py` | The stack without a browser: sign-in per person, multi-org selection and switch, verify, org boundary, logout, wrong password |
+| `../persistence_test.py` | todo22 acceptance: what A makes (project, drop, two chats, rename, prefs, layout, annotation) survives a fresh browser and an api + agent restart; B in Globex sees none of it. `AuthStack(agent=True, worker=True)`, `st.restart("api", "agent")` |
 
 The api's own Emulate tests (no browser, no Vite) are pytest in `apps/api/tests/emulate/`
 and run in the `ci` workflow.

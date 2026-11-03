@@ -53,6 +53,7 @@ import { CanvasDropTarget, CanvasEmptyState } from "@/studio/app/entry/empty-sta
 import { useLiveEnvironment, useSetupStale } from "@/studio/lib/live-environment";
 import { ShellTransition } from "@/studio/lib/view-transition";
 import { NAMING, RES, ns } from "@studio/contracts/naming";
+import { prefSegment } from "@/studio/lib/person-prefs";
 import { personKey } from "@/studio/lib/person-key";
 import { markAfterPaint, markBoot, startBoot } from "@/extension-host/boot-timing";
 import { loadInPriority, newModules, warmFromHint, warmFromSpec } from "@/studio/lib/boot-priority";
@@ -465,6 +466,7 @@ function Studio({ projectId, safe = false }: { projectId: string; safe?: boolean
       ) : (
         <StudioLayout
           storageKey={personKey(`${RES}-layout-${projectId}-${viewport}`)}
+          prefKey={`layout:${prefSegment(routeProjectId)}:${prefSegment(projectId)}:${viewport}`}
           layout={env.spec.layout ?? null}
           slots={{
             viewer: <div className="flex h-full min-h-0 flex-col">{canvas}</div>,

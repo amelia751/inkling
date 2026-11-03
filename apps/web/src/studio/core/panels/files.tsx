@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
 import { InTrashBadge } from "@/studio/components/trash/delete-dialog";
 import { isTrashedItem } from "@/studio/lib/trash-api";
 import { EmptyState } from "@studio/ui/ui/empty-state";
@@ -15,6 +15,7 @@ import { useCommands } from "@/extension-host/commands";
 import { markAfterPaint } from "@/extension-host/boot-timing";
 import { useStudio } from "@/studio/stores/studio";
 import { readView, useItemsView, type ItemsView } from "@/studio/stores/items-view";
+import { personPrefs } from "@/studio/lib/person-prefs";
 import { itemKind, KINDS } from "@/studio/lib/file-kinds";
 import { kindChips } from "@/studio/lib/kind-chips";
 import { itemNoun, plural, pluralWord } from "@/studio/lib/format";
@@ -120,7 +121,8 @@ export function FilesPanel({ items, env, project }: PanelProps) {
 
   const chosen = useItemsView((s) => s.views[taskId]);
   const setView = useItemsView((s) => s.setView);
-  const [stored] = useState(() => readView(taskId));
+  // The person's saved view (todo22 D3: cache first, then the server's once loaded).
+  const stored = useSyncExternalStore(personPrefs.subscribe, () => readView(taskId));
   const view: ItemsView = chosen ?? stored ?? (folderCount(viewItems) > 1 || viewItems.some((i) => (i.parts?.length ?? 0) > 1) ? "folders" : "queue");
   const queueFilter = useItemsView((s) => s.queueFilter);
   const setQueueFilter = useItemsView((s) => s.setQueueFilter);

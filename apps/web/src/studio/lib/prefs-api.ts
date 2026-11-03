@@ -27,7 +27,9 @@ export function useSetPref() {
   });
 }
 
-export const FIRST_RUN_HINTS = "firstRunHintsDismissed";
+/** todo22 D8 key (`firstRunHintsDismissed` before; still read so a dismissal isn't asked again). */
+export const FIRST_RUN_HINTS = "first-run-hints-dismissed";
+const FIRST_RUN_HINTS_LEGACY = "firstRunHintsDismissed";
 
 /**
  * D8: the drawer's empty conversation shows the three todo13 prompts until the person dismisses
@@ -38,7 +40,7 @@ export function useFirstRunHints(): { show: boolean; dismiss: () => void } {
   const prefs = usePrefs();
   const set = useSetPref();
   return {
-    show: prefs.isSuccess && prefs.data[FIRST_RUN_HINTS] !== true,
+    show: prefs.isSuccess && prefs.data[FIRST_RUN_HINTS] !== true && prefs.data[FIRST_RUN_HINTS_LEGACY] !== true,
     dismiss: () => set.mutate({ key: FIRST_RUN_HINTS, value: true }),
   };
 }

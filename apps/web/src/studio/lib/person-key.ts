@@ -126,6 +126,14 @@ function clearStorage(storage: () => Storage, suffix: string): void {
   }
 }
 
+const forgetters = new Set<() => void>();
+
+/** Run `fn` when `forgetClient` runs (sign-out, organization switch), before the person changes. */
+export function onForgetClient(fn: () => void): () => void {
+  forgetters.add(fn);
+  return () => void forgetters.delete(fn);
+}
+
 /**
  * Forget what this browser holds for the current person: every cached query, the agent's kernel
  * tokens and status, and their `${RES}-…` local and session storage. Call it on sign-out and before
@@ -138,6 +146,13 @@ export function forgetClient(client?: QueryClient): void {
   client?.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
   client?.getMutationCache().clear();
   clearKernelTokens();
+  for (const fn of forgetters) {
+    try {
+      fn();
+    } catch (e) {
+      console.warn("[person-key] forget hook failed", e);
+    }
+  }
   clearStorage(() => localStorage, suffix);
   clearStorage(() => sessionStorage, suffix);
 }

@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef, type ReactNode } from "react";
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent, type IDockviewPanelProps } from "dockview-react";
 import "dockview-react/dist/styles/dockview.css";
+import { personPrefs } from "@/studio/lib/person-prefs";
 
 /**
  * Desktop Studio layout on dockview, so the arrangement is a serialisable document an
@@ -11,7 +12,9 @@ import "dockview-react/dist/styles/dockview.css";
  * `layout: null` (the default) lays slots out automatically; a stored layout is filtered to
  * the slots this environment has before `fromJSON` (dockview throws on unknown panels) and
  * falls back to the automatic layout if it still doesn't load. The user's own drags are
- * remembered per project in localStorage.
+ * remembered per person on the server (todo22 D3: pref `prefKey`, `layout:<project>:<task>:<viewport>`),
+ * with `storageKey` in localStorage as the first-paint cache; another device's layout arriving
+ * from the server is applied when it loads.
  */
 export type SlotId = "viewer" | "slot:left" | "slot:right" | "slot:bottom";
 
@@ -20,7 +23,10 @@ export interface StudioLayoutProps {
   slots: Partial<Record<SlotId, ReactNode>>;
   /** dockview toJSON() from the environment, or null for automatic. */
   layout: unknown;
+  /** The localStorage cache key (per person). */
   storageKey: string;
+  /** The server preference key (D8: `^[a-z][a-z0-9:._-]{0,127}$`). */
+  prefKey: string;
 }
 
 const TITLES: Record<SlotId, string> = { viewer: "Viewer", "slot:left": "Items and labels", "slot:right": "Panels", "slot:bottom": "Bottom" };
@@ -87,8 +93,11 @@ function hideHeaders(api: DockviewApi) {
   for (const g of api.groups) g.header.hidden = true;
 }
 
-export function StudioLayout({ slots, layout, storageKey }: StudioLayoutProps) {
+export function StudioLayout({ slots, layout, storageKey, prefKey }: StudioLayoutProps) {
   const api = useRef<DockviewApi | null>(null);
+  /** The layout value this component last read or wrote, so only someone else's change re-applies. */
+  const known = useRef<unknown>(undefined);
+  const opts = { cache: storageKey };
   const present = (Object.keys(slots) as SlotId[]).filter((k) => slots[k] != null);
   const key = present.sort().join("|");
 
@@ -96,13 +105,8 @@ export function StudioLayout({ slots, layout, storageKey }: StudioLayoutProps) {
   useEffect(() => listeners.forEach((l) => l()));
 
   const apply = (a: DockviewApi) => {
-    const saved = (() => {
-      try {
-        return JSON.parse(localStorage.getItem(storageKey) ?? "null");
-      } catch {
-        return null;
-      }
-    })();
+    const saved = personPrefs.get<unknown>(prefKey, null, opts);
+    known.current = saved;
     for (const candidate of [filterLayout(layout, present), filterLayout(saved, present)]) {
       if (!candidate) continue;
       try {
@@ -121,13 +125,23 @@ export function StudioLayout({ slots, layout, storageKey }: StudioLayoutProps) {
     api.current = e.api;
     apply(e.api);
     e.api.onDidLayoutChange(() => {
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(e.api.toJSON()));
-      } catch {
-        /* storage full or blocked: layout just isn't remembered */
-      }
+      const next = e.api.toJSON();
+      known.current = next;
+      personPrefs.set(prefKey, next, opts);
     });
   };
+
+  // The server's layout (another device's drags) arriving after the first paint.
+  useEffect(
+    () =>
+      personPrefs.subscribe(() => {
+        const a = api.current;
+        if (!a || personPrefs.get<unknown>(prefKey, null, opts) === known.current) return;
+        apply(a);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [prefKey, storageKey],
+  );
 
   // Slots appearing or disappearing (the assistant toggled, an agent edit) re-lays out.
   useEffect(() => {

@@ -430,7 +430,8 @@ const approveClass = "border-positive/50 text-positive hover:bg-positive-tint";
 function ApprovalCard({ part, projectId, onDecide }: { part: Extract<MessagePart, { type: "approval" }>; projectId: string; onDecide: (d: "approve" | "reject") => void | Promise<void> }) {
   const [now, setNow] = useState(() => Date.now());
   const left = secondsLeft(part.expiresAt, now);
-  const pending = part.state === "pending" && left > 0;
+  // todo22 W4: a replayed approval the service marked used is never live again.
+  const pending = part.state === "pending" && left > 0 && !part.used;
   const [deciding, setDeciding] = useState(false);
   useEffect(() => {
     if (part.state !== "pending" || left <= 0) return;
@@ -501,7 +502,7 @@ function InstallApprovalCard({ part, onDecide }: { part: Extract<MessagePart, { 
   const [request, setRequest] = useState<InstallRequest | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pending = part.state === "pending";
+  const pending = part.state === "pending" && !part.used;
   const open = async () => {
     setError(null);
     try {

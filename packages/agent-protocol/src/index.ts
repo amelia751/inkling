@@ -209,6 +209,35 @@ export interface ChatSessionSummary {
   lastRunAt?: string | null;
   /** todo21 D5: the chat this one was branched from (`messageIdx`: the last thread message kept). */
   branchedFrom?: { sessionId: string; messageIdx: number } | null;
+  /** todo22 W4: notes for the model's next turn in this chat (e.g. that the expert undid a change). */
+  notes?: string[];
+  /** todo22 W4: when the owner last opened this chat (ISO), null before the first time. */
+  lastOpenedAt?: string | null;
+}
+
+/**
+ * todo22 W4: `PATCH /v1/sessions/{id}`; at least one field. `opened: true` stamps `lastOpenedAt`
+ * with the service's clock. `profile` changes the chat's profile (refused while a run is active).
+ */
+export interface UpdateSessionRequest {
+  title?: string;
+  notes?: string[];
+  profile?: ProfileName;
+  opened?: true;
+}
+
+/**
+ * todo22 W4: `POST /v1/sessions/{id}/ui-parts`: a part the browser added to a thread (a card, a
+ * boot, an environment change), recorded so the thread replays the same on any device. Posting the
+ * same part again (same type and id) replaces it (a card applied or dismissed). Approvals are
+ * recorded by the service itself and can't be posted.
+ */
+export interface UiPartRequest {
+  /** The browser's assistant message id. */
+  messageId: string;
+  /** The run that message streams; places the part on replay. Omitted for a turn without a run. */
+  runId?: string;
+  part: Extract<ThreadPart, { type: "card" | "boot" | "change" }>;
 }
 
 export interface CreateSessionResponse {
@@ -224,7 +253,30 @@ export type ThreadPart =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
-  | { type: "drop"; id: string };
+  | { type: "drop"; id: string }
+  /** todo22 W4: parts not in the transcript, recorded as `ui_part`s and replayed in place. */
+  | { type: "card"; id: string; card: AgentCard; state: "open" | "applied" | "dismissed" | "undone" }
+  | { type: "boot"; id: string }
+  | { type: "artifact"; id: string; name: string; bytes: number }
+  | { type: "status"; text: string; id?: string }
+  | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
+  /**
+   * An approval the service asked for. Replayed from the server's record: `pending` only while the
+   * run still waits for it (and it hasn't expired); otherwise `used` and never live again.
+   */
+  | {
+      type: "approval";
+      id: string;
+      toolName: string;
+      summary: string;
+      inputPreview: string;
+      state: "pending" | "approved" | "rejected" | "expired";
+      expiresAt: number;
+      detail?: ApprovalDetail;
+      toolCallId?: string;
+      failed?: string;
+      used?: boolean;
+    };
 
 /** todo20 W3: same shape as the web's `ChatMessage` (apps/web/src/studio/stores/agent.ts). */
 export interface ThreadMessage {

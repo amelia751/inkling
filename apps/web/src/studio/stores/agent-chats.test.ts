@@ -208,11 +208,12 @@ describe("todo20 chats in projects", () => {
   });
 });
 
-describe("todo20 server thread merge", () => {
-  it("keeps the browser's cards and boots on the server's messages", async () => {
-    const { mergeThread } = await import("./agent");
-    const server: ChatMessage[] = [{ id: "a", role: "assistant", runId: "r1", parts: [{ type: "text", text: "done" }] }];
-    const cached: ChatMessage[] = [{ id: "local", role: "assistant", runId: "r1", parts: [{ type: "text", text: "do" }, { type: "boot", id: "b1" }] }];
-    expect(mergeThread(server, cached)[0]!.parts).toEqual([{ type: "text", text: "done" }, { type: "boot", id: "b1" }]);
+describe("todo22 W4 server thread", () => {
+  it("the server's thread is the whole thread: the cache adds nothing", async () => {
+    const { mergeThread, SERVER_PARTS } = await import("./agent");
+    const server: ChatMessage[] = [{ id: "a", role: "assistant", runId: "r1", parts: [{ type: "text", text: "done" }, { type: "boot", id: "b1" }] }];
+    const cached: ChatMessage[] = [{ id: "local", role: "assistant", runId: "r1", parts: [{ type: "text", text: "do" }, { type: "card", id: "c9", card: { kind: "tool-switch", tool: "x", reason: "y" }, state: "open" }] }];
+    expect(mergeThread(server, cached)).toBe(server);
+    for (const t of ["text", "reasoning", "tool", "drop", "card", "approval", "change", "artifact", "status", "boot"]) expect(SERVER_PARTS.has(t as never)).toBe(true);
   });
 });

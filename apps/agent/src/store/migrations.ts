@@ -83,6 +83,30 @@ ALTER TABLE agent_sessions ALTER COLUMN project_id DROP NOT NULL;
 ALTER TABLE agent_sessions ADD COLUMN scope text NOT NULL DEFAULT 'project';
 `,
   },
+  {
+    // todo22 W4 (D3): chats complete on the server. Notes for the model's next turn, the chat's profile
+    // and when its owner last opened it are columns (mirrored from meta on every write); the parts the
+    // browser adds to a thread (cards, boots, environment changes) and the approvals the service asked
+    // for are recorded per session, keyed by part, and replayed by GET /v1/sessions/:id/thread.
+    version: 5,
+    sql: `
+ALTER TABLE agent_sessions ADD COLUMN notes jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE agent_sessions ADD COLUMN profile text;
+ALTER TABLE agent_sessions ADD COLUMN last_opened_at timestamptz;
+
+CREATE TABLE agent_ui_parts (
+  session_id  text NOT NULL REFERENCES agent_sessions (id) ON DELETE CASCADE,
+  part_key    text NOT NULL,
+  run_id      text,
+  message_id  text NOT NULL,
+  part        text NOT NULL,
+  seq         bigserial,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (session_id, part_key)
+);
+`,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS.at(-1)!.version;

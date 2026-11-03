@@ -1,4 +1,7 @@
 import type {
+  ProfileName,
+  UiPartRequest,
+  UpdateSessionRequest,
   AgentEvent,
   AgentStatus,
   ClientToolSpec,
@@ -70,10 +73,20 @@ export interface ChatSummary {
   /** todo21 D5: the chat and message (0-based, the last one kept) it was branched from. */
   branchedFrom?: { sessionId: string; messageIdx: number } | null;
   scope?: "project" | "home";
+  /** The chat's profile (the service's session profile). */
+  profile?: ProfileName;
+  /** todo22 W4: notes for the model's next turn in this chat. */
+  notes?: string[];
+  /** todo22 W4: when the person last opened it (ISO, any device). */
+  lastOpenedAt?: string | null;
 }
 /** todo21 D4: the person renames a chat (owner only, 1..80 characters). */
 export const renameSession = (sessionId: string, title: string) => call<{ session: ChatSummary }>("PATCH", `/sessions/${encodeURIComponent(sessionId)}`, { title });
 /** todo21 D5: a new chat with thread messages 0..messageIdx of this one. */
+/** todo22 W4: chat notes, the chat's profile, `opened` (stamps lastOpenedAt). */
+export const updateSession = (sessionId: string, patch: UpdateSessionRequest) => call<{ session: ChatSummary }>("PATCH", `/sessions/${encodeURIComponent(sessionId)}`, patch);
+/** todo22 W4: record a part the browser added (card, boot, change) so the thread replays it on any device. */
+export const postUiPart = (sessionId: string, req: UiPartRequest) => call<void>("POST", `/sessions/${encodeURIComponent(sessionId)}/ui-parts`, req);
 export const branchSession = (sessionId: string, messageIdx: number) => call<{ session: ChatSummary }>("POST", `/sessions/${encodeURIComponent(sessionId)}/branch`, { messageIdx });
 export const listChats = (projectId: string) => call<{ sessions: ChatSummary[] }>("GET", `/sessions?projectId=${encodeURIComponent(projectId)}`);
 /** todo21 D8: the owner's Home chats (`scope = "home"`, no project), newest first. */

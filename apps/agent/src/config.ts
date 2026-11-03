@@ -287,7 +287,12 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
     if (!e.AGENT_TOKEN) missing.push(envName("AGENT_TOKEN"));
     if (!e.AGENT_APPROVAL_SECRET) missing.push(envName("AGENT_APPROVAL_SECRET"));
     missing.push(...backend);
-    if (missing.length) throw new ConfigError(`missing required settings: ${missing.join(", ")}`);
+    // todo22 D2: dev mode can't be deployed. Key names only, never values.
+    const refused: string[] = [];
+    if (e.AGENT_AUTH_MODE !== "workos") refused.push(`${envName("AGENT_AUTH_MODE")} must be workos`);
+    if (e.AGENT_STORE !== "postgres") refused.push(`${envName("AGENT_STORE")} must be postgres`);
+    const problems = [missing.length && `missing required settings: ${missing.join(", ")}`, refused.length && `in production ${refused.join(", ")}`].filter(Boolean);
+    if (problems.length) throw new ConfigError(problems.join("; "));
   } else {
     if (backend.length) throw new ConfigError(`missing required settings: ${backend.join(", ")}`);
     if (missing.length) warnings.push(`missing ${missing.join(", ")}; the related features are disabled`);

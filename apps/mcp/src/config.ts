@@ -49,6 +49,11 @@ export interface McpConfig {
 export const DEFAULT_STUDIO_URL = "http://127.0.0.1:8000";
 export const DEFAULT_PORT = 8300;
 
+/** Configuration is missing or invalid; the message names keys, never values. */
+export class ConfigError extends Error {
+  override name = "ConfigError";
+}
+
 const int = (v: string | undefined, d: number) => {
   const n = v === undefined ? NaN : Number.parseInt(v, 10);
   return Number.isFinite(n) && n >= 0 ? n : d;
@@ -60,6 +65,13 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env, argv: string[] 
   const host = env("MCP_HOST") ?? "127.0.0.1";
   const port = int(env("MCP_PORT"), DEFAULT_PORT);
   const transport = env("MCP_TRANSPORT") === "http" || argv.includes("--http") ? "http" : "stdio";
+  // todo22 D2: the remote server in production signs callers in with OAuth (todo17 D12), so it needs
+  // its public resource URL and the authorization server; without them it refuses to start. stdio
+  // stays a local tool. Key names only, never values.
+  if (transport === "http" && env("ENV") === "production") {
+    const need = ["MCP_PUBLIC_URL", "MCP_AUTH_SERVER"].filter((key) => !env(key));
+    if (need.length) throw new ConfigError(`missing required settings: ${need.map((key) => `${NAMING.envPrefix}${key}`).join(", ")}`);
+  }
   return {
     webUrl,
     apiUrl: (env("API_URL") ?? webUrl).replace(/\/$/, ""),

@@ -496,6 +496,8 @@ def load_settings(**overrides) -> Settings:
         values.setdefault("approval_secret", DEV_APPROVAL_SECRET)
     values.setdefault("secret_key", "")
     hints = _check_auth(values, missing, invalid_early)
+    if production:
+        hints += _check_production(values, missing, invalid_early)
     invalid: list[str] = list(invalid_early)
     try:
         s = Settings(**values)
@@ -533,6 +535,28 @@ def _check_auth(values: dict, missing: list[str], invalid: list[str]) -> list[st
         except (ValueError, TypeError):
             invalid.append(key_name("workos_cookie_password"))
             hints.append(f"{key_name('workos_cookie_password')} must be a Fernet key (32 url-safe base64 bytes)")
+    return hints
+
+
+def _check_production(values: dict, missing: list[str], invalid: list[str]) -> list[str]:
+    """todo22 D2: dev mode can't be deployed. `ENV=production` (the environment, which is what a
+    deploy sets) refuses dev sign-in, trusted headers, SQLite and the local blob store. Key names
+    only, never values."""
+    hints: list[str] = []
+
+    def refuse(field: str, rule: str) -> None:
+        if key_name(field) not in invalid:
+            invalid.append(key_name(field))
+            hints.append(f"{key_name(field)} {rule} in production")
+
+    if str(values.get("auth_mode") or "dev") != "workos":
+        refuse("auth_mode", "must be workos")
+    if _truthy(values.get("dev_trust_headers", False)):
+        refuse("dev_trust_headers", "must be 0")
+    if key_name("database_url") not in missing and str(values.get("database_url") or "").startswith("sqlite"):
+        refuse("database_url", "must not be SQLite")
+    if str(values.get("blob_store") or "local") == "local":
+        refuse("blob_store", "must be gcs or s3")
     return hints
 
 

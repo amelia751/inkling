@@ -11,7 +11,10 @@
  * `builder` changes which plugins run in the workspace (kernel builder tools, no data writes);
  * `task` uses active capabilities through the gateway (no plugin changes). docs/plugins.md §8.
  */
-export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task";
+export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task" | "home";
+
+/** todo21 D8: a project's chat, or a Home chat that only routes between projects (no project). */
+export type SessionScope = "project" | "home";
 
 /**
  * Structured context for an approval card. `plugin-install` opens the Studio's install review;
@@ -161,7 +164,10 @@ export type AgentEventBody =
 export type AgentEvent = AgentEventBody & { seq: number; runId: string; at: number };
 
 export interface CreateSessionRequest {
-  projectId: string;
+  /** Required for project chats; omitted for `scope: "home"`. */
+  projectId?: string;
+  /** todo21 D8: `home` (no projectId, the `home` profile) or `project` (default). */
+  scope?: SessionScope;
   profile?: ProfileName;
   clientTools?: ClientToolSpec[];
   /** Module catalogue rendered by the browser (environment profiles); the service never imports web code. */
@@ -185,7 +191,9 @@ export interface CreateSessionRequest {
 /** todo20 W3: one chat of a project (`GET /v1/sessions?projectId=`), newest `updatedAt` first. */
 export interface ChatSessionSummary {
   id: string;
-  projectId: string;
+  /** todo21 D8: null for a Home chat. */
+  projectId: string | null;
+  scope: SessionScope;
   /** The first user message, one line, at most ~60 characters; null before the first message. */
   title: string | null;
   createdAt: number;
@@ -303,7 +311,8 @@ export interface ArtifactInfo {
 
 export interface SessionInfo {
   sessionId: string;
-  projectId: string;
+  /** null for a Home chat (todo21 D8). */
+  projectId: string | null;
   profile: ProfileName;
   createdAt: number;
   activeRunId?: string;

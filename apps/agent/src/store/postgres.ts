@@ -1,7 +1,7 @@
 import pg from "pg";
 import { envName } from "../config.ts";
 import { LATEST_VERSION, ident, migrate, schemaVersion } from "./migrations.ts";
-import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionStore, type StoredMeta, type StoredRunStatus } from "./types.ts";
+import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus } from "./types.ts";
 
 const ACTIVE = ACTIVE_STATUSES.map((s) => `'${s}'`).join(", ");
 
@@ -112,20 +112,20 @@ export class PostgresSessionStore implements SessionStore {
 
   async putMeta(meta: StoredMeta): Promise<number> {
     const r = await this.pool.query<{ rev: string }>(
-      `INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev) VALUES ($1, $2, $3, $4, $5, 1)
+      `INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev, scope) VALUES ($1, $2, $3, $4, $5, 1, $6)
        ON CONFLICT (id) DO UPDATE SET meta = EXCLUDED.meta, rev = agent_sessions.rev + 1, updated_at = now()
        RETURNING rev`,
-      [meta.id, meta.owner, meta.projectId, meta.orgId ?? null, JSON.stringify(meta)],
+      [meta.id, meta.owner, meta.projectId ?? null, meta.orgId ?? null, JSON.stringify(meta), meta.scope ?? "project"],
     );
     return Number(r.rows[0]!.rev);
   }
 
-  async listSessions({ owner, orgId, projectId }: { owner: string; orgId: string | undefined; projectId?: string }): Promise<StoredMeta[]> {
+  async listSessions({ owner, orgId, projectId, scope }: { owner: string; orgId: string | undefined; projectId?: string; scope?: SessionScope }): Promise<StoredMeta[]> {
     const r = await this.pool.query<{ meta: string }>(
       `SELECT meta FROM agent_sessions
-       WHERE owner = $1 AND org_id IS NOT DISTINCT FROM $2 AND ($3::text IS NULL OR project_id = $3)
+       WHERE owner = $1 AND org_id IS NOT DISTINCT FROM $2 AND ($3::text IS NULL OR project_id = $3) AND ($4::text IS NULL OR scope = $4)
        ORDER BY created_at DESC`,
-      [owner, orgId ?? null, projectId ?? null],
+      [owner, orgId ?? null, projectId ?? null, scope ?? null],
     );
     return r.rows.map((x) => JSON.parse(x.meta) as StoredMeta);
   }

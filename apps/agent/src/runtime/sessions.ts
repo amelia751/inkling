@@ -9,7 +9,8 @@ import type { RunEventBus } from "../bus/types.ts";
 import { MemoryRunEventBus } from "../bus/memory.ts";
 import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
 import { fileStore } from "../store/index.ts";
-import type { RunRecord, SessionStore, StoredMeta } from "../store/types.ts";
+import type { RunRecord, SessionScope, SessionStore, StoredMeta } from "../store/types.ts";
+import { HOME_CLIENT_TOOLS, HOME_CLIENT_TOOL_SPECS, createHomeTools } from "../tools/home.ts";
 import { buildThread, titleFrom, titleFromTranscript } from "./thread.ts";
 import { dataDir, resolveModel } from "../agent/models.ts";
 import { KERNEL_SHADOWED, PROFILES, type Profile, systemPrompt } from "../agent/profiles.ts";
@@ -71,7 +72,12 @@ const piId = (id: string) => id.replace(/^(ses_|conv-)/, "");
 /** What survives a restart (`.data/sessions/<id>.meta.json`); the transcript is `<id>.jsonl`. */
 interface SessionMeta {
   id: string;
-  projectId: string;
+  /** null for a Home chat (todo21 D8). */
+  projectId: string | null;
+  /** todo21 D8: unset (stored before todo21) is `project`. */
+  scope?: SessionScope;
+  /** todo21 D8: the Home chat whose open_in_project made this one. */
+  seededFrom?: string;
   owner: string;
   /** The caller's organization when the session was created (WorkOS `org_id`); unset in dev mode. */
   orgId?: string;
@@ -131,7 +137,8 @@ export class SessionContext {
       emit: (r) => emit({ type: "approval", ...r, expiresAt: Date.now() + config.approvalTimeoutS * 1000 }),
       onResolved: (approvalId, decision) => emit({ type: "approval-resolved", approvalId, decision: decision.decision }),
     });
-    this.dataset = new SessionDatasetSource(meta.projectId, new SeedApiDatasetSource(meta.projectId, config.studioUrl));
+    const projectId = meta.projectId ?? "";
+    this.dataset = new SessionDatasetSource(projectId, new SeedApiDatasetSource(projectId, config.studioUrl));
     this.policy = {
       toolCalls: 0,
       startedAt: Date.now(),
@@ -139,7 +146,7 @@ export class SessionContext {
       restricted: meta.restricted,
       egressContained,
       userText: "",
-      workspaceId: meta.projectId,
+      workspaceId: meta.projectId ?? undefined,
       pathRoot: profile.kernel === "builder" ? PLUGIN_DIR : undefined,
     };
   }
@@ -326,7 +333,13 @@ export class SessionService {
   async create(req: CreateSessionRequest, owner = this.deps.principal ?? "local", orgId?: string): Promise<SessionContext> {
     if ((await this.store.countSessions()) >= this.config.limits.maxSessions && this.sessions.size >= this.config.limits.maxSessions)
       throw new HttpError(429, `session limit (${this.config.limits.maxSessions}) reached; delete a session first`);
-    const profileName = req.profile ?? "assistant";
+    // todo21 D8: a Home chat has no project and only the home profile; a project chat needs both.
+    const home = req.scope === "home";
+    if (home && req.profile && req.profile !== "home") throw new HttpError(400, "a Home chat uses the home profile");
+    if (!home && req.profile === "home") throw new HttpError(400, "the home profile is for Home chats (scope: home)");
+    if (!home && !req.projectId) throw new HttpError(400, "projectId is required (or scope: home)");
+    const projectId = home ? null : req.projectId!;
+    const profileName = home ? "home" : (req.profile ?? "assistant");
     const profile = PROFILES[profileName];
     if (profile.sandbox === true && !this.sandboxes) throw new HttpError(409, `The ${profileName} profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.`);
     if (req.sessionId) {
@@ -334,7 +347,7 @@ export class SessionService {
       if (!SESSION_ID.test(req.sessionId)) throw new HttpError(400, "sessionId must look like ses_… or conv-…");
       const existing = await this.readMeta(req.sessionId);
       if (existing) {
-        if (existing.owner !== owner || (orgId ?? undefined) !== (existing.orgId ?? undefined) || existing.projectId !== req.projectId)
+        if (existing.owner !== owner || (orgId ?? undefined) !== (existing.orgId ?? undefined) || (existing.projectId ?? null) !== projectId)
           throw new HttpError(409, "that session id is taken");
         const ctx = await this.get(req.sessionId, owner, orgId);
         if (req.kernelToken) ctx.kernelToken = req.kernelToken;
@@ -343,7 +356,8 @@ export class SessionService {
     }
     const meta: SessionMeta = {
       id: req.sessionId ?? `ses_${randomUUID()}`,
-      projectId: req.projectId,
+      projectId,
+      scope: home ? "home" : "project",
       owner,
       ...(orgId ? { orgId } : {}),
       profile: profileName,
@@ -400,9 +414,12 @@ export class SessionService {
   }
 
   private async build(meta: SessionMeta, sessionManager: SessionManager): Promise<SessionContext> {
+    /** A project chat always has its project (Home chats are built by buildHome). */
+    const pid = meta.projectId ?? "";
     const profile = PROFILES[meta.profile];
     const egress = this.deps.egress?.();
     const ctx = new SessionContext(meta, profile, this.config, !!egress?.canOverride);
+    if (profile.home) return this.buildHome(ctx, meta, sessionManager);
     // Tool order is fixed so the declared tool list is byte-identical across sessions of a profile
     // (prompt caching, todo11): dataset, browser tools (sorted by name), project, Studio, kernel,
     // sandbox, then test extras. Each group's own order is fixed in its module.
@@ -415,7 +432,7 @@ export class SessionService {
     // Project tools for every profile (todo6 Phase 6): reads plus proposals, with the session's kernel token.
     const kernel = new KernelClient({
       baseUrl: this.config.kernelUrl,
-      workspaceId: meta.projectId,
+      workspaceId: pid,
       token: () => ctx.kernelToken,
       // todo16 D9: the run is the turn; the kernel journals every write under it (X-Turn-Id).
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
@@ -435,7 +452,7 @@ export class SessionService {
     // todo16 D7-D9: write, trash and destroy tools from the operations catalogue, with the
     // person's delegated token; the kernel journals each turn (X-Turn-Id), so a turn undoes as one step.
     ctx.policy.trashAskOver = this.config.trashAskOver;
-    tools.push(...createOperationTools({ kernel, projectId: meta.projectId, approvalFor: (id) => ctx.approvalIds.get(id), kernelToken: () => ctx.kernelToken, approvalSecret: this.config.approvalSecret }));
+    tools.push(...createOperationTools({ kernel, projectId: pid, approvalFor: (id) => ctx.approvalIds.get(id), kernelToken: () => ctx.kernelToken, approvalSecret: this.config.approvalSecret }));
     // todo13: files dropped in the chat (screened names and facts only).
     tools.push(...createDropTools(kernel));
     if (profile.studio) {
@@ -446,10 +463,10 @@ export class SessionService {
         baseUrl: this.config.kernelUrl,
         token: () => ctx.kernelToken,
         refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false),
-        headers: (): Record<string, string> => ({ "X-Workspace-Id": meta.projectId, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
+        headers: (): Record<string, string> => ({ "X-Workspace-Id": pid, ...(ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}) }),
         fetch: this.deps.fetchImpl,
       });
-      tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: meta.projectId, runId: () => ctx.activeRun?.id, activeItem: () => ctx.dataset.current() }));
+      tools.push(...createStudioTools({ client: studioClient, studio: this.studio, projectId: pid, runId: () => ctx.activeRun?.id, activeItem: () => ctx.dataset.current() }));
     }
     if (profile.kernel) {
       tools.push(...(profile.kernel === "builder" ? createBuilderTools(kernel) : [...createTaskTools(kernel), ...createDatasetVersioningTools(kernel)]));
@@ -461,7 +478,7 @@ export class SessionService {
       tools.push(...this.sandboxTools(ctx));
       // The coder's way to data: a fingerprint and synthetic fixtures in its work dir, never the sample.
       const manager = this.sandboxes;
-      const owner = { sessionId: ctx.id, projectId: meta.projectId, owner: meta.owner, profile: meta.profile, restricted: meta.restricted };
+      const owner = { sessionId: ctx.id, projectId: pid, owner: meta.owner, profile: meta.profile, restricted: meta.restricted };
       const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
       tools.push(...createBoundaryTools(kernel, { acquire, sourceDir: SANDBOX_CWD }).filter((t) => t.name === "get_fingerprint" || t.name === "get_fixtures"));
     }
@@ -498,9 +515,76 @@ export class SessionService {
     return ctx;
   }
 
+  /**
+   * todo21 D8: a Home chat's tools are list_projects, create_project (the browser's dialog) and
+   * open_in_project. Nothing else: no dataset, project, Studio, kernel or sandbox tools, and no
+   * test extras, so no tool output from a project's data can reach its context.
+   */
+  private async buildHome(ctx: SessionContext, meta: SessionMeta, sessionManager: SessionManager): Promise<SessionContext> {
+    const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: "", token: () => ctx.kernelToken, refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false), fetchImpl: this.deps.fetchImpl });
+    ctx.refreshToken = async () => {
+      if (!ctx.activeRun) return false;
+      const r = await ctx.bridge.request(`tok_${randomUUID()}`, REFRESH_TOKEN_TOOL, {}).catch(() => undefined);
+      const token = r?.ok ? (r.output as { token?: unknown } | null)?.token : undefined;
+      if (typeof token !== "string" || !token) return false;
+      ctx.kernelToken = token;
+      return true;
+    };
+    ctx.kernel = kernel;
+    // create_project is always there; the browser's own spec (if it sent one) replaces the default.
+    const specs = HOME_CLIENT_TOOLS.map((name) => meta.clientTools.find((t) => t.name === name) ?? HOME_CLIENT_TOOL_SPECS[name]);
+    const tools: ToolDefinition<any, any, any>[] = [
+      ...createClientTools(specs, ctx.profile.clientTools, ctx.bridge),
+      ...createHomeTools({ kernel, open: (projectId, request) => this.openInProject(ctx, projectId, request) }),
+    ];
+    const session = await createStudioSession({
+      config: this.config,
+      runtime: this.deps.runtime,
+      cwd: SANDBOX_CWD,
+      systemPrompt: systemPrompt(ctx.profile),
+      tools,
+      sessionManager,
+      model: resolveModel(this.deps.runtime, this.config),
+      extensions: [
+        policyExtension({
+          state: () => ctx.policy,
+          budgets: this.config.budgets,
+          approvals: ctx.approvals,
+          signal: () => ctx.activeRun?.abort.signal,
+          onCall: () => {
+            ctx.policy.toolCalls++;
+            if (ctx.activeRun) ctx.activeRun.toolCalls++;
+          },
+          onAwaiting: (waiting) => this.transition(ctx, waiting ? "awaiting_approval" : "running"),
+          facts: () => Promise.resolve({}),
+          onApproved: (callId, approvalId) => ctx.approvalIds.set(callId, approvalId),
+        }),
+      ],
+    });
+    ctx.bind(session, (c, e) => this.onPiEvent(c, e));
+    ctx.emitHook = (body) => this.cluster.emit(ctx, body);
+    ctx.onClientToolSettled = (callId) => this.cluster.clientToolSettled(ctx, callId);
+    this.sessions.set(meta.id, ctx);
+    return ctx;
+  }
+
+  /**
+   * todo21 D8: Home's open_in_project. A new project chat for the Home chat's owner (same org),
+   * seeded with `request` as its first user message, its run started at once. The caller checked
+   * with the kernel that the person can open the project. The browser then navigates to it; the
+   * run asks the browser for a project token (refresh_token) on its first kernel call.
+   */
+  async openInProject(home: SessionContext, projectId: string, request: string): Promise<{ projectId: string; sessionId: string }> {
+    const ctx = await this.create({ projectId, profile: "assistant" }, home.meta.owner, home.meta.orgId);
+    ctx.meta.seededFrom = home.id;
+    this.writeMeta(ctx.meta);
+    await this.send(ctx, { text: request });
+    return { projectId, sessionId: ctx.id };
+  }
+
   private sandboxTools(ctx: SessionContext): ToolDefinition<any, any, any>[] {
     const manager = this.sandboxes!;
-    const owner = { sessionId: ctx.id, projectId: ctx.meta.projectId, owner: ctx.meta.owner, profile: ctx.meta.profile, restricted: ctx.meta.restricted };
+    const owner = { sessionId: ctx.id, projectId: ctx.meta.projectId ?? "", owner: ctx.meta.owner, profile: ctx.meta.profile, restricted: ctx.meta.restricted };
     return createSandboxTools({
       acquire: () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) }),
       onUnavailable: () => {
@@ -524,7 +608,7 @@ export class SessionService {
     const manager = this.sandboxes!;
     const owner = {
       sessionId: ctx.id,
-      projectId: ctx.meta.projectId,
+      projectId: ctx.meta.projectId ?? "",
       owner: ctx.meta.owner,
       profile: ctx.meta.profile,
       restricted: ctx.meta.restricted,
@@ -587,8 +671,8 @@ export class SessionService {
   }
 
   /** The owner's sessions in one organization (none = dev mode's org-less sessions), newest first. */
-  async list(owner = this.deps.principal ?? "local", orgId?: string, projectId?: string): Promise<SessionSummary[]> {
-    const metas = await this.store.listSessions({ owner, orgId, projectId });
+  async list(owner = this.deps.principal ?? "local", orgId?: string, projectId?: string, scope?: SessionScope): Promise<SessionSummary[]> {
+    const metas = await this.store.listSessions({ owner, orgId, projectId, scope });
     const rows = await Promise.all(metas.map((m) => this.summarize(m as unknown as SessionMeta)));
     return rows.sort((a, b) => b.updatedAt - a.updatedAt || b.createdAt - a.createdAt);
   }
@@ -597,7 +681,7 @@ export class SessionService {
   async summarize(m: SessionMeta): Promise<SessionSummary> {
     const createdAt = Number(m.createdAt) || 0;
     const title = m.title !== undefined ? m.title : titleFromTranscript(await this.store.readTranscript(m.id).catch(() => []));
-    return { id: m.id, projectId: m.projectId, title: title ?? null, createdAt, updatedAt: Number(m.updatedAt) || createdAt, profile: m.profile };
+    return { id: m.id, projectId: m.projectId ?? null, scope: m.scope ?? "project", title: title ?? null, createdAt, updatedAt: Number(m.updatedAt) || createdAt, profile: m.profile };
   }
 
   /** todo20 W3: the visible thread, rebuilt from the stored transcript and the session's runs. */
@@ -737,7 +821,7 @@ export class SessionService {
   private async projectHasTask(ctx: SessionContext): Promise<boolean | undefined> {
     if (!ctx.kernel || !ctx.kernelToken) return undefined;
     try {
-      const o = await ctx.kernel.get<{ tasks?: unknown[] }>(`/projects/${encodeURIComponent(ctx.meta.projectId)}/overview`);
+      const o = await ctx.kernel.get<{ tasks?: unknown[] }>(`/projects/${encodeURIComponent(ctx.meta.projectId ?? "")}/overview`);
       return Array.isArray(o?.tasks) ? o.tasks.length > 0 : undefined;
     } catch {
       return undefined;

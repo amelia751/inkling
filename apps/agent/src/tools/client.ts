@@ -83,6 +83,9 @@ export class ClientToolBridge {
   }
 }
 
+export const STUDIO_CHANGED = "The Studio changed since you read it (another chat or a person edited it). Re-read it (get_environment), then redo your change on the current revision.";
+const isConflict = (o: unknown) => !!o && typeof o === "object" && ((o as { conflict?: unknown }).conflict === true || (o as { status?: unknown }).status === 409);
+
 const isCard = (name: string) => (CARD_TOOLS as readonly string[]).includes(name);
 const NAME_RE = /^[a-z][a-z0-9_]{0,63}$/;
 
@@ -108,6 +111,10 @@ export function createClientTools(specs: ClientToolSpec[], allowed: readonly str
         }
         const res = await bridge.request(callId, spec.name, params, signal);
         const textOut = typeof res.output === "string" ? res.output : JSON.stringify(res.output ?? null);
+        // todo21 D6: the browser's environment tools report a stale revision as {conflict: true} or
+        // status 409. That is not a failure: tell the model to re-read and redo the change.
+        if (!res.ok && isConflict(res.output))
+          return { content: [{ type: "text" as const, text: JSON.stringify({ ok: false, conflict: true, message: STUDIO_CHANGED, detail: res.output }).slice(0, 8000) }], details: { summary: "The Studio changed; re-reading", output: res.output } };
         if (!res.ok) throw new ClientToolError(textOut.slice(0, 8000));
         // The browser shows its own one-line summary; the model gets the full output.
         return { content: [{ type: "text" as const, text: textOut.slice(0, 64 * 1024) }], details: { summary: "Done", output: res.output } };

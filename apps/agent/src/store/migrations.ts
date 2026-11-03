@@ -74,6 +74,15 @@ CREATE INDEX agent_sessions_owner_org ON agent_sessions (owner, org_id);
 CREATE INDEX agent_sessions_org_owner ON agent_sessions (org_id, owner);
 `,
   },
+  {
+    // todo21 D8: Home chats belong to no project (project_id NULL, scope 'home'); project chats keep
+    // their project. Existing rows are project chats.
+    version: 4,
+    sql: `
+ALTER TABLE agent_sessions ALTER COLUMN project_id DROP NOT NULL;
+ALTER TABLE agent_sessions ADD COLUMN scope text NOT NULL DEFAULT 'project';
+`,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS.at(-1)!.version;

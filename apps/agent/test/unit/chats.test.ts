@@ -44,7 +44,7 @@ describe("chats (sessions) per project", { timeout: 30_000 }, () => {
     expect(first.title.startsWith("hello, please xxx")).toBe(true);
     expect(first.updatedAt).toBeGreaterThanOrEqual(first.createdAt);
     expect(second.title).toBeNull();
-    expect(Object.keys(first).sort()).toEqual(["createdAt", "id", "profile", "projectId", "title", "updatedAt"]);
+    expect(Object.keys(first).sort()).toEqual(["createdAt", "id", "profile", "projectId", "scope", "title", "updatedAt"]);
   });
 
   it("rebuilds the thread from the transcript and the run records", async () => {

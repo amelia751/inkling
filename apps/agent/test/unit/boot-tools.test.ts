@@ -231,14 +231,16 @@ describe("Studio server tools", () => {
     expect(err.errors[0]).toMatchObject({ path: mode === "422" ? "/labels/0/control" : "/data", code: mode === "422" ? "reference" : "scope" });
   });
 
-  it("patch_studio sends the revision and reports a stale one with the current revision", async () => {
+  it("patch_studio on a stale revision tells the model the Studio changed (todo21 D6), and the run goes on", async () => {
     const api = fakeApi();
     const id = await session(api);
-    await say(id, "stale title change");
+    const events = await say(id, "stale title change");
     expect(api.seen.find((s) => s.method === "PATCH")!.body).toEqual({ patch: [{ op: "replace", path: "/title", value: "X" }], revision: 0 });
     const [r] = await toolResults(id);
-    expect(r!.isError).toBe(true);
-    expect(JSON.parse(r!.text)).toMatchObject({ status: 409, current: 2 });
+    expect(r!.isError).toBe(false);
+    expect(JSON.parse(r!.text)).toMatchObject({ conflict: true, status: 409, current: 2 });
+    expect(JSON.parse(r!.text).message).toMatch(/Studio changed.*get_studio_state/);
+    expect(events.at(-1)).toMatchObject({ type: "done", status: "completed" });
   });
 
   it("search_catalog answers from schemas/catalog.json", async () => {

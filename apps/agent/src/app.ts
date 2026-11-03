@@ -67,7 +67,9 @@ const snapshotSchema = z.object({
 });
 
 const sessionFields = {
-  projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "projectId must be a slug"),
+  // todo21 D8: omitted for a Home chat (`scope: "home"`); sessions.create requires it otherwise.
+  projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "projectId must be a slug").optional(),
+  scope: z.enum(["project", "home"]).optional(),
   profile: z.enum(Object.keys(PROFILES) as [ProfileName, ...ProfileName[]]).optional(),
   clientTools: z.array(clientToolSchema).max(64).optional(),
   catalogPrompt: z.string().max(200_000).optional(),
@@ -189,7 +191,9 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
   // The caller's conversations in their current organization (todo9 Phase 5, todo14 §4), newest first.
   app.get("/v1/sessions", async (c) => {
     const { principal, orgId } = c.get("caller");
-    return c.json({ sessions: await sessions.list(principal, orgId, c.req.query("projectId") || undefined) });
+    const scope = c.req.query("scope");
+    if (scope !== undefined && scope !== "project" && scope !== "home") throw new HttpError(400, "scope must be project or home");
+    return c.json({ sessions: await sessions.list(principal, orgId, c.req.query("projectId") || undefined, scope) });
   });
 
   app.get("/v1/sessions/:id", async (c) => {

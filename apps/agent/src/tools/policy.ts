@@ -132,6 +132,13 @@ export function decide(
   if (s.spendUsd >= b.maxSpendUsd) return { kind: "deny", reason: `spend budget ($${b.maxSpendUsd}) exhausted` };
 
   const str = (k: string) => (typeof call.input[k] === "string" ? (call.input[k] as string) : "");
+  // todo21 D9: a project chat's tools reach only its own project. A `projectId` / `workspaceId`
+  // argument naming another one is refused, whatever the tool (copy_into_project names its source
+  // as `fromProjectId`, behind the rights card). Home chats have no workspace and no data tools.
+  if (s.workspaceId)
+    for (const key of ["projectId", "workspaceId"])
+      if (typeof call.input[key] === "string" && call.input[key] !== s.workspaceId)
+        return { kind: "deny", soft: true, reason: `This chat is scoped to project "${s.workspaceId}"; "${String(call.input[key])}" is not accessible from here.` };
   if (SAMPLE_UPLOAD_TOOLS.has(call.toolName)) return { kind: "deny", reason: "Real samples never enter a sandbox. Use get_fingerprint, get_fixtures (synthetic files), verify_on_sample and probe_sample." };
   if ((call.toolName === "bash" || call.toolName === "run_python") && SAMPLE_URL_RE.test(str("command") + str("code")))
     return { kind: "deny", reason: "Sandbox code can't fetch item bytes from the Studio or the kernel; work from fingerprints and fixtures." };

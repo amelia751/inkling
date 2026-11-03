@@ -72,6 +72,21 @@ export interface InputRecord {
   createdAt: number;
 }
 
+/**
+ * todo22 W4: a thread part that isn't in the pi transcript (a card, a boot or an environment change
+ * the browser added, an approval the service asked for), recorded so the thread replays the same on
+ * any device. One row per `partKey` (`<type>:<id>`); a later write replaces the part (card applied).
+ */
+export interface UiPartRecord {
+  sessionId: string;
+  /** The run whose assistant message holds the part (placement on replay); null for a local turn. */
+  runId: string | null;
+  /** The browser's message id (placement when there's no run). */
+  messageId: string;
+  partKey: string;
+  part: { type: string; id: string; [key: string]: unknown };
+}
+
 export interface SessionStore {
   readonly kind: "file" | "postgres";
   /** Create directories / check (or, with auto-migrate, apply) the schema. */
@@ -108,6 +123,11 @@ export interface SessionStore {
    * `header` (row 0), in one transaction. The caller checks ownership and maps the message index.
    */
   branchSession(sourceId: string, uptoIdx: number, meta: StoredMeta, header: unknown): Promise<void>;
+
+  /** todo22 W4: insert or replace one recorded thread part. */
+  putUiPart(rec: UiPartRecord): Promise<void>;
+  /** todo22 W4: a session's recorded thread parts, in the order they were first recorded. */
+  listUiParts(sessionId: string): Promise<UiPartRecord[]>;
 
   // ---- runs ----
   /** False when the session already has an active run (one active run per session, cluster-wide). */

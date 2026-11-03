@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, isActiveStatus } from "./types.ts";
+import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord, isActiveStatus } from "./types.ts";
 
 /** `ses_<uuid>` or (todo20 W3) the browser's `conv-<uuid>`; never a path. */
 const SESSION_ID = /^(ses_|conv-)[A-Za-z0-9-]{8,64}$/;
@@ -43,6 +43,25 @@ export class FileSessionStore implements SessionStore {
   private metaPath = (id: string) => join(this.dir, `${id}.meta.json`);
   private jsonlPath = (id: string) => join(this.dir, `${id}.jsonl`);
   private runPath = (id: string) => join(this.runsDir, `${id}.json`);
+  private uiPartsPath = (id: string) => join(this.dir, `${id}.ui-parts.json`);
+
+  async putUiPart(rec: UiPartRecord): Promise<void> {
+    if (!SESSION_ID.test(rec.sessionId)) return;
+    const all = await this.listUiParts(rec.sessionId);
+    const i = all.findIndex((r) => r.partKey === rec.partKey);
+    if (i >= 0) all[i] = { ...all[i]!, part: rec.part, runId: rec.runId ?? all[i]!.runId };
+    else all.push(rec);
+    writeFileSync(this.uiPartsPath(rec.sessionId), JSON.stringify(all));
+  }
+
+  async listUiParts(sessionId: string): Promise<UiPartRecord[]> {
+    if (!SESSION_ID.test(sessionId)) return [];
+    try {
+      return JSON.parse(readFileSync(this.uiPartsPath(sessionId), "utf8")) as UiPartRecord[];
+    } catch {
+      return [];
+    }
+  }
 
   async getMeta(id: string): Promise<StoredMeta | undefined> {
     if (!SESSION_ID.test(id)) return undefined;
@@ -111,6 +130,7 @@ export class FileSessionStore implements SessionStore {
     if (!SESSION_ID.test(id)) return;
     rmSync(this.metaPath(id), { force: true });
     rmSync(this.jsonlPath(id), { force: true });
+    rmSync(this.uiPartsPath(id), { force: true });
     for (const runId of await this.runIdsForSessions([id])) {
       this.runs.delete(runId);
       rmSync(this.runPath(runId), { force: true });

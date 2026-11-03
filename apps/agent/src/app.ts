@@ -96,7 +96,26 @@ const schemas = {
     })
     .refine((m) => m.text.length > 0 || !!m.drop, { message: "text must not be empty (unless the message carries a drop)", path: ["text"] }),
   // todo21 W3/W4
-  rename: z.object({ title: z.string().transform((t) => t.replace(/\s+/g, " ").trim()).pipe(z.string().min(1, "title must not be empty").max(80, "title is at most 80 characters")) }),
+  // todo21 W3 (title), todo22 W4 (notes, profile, opened).
+  update: z
+    .object({
+      title: z.string().transform((t) => t.replace(/\s+/g, " ").trim()).pipe(z.string().min(1, "title must not be empty").max(80, "title is at most 80 characters")).optional(),
+      notes: z.array(z.string().max(4000)).max(50).optional(),
+      profile: z.enum(Object.keys(PROFILES) as [ProfileName, ...ProfileName[]]).optional(),
+      opened: z.literal(true).optional(),
+    })
+
+    .refine((b) => b.title !== undefined || b.notes !== undefined || b.profile !== undefined || b.opened, { message: "nothing to change (title, notes, profile or opened)" }),
+  // todo22 W4: a part the browser added to a thread. Approvals are the service's own record.
+  uiPart: z.object({
+    messageId: z.string().min(1).max(128),
+    runId: z.string().regex(/^run_[0-9a-f-]{36}$/, "runId must look like run_…").optional(),
+    part: z.discriminatedUnion("type", [
+      z.object({ type: z.literal("card"), id: z.string().min(1).max(128), card: z.object({ kind: z.string().max(64) }).passthrough(), state: z.enum(["open", "applied", "dismissed", "undone"]) }),
+      z.object({ type: z.literal("boot"), id: z.string().min(1).max(128) }),
+      z.object({ type: z.literal("change"), id: z.string().min(1).max(128), summary: z.string().max(2000), keys: z.array(z.string().max(500)).max(200), undone: z.boolean().optional() }),
+    ]),
+  }),
   branch: z.object({ messageIdx: z.number().int().min(0) }),
   clientTool: z.object({ ok: z.boolean(), output: z.unknown() }),
   approval: z.object({ decision: z.enum(["approve", "reject"]), note: z.string().max(2000).optional() }),
@@ -211,11 +230,19 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
     return c.json(res);
   });
 
-  // todo21 W3: rename (owner only: `get` 404s for anyone else).
+  // todo21 W3: rename; todo22 W4: notes, profile, opened (owner only: `get` 404s for anyone else).
   app.patch("/v1/sessions/:id", async (c) => {
     const { principal, orgId } = c.get("caller");
-    const { title } = await body(c, schemas.rename);
-    return c.json({ session: await sessions.rename(await sessions.get(c.req.param("id"), principal, orgId), title) });
+    const patch = await body(c, schemas.update);
+    return c.json({ session: await sessions.update(await sessions.get(c.req.param("id"), principal, orgId), patch) });
+  });
+
+  // todo22 W4: record a part the browser added (card, boot, change) so the thread replays it anywhere.
+  app.post("/v1/sessions/:id/ui-parts", bodyLimit({ maxSize: 512 * 1024, onError: (c) => c.json({ error: "body too large" }, 413) }), async (c) => {
+    const { principal, orgId } = c.get("caller");
+    const req = await body(c, schemas.uiPart);
+    await sessions.recordUiPart(await sessions.get(c.req.param("id"), principal, orgId), req as Parameters<SessionService["recordUiPart"]>[1]);
+    return c.body(null, 204);
   });
 
   // todo21 W4: a new chat with the thread up to and including message `messageIdx`.

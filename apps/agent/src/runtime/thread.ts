@@ -1,11 +1,12 @@
 import type { ThreadMessage, ThreadPart } from "@studio/agent-protocol";
-import type { RunRecord } from "../store/types.ts";
+import type { RunRecord, UiPartRecord } from "../store/types.ts";
 
 /**
  * todo20 W3 / D2: a conversation's visible thread, rebuilt on the server from the stored pi
  * transcript plus the session's run records, in the shape the web drawer renders
- * (`ChatMessage` in apps/web/src/studio/stores/agent.ts). Browser-only parts (cards, approvals,
- * environment changes, boots) aren't in the transcript; the web's local cache keeps those.
+ * (`ChatMessage` in apps/web/src/studio/stores/agent.ts). Parts that aren't in the transcript
+ * (cards, boots, environment changes the browser added; approvals the service asked for) are
+ * recorded as ui parts (todo22 W4) and put back in place here.
  */
 
 const TITLE_MAX = 60;
@@ -56,7 +57,7 @@ const firstLine = (s: string) => s.split("\n").find((l) => l.trim())?.trim().sli
  * `entries`: the transcript, header first. `runs`: the session's run records (any order); each
  * assistant message gets the run that was started last at or before its user message.
  */
-export function buildThread(entries: unknown[], runs: RunRecord[], titles: ReadonlyMap<string, string> = new Map()): ThreadMessage[] {
+export function buildThread(entries: unknown[], runs: RunRecord[], titles: ReadonlyMap<string, string> = new Map(), uiParts: UiPartRecord[] = [], now = Date.now()): ThreadMessage[] {
   const sorted = [...runs].sort((a, b) => a.createdAt - b.createdAt);
   const out: ThreadMessage[] = [];
   let assistant: ThreadMessage | undefined;
@@ -121,7 +122,43 @@ export function buildThread(entries: unknown[], runs: RunRecord[], titles: Reado
   for (const msg of out)
     if (msg.role === "assistant" && msg.runStatus && !["queued", "running", "awaiting_approval"].includes(msg.runStatus))
       for (const p of msg.parts) if (p.type === "tool" && p.status === "running") p.status = "error";
+  placeUiParts(out, uiParts, sorted, now);
   return out;
+}
+
+/**
+ * todo22 W4: put recorded parts back in their message: the assistant message of their run, else the
+ * message with their id. A part already there (same type and id) is replaced. An approval is live
+ * (`pending`) only while its run still waits for approval and it hasn't expired; a replayed one is
+ * otherwise `used` (approvals are single-use: the service accepts one answer, once).
+ */
+export function placeUiParts(messages: ThreadMessage[], uiParts: UiPartRecord[], runs: RunRecord[], now = Date.now()): void {
+  const byRun = new Map<string, ThreadMessage>();
+  for (const m of messages) if (m.role === "assistant" && m.runId) byRun.set(m.runId, m);
+  for (const rec of uiParts) {
+    const msg = (rec.runId ? byRun.get(rec.runId) : undefined) ?? messages.find((m) => m.id === rec.messageId);
+    if (!msg) continue;
+    let part = { ...rec.part } as ThreadPart;
+    if (part.type === "approval") {
+      const run = runs.find((r) => r.id === rec.runId);
+      const live = part.state === "pending" && run?.status === "awaiting_approval" && part.expiresAt > now;
+      if (!live) part = { ...part, state: part.state === "pending" ? "expired" : part.state, used: true };
+    }
+    const i = msg.parts.findIndex((p) => p.type === part.type && "id" in p && p.id === (part as { id: string }).id);
+    if (i >= 0) {
+      msg.parts[i] = part;
+      continue;
+    }
+    // Right after the tool call that made it (a card or change shares the call's id), else at the end.
+    const toolId = part.type === "approval" ? part.toolCallId : (part as { id?: string }).id;
+    let at = msg.parts.findIndex((p) => p.type === "tool" && p.id === toolId);
+    if (at < 0) {
+      msg.parts.push(part);
+      continue;
+    }
+    while (msg.parts[at + 1] && msg.parts[at + 1]!.type !== "text" && msg.parts[at + 1]!.type !== "tool" && msg.parts[at + 1]!.type !== "reasoning") at++;
+    msg.parts.splice(at + 1, 0, part);
+  }
 }
 
 /**

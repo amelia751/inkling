@@ -3,7 +3,8 @@ import { RES } from "@studio/contracts/naming";
 import { followPerson, personStorage } from "@/studio/lib/person-key";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { CARD_TOOL_NAMES } from "@/studio/lib/agent/card-tools";
-import { AgentHttpError, answerClientTool, branchSession, cancelRun, createSession, decideApproval, deleteSession, fetchThread, followRun, listChats, renameSession, sendMessage, type ChatSummary } from "@/studio/lib/agent/client";
+import { AgentHttpError, answerClientTool, branchSession, cancelRun, createSession, decideApproval, deleteSession, fetchThread, followRun, listChats, postUiPart, renameSession, sendMessage, updateSession, type ChatSummary } from "@/studio/lib/agent/client";
+import { fetchPrefs, putPref } from "@/studio/lib/prefs-api";
 import { sessionTools } from "@/studio/lib/agent/session";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import { api } from "@/studio/lib/projects-api";
@@ -18,10 +19,11 @@ export type MessagePart =
   | { type: "reasoning"; text: string }
   | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
   | { type: "card"; id: string; card: AgentCard; state: CardState }
-  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail; toolCallId?: string; failed?: string }
+  /** `used`: replayed from the server after it was decided or expired (todo22 W4); never live again. */
+  | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail; toolCallId?: string; failed?: string; used?: boolean }
   | { type: "change"; id: string; summary: string; keys: string[]; undone?: boolean }
   | { type: "artifact"; id: string; name: string; bytes: number }
-  | { type: "status"; text: string }
+  | { type: "status"; text: string; id?: string }
   /** A Studio boot (todo11): the card reads its progress from the boots store (project `boot.*` events). */
   | { type: "boot"; id: string }
   /** todo13: files dropped with a user message; `id` is the drop's id (`core/drops` renders its card). */
@@ -305,6 +307,16 @@ export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
         },
       };
     }
+    case "custom": {
+      // todo22 W4: a part another tab added to this run's message (card, boot, change).
+      const v = e.name === "ui_part" ? (e.value as { part?: MessagePart } | null) : null;
+      const part = v?.part;
+      if (!part || !("id" in part)) return m;
+      const i = at((p) => p.type === part.type && "id" in p && p.id === part.id);
+      if (i >= 0) parts[i] = part;
+      else parts.push(part);
+      return { ...m, parts };
+    }
     case "error":
       return { ...m, error: e.message };
     case "done":
@@ -342,11 +354,42 @@ export const useAgent = create<AgentState>()(
           else delete streaming[chatId];
           return { streaming };
         });
-      const addChat = (projectId: string, chat: ChatSummary) =>
+      const addChat = (projectId: string, chat: ChatSummary) => {
         set((s) => ({
           chats: { ...s.chats, [projectId]: [chat, ...(s.chats[projectId] ?? []).filter((c) => c.id !== chat.id)].sort(newestFirst) },
           conversations: { ...s.conversations, [projectId]: { activeSessionId: chat.id } },
         }));
+        rememberActive(projectId, chat.id);
+      };
+      /** todo22 W4: the chat's service session, or null while it only exists here (`conv-…` made offline). */
+      const serverSession = (chatId: string) => {
+        const id = get().sessions[chatId]?.sessionId ?? chatId;
+        return id.startsWith("conv-") && !get().sessions[chatId] ? null : id;
+      };
+      /** todo22 W4 (D3): the open chat per project is a person pref, so another device opens the same one. */
+      const rememberActive = (projectId: string, chatId: string) => void putPref(activeChatPref(projectId), chatId).catch(() => {});
+      /**
+       * todo22 W4: parts the browser adds to a message (cards, boots, environment changes) are
+       * recorded on the service so the thread replays them on any device. `ids`: only these parts.
+       */
+      const recordParts = (chatId: string, messageId: string, ids?: string[]) => {
+        const sid = serverSession(chatId);
+        if (!sid) return;
+        const m = (get().threads[chatId] ?? []).find((x) => x.id === messageId);
+        if (!m || m.role !== "assistant") return;
+        for (const p of m.parts) {
+          if ((p.type !== "card" && p.type !== "boot" && p.type !== "change") || (ids && !ids.includes(p.id))) continue;
+          void postUiPart(sid, { messageId, ...(m.runId ? { runId: m.runId } : {}), part: p }).catch(() => {
+            // Offline or an old service: the cache still has it here.
+          });
+        }
+      };
+      /** todo22 W4: chat notes live on the session (`PATCH notes`); the cache mirrors the open chat's. */
+      const saveNotes = (projectId: string, notes: string[]) => {
+        const chatId = get().conversations[projectId]?.activeSessionId;
+        const sid = chatId ? serverSession(chatId) : null;
+        if (sid) void updateSession(sid, { notes }).catch(() => {});
+      };
       const summary = (s: AgentState, projectId: string, id: string) => {
         const chat = (s.chats[projectId] ?? []).find((c) => c.id === id);
         const title = chat ? chatTitle(s, chat) : chatTitle(s, { id, title: null });
@@ -415,6 +458,7 @@ export const useAgent = create<AgentState>()(
           if (outcome.change) parts.push({ type: "change", id: e.callId, ...outcome.change });
           return { ...m, parts };
         });
+        if (outcome.card || outcome.change) recordParts(runKey(a), a.messageId, [e.callId]);
         // Card tools were already answered by the service; everything else waits for this post.
         if (!CARD_TOOL_NAMES.has(e.name)) {
           await answerClientTool(a.runId, e.callId, { ok: outcome.ok, output: outcome.output }).catch(() => {
@@ -490,6 +534,14 @@ export const useAgent = create<AgentState>()(
       async function ensureSession(projectId: string, chatId: string, opts: SendOptions, fresh = false) {
         const cur = get().sessions[chatId];
         if (cur && cur.profile === opts.profile && !fresh) return cur.sessionId;
+        // todo22 W4: the chat's profile is a session field; the service switches it between runs.
+        if (cur && !fresh && cur.sessionId === chatId && !chatId.startsWith("conv-")) {
+          const res = await updateSession(chatId, { profile: opts.profile }).catch(() => null);
+          if (res?.session?.profile === opts.profile) {
+            set((s) => ({ sessions: { ...s.sessions, [chatId]: { sessionId: chatId, profile: opts.profile } } }));
+            return chatId;
+          }
+        }
         const sameId = !cur || cur.profile === opts.profile;
         const res = await createSession({
           ...(sameId ? { sessionId: chatId } : {}),
@@ -597,6 +649,14 @@ export const useAgent = create<AgentState>()(
             if (offline(e)) return;
             throw e;
           }
+          // todo22 W4: no chat open here yet: the one the person had open (any device), when it's listed.
+          let remembered: string | undefined;
+          if (!get().conversations[projectId]) {
+            const v = await fetchPrefs()
+              .then((p) => p[activeChatPref(projectId)])
+              .catch(() => undefined);
+            if (typeof v === "string" && listed.some((c) => c.id === v)) remembered = v;
+          }
           set((s) => {
             const known = new Set(listed.map((c) => c.id));
             // Chats made here and not on the server (offline ones) stay listed.
@@ -604,9 +664,18 @@ export const useAgent = create<AgentState>()(
             const local = (s.chats[projectId] ?? []).filter((c) => !known.has(c.id));
             const mapped = new Set(local.map((c) => s.sessions[c.id]?.sessionId).filter(Boolean));
             const merged = [...listed.filter((c) => !mapped.has(c.id) && !pendingDeletes.has(c.id)), ...local].sort(newestFirst);
-            const active = s.conversations[projectId]?.activeSessionId ?? merged[0]?.id;
+            const active = s.conversations[projectId]?.activeSessionId ?? remembered ?? merged[0]?.id;
+            // todo22 W4: last opened (any device) and the open chat's notes come from the service.
+            const lastOpened = { ...s.lastOpened };
+            for (const c of listed) if (c.lastOpenedAt && (!lastOpened[c.id] || ts(c.lastOpenedAt) > ts(lastOpened[c.id]!))) lastOpened[c.id] = c.lastOpenedAt;
+            const open = listed.find((c) => c.id === active);
+            const sessions = { ...s.sessions };
+            for (const c of listed) if (c.profile && (!sessions[c.id] || sessions[c.id]!.sessionId === c.id)) sessions[c.id] = { sessionId: c.id, profile: c.profile };
             return {
               chats: { ...s.chats, [projectId]: merged },
+              lastOpened,
+              sessions,
+              ...(open?.notes ? { notes: { ...s.notes, [projectId]: open.notes } } : {}),
               ...(active ? { conversations: { ...s.conversations, [projectId]: { activeSessionId: active } } } : {}),
             };
           });
@@ -640,6 +709,16 @@ export const useAgent = create<AgentState>()(
               unread,
             };
           });
+          rememberActive(projectId, chatId);
+          const sid = serverSession(chatId);
+          if (sid)
+            void updateSession(sid, { opened: true })
+              .then((r) => {
+                const chat = r?.session;
+                if (!chat || get().conversations[projectId]?.activeSessionId !== chatId) return;
+                set((s) => ({ notes: { ...s.notes, [projectId]: chat.notes ?? [] } }));
+              })
+              .catch(() => {});
           void get().loadThread(chatId);
         },
         newChat: async (projectId, opts) => {
@@ -760,6 +839,7 @@ export const useAgent = create<AgentState>()(
               return sendMessage(sessionId, req);
             });
             set((s) => ({ notes: { ...s.notes, [projectId]: [] } }));
+            if (notes.length) saveNotes(projectId, []);
             if (steering && res.steered && get().runs[chatId]?.runId === res.runId) {
               // Same run: route the rest of its events to the new assistant message.
               streamed.set(res.runId, { projectId, messageId: assistant.id, chatId });
@@ -790,14 +870,21 @@ export const useAgent = create<AgentState>()(
           if (c) stopRun(c);
           else abortTools(() => true);
         },
-        addNote: (projectId, note) => set((s) => ({ notes: { ...s.notes, [projectId]: [...(s.notes[projectId] ?? []), note] } })),
-        setCardState: (projectId, messageId, cardId, state) =>
-          patchMessage(projectId, messageId, (m) => ({ ...m, parts: m.parts.map((p) => (p.type === "card" && p.id === cardId ? { ...p, state } : p)) })),
-        setPart: (projectId, messageId, partId, patch) =>
+        addNote: (projectId, note) => {
+          set((s) => ({ notes: { ...s.notes, [projectId]: [...(s.notes[projectId] ?? []), note] } }));
+          saveNotes(projectId, get().notes[projectId] ?? []);
+        },
+        setCardState: (projectId, messageId, cardId, state) => {
+          patchMessage(projectId, messageId, (m) => ({ ...m, parts: m.parts.map((p) => (p.type === "card" && p.id === cardId ? { ...p, state } : p)) }));
+          recordParts(threadKey(get(), projectId), messageId, [cardId]);
+        },
+        setPart: (projectId, messageId, partId, patch) => {
           patchMessage(projectId, messageId, (m) => ({
             ...m,
             parts: m.parts.map((p) => ("id" in p && p.id === partId ? ({ ...p, ...patch } as MessagePart) : p)),
-          })),
+          }));
+          recordParts(threadKey(get(), projectId), messageId, [partId]);
+        },
         decide: async (projectId, messageId, approvalId, decision) => {
           const key = threadKey(get(), projectId);
           const setState = (state: ApprovalState) =>
@@ -820,14 +907,17 @@ export const useAgent = create<AgentState>()(
             // Otherwise the card stays pending and the person can try again.
           }
         },
-        addPart: (projectId, messageId, part) =>
-          patchMessage(projectId, messageId, (m) => (m.parts.some((p) => "id" in p && p.id === (part as { id?: string }).id && p.type === part.type) ? m : { ...m, parts: [...m.parts, part] })),
+        addPart: (projectId, messageId, part) => {
+          patchMessage(projectId, messageId, (m) => (m.parts.some((p) => "id" in p && p.id === (part as { id?: string }).id && p.type === part.type) ? m : { ...m, parts: [...m.parts, part] }));
+          if ("id" in part && part.id) recordParts(threadKey(get(), projectId), messageId, [part.id]);
+        },
         attachBoot: (runId, bootId) => {
           const r = Object.values(get().runs).find((x) => x.runId === runId) ?? streamed.get(runId);
           if (!r) return false;
           patchThread(r.chatId, r.messageId, (m) =>
             m.parts.some((p) => p.type === "boot" && p.id === bootId) ? m : { ...m, parts: [...m.parts, { type: "boot", id: bootId }] },
           );
+          recordParts(r.chatId, r.messageId, [bootId]);
           return true;
         },
         addLocal: (projectId, text, parts) => {
@@ -846,28 +936,27 @@ export const useAgent = create<AgentState>()(
       storage: createJSONStorage(() => personStorage(() => localStorage)),
       version: 5,
       migrate: (persisted, version) => migrateAgent(persisted, version) as never,
-      partialize: (s) => ({ threads: s.threads, sessions: s.sessions, notes: s.notes, runs: s.runs, profile: s.profile, conversations: s.conversations, chats: s.chats, lastOpened: s.lastOpened }),
+      // todo22 W4 (D3): a cache of the service's chats and threads per project (refilled on open), plus
+      // the tab's runs to reattach. Notes, profiles, last-opened and the open chat live on the server.
+      partialize: (s) => ({ threads: s.threads, sessions: s.sessions, runs: s.runs, conversations: s.conversations, chats: s.chats, lastOpened: s.lastOpened }),
     },
   ),
 );
 
-/** Parts the browser makes that the server's thread doesn't carry (cards, approvals, boots…). */
-const SERVER_PARTS = new Set<MessagePart["type"]>(["text", "reasoning", "tool", "drop"]);
-
 /**
- * todo20 D2: the server's thread wins for text, reasoning, tools and drops; the cache adds the
- * parts only the browser has, matched by message id (or the assistant's run id).
+ * todo22 W4: every part type is on the server: the transcript's (text, reasoning, tools, drops) and
+ * the recorded ones (cards, boots, changes the browser posted; approvals, artifacts and statuses
+ * the service recorded). A replayed approval is decided or expired (`used`), never live again.
  */
-export function mergeThread(server: ChatMessage[], cached: ChatMessage[]): ChatMessage[] {
-  const byId = new Map(cached.map((m) => [m.id, m]));
-  const byRun = new Map(cached.filter((m) => m.runId).map((m) => [m.runId!, m]));
-  return server.map((m) => {
-    const c = byId.get(m.id) ?? (m.runId ? byRun.get(m.runId) : undefined);
-    if (!c) return m;
-    const extra = c.parts.filter((p) => !SERVER_PARTS.has(p.type) && !m.parts.some((q) => q.type === p.type && "id" in q && "id" in p && q.id === p.id));
-    return extra.length ? { ...m, parts: [...m.parts, ...extra] } : m;
-  });
+export const SERVER_PARTS: ReadonlySet<MessagePart["type"]> = new Set<MessagePart["type"]>(["text", "reasoning", "tool", "drop", "card", "approval", "change", "artifact", "status", "boot"]);
+
+/** todo22 W4: the server's thread is the whole thread; the cache has nothing left to add. */
+export function mergeThread(server: ChatMessage[], _cached: ChatMessage[]): ChatMessage[] {
+  return server;
 }
+
+/** todo22 W4: the `user_prefs` key of the chat open in a project. */
+export const activeChatPref = (projectId: string) => `chat.active:${projectId}`;
 
 /**
  * v1–3 → v4 (todo20 D2): one conversation per project (`conversations[p] = { id, title }`,

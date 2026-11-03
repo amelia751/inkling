@@ -87,6 +87,24 @@ function contract(name: string, make: () => Promise<SessionStore>, cleanup: () =
       expect(await s.runIdsForSessions([a.id, b.id, c.id])).toEqual([]);
     });
 
+    it("records thread parts per session, one per key, replaced in place (todo22 W4)", async () => {
+      const m = meta();
+      await s.putMeta({ ...m, notes: ["undid a change"], lastOpenedAt: new Date().toISOString() });
+      expect(await s.getMeta(m.id)).toMatchObject({ notes: ["undid a change"] });
+      const r = run(m.id);
+      await s.insertRun(r);
+      await s.putUiPart({ sessionId: m.id, runId: r.id, messageId: "msg-1", partKey: "card:c1", part: { type: "card", id: "c1", state: "open" } });
+      await s.putUiPart({ sessionId: m.id, runId: null, messageId: "msg-1", partKey: "boot:b1", part: { type: "boot", id: "b1" } });
+      await s.putUiPart({ sessionId: m.id, runId: null, messageId: "msg-1", partKey: "card:c1", part: { type: "card", id: "c1", state: "applied" } });
+      const parts = await s.listUiParts(m.id);
+      expect(parts.map((p) => [p.partKey, p.runId, p.part.state])).toEqual([
+        ["card:c1", r.id, "applied"],
+        ["boot:b1", null, undefined],
+      ]);
+      await s.deleteSession(m.id);
+      expect(await s.listUiParts(m.id)).toEqual([]);
+    });
+
     it("keeps the transcript in order, header first", async () => {
       const m = meta();
       await s.putMeta(m);
@@ -196,6 +214,16 @@ describe("file store", () => {
   });
 });
 
+describe("migrations (todo22 W4)", () => {
+  it("v5 adds the chat columns and the thread-part table", () => {
+    const v5 = MIGRATIONS.find((m) => m.version === 5)!;
+    expect(v5.sql).toMatch(/ADD COLUMN notes jsonb/);
+    expect(v5.sql).toMatch(/ADD COLUMN profile text/);
+    expect(v5.sql).toMatch(/ADD COLUMN last_opened_at timestamptz/);
+    expect(v5.sql).toMatch(/CREATE TABLE agent_ui_parts[\s\S]*ON DELETE CASCADE/);
+  });
+});
+
 const schema = `agent_test_${randomUUID().slice(0, 8)}`;
 describe.skipIf(!PG)("postgres store", () => {
   contract(
@@ -211,6 +239,22 @@ describe.skipIf(!PG)("postgres store", () => {
       await pool.end();
     },
   );
+
+  it("mirrors notes, profile and last_opened_at into their columns (todo22 W4)", async () => {
+    const s = new PostgresSessionStore(PG!, { schema, autoMigrate: true });
+    await s.init();
+    const m = { ...meta(), notes: ["a note"], lastOpenedAt: "2026-11-03T10:00:00.000Z" };
+    await s.putMeta(m);
+    const pool = new pg.Pool({ connectionString: PG });
+    try {
+      const r = await pool.query(`SELECT notes, profile, last_opened_at FROM "${schema}".agent_sessions WHERE id = $1`, [m.id]);
+      expect(r.rows[0]).toMatchObject({ notes: ["a note"], profile: "assistant" });
+      expect(new Date(r.rows[0].last_opened_at).toISOString()).toBe("2026-11-03T10:00:00.000Z");
+    } finally {
+      await pool.end();
+      await s.close();
+    }
+  });
 
   it("migrations are idempotent and safe to run concurrently; init without them fails with the command to run", async () => {
     const other = `agent_test_${randomUUID().slice(0, 8)}`;

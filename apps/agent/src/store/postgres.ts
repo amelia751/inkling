@@ -1,7 +1,7 @@
 import pg from "pg";
 import { envName } from "../config.ts";
 import { LATEST_VERSION, ident, migrate, schemaVersion } from "./migrations.ts";
-import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus } from "./types.ts";
+import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord } from "./types.ts";
 
 const ACTIVE = ACTIVE_STATUSES.map((s) => `'${s}'`).join(", ");
 
@@ -112,10 +112,11 @@ export class PostgresSessionStore implements SessionStore {
 
   async putMeta(meta: StoredMeta): Promise<number> {
     const r = await this.pool.query<{ rev: string }>(
-      `INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev, scope) VALUES ($1, $2, $3, $4, $5, 1, $6)
-       ON CONFLICT (id) DO UPDATE SET meta = EXCLUDED.meta, rev = agent_sessions.rev + 1, updated_at = now()
+      `INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev, scope, notes, profile, last_opened_at) VALUES ($1, $2, $3, $4, $5, 1, $6, $7::jsonb, $8, $9)
+       ON CONFLICT (id) DO UPDATE SET meta = EXCLUDED.meta, rev = agent_sessions.rev + 1, updated_at = now(),
+         notes = EXCLUDED.notes, profile = EXCLUDED.profile, last_opened_at = EXCLUDED.last_opened_at
        RETURNING rev`,
-      [meta.id, meta.owner, meta.projectId ?? null, meta.orgId ?? null, JSON.stringify(meta), meta.scope ?? "project"],
+      [meta.id, meta.owner, meta.projectId ?? null, meta.orgId ?? null, JSON.stringify(meta), meta.scope ?? "project", ...sessionColumns(meta)],
     );
     return Number(r.rows[0]!.rev);
   }
@@ -158,6 +159,22 @@ export class PostgresSessionStore implements SessionStore {
     await this.pool.query("DELETE FROM agent_sessions WHERE id = $1", [id]);
   }
 
+  async putUiPart(rec: UiPartRecord): Promise<void> {
+    await this.pool.query(
+      `INSERT INTO agent_ui_parts (session_id, part_key, run_id, message_id, part) VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (session_id, part_key) DO UPDATE SET part = EXCLUDED.part, run_id = COALESCE(EXCLUDED.run_id, agent_ui_parts.run_id), updated_at = now()`,
+      [rec.sessionId, rec.partKey, rec.runId, rec.messageId, JSON.stringify(rec.part)],
+    );
+  }
+
+  async listUiParts(sessionId: string): Promise<UiPartRecord[]> {
+    const r = await this.pool.query<{ part_key: string; run_id: string | null; message_id: string; part: string }>(
+      "SELECT part_key, run_id, message_id, part FROM agent_ui_parts WHERE session_id = $1 ORDER BY seq",
+      [sessionId],
+    );
+    return r.rows.map((x) => ({ sessionId, partKey: x.part_key, runId: x.run_id, messageId: x.message_id, part: JSON.parse(x.part) as UiPartRecord["part"] }));
+  }
+
   async revision(id: string): Promise<number | undefined> {
     const r = await this.pool.query<{ rev: string }>("SELECT rev FROM agent_sessions WHERE id = $1", [id]);
     return r.rows[0] ? Number(r.rows[0].rev) : undefined;
@@ -194,12 +211,14 @@ export class PostgresSessionStore implements SessionStore {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev) VALUES ($1, $2, $3, $4, $5, 1)", [
+      await client.query("INSERT INTO agent_sessions (id, owner, project_id, org_id, meta, rev, scope, notes, profile, last_opened_at) VALUES ($1, $2, $3, $4, $5, 1, $6, $7::jsonb, $8, $9)", [
         meta.id,
         meta.owner,
         meta.projectId,
         meta.orgId ?? null,
         JSON.stringify(meta),
+        meta.scope ?? "project",
+        ...sessionColumns(meta),
       ]);
       await client.query("INSERT INTO agent_transcript (session_id, idx, entry) VALUES ($1, 0, $2)", [meta.id, JSON.stringify(header)]);
       await client.query(
@@ -326,4 +345,11 @@ export class PostgresSessionStore implements SessionStore {
   async closeRunInputs(runId: string): Promise<void> {
     await this.pool.query("UPDATE agent_run_inputs SET state = 'closed', updated_at = now() WHERE run_id = $1 AND state <> 'closed'", [runId]);
   }
+}
+
+/** todo22 W4: the session columns mirrored from meta (notes, profile, last_opened_at). */
+function sessionColumns(meta: StoredMeta): [string, string | null, string | null] {
+  const notes = Array.isArray(meta.notes) ? meta.notes : [];
+  const opened = typeof meta.lastOpenedAt === "string" ? meta.lastOpenedAt : null;
+  return [JSON.stringify(notes), typeof meta.profile === "string" ? meta.profile : null, opened];
 }

@@ -9,7 +9,7 @@ import type { RunEventBus } from "../bus/types.ts";
 import { MemoryRunEventBus } from "../bus/memory.ts";
 import { INTERRUPTED_MESSAGE, RunCoordinator, type RunView, isActiveStatus, wireStatus } from "../cluster/coordinator.ts";
 import { fileStore } from "../store/index.ts";
-import type { RunRecord, SessionScope, SessionStore, StoredMeta } from "../store/types.ts";
+import type { RunRecord, SessionScope, SessionStore, StoredMeta, UiPartRecord } from "../store/types.ts";
 import { HOME_CLIENT_TOOLS, HOME_CLIENT_TOOL_SPECS, createHomeTools } from "../tools/home.ts";
 import { buildThread, parseUserText, titleFrom, titleFromTranscript, transcriptCut } from "./thread.ts";
 import { type TitleResult, makeTitle } from "../agent/titler.ts";
@@ -98,6 +98,10 @@ interface SessionMeta {
   lastRunAt?: string;
   /** todo21 D5: the chat this one was branched from. */
   branchedFrom?: { sessionId: string; messageIdx: number };
+  /** todo22 W4: notes for the model's next turn (the browser sends them as context, then clears them). */
+  notes?: string[];
+  /** todo22 W4: when the owner last opened this chat (ISO, the service's clock). */
+  lastOpenedAt?: string;
   sandboxId?: string;
   artifacts: (ArtifactInfo & { hostPath: string })[];
 }
@@ -516,7 +520,10 @@ export class SessionService {
       ],
     });
     ctx.bind(session, (c, e) => this.onPiEvent(c, e));
-    ctx.emitHook = (body) => this.cluster.emit(ctx, body);
+    ctx.emitHook = (body) => {
+      this.recordServerPart(ctx, body);
+      this.cluster.emit(ctx, body);
+    };
     ctx.onClientToolSettled = (callId) => this.cluster.clientToolSettled(ctx, callId);
     this.sessions.set(meta.id, ctx);
     return ctx;
@@ -569,7 +576,10 @@ export class SessionService {
       ],
     });
     ctx.bind(session, (c, e) => this.onPiEvent(c, e));
-    ctx.emitHook = (body) => this.cluster.emit(ctx, body);
+    ctx.emitHook = (body) => {
+      this.recordServerPart(ctx, body);
+      this.cluster.emit(ctx, body);
+    };
     ctx.onClientToolSettled = (callId) => this.cluster.clientToolSettled(ctx, callId);
     this.sessions.set(meta.id, ctx);
     return ctx;
@@ -660,6 +670,9 @@ export class SessionService {
     const info = { id: a.id, name: a.name, bytes: a.bytes, sha256: a.sha256, createdAt: a.createdAt };
     ctx.meta.artifacts.push({ ...info, hostPath: a.hostPath });
     this.writeMeta(ctx.meta);
+    const run = ctx.activeRun;
+    // todo22 W4: the thread replays the artifact where it was made.
+    if (run) void this.queueUiWrite(ctx.id, () => this.store.putUiPart({ sessionId: ctx.id, runId: run.id, messageId: run.id, partKey: `artifact:${a.id}`, part: { type: "artifact", id: a.id, name: a.name, bytes: a.bytes } }));
     ctx.activeRun?.events.push({ type: "artifact", ...info });
   }
 
@@ -703,7 +716,106 @@ export class SessionService {
       running,
       lastRunAt: m.lastRunAt ?? null,
       branchedFrom: m.branchedFrom ?? null,
+      // todo22 W4
+      notes: m.notes ?? [],
+      lastOpenedAt: m.lastOpenedAt ?? null,
     };
+  }
+
+  // ---- todo22 W4: chats complete on the server ------------------------------------------------
+
+  /**
+   * `PATCH /v1/sessions/:id` beyond the title: notes for the next turn, the chat's profile (refused
+   * while a run is active; the session is rebuilt with the new profile's tools on next use) and
+   * `opened` (stamps `lastOpenedAt`).
+   */
+  async update(ctx: SessionContext, patch: { title?: string; notes?: string[]; profile?: ProfileName; opened?: boolean }): Promise<SessionSummary> {
+    if (patch.profile !== undefined && patch.profile !== ctx.meta.profile) {
+      const home = ctx.meta.scope === "home";
+      if (home !== (patch.profile === "home")) throw new HttpError(400, home ? "a Home chat uses the home profile" : "the home profile is for Home chats (scope: home)");
+      if (PROFILES[patch.profile].sandbox === true && !this.sandboxes) throw new HttpError(409, `The ${patch.profile} profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.`);
+      if ((ctx.activeRun && !ctx.activeRun.done) || (await this.store.activeRunForSession(ctx.id))) throw new HttpError(409, "the chat's profile can't change while a run is active");
+    }
+    if (patch.title !== undefined) {
+      const previous = ctx.meta.title ?? null;
+      ctx.meta.title = patch.title;
+      ctx.meta.titleBy = "person";
+      if (patch.notes === undefined && patch.profile === undefined && !patch.opened) {
+        this.writeMeta(ctx.meta);
+        await this.cluster.flush(ctx.id);
+        return this.titleChanged(ctx, previous);
+      }
+      void this.titleChanged(ctx, previous);
+    }
+    if (patch.notes !== undefined) ctx.meta.notes = patch.notes;
+    if (patch.opened) ctx.meta.lastOpenedAt = new Date().toISOString();
+    const profileChanged = patch.profile !== undefined && patch.profile !== ctx.meta.profile;
+    if (profileChanged) ctx.meta.profile = patch.profile!;
+    this.writeMeta(ctx.meta);
+    await this.cluster.flush(ctx.id);
+    const summary = await this.summarize(ctx.meta);
+    if (profileChanged) this.evict(ctx);
+    return summary;
+  }
+
+  /** Serializes a session's ui-part writes (an approval is recorded before its resolution). */
+  private readonly uiWrites = new Map<string, Promise<void>>();
+
+  private queueUiWrite(sessionId: string, write: () => Promise<void>): Promise<void> {
+    const next = (this.uiWrites.get(sessionId) ?? Promise.resolve()).then(write).catch((err) => this.deps.log.warn({ sessionId, err: String(err) }, "recording a thread part failed"));
+    this.uiWrites.set(sessionId, next);
+    void next.finally(() => {
+      if (this.uiWrites.get(sessionId) === next) this.uiWrites.delete(sessionId);
+    });
+    return next;
+  }
+
+  /** `POST /v1/sessions/:id/ui-parts`: a part the browser added (card, boot, change). Also streamed to the run's other followers. */
+  async recordUiPart(ctx: SessionContext, req: { messageId: string; runId?: string; part: UiPartRecord["part"] }): Promise<void> {
+    if (req.runId) {
+      const run = await this.store.getRun(req.runId);
+      if (!run || run.sessionId !== ctx.id) throw new HttpError(400, "runId is not a run of this chat");
+    }
+    await this.queueUiWrite(ctx.id, () =>
+      this.store.putUiPart({ sessionId: ctx.id, runId: req.runId ?? null, messageId: req.messageId, partKey: `${req.part.type}:${req.part.id}`, part: req.part }),
+    );
+    const run = ctx.activeRun;
+    if (run && !run.done && run.id === req.runId) run.events.push({ type: "custom", name: "ui_part", value: { messageId: req.messageId, part: req.part } });
+  }
+
+  /** The service's own thread parts: each approval it asks for, and how it was decided. */
+  private recordServerPart(ctx: SessionContext, body: Parameters<Run["events"]["push"]>[0]): void {
+    const run = ctx.activeRun;
+    if (!run) return;
+    if (body.type === "status") {
+      const id = `st_${randomUUID()}`;
+      void this.queueUiWrite(ctx.id, () => this.store.putUiPart({ sessionId: ctx.id, runId: run.id, messageId: run.id, partKey: `status:${id}`, part: { type: "status", id, text: body.text } }));
+    } else if (body.type === "approval") {
+      const part = {
+        type: "approval",
+        id: body.approvalId,
+        toolName: body.toolName,
+        summary: body.summary,
+        inputPreview: body.inputPreview,
+        state: "pending",
+        expiresAt: body.expiresAt,
+        toolCallId: body.toolCallId,
+        ...(body.detail ? { detail: body.detail } : {}),
+      };
+      void this.queueUiWrite(ctx.id, () => this.store.putUiPart({ sessionId: ctx.id, runId: run.id, messageId: run.id, partKey: `approval:${body.approvalId}`, part }));
+    } else if (body.type === "approval-resolved") {
+      void this.queueUiWrite(ctx.id, async () => {
+        const rec = (await this.store.listUiParts(ctx.id)).find((r) => r.partKey === `approval:${body.approvalId}`);
+        if (!rec) return;
+        await this.store.putUiPart({ ...rec, part: { ...rec.part, state: body.decision === "approve" ? "approved" : "rejected" } });
+      });
+    } else if (body.type === "tool-result" && !body.ok) {
+      // todo18 D: approved, then the tool failed: the replayed card says so too.
+      void this.queueUiWrite(ctx.id, async () => {
+        const rec = (await this.store.listUiParts(ctx.id)).find((r) => r.part.type === "approval" && r.part.toolCallId === body.id && r.part.state === "approved");
+        if (rec) await this.store.putUiPart({ ...rec, part: { ...rec.part, failed: body.summary || "The change didn't apply." } });
+      });
+    }
   }
 
   // ---- todo21: titles and branches ------------------------------------------------------------
@@ -810,7 +922,9 @@ export class SessionService {
     const entries = await this.store.readTranscript(ctx.id);
     const runIds = await this.store.runIdsForSessions([ctx.id]);
     const runs = (await Promise.all(runIds.map((id) => this.store.getRun(id)))).filter((r): r is RunRecord => !!r);
-    return { sessionId: ctx.id, messages: buildThread(entries, runs, toolTitles(ctx)) };
+    await this.uiWrites.get(ctx.id);
+    const uiParts = await this.store.listUiParts(ctx.id);
+    return { sessionId: ctx.id, messages: buildThread(entries, runs, toolTitles(ctx), uiParts) };
   }
 
   async delete(id: string, owner?: string, orgId?: string): Promise<void> {
@@ -1122,6 +1236,7 @@ export class SessionService {
         run.usage.costUsd += body.costUsd;
       }
       if (body.type === "error") run.failed = true;
+      if ((body.type === "tool-result" && !body.ok) || body.type === "status") this.recordServerPart(ctx, body);
       run.events.push(body);
     }
     ctx.policy.spendUsd = ctx.projector.spendUsd;

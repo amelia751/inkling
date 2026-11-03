@@ -34,6 +34,8 @@ const commands: CommandContribution[] = [
   // `section` is the shell's page (`setShellContext`); environments always resolve with
   // `section == studio`, so the Data keys never claim Space or Enter in the Studio.
   { id: "toggleNavigation", keys: ["mod+b"], label: "Show or hide the project navigation", group: "Navigate", description: "Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)" },
+  // todo21 D1: `N` on Home and Projects opens the new-project dialog (the sidebar's New does too).
+  { id: "newProject", keys: ["n"], label: "New project", group: "Navigate", when: "section == home || section == projects", description: "Open the new-project dialog: name it, Create, and it opens with its chat" },
   // The project's drive (the route, so the section, is `sources`; the nav says "Sources").
   { id: "quickLook", keys: ["space"], label: "Quick Look", group: "Sources", when: FILES, description: "Preview the selected file large; arrows step through its folder" },
   { id: "openItem", keys: ["Enter"], label: "Open folder or details", group: "Sources", when: FILES, description: "Open the selected folder, or show the selected file's details" },

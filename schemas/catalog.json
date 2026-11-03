@@ -2435,6 +2435,27 @@
       }
     },
     {
+      "id": "studio.core.commands.newProject",
+      "type": "commands",
+      "module": "studio.core",
+      "description": "Open the new-project dialog: name it, Create, and it opens with its chat",
+      "label": "New project",
+      "when": "section == home || section == projects",
+      "keys": [
+        "n"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.core.commands.newProject",
+            "keys": [
+              "n"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "studio.core.commands.quickLook",
       "type": "commands",
       "module": "studio.core",

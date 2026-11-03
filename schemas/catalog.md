@@ -129,6 +129,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.core.commands.brushLarger` — Grow the active tool's size (when 'size' in tool.options)
 - `studio.core.commands.showShortcuts` — Open the keyboard shortcuts sheet
 - `studio.core.commands.toggleNavigation` — Collapse the project sidebar to its icon rail, or expand it (in the Studio: hide or show the rail)
+- `studio.core.commands.newProject` — Open the new-project dialog: name it, Create, and it opens with its chat (when section == home || section == projects)
 - `studio.core.commands.quickLook` — Preview the selected file large; arrows step through its folder (when section == sources)
 - `studio.core.commands.openItem` — Open the selected folder, or show the selected file's details (when section == sources)
 - `studio.core.commands.parentFolder` — Show the folder that contains the current one (when section == sources)

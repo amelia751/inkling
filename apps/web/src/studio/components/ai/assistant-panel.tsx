@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject, type SVGProps } from "react";
 import { DropPlanCards } from "@/studio/core/drops";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, AttachIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, MoreIcon, NewChatIcon, ShowIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
+import { AiIcon, AttachIcon, BranchIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, DeleteIcon, MoreIcon, NewChatIcon, RenameIcon, ShowIcon, SidebarIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
@@ -13,16 +13,19 @@ import {
 } from "@studio/ui/ui/dropdown-menu";
 import { PanelBodySkeleton } from "@/studio/components/studio/ModuleSlot";
 import { Skeleton } from "@studio/ui/ui/skeleton";
+import { Input } from "@studio/ui/ui/input";
+import { Spinner } from "@studio/ui/ui/spinner";
+import { toast } from "@studio/ui/ui/sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
 import type { AgentStatus, ProfileName } from "@studio/agent-protocol";
-import { NAMING } from "@studio/contracts/naming";
+import { NAMING, RES } from "@studio/contracts/naming";
 import { agentUnavailable, fetchAgentStatus } from "@/studio/lib/agent/client";
 import { useAgentContextStore, type AgentContextProvider } from "@/studio/lib/agent/providers";
 import { sessionTools } from "@/studio/lib/agent/session";
 import { useStudio } from "@/studio/stores/studio";
 import { MAX_ANNOTATIONS, snapshotTruncation } from "@/studio/lib/agent/context";
-import { chatTitle, selectThread, useAgent, type ChatMessage, type ChatSummary, type ClientToolOutcome } from "@/studio/stores/agent";
+import { chatTitle, selectStreaming, selectThread, useAgent, type ChatMessage, type ChatSummary, type ClientToolOutcome } from "@/studio/stores/agent";
 import { useShell } from "@/studio/stores/shell";
 import { AssistantMessage, UserMessage } from "./thread";
 import { useAckAiNotice, useAiAssistOff } from "./ai-notice";
@@ -94,10 +97,9 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const status = useQuery({ queryKey: ["agent-status"], queryFn: fetchAgentStatus, staleTime: 60_000, retry: false });
   const aiOff = useAiAssistOff();
   const thread = useAgent(selectThread(project.id));
-  // todo20 D2: runs are per project; one in another project doesn't block this one.
-  const running = useAgent((s) => !!s.streaming[project.id]);
+  // todo21 D6: runs are per chat; the composer's busy state and Stop are the open chat's.
+  const running = useAgent(selectStreaming(project.id));
   const newChat = useAgent((s) => s.newChat);
-  const deleteChat = useAgent((s) => s.deleteChat);
   const profile = useAgent((s) => s.profile);
   const setProfile = useAgent((s) => s.setProfile);
   const ready = !!status.data?.configured && !aiOff;
@@ -115,11 +117,28 @@ export function AssistantPanel(props: AssistantPanelProps) {
   const title = view === "files" ? "Shared files" : `${NAMING.displayName} AI`;
   const startChat = () => {
     setView("chat");
+    setListOpen(false);
     void newChat(project.id, { restricted: project.restricted });
+  };
+  // todo21 D3: a rail of chats on the left; under 520 px the title button opens it over the thread.
+  const aside = useRef<HTMLElement>(null);
+  const narrow = useNarrow(aside, 520);
+  const [railOpen, setRailOpen] = useState(() => readRailPref());
+  const [listOpen, setListOpen] = useState(false);
+  const toggleRail = () => {
+    setRailOpen((v) => (writeRailPref(!v), !v));
+  };
+  const chatView = ready && view === "chat";
+  const showRail = chatView && !narrow && railOpen;
+  const showOverlay = chatView && narrow && listOpen;
+  const pickChat = (id: string) => {
+    setView("chat");
+    setListOpen(false);
+    useAgent.getState().selectChat(project.id, id);
   };
 
   return (
-    <aside className="flex h-full min-w-0 flex-col bg-float" aria-label={`${NAMING.displayName} AI`}>
+    <aside ref={aside} className="flex h-full min-w-0 flex-col bg-float" aria-label={`${NAMING.displayName} AI`}>
       <header className={cn("flex shrink-0 items-center gap-2 border-b pt-3 pr-3 pb-2 pl-4", scrolled && ready && thread.length > 0 ? "border-border" : "border-transparent")}>
         {view === "files" ? (
           <Button variant="ghost-secondary" size="icon-sm" className="-ml-1 text-hint" onClick={() => setView("chat")} aria-label="Back to the chat" data-testid="agent-back-to-chat"><ChevronLeftIcon /></Button>
@@ -127,8 +146,16 @@ export function AssistantPanel(props: AssistantPanelProps) {
           <AiIcon className="size-4 shrink-0 text-ai-text" />
         )}
         <h2 className="sr-only">{NAMING.displayName} AI</h2>
-        {ready && view === "chat" ? (
-          <ChatSwitcher projectId={project.id} activeId={conversationId} onNew={startChat} />
+        {chatView && !narrow && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost-secondary" size="icon-sm" className="-ml-1 text-hint" onClick={toggleRail} aria-label={railOpen ? "Hide chats" : "Show chats"} aria-pressed={railOpen} data-testid="agent-chat-rail-toggle"><SidebarIcon /></Button>
+            </TooltipTrigger>
+            <TooltipContent>{railOpen ? "Hide chats" : "Show chats"}</TooltipContent>
+          </Tooltip>
+        )}
+        {chatView ? (
+          <ChatTitleButton projectId={project.id} activeId={conversationId} open={narrow ? listOpen : showRail} onClick={narrow ? () => setListOpen((v) => !v) : toggleRail} />
         ) : (
           <span className="min-w-0 truncate text-body-2 font-semibold" title={title}>{title}</span>
         )}
@@ -164,7 +191,7 @@ export function AssistantPanel(props: AssistantPanelProps) {
                     {view === "files" ? "Back to the chat" : "Shared files"}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem disabled={!conversationId} onSelect={() => conversationId && deleteChat(project.id, conversationId)} data-testid="agent-delete-chat">Delete this chat</DropdownMenuItem>
+                <DropdownMenuItem disabled={!conversationId} onSelect={() => conversationId && removeWithUndo(project.id, conversationId)} data-testid="agent-delete-chat">Delete this chat</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -172,6 +199,14 @@ export function AssistantPanel(props: AssistantPanelProps) {
         </div>
       </header>
 
+      <div className="relative flex min-h-0 flex-1">
+      {showRail && <ChatRail projectId={project.id} activeId={conversationId} onNew={startChat} onPick={pickChat} className="w-52 shrink-0 border-r border-border" />}
+      {showOverlay && (
+        <div className="absolute inset-0 z-20 flex bg-float/60" onClick={(e) => e.target === e.currentTarget && setListOpen(false)}>
+          <ChatRail projectId={project.id} activeId={conversationId} onNew={startChat} onPick={pickChat} className="w-full max-w-80 border-r border-border bg-float shadow-float-lg" />
+        </div>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
       {status.isLoading ? (
         <div className="flex flex-1 flex-col" role="status" aria-label="Loading the assistant" data-testid="assistant-loading"><PanelBodySkeleton /></div>
       ) : !status.data?.configured ? (
@@ -194,9 +229,11 @@ export function AssistantPanel(props: AssistantPanelProps) {
       ) : (
         <>
           <FollowedElsewhere />
-          <Conversation {...props} thread={thread} status={status.data} running={running} busy={false} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} />
+          <Conversation {...props} thread={thread} status={status.data} running={running} busy={false} onScrolled={setScrolled} dropsOn={dropsOn} dropsPending={drops.pending} canEdit={canEdit} chatId={conversationId} />
         </>
       )}
+      </div>
+      </div>
     </aside>
   );
 }
@@ -219,7 +256,8 @@ function Conversation({
   dropsOn,
   dropsPending,
   canEdit,
-}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; dropsPending?: boolean; canEdit: boolean }) {
+  chatId,
+}: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; dropsPending?: boolean; canEdit: boolean; chatId?: string }) {
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
@@ -294,6 +332,17 @@ function Conversation({
     ask(lastUser.parts.map((p) => (p.type === "text" ? p.text : "")).join(""), drop ? { dropId: drop.id, messageId: crypto.randomUUID() } : undefined);
   };
 
+  // todo21 D5: a new chat with the thread up to message i; it opens.
+  const canBranch = !!chatId && !chatId.startsWith("conv-");
+  const branch = (i: number) => {
+    if (!chatId) return;
+    void useAgent
+      .getState()
+      .branchChat(project.id, chatId, i)
+      .then((id) => !id && toast("This chat isn't saved yet, so it can't branch."))
+      .catch(() => toast("Couldn't branch this chat. Try again."));
+  };
+
   // Follow the stream unless the expert scrolled up to read.
   useLayoutEffect(() => {
     const el = scroller.current;
@@ -338,13 +387,14 @@ function Conversation({
         className="thin-scrollbar min-h-0 flex-1 overflow-y-auto"
         data-testid="agent-log"
       >
+        {chatId && <BranchedFrom projectId={project.id} chatId={chatId} />}
         {thread.length === 0 ? (
           <EmptyState title={e.title} body={e.body} prompts={e.prompts} footer={e.footer} onAsk={(t) => ask(t)} drops={attach.on && attach.allowed} />
         ) : (
           <div className="flex min-h-full flex-col justify-end gap-6 px-4 pt-2 pb-2">
             {thread.map((m, i) =>
               m.role === "user" ? (
-                <UserMessage key={m.id} message={m} projectId={project.id} canEdit={canEdit} />
+                <UserMessage key={m.id} message={m} projectId={project.id} canEdit={canEdit} onBranch={canBranch && !(running && i >= thread.length - 2) ? () => branch(i) : undefined} />
               ) : (
                 <AssistantMessage
                   key={m.id}
@@ -355,6 +405,7 @@ function Conversation({
                   studio={studio}
                   onRetry={i === thread.length - 1 && !running ? retry : undefined}
                   onUndo={onUndo && ((partId) => onUndo(m.id, partId))}
+                  onBranch={canBranch && !(running && i === thread.length - 1) ? () => branch(i) : undefined}
                 />
               ),
             )}
@@ -607,36 +658,208 @@ export function ContextIndicator({ provider }: { provider: AgentContextProvider 
   );
 }
 
-/**
- * todo20 D2: the project's chats (like Codex), newest first, titled from their first message.
- * Picking one opens its thread (rebuilt from the server); "New chat" keeps the others listed.
- */
-function ChatSwitcher({ projectId, activeId, onNew }: { projectId: string; activeId?: string; onNew: () => void }) {
-  const chats = useAgent((s) => s.chats[projectId] ?? NO_CHATS);
-  const threads = useAgent((s) => s.threads);
-  const titleOf = (c: Pick<ChatSummary, "id" | "title">) => chatTitle({ threads }, c);
-  const selectChat = useAgent((s) => s.selectChat);
-  const current = titleOf({ id: activeId ?? "", title: chats.find((c) => c.id === activeId)?.title ?? null });
+const RAIL_PREF = `${RES}-agent-chat-rail`;
+function readRailPref(): boolean {
+  try {
+    return localStorage.getItem(RAIL_PREF) !== "closed";
+  } catch {
+    return true;
+  }
+}
+function writeRailPref(open: boolean) {
+  try {
+    localStorage.setItem(RAIL_PREF, open ? "open" : "closed");
+  } catch {
+    // Private window: the rail just opens by default next time.
+  }
+}
+
+/** Whether the element is narrower than `px` (todo21 D3: the rail collapses under 520 px). */
+function useNarrow(ref: RefObject<HTMLElement | null>, px: number): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setNarrow(el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().width < px);
+    check();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, px]);
+  return narrow;
+}
+
+/** Hide a chat now and delete it after a few seconds, with Undo in the toast. */
+function removeWithUndo(projectId: string, chatId: string) {
+  const undo = useAgent.getState().removeChat(projectId, chatId, 6000);
+  toast("Chat deleted", { duration: 6000, action: { label: <span data-testid="agent-chat-undo">Undo</span>, onClick: undo } });
+}
+
+const ts = (v: number | string | null | undefined) => (v == null ? 0 : typeof v === "number" ? v : Date.parse(v) || 0);
+
+/** Chats newest first, each branch right under its source (indented), so a thread's branches read as a tree. */
+export function railOrder(chats: ChatSummary[]): { chat: ChatSummary; depth: number }[] {
+  const ids = new Set(chats.map((c) => c.id));
+  const children = new Map<string, ChatSummary[]>();
+  const roots: ChatSummary[] = [];
+  for (const c of chats) {
+    const src = c.branchedFrom?.sessionId;
+    if (src && ids.has(src) && src !== c.id) children.set(src, [...(children.get(src) ?? []), c]);
+    else roots.push(c);
+  }
+  const out: { chat: ChatSummary; depth: number }[] = [];
+  const seen = new Set<string>();
+  const walk = (c: ChatSummary, depth: number) => {
+    if (seen.has(c.id)) return;
+    seen.add(c.id);
+    out.push({ chat: c, depth });
+    for (const k of children.get(c.id) ?? []) walk(k, Math.min(depth + 1, 3));
+  };
+  roots.forEach((c) => walk(c, 0));
+  // A cycle (never expected) still lists everything.
+  chats.forEach((c) => walk(c, 0));
+  return out;
+}
+
+/** The open chat's title in the header: toggles the rail (or, when narrow, the list over the thread). */
+function ChatTitleButton({ projectId, activeId, open, onClick }: { projectId: string; activeId?: string; open: boolean; onClick: () => void }) {
+  const current = useAgent((s) => chatTitle(s, { id: activeId ?? "", title: (s.chats[projectId] ?? []).find((c) => c.id === activeId)?.title ?? null }));
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" className="flex min-w-0 items-center gap-1 rounded-md px-1 text-left text-body-2 font-semibold hover:bg-generic" title={current} data-testid="agent-chat-switcher">
-          <span className="truncate">{current}</span>
-          <ChevronDownIcon className="size-3.5 shrink-0 text-hint" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="max-h-96 w-72 overflow-y-auto" data-testid="agent-chat-list">
-        <DropdownMenuItem onSelect={onNew} data-testid="agent-chat-new">
+    <button type="button" onClick={onClick} className="flex min-w-0 items-center gap-1 rounded-md px-1 text-left text-body-2 font-semibold hover:bg-generic" title={current} aria-expanded={open} data-testid="agent-chat-switcher">
+      <span className="truncate">{current}</span>
+      <ChevronDownIcon className={cn("size-3.5 shrink-0 text-hint transition-transform", open && "rotate-180")} />
+    </button>
+  );
+}
+
+/**
+ * todo21 D3: the project's chats, newest first, with a spinner while one runs and a dot when a
+ * reply finished while you were elsewhere. Double-click (or the row menu) renames; the menu
+ * also branches from the last message and deletes (with Undo).
+ */
+function ChatRail({ projectId, activeId, onNew, onPick, className }: { projectId: string; activeId?: string; onNew: () => void; onPick: (id: string) => void; className?: string }) {
+  const chats = useAgent((s) => s.chats[projectId] ?? NO_CHATS);
+  const rows = railOrder(chats);
+  return (
+    <nav className={cn("flex min-h-0 flex-col", className)} aria-label="Chats" data-testid="agent-chat-list">
+      <div className="px-2 pt-1 pb-1">
+        <Button variant="ghost-secondary" size="sm" className="w-full justify-start gap-2 text-complementary" onClick={onNew} data-testid="agent-chat-new">
           <NewChatIcon /> New chat
-        </DropdownMenuItem>
-        {chats.length > 0 && <DropdownMenuSeparator />}
-        {chats.map((c) => (
-          <DropdownMenuItem key={c.id} onSelect={() => selectChat(projectId, c.id)} className={cn(c.id === activeId && "bg-generic")} data-testid="agent-chat-item" data-active={c.id === activeId || undefined}>
-            <span className="truncate">{titleOf(c)}</span>
-          </DropdownMenuItem>
+        </Button>
+      </div>
+      <ul className="thin-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {rows.map(({ chat, depth }) => (
+          <ChatRow key={chat.id} projectId={projectId} chat={chat} depth={depth} active={chat.id === activeId} onPick={() => onPick(chat.id)} />
         ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </ul>
+    </nav>
+  );
+}
+
+function ChatRow({ projectId, chat, depth, active, onPick }: { projectId: string; chat: ChatSummary; depth: number; active: boolean; onPick: () => void }) {
+  const running = useAgent((s) => !!s.streaming[chat.id] || !!s.runs[chat.id] || (!!chat.running && !s.unread[chat.id]));
+  const unread = useAgent((s) => !active && (!!s.unread[chat.id] || (!!chat.lastRunAt && !!s.lastOpened[chat.id] && ts(chat.lastRunAt) > ts(s.lastOpened[chat.id]))));
+  const title = chatTitle({ threads: {} }, chat);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const local = chat.id.startsWith("conv-");
+  const commit = () => {
+    setEditing(false);
+    const t = draft.trim();
+    if (!t || t === title) return;
+    void useAgent.getState().renameChat(projectId, chat.id, t).catch(() => toast("Couldn't rename the chat."));
+  };
+  const branchLast = async () => {
+    const st = useAgent.getState();
+    if (!st.threads[chat.id]?.length) await st.loadThread(chat.id);
+    const n = useAgent.getState().threads[chat.id]?.length ?? 0;
+    if (!n) return void toast("This chat has no messages to branch from.");
+    await st.branchChat(projectId, chat.id, n - 1).catch(() => toast("Couldn't branch this chat. Try again."));
+  };
+  return (
+    <li
+      className={cn("group/row relative flex h-8 items-center rounded-md text-complementary hover:bg-generic", active && "bg-generic text-foreground")}
+      style={depth ? { paddingLeft: depth * 12 } : undefined}
+      data-testid="agent-chat-item"
+      data-active={active || undefined}
+      data-running={running || undefined}
+      data-unread={unread || undefined}
+      data-branch={depth > 0 || undefined}
+    >
+      {editing ? (
+        <Input
+          autoFocus
+          value={draft}
+          maxLength={80}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="h-7 px-2 text-body-2"
+          aria-label="Chat name"
+          data-testid="agent-chat-rename-input"
+        />
+      ) : (
+        <>
+          <button
+            type="button"
+            className="flex h-full min-w-0 flex-1 items-center gap-1.5 pr-7 pl-2 text-left"
+            onClick={onPick}
+            onDoubleClick={() => {
+              if (local) return;
+              setDraft(title);
+              setEditing(true);
+            }}
+            title={title}
+            aria-current={active || undefined}
+          >
+            {depth > 0 && <BranchIcon className="size-3 shrink-0 text-hint" />}
+            <span className="min-w-0 flex-1 truncate">{title}</span>
+            {running ? (
+              <Spinner size="s" data-testid="agent-chat-running" />
+            ) : unread ? (
+              <span className="size-1.5 shrink-0 rounded-full bg-brand" aria-label="New reply" data-testid="agent-chat-unread" />
+            ) : null}
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost-secondary" size="icon-sm" className="absolute right-0.5 size-6 text-hint opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100" aria-label={`Options for ${title}`} data-testid="agent-chat-menu">
+                <MoreIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem disabled={local} onSelect={() => (setDraft(title), setEditing(true))} data-testid="agent-chat-rename"><RenameIcon /> Rename</DropdownMenuItem>
+              <DropdownMenuItem disabled={local} onSelect={() => void branchLast()} data-testid="agent-chat-branch"><BranchIcon /> Branch</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => removeWithUndo(projectId, chat.id)} className="text-danger" data-testid="agent-chat-delete"><DeleteIcon /> Delete</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
+    </li>
+  );
+}
+
+/** todo21 D5: at the top of a branched thread, the chat it came from (click to open it). */
+function BranchedFrom({ projectId, chatId }: { projectId: string; chatId: string }) {
+  const from = useAgent((s) => (s.chats[projectId] ?? []).find((c) => c.id === chatId)?.branchedFrom ?? null);
+  const source = useAgent((s) => (from ? (s.chats[projectId] ?? []).find((c) => c.id === from.sessionId) : undefined));
+  if (!from) return null;
+  return (
+    <p className="flex items-center gap-1.5 px-4 pt-2 text-hint" data-testid="agent-branched-from">
+      <BranchIcon className="size-3.5 shrink-0" />
+      Branched from{" "}
+      {source ? (
+        <button type="button" className="min-w-0 truncate text-brand underline-offset-2 hover:underline" onClick={() => useAgent.getState().selectChat(projectId, source.id)}>
+          {chatTitle({ threads: {} }, source)}
+        </button>
+      ) : (
+        <span>a deleted chat</span>
+      )}
+    </p>
   );
 }
 
@@ -692,7 +915,7 @@ function NotConfigured({ status, studio }: { status: AgentStatus | undefined; st
 
 /** todo18 D: another tab streams this run; this one can take it back. */
 function FollowedElsewhere() {
-  const elsewhere = useAgent((s) => !!s.followedElsewhere && s.active?.runId === s.followedElsewhere);
+  const elsewhere = useAgent((s) => !!s.followedElsewhere && Object.values(s.runs).some((r) => r.runId === s.followedElsewhere));
   const takeOver = useAgent((s) => s.takeOver);
   if (!elsewhere) return null;
   return (

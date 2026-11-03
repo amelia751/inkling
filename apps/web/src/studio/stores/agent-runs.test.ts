@@ -20,7 +20,7 @@ const stateOf = () => (useAgent.getState().threads.p![0]!.parts[0] as { state: s
 describe("todo18 D assistant store", () => {
   beforeEach(() => {
     decideApproval.mockReset();
-    useAgent.setState({ threads: {}, conversations: {}, runs: {}, streaming: {}, running: null, active: null, blockedBy: null });
+    useAgent.setState({ threads: {}, conversations: {}, runs: {}, streaming: {}, blockedBy: null });
   });
 
   it("Stop / panel closed: a browser tool in flight fails at once", async () => {
@@ -40,14 +40,13 @@ describe("todo18 D assistant store", () => {
   });
 
   it("second tab: another tab following the run shows Take over here; its end clears this tab", async () => {
-    useAgent.setState({ running: "p", streaming: { p: true }, runs: { p: { projectId: "p", runId: "r1", messageId: "m", lastSeq: 0, answered: [] } }, active: { projectId: "p", runId: "r1", messageId: "m", lastSeq: 0, answered: [] } as never });
+    useAgent.setState({ streaming: { c1: true }, runs: { c1: { projectId: "p", chatId: "c1", runId: "r1", messageId: "m", lastSeq: 0, answered: [] } } });
     const other = new BroadcastChannel(`${RES}-agent-follow`);
     other.postMessage({ type: "follow", runId: "r1", tab: "other" });
     await vi.waitFor(() => expect(useAgent.getState().followedElsewhere).toBe("r1"));
     other.postMessage({ type: "ended", runId: "r1", tab: "other" });
-    await vi.waitFor(() => expect(useAgent.getState().active).toBeNull());
-    expect(useAgent.getState().runs.p).toBeUndefined();
-    expect(useAgent.getState().running).toBeNull();
+    await vi.waitFor(() => expect(useAgent.getState().runs.c1).toBeUndefined());
+    expect(useAgent.getState().streaming.c1).toBeUndefined();
     other.close();
   });
 

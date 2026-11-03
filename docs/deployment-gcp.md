@@ -255,6 +255,102 @@ switch on only when that milestone ships.
   allowlist holds only Vertex models. Confirm that the BAA covers `spurby-ai` (a separate billing
   account outside the organization) and that the model is on the HIPAA covered list.
 
+## Cloud Run stage
+
+The GKE clusters are being torn down; deployed stages move to Cloud Run (todo22 W6, D6). Defined in
+`infra/terraform/phi/run*.tf` (the Studio project) and `infra/terraform/ai/run*.tf` (the agent
+project); written and validated, not applied. Every deployed stage signs people in with WorkOS:
+nothing in these files sets dev auth, trusted headers, the agent's file store or a SQLite URL, and
+`tools/check-deploy-auth.mjs` checks the `env` blocks.
+
+| Service | Runs as | Ingress | Notes |
+|---|---|---|---|
+| `web` | service, `studio-web` (no Google roles) | load balancer and VPC | Image built with `STUDIO_WEB_AUTH_MODE=workos` (the build's fallback); the service also sets it, which is what nginx and `/config.json` read. Proxies `/api/agent/*` to the agent's run.app URL with `STUDIO_AGENT_TOKEN`. |
+| `api` | service, `studio-api` (iam.tf) | load balancer and VPC | Min 1 instance (the WorkOS event sync and SQL housekeeping). |
+| `versioning` | service, `studio-versioning` (iam.tf) | VPC only | Events to the log (no Redis). |
+| `pipeline` | service, CPU always allocated | VPC only | Max instances × pool size stays under `pipeline_app`'s connection limit. |
+| `worker` | service, fixed instances, CPU always allocated, `studio-worker` (no Google roles) | VPC only (health probes) | First-generation execution environment (gVisor). A worker pool once the provider lets a pool pick the execution environment. |
+| `agent` | service in the agent project, existing `studio-agent` identity (Vertex AI user) | all (token-checked) | Max 1 instance. |
+
+- **Network.** Direct VPC egress on the existing subnet, all traffic through the VPC, so Cloud SQL's
+  private IP is reachable and calls to another service's run.app URL count as internal (Private
+  Google Access). Services name each other by their deterministic run.app URLs. A Cloud NAT with
+  Google-allocated addresses (`run_nat_enabled`; off while the GKE NAT still exists) gives the api
+  its route to WorkOS. Nothing allow-lists an address any more.
+- **One HTTPS load balancer** for the Studio host: a global address, a Google-managed certificate,
+  serverless NEGs for web and api, the routes of `infra/k8s/base/ingress.yaml` (`/api/auth/verify`
+  and `/api/agent` → web, `/api` and `/seed` → api, the rest → web), and plain HTTP redirected to
+  HTTPS. Point the host's DNS record at output `studio_lb_ip`. The remote MCP server (`/mcp`) isn't
+  on Cloud Run yet.
+- **Invoker IAM is off** on every service: the organization policy blocks granting `run.invoker`
+  across projects, and each app checks its own credentials (WorkOS sessions, the worker, pipeline,
+  agent and kernel service tokens, api-signed JWTs). Ingress settings keep versioning, pipeline and
+  the worker off the internet.
+- **The agent reaching the api.** The agent calls the Studio host (`STUDIO_API_URL`, ai variable
+  `studio_url`) as `service:agent` with `STUDIO_AGENT_KERNEL_SERVICE_TOKEN` (= the api's
+  `STUDIO_API_AGENT_SERVICE_TOKEN`), and with the person's WorkOS token on calls made for them. The
+  agent-scope allowlist above still decides which routes it may use. No fixed NAT addresses, no
+  separate agent-only host.
+
+### Stores (D6)
+
+- api: Cloud SQL `studio`, zonal on a 1-vCPU tier while data is synthetic (`sql_tier`,
+  `sql_high_availability=false`), with `STUDIO_JOB_QUEUE=sql` and `STUDIO_EVENT_BUS=sql`: no Redis.
+  Blobs in Cloud Storage (`STUDIO_BLOB_STORE=gcs`, the objects and artifacts buckets) with the
+  service's own identity.
+- agent: Cloud SQL `agent` in the agent project (`ai/agent.tf`, small tier),
+  `STUDIO_AGENT_STORE=postgres`, the in-memory run-event bus, so the agent stays at one instance
+  until a shared bus exists. With no migrate Job on Cloud Run it applies its schema at startup
+  (`STUDIO_AGENT_AUTO_MIGRATE=true`). Its database role and password are created by hand, like
+  every other role, so no password is in Terraform state.
+- WorkOS: the staging environment for staging, the production environment (its own Google client,
+  todo9 Phase 14) for production.
+
+### How secrets get in
+
+Cloud Run mounts one secret version per env var or file, so each value is its own Secret Manager
+secret (`run-*`, listed by output `run_secrets` in both stacks), CMEK-encrypted in the Studio
+project. Terraform creates them empty and grants `secretAccessor` to the service that reads each
+one; a person adds the values (`gcloud secrets versions add <id> --data-file=-`), so no value is
+ever in state or in a file. Shared values are one secret read by both sides (the worker token, the
+pipeline token); values shared across the two projects are set twice with the same value:
+
+| Studio project | Agent project |
+|---|---|
+| `run-web-agent-token` | `run-agent-token` |
+| `run-api-agent-service-token` | `run-agent-kernel-service-token` |
+| `run-api-approval-secret` | `run-agent-approval-secret` |
+
+Key files (the versioning and pipeline signing keys, their JWKS) are mounted as files at the paths
+the GKE overlay used. Add every version before the first deploy, or the revision fails to start.
+
+### WorkOS staging
+
+In the WorkOS dashboard's staging environment (Redirects), add for the stage's host (output
+`workos_urls`):
+
+- redirect URI `https://<studio host>/api/auth/callback`;
+- sign-out redirect `https://<studio host>/`;
+- initiate login URL `https://<studio host>/api/auth/login`.
+
+Set `workos_client_id` (both stacks) and the API key and cookie password secrets. Then sign in on
+synthetic data and confirm a request with `X-Dev-Principal` gets 401.
+
+### Plugin isolation
+
+The worker runs plugin code in Cloud Run's first-generation execution environment (gVisor). Its VPC
+egress is limited by firewall to the Studio load balancer's address on 443, which is the api's routes
+with the worker token: no Google APIs, no Cloud SQL, no internet. Cloud Run's sandbox isn't a GKE
+Sandbox node with NetworkPolicy, and the perimeter is still in dry-run, so **the stage holds
+synthetic data only until the perimeter is enforced (todo10 A9)**.
+
+### Not done yet
+
+- Migrations: the api, versioning and pipeline migrate Jobs have no Cloud Run job yet; run them by
+  hand (or as `gcloud run jobs`) before the first deploy.
+- Cloud Run caps an HTTP/1 request body at 32 MiB, so large uploads must arrive in chunks.
+- The perimeter must list `run.googleapis.com` among its restricted services before it is enforced.
+
 ## Sample templates
 
 Sample projects (todo14 §3, §4.3) are templates in the Samples organization; "Try a sample"

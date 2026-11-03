@@ -31,22 +31,69 @@ def _now() -> datetime:
 
 
 def request(db: Session, node: SourceNode, kind: str) -> Derivative | None:
-    """One row per (node, kind); asking again is a no-op."""
+    """One row per (node, kind); asking again is a no-op. Bytes already converted (the same file
+    dropped into another project) reuse that conversion instead of converting again."""
     if kind not in KINDS:
         return None
     row = db.scalar(select(Derivative).where(Derivative.source_node_id == node.id, Derivative.kind == kind))
     if row is None:
         row = Derivative(project_id=node.project_id, source_node_id=node.id, kind=kind)
         db.add(row)
+        if (done := _converted(db, node, kind)) is not None:
+            _reuse(db, row, done)
         db.flush()
     return row
 
 
+def _converted(db: Session, node: SourceNode, kind: str) -> Derivative | None:
+    from ..models import INCLUDE_TRASHED
+
+    if not getattr(node, "sha256", None):
+        return None
+    # A project in Trash still has its files until it's purged (which then leaves them for this one).
+    return db.scalar(
+        select(Derivative)
+        .join(SourceNode, SourceNode.id == Derivative.source_node_id)
+        .where(Derivative.kind == kind, Derivative.state == "ready", Derivative.blob_key.is_not(None), SourceNode.sha256 == node.sha256)
+        .order_by(Derivative.created_at)
+        .limit(1)
+        .execution_options(**INCLUDE_TRASHED)
+    )
+
+
+def _reuse(db: Session, row: Derivative, done: Derivative) -> None:
+    from ..models import Asset
+
+    complete(db, row, sha=done.sha or "", key=done.blob_key or "", keys=list(done.blob_keys or []), meta=dict(done.meta or {}))
+    row.attempts = 0
+    # The viewable files become Assets of this project too, so its signed URLs reach them.
+    for a in db.scalars(select(Asset).where(Asset.workspace_id == done.project_id, Asset.path.in_([k for k in (done.blob_keys or [done.blob_key]) if k and "_files/" not in k]))):
+        if db.scalar(select(Asset.id).where(Asset.workspace_id == row.project_id, Asset.path == a.path)) is None:
+            db.add(Asset(workspace_id=row.project_id, path=a.path, media_type=a.media_type, role=a.role, size=a.size))
+
+
+def _in_trash(db: Session, row: Derivative) -> bool:
+    from ..models import INCLUDE_TRASHED, ProjectRow
+
+    p = db.get(ProjectRow, row.project_id, execution_options=INCLUDE_TRASHED)
+    n = db.get(SourceNode, row.source_node_id, execution_options=INCLUDE_TRASHED)
+    return (p is not None and p.trashed_at is not None) or (n is not None and n.trashed_at is not None)
+
+
 def claim(db: Session, limit: int = 1, max_attempts: int = DEFAULT_MAX_ATTEMPTS, kinds: list[str] | None = None) -> list[Derivative]:
     """Lease pending rows; `kinds` (what the claiming worker can convert) routes jobs only to a
-    worker that can serve them (todo19 D10). `None` is an older worker: every kind."""
+    worker that can serve them (todo19 D10). `None` is an older worker: every kind. Rows of a
+    project or file in Trash wait there: restoring it converts them."""
+    from ..models import INCLUDE_TRASHED, ProjectRow
+
     now = _now()
-    q = select(Derivative).where(Derivative.attempts < max_attempts)
+    q = (
+        select(Derivative)
+        .outerjoin(ProjectRow, ProjectRow.id == Derivative.project_id)
+        .outerjoin(SourceNode, SourceNode.id == Derivative.source_node_id)
+        .where(Derivative.attempts < max_attempts, ProjectRow.trashed_at.is_(None), SourceNode.trashed_at.is_(None))
+        .execution_options(**INCLUDE_TRASHED)
+    )
     if kinds is not None:
         q = q.where(Derivative.kind.in_(list(kinds) or ["-"]))
     rows = db.scalars(
@@ -59,6 +106,19 @@ def claim(db: Session, limit: int = 1, max_attempts: int = DEFAULT_MAX_ATTEMPTS,
         r.state, r.attempts, r.progress, r.lease_until = "processing", r.attempts + 1, 0, now + timedelta(seconds=LEASE_S)
     db.flush()
     return list(rows)
+
+
+def stop_if_trashed(db: Session, row: Derivative) -> None:
+    """A conversion whose project or file went to Trash stops (409; the worker drops it) and goes
+    back to pending without spending the attempt, so a restore converts it again."""
+    from fastapi import HTTPException
+
+    if row.state in ("pending", "processing") and _in_trash(db, row):
+        if row.state == "processing":
+            row.state, row.progress, row.lease_until = "pending", 0, None
+            row.attempts = max(0, row.attempts - 1)
+            db.commit()
+        raise HTTPException(409, "the file is in Trash")
 
 
 def progress(db: Session, row: Derivative, pct: int) -> None:
@@ -124,11 +184,14 @@ def annotate(db: Session, items: list[dict]) -> None:
 
 
 def derived_keys(db: Session, node_ids: list[str]) -> list[str]:
-    """Every blob key derived from these nodes, for the purge worker (todo18 W8)."""
+    """Every blob key derived from these nodes, for the purge worker (todo18 W8); a conversion
+    another file reuses (same bytes, `request`) is left for it."""
     if not node_ids:
         return []
     keys: list[str] = []
     for r in db.scalars(select(Derivative).where(Derivative.source_node_id.in_(node_ids))):
+        if r.blob_key and db.scalar(select(Derivative.id).where(Derivative.blob_key == r.blob_key, Derivative.source_node_id.not_in(node_ids)).limit(1)):
+            continue
         keys.extend(r.blob_keys or ([r.blob_key] if r.blob_key else []))
     return list(dict.fromkeys(keys))
 

@@ -26,6 +26,7 @@ from ..config import settings
 from ..context import ALL, AUTH_API_KEY, RequestContext, ensure_workspace
 from ..dbutil import insert_ignore
 from ..models import (
+    INCLUDE_TRASHED,
     AnnotationDocumentRow,
     Asset,
     DatasetRow,
@@ -348,7 +349,8 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "updatedAt": iso(p.updated_at),
         "lastActivityAt": iso(last_activity(db, p)),
         "resume": resume_dict(db, _resume_row(db, p.id, person(ctx))),
-        "attested": db.scalar(select(ImportSession.id).where(ImportSession.project_id == p.id, ImportSession.attested_by == person(ctx)).limit(1)) is not None,
+        # Once per person in an organization, not per project: a drop on Home makes a new project.
+        "attested": db.scalar(select(ImportSession.id).join(ProjectRow, ProjectRow.id == ImportSession.project_id).where(ProjectRow.org_id == p.org_id, ImportSession.attested_by == person(ctx)).limit(1).execution_options(**INCLUDE_TRASHED)) is not None,
         # todo13 D14: viewers can't drop; the composer reads this to disable attach.
         "role": project_role(db, ctx, p),
         # todo20 D4: the Studio drops add to (null until the first drop boots it).

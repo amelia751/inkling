@@ -4,17 +4,19 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from studio_api.db import Base
 from studio_api.kernel import derivatives as d
-from studio_api.models import Derivative
+from studio_api.models import Derivative, ProjectRow, SourceNode
+
+TABLES = [Derivative.__table__, ProjectRow.__table__, SourceNode.__table__]
 
 
 def _db() -> Session:
     eng = create_engine("sqlite://")
-    Base.metadata.create_all(eng, tables=[Derivative.__table__])  # type: ignore[list-item]
+    Base.metadata.create_all(eng, tables=TABLES)  # type: ignore[arg-type]
     return Session(eng)
 
 
@@ -100,6 +102,55 @@ def test_a_codec_failure_through_the_api_is_final(client):
     assert client.post("/api/v1/worker/derivatives/claim", json={}).status_code in (401, 403)
 
 
+def _slide_row(client, title: str) -> tuple[str, dict]:
+    from .conftest import worker_headers as W
+    from .test_explore import _report
+    from .test_projects import _import
+
+    p = client.post("/api/v1/projects", json={"title": title}).json()["id"]
+    imp = _import(client, p, {"s.svs": b"II*\x00same-slide"})
+    _report(client, imp, {"s.svs": "slide"}, {"s.svs": {"derivative": {"kind": "slide-dzi"}}})
+    rows = client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"]
+    return p, rows[0] if rows else {}
+
+
+def test_a_project_in_trash_stops_its_conversion_and_restore_resumes_it(client):
+    from .conftest import worker_headers as W
+
+    p, row = _slide_row(client, "Slides")
+    assert client.delete(f"/api/v1/projects/{p}").status_code == 200
+    assert client.post(f"/api/v1/worker/derivatives/{row['id']}/progress", json={"progress": 10}, headers=W()).status_code == 409
+    assert client.put(f"/api/v1/worker/derivatives/{row['id']}/files/derived/x.jpeg", content=b"x", headers=W()).status_code == 409
+    assert client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"] == []
+    assert client.post(f"/api/v1/projects/{p}/restore").status_code == 200
+    [again] = client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"]
+    assert again["id"] == row["id"] and again["attempts"] == 1
+
+
+def test_the_same_slide_in_another_project_reuses_the_conversion(client):
+    from studio_api import db as kdb
+    from studio_api.models import INCLUDE_TRASHED, Asset
+
+    from .conftest import worker_headers as W
+
+    first, row = _slide_row(client, "First")
+    dzi = f"sources/{first}/derived/abc.dzi"
+    tiles = [f"sources/{first}/derived/abc_files/0/0_0.jpeg", dzi]
+    client.put(f"/api/v1/worker/derivatives/{row['id']}/files/derived/abc.dzi", content=b"<Image/>", headers={**W(), "Content-Type": "application/xml"})
+    client.post(f"/api/v1/worker/derivatives/{row['id']}/complete", json={"sha": "abc", "key": dzi, "keys": tiles, "meta": {"mpp": 0.25}}, headers=W())
+    assert client.delete(f"/api/v1/projects/{first}").status_code == 200  # the demo loop: trash, drop again
+    second, claimed = _slide_row(client, "Second")
+    assert claimed == {}  # nothing to convert
+    with kdb.session_scope() as db:
+        mine = db.scalar(select(Derivative).where(Derivative.project_id == second))
+        assert mine.state == "ready" and mine.blob_key == dzi and mine.meta == {"mpp": 0.25}
+        assert db.scalar(select(Asset.id).where(Asset.workspace_id == second, Asset.path == dzi)) is not None
+        # Purging the first project leaves the files the second one shows.
+        nodes = list(db.scalars(select(SourceNode.id).where(SourceNode.project_id == first).execution_options(**INCLUDE_TRASHED)))
+        assert nodes
+        assert d.derived_keys(db, nodes) == []
+
+
 # ---- todo19 P0-2 / D10: a missing converter waits; capabilities re-queue it ------------------
 
 
@@ -107,7 +158,7 @@ def _cap_db() -> Session:
     from studio_api.models import WorkerCapability
 
     eng = create_engine("sqlite://")
-    Base.metadata.create_all(eng, tables=[Derivative.__table__, WorkerCapability.__table__])  # type: ignore[list-item]
+    Base.metadata.create_all(eng, tables=[*TABLES, WorkerCapability.__table__])  # type: ignore[list-item]
     return Session(eng)
 
 

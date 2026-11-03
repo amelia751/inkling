@@ -232,7 +232,9 @@ def claim_derivatives(body: dict = Body(default={}), db: Session = Depends(get_s
 def derivative_progress(did: str, body: dict = Body(...), db: Session = Depends(get_session)):
     from ..kernel import derivatives
 
-    derivatives.progress(db, derivatives.get(db, did), int(body.get("progress") or 0))
+    row = derivatives.get(db, did)
+    derivatives.stop_if_trashed(db, row)
+    derivatives.progress(db, row, int(body.get("progress") or 0))
     db.commit()
     return {"ok": True}
 
@@ -244,6 +246,7 @@ async def derivative_file(did: str, rel: str, request: Request, db: Session = De
     from .. import blobstore
 
     row = derivatives.get(db, did)
+    derivatives.stop_if_trashed(db, row)
     key = derivatives.file_key(row, rel)
     ctype = request.headers.get("Content-Type") or "application/octet-stream"
     # Spooled to /tmp and handed to the BlobStore as a file (a converted video can be

@@ -6,6 +6,10 @@ production, unset means the principal doesn't exist). It may call only the route
 enqueue a job, read a job it enqueued, read the cross-workspace service event feed, publish
 pipeline events, and stage blobs under `pipeline/` (kernel/service_blobs.py). A global dependency (`guard`, installed in app.py) answers 403 for
 that token on every other route, as `agent_scope.py` does for agent sessions.
+
+`service:agent` (apps/agent, the service itself, not a run's delegated session token) presents
+`<envPrefix>API_AGENT_SERVICE_TOKEN` (dev: `dev-only-agent-service-token` when unset; production:
+unset = off). It may only tell the kernel a conversation's title changed (todo21 D7).
 """
 
 from __future__ import annotations
@@ -19,6 +23,8 @@ from ..config import settings
 P = "/api/v1/service"
 PIPELINE = "service:pipeline"
 DEV_PIPELINE_TOKEN = "dev-only-pipeline-token"
+AGENT = "service:agent"
+DEV_AGENT_TOKEN = "dev-only-agent-service-token"
 
 SERVICE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
     PIPELINE: frozenset(
@@ -31,6 +37,7 @@ SERVICE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ("GET", f"{P}/blobs/{{key:path}}"),
         }
     ),
+    AGENT: frozenset({("POST", "/api/v1/projects/{project_id}/conversations/{conversation_id}/title")}),
 }
 
 
@@ -39,14 +46,20 @@ def pipeline_token() -> str | None:
     return s.pipeline_token or (None if s.production else DEV_PIPELINE_TOKEN)
 
 
+def agent_token() -> str | None:
+    s = settings()
+    return s.agent_service_token or (None if s.production else DEV_AGENT_TOKEN)
+
+
 def principal_of(request: Request) -> str | None:
     """The service principal a request authenticates as, or None."""
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
         return None
-    token = pipeline_token()
-    if token and hmac.compare_digest(auth[7:].strip().encode(), token.encode()):
-        return PIPELINE
+    given = auth[7:].strip().encode()
+    for principal, token in ((PIPELINE, pipeline_token()), (AGENT, agent_token())):
+        if token and hmac.compare_digest(given, token.encode()):
+            return principal
     return None
 
 
@@ -65,4 +78,12 @@ def require(request: Request) -> str:
     principal = principal_of(request)
     if principal is None:
         raise HTTPException(403 if request.headers.get("Authorization") else 401, "service routes are for service principals only")
+    return principal
+
+
+def require_agent(request: Request) -> str:
+    """Dependency of the agent service's kernel routes: `service:agent` only."""
+    principal = principal_of(request)
+    if principal != AGENT:
+        raise HTTPException(403 if request.headers.get("Authorization") else 401, "only the agent service calls this route")
     return principal

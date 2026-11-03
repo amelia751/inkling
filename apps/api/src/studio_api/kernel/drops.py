@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 import re
+import unicodedata
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -214,8 +215,10 @@ def shared_in_chat(d: Drop) -> bool:
 
 def landing_folder(db: Session, p: ProjectRow, d: Drop, forbidden: str = "") -> SourceNode | None:
     """`Shared in chat/<conversation>` for a drop shared in a conversation (made on first use);
-    None otherwise. Characters in `forbidden` (the project's layout rules) become `_` in a new
-    folder's name, or every file below it would fail layout.forbidden-char."""
+    None otherwise. The folder is keyed by the conversation (todo21 D7), not its name: a later
+    drop in the same chat lands in it after a rename. Characters in `forbidden` (the project's
+    layout rules) become `_` in a new folder's name, or every file below it would fail
+    layout.forbidden-char."""
     if not shared_in_chat(d):
         return None
     if d.folder_node_id:
@@ -223,23 +226,105 @@ def landing_folder(db: Session, p: ProjectRow, d: Drop, forbidden: str = "") -> 
         if n is not None and not tree.is_hidden(db, n):
             return n
     # The conversation's folder from an earlier drop, while it's still in Files.
-    for (fid,) in db.execute(select(Drop.folder_node_id).where(Drop.project_id == p.id, Drop.conversation_id == d.conversation_id, Drop.folder_node_id.is_not(None)).order_by(Drop.created_at.desc()).limit(5)):
-        n = db.get(SourceNode, fid)
-        if n is not None and not tree.is_hidden(db, n):
-            d.folder_node_id = n.id
-            return n
+    n = conversation_folder(db, p, d.conversation_id or "")
+    if n is not None:
+        d.folder_node_id = n.id
+        return n
     drive = fs.ensure_drive(db, p)
     shared = fs.sibling(db, drive.id, SHARED_FOLDER)
     if shared is None or not shared.is_dir:
         shared = _mkdir(db, p, drive, SHARED_FOLDER)
     title = d.declared.get("conversationTitle") if isinstance(d.declared, dict) else None
-    name = fs.clean_name(title) if title and title.strip(" .") else f"Chat {now():%b %-d, %H.%M}"
+    name = (folder_name(title, forbidden) if isinstance(title, str) else "") or default_folder_name()
     if forbidden:
         name = "".join("_" if c in forbidden and c != "/" else c for c in name)
     folder = _mkdir(db, p, shared, name)
     d.folder_node_id = folder.id
+    # The name the kernel gave it: a title change renames it while it still has this name.
+    d.declared = {**(d.declared or {}), "folderName": folder.name}
     db.flush()
     return folder
+
+
+# ---- Chat folders follow the chat's title (todo21 D7) -----------------------------------------
+
+DEFAULT_FOLDER = re.compile(r"Chat [A-Z][a-z]{2} \d{1,2}, \d{2}\.\d{2}")
+_DUP_SUFFIX = re.compile(r"(.*) \(\d+\)")
+FOLDER_NAME_MAX = 120
+
+
+def default_folder_name() -> str:
+    """A chat's folder before the chat has a title: `Chat Nov 3, 10.53`."""
+    return f"Chat {now():%b %-d, %H.%M}"
+
+
+def folder_name(title: str, forbidden: str = "") -> str:
+    """A chat title as a folder name: NFC, no `/` or control characters, one space between
+    words, no trailing dots, at most FOLDER_NAME_MAX characters; "" when nothing is left."""
+    t = unicodedata.normalize("NFC", title)
+    t = "".join(" " if ord(c) < 32 or ord(c) == 127 else "-" if c in "/\\" else c for c in t)
+    if forbidden:
+        t = "".join("_" if c in forbidden else c for c in t)
+    t = " ".join(t.split())[:FOLDER_NAME_MAX].strip().rstrip(" .")
+    while len(t.encode()) > 255:
+        t = t[:-1]
+    return t
+
+
+def _base(name: str) -> str:
+    m = _DUP_SUFFIX.fullmatch(name)
+    return m.group(1) if m else name
+
+
+def conversation_folder(db: Session, p: ProjectRow, conversation_id: str) -> SourceNode | None:
+    """The conversation's `Shared in chat` folder from its newest drop that has one still in Files."""
+    if not conversation_id:
+        return None
+    for (fid,) in db.execute(select(Drop.folder_node_id).where(Drop.project_id == p.id, Drop.conversation_id == conversation_id, Drop.folder_node_id.is_not(None)).order_by(Drop.created_at.desc()).limit(5)):
+        n = db.get(SourceNode, fid)
+        if n is not None and not tree.is_hidden(db, n):
+            return n
+    return None
+
+
+def conversation_titled(db: Session, p: ProjectRow, conversation_id: str, title: object, previous: object = None, *, principal: str = "service:agent") -> dict:
+    """`POST /projects/{p}/conversations/{cid}/title` (the agent service, on a title change):
+    rename the chat's folder to the title while its name is still one the kernel gave it (the
+    default `Chat <date> <time>`, the name it last set) or the previous title. A folder a
+    person renamed keeps its name. Journaled like any rename. → `{renamed, folder}`."""
+    if not isinstance(title, str) or not title.strip():
+        raise HTTPException(422, "title must be a non-empty string")
+    if previous is not None and not isinstance(previous, str):
+        raise HTTPException(422, "previousTitle must be a string")
+    n = conversation_folder(db, p, conversation_id)
+    if n is None:
+        return {"renamed": False, "folder": None}
+    from . import write_doors
+
+    forbidden = (write_doors.project_rules(db, p).get("layout") or {}).get("forbiddenCharacters") or ""
+    forbidden = forbidden if isinstance(forbidden, str) else "".join(forbidden)
+    want = folder_name(title, forbidden)
+    if not want or n.name.endswith(DELETED_SUFFIX):
+        return {"renamed": False, "folder": n.name}
+    drops = list(db.scalars(select(Drop).where(Drop.project_id == p.id, Drop.conversation_id == conversation_id).order_by(Drop.created_at.desc())))
+    given = {str(d.declared.get("folderName")).lower() for d in drops if isinstance(d.declared, dict) and d.declared.get("folderName")}
+    prev = folder_name(previous, forbidden).lower() if previous else ""
+    current = n.name.lower()
+    ours = current in given or bool(DEFAULT_FOLDER.fullmatch(_base(n.name))) or (bool(prev) and prev in (current, _base(current)))
+    if not ours:
+        return {"renamed": False, "folder": n.name}
+    name = tree.free_name(want, fs.taken_names(db, n.parent_id or "") - {current}, is_dir=True)
+    if name == n.name:
+        return {"renamed": False, "folder": n.name}
+    ctx = RequestContext(workspace_id=p.id, principal=principal, correlation_id=uuid.uuid4().hex)
+    fs.apply(db, ctx, p, {"ops": [{"kind": "rename", "nodeId": n.id, "name": name}]})
+    for d in drops:
+        if d.folder_node_id == n.id:
+            d.declared = {**(d.declared or {}), "folderName": name}
+    db.flush()
+    if drops:
+        _log(drops[0], "drop.folder_renamed", nodeId=n.id)
+    return {"renamed": True, "folder": name}
 
 
 def _mkdir(db: Session, p: ProjectRow, parent: SourceNode, name: str) -> SourceNode:

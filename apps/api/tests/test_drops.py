@@ -31,8 +31,8 @@ def _project(client, title: str = "Drops") -> str:
     return client.post("/api/v1/projects", json={"title": title}).json()["id"]
 
 
-def _drop(client, pid: str, files: dict[str, bytes], conv: str = "conv-1", title: str = "Chest X-rays", complete: bool = True, headers: dict | None = None) -> tuple[dict, dict]:
-    d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": conv, "conversationTitle": title, "messageId": "msg-1", "files": len(files), "bytes": sum(map(len, files.values()))}, headers=headers or {})
+def _drop(client, pid: str, files: dict[str, bytes], conv: str = "conv-1", title: str | None = "Chest X-rays", complete: bool = True, headers: dict | None = None) -> tuple[dict, dict]:
+    d = client.post(f"/api/v1/projects/{pid}/drops", json={"origin": "chat", "conversationId": conv, **({"conversationTitle": title} if title else {}), "messageId": "msg-1", "files": len(files), "bytes": sum(map(len, files.values()))}, headers=headers or {})
     assert d.status_code == 201, d.text
     drop = d.json()
     s = client.post(f"/api/v1/projects/{pid}/imports", json={"attested": True, "files": _files(files), "origin": {"kind": "chat", "conversationId": conv, "messageId": "msg-1", "dropId": drop["id"]}}, headers=headers or {})
@@ -357,6 +357,78 @@ def test_deleting_a_conversation_keeps_its_folder_renamed(client):
         folder = db.get(SourceNode, db.get(Drop, drop["id"]).folder_node_id)
         assert folder.name == "Knee MRI (deleted chat)" and folder.trashed_at is None
         assert db.get(Drop, drop["id"]).message_id is None
+
+
+# ---- Chat folders follow the chat's title (todo21 D7) ----------------------------------------
+
+
+def _svc() -> dict:
+    from studio_api.kernel import service_scope
+
+    return {"Authorization": f"Bearer {service_scope.agent_token()}"}
+
+
+def _folder(drop_id: str) -> SourceNode:
+    with kdb.session_scope() as db:
+        n = db.get(SourceNode, db.get(Drop, drop_id).folder_node_id)
+        db.expunge(n)
+        return n
+
+
+def _title(client, pid: str, conv: str, title: str, previous: str | None = None, headers: dict | None = None):
+    return client.post(f"/api/v1/projects/{pid}/conversations/{conv}/title", json={"title": title, **({"previousTitle": previous} if previous else {})}, headers=_svc() if headers is None else headers)
+
+
+def test_a_chat_folder_takes_the_chats_title_and_keeps_its_drops(client):
+    pid = _project(client)
+    d1, _ = _drop(client, pid, {"a.png": png(4, 4)}, conv="conv-t", title=None)
+    first = _folder(d1["id"])
+    assert re.fullmatch(r"Chat [A-Z][a-z]{2} \d{1,2}, \d{2}\.\d{2}", first.name), first.name
+    r = _title(client, pid, "conv-t", "Knee MRI / follow-up")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"renamed": True, "folder": "Knee MRI - follow-up"}
+    assert _folder(d1["id"]).name == "Knee MRI - follow-up"
+    # A later drop in the same chat lands in the renamed folder, whatever title it declares.
+    d2, _ = _drop(client, pid, {"b.png": png(5, 5)}, conv="conv-t", title="first words of the message")
+    assert _folder(d2["id"]).id == first.id
+    # The next title replaces the last (it's still the kernel's name).
+    assert _title(client, pid, "conv-t", "Knee MRI review").json() == {"renamed": True, "folder": "Knee MRI review"}
+    # A chat with no drop has no folder.
+    assert _title(client, pid, "conv-none", "Nothing").json() == {"renamed": False, "folder": None}
+
+
+def test_a_folder_a_person_renamed_keeps_its_name(client):
+    pid = _project(client)
+    d, _ = _drop(client, pid, {"a.png": png(4, 4)}, conv="conv-p", title=None)
+    n = _folder(d["id"])
+    assert client.post(f"/api/v1/projects/{pid}/fs/ops", json={"ops": [{"kind": "rename", "nodeId": n.id, "name": "My scans"}]}).status_code == 200
+    assert _title(client, pid, "conv-p", "Knee MRI").json() == {"renamed": False, "folder": "My scans"}
+    assert _folder(d["id"]).name == "My scans"
+    # Unless the name is the chat's previous title (the agent says so).
+    assert _title(client, pid, "conv-p", "Knee MRI", previous="My scans").json() == {"renamed": True, "folder": "Knee MRI"}
+
+
+def test_a_chat_title_never_takes_a_siblings_name(client):
+    pid = _project(client)
+    a, _ = _drop(client, pid, {"a.png": png(4, 4)}, conv="conv-a", title="Knee MRI")
+    b, _ = _drop(client, pid, {"b.png": png(5, 5)}, conv="conv-b", title=None)
+    assert _title(client, pid, "conv-b", "knee mri").json() == {"renamed": True, "folder": "knee mri (2)"}
+    assert _folder(a["id"]).name == "Knee MRI"
+
+
+def test_only_the_agent_service_sends_chat_titles(client):
+    from studio_api.kernel import service_scope
+
+    pid = _project(client)
+    _drop(client, pid, {"a.png": png(4, 4)}, conv="conv-s", title=None)
+    assert _title(client, pid, "conv-s", "X", headers={}).status_code == 401  # a person (dev headers)
+    assert _title(client, pid, "conv-s", "X", headers=_agent(pid)).status_code == 403  # a run's session token
+    assert _title(client, pid, "conv-s", "X", headers={"Authorization": f"Bearer {service_scope.pipeline_token()}"}).status_code == 403
+    assert _title(client, pid, "conv-s", "X", headers={"Authorization": "Bearer nope"}).status_code == 403
+    # The agent service's token reaches only this route.
+    assert client.get(f"/api/v1/projects/{pid}/fs", headers=_svc()).status_code == 403
+    assert client.get("/api/v1/service/events?wait=0", headers=_svc()).status_code == 403
+    assert _title(client, "no-such-project", "conv-s", "X").status_code == 404
 
 
 # ---- Integration (todo13 Milestone 4) ------------------------------------------------------

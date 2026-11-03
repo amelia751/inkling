@@ -6,18 +6,20 @@ route answers 404 while it is off.
     GET    /api/v1/drops/{id}?offset=                          person: the drop; agent: its DropSummary (screened)
     DELETE /api/v1/drops/{id}/files/{nodeId}                   take a file out of the chat (the File stays)
     POST   /api/v1/projects/{id}/conversations/{cid}/deleted   the chat was deleted: its folder is renamed "(deleted chat)"
+    POST   /api/v1/projects/{id}/conversations/{cid}/title     agent service only: the chat's title changed {title, previousTitle?} → {renamed, folder}
 
 Uploads go through the import route with `origin`/`dropId` (routes/sources.py).
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext, get_context
 from ..db import get_session
-from ..kernel import drops, features, projects
+from ..models import ProjectRow
+from ..kernel import drops, features, projects, service_scope
 
 router = APIRouter(prefix="/api/v1", dependencies=[Depends(features.require("chat_drops"))])
 
@@ -49,3 +51,13 @@ def remove_file(drop_id: str, node_id: str, ctx: RequestContext = Depends(get_co
 def conversation_deleted(project_id: str, conversation_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     p = projects.require_project(db, ctx, project_id, write=True)
     return drops.conversation_deleted(db, ctx, p, conversation_id)
+
+
+@router.post("/projects/{project_id}/conversations/{conversation_id}/title")
+def conversation_titled(project_id: str, conversation_id: str, body: dict = Body(...), principal: str = Depends(service_scope.require_agent), db: Session = Depends(get_session)):
+    """todo21 D7: the agent service tells the kernel a chat got or changed its title; the chat's
+    `Shared in chat` folder follows unless a person renamed it."""
+    p = db.get(ProjectRow, project_id)
+    if p is None or p.trashed_at is not None:
+        raise HTTPException(404, "No such project")
+    return drops.conversation_titled(db, p, conversation_id, body.get("title"), body.get("previousTitle"), principal=principal)

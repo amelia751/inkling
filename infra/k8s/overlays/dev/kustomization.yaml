@@ -47,6 +47,7 @@ secretGenerator:
       - STUDIO_API_SECRET_KEY=dev-only-api-secret-key-not-for-production-0000
       - STUDIO_API_WORKER_TOKEN=dev-only-worker-token
       - STUDIO_API_PIPELINE_TOKEN=dev-only-pipeline-token
+      - STUDIO_API_AGENT_SERVICE_TOKEN=dev-only-agent-service-token
       - STUDIO_API_APPROVAL_SECRET=dev-only-approval-secret
       - AWS_ACCESS_KEY_ID=dev-only-s3-access
       - AWS_SECRET_ACCESS_KEY=dev-only-s3-secret

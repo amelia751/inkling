@@ -17,6 +17,7 @@ that are missing or invalid, never their values.
 | API_PIPELINE_URL          | (none)                           | apps/pipeline's private API (`http://pipeline:8095`); unset = the pipeline routes answer 503 |
 | API_PIPELINE_JWT_KID      | api                              | `kid` of the JWT the api signs pipeline calls with (the versioning signing key, audience `pipeline`); must be in the pipeline's JWKS |
 | API_PIPELINE_TOKEN        | dev: `dev-only-pipeline-token`; production: unset = off | the token the pipeline service presents (`Authorization: Bearer`), principal `service:pipeline` (todo12 §4 M0 item 5) |
+| API_AGENT_SERVICE_TOKEN   | dev: `dev-only-agent-service-token`; production: unset = off | the token the agent service presents (`Authorization: Bearer`) on its service calls (principal `service:agent`, todo21 D7: chat titles rename their drop folders) |
 | API_DATA_DIR              | apps/api/.data                   | dev-only local data (SQLite file, local derived blobs) |
 | API_SEED_ROOT             | <repo>/seed-data                 | the local BlobStore root for seed assets |
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
@@ -203,6 +204,7 @@ class Settings(BaseModel):
     repo_root: Path = REPO_ROOT
     worker_token: str | None = None
     pipeline_token: str | None = None
+    agent_service_token: str | None = None
     pipeline_url: str | None = None
     pipeline_jwt_kid: str = "api"
     redis_url: str | None = None
@@ -330,6 +332,7 @@ _KEYS: dict[str, str] = {
     "secret_key": "API_SECRET_KEY",
     "worker_token": "API_WORKER_TOKEN",
     "pipeline_token": "API_PIPELINE_TOKEN",
+    "agent_service_token": "API_AGENT_SERVICE_TOKEN",
     "pipeline_url": "API_PIPELINE_URL",
     "pipeline_jwt_kid": "API_PIPELINE_JWT_KID",
     "data_dir": "API_DATA_DIR",

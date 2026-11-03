@@ -401,7 +401,7 @@ class ImagingCheck:
                             series[str(ds.get("SeriesInstanceUID"))].conformance_errors += errs
                 elif _looks_nifti(path, name):
                     try:
-                        img = nib.load(path)
+                        img: Any = nib.load(path)
                         vs = check_nifti(img)
                     except Exception:  # noqa: BLE001 — unreadable: not ours to judge here
                         skipped += 1

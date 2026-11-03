@@ -70,7 +70,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:bf366ca8b58bf755eea29b1c6d8edb07f09cb575acc901e26f2631a0cc080e59",
+      "artifactDigest": "sha256:5956ef57677ceb40cc6ff723e2b9089983fb18877caf1e35579a5a41b31c69f5",
       "path": "plugins/cine",
       "capabilities": [
         "cine.view",
@@ -200,7 +200,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:5bca111f8f37c91165de14e2576204660cfb185123342208b138caa853f16241",
+      "artifactDigest": "sha256:61885489454cddfd98cd0dc5e66d7f8e75357ce4706fd62765bcb925f9ed1047",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -443,7 +443,7 @@
       "version": "0.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:536a48657ef8effe16e5ad5a3ed1e6299e24bdca519b16df8eb334071e45f61a",
+      "artifactDigest": "sha256:e37741905bd6069d1dcfcdf95faf912d9f4c98de242c126b065ffeda68efe8f0",
       "path": "plugins/text-spans",
       "capabilities": [
         "text.annotate"
@@ -505,7 +505,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:9e314931eec6ddd3941a1c3b84bd1ad69279efb5be80451ed193f53bb5caf28a",
+      "artifactDigest": "sha256:17faf3df469e8a149133131f2b94ef0c7f91a7bf60bab694a0e9ea937e7f16ef",
       "path": "plugins/timeseries",
       "capabilities": [
         "signal.view",
@@ -578,7 +578,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:e01087acbd7b953245c4a95125423be5ce99cb4930fd3b0cb04dff7a4bf49467",
+      "artifactDigest": "sha256:1f45f15f3816b15c02bc83fcaff1bfcb33cfd8722d0ade7f65961724cc9fe928",
       "path": "plugins/video",
       "capabilities": [
         "video.view",
@@ -652,7 +652,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:65b194e952880e9dc66bb93662183db22e81a60fc043cd5b7456e125943abdbb",
+      "artifactDigest": "sha256:5ef84601fb1e36f74a1d1004857fc021f92258be6d096e67c1168a211ab36dc2",
       "path": "plugins/volume",
       "capabilities": [
         "volume.view",
@@ -725,7 +725,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:11890a2bbd334d6f7aef03125e79d140d0c1ade8e36d9156412a70ffcc7a78ec",
+      "artifactDigest": "sha256:9cf3787b5ce9a6279260bc130ea9443e25d820c7eceeca4028844536bce5d3fe",
       "path": "plugins/wsi",
       "capabilities": [
         "pyramid.view",

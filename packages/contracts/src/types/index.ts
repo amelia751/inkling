@@ -338,6 +338,8 @@ export interface ProjectSummary {
   sampleOf?: string | null;
   /** todo20 D4: the project's default Studio (task id) that drops add to; null before the first drop. */
   defaultTaskId?: string | null;
+  /** What the project's files are (images, volumes…), most first; masks and unreadable files left out. */
+  kinds?: { kind: DetectedKind; count: number }[];
   archived: boolean;
   createdBy: string;
   createdAt: string;

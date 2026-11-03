@@ -66,6 +66,8 @@ export function NewProjectHost() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  // After Create opens the project, focus goes to its chat composer, not back to the trigger.
+  const opened = useRef(false);
 
   useEffect(() => {
     if (!request) return;
@@ -87,6 +89,7 @@ export function NewProjectHost() {
       void qc.invalidateQueries({ queryKey: projectKeys.all });
       if (request.pending === undefined && !request.stay) {
         // D1: the project opens with its chat open, empty, the composer focused.
+        opened.current = true;
         setAssistant(true, true);
         navigate(projectUrl(p.id));
       }
@@ -100,7 +103,17 @@ export function NewProjectHost() {
 
   return (
     <Dialog open={!!request} onOpenChange={(o) => !o && close(null)}>
-      <DialogContent className="max-w-md" data-testid="new-project-dialog">
+      <DialogContent
+        className="max-w-md"
+        data-testid="new-project-dialog"
+        onCloseAutoFocus={(e) => {
+          if (!opened.current) return;
+          opened.current = false;
+          e.preventDefault();
+          // The drawer may mount after the dialog closes: ask it to focus again.
+          requestAnimationFrame(() => useShell.getState().setAssistant(true, true));
+        }}
+      >
         <DialogHeader>
           <DialogTitle>New project</DialogTitle>
           <DialogDescription>Name it; you can rename it later.</DialogDescription>

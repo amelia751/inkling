@@ -1,4 +1,5 @@
-"""todo13 Milestone 1 (`todo13-entry`) in seed mode: one composer, the sidebar, the empty states,
+"""todo13 Milestone 1 (`todo13-entry`) in seed mode (todo21: Home sends go to a Home chat, drops
+and agent-less sends to the new-project dialog): one composer, the sidebar, the empty states,
 the canvas drop target, the feature flags and the drop timeline overlay.
 
 The seed stand-in is read-only (creating projects answers 501), so the writes are answered by
@@ -89,8 +90,15 @@ def main() -> int:
         check("Home has the goal field and no examples", page.locator("[data-testid=goal]").count() == 1 and page.locator("[data-testid=goal-example]").count() == 0)
         check("no project form on Home", page.locator("[data-testid=new-project]").count() == 0)
         shot(page, "home-empty")
+        # todo21 D8: without the agent service a Home send can't go to a Home chat, so it opens
+        # the new-project dialog (D2), prefilled from the message.
+        page.route("**/api/agent/sessions", json_route({"error": "The agent service isn't running"}, 502))
         page.locator("[data-testid=goal]").fill("Segment liver CT")
         page.locator("[data-testid=goal]").press("Enter")
+        page.wait_for_selector("[data-testid=new-project-dialog]", timeout=10000)
+        check("a send without the agent opens the name dialog, prefilled", page.locator("[data-testid=new-project-name]").input_value() == "Segment liver CT")
+        check("nothing is created before Create", not created, json.dumps(created))
+        page.locator("[data-testid=new-project-create]").click()
         page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
         check("send creates a project named from the goal", created and created[0]["title"] == "Segment liver CT", json.dumps(created))
         check("the project opens with the drawer", bool(page.wait_for_selector("[data-testid=agent-drawer]", timeout=10000)))
@@ -113,9 +121,14 @@ def main() -> int:
         page.route(f"**/api/v1/projects/{P}/drops", lambda r: (drops.append(r.request.post_data_json), json_route({"id": r.request.post_data_json.get("id"), "state": "uploading", "files": []}, 201)(r)))
         page.goto(f"{base}/")
         page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
-        page.evaluate(DROP_PNGS, ["[data-testid=home-composer]", 12])
+        page.evaluate(DROP_PNGS, ["[data-testid=home-drop]", 12])
+        # todo21 D2: the drop waits in the dialog, named from the kinds (never "12 files").
+        page.wait_for_selector("[data-testid=new-project-dialog]", timeout=10000)
+        check("a drop opens the dialog named from the kinds, not the names", page.locator("[data-testid=new-project-name]").input_value() == "Images")
+        check("…and nothing is created or uploaded yet", not created and not drops, json.dumps([created, drops]))
+        page.locator("[data-testid=new-project-create]").click()
         page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
-        check("a drop creates a project named from the kinds, not the names", created and created[0]["title"] == "12 images", json.dumps(created))
+        check("Create makes the project with the suggested name", created and created[0]["title"] == "Images", json.dumps(created))
         page.wait_for_timeout(500)
         check("the drop is shared in the project's conversation (D1, D2)", len(drops) == 1 and drops[0].get("origin") == "home" and bool(drops[0].get("conversationId")) and drops[0].get("files") == 12, json.dumps(drops)[:300])
         page.wait_for_selector("[data-testid=attestation]", timeout=10000)
@@ -132,11 +145,20 @@ def main() -> int:
         page.wait_for_selector("[data-testid=project-card]", timeout=20000)
         shot(page, "home-with-projects")
         if True:
-            page.route("**/api/v1/projects", lambda r: json_route({"id": P, "title": "x"}, 201)(r) if r.request.method == "POST" else r.continue_())
+            # todo21 D8: a Home send goes to a Home chat (scope home); no project is made.
+            posted: list[dict] = []
+            page.route("**/api/v1/projects", lambda r: (posted.append(r.request.post_data_json), json_route({"id": P, "title": "x"}, 201)(r)) if r.request.method == "POST" else r.continue_())
+            sessions: list[dict] = []
+            page.route("**/api/agent/sessions", lambda r: (sessions.append(r.request.post_data_json), json_route({"sessionId": "ses_home", "profile": "assistant", "session": {"id": "ses_home", "projectId": None, "title": "Classify skin lesions", "createdAt": "2026-11-03T10:00:00Z", "updatedAt": "2026-11-03T10:00:00Z"}}, 201)(r)) if r.request.method == "POST" else r.continue_())
+            page.route("**/api/agent/sessions/ses_home/messages", json_route({"runId": "run_home", "steered": False}))
+            sse = "".join(f"data: {json.dumps(e)}\n\n" for e in [{"seq": 1, "type": "text", "delta": "You have no project for skin lesions yet."}, {"seq": 2, "type": "done", "status": "completed"}])
+            page.route("**/api/agent/runs/run_home/events*", lambda r: r.fulfill(status=200, headers={"Content-Type": "text/event-stream"}, body=sse))
             page.locator("[data-testid=goal]").fill("Classify skin lesions")
             page.locator("[data-testid=composer-send]").click()
-            page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
-            check("with projects, a send starts a new project (no dialog)", page.locator("[data-testid=home-target-dialog]").count() == 0)
+            page.wait_for_selector("[data-testid=home-chat-thread] [data-role=assistant]:has-text('no project')", timeout=10000)
+            check("with projects, a send goes to a Home chat", bool(sessions) and sessions[0].get("scope") == "home" and not sessions[0].get("projectId"), json.dumps(sessions)[:300])
+            check("…and makes no project", not posted and "/projects/" not in page.url, page.url)
+            check("Recent chats here lists the Home chat", page.locator("[data-testid=home-chat-list] [data-testid=home-chat-item]").count() >= 1)
         check("no page errors (home with projects)", not errors, "; ".join(errors))
         ctx.close()
 

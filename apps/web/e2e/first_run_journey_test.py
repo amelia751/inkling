@@ -268,12 +268,8 @@ def run(page, base: str) -> None:
     files = [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": base64.b64encode(png(i)).decode()} for i in range(12)]
     t1 = time.time()
     page.evaluate(DROP_JS, ["[data-testid=home-drop]", files])
-    target = page.get_by_test_id("home-target-new")
-    try:
-        target.wait_for(timeout=2500)
-        target.click()
-    except Exception:  # noqa: BLE001 — Home asks only when it has projects
-        pass
+    page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
+    page.get_by_test_id("new-project-create").click()
     attest(page)
     made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
     check("J1: the drop creates a project", bool(made), str(made))

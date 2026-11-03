@@ -313,18 +313,15 @@ def timeline_steps(page) -> dict[str, int]:
 
 
 def home_drop(page, port: int, files: dict[str, bytes]) -> tuple[str | None, float]:
-    """Drop on Home: a new project (answer "Start a new project" when Home has some)."""
+    """Drop on Home: a new project, after Create in the new-project dialog (todo21 D2)."""
     before = project_ids()
     page.goto(f"http://localhost:{port}/?timeline=1")
     page.get_by_test_id("home-composer").wait_for(timeout=30000)
     t0 = time.time()
     page.evaluate(DROP_JS, ["[data-testid=home-drop]", b64files(files), None])
-    target = page.get_by_test_id("home-target-new")
-    try:
-        target.wait_for(timeout=2000)
-        target.click()
-    except Exception:  # noqa: BLE001 — an empty Home asks nothing
-        pass
+    # todo21 D2: the drop waits in the new-project dialog; Create starts the project.
+    page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
+    page.get_by_test_id("new-project-create").click()
     attest(page, 10000)
     made = wait(lambda: [p for p in project_ids() if p not in before], timeout=30)
     return (made[0] if made else None), t0

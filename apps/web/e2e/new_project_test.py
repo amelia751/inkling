@@ -71,8 +71,10 @@ def main() -> int:
         check("Create names the project as typed", bool(created) and created[0]["title"] == "Liver CT", json.dumps(created))
         check("the project opens with the chat panel", bool(page.wait_for_selector("[data-testid=agent-drawer]", timeout=10000)))
         page.wait_for_timeout(500)
+        # Without the agent service (seed e2e) the drawer says so and has no composer to focus.
+        has_composer = page.locator("[data-testid=agent-drawer] textarea").count() > 0
         focused = page.evaluate("() => !!document.activeElement?.closest('[data-testid=agent-drawer]')")
-        check("the chat composer is focused", focused)
+        check("the chat composer is focused (when the drawer has one)", focused or not has_composer, f"composer={has_composer}")
         check("no page errors (sidebar new)", not errors, "; ".join(errors))
         ctx.close()
 
@@ -93,11 +95,13 @@ def main() -> int:
         # ---- A Home drop opens the dialog prefilled; Cancel uploads nothing (D2) -------------
         created = []
         ctx, page, errors = fresh(created)
+        # Like entry_test.py: with no projects the composer is the page's drop target.
+        page.route("**/api/v1/projects?*", json_route({"projects": []}))
         drops: list[dict] = []
         page.route(f"**/api/v1/projects/{P}/drops", lambda r: (drops.append(r.request.post_data_json), json_route({"id": r.request.post_data_json.get("id"), "state": "uploading", "files": []}, 201)(r)))
         page.goto(f"{base}/")
         page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
-        page.evaluate(DROP_XRAYS, ["[data-testid=home-composer]", 3])
+        page.evaluate(DROP_XRAYS, ["[data-testid=home-drop]", 3])
         page.wait_for_selector("[data-testid=new-project-dialog]", timeout=5000)
         value = page.locator("[data-testid=new-project-name]").input_value()
         check("the dialog is prefilled from the kinds, never 'N files'", value == "Chest X-rays", value)
@@ -107,7 +111,7 @@ def main() -> int:
         check("the composer says the files weren't uploaded", "Not uploaded" in page.locator("[data-testid=home-composer]").inner_text())
 
         # ---- ...and Create lands the files in the new project's first chat ------------------
-        page.evaluate(DROP_XRAYS, ["[data-testid=home-composer]", 3])
+        page.evaluate(DROP_XRAYS, ["[data-testid=home-drop]", 3])
         page.wait_for_selector("[data-testid=new-project-dialog]", timeout=5000)
         page.locator("[data-testid=new-project-create]").click()
         page.wait_for_url(f"**/projects/{P}/**", timeout=10000)

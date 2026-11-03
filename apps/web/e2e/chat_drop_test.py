@@ -200,13 +200,9 @@ def t_home(browser, port):
         page.get_by_test_id("home-composer").wait_for(timeout=20000)
         before = {p["id"] for p in kernel("GET", "/projects")[1]["projects"]}
         page.evaluate(DROP_JS, ["[data-testid=home-drop]", [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": b64(png(i))} for i in range(12)]])
-        # On a reused API data dir Home has projects already: start a new one (§3.4's question).
-        target = page.get_by_test_id("home-target-new")
-        try:
-            target.wait_for(timeout=1500)
-            target.click()
-        except Exception:  # noqa: BLE001 — empty Home: no question
-            pass
+        # todo21 D2: the drop waits in the new-project dialog; Create starts the project.
+        page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
+        page.get_by_test_id("new-project-create").click()
         attest(page)
         made = wait(lambda: [p for p in kernel("GET", "/projects")[1]["projects"] if p["id"] not in before], timeout=30)
         check("home: a project exists after the drop", bool(made), str(made)[:200])

@@ -8,6 +8,7 @@ resource "google_sql_database_instance" "agent" {
 
   settings {
     tier                        = var.sql_tier
+    activation_policy           = var.sql_running ? "ALWAYS" : "NEVER"
     edition                     = "ENTERPRISE"
     availability_type           = "ZONAL"
     deletion_protection_enabled = true
@@ -33,6 +34,7 @@ resource "google_sql_database" "agent" {
 }
 
 resource "google_redis_instance" "agent" {
+  count                   = var.gke_enabled ? 1 : 0
   name                    = "agent"
   tier                    = "BASIC"
   memory_size_gb          = 1

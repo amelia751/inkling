@@ -2,6 +2,7 @@
 # pods with `runtimeClassName: gvisor` (GKE Sandbox); Autopilot runs them on gVisor nodes, so
 # no node pool is declared. Pre-warmed sandboxes come from a SandboxWarmPool (the overlay).
 resource "google_container_cluster" "agent" {
+  count               = var.gke_enabled ? 1 : 0
   name                = "agent"
   location            = var.region
   enable_autopilot    = true

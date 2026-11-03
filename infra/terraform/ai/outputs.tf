@@ -1,10 +1,10 @@
 output "nat_egress_ip" {
-  description = "spurby-phi's agent ingress admits only this address (overlay gke/phi)."
-  value       = google_compute_address.nat.address
+  description = "spurby-phi's agent ingress admits only this address (overlay gke/phi). Null while gke_enabled is false."
+  value       = one(google_compute_address.nat[*].address)
 }
 
 output "ingress_ip" {
-  value = google_compute_address.ingress.address
+  value = one(google_compute_address.ingress[*].address)
 }
 
 output "sql_private_ip" {
@@ -12,11 +12,11 @@ output "sql_private_ip" {
 }
 
 output "redis_host" {
-  value = "${google_redis_instance.agent.host}:${google_redis_instance.agent.port}"
+  value = one([for r in google_redis_instance.agent : "${r.host}:${r.port}"])
 }
 
 output "redis_ca" {
-  value = join("", [for c in google_redis_instance.agent.server_ca_certs : c.cert])
+  value = one([for r in google_redis_instance.agent : join("", [for c in r.server_ca_certs : c.cert])])
 }
 
 output "data_services_cidr" {
@@ -32,5 +32,5 @@ output "service_accounts" {
 }
 
 output "cluster" {
-  value = { name = google_container_cluster.agent.name, location = google_container_cluster.agent.location }
+  value = one([for c in google_container_cluster.agent : { name = c.name, location = c.location }])
 }

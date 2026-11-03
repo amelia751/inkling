@@ -39,23 +39,26 @@ resource "google_service_networking_connection" "psa" {
 }
 
 resource "google_compute_router" "nat" {
+  count   = var.gke_enabled ? 1 : 0
   name    = "nat"
   network = google_compute_network.agent.id
   region  = var.region
 }
 
 resource "google_compute_address" "nat" {
+  count      = var.gke_enabled ? 1 : 0
   name       = "nat-egress"
   region     = var.region
   depends_on = [google_project_service.this]
 }
 
 resource "google_compute_router_nat" "nat" {
+  count                              = var.gke_enabled ? 1 : 0
   name                               = "nat"
-  router                             = google_compute_router.nat.name
+  router                             = google_compute_router.nat[0].name
   region                             = var.region
   nat_ip_allocate_option             = "MANUAL_ONLY"
-  nat_ips                            = [google_compute_address.nat.self_link]
+  nat_ips                            = [google_compute_address.nat[0].self_link]
   source_subnetwork_ip_ranges_to_nat = "ALL_SUBNETWORKS_ALL_IP_RANGES"
   log_config {
     enable = true
@@ -65,6 +68,7 @@ resource "google_compute_router_nat" "nat" {
 
 # Public address of the agent's ingress (web in spurby-phi proxies /api/agent here).
 resource "google_compute_address" "ingress" {
+  count      = var.gke_enabled ? 1 : 0
   name       = "agent-ingress"
   region     = var.region
   depends_on = [google_project_service.this]

@@ -11,6 +11,7 @@ resource "google_sql_database_instance" "studio" {
 
   settings {
     tier                        = var.sql_tier
+    activation_policy           = var.sql_running ? "ALWAYS" : "NEVER"
     edition                     = "ENTERPRISE"
     availability_type           = var.sql_high_availability ? "REGIONAL" : "ZONAL"
     deletion_protection_enabled = true
@@ -74,6 +75,7 @@ resource "google_sql_database" "pipeline_engine" {
 }
 
 resource "google_redis_instance" "studio" {
+  count                   = var.gke_enabled ? 1 : 0
   name                    = "studio"
   tier                    = "STANDARD_HA"
   memory_size_gb          = var.redis_memory_gb

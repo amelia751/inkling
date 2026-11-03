@@ -7,6 +7,7 @@
 # Private nodes (no external IPs, per the org policy). kubectl reaches the control plane through
 # its DNS endpoint, authorised by IAM; the IP endpoint admits no public networks.
 resource "google_container_cluster" "studio" {
+  count               = var.gke_enabled ? 1 : 0
   name                = "studio"
   location            = var.region
   enable_autopilot    = true

@@ -9,6 +9,18 @@ variable "region" {
   default = "us-central1"
 }
 
+variable "gke_enabled" {
+  description = "GKE cluster, Memorystore, Cloud NAT and the ingress address. Off: torn down 2026-11-03 to stop idle billing; the databases, registry and network stay."
+  type        = bool
+  default     = false
+}
+
+variable "sql_running" {
+  description = "Cloud SQL runs (ALWAYS) or is stopped (NEVER: only storage and backups bill; data kept)."
+  type        = bool
+  default     = false
+}
+
 variable "sql_tier" {
   type    = string
   default = "db-custom-1-3840"

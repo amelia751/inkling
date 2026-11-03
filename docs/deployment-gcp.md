@@ -214,6 +214,14 @@ agent.
     0, the worker's ScaledObject paused, CronJobs suspended, both Cloud SQL instances stopped
     (data kept). Nothing was deleted. To resume, and to avoid the quota by running the worker
     without GKE Sandbox while data is synthetic: `todo/todo15.md` §8.
+12. **Torn down (2026-11-03).** Idle billing stopped: both GKE clusters, both Memorystore
+    instances, the ingress load balancers, Cloud NAT and the static addresses are deleted
+    (`gke_enabled=false`, the default in `phi` and `ai`). Kept: both Cloud SQL instances,
+    stopped (`sql_running=false`), KMS keys, buckets, registries, the VPCs, Secret Manager and
+    the Healthcare dataset. The next deployment is Cloud Run with WorkOS sign-in
+    (`todo/todo22.md` W6), not GKE. The `phi` stack needs the `github_*` variables on every
+    apply, or the plan drops CI's federation; apply only what you changed until they live in
+    a git-ignored tfvars file.
 
 Steps 1–3 come before any customer data arrives; the pipeline's Milestone 3 (Pub/Sub,
 `pipeline_connectors_enabled`) and Milestone 4 (GPU, `gpu_workers_enabled` and the L4 quota) each

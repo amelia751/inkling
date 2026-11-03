@@ -17,12 +17,12 @@ output "sql_connection_name" {
 }
 
 output "redis_host" {
-  value = "${google_redis_instance.studio.host}:${google_redis_instance.studio.port}"
+  value = one([for r in google_redis_instance.studio : "${r.host}:${r.port}"])
 }
 
 output "redis_ca" {
   description = "PEM of the Memorystore server CA (ConfigMap redis-ca in the overlay)."
-  value       = join("", [for c in google_redis_instance.studio.server_ca_certs : c.cert])
+  value       = one([for r in google_redis_instance.studio : join("", [for c in r.server_ca_certs : c.cert])])
 }
 
 output "data_services_cidr" {
@@ -31,11 +31,11 @@ output "data_services_cidr" {
 
 output "nat_egress_ip" {
   description = "spurby-ai admits the web proxy from this address only."
-  value       = google_compute_address.nat.address
+  value       = one(google_compute_address.nat[*].address)
 }
 
 output "ingress_ip" {
-  value = google_compute_address.ingress.address
+  value = one(google_compute_address.ingress[*].address)
 }
 
 output "images_registry" {
@@ -48,7 +48,7 @@ output "service_accounts" {
 }
 
 output "cluster" {
-  value = { name = google_container_cluster.studio.name, location = google_container_cluster.studio.location }
+  value = one([for c in google_container_cluster.studio : { name = c.name, location = c.location }])
 }
 
 output "healthcare_dataset" {

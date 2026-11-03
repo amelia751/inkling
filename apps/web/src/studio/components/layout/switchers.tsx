@@ -61,9 +61,10 @@ export function workspaceName(org: SessionOrg | undefined, firstName: string | n
 }
 
 export function WorkspaceSwitcher({ className }: { className?: string }) {
-  const { organization, organizations, user } = useSession();
+  const { mode, organization, organizations, user } = useSession();
   // The mock account (seed mode, dev without sessions) isn't a person: keep its org "Personal".
-  const first = user.id === mockSession().user.id ? null : user.firstName;
+  // Only dev mode has a mock to compare with; mockSession() refuses workos mode (todo22 W5).
+  const first = mode === "dev" && user.id === mockSession().user.id ? null : user.firstName;
   const name = workspaceName(organization, first);
   const client = useQueryClient();
   const navigate = useNavigate();

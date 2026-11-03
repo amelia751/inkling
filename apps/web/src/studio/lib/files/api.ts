@@ -20,7 +20,7 @@ import type {
 } from "@studio/contracts/types";
 import { RES } from "@studio/contracts/naming";
 import { personKey } from "@/studio/lib/person-key";
-import { apiUrl } from "@/extension-host/runtime-config";
+import { apiUrl, devStoresAllowed } from "@/extension-host/runtime-config";
 import { api, ApiError, NeedsApiError, projectKeys } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
 import { beginLocalOp, guardNow, loadIsCurrent } from "./guard";
@@ -555,7 +555,8 @@ export function useEmptyTrash(projectId: string) {
 
 /**
  * Star or unstar (`POST|DELETE /source-nodes/:id/star`), optimistic on the cached rows. Without
- * the full stack (501) the star is kept in localStorage instead (pass `node` for that).
+ * the full stack (501) the star is kept in localStorage instead (pass `node` for that), in dev
+ * mode only: a signed-in stage never keeps a star the server didn't (todo22 W5).
  */
 export function useStar(projectId: string) {
   const qc = useQueryClient();
@@ -565,7 +566,7 @@ export function useStar(projectId: string) {
         return await putStar(nodeId, starred);
       } catch (e) {
         const n = node ?? findCachedNode(qc, projectId, nodeId);
-        if (e instanceof NeedsApiError && n) {
+        if (e instanceof NeedsApiError && n && devStoresAllowed()) {
           useLocalStars.getState().set(projectId, n, starred);
           return { starred, local: true };
         }

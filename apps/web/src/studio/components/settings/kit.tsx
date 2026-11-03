@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { CheckIcon, CopyIcon, MoreIcon, SearchIcon } from "@studio/ui/icons";
+import { CheckIcon, CopyIcon, InfoIcon, MoreIcon, SearchIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
 import { DialogContent, DialogDescription, DialogTitle } from "@studio/ui/ui/dialog";
@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@studio/
 import { cn } from "@studio/ui/utils";
 import { AppLayout } from "@/studio/components/layout/app-layout";
 import { ORG, type MemberStatus } from "@/studio/lib/account-mock";
+import { useSessionQuery } from "@/studio/lib/session";
 
 /**
  * Settings pages, measured from the Nebius console (.cursor/ui-inspect/nebius-console.md):
@@ -24,8 +25,11 @@ export function SettingsPage({
   aside,
   children,
   testId,
+  sample,
 }: {
   scope?: "org" | "personal" | { title: string; id?: string };
+  /** The page shows sample data, not this organization's (billing is mocked until todo9 Phase 12). */
+  sample?: boolean;
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
@@ -34,7 +38,9 @@ export function SettingsPage({
   children: ReactNode;
   testId?: string;
 }) {
-  const head = scope === "org" ? { title: `Organization ${ORG.name}`, id: ORG.id } : scope === "personal" ? null : scope;
+  // The organization comes from the session (todo22 W5): the API's in workos mode, the mock in dev.
+  const org = useSessionQuery().data?.organization;
+  const head = scope === "org" ? { title: `Organization ${org?.name ?? ""}`.trim(), id: org?.id } : scope === "personal" ? null : scope;
   return (
     <AppLayout>
       <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-6 px-4 py-5 md:px-6 md:py-6" data-testid={testId}>
@@ -49,7 +55,10 @@ export function SettingsPage({
         ) : null}
         <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
           <div className="min-w-0 max-w-3xl">
-            {head ? <h2 className="text-header-1 font-semibold">{title}</h2> : <h1 className="text-header-2 font-semibold">{title}</h1>}
+            <div className="flex flex-wrap items-center gap-2">
+              {head ? <h2 className="text-header-1 font-semibold">{title}</h2> : <h1 className="text-header-2 font-semibold">{title}</h1>}
+              {sample && <SampleBadge />}
+            </div>
             {description && <p className="mt-1 text-sm leading-5 text-complementary">{description}</p>}
           </div>
           {!filters && actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
@@ -268,11 +277,21 @@ export const invalidProps = (id: string, error: string | null | undefined) => (e
 
 export { NoResults } from "@studio/ui/ui/empty-state";
 
-/** Balance card (230×83) in the top right of billing pages. */
+/** Marks a page or card whose numbers are sample data, not the organization's (billing, todo9 Phase 12). */
+export function SampleBadge() {
+  return (
+    <Badge theme="warning" size="xs" title="Billing isn't connected yet: these numbers are sample data, not your organization's" data-testid="sample-data-badge">
+      <InfoIcon />
+      Sample data
+    </Badge>
+  );
+}
+
+/** Balance card (230×83) in the top right of billing pages. Sample data until billing is connected. */
 export function BalanceCard() {
   return (
     <div className="w-[230px] rounded-xl border border-border px-4 py-3" data-testid="balance-card">
-      <div className="text-sm text-complementary">Account balance</div>
+      <div className="text-sm text-complementary">Account balance (sample)</div>
       <div className="tnum mt-1 text-header-1 font-semibold">${ORG.balance.toFixed(2)}</div>
     </div>
   );

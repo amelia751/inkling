@@ -37,6 +37,7 @@ export function UsagePage() {
   return (
     <SettingsPage
       title="Usage"
+      sample
       testId="billing-usage"
       aside={<BalanceCard />}
       filters={
@@ -66,7 +67,7 @@ const invoiceColumns: Column<InvoiceRow>[] = [
 /** Billing › Invoices (Nebius "Payments"). */
 export function InvoicesPage() {
   return (
-    <SettingsPage title="Invoices" testId="billing-invoices" aside={<BalanceCard />}>
+    <SettingsPage title="Invoices" sample testId="billing-invoices" aside={<BalanceCard />}>
       <DataTable columns={invoiceColumns} rows={INVOICES} rowKey={(i) => i.number} empty={<EmptyState art="billing" title="No invoices yet" description="An invoice is issued at the end of each month you have charges." />} testId="invoices-table" />
     </SettingsPage>
   );
@@ -80,7 +81,7 @@ export function BillingDetailsPage() {
     </Button>
   );
   return (
-    <SettingsPage title="Billing details" testId="billing-details" aside={<BalanceCard />}>
+    <SettingsPage title="Billing details" sample testId="billing-details" aside={<BalanceCard />}>
       <div className="grid gap-4 lg:grid-cols-2">
         <InfoCard title="Payer" rows={BILLING_DETAILS.payer} action={edit} />
         <InfoCard title="Payment details" rows={BILLING_DETAILS.payment} action={edit} />

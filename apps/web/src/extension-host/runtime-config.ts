@@ -15,7 +15,11 @@ export interface RuntimeConfig {
   apiBase: string;
   /** Base of the agent proxy (apps/agent behind `/api/agent` → `/v1`). */
   agentBase: string;
-  /** The kernel serves commands, jobs, plugins and signed asset URLs (else the dev seed server stands in). */
+  /**
+   * The kernel serves commands, jobs, plugins and signed asset URLs (else the dev seed server
+   * stands in). Always true in `workos` mode (todo22 W5): every signed-in stage saves to the
+   * kernel, and the seed server's file store is a dev-only path.
+   */
   kernel: boolean;
   /** Feature flags (extension-host/flags.ts), e.g. `agentPanels`. */
   flags: string[];
@@ -57,14 +61,15 @@ const viteEnv = (): Record<string, unknown> => (import.meta as { env?: Record<st
 function defaults(): RuntimeConfig {
   const env = viteEnv();
   const flags = env[`VITE_${NAMING.envPrefix}FLAGS`];
+  const mode = authMode(env.AUTH_MODE) ?? "dev";
   return {
     apiBase: "/api",
     agentBase: "/api/agent",
-    kernel: env.DEV_API === true,
+    kernel: mode === "workos" || env.DEV_API === true,
     flags: typeof flags === "string" ? splitList(flags) : [],
     displayName: NAMING.displayName,
     sandboxOrigin: "",
-    auth: { mode: authMode(env.AUTH_MODE) ?? "dev" },
+    auth: { mode },
     inspectionStallSeconds: positive(env.INSPECTION_STALL_SECONDS) ?? DEFAULT_INSPECTION_STALL_SECONDS,
   };
 }
@@ -84,14 +89,16 @@ export function applyRuntimeConfig(doc: unknown): RuntimeConfig {
   const base = defaults();
   const d = (doc && typeof doc === "object" ? doc : {}) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const mode = authMode((d.auth as Record<string, unknown> | undefined)?.mode) ?? base.auth.mode;
   current = {
     apiBase: trimSlash(str(d.apiBase) ?? base.apiBase),
     agentBase: trimSlash(str(d.agentBase) ?? base.agentBase),
-    kernel: typeof d.kernel === "boolean" ? d.kernel : base.kernel,
+    // Signed-in stages never fall back to the seed server's stores (`kernel: false` is ignored).
+    kernel: mode === "workos" || (typeof d.kernel === "boolean" ? d.kernel : base.kernel),
     flags: [...new Set([...base.flags, ...(Array.isArray(d.flags) ? d.flags.filter((f): f is string => typeof f === "string") : typeof d.flags === "string" ? splitList(d.flags) : [])])],
     displayName: str(d.displayName) ?? base.displayName,
     sandboxOrigin: trimSlash(str(d.sandboxOrigin) ?? base.sandboxOrigin),
-    auth: { mode: authMode((d.auth as Record<string, unknown> | undefined)?.mode) ?? base.auth.mode },
+    auth: { mode },
     inspectionStallSeconds: positive(d.inspectionStallSeconds) ?? base.inspectionStallSeconds,
   };
   if (current.displayName !== NAMING.displayName) {
@@ -115,6 +122,13 @@ export async function loadRuntimeConfig(url = "/config.json"): Promise<RuntimeCo
   }
   return applyRuntimeConfig(null);
 }
+
+/**
+ * Whether the browser or the Vite seed server may stand in for a kernel store (local stars, the
+ * seed server's annotations and environments). Dev mode only (todo22 W5): in `workos` mode every
+ * save goes to the kernel, and a store that can't answer is an error, never a silent local copy.
+ */
+export const devStoresAllowed = (c: Pick<RuntimeConfig, "auth"> = runtimeConfig()): boolean => c.auth.mode === "dev";
 
 /** `apiUrl("/v1/jobs/1")` → `<apiBase>/v1/jobs/1`. */
 export const apiUrl = (path: string) => `${runtimeConfig().apiBase}${path}`;

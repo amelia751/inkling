@@ -13,8 +13,9 @@ data:
   STUDIO_MCP_STUDIO_URL: http://api
   # The OAuth resource (token audience) and where clients find its metadata: overlays set the host.
   STUDIO_MCP_PUBLIC_URL: http://localhost/mcp
-  # WorkOS AuthKit domain (the authorization server); overlays/gke with components/workos.
-  STUDIO_MCP_AUTH_SERVER: ""
+  # WorkOS AuthKit domain (the authorization server). Placeholder: overlays set the real domain.
+  # Required in production with the http transport (todo22 W1), so it is never empty here.
+  STUDIO_MCP_AUTH_SERVER: https://example.authkit.app
   STUDIO_MCP_RATE_LIMIT_PER_MIN: "120"
   STUDIO_MCP_WRITE_QUOTA_PER_DAY: "5000"
   STUDIO_MCP_REDIS_URL: redis://redis:6379/3

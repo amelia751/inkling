@@ -1,28 +1,25 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { usePersonPref } from "@/studio/lib/person-prefs";
 
 export type Theme = "light" | "dark";
 export type ThemePreference = Theme | "system";
 
+/** The cache key (device-wide, so the first paint before sign-in has the theme); the server key is `theme` (todo22 D3). */
 const STORAGE_KEY = "app-theme";
+const PREF = "theme";
+const PREF_OPTS = { cache: STORAGE_KEY, raw: true };
 const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 const ThemeContext = createContext<
   { preference: ThemePreference; theme: Theme; setPreference: (p: ThemePreference) => void } | undefined
 >(undefined);
 
-function readPreference(): ThemePreference {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "dark" || saved === "system") return saved;
-  } catch {
-    // Storage can be unavailable (private mode).
-  }
-  return "dark";
-}
+const isPreference = (v: unknown): v is ThemePreference => v === "light" || v === "dark" || v === "system";
 
 /** Colors live in styles/globals.css; this only sets the `.light`/`.dark` class and persists the choice. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [preference, setPreference] = useState<ThemePreference>(readPreference);
+  const [saved, setPreference] = usePersonPref<ThemePreference>(PREF, "dark", PREF_OPTS);
+  const preference: ThemePreference = isPreference(saved) ? saved : "dark";
   const [systemDark, setSystemDark] = useState(() => window.matchMedia(DARK_QUERY).matches);
 
   useEffect(() => {
@@ -40,14 +37,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.classList.add(theme);
     root.style.colorScheme = theme;
   }, [theme]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, preference);
-    } catch {
-      // The theme still applies for this session.
-    }
-  }, [preference]);
 
   return <ThemeContext.Provider value={{ preference, theme, setPreference }}>{children}</ThemeContext.Provider>;
 }

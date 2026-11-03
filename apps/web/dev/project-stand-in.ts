@@ -37,7 +37,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  *   GET  /api/v1/samples                              → the manifest's available projects as templates (dev: restricted too)
  *   POST /api/v1/projects/from-sample                 → 501 (copying needs the API)
  *   GET  /api/v1/me/prefs, PUT /api/v1/me/prefs/:key  → per principal, in memory (dev only); local-expert
- *                                                       has `firstRunHintsDismissed` (it isn't a first run)
+ *                                                       has `first-run-hints-dismissed` (it isn't a first run).
+ *                                                       In an e2e server the default person's prefs are kept
+ *                                                       only with an `e2e-prefs-scope` cookie (per scope), so
+ *                                                       one test's theme or layout never leaks into another.
  */
 /** The api's default dev principal, the one member of the Samples org (apps/api `API_SAMPLE_MEMBERS`). */
 const SAMPLE_MEMBER = "user:local-expert";
@@ -146,7 +149,7 @@ interface Model {
   mtime: number;
 }
 
-export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: { resumeDir: string; annotationsDir: string }) {
+export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir, e2e = false }: { resumeDir: string; annotationsDir: string; e2e?: boolean }) {
   const manifestFile = path.join(seedRoot, "manifest.json");
   let model: Model | null = null;
 
@@ -523,12 +526,16 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir }: 
     }
     // todo14 D8: per-person preferences (the api's `user_prefs`).
     if (head === "me" && id === "prefs") {
-      const who = String(req.headers["x-dev-principal"] ?? SAMPLE_MEMBER);
-      const mine = prefs.get(who) ?? (who === SAMPLE_MEMBER ? { firstRunHintsDismissed: true } : {});
+      const person = String(req.headers["x-dev-principal"] ?? SAMPLE_MEMBER);
+      const scope = /(?:^|;\s*)e2e-prefs-scope=([^;]+)/.exec(String(req.headers.cookie ?? ""))?.[1];
+      const keep = !e2e || !!scope || person !== SAMPLE_MEMBER;
+      const who = scope ? `${person}#${scope}` : person;
+      const mine = prefs.get(who) ?? (person === SAMPLE_MEMBER ? { "first-run-hints-dismissed": true } : {});
       if (!sub && req.method === "GET") return send(200, { prefs: mine });
       if (sub && req.method === "PUT") {
         const body = await readJson(req);
-        prefs.set(who, { ...mine, [sub]: body?.value ?? null });
+        if (!/^[a-z][a-z0-9:._-]{0,127}$/.test(sub)) return send(422, { detail: "a preference key matches ^[a-z][a-z0-9:._-]{0,127}$" });
+        if (keep) prefs.set(who, { ...mine, [sub]: body?.value ?? null });
         return send(200, { key: sub, value: body?.value ?? null });
       }
     }

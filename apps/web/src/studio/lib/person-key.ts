@@ -126,6 +126,14 @@ function clearStorage(storage: () => Storage, suffix: string): void {
   }
 }
 
+const forgetters = new Set<() => void>();
+
+/** Run `fn` when `forgetClient` runs (sign-out, organization switch), before the person changes. */
+export function onForgetClient(fn: () => void): () => void {
+  forgetters.add(fn);
+  return () => void forgetters.delete(fn);
+}
+
 /**
  * Clear the current person's browser cache (todo22 D4): every `${RES}-…` localStorage and
  * sessionStorage key namespaced to them. Other people's keys on this browser stay.
@@ -147,5 +155,12 @@ export function forgetClient(client?: QueryClient): void {
   client?.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
   client?.getMutationCache().clear();
   clearKernelTokens();
+  for (const fn of forgetters) {
+    try {
+      fn();
+    } catch (e) {
+      console.warn("[person-key] forget hook failed", e);
+    }
+  }
   clearPersonCache();
 }

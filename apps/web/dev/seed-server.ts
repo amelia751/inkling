@@ -38,7 +38,7 @@ const RES = NAMING.resourcePrefix;
 type ServerApi = typeof import("@/server-entry");
 
 /** `kernel`: the Python kernel serves annotations and workspace state (vite.config.ts proxies /api). */
-export function seedServer(seedRoot: string, { kernel = false, annotationsDir = path.join(seedRoot, ".annotations"), resumeDir = path.join(seedRoot, ".resume") }: { kernel?: boolean; annotationsDir?: string; resumeDir?: string } = {}): Plugin {
+export function seedServer(seedRoot: string, { kernel = false, annotationsDir = path.join(seedRoot, ".annotations"), resumeDir = path.join(seedRoot, ".resume"), e2e = false }: { kernel?: boolean; annotationsDir?: string; resumeDir?: string; e2e?: boolean } = {}): Plugin {
   const environmentsDir = path.join(seedRoot, ".environments");
   const types: Record<string, string> = {
     ".json": "application/json",
@@ -96,7 +96,7 @@ export function seedServer(seedRoot: string, { kernel = false, annotationsDir = 
         return sendJson(res, 200, { workspaceId: m[1], plugins });
       });
 
-      if (!kernel) server.middlewares.use("/api/v1", projectStandIn(seedRoot, { resumeDir, annotationsDir }));
+      if (!kernel) server.middlewares.use("/api/v1", projectStandIn(seedRoot, { resumeDir, annotationsDir, e2e }));
 
       if (!kernel) server.middlewares.use("/api/annotations", (req, res) => {
         const id = (req.url ?? "").replace(/^\//, "").split("?")[0];

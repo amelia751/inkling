@@ -187,7 +187,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir }),
+    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir, e2e }),
     schemaFiles,
     sandboxProxy,
     // index.html takes the display name from the naming config.

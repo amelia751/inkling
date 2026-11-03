@@ -1,33 +1,28 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
 import { personKey } from "@/studio/lib/person-key";
+import { personPrefs, prefSegment } from "@/studio/lib/person-prefs";
 import type { QueueFilter } from "@/studio/lib/item-folders";
 
 /**
  * The Items panel's view state (todo8 D3), outside `useStudio` (whose fields are a test
- * contract): Folders or Queue, remembered per task in this browser (a per-person
- * convenience, so localStorage, guarded), the Queue's status chip, and the folder the status
- * bar's path narrowed the list to.
+ * contract): Folders or Queue, remembered per task and person on the server (todo22 D3, pref
+ * `items-view:<task>`, the old localStorage key as cache), the Queue's status chip, and the folder
+ * the status bar's path narrowed the list to.
  */
 export type ItemsView = "folders" | "queue";
 
-const key = (taskId: string) => personKey(`${RES}-items-view-${taskId}`);
+const pref = (taskId: string) => ({ key: `items-view:${prefSegment(taskId)}`, opts: { cache: () => personKey(`${RES}-items-view-${taskId}`), raw: true } });
 
 export function readView(taskId: string): ItemsView | null {
-  try {
-    const v = localStorage.getItem(key(taskId));
-    return v === "folders" || v === "queue" ? v : null;
-  } catch {
-    return null;
-  }
+  const p = pref(taskId);
+  const v = personPrefs.get<unknown>(p.key, null, p.opts);
+  return v === "folders" || v === "queue" ? v : null;
 }
 
 function writeView(taskId: string, view: ItemsView) {
-  try {
-    localStorage.setItem(key(taskId), view);
-  } catch {
-    /* storage blocked: the choice lasts for this page */
-  }
+  const p = pref(taskId);
+  personPrefs.set(p.key, view, p.opts);
 }
 
 interface ItemsViewState {

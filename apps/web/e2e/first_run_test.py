@@ -212,7 +212,7 @@ def main() -> int:
 
         # ---- D8: the drawer's empty conversation shows the three todo13 examples, until dismissed ------
         puts: list[tuple[str, str | None]] = []
-        page.on("request", lambda r: r.method == "PUT" and "/api/v1/me/prefs/" in r.url and puts.append((r.url.rsplit("/", 1)[-1], r.post_data)))
+        page.on("request", lambda r: r.method == "PUT" and "/api/v1/me/prefs/first-run" in r.url and puts.append((r.url.rsplit("/", 1)[-1], r.post_data)))
         # No agent service in seed mode: say one is configured (nothing is sent to it), so the
         # drawer shows its empty conversation (todo15 D2: no consent wall, an inline notice).
         page.route("**/api/agent/status", json_route({"configured": True, "provider": "scripted", "model": None, "sandbox": "off", "profiles": ["assistant"]}))
@@ -229,7 +229,7 @@ def main() -> int:
         shot(page, "first-run-drawer-hints")
         page.locator("[data-testid=first-run-hints-dismiss]").click()
         page.wait_for_selector("[data-testid=first-run-hints]", state="detached", timeout=5000)
-        check("dismissing stores it server-side (PUT /v1/me/prefs/firstRunHintsDismissed)", puts == [("firstRunHintsDismissed", '{"value":true}')], str(puts))
+        check("dismissing stores it server-side (PUT /v1/me/prefs/first-run-hints-dismissed)", puts == [("first-run-hints-dismissed", '{"value":true}')], str(puts))
         check("…and the drawer falls back to its usual prompts", page.locator("[data-testid=agent-empty] li").count() == 4)
         page.reload()
         page.wait_for_selector("[data-testid=agent-empty]", timeout=20000)

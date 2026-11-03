@@ -1,15 +1,17 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
-import { onPersonChange, personKey } from "@/studio/lib/person-key";
+import { personKey } from "@/studio/lib/person-key";
+import { personPrefs } from "@/studio/lib/person-prefs";
 
 /**
  * Toolbar and shortcuts-sheet preferences (todo8 D4, D6): the last tool used in each folded
  * tool group, per environment; whether the shortcuts sheet has been opened once (the
  * status bar's `? Shortcuts` hint shows until then); and the decision bar's "Advance after
- * choosing" (todo8 D5, on by default). Per-viewer conveniences, so
- * localStorage, guarded; never in `useStudio`, whose fields are a test contract.
+ * choosing" (todo8 D5, on by default). Per person on the server (todo22 D3, pref `tool-prefs`),
+ * the old localStorage key as cache; never in `useStudio`, whose fields are a test contract.
  */
-const KEY = () => personKey(`${RES}-tool-prefs`);
+const PREF = "tool-prefs";
+const OPTS = { cache: () => personKey(`${RES}-tool-prefs`) };
 
 interface Prefs {
   /** envId → tool group → tool name. */
@@ -27,22 +29,12 @@ interface ToolPrefs extends Prefs {
 }
 
 function read(): Prefs {
-  try {
-    const raw = localStorage.getItem(KEY());
-    const v = raw ? (JSON.parse(raw) as Partial<Prefs>) : {};
-    return { lastUsed: v.lastUsed && typeof v.lastUsed === "object" ? v.lastUsed : {}, shortcutsSeen: v.shortcutsSeen === true, advance: v.advance !== false };
-  } catch {
-    return { lastUsed: {}, shortcutsSeen: false, advance: true };
-  }
+  const raw = personPrefs.get<unknown>(PREF, {}, OPTS);
+  const v = (raw && typeof raw === "object" ? raw : {}) as Partial<Prefs>;
+  return { lastUsed: v.lastUsed && typeof v.lastUsed === "object" ? v.lastUsed : {}, shortcutsSeen: v.shortcutsSeen === true, advance: v.advance !== false };
 }
 
-function write(p: Prefs) {
-  try {
-    localStorage.setItem(KEY(), JSON.stringify(p));
-  } catch {
-    /* storage blocked: keep the in-memory value */
-  }
-}
+const write = (p: Prefs) => personPrefs.set(PREF, p, OPTS);
 
 export const useToolPrefs = create<ToolPrefs>((set, get) => {
   const update = (patch: Partial<Prefs>) => {
@@ -68,5 +60,5 @@ export function rememberTool(envId: string, tool: { name: string; group: string 
   useToolPrefs.getState().remember(envId, tool.group, tool.name);
 }
 
-// Another person (or organization) signed in: their own preferences (todo15 D1).
-onPersonChange(() => useToolPrefs.setState(read()));
+// Another person (or organization) signed in, or the server's values arrived (todo15 D1, todo22 D3).
+personPrefs.subscribe(() => useToolPrefs.setState(read()));

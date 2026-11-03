@@ -6,9 +6,11 @@ import { LEGAL_PATHS } from "@/studio/app/routes/legal";
 /**
  * todo15 D2: no consent wall. The first send is the acknowledgement; one line under the Home
  * composer and the empty chat says what the model receives, and the first send stores
- * `aiNoticeSeen` in the person's prefs (server-side, fire-and-forget).
+ * `ai-notice-seen` in the person's prefs (server-side, fire-and-forget).
  */
-export const AI_NOTICE_SEEN = "aiNoticeSeen";
+/** todo22 D8 key (`aiNoticeSeen` before; still read). */
+export const AI_NOTICE_SEEN = "ai-notice-seen";
+const AI_NOTICE_SEEN_LEGACY = "aiNoticeSeen";
 
 /** The organization turned the assistant off (`aiAssist`, org settings). Unknown counts as on. */
 export function useAiAssistOff(): boolean {
@@ -21,7 +23,7 @@ export function useAckAiNotice(): () => void {
   const prefs = usePrefs();
   const set = useSetPref();
   return () => {
-    if (prefs.data?.[AI_NOTICE_SEEN] === true) return;
+    if (prefs.data?.[AI_NOTICE_SEEN] === true || prefs.data?.[AI_NOTICE_SEEN_LEGACY] === true) return;
     set.mutate({ key: AI_NOTICE_SEEN, value: true }, { onError: () => undefined });
   };
 }

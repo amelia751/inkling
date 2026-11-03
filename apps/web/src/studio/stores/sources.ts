@@ -1,13 +1,15 @@
 import { create } from "zustand";
 import { RES } from "@studio/contracts/naming";
-import { onPersonChange, personKey } from "@/studio/lib/person-key";
+import { personKey } from "@/studio/lib/person-key";
+import { personPrefs } from "@/studio/lib/person-prefs";
 
 /**
  * Sources browser preferences (todo6 Phase 4): the inspector's open state and the list or
  * grid view, remembered per folder *kind* ("mostly images"), never per path (paths may hold
- * identifiers). Per-viewer conveniences, so localStorage, guarded.
+ * identifiers). Per person on the server (todo22 D3, pref `sources`), the old localStorage key as cache.
  */
-const KEY = () => personKey(`${RES}-sources`);
+const PREF = "sources";
+const OPTS = { cache: () => personKey(`${RES}-sources`) };
 
 export type SourcesView = "list" | "grid";
 
@@ -22,22 +24,12 @@ interface SourcesPrefs extends Prefs {
 }
 
 function read(): Prefs {
-  try {
-    const raw = localStorage.getItem(KEY());
-    const v = raw ? (JSON.parse(raw) as Partial<Prefs>) : {};
-    return { inspector: v.inspector ?? true, views: v.views && typeof v.views === "object" ? v.views : {} };
-  } catch {
-    return { inspector: true, views: {} };
-  }
+  const raw = personPrefs.get<unknown>(PREF, {}, OPTS);
+  const v = (raw && typeof raw === "object" ? raw : {}) as Partial<Prefs>;
+  return { inspector: v.inspector ?? true, views: v.views && typeof v.views === "object" ? v.views : {} };
 }
 
-function write(p: Prefs) {
-  try {
-    localStorage.setItem(KEY(), JSON.stringify(p));
-  } catch {
-    /* storage blocked: keep the in-memory value */
-  }
-}
+const write = (p: Prefs) => personPrefs.set(PREF, p, OPTS);
 
 export const useSourcesPrefs = create<SourcesPrefs>((set, get) => ({
   ...read(),
@@ -57,5 +49,5 @@ export function defaultView(folderKind: string): SourcesView {
   return folderKind === "image" || folderKind === "dicom" || folderKind === "slide" ? "grid" : "list";
 }
 
-// Another person (or organization) signed in: their own preferences (todo15 D1).
-onPersonChange(() => useSourcesPrefs.setState(read()));
+// Another person (or organization) signed in, or the server's values arrived (todo15 D1, todo22 D3).
+personPrefs.subscribe(() => useSourcesPrefs.setState(read()));

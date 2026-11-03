@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FsShortcut, SourceNode } from "@studio/contracts/types";
 import { RES } from "@studio/contracts/naming";
 import { personKey } from "@/studio/lib/person-key";
+import { usePersonPref } from "@/studio/lib/person-prefs";
 import { ChevronDownIcon, ChevronRightIcon, DeleteIcon, ImportedIcon, QueueIcon } from "@studio/ui/icons";
 import { cn } from "@studio/ui/utils";
 import { nodeIcon } from "@/studio/lib/file-kinds";
@@ -39,35 +40,16 @@ export interface TreeFooterProps {
 }
 
 const MAX_ROWS = 8;
-const KEY = () => personKey(`${RES}-files-footer`);
+/** Which sections are open, per person on the server (todo22 D3, pref `files-footer`; the old localStorage key is the cache). */
+const PREF = "files-footer";
+const PREF_OPTS = { cache: () => personKey(`${RES}-files-footer`) };
 type Open = { starred: boolean; recent: boolean };
-
-function readOpen(): Open {
-  try {
-    const raw = localStorage.getItem(KEY());
-    if (raw) return { starred: true, recent: true, ...(JSON.parse(raw) as Partial<Open>) };
-  } catch {
-    // Private window or blocked storage: open by default.
-  }
-  return { starred: true, recent: true };
-}
-
-function writeOpen(o: Open) {
-  try {
-    localStorage.setItem(KEY(), JSON.stringify(o));
-  } catch {
-    // Not remembered; nothing else depends on it.
-  }
-}
+const DEFAULT_OPEN: Open = { starred: true, recent: true };
 
 export function TreeFooter({ starred, recent, onReveal, trashCount, onOpenTrash, trashActive, onOpenImports, importsCount, importsActive, onOpenPipelines, onDropOnNode, acceptsDrop, dropAttrs, dropHighlightId }: TreeFooterProps) {
-  const [open, setOpen] = useState<Open>(readOpen);
-  const toggle = (k: keyof Open) =>
-    setOpen((o) => {
-      const n = { ...o, [k]: !o[k] };
-      writeOpen(n);
-      return n;
-    });
+  const [saved, setOpen] = usePersonPref<Partial<Open>>(PREF, DEFAULT_OPEN, PREF_OPTS);
+  const open: Open = { ...DEFAULT_OPEN, ...saved };
+  const toggle = (k: keyof Open) => setOpen({ ...open, [k]: !open[k] });
   return (
     <div className="shrink-0 border-t border-border px-2 pb-2 pt-1" data-testid="tree-footer">
       {starred.length > 0 && (

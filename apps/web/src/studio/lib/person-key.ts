@@ -127,17 +127,25 @@ function clearStorage(storage: () => Storage, suffix: string): void {
 }
 
 /**
+ * Clear the current person's browser cache (todo22 D4): every `${RES}-…` localStorage and
+ * sessionStorage key namespaced to them. Other people's keys on this browser stay.
+ */
+export function clearPersonCache(): void {
+  const suffix = personSuffix();
+  clearStorage(() => localStorage, suffix);
+  clearStorage(() => sessionStorage, suffix);
+}
+
+/**
  * Forget what this browser holds for the current person: every cached query, the agent's kernel
  * tokens and status, and their `${RES}-…` local and session storage. Call it on sign-out and before
  * an organization switch navigates away.
  */
 export function forgetClient(client?: QueryClient): void {
-  const suffix = personSuffix();
   client?.removeQueries({ queryKey: ["agent-status"] });
   // Everything but the session itself: SessionGate keeps rendering until the page navigates away.
   client?.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
   client?.getMutationCache().clear();
   clearKernelTokens();
-  clearStorage(() => localStorage, suffix);
-  clearStorage(() => sessionStorage, suffix);
+  clearPersonCache();
 }

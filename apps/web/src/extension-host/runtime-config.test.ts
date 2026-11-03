@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiUrl, applyRuntimeConfig, loadRuntimeConfig, runtimeConfig } from "./runtime-config";
+import { apiUrl, applyRuntimeConfig, devStoresAllowed, loadRuntimeConfig, runtimeConfig } from "./runtime-config";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -23,6 +23,15 @@ describe("runtime config", () => {
     expect(applyRuntimeConfig({ auth: { mode: "workos" } }).auth.mode).toBe("workos");
     expect(applyRuntimeConfig({ auth: { mode: "magic" } }).auth.mode).toBe("dev");
     expect(applyRuntimeConfig({ auth: "workos" }).auth.mode).toBe("dev");
+  });
+
+  it("always saves to the kernel in workos mode (todo22 W5): no seed-server fallback", () => {
+    expect(applyRuntimeConfig({ auth: { mode: "workos" } }).kernel).toBe(true);
+    expect(applyRuntimeConfig({ auth: { mode: "workos" }, kernel: false }).kernel).toBe(true);
+    expect(applyRuntimeConfig({ auth: { mode: "dev" }, kernel: false }).kernel).toBe(false);
+    expect(devStoresAllowed()).toBe(true);
+    applyRuntimeConfig({ auth: { mode: "workos" } });
+    expect(devStoresAllowed()).toBe(false);
   });
 
   it("falls back to defaults when /config.json is missing or HTML (dev server fallback)", async () => {

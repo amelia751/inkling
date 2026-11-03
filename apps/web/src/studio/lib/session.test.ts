@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
+import { RES } from "@studio/contracts/naming";
 import { apiFetch } from "@/extension-host/http";
 import { applyRuntimeConfig } from "@/extension-host/runtime-config";
 import { ACCOUNT, ORG } from "@/studio/lib/account-mock";
 import { useStudio } from "@/studio/stores/studio";
-import { browser, can, fetchSession, installSessionHandlers, loginUrl, mockSession, onBeforeSignIn, PERMISSIONS, resetForOrg, sessionCaches, sessionKey, signInAgain, SignedOutError, switchOrg, useSignIn, type Session } from "./session";
+import { browser, can, fetchSession, logout, installSessionHandlers, loginUrl, mockSession, onBeforeSignIn, PERMISSIONS, resetForOrg, sessionCaches, sessionKey, signInAgain, SignedOutError, switchOrg, useSignIn, type Session } from "./session";
 import { stashUnsaved, takeUnsaved } from "./unsaved";
 
 const SESSION: Session = {
@@ -71,6 +72,45 @@ describe("session", () => {
     expect(can(SESSION, "members:manage")).toBe(false);
     expect(can(undefined, "project:create")).toBe(false);
     expect(PERMISSIONS.every((p) => can(mockSession(), p))).toBe(true);
+  });
+});
+
+describe("workos mode never reads the mock account (todo22 W5)", () => {
+  beforeEach(() => applyRuntimeConfig({ auth: { mode: "workos" } }));
+
+  it("account and organization fields come from the API session, even without a kernel flag", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(SESSION));
+    const s = await fetchSession();
+    expect(String(fetchMock.mock.calls[0][0])).toBe("/api/auth/session");
+    expect(s).toEqual(SESSION);
+    expect(s.user.email).not.toBe(ACCOUNT.email);
+    expect(s.organization?.id).not.toBe(ORG.id);
+  });
+
+  it("an API that can't answer is an error, never the mock account", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("<!doctype html>", { status: 200, headers: { "content-type": "text/html" } }));
+    await expect(fetchSession()).rejects.toThrow(/Couldn't load your session/);
+    fetchMock.mockResolvedValueOnce(new Response("nope", { status: 404 }));
+    await expect(fetchSession()).rejects.toThrow(/Couldn't load your session/);
+    fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+    await expect(fetchSession()).rejects.toThrow("offline");
+    expect(() => mockSession()).toThrow(/workos/);
+  });
+
+  it("sign-out clears the person's browser cache and keeps other people's", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(SESSION));
+    await fetchSession();
+    const mine = `${RES}-shell:user:user_01:org_a`;
+    const theirs = `${RES}-shell:user:user_02:org_a`;
+    localStorage.setItem(mine, "{}");
+    localStorage.setItem(theirs, "{}");
+    sessionStorage.setItem(`${RES}-timeline:user:user_01:org_a`, "1");
+    fetchMock.mockResolvedValueOnce(Response.json({ url: "https://auth.example/logout" }));
+    expect(await logout(new QueryClient())).toBe("https://auth.example/logout");
+    expect(localStorage.getItem(mine)).toBeNull();
+    expect(sessionStorage.getItem(`${RES}-timeline:user:user_01:org_a`)).toBeNull();
+    expect(localStorage.getItem(theirs)).toBe("{}");
+    localStorage.removeItem(theirs);
   });
 });
 

@@ -8,6 +8,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { viteCommonjs } from "@originjs/vite-plugin-commonjs";
 import { seedServer } from "./dev/seed-server";
 import { isAgentInternal } from "./dev/agent-internal";
+import { checkDevStores } from "./dev/stores-guard";
 import { aliases, REPO_ROOT } from "./aliases";
 // The config is bundled by esbuild before aliases exist and can't import workspace TS, so it
 // reads the emitted copy of packages/contracts/src/naming.ts.
@@ -82,7 +83,8 @@ function forwardDevPrincipal(proxyReq: { path: string; getHeader(n: string): unk
  * mode the service token is sent in both headers, so an agent of either version accepts it.
  */
 const agentAuthMode = env("WEB_AUTH_MODE") === "workos" ? "workos" : "dev";
-if (agentAuthMode === "workos" && !kernelUrl) throw new Error(`${NAMING.envPrefix}WEB_AUTH_MODE=workos needs ${NAMING.envPrefix}API_URL (the API answers /api/auth/verify)`);
+// workos mode saves only to the kernel (todo22 W5): it needs the API and refuses the dev file stores.
+checkDevStores({ envPrefix: NAMING.envPrefix, authMode: agentAuthMode, apiUrl: kernelUrl, annotationsDir: env("WEB_ANNOTATIONS_DIR") });
 const AGENT_SERVICE_TOKEN_HEADER = "x-agent-service-token";
 async function verifyForAgent(req: http.IncomingMessage, res: http.ServerResponse): Promise<string | undefined> {
   if (agentAuthMode !== "workos") return undefined;

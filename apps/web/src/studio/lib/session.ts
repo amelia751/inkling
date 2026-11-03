@@ -23,8 +23,13 @@ export type Permission = OrgPermission;
 
 export const sessionKey = ["auth", "session"] as const;
 
-/** The mock account (account-mock.ts) as a session: an admin of one personal organization. */
+/**
+ * The mock account (account-mock.ts) as a session: an admin of one personal organization. Dev
+ * mode only (todo22 W5): in `workos` mode every account and organization field comes from the
+ * API's session, so asking for the mock there is a bug, not a fallback.
+ */
 export function mockSession(): Session {
+  if (runtimeConfig().auth.mode === "workos") throw new Error("mockSession() in workos mode: the session comes from /api/auth/session");
   const org: SessionOrg = { id: ORG.id, workosOrgId: null, name: ORG.name };
   return {
     mode: "dev",
@@ -171,7 +176,9 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 /** `POST /api/auth/logout` → the WorkOS logout URL to go to (the cookie is already cleared). */
 export async function logout(client?: QueryClient): Promise<string> {
   const { url } = await post<{ url?: string }>("/auth/logout");
-  // Forget what this browser holds for them (todo15 D1) before leaving.
+  // Forget what this browser holds for them (todo15 D1, todo22 D4) before leaving: queries, kernel
+  // tokens and every `${RES}-…` key namespaced to them (`clearPersonCache`). A failed logout keeps
+  // it: they're still signed in.
   forgetClient(client);
   setPersonSession(null);
   return url || "/";

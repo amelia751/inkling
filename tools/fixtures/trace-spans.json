@@ -1,0 +1,26 @@
+[
+  {
+    "projectId": "spurby-ai",
+    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "spans": [
+      { "spanId": "100", "name": "invoke_agent studio.assistant", "startTime": "2026-11-04T10:00:00.000Z", "endTime": "2026-11-04T10:00:05.000Z",
+        "labels": { "service.name": "studio-agent", "studio.run.id": "run_1", "gen_ai.request.model": "vertex:gemini-2.5-flash" } },
+      { "spanId": "101", "parentSpanId": "100", "name": "chat gemini-2.5-flash", "startTime": "2026-11-04T10:00:00.100Z", "endTime": "2026-11-04T10:00:01.300Z",
+        "labels": { "service.name": "studio-agent", "gen_ai.operation.name": "chat", "gen_ai.response.model": "gemini-2.5-flash", "gen_ai.usage.input_tokens": "1200", "gen_ai.usage.output_tokens": "80", "studio.cost_usd": "0.0012" } },
+      { "spanId": "102", "parentSpanId": "100", "name": "execute_tool list_items", "startTime": "2026-11-04T10:00:01.400Z", "endTime": "2026-11-04T10:00:02.000Z",
+        "labels": { "service.name": "studio-agent", "gen_ai.tool.name": "list_items" } },
+      { "spanId": "103", "parentSpanId": "100", "name": "chat gemini-2.5-flash", "startTime": "2026-11-04T10:00:02.100Z", "endTime": "2026-11-04T10:00:04.900Z",
+        "labels": { "service.name": "studio-agent", "gen_ai.operation.name": "chat", "gen_ai.response.model": "gemini-2.5-flash", "gen_ai.usage.input_tokens": "1500", "gen_ai.usage.output_tokens": "40", "studio.cost_usd": "0.0015", "error.type": "rate_limited" } }
+    ]
+  },
+  {
+    "projectId": "spurby-phi",
+    "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+    "spans": [
+      { "spanId": "200", "parentSpanId": "102", "name": "GET /api/v1/items", "startTime": "2026-11-04T10:00:01.450Z", "endTime": "2026-11-04T10:00:01.950Z",
+        "labels": { "service.name": "studio-api", "http.response.status_code": "200" } },
+      { "spanId": "201", "parentSpanId": "200", "name": "SELECT items", "startTime": "2026-11-04T10:00:01.500Z", "endTime": "2026-11-04T10:00:01.520Z",
+        "labels": { "service.name": "studio-api" } }
+    ]
+  }
+]

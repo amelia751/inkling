@@ -25,6 +25,20 @@ locals {
     "run-agent-database-url",         # postgres://agent:…@<sql_private_ip>/agent?sslmode=require
   ], var.agent_sandbox == "daytona" ? ["run-daytona-api-key"] : [], local.muse ? ["run-agent-muse-api-key"] : []))
   muse = startswith(var.agent_model, "muse:")
+  # todo27 W4 (D4, D5): tracing on, exported to Cloud Trace in this project as studio-agent;
+  # parent-based, so a sampled run is sampled whole and its trace id rides into spurby-phi.
+  otel_env = {
+    OTEL_TRACES_EXPORTER    = "gcp"
+    OTEL_TRACES_SAMPLER     = "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG = tostring(var.trace_sample_ratio)
+  }
+}
+
+# Spans to Cloud Trace (todo27 W4). Write-only.
+resource "google_project_iam_member" "agent_cloudtrace" {
+  project = var.project
+  role    = "roles/cloudtrace.agent"
+  member  = "serviceAccount:${google_service_account.app["agent"].email}"
 }
 
 resource "google_secret_manager_secret" "run" {
@@ -73,6 +87,14 @@ resource "google_cloud_run_v2_service" "agent" {
     }
     containers {
       image = local.agent_image
+      # todo27 W4: traces to Cloud Trace (local.otel_env); spans carry no content (D3).
+      dynamic "env" {
+        for_each = merge(local.otel_env, { OTEL_SERVICE_NAME = "studio-agent" })
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
       ports {
         container_port = 8100
       }

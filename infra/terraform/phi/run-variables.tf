@@ -83,3 +83,13 @@ variable "worker_memory" {
   type        = string
   default     = "8Gi"
 }
+
+variable "trace_sample_ratio" {
+  description = "Share of traces kept (OTEL_TRACES_SAMPLER_ARG, parentbased_traceidratio; todo27 D5). 1.0 on staging; 0.1 in production."
+  type        = number
+  default     = 1.0
+  validation {
+    condition     = var.trace_sample_ratio >= 0 && var.trace_sample_ratio <= 1
+    error_message = "trace_sample_ratio is between 0 and 1."
+  }
+}

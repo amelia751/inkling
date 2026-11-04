@@ -173,6 +173,8 @@ export interface OrgSettings {
   createdAt: string;
   zeroRetention: boolean;
   aiAssist: boolean;
+  /** Hosted models (e.g. SAM 3.1) may run on the Studio's own provider key; usage is billed to this org. */
+  managedProviderKeys?: boolean;
   domains: VerifiedDomain[];
 }
 

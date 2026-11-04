@@ -58,7 +58,7 @@ const enc = encodeURIComponent;
 // ---- Fetchers ------------------------------------------------------------------------------------
 
 export const fetchOrgSettings = () => api<OrgSettings>("/org");
-export const patchOrgSettings = (body: Partial<Pick<OrgSettings, "name" | "zeroRetention" | "aiAssist">>) => api<OrgSettings>("/org", { method: "PATCH", json: body });
+export const patchOrgSettings = (body: Partial<Pick<OrgSettings, "name" | "zeroRetention" | "aiAssist" | "managedProviderKeys">>) => api<OrgSettings>("/org", { method: "PATCH", json: body });
 
 export const fetchMembers = () => api<{ members: OrgMember[] }>("/org/members").then((r) => r.members);
 export const patchMember = (membershipId: string, role: string) => api<OrgMember>(`/org/members/${enc(membershipId)}`, { method: "PATCH", json: { role } });

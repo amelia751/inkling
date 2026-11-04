@@ -517,19 +517,26 @@ export function OrgSettingsPage() {
   const [name, setName] = useState("");
   const [zdr, setZdr] = useState(false);
   const [ai, setAi] = useState(false);
+  const [keys, setKeys] = useState(false);
   // The form starts from the saved settings, and again after each save.
   useEffect(() => {
     if (!org) return;
     setName(org.name);
     setZdr(org.zeroRetention);
     setAi(org.aiAssist);
+    setKeys(!!org.managedProviderKeys);
   }, [org]);
   const nameError = org && !name.trim() ? "Enter a name" : null;
-  const dirty = !!org && (name !== org.name || zdr !== org.zeroRetention || ai !== org.aiAssist);
+  const dirty = !!org && (name !== org.name || zdr !== org.zeroRetention || ai !== org.aiAssist || keys !== !!org.managedProviderKeys);
   const editable = !!org && canManage;
   const save = () => {
     if (!org) return;
-    const body = { ...(name !== org.name ? { name: name.trim() } : {}), ...(zdr !== org.zeroRetention ? { zeroRetention: zdr } : {}), ...(ai !== org.aiAssist ? { aiAssist: ai } : {}) };
+    const body = {
+      ...(name !== org.name ? { name: name.trim() } : {}),
+      ...(zdr !== org.zeroRetention ? { zeroRetention: zdr } : {}),
+      ...(ai !== org.aiAssist ? { aiAssist: ai } : {}),
+      ...(keys !== !!org.managedProviderKeys ? { managedProviderKeys: keys } : {}),
+    };
     patch.mutate(body, { onSuccess: () => toastDone("Organization settings saved"), onError: toastError });
   };
   return (
@@ -554,6 +561,13 @@ export function OrgSettingsPage() {
           <span>
             Allow AI suggestions
             <span className="mt-0.5 block leading-5 text-muted-foreground">Members can ask for AI contours and labels. Every suggestion is marked and needs a person to accept it.</span>
+          </span>
+        </label>
+        <label className="flex items-start gap-2.5 text-sm">
+          <Checkbox className="mt-0.5" checked={keys} disabled={!editable} onCheckedChange={(v) => setKeys(v === true)} data-testid="managed-provider-keys" />
+          <span>
+            Use the Studio's model keys
+            <span className="mt-0.5 block leading-5 text-muted-foreground">Hosted models such as SAM 3.1 run without your own API key. Images go to the model's provider, and usage is billed to this organization.</span>
           </span>
         </label>
         <Field label="Trash">

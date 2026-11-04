@@ -8,7 +8,8 @@ import (
 	"os"
 	"strings"
 
-	cloudtrace "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
+	// Deprecated upstream (archived after 2027-01-01); move gcp to OTLP before then (todo27).
+	cloudtrace "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace" //nolint:staticcheck // SA1019, see above
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
@@ -26,6 +27,7 @@ func Logger() *slog.Logger {
 // Exporter is which span exporter tracing uses, or "" when tracing is off.
 type Exporter string
 
+// The exporters ExporterFor can pick; ExporterOff means tracing is off.
 const (
 	ExporterOff     Exporter = ""
 	ExporterConsole Exporter = "console"
@@ -64,7 +66,7 @@ func Tracing(ctx context.Context) (func(context.Context) error, error) {
 	case ExporterConsole:
 		exp, err = stdouttrace.New()
 	case ExporterGCP:
-		exp, err = cloudtrace.New()
+		exp, err = cloudtrace.New() //nolint:staticcheck // SA1019: deprecated exporter, see the import
 	default:
 		exp, err = otlptracehttp.New(ctx)
 	}

@@ -75,7 +75,7 @@ export interface CreateDropRequest {
  * Studio), `kept` (stays in Files: documents, tables, unknown kinds), `failed`, `duplicate`
  * ("Already in Files"), `removed` (taken out of the chat), `deleted` (the File is gone).
  */
-export type DropFileState = "uploading" | "checking" | "ready" | "kept" | "failed" | "duplicate" | "removed" | "deleted";
+export type DropFileState = "uploading" | "checking" | "ready" | "in_studio" | "waiting_kind" | "held" | "kept" | "failed" | "duplicate" | "removed" | "deleted";
 
 /** A file of a drop as a person sees it (names included: never sent to the agent). */
 export interface DropFile {
@@ -186,7 +186,7 @@ export interface DropFailedEvent {
   errorClass: string;
 }
 
-export const DROP_EVENTS = ["drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed"] as const;
+export const DROP_EVENTS = ["drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed", "drop.kind_waiting", "drop.files_failed", "drop.settled"] as const;
 export type DropEventType = (typeof DROP_EVENTS)[number];
 
 /** The `drop` part of a chat message (agent protocol): ids and screened names only. */

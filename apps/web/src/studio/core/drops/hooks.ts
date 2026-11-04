@@ -19,7 +19,7 @@ export const dropKeys = {
   enabled: (projectId: string) => ["drops", "enabled", projectId] as const,
 };
 
-const SETTLED: FileState[] = ["ready", "in_studio", "kept", "failed", "duplicate", "removed", "deleted"];
+const SETTLED: FileState[] = ["ready", "in_studio", "held", "kept", "failed", "duplicate", "removed", "deleted"];
 
 /** Without events (stream down), a moving drop is polled this often; with them, only as a safety net. */
 export const POLL_MS = 2000;

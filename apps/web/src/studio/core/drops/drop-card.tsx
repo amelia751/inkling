@@ -38,6 +38,7 @@ const STATE_TEXT: Record<ChipState, string> = {
   in_studio: "In the Studio",
   waiting_kind: "Waiting for the assistant",
   kept: "Kept in Sources",
+  held: "Held for a privacy check",
   failed: "Didn't upload",
   duplicate: "Already in Sources",
   removed: "Removed from chat",

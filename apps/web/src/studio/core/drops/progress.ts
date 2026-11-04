@@ -72,6 +72,7 @@ export function dropCounts(chips: { state: ChipState; kind?: string | null }[], 
         break;
       }
       case "kept":
+      case "held": // a privacy hold keeps the file in Sources until a person clears it
         c.kept++;
         break;
       case "duplicate":

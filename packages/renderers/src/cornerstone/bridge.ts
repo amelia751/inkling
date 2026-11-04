@@ -246,6 +246,32 @@ export class CornerstoneBridge {
 
   constructor(private o: BridgeOptions) {
     this.labels = labelNames(o.project.labels);
+    for (const l of this.maskLabelsNotInStudio()) this.labels.push(l);
+  }
+
+  /** Masks can carry labels the Studio doesn't list (a recipe's "right lung"); they get segments after its own. */
+  private maskLabelsNotInStudio(): string[] {
+    const out: string[] = [];
+    for (const a of useHost.getState().annotations) {
+      if (a.itemId === this.o.itemId && a.geometry.type === "mask" && !this.labels.includes(a.label) && !out.includes(a.label)) out.push(a.label);
+    }
+    return out;
+  }
+
+  private addMaskLabels() {
+    const lm = this.o.labelmap;
+    if (!lm) return;
+    for (const label of this.maskLabelsNotInStudio()) {
+      this.labels.push(label);
+      const color = [...labelRgb(this.labels, label), 255] as Types.Color;
+      for (const vp of this.o.viewportIds()) {
+        try {
+          tools.segmentation.config.color.setSegmentIndexColor(vp, lm.segmentationId, this.labels.length, color);
+        } catch {
+          /* viewport without this representation */
+        }
+      }
+    }
   }
 
   start() {
@@ -525,6 +551,7 @@ export class CornerstoneBridge {
   reconcileMasks(force = false) {
     const lm = this.o.labelmap;
     if (!lm) return;
+    this.addMaskLabels();
     const changed: { label: string; mask?: Annotation }[] = [];
     for (const label of this.labels) {
       const mask = this.maskFor(label);

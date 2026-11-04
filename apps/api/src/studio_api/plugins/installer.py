@@ -62,9 +62,17 @@ def _seed_workspace(workspace_id: str) -> dict | None:
 
 
 def bootstrap(db: Session, ctx: RequestContext) -> None:
-    """A new workspace starts with the first-party UI plugins (or seed-data/<ws>/workspace.json's list)."""
-    if installations(db, ctx.workspace_id):
-        return
+    """A new workspace starts with the first-party UI plugins (or seed-data/<ws>/workspace.json's list),
+    and every workspace has the default plugins (`defaults.ensure`)."""
+    from . import defaults
+
+    if not installations(db, ctx.workspace_id):
+        _pin_first_party(db, ctx)
+    if ctx.principal != defaults.PRINCIPAL:
+        defaults.ensure(db, ctx.workspace_id)
+
+
+def _pin_first_party(db: Session, ctx: RequestContext) -> None:
     wanted: list[str] | None = None
     from ..kernel.projects import template_of
 

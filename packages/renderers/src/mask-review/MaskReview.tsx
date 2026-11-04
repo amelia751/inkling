@@ -40,7 +40,11 @@ export function MaskReview({ env, item, config, pluginId }: PanelProps & { plugi
   const annotations = useHost((s) => s.annotations);
   const selectedId = useHost((s) => s.selectedId);
   const { update, batch, select, setTool } = useHost.getState();
-  const labels = labelNames(env.labels);
+  const labels = useMemo(() => {
+    const out = labelNames(env.labels);
+    for (const a of annotations) if (a.itemId === item?.id && a.geometry.type === "mask" && !out.includes(a.label)) out.push(a.label);
+    return out;
+  }, [env.labels, annotations, item?.id]);
   const masks = useMemo(
     () =>
       annotations.filter((a) => a.itemId === item?.id && isSuggestedMask(a, cfg.onlySuggested)),

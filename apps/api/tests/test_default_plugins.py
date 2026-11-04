@@ -81,6 +81,43 @@ def test_backfill_is_idempotent_and_keeps_a_disabled_plugin_disabled(make_client
     assert _state(b) is None  # still disabled
 
 
+def test_an_existing_project_gets_the_defaults_when_its_capabilities_are_read(make_client):
+    from studio_api import config
+
+    c = make_client(default_plugins="")
+    old = c.post("/api/v1/projects", json={"title": "Before"}).json()["id"]
+    off = c.post("/api/v1/projects", json={"title": "Turned off"}).json()["id"]
+    assert _state(old) is None
+    prev = config.settings()
+    try:
+        config.set_settings(prev.model_copy(update={"default_plugins": DEFAULTS}))
+        caps = c.get(f"/api/v1/workspaces/{old}/capabilities", headers=ws(old)).json()["capabilities"]
+        assert any(r["capability"] == "image.segment" and r["pluginId"] == SEGMENTATION for r in caps)
+        assert _state(old)["config"]["provider"] == "meta.sam"
+        assert c.get(f"/api/v1/workspaces/{off}/capabilities", headers=ws(off)).status_code == 200
+        assert c.post(f"/api/v1/workspaces/{off}/plugins/disable", json={"pluginId": SEGMENTATION}, headers=ws(off)).status_code == 200
+        c.get(f"/api/v1/workspaces/{off}/capabilities", headers=ws(off))
+        assert _state(off) is None  # a plugin someone turned off stays off
+    finally:
+        config.set_settings(prev)
+
+
+def test_a_skipped_default_is_not_retried_on_every_read(make_client):
+    from studio_api import config
+
+    c = make_client(default_plugins="")
+    p = c.post("/api/v1/projects", json={"title": "Missing"}).json()["id"]
+    prev = config.settings()
+    try:
+        config.set_settings(prev.model_copy(update={"default_plugins": "studio.no-such-plugin"}))
+        for _ in range(3):
+            assert c.get(f"/api/v1/workspaces/{p}/capabilities", headers=ws(p)).status_code == 200
+        acts = [e["action"] for e in c.get("/api/v1/audit", headers=ws(p)).json()["entries"]]
+        assert acts.count("plugins.default_skipped") == 1
+    finally:
+        config.set_settings(prev)
+
+
 # ---- The managed key (D4) ---------------------------------------------------------------------
 
 

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..context import RequestContext
 from ..kernel import audit
-from ..models import WorkspacePlugin
+from ..models import PluginAudit, WorkspacePlugin
 from ..naming import canonical_id
 from . import installer, policy
 
@@ -112,6 +112,17 @@ def _skipped(db: Session, ctx: RequestContext, d: Default, why: object) -> None:
 
 def activate_defaults(db: Session, workspace_id: str, defaults: list[Default] | None = None) -> dict[str, str]:
     return {d.plugin_id: activate_one(db, workspace_id, d) for d in (configured() if defaults is None else defaults)}
+
+
+def ensure(db: Session, workspace_id: str, defaults: list[Default] | None = None) -> None:
+    """A project made before a default existed, or copied from a sample, gets it the first time
+    its plugins are read. One that was skipped is not retried on every read."""
+    for d in configured() if defaults is None else defaults:
+        if db.get(WorkspacePlugin, (workspace_id, d.plugin_id)) is not None:
+            continue
+        skipped = select(PluginAudit.id).where(PluginAudit.workspace_id == workspace_id, PluginAudit.action == "plugins.default_skipped", PluginAudit.target == d.plugin_id).limit(1)
+        if db.scalar(skipped) is None:
+            activate_one(db, workspace_id, d)
 
 
 def backfill(db: Session, defaults: list[Default] | None = None) -> dict[str, dict[str, str]]:

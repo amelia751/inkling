@@ -91,6 +91,35 @@ def test_bundled_plugins_and_prebuilt_envs(tmp_path):
     assert w.ensure_env(d, pid, version) == py
 
 
+def test_parallel_jobs_wait_for_one_env_build(tmp_path, monkeypatch):
+    from studio_worker import main
+
+    pid, version, d = next(p for p in bundled_python_plugins(REPO) if p[2].name == "segmentation")
+    builds, done = [], []
+
+    def slow_build(uv, plugin_path, venv):
+        builds.append(venv)
+        (venv / "bin").mkdir(parents=True)
+        (venv / "bin" / "python").write_text("")  # uv writes the interpreter before the packages
+        time.sleep(0.3)
+        done.append(venv)
+
+    monkeypatch.setattr(main, "build_env", slow_build)
+    w = Worker("http://127.0.0.1:9", "t", tmp_path, "w")
+    seen = []
+
+    def job():
+        w.ensure_env(d, pid, version)
+        seen.append(len(done))
+
+    threads = [threading.Thread(target=job) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(builds) == 1 and seen == [1, 1, 1, 1]
+
+
 def test_no_claims_after_sigterm(tmp_path):
     w = Worker("http://127.0.0.1:9", "t", tmp_path, "w")
     w.request_stop()

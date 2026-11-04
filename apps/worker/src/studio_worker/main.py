@@ -129,6 +129,8 @@ class Worker:
         self.job_slots = max(1, int(job_slots))
         self._active = 0
         self._active_lock = threading.Lock()
+        # `uv sync` writes bin/python before the packages: parallel jobs wait for the one build.
+        self._env_locks: dict[str, threading.Lock] = {}
         self._pool: ThreadPoolExecutor | None = None
         # Built-in subscriber: the de-identification check for dataset reviews (todo4 Phase 6).
         self.deid = DeidSubscriber(self.http)
@@ -173,15 +175,18 @@ class Worker:
     def ensure_env(self, plugin_path: Path, plugin_id: str, version: str, digest: str = "") -> Path:
         """The plugin's locked environment: prebuilt (read-only is fine), else built once here."""
         name = env_name(plugin_id, version, plugin_path)
-        for root in dict.fromkeys([self.envs_dir, self.data_dir / "envs"]):
-            python = root / name / "bin" / "python"
-            if python.exists():
-                return python
-        if not self.build_envs:
-            raise RuntimeError(f"no prebuilt environment {name} in {self.envs_dir} (run `studio-worker --prepare-envs` when building the image)")
-        target = self.envs_dir if os.access(self.envs_dir if self.envs_dir.exists() else self.envs_dir.parent, os.W_OK) else self.data_dir / "envs"
-        build_env(self.uv, plugin_path, target / name)
-        return target / name / "bin" / "python"
+        with self._active_lock:
+            lock = self._env_locks.setdefault(name, threading.Lock())
+        with lock:
+            for root in dict.fromkeys([self.envs_dir, self.data_dir / "envs"]):
+                python = root / name / "bin" / "python"
+                if python.exists():
+                    return python
+            if not self.build_envs:
+                raise RuntimeError(f"no prebuilt environment {name} in {self.envs_dir} (run `studio-worker --prepare-envs` when building the image)")
+            target = self.envs_dir if os.access(self.envs_dir if self.envs_dir.exists() else self.envs_dir.parent, os.W_OK) else self.data_dir / "envs"
+            build_env(self.uv, plugin_path, target / name)
+            return target / name / "bin" / "python"
 
     # ---- One job -------------------------------------------------------------------------
 

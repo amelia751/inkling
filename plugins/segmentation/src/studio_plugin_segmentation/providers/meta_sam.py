@@ -33,10 +33,9 @@ What the docs say, and how this adapter maps it:
   means no match. This file parses that grammar itself.
 - **Mask payloads** are base85 range-coded rasters (`~` lossless, `!` one_bit). Meta
   documents no decoder other than its parser library, so `decode_payload` uses
-  `meta_sam_parser.decode_mask_to_raster` when it is installed in the plugin's environment.
-  It is *not* in `uv.lock` yet: adding a third-party dependency needs a reviewed lock
-  change (todo2 Phase 6). Until then the provider refuses, non-recoverably, *before* the
-  billable call rather than guessing masks; tests inject a decoder (`MetaSam.decode`).
+  `meta_sam_parser.decode_mask_to_raster` (`meta-sam-parser==0.1.0`, SAM License, pinned in
+  this plugin's `uv.lock`; todo25 W1). Unit tests may inject a decoder (`MetaSam.decode`);
+  the contract test decodes a recorded reply through the real parser.
 - **Limits and price** (same date): 3,000 requests/min per team; images $2.50 per 1,000
   (`pricing` in plugin.yaml, with `effectiveAt` and `sourceUrl`). No image-size limit is
   documented; video isn't used here.
@@ -49,7 +48,6 @@ granted (`network.egress:api.meta.ai`).
 from __future__ import annotations
 
 import base64
-import importlib.util
 import math
 import re
 from collections.abc import Callable
@@ -70,7 +68,7 @@ def decode_payload(payload: str, width: int, height: int) -> bytes:
     try:
         from meta_sam_parser import SegmentationMask, decode_mask_to_raster  # type: ignore[import-not-found]
     except ImportError as e:
-        raise ProviderError("decoding Meta SAM masks needs Meta's `meta-sam-parser` in this plugin's environment, which isn't locked yet", recoverable=False) from e
+        raise ProviderError("decoding Meta SAM masks needs Meta's `meta-sam-parser` (pinned in this plugin's uv.lock); the plugin's environment is incomplete", recoverable=False) from e
     enc = "lossless" if payload.startswith("~") else "one_bit"
     try:
         return bytes(decode_mask_to_raster(SegmentationMask(encoding=enc, payload=payload, width=width, height=height)))
@@ -212,7 +210,9 @@ def from_provider_response(body: dict, width: int, height: int, decode: Decoder 
     out = []
     for m in parse_output(output_text(body), width, height):
         local = decode(m.payload, m.mask_w, m.mask_h)
-        out.append(RawInstance(paste(local, m.mask_w, m.mask_h, m.box, width, height), label=None, confidence=m.confidence))
+        # Object ids echo the prompt's object index (`0<|box…|>`, `1<|box…|>`), so a recipe can name each mask.
+        index = int(m.object_id) if m.object_id.isdigit() else None
+        out.append(RawInstance(paste(local, m.mask_w, m.mask_h, m.box, width, height), label=None, confidence=m.confidence, prompt_index=index))
     return out
 
 
@@ -229,9 +229,6 @@ class MetaSam:
 
     def segment(self, ctx, image: bytes, width: int, height: int, request: dict) -> list[RawInstance]:
         client = ctx.secrets.use("META_MODEL_API_KEY")  # an ungranted secret fails first
-        if self.decode is decode_payload and importlib.util.find_spec("meta_sam_parser") is None:
-            # Refuse before the billable call, not after it.
-            raise ProviderError("decoding Meta SAM masks needs Meta's `meta-sam-parser` in this plugin's environment, which isn't locked yet", recoverable=False)
         body = to_provider_request(image, request, self.model, width, height)
         host = urlsplit(self.endpoint).hostname
         r = client.post(self.endpoint, json_body=body)

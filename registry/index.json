@@ -328,7 +328,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:8bf08bb9d624e9b18f1abba4cf697652e59d9feb7538a55db73599335027c56c",
+      "artifactDigest": "sha256:4723da652bccd4ef101ad5251d48982682b1a419e791ebb5eba02e193264542d",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"
@@ -354,7 +354,7 @@
       "licenses": {
         "code": "Apache-2.0",
         "models": {
-          "meta.sam": "SAM License (Meta; not an OSI licence)"
+          "meta.sam": "SAM License (Meta; not an OSI licence). Mask decoder meta-sam-parser 0.1.0: SAM License (Meta)"
         },
         "services": {
           "meta.sam": "Meta Model API terms (dev.meta.ai)"
@@ -377,7 +377,7 @@
         "id": "studio.segmentation",
         "name": "Segmentation",
         "version": "1.0.0",
-        "description": "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers.",
+        "description": "Segment objects in images from text, point or box prompts, or a named prompt recipe (label `lungs`: two boxes sized to a frontal chest X-ray, masks named right lung and left lung). Text prompts don't work on radiographs; use a recipe there. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers.",
         "publisher": "first-party",
         "license": "Apache-2.0",
         "compatibility": {
@@ -407,6 +407,7 @@
             "implements": [
               "image.segment"
             ],
+            "configSchema": "src/studio_plugin_segmentation/config.schema.json",
             "hosting": "mock",
             "features": {
               "text": true,
@@ -420,6 +421,7 @@
             "implements": [
               "image.segment"
             ],
+            "configSchema": "src/studio_plugin_segmentation/config.schema.json",
             "hosting": "hosted",
             "egress": [
               "api.meta.ai"
@@ -439,7 +441,7 @@
               "effectiveAt": "2026-10-30",
               "sourceUrl": "https://dev.meta.ai/docs/pricing-rate-limits"
             },
-            "modelLicense": "SAM License (Meta; not an OSI licence)",
+            "modelLicense": "SAM License (Meta; not an OSI licence). Mask decoder meta-sam-parser 0.1.0: SAM License (Meta)",
             "serviceTerms": "Meta Model API terms (dev.meta.ai)"
           },
           {
@@ -447,6 +449,7 @@
             "implements": [
               "image.segment"
             ],
+            "configSchema": "src/studio_plugin_segmentation/config.schema.json",
             "hosting": "self-hosted",
             "egress": [
               "sam.internal"

@@ -1,0 +1,27 @@
+{
+  "_comment": "Shape of Meta's reply to the todo25 \u00a70.3 probe (two lung boxes on NORMAL2-IM-1427-0001.jpeg, 1776x1416), payload trimmed: masks re-encoded at 24x40 with meta-sam-parser's own one_bit codec. Ids, usage and timestamps are placeholders.",
+  "id": "resp_recorded",
+  "object": "response",
+  "status": "completed",
+  "model": "sam-3.1",
+  "output": [
+    {
+      "type": "message",
+      "id": "msg_recorded",
+      "role": "assistant",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "<0f>0<|box;x1=280;y1=190;x2=849;y2=1189;w=1776;h=1416;c=0.87|><|mask;x=0;y=0;c=0.87;data=40,24,!!!!!FE-Y*W%Bsh)IHG]]8_bxdm%sMjBi8]+WIZoC92!@l|>,1<|box;x1=930;y1=200;x2=1499;y2=1169;w=1776;h=1416;c=0.84|><|mask;x=0;y=0;c=0.84;data=40,24,!!!!!FE&w$LI'P][hc4EEvgq7v7h))1lv2ia:TkJH%XII`|>",
+          "annotations": []
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "total_tokens": 0
+  }
+}

@@ -3,7 +3,7 @@ name = "studio-plugin-segmentation"
 version = "1.0.0"
 description = "Reference image.segment plugin"
 requires-python = ">=3.12"
-dependencies = ["studio-plugin-sdk", "httpx>=0.28"]
+dependencies = ["studio-plugin-sdk", "httpx>=0.28", "meta-sam-parser==0.1.0"]
 
 [dependency-groups]
 dev = ["pytest>=9.2", "pyyaml>=6.0", "jsonschema>=4.23"]
@@ -20,3 +20,5 @@ packages = ["src/studio_plugin_segmentation"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+# tests/live calls Meta for real (by hand only: `uv run pytest tests/live`); never collected by default.
+norecursedirs = [".*", "*.egg", "build", "dist", "node_modules", "venv", "live"]

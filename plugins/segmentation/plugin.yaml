@@ -5,7 +5,7 @@ schemaVersion: studio.plugins/v1
 id: studio.segmentation
 name: Segmentation
 version: 1.0.0
-description: "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
+description: "Segment objects in images from text, point or box prompts, or a named prompt recipe (label `lungs`: two boxes sized to a frontal chest X-ray, masks named right lung and left lung). Text prompts don't work on radiographs; use a recipe there. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
 publisher: first-party
 license: Apache-2.0
 compatibility:
@@ -23,12 +23,16 @@ runtime:
   maxExecutionSeconds: 180
   concurrency: 4
 providers:
+  # Every provider reads the same workspace config (config.schema.json): endpoints and the
+  # prompt recipes (todo25 D2; default `lungs`), which the tool turns into box prompts.
   - id: mock
     implements: [image.segment]
+    configSchema: src/studio_plugin_segmentation/config.schema.json
     hosting: mock
     features: { text: true, points: true, boxes: true, video: false }
   - id: meta.sam
     implements: [image.segment]
+    configSchema: src/studio_plugin_segmentation/config.schema.json
     hosting: hosted
     # Meta Model API, SAM 3.1 (providers/meta_sam.py has the sources; checked 2026-10-30).
     egress: [api.meta.ai]
@@ -40,10 +44,13 @@ providers:
       usdPerUnit: 0.0025
       effectiveAt: "2026-10-30"
       sourceUrl: https://dev.meta.ai/docs/pricing-rate-limits
-    modelLicense: "SAM License (Meta; not an OSI licence)"
+    # The model's licence, and the licence of Meta's mask decoder this provider runs
+    # (`meta-sam-parser==0.1.0`, pinned in uv.lock; todo25 W1).
+    modelLicense: "SAM License (Meta; not an OSI licence). Mask decoder meta-sam-parser 0.1.0: SAM License (Meta)"
     serviceTerms: "Meta Model API terms (dev.meta.ai)"
   - id: local.sam
     implements: [image.segment]
+    configSchema: src/studio_plugin_segmentation/config.schema.json
     hosting: self-hosted
     egress: [sam.internal]
     features: { text: false, points: true, boxes: true, video: false }

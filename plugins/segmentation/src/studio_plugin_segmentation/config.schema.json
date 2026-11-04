@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "studio.segmentation config",
+  "description": "Workspace config for the segmentation plugin. All keys are optional; `recipes` adds to (or overrides by name) the defaults below.",
+  "type": "object",
+  "properties": {
+    "metaEndpoint": { "type": "string", "format": "uri", "description": "Another Responses-compatible SAM deployment (egress to its host must be granted)." },
+    "metaModel": { "type": "string", "default": "sam-3.1" },
+    "localEndpoint": { "type": "string", "format": "uri" },
+    "recipes": {
+      "description": "Prompt recipes: a label that turns into prompts sized to each image, without anyone looking at it. Pass the recipe's name as `label` with no prompts. Each mask is labelled with its box's name. Text prompts don't work on radiographs; use a recipe (boxes) there.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/Recipe" },
+      "default": {
+        "lungs": {
+          "appliesTo": "Frontal (PA/AP) chest X-ray, 2D",
+          "boxesRel": [
+            [0.15, 0.13, 0.48, 0.85],
+            [0.52, 0.13, 0.85, 0.85]
+          ],
+          "names": ["right lung", "left lung"]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "Recipe": {
+      "type": "object",
+      "required": ["appliesTo", "boxesRel", "names"],
+      "additionalProperties": false,
+      "properties": {
+        "appliesTo": { "type": "string", "description": "The kind of image the boxes fit." },
+        "boxesRel": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "description": "Boxes as fractions of the image's width and height: [x0, y0, x1, y1].",
+          "items": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "type": "number", "minimum": 0, "maximum": 1 } }
+        },
+        "names": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 }, "description": "One label per box, in order." }
+      }
+    }
+  }
+}

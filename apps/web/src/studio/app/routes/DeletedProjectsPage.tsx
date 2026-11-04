@@ -83,8 +83,11 @@ export function DeletedProjectsPage() {
   );
 }
 
-/** Settings › Danger zone › Delete project: shows the impact and asks for the project's name. */
-export function DeleteProjectDialog({ projectId, name, open, onOpenChange }: { projectId: string; name: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+/**
+ * Settings › Danger zone › Delete project (and the ⋯ menu on a Projects card): shows the impact and
+ * asks for the project's name. Goes Home afterwards unless `stay` (already on the projects list).
+ */
+export function DeleteProjectDialog({ projectId, name, open, onOpenChange, stay }: { projectId: string; name: string; open: boolean; onOpenChange: (o: boolean) => void; stay?: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [typed, setTyped] = useState("");

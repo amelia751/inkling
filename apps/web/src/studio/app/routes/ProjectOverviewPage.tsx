@@ -1,4 +1,5 @@
 import { ErrorView } from "@/studio/app/routes/errors";
+import { CopyId } from "@/studio/components/settings/kit";
 import { kindFolder, queueCountsByKind } from "@/studio/lib/per-kind";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
@@ -126,7 +127,10 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
     <header className="mb-8" data-testid="project-header">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="mb-1 text-sm text-hint">Project</p>
+          <p className="mb-1 flex items-center gap-2 text-sm text-hint">
+            Project
+            <CopyId id={project.id} />
+          </p>
           {editing === "title" ? (
             <InlineEdit initial={project.title} label="Project name" onDone={(v) => (setEditing(null), v && v !== project.title && save.mutate({ title: v }))} className="text-header-2 font-semibold" />
           ) : (

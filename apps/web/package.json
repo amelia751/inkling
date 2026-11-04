@@ -27,6 +27,7 @@
     "@studio/plugin-dicom-export": "workspace:*",
     "@studio/plugin-image2d": "workspace:*",
     "@studio/plugin-template": "workspace:*",
+    "@studio/plugin-table": "workspace:*",
     "@studio/plugin-text-spans": "workspace:*",
     "@studio/plugin-timeseries": "workspace:*",
     "@studio/plugin-ui-sdk": "workspace:*",

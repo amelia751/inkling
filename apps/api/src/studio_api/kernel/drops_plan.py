@@ -195,23 +195,31 @@ def log_failed(drop_id: str, step: str, error_class: str, db: Session | None = N
 
 
 def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
-    """Hook at the end of `inspection.report`: classify the session's drop once every session of
-    it has been inspected. Failures never fail the inspection report."""
+    """Hook at the end of `inspection.report`. Failures never fail the inspection report.
+
+    todo28 D5: for a chat drop with the assistant on, the drop is classified on every inspected
+    batch (groups and `suggestedAction` for the assistant to read), never applied or
+    fast-pathed: the assistant picks the Studio and the kernel routes ready files into it
+    (drops_route). Elsewhere (no conversation, or `aiAssist: false`) the classifier still
+    classifies once every session is inspected and fast-paths or auto-applies as before."""
+    from . import drops_route
+
     drop_id = drop_of(s)
     if not drop_id:
         return None
     sessions = sessions_of(db, s.project_id, drop_id)
     busy = [x for x in sessions if x.state in ("uploading", "inspecting")]
+    d = _drop_row(db, drop_id)
+    suggest_only = d is not None and drops_route.assistant_orchestrates(db, d)
     if busy:
-        # todo13 M4: a drop's first files (the uploader's `priority: first` session) are
-        # classified, and may boot a Studio, without waiting for the rest; the rest get a
-        # follow-up plan when they're inspected.
-        if (s.totals or {}).get("priority") != "first" or db.get(DropPlanRow, drop_id) is not None:
+        if not suggest_only:
             return None
         sessions = [x for x in sessions if x not in busy]
+        if not sessions:
+            return None
     try:
         with db.begin_nested():
-            return classify_drop(db, s.project_id, drop_id, sessions)
+            return classify_drop(db, s.project_id, drop_id, sessions, may_apply=not suggest_only)
     except Exception as e:  # noqa: BLE001 — the inspection itself stands; the card says the step failed
         log.exception("drop classification failed", extra={"dropId": drop_id})
         p = db.get(ProjectRow, s.project_id)
@@ -221,8 +229,9 @@ def after_inspection(db: Session, s: ImportSession) -> DropPlanRow | None:
         return None
 
 
-def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[ImportSession] | None = None, context: dict | None = None) -> DropPlanRow | None:
-    """Classify, store the plan, announce it, then fast path or auto-apply when allowed."""
+def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[ImportSession] | None = None, context: dict | None = None, *, may_apply: bool = True) -> DropPlanRow | None:
+    """Classify, store the plan, announce it, then fast path or auto-apply when allowed
+    (`may_apply`; never for a chat drop with the assistant on, todo28 D5)."""
     sessions = sessions if sessions is not None else sessions_of(db, project_id, drop_id)
     ctx_info = {**drop_context(db, project_id, drop_id, sessions), **(context or {})}
     person = str(ctx_info.get("createdBy") or "")
@@ -264,9 +273,9 @@ def classify_drop(db: Session, project_id: str, drop_id: str, sessions: list[Imp
     sctx = _service_ctx(project_id, "kernel:drops")
     events.publish(db, sctx, "drop.classified", {"dropId": drop_id, "groups": [g.as_dict(with_nodes=False) for g in groups]}, source="kernel")
     _log(row, "classified", groups=len(groups))
-    fast = _fast_path_preset(groups, cctx, plan)
+    fast = _fast_path_preset(groups, cctx, plan) if may_apply else None
     # The rest of a fast-path drop joins what its first files started, as the fast path did.
-    auto = bool(fast) or ((drop_flags.enabled("auto_apply") or (parent_fast and drop_flags.enabled("fast_path"))) and dc.safe_to_auto_apply(plan))
+    auto = may_apply and (bool(fast) or ((drop_flags.enabled("auto_apply") or (parent_fast and drop_flags.enabled("fast_path"))) and dc.safe_to_auto_apply(plan)))
     row.auto = auto
     events.publish(db, sctx, "drop.planned", {"dropId": drop_id, "plan": plan, "auto": auto}, source="kernel")
     _log(row, "planned", auto=auto)

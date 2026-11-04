@@ -209,14 +209,26 @@ def following_task(db: Session, project_id: str) -> TaskRow | None:
 
 
 def in_drop(s: ImportSession) -> bool:
-    """A drop's sessions go where its plan puts them (drops_plan.apply), never adopted."""
     return bool(getattr(s, "drop_id", None) or (s.totals or {}).get("dropId"))
+
+
+def _drop_routes(db: Session, s: ImportSession) -> bool:
+    """todo28 D6: a drop attached to a Studio sends its files there one by one as they're
+    checked (drops_route); its sessions are never adopted by another Studio, and nothing joins
+    before its check (D2)."""
+    from ..models import Drop
+    from . import drops_route
+
+    d = db.get(Drop, getattr(s, "drop_id", None) or (s.totals or {}).get("dropId") or "")
+    return d is not None and drops_route.routes(db, d)
 
 
 def adopt(db: Session, s: ImportSession, t: TaskRow) -> list[dict]:
     """Make an import without a Studio a drop into `t` (its images register as items now)."""
     from . import collections
 
+    # A drop's files go where the drop is attached, once checked (drops_route) or where its
+    # plan puts them (drops_plan.apply); never registered as items before their check.
     if (s.totals or {}).get("taskId") or in_drop(s) or not collections.task_takes(db, t, "image"):
         return []
     s.totals = {**(s.totals or {}), "taskId": t.id}
@@ -243,6 +255,10 @@ def follow_completed(db: Session, s: ImportSession, node_ids: list[str]) -> list
     from . import collections
 
     if in_drop(s):
+        if _drop_routes(db, s):
+            from . import drops_route
+
+            drops_route.route_ready(db, s.project_id, node_ids)  # only the files already checked
         return []
     t = db.get(TaskRow, (s.totals or {}).get("taskId") or "") or following_task(db, s.project_id)
     d = db.get(DatasetRow, t.dataset_id) if t is not None and t.dataset_id else None

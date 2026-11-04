@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from studio_api import db as kdb
 from studio_api.kernel import agent_scope, name_screen
-from studio_api.models import Drop, OrganizationMember, PluginEvent, ProjectRow, Source, SourceNode
+from studio_api.models import Drop, Organization, OrganizationMember, PluginEvent, ProjectRow, Source, SourceNode
 from studio_api.routes.worker import worker_token
 
 from .conftest import png
@@ -29,6 +29,16 @@ def _files(files: dict[str, bytes]) -> list[dict]:
 
 def _project(client, title: str = "Drops") -> str:
     return client.post("/api/v1/projects", json={"title": title}).json()["id"]
+
+
+def _project_without_assistant(client, title: str = "Drops") -> str:
+    """todo28 D5: with the org's assistant off, the classifier's fast path and auto-apply place
+    a chat drop's files (with it on, the assistant does and the kernel only routes)."""
+    pid = _project(client, title)
+    with kdb.session_scope() as db:
+        org = db.get(Organization, db.get(ProjectRow, pid).org_id)
+        org.ai_assist = False
+    return pid
 
 
 def _drop(client, pid: str, files: dict[str, bytes], conv: str = "conv-1", title: str | None = "Chest X-rays", complete: bool = True, headers: dict | None = None) -> tuple[dict, dict]:
@@ -512,8 +522,7 @@ def test_a_table_dropped_into_a_dataset_is_checked_against_its_file_names(client
 
 def test_a_drops_first_files_are_classified_and_inspected_first(client):
     """todo13 M4 item 2: the uploader's `priority: first` session is claimed for inspection
-    ahead of older work and classified without waiting for the rest of the drop; the rest get
-    a follow-up plan that joins what the first files started."""
+    ahead of older work and classified without waiting for the rest of the drop."""
     from studio_api.kernel import events
     from studio_api.models import DropPlanRow
 
@@ -545,15 +554,14 @@ def test_a_drops_first_files_are_classified_and_inspected_first(client):
         assert sum(g["count"] for g in row.groups) == 3
     client.post(f"/api/v1/imports/{s2['id']}/complete")
     _report(client, client.get(f"/api/v1/imports/{s2['id']}").json(), {n: "image" for n in rest})
+    # todo28 D5: a chat drop with the assistant on is classified per inspected batch (the
+    # suggestion grows to every file) and never applied by the kernel.
     with kdb.session_scope() as db:
-        follow = [r for r in db.scalars(select(DropPlanRow).where(DropPlanRow.project_id == pid)) if r.drop_id.startswith(d["id"] + "-")]
-        assert len(follow) == 1 and sum(g["count"] for g in follow[0].groups) == 3, [(r.drop_id, r.groups) for r in follow]
-        # The rest joins the first files' dataset and Studio (no second dataset).
-        assert [a["type"] for a in follow[0].plan["actions"]] == ["add_to_collection"]
+        row = db.get(DropPlanRow, d["id"])
+        assert row is not None and row.state == "planned" and sum(g["count"] for g in row.groups) == 6
         from studio_api.models import TaskRow
 
-        tasks = [t.id for t in db.scalars(select(TaskRow).where(TaskRow.project_id == pid))]
-    assert len(tasks) == 1 and len(client.get(f"/api/v1/tasks/{tasks[0]}/document").json()["assets"]) == 6
+        assert list(db.scalars(select(TaskRow.id).where(TaskRow.project_id == pid))) == []
 
 
 def test_an_import_stuck_inspecting_fails_with_a_reason_after_the_stall_minutes(client):

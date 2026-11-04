@@ -11,7 +11,7 @@ from studio_api.kernel import drops_classify as dc
 from studio_api.kernel.kinds import mask_volumes, subject_sequence
 from studio_api.models import DatasetCollectionRow, DropPlanRow, TaskRow
 
-from .test_drops import _drop, _project, _report
+from .test_drops import _drop, _project_without_assistant as _project, _report
 
 BRATS = "BraTS2021_00621"
 

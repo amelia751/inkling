@@ -213,7 +213,7 @@ function grepLint(files, rules) {
 
 /** Another workstream's `viewer-lint`, when it exists; else the built-in checks below. */
 function externalViewerLint() {
-  for (const p of ["tools/viewer-lint/index.mjs", "tools/viewer-lint.mjs", "packages/viewer-lint/src/cli.ts", "packages/viewer-lint/bin/viewer-lint.mjs"]) if (fs.existsSync(path.join(REPO, p))) return path.join(REPO, p);
+  for (const p of ["packages/plugin-ui-sdk/scripts/viewer-lint.mjs", "tools/viewer-lint/index.mjs", "tools/viewer-lint.mjs", "packages/viewer-lint/src/cli.ts", "packages/viewer-lint/bin/viewer-lint.mjs"]) if (fs.existsSync(path.join(REPO, p))) return path.join(REPO, p);
   return null;
 }
 

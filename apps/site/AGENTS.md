@@ -121,7 +121,10 @@ Motion explains the product; it is never decoration for its own sake.
 
 - Copy and lists in `src/content.ts`; one file per section in `src/sections/`; shared hooks in
   `src/lib/motion.ts`.
-- Config only through `vite.config.ts` (`STUDIO_SITE_APP_URL`); no other env reads.
+- Per-deployment values (the product name, the app URL) are `%DISPLAY_NAME%` and `%APP_URL%` in
+  `index.html`; the dev server fills them from `vite.config.ts`, the image's nginx from
+  `STUDIO_DISPLAY_NAME` and `STUDIO_SITE_APP_URL`. Code reads them through `src/lib/runtime.ts`
+  only; no other env reads.
 - Canvases get an `aria-label` or `aria-hidden`; interactive tabs use `role="tab"`; keep the
   skip link working.
 

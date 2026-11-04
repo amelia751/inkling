@@ -20,9 +20,10 @@ import {
   WaveformIcon,
   type IconComponent,
 } from "@studio/ui/icons";
+import { APP_URL } from "@/lib/runtime";
 
+export { APP_URL };
 export const NAME = NAMING.displayName;
-export const APP_URL = __APP_URL__;
 
 export const ANNOUNCEMENTS = [
   `New: the ${NAME} assistant now boots a Studio from one sentence`,

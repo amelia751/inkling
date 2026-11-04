@@ -337,8 +337,13 @@ The default is Muse on the Meta Model API, whose key is `run-agent-muse-api-key`
 the Google BAA, so a stage using it runs on synthetic data only.
 
 Each stage can show its own product name: variable `display_name` in both stacks sets
-`STUDIO_DISPLAY_NAME` on web (served in `/config.json`) and on the agent (its prompts). Empty keeps
-`NAMING.displayName`.
+`STUDIO_DISPLAY_NAME` on web (served in `/config.json`), on the agent (its prompts) and on the
+site (nginx writes it into the page). Empty keeps `NAMING.displayName`.
+
+The public site (`apps/site`) runs on the same load balancer when phi variable `site_host` is set
+(`phi/site.tf`): `<site_host>` serves it, `www.<site_host>` redirects there, and it has its own
+managed certificate. Point both names at output `studio_lb_ip`. Its "Sign in" links go to
+the Studio host (`STUDIO_SITE_APP_URL`).
 
 ### Deploys
 
@@ -348,11 +353,12 @@ on. Then, for each app whose image was rebuilt (`sha-<commit>`):
 
 1. the migrate jobs (`api-migrate`, `versioning-migrate`, `pipeline-migrate`, `phi/run-jobs.tf`)
    run on the new image;
-2. versioning, pipeline, api, worker, the agent and web get a new revision in that order. Cloud
-   Run only routes to a revision whose startup probe passes, so an image that doesn't boot never
-   takes traffic;
+2. versioning, pipeline, api, worker, the agent, web and the site get a new revision in that
+   order (an app whose service Terraform hasn't created yet is skipped). Cloud Run only routes to
+   a revision whose startup probe passes, so an image that doesn't boot never takes traffic;
 3. a smoke test checks the Studio host (`/healthz`, `/config.json`, web's `/version`, the api's
-   sign-in redirect) and the agent's `/version`;
+   sign-in redirect), the agent's `/version` and the site (its page has the name filled in, its
+   `/version`);
 4. if a rollout or the smoke test fails, every service it moved goes back to its previous
    revision and the run fails.
 
@@ -361,7 +367,8 @@ and tables first, drop them in a later release). Terraform sets images only when
 service; after that the deploy owns them (`ignore_changes`). CI signs in through Workload
 Identity Federation in both projects (`ci.tf`): `ci-deploy` in the Studio project and
 `ci-agent` in the agent project, each limited to main. Repo variables come from the two stacks'
-`ci_*` outputs, plus `STUDIO_URL` (set once the certificate is active) and `AGENT_URL`. To
+`ci_*` outputs, plus `STUDIO_URL` and `SITE_URL` (set each once its certificate is active) and
+`AGENT_URL`. To
 redeploy main by hand, run `gh workflow run deploy.yml`.
 
 ### WorkOS staging

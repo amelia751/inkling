@@ -7,7 +7,7 @@
 # Repo variables: GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT, GCP_IMAGES_REGISTRY
 # (phi stack outputs ci_workload_identity_provider, ci_deploy_service_account),
 # GCP_AGENT_WORKLOAD_IDENTITY_PROVIDER, GCP_AGENT_CI_SERVICE_ACCOUNT, GCP_AGENT_IMAGES_REGISTRY
-# (ai stack ci_* outputs), STUDIO_URL and AGENT_URL.
+# (ai stack ci_* outputs), STUDIO_URL, AGENT_URL and SITE_URL (the public site; optional).
 name: deploy
 
 on:
@@ -83,4 +83,5 @@ jobs:
           AI_CREDENTIALS: ${{ steps.ai.outputs.credentials_file_path }}
           STUDIO_URL: ${{ vars.STUDIO_URL }}
           AGENT_URL: ${{ vars.AGENT_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
         run: bash tools/deploy-run.sh

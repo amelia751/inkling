@@ -20,7 +20,7 @@ resource "google_project_service" "run" {
 
 locals {
   registry = "${var.region}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.this["images"].repository_id}"
-  run_image = { for s in ["web", "api", "versioning", "pipeline", "worker"] :
+  run_image = { for s in ["web", "api", "versioning", "pipeline", "worker", "site"] :
     s => lookup(var.images, s, "${local.registry}/studio-${s}:${var.image_tag}")
   }
   # Deterministic run.app URLs, so services can name each other without a dependency cycle.
@@ -29,13 +29,13 @@ locals {
 
   # Google identities. api and versioning are the iam.tf ones; web, worker and pipeline (until
   # its connector identity exists, Milestone 3) get one here with no project role at all.
-  run_sa = {
+  run_sa = merge({
     api        = google_service_account.app["api"].email
     versioning = google_service_account.app["versioning"].email
     pipeline   = var.pipeline_connectors_enabled ? google_service_account.app["pipeline"].email : google_service_account.run["pipeline"].email
     web        = google_service_account.run["web"].email
     worker     = google_service_account.run["worker"].email
-  }
+  }, local.site ? { site = google_service_account.run["site"].email } : {})
   run_vpc_tag = { for s in ["web", "api", "versioning", "pipeline", "worker"] : s => "run-${s}" }
 }
 
@@ -45,7 +45,9 @@ resource "google_service_account" "run" {
     worker = "apps/worker on Cloud Run: plugin code; reaches only the api, no Google API access"
     }, var.pipeline_connectors_enabled ? {} : {
     pipeline = "apps/pipeline on Cloud Run (until Milestone 3's identity in iam.tf)"
-  })
+    }, local.site ? {
+    site = "apps/site on Cloud Run: static pages, no Google API access"
+  } : {})
   account_id   = "studio-${each.key}"
   display_name = each.value
   depends_on   = [google_project_service.this]
@@ -860,6 +862,43 @@ resource "google_compute_url_map" "studio" {
     path_matcher = "studio"
   }
 
+  dynamic "host_rule" {
+    for_each = local.site ? [1] : []
+    content {
+      hosts        = [var.site_host]
+      path_matcher = "site"
+    }
+  }
+
+  dynamic "host_rule" {
+    for_each = local.site ? [1] : []
+    content {
+      hosts        = ["www.${var.site_host}"]
+      path_matcher = "site-www"
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = local.site ? [1] : []
+    content {
+      name            = "site"
+      default_service = google_compute_backend_service.site[0].id
+    }
+  }
+
+  dynamic "path_matcher" {
+    for_each = local.site ? [1] : []
+    content {
+      name = "site-www"
+      default_url_redirect {
+        host_redirect          = var.site_host
+        https_redirect         = true
+        redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
+        strip_query            = false
+      }
+    }
+  }
+
   path_matcher {
     name            = "studio"
     default_service = google_compute_backend_service.run["web"].id
@@ -877,7 +916,7 @@ resource "google_compute_url_map" "studio" {
 resource "google_compute_target_https_proxy" "studio" {
   name             = "studio"
   url_map          = google_compute_url_map.studio.id
-  ssl_certificates = [google_compute_managed_ssl_certificate.studio.id]
+  ssl_certificates = concat([google_compute_managed_ssl_certificate.studio.id], google_compute_managed_ssl_certificate.site[*].id)
 }
 
 resource "google_compute_global_forwarding_rule" "studio_https" {

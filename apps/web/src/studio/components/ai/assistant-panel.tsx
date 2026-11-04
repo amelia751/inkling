@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject, type SVGProps } from "react";
 import { DropPlanCards } from "@/studio/core/drops";
 import { useQuery } from "@tanstack/react-query";
-import { AiIcon, AttachIcon, BranchIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, DeleteIcon, MoreIcon, NewChatIcon, RenameIcon, ShowIcon, SidebarIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
+import { AddDataIcon, AiIcon, AttachIcon, BranchIcon, ChevronDownIcon, ChevronLeftIcon, CloseIcon, DeleteIcon, FolderIcon, MoreIcon, NewChatIcon, RenameIcon, ShowIcon, SidebarIcon, StopIcon, SubmitIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import {
   DropdownMenu,
@@ -31,10 +31,14 @@ import { AssistantMessage, UserMessage } from "./thread";
 import { useAckAiNotice, useAiAssistOff } from "./ai-notice";
 import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import { SPECIALIST_LABEL, type StudioCardContext } from "./cards";
-import { usePendingAsk } from "@/studio/app/entry/pending-ask";
+import { usePendingAsk, withUploadNote } from "@/studio/app/entry/pending-ask";
+import { useDropFiles } from "@/studio/app/entry/drop-adapter";
 import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, whenRegistered } from "@/studio/core/drops";
+import { runtimeConfig } from "@/extension-host/runtime-config";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
+import { settledPhase, trayLine, useUploads } from "@/studio/stores/uploads";
+import { chatUploadsGate } from "./chat-uploads";
 
 /**
  * The assistant (docs/ux.md §9), shared by its two hosts (todo6 Phase 6): the Studio's right
@@ -83,8 +87,10 @@ export interface AssistantPanelProps {
 
 /** todo13: what the composer may do with files here. */
 interface Attach {
-  /** Chat drops are on (`API_FEATURE_CHAT_DROPS`). */
+  /** Files can be attached (the full stack). */
   on: boolean;
+  /** Chat drops are on (`API_FEATURE_CHAT_DROPS`): files join a drop the message carries. Off, they upload through the tray into Sources and the message waits for them. */
+  drops: boolean;
   /** `/features` hasn't answered yet: a skeleton where attach goes (todo15 D5). */
   pending?: boolean;
   /** Contributors and above (D14); viewers see attach disabled with a hint. */
@@ -277,18 +283,33 @@ function Conversation({
   // todo13: files dropped, pasted or attached before send join one pending drop; the message carries it.
   const [pending, setPending] = useState<{ dropId: string; messageId: string } | undefined>();
   const [dragging, setDragging] = useState(false);
+  const canAttach = dropsOn || (!!runtimeConfig().kernel && !dropsPending);
+  const dropFiles = useDropFiles();
+  const [uploads, setUploads] = useState<string[]>([]);
+  const [held, setHeld] = useState<{ text: string; keys: string[] } | null>(null);
+  const heldReady = useUploads((s) => !!held && chatUploadsGate(held.keys.map((k) => s.sessions.find((x) => x.key === k))).ready);
   const addFiles = async (files: Picked | File[]) => {
-    if (!dropsOn || !canEdit) return;
+    if (!canAttach || !canEdit) return;
+    if (!dropsOn) {
+      const picked = Array.isArray(files) ? fromFileList(files) : files;
+      void dropFiles({ projectId: project.id, picked, origin: "chat", surface: "chat", taskId, onUploadKey: (key) => setUploads((u) => [...u, key]) });
+      return;
+    }
     // todo20 D2: the drop names the chat (= agent session) it's shared in; made on the server first.
     const conv = await useAgent.getState().ensureConversation(project.id, { restricted: project.restricted });
     const messageId = pending?.messageId ?? crypto.randomUUID();
     const dropId = startDrop({ projectId: project.id, origin: "chat", files, conversationId: conv.id, conversationTitle: conv.title, messageId, taskId, dropId: pending?.dropId });
     setPending({ dropId, messageId });
   };
-  const attach: Attach = { on: dropsOn, pending: dropsPending, allowed: canEdit, onFiles: (f) => void addFiles(f) };
+  const attach: Attach = { on: canAttach, drops: dropsOn, pending: dropsPending, allowed: canEdit, onFiles: (f) => void addFiles(f) };
 
   const ask = (text: string, drop?: { dropId: string; messageId: string }) => {
     const t = text.trim();
+    if (!drop && uploads.length) {
+      setHeld({ text: t, keys: uploads });
+      setUploads([]);
+      return;
+    }
     const withDrop = drop ?? pending;
     if ((!t && !withDrop) || busy) return;
     pinned.current = true;
@@ -323,6 +344,13 @@ function Conversation({
     setPending(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deferred, busy, running]);
+  useEffect(() => {
+    if (!held || !heldReady) return;
+    const { note } = chatUploadsGate(held.keys.map((k) => useUploads.getState().sessions.find((x) => x.key === k)));
+    setHeld(null);
+    ask(withUploadNote(held.text, note));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [held, heldReady]);
   const retry = () => {
     const lastUser = [...thread].reverse().find((m) => m.role === "user");
     if (!lastUser) return;
@@ -374,7 +402,7 @@ function Conversation({
     >
       {dragging && (
         <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-brand bg-float/90 text-center" data-testid="agent-drop-overlay">
-          <p className="max-w-60 text-body-2">{attach.allowed ? "Drop files to share them in this chat" : "Ask a contributor to add files"}</p>
+          <p className="max-w-60 text-body-2">{!attach.allowed ? "Ask a contributor to add files" : attach.drops ? "Drop files to share them in this chat" : "Drop files to add them to Sources and ask about them"}</p>
         </div>
       )}
       <div
@@ -425,7 +453,13 @@ function Conversation({
         attach={attach}
         pending={pending?.dropId}
         deferred={!!deferred}
-        waitingForFiles={waitingForFiles}
+        waitingForFiles={waitingForFiles || !!held}
+        uploads={uploads}
+        onRemoveUpload={(key) => {
+          const s = useUploads.getState().sessions.find((x) => x.key === key);
+          if (s && !settledPhase(s.phase)) void useUploads.getState().cancel(key);
+          setUploads((u) => u.filter((k) => k !== key));
+        }}
         onCancelDrop={() => {
           if (pending) void cancelDrop(pending.dropId);
           setPending(undefined);
@@ -477,6 +511,8 @@ function Composer({
   pending,
   deferred,
   waitingForFiles,
+  uploads,
+  onRemoveUpload,
   onCancelDrop,
 }: {
   project: AssistantProject;
@@ -492,12 +528,16 @@ function Composer({
   deferred?: boolean;
   /** Home's message waits for its upload to finish (todo24 D2). */
   waitingForFiles?: boolean;
+  /** Tray uploads attached to the next message (chat drops off). */
+  uploads: string[];
+  onRemoveUpload: (key: string) => void;
   onCancelDrop: () => void;
 }) {
   const [text, setText] = useState("");
   const area = useRef<HTMLTextAreaElement>(null);
   const picker = useRef<HTMLInputElement>(null);
-  const canSend = !!text.trim() || !!pending;
+  const folderPicker = useRef<HTMLInputElement>(null);
+  const canSend = !!text.trim() || !!pending || uploads.length > 0;
   const stop = useAgent((s) => s.stop);
 
   useEffect(() => {
@@ -544,6 +584,13 @@ function Composer({
             )}
           </div>
         )}
+        {uploads.length > 0 && (
+          <ul className="mb-2 flex flex-col gap-1" data-testid="agent-uploads">
+            {uploads.map((key) => (
+              <UploadRow key={key} uploadKey={key} onRemove={() => onRemoveUpload(key)} />
+            ))}
+          </ul>
+        )}
         <textarea
           ref={area}
           value={text}
@@ -571,25 +618,48 @@ function Composer({
           {attach.pending && <Skeleton className="size-9 rounded-md" data-testid="agent-attach-pending" />}
           {attach.on && (
             <>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span tabIndex={attach.allowed ? -1 : 0} className="inline-flex">
-                    <Button
-                      variant="ghost-secondary"
-                      size="icon-lg"
-                      className="text-hint disabled:opacity-50"
-                      onClick={() => picker.current?.click()}
-                      disabled={!attach.allowed}
-                      aria-label={attach.allowed ? "Attach files" : "Ask a contributor to add files"}
-                      title={attach.allowed ? undefined : "Ask a contributor to add files"}
-                      data-testid="agent-attach"
-                    >
-                      <AttachIcon />
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>{attach.allowed ? "Attach files" : "Ask a contributor to add files"}</TooltipContent>
-              </Tooltip>
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span tabIndex={attach.allowed ? -1 : 0} className="inline-flex">
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost-secondary"
+                          size="icon-lg"
+                          className="text-hint disabled:opacity-50"
+                          disabled={!attach.allowed}
+                          aria-label={attach.allowed ? "Attach files" : "Ask a contributor to add files"}
+                          title={attach.allowed ? undefined : "Ask a contributor to add files"}
+                          data-testid="agent-attach"
+                        >
+                          <AttachIcon />
+                        </Button>
+                      </DropdownMenuTrigger>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{attach.allowed ? "Attach files or a folder" : "Ask a contributor to add files"}</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem onSelect={() => picker.current?.click()} data-testid="agent-attach-files">
+                    <AddDataIcon /> Files…
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => folderPicker.current?.click()} data-testid="agent-attach-folder">
+                    <FolderIcon /> Folder…
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <input
+                ref={folderPicker}
+                type="file"
+                multiple
+                hidden
+                data-testid="agent-attach-folder-input"
+                {...{ webkitdirectory: "", directory: "" }}
+                onChange={(e) => {
+                  if (e.target.files?.length) attach.onFiles(fromFileList(e.target.files));
+                  e.target.value = "";
+                }}
+              />
               <input
                 ref={picker}
                 type="file"
@@ -617,6 +687,19 @@ function Composer({
         </p>
       )}
     </div>
+  );
+}
+
+function UploadRow({ uploadKey, onRemove }: { uploadKey: string; onRemove: () => void }) {
+  const s = useUploads((st) => st.sessions.find((x) => x.key === uploadKey));
+  if (!s) return null;
+  const settled = settledPhase(s.phase);
+  return (
+    <li className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5 text-hint" data-testid="agent-upload">
+      {settled ? <AddDataIcon className="size-4 shrink-0" /> : <Spinner className="size-4 shrink-0" />}
+      <span className="min-w-0 flex-1 truncate" title={s.title}>{trayLine(s)}</span>
+      <Button variant="ghost-secondary" size="icon-sm" className="text-hint" onClick={onRemove} aria-label={settled ? "Remove from this message" : "Cancel upload"} data-testid="agent-upload-remove"><CloseIcon /></Button>
+    </li>
   );
 }
 

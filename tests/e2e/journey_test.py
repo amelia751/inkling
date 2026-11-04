@@ -773,7 +773,8 @@ class Suite:
             nav = page.get_by_role("navigation").first.inner_text() if page.get_by_role("navigation").count() else page.inner_text("body")
             check("J12: no Datasets in the sidebar", "Datasets" not in nav, nav[:200])
             open_drawer(page)
-            check("J12: the composer has no attach", page.get_by_test_id("agent-attach").count() == 0)
+            check("J12: the composer still attaches (through the tray)", page.get_by_test_id("agent-attach").count() == 1)
+            check("J12: no Shared files view", page.get_by_test_id("agent-shared-files").count() == 0)
         except Exception as e:  # noqa: BLE001
             check("J12: the UI is as before", False, repr(e)[:200])
         finally:

@@ -273,6 +273,30 @@
       "fileKinds": [
         "document"
       ]
+    },
+    {
+      "preset": "preset:series-chart",
+      "terms": [
+        "candlestick",
+        "candle chart",
+        "ohlc",
+        "price chart",
+        "stock prices",
+        "line chart"
+      ],
+      "fileKinds": []
+    },
+    {
+      "preset": "preset:table-review",
+      "terms": [
+        "csv",
+        "spreadsheet",
+        "table rows",
+        "parquet",
+        "row grid",
+        "table review"
+      ],
+      "fileKinds": []
     }
   ]
 }

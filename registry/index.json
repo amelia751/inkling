@@ -66,6 +66,55 @@
       }
     },
     {
+      "id": "studio.chart",
+      "version": "0.1.0",
+      "publisher": "first-party",
+      "trustTier": "first-party",
+      "artifactDigest": "sha256:e477b284dae61b242afcbef288506f04b5009041a67aa733ff425c5f43c81f0a",
+      "path": "plugins/chart",
+      "capabilities": [],
+      "mediaTypes": [],
+      "runtime": "browser-bundled",
+      "permissions": {
+        "required": [],
+        "optional": []
+      },
+      "licenses": {
+        "code": "Proprietary",
+        "models": {},
+        "services": {}
+      },
+      "costHints": {},
+      "compatibility": {
+        "studio": ">=0.1.0 <1.0.0",
+        "pluginApi": "^1"
+      },
+      "manifest": {
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.chart",
+        "name": "Charts",
+        "version": "0.1.0",
+        "description": "Time-series lines and candles over table rows (Lightweight Charts), Vega-Lite specs, and window / event annotations on the time axis.",
+        "publisher": "first-party",
+        "license": "Proprietary",
+        "compatibility": {
+          "studio": ">=0.1.0 <1.0.0",
+          "pluginApi": "^1"
+        },
+        "capabilities": [],
+        "runtime": {
+          "kind": "browser-bundled"
+        },
+        "ui": {
+          "module": "ui/manifest.ts"
+        },
+        "permissions": {
+          "required": [],
+          "optional": []
+        }
+      }
+    },
+    {
       "id": "studio.cine",
       "version": "1.0.0",
       "publisher": "first-party",
@@ -435,6 +484,70 @@
         },
         "events": {
           "subscribes": []
+        }
+      }
+    },
+    {
+      "id": "studio.table",
+      "version": "0.1.0",
+      "publisher": "first-party",
+      "trustTier": "first-party",
+      "artifactDigest": "sha256:50f14af3b16ae5178a196fac2af8f9b600408059031ac5328a53d52ec292a053",
+      "path": "plugins/table",
+      "capabilities": [
+        "table.annotate"
+      ],
+      "mediaTypes": [
+        "application/vnd.apache.arrow.file",
+        "application/vnd.apache.parquet",
+        "text/csv"
+      ],
+      "runtime": "browser-bundled",
+      "permissions": {
+        "required": [],
+        "optional": []
+      },
+      "licenses": {
+        "code": "Proprietary",
+        "models": {},
+        "services": {}
+      },
+      "costHints": {},
+      "compatibility": {
+        "studio": ">=0.1.0 <1.0.0",
+        "pluginApi": "^1"
+      },
+      "manifest": {
+        "schemaVersion": "studio.plugins/v1",
+        "id": "studio.table",
+        "name": "Table",
+        "version": "0.1.0",
+        "description": "Tabular files (CSV, Parquet, Arrow) on a row grid: label rows or cells, flag rows labelled differently, export CSV with labels joined.",
+        "publisher": "first-party",
+        "license": "Proprietary",
+        "compatibility": {
+          "studio": ">=0.1.0 <1.0.0",
+          "pluginApi": "^1"
+        },
+        "capabilities": [
+          {
+            "id": "table.annotate",
+            "mediaTypes": [
+              "text/csv",
+              "application/vnd.apache.parquet",
+              "application/vnd.apache.arrow.file"
+            ]
+          }
+        ],
+        "runtime": {
+          "kind": "browser-bundled"
+        },
+        "ui": {
+          "module": "ui/manifest.ts"
+        },
+        "permissions": {
+          "required": [],
+          "optional": []
         }
       }
     },

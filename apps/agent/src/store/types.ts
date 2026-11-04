@@ -50,7 +50,11 @@ export interface RunRecord {
   heartbeatAt: number;
   usage?: RunUsage;
   toolCalls?: number;
+  /** todo27 W1: the run's OpenTelemetry trace id, when the agent was exporting traces. */
+  traceId?: string;
 }
+
+export type RunPatch = { status?: StoredRunStatus; usage?: RunUsage; toolCalls?: number; traceId?: string };
 
 export type InputKind = "approval" | "client-tool" | "steer" | "cancel";
 
@@ -132,7 +136,7 @@ export interface SessionStore {
   // ---- runs ----
   /** False when the session already has an active run (one active run per session, cluster-wide). */
   insertRun(rec: RunRecord): Promise<boolean>;
-  updateRun(id: string, patch: { status?: StoredRunStatus; usage?: RunUsage; toolCalls?: number }): Promise<void>;
+  updateRun(id: string, patch: RunPatch): Promise<void>;
   getRun(id: string): Promise<RunRecord | undefined>;
   activeRunForSession(sessionId: string): Promise<RunRecord | undefined>;
   /** Sessions with an active run anywhere (the sweeper must not touch their sandboxes). */

@@ -48,6 +48,8 @@ log.info(
   },
   "config",
 );
+// todo27 W3: which model this replica runs, on one line (also on every run span).
+log.info({ model: `${config.model.provider}:${config.model.id}` }, `model=${config.model.provider}:${config.model.id}`);
 for (const w of warnings) log.warn(w);
 
 const tracing = await initTracing({ service: SERVICE_NAME, version: SERVICE_VERSION, warn: (m) => log.warn(m) });

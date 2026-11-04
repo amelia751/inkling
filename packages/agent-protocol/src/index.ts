@@ -128,7 +128,8 @@ export interface LocationTarget {
 }
 
 export type AgentEventBody =
-  | { type: "start"; model: string }
+  /** `traceId`: the run's OpenTelemetry trace id (todo27), when the agent exports traces. */
+  | { type: "start"; model: string; traceId?: string }
   | { type: "run-status"; status: RunStatus }
   | { type: "reasoning"; delta: string }
   | { type: "text"; delta: string }

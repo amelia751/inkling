@@ -64,6 +64,7 @@ export const BootStudioArgs = Type.Object(
     files: Type.Optional(Type.Array(Type.String(), { maxItems: 500, description: "File node ids for the task's data." })),
     folders: Type.Optional(Type.Array(Type.String(), { maxItems: 50, description: "Folder node ids for the task's data." })),
     name: Type.Optional(Type.String({ maxLength: 120, description: "Task name, e.g. 'Chest X-ray triage'." })),
+    dropId: Type.Optional(Type.String({ pattern: "^drp-[a-z0-9]{8,40}$", description: "A chat drop (drp-…) to boot on: the Studio starts with the drop's ready files and the rest join it as they're checked." })),
     bootId: Type.Optional(Type.String({ minLength: 8, maxLength: 64, pattern: "^[A-Za-z0-9_-]+$", description: "Idempotency key; usually omitted (derived per call)." })),
   },
   { additionalProperties: false },

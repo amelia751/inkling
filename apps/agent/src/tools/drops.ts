@@ -23,7 +23,7 @@ export interface DropSummary {
   bytes: number;
   states: Record<string, number>;
   groups: { groupId: string; kind: string; count: number; shape?: string; suggestedAction?: string }[];
-  files: { nodeId: string; agentName: string; kind?: string; facts?: Record<string, unknown> }[];
+  files: { nodeId: string; agentName: string; kind?: string; state?: string; retrying?: boolean; facts?: Record<string, unknown> }[];
   nextOffset?: number;
   /** Files the browser declared (todo20 D8): "still uploading (12 of 35)". */
   expected?: number;
@@ -32,6 +32,20 @@ export interface DropSummary {
   failure?: { step?: string; reason: string };
   /** One line for the model and the tool row: where the drop is ("Still uploading (12 of 35)"). */
   status?: string;
+  /** todo28 D8: per-file counts (W2). Checked and clear, in the attached Studio, still checking, failed. */
+  ready?: number;
+  inStudio?: number;
+  checking?: number;
+  failed?: number;
+  /** Ready files of a kind the attached Studio doesn't take yet (todo28 D6). */
+  waitingForKind?: Record<string, number>;
+  /** Ready / still-checking files by kind (from `files`, this page). */
+  readyByKind?: Record<string, number>;
+  checkingByKind?: Record<string, number>;
+  /** The Studio the drop is attached to (todo28 D6). */
+  studioTaskId?: string;
+  /** Failure reasons, grouped, never names. */
+  failedReasons?: { reason: string; count: number }[];
 }
 
 /** Strings that may carry bytes or a way to fetch them: never in the model's context. */
@@ -63,8 +77,26 @@ export function safeSummary(raw: any): DropSummary {
     .map((f: any) => {
       const name = typeof f.agentName === "string" && SAFE_NAME.test(f.agentName) && !UNSAFE.test(f.agentName) ? f.agentName : "file";
       const facts = Object.fromEntries(Object.entries(f.facts && typeof f.facts === "object" ? f.facts : {}).filter(([k]) => FACT_KEYS.has(k)).map(([k, v]) => [k, safeFact(v)]).filter(([, v]) => v !== undefined));
-      return { nodeId: f.nodeId, agentName: name, ...(str(f.kind) ? { kind: f.kind } : {}), ...(Object.keys(facts).length ? { facts } : {}) };
+      return {
+        nodeId: f.nodeId,
+        agentName: name,
+        ...(str(f.kind) ? { kind: f.kind } : {}),
+        ...(str(f.state) ? { state: f.state } : {}),
+        ...(f.retrying === true ? { retrying: true } : {}),
+        ...(Object.keys(facts).length ? { facts } : {}),
+      };
     });
+  const byState = (states: string[]) => {
+    const out: Record<string, number> = {};
+    for (const f of files as { kind?: string; state?: string }[]) if (f.state && states.includes(f.state)) out[f.kind ?? "unknown"] = (out[f.kind ?? "unknown"] ?? 0) + 1;
+    return out;
+  };
+  const readyByKind = byState(["ready", "in_studio", "waiting_kind"]);
+  const checkingByKind = byState(["checking", "uploading"]);
+  const reasons = (Array.isArray(raw?.failedReasons) ? raw.failedReasons : Array.isArray(raw?.reasons) ? raw.reasons : [])
+    .slice(0, 20)
+    .map((g: any) => ({ reason: str(g?.reason, 200) ?? "unreadable", count: num(g?.count) }));
+  const optNum = (k: string) => (typeof raw?.[k] === "number" && Number.isFinite(raw[k]) ? { [k]: raw[k] as number } : {});
   const groups = (Array.isArray(raw?.groups) ? raw.groups : []).slice(0, 50).map((g: any) => ({
     groupId: str(g?.groupId) ?? "group",
     kind: str(g?.kind) ?? "unknown",
@@ -88,7 +120,35 @@ export function safeSummary(raw: any): DropSummary {
       ? { findings: raw.findings.slice(0, 20).map((g: any) => ({ rule: str(g?.rule) ?? "rule", outcome: str(g?.outcome) ?? "reported", count: num(g?.count), ...(str(g?.message, 200) ? { message: g.message } : {}) })) }
       : {}),
     ...(raw?.failure && str(raw.failure.reason, 300) ? { failure: { reason: raw.failure.reason, ...(str(raw.failure.step) ? { step: raw.failure.step } : {}) } } : {}),
+    ...optNum("ready"),
+    ...optNum("inStudio"),
+    ...optNum("checking"),
+    ...optNum("failed"),
+    ...(raw?.waitingForKind && typeof raw.waitingForKind === "object" && Object.keys(counts(raw.waitingForKind)).length ? { waitingForKind: counts(raw.waitingForKind) } : {}),
+    ...(Object.keys(readyByKind).length ? { readyByKind } : {}),
+    ...(Object.keys(checkingByKind).length ? { checkingByKind } : {}),
+    ...(str(raw?.studioTaskId) && ID.test(raw.studioTaskId) ? { studioTaskId: raw.studioTaskId } : {}),
+    ...(reasons.length ? { failedReasons: reasons } : {}),
   };
+}
+
+const n0 = (n: number) => n.toLocaleString("en-US");
+
+/**
+ * todo28 D8: the tool row and the model's one-line view of a drop, per file rather than one
+ * status: "12 ready · 22 checking · 1 kept". Undefined when the kernel sent no per-file counts.
+ */
+export function dropCounts(s: DropSummary): string | undefined {
+  if (s.ready === undefined && s.checking === undefined && s.inStudio === undefined) return undefined;
+  const waiting = Object.values(s.waitingForKind ?? {}).reduce((a, b) => a + b, 0);
+  const parts = [
+    `${n0(s.ready ?? 0)} ready`,
+    ...(s.inStudio ? [`${n0(s.inStudio)} in the Studio`] : []),
+    ...(waiting ? [`${n0(waiting)} waiting for a kind`] : []),
+    ...(s.checking ? [`${n0(s.checking)} checking`] : []),
+    ...(s.failed ? [`${n0(s.failed)} kept`] : []),
+  ];
+  return parts.join(" · ");
 }
 
 /** States a drop ends in (todo20 D8); the classifier's own states count as settled too. */
@@ -162,7 +222,87 @@ export async function fetchDropSummary(k: KernelClient, dropId: string, offset =
 
 /** The drop part of the user message, as stored and emitted (`custom` name `drop`). */
 export function dropPart(s: DropSummary): DropMessagePart {
-  return { type: "drop", dropId: s.dropId, files: s.files.map((f) => ({ nodeId: f.nodeId, agentName: f.agentName, ...(f.kind ? { kind: f.kind } : {}), state: f.kind ? "ready" : "checking" })) };
+  return { type: "drop", dropId: s.dropId, files: s.files.map((f) => ({ nodeId: f.nodeId, agentName: f.agentName, ...(f.kind ? { kind: f.kind } : {}), state: f.kind && f.state !== "checking" ? "ready" : "checking" })) };
+}
+
+/** todo28 W2/W3: a drop milestone the kernel publishes (claimed by the agent service). */
+export interface DropMilestone {
+  eventId: string;
+  type: "drop.kind_waiting" | "drop.files_failed" | "drop.settled";
+  workspaceId?: string;
+  dropId: string;
+  conversationId?: string;
+  kind?: string;
+  count?: number;
+  reasons?: { reason: string; count: number }[];
+  inStudio?: number;
+  waitingForKind?: Record<string, number>;
+  failed?: number;
+}
+
+export const DROP_MILESTONES = ["drop.kind_waiting", "drop.files_failed", "drop.settled"] as const;
+const CONV_ID = /^(ses_[A-Za-z0-9-]{8,64}|conv-[A-Za-z0-9_-]{4,64})$/;
+
+/** A claimed event as a milestone, screened like a summary (counts and kinds only); undefined if malformed. */
+export function safeMilestone(ev: any): DropMilestone | undefined {
+  const p = ev?.payload ?? {};
+  if (typeof ev?.eventId !== "string" || !(DROP_MILESTONES as readonly string[]).includes(ev?.type) || typeof p.dropId !== "string" || !DROP_ID.test(p.dropId)) return undefined;
+  const conv = typeof p.conversationId === "string" && CONV_ID.test(p.conversationId) ? p.conversationId : undefined;
+  return {
+    eventId: ev.eventId,
+    type: ev.type,
+    ...(typeof ev.workspaceId === "string" && ID.test(ev.workspaceId) ? { workspaceId: ev.workspaceId } : {}),
+    dropId: p.dropId,
+    ...(conv ? { conversationId: conv } : {}),
+    ...(str(p.kind) && ID.test(p.kind) ? { kind: p.kind } : {}),
+    ...(typeof p.count === "number" ? { count: num(p.count) } : {}),
+    ...(Array.isArray(p.reasons) ? { reasons: p.reasons.slice(0, 20).map((g: any) => ({ reason: str(g?.reason, 200) ?? "unreadable", count: num(g?.count) })) } : {}),
+    ...(typeof p.inStudio === "number" ? { inStudio: num(p.inStudio) } : {}),
+    ...(p.waitingForKind && typeof p.waitingForKind === "object" ? { waitingForKind: counts(p.waitingForKind) } : {}),
+    ...(typeof p.failed === "number" ? { failed: num(p.failed) } : {}),
+  };
+}
+
+/** D7: a milestone needs the assistant only when a kind waits or files failed; files that joined don't. */
+export function needsDecision(m: DropMilestone): boolean {
+  if (m.type === "drop.kind_waiting") return (m.count ?? 1) > 0;
+  if (m.type === "drop.files_failed") return (m.count ?? 1) > 0;
+  return Object.values(m.waitingForKind ?? {}).some((n) => n > 0) || (m.failed ?? 0) > 0;
+}
+
+/** What the model reads on a wake: counts and kinds only, never names. */
+export function dropUpdateBlock(dropId: string, ms: DropMilestone[], s?: DropSummary): string {
+  const lines = ms.map((m) =>
+    m.type === "drop.kind_waiting"
+      ? `${plural(m.count ?? 0)} of kind ${m.kind ?? "unknown"} are ready but the Studio doesn't take that kind yet.`
+      : m.type === "drop.files_failed"
+        ? `${plural(m.count ?? 0)} couldn't be read${m.reasons?.length ? ` (${m.reasons.map((r) => `${r.count}: ${r.reason}`).join("; ")})` : ""}; they stay in Sources.`
+        : `The drop is checked: ${n0(m.inStudio ?? 0)} in the Studio${Object.keys(m.waitingForKind ?? {}).length ? `, waiting for a kind: ${Object.entries(m.waitingForKind!).map(([k, n]) => `${n} ${k}`).join(", ")}` : ""}${m.failed ? `, ${n0(m.failed)} kept in Sources` : ""}.`,
+  );
+  const counts = s ? { ready: s.ready, inStudio: s.inStudio, checking: s.checking, failed: s.failed, waitingForKind: s.waitingForKind, studioTaskId: s.studioTaskId } : undefined;
+  return [
+    `<drop_update id="${dropId}">`,
+    ...lines,
+    ...(counts ? [JSON.stringify(counts)] : []),
+    "Add a waiting kind to the attached Studio with patch_studio (its profile at /data/kinds/<kind>), or tell the person in one short message. Don't boot another Studio.",
+    "</drop_update>",
+  ].join("\n");
+}
+
+/** The status line posted when no model can run (the person's token expired): counts only. */
+export function dropUpdateStatus(ms: DropMilestone[]): string {
+  const waiting = new Map<string, number>();
+  let failed = 0;
+  for (const m of ms) {
+    if (m.type === "drop.kind_waiting" && m.kind) waiting.set(m.kind, Math.max(waiting.get(m.kind) ?? 0, m.count ?? 0));
+    if (m.type === "drop.files_failed") failed = Math.max(failed, m.count ?? 0);
+    if (m.type === "drop.settled") {
+      for (const [k, n] of Object.entries(m.waitingForKind ?? {})) waiting.set(k, Math.max(waiting.get(k) ?? 0, n));
+      failed = Math.max(failed, m.failed ?? 0);
+    }
+  }
+  const parts = [...[...waiting].map(([k, n]) => `${plural(n)} of kind ${k} wait for a Studio that takes them`), ...(failed ? [`${plural(failed)} couldn't be read and stay in Sources`] : [])];
+  return parts.length ? `${parts.join("; ")}.` : "Your dropped files are checked.";
 }
 
 /** What the model reads with the user's message: the summary, never bytes, names or links. */
@@ -171,7 +311,7 @@ export function dropBlock(s: DropSummary | undefined, dropId: string, error?: st
   return [
     `<drop id="${s.dropId}">`,
     "The user dropped files into the chat. They are in the project's Files (Shared in chat). Names are screened; read more with get_drop.",
-    `Status: ${s.status ?? dropStatus(s)}.${SETTLED_DROP_STATES.has(s.state ?? "") ? "" : " The drop hasn't settled: call get_drop (it waits) before saying how many files there are."}`,
+    `Status: ${dropCounts(s) ?? s.status ?? dropStatus(s)}.${SETTLED_DROP_STATES.has(s.state ?? "") ? "" : " Files are still being checked: act on the ready ones, don't promise a count before it's known."}`,
     JSON.stringify(s),
     "</drop>",
   ].join("\n");
@@ -182,19 +322,21 @@ export function createDropTools(k: KernelClient): ToolDefinition<any, any, any>[
     name: "get_drop",
     label: "Reading dropped files",
     description:
-      "Files the user dropped, pasted or attached in the chat (a drop): counts by kind and state, groups, and for each file its node id, its screened name, its kind and technical facts (dimensions, frames, duration, modality, column names and types, pages), refreshed as inspection proceeds. Never contents. Pages 50 files at a time (offset).",
+      "Files the user dropped, pasted or attached in the chat (a drop), right now (it never waits): per-file counts (ready, inStudio, checking, failed, waitingForKind), readyByKind and checkingByKind, the Studio it's attached to (studioTaskId), grouped failure reasons, the classifier's groups and suggestion, and for each file its node id, screened name, kind, state and technical facts (dimensions, frames, duration, modality, column names and types, pages). Never contents. Pages 50 files at a time (offset).",
     promptSnippet: "A chat drop's files: kinds, states, groups, screened names and facts",
     parameters: Type.Object({
       dropId: Type.String({ description: "The drop's id (drp-…), from the <drop> block on the user's message." }),
       offset: Type.Optional(Type.Integer({ minimum: 0, description: "Skip this many files (for drops of more than 50)." })),
     }),
     async execute(_id, args, signal) {
-      // todo20 D8: wait (bounded) for the drop to settle; never report "0 files" mid-upload.
-      const s = args.offset ? { ...(await fetchDropSummary(k, args.dropId, args.offset, signal)) } : (await waitForDrop(k, args.dropId, { signal })).summary;
-      s.status ??= dropStatus(s);
+      // todo28 D8: answer at once with per-file counts; files still checking join the attached
+      // Studio on their own, and a <drop_update> follows when a decision is needed.
+      const s = await fetchDropSummary(k, args.dropId, args.offset ?? 0, signal);
+      s.status ??= dropCounts(s) ?? dropStatus(s);
       const kinds = Object.entries(s.byKind).map(([kind, n]) => `${n} ${kind}`).join(", ");
       const settled = SETTLED_DROP_STATES.has(s.state ?? "");
-      const label = settled && s.state !== "duplicate" && s.state !== "failed" ? `${s.status}${kinds ? ` · ${kinds}` : ""}` : s.status;
+      const counted = dropCounts(s);
+      const label = counted ?? (settled && s.state !== "duplicate" && s.state !== "failed" ? `${s.status}${kinds ? ` · ${kinds}` : ""}` : s.status);
       return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: label } };
     },
   });

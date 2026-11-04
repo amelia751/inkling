@@ -194,6 +194,7 @@ export function createStudioHandlers(deps: StudioToolDeps) {
             ...(args.folders?.length ? { folders: args.folders } : {}),
             ...(args.name ? { name: args.name } : {}),
             ...(args.intent ? { intent: args.intent } : {}),
+            ...(args.dropId ? { dropId: args.dropId } : {}),
           },
           ctx.signal,
         ),
@@ -213,8 +214,9 @@ export function createStudioHandlers(deps: StudioToolDeps) {
         ...(revision !== undefined ? { revision } : {}),
         ...(accepted.ms !== undefined ? { ms: accepted.ms } : {}),
         draft: true,
-        note:
-          args.files?.length || args.folders?.length
+        note: args.dropId
+          ? "Draft Studio: only a person can publish it. Booted on the drop's ready files; the other files join this Studio as they're checked."
+          : args.files?.length || args.folders?.length
             ? "Draft Studio: only a person can publish it."
             : "Draft Studio: only a person can publish it. Booted without files: it starts with the project's files of its kinds if it is the project's first Studio, and files uploaded to the project join it while it stays a draft (not after it's published).",
       };

@@ -33,6 +33,13 @@ describe("Studio handlers", () => {
     expect(calls[0]).toMatchObject({ method: "POST", path: "/api/v1/projects/prj-1/boots", body: { bootId: a.bootId, preset: "preset:image-2d" } });
   });
 
+  it("boots on a drop's ready files and says the rest join as they're checked (todo28 W3)", async () => {
+    const { h, calls } = setup(ok);
+    const r = await h.boot_studio({ preset: "preset:image-2d", dropId: "drp-0123456789abcdef" });
+    expect(calls[0]!.body).toMatchObject({ preset: "preset:image-2d", dropId: "drp-0123456789abcdef" });
+    expect(r.note).toContain("the other files join this Studio as they're checked");
+  });
+
   it("rejects unknown presets before calling the API", async () => {
     const { h, calls } = setup(ok);
     await expect(h.boot_studio({ preset: "preset:nope" })).rejects.toBeInstanceOf(StudioToolError);

@@ -189,6 +189,9 @@ export function decide(
       return { kind: "ask", summary: `Do you have the rights to add this data? Import one file from ${linkHost(str("url"))} into this project.` };
     case "copy_into_project":
       return { kind: "ask", summary: `Do you have the rights to add this data? Copy files from ${str("sampleId") ? `the sample ${str("sampleId").slice(0, 80)}` : "another project"} into this project.` };
+    // todo23 W7: a revised recipe is what later builds start from; the person accepts it.
+    case "revise_recipe":
+      return { kind: "ask", summary: `Save a new version of the recipe ${str("recipeId")} (its previous tests still pass; the old version stays in its history)` };
     case "activate_plugin":
       return { kind: "ask", summary: `Activate the staged plugin change ${str("requestId")}` };
     case "configure_plugin":

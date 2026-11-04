@@ -14,6 +14,7 @@ import { PluginManifest } from "@studio/contracts/plugin-manifest";
 import { UiContributions } from "@studio/contracts/ui-contributions";
 import { WorkspaceState } from "@studio/contracts/workspace";
 import { PluginsLock } from "@studio/contracts/lockfile";
+import { Recipe } from "@studio/contracts/recipe";
 import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { PIPELINE_SCHEMAS, pipelineDocuments } from "@studio/contracts/pipeline";
 import { DatasetStructure } from "@studio/contracts/dataset-structure";
@@ -106,6 +107,8 @@ export function contractSchemas(): Record<string, unknown> {
     "workspace.v1.json": js(WorkspaceState, "workspace/v1"),
     "plugins-lock.v1.json": js(PluginsLock, "plugins-lock/v1"),
     "converter.v1.json": js(ConverterManifest, "converter/v1"),
+    // todo23 W7: a recipe folder (SKILL.md frontmatter, environment, plugins.lock, verification).
+    "recipe.v1.json": js(Recipe, "recipe/v1"),
     "converter-output.v1.json": js(ConverterOutput, "converter-output/v1"),
     "conversion-summary.v1.json": js(ConversionSummary, "conversion-summary/v1"),
     "capabilities/image.segment.request.json": js(imageSegment.SegmentRequest, "capabilities/image.segment/request"),

@@ -24,6 +24,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY --from=prune /out/full/ ./
 COPY tsconfig.base.json ./
 COPY schemas schemas
+COPY registry/recipes registry/recipes
 RUN pnpm --filter @studio/mcp run build
 
 # Production dependencies only, installed clean (an in-place `--prod` reinstall keeps dev tools).
@@ -44,6 +45,7 @@ COPY --from=build /repo/apps/mcp/dist apps/mcp/dist
 # dist/main.js reads ../../../schemas/naming.json, i.e. /app/schemas/naming.json, dist/operations.js
 # the operation catalogue and dist/viewers.js the viewer document template.
 COPY --from=build /repo/schemas/naming.json schemas/naming.json
+COPY --from=build /repo/registry/recipes registry/recipes
 COPY --from=build /repo/schemas/operations.json schemas/operations.json
 COPY --from=build /repo/schemas/viewer-runtime.v1.json schemas/viewer-runtime.v1.json
 ENV NODE_ENV=production HOME=/tmp GIT_SHA=${GIT_SHA} \

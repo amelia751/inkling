@@ -42,6 +42,7 @@ import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
 import { createDropTools, dropBlock, dropPart, waitForDrop } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
+import { createRecipeTools } from "../tools/recipes.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
@@ -484,6 +485,8 @@ export class SessionService {
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
       // Without a sandbox the builder can still read fingerprints and probe (todo10 Phase 7).
       else if (profile.kernel === "builder") tools.push(...createBoundaryTools(kernel, { sourceDir: PLUGIN_DIR }).filter((t) => t.name === "get_fingerprint" || t.name === "probe_sample"));
+      // todo23 W7: kept Studios (recipes) are searched before any build.
+      if (profile.kernel === "builder") tools.push(...createRecipeTools({ kernel }));
     }
     if (profile.sandbox === true && this.sandboxes) {
       tools.push(...this.sandboxTools(ctx));

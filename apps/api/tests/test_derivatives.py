@@ -156,6 +156,38 @@ def test_a_project_in_trash_stops_its_conversion_and_restore_resumes_it(client):
     assert again["id"] == row["id"] and again["attempts"] == 1
 
 
+def _tar(files: dict[str, bytes]) -> bytes:
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        for name, data in files.items():
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
+def test_a_slides_tiles_arrive_as_one_tar(client):
+    from studio_api import blobstore
+
+    from .conftest import worker_headers as W
+
+    p, row = _slide_row(client, "Tiles")
+    tiles = {f"derived/abc_files/0/{i}_0.jpeg": b"t%d" % i for i in range(3)}
+    url = f"/api/v1/worker/derivatives/{row['id']}/tiles"
+    r = client.put(url, content=_tar(tiles), headers={**W(), "Content-Type": "application/x-tar"})
+    assert r.status_code == 200, r.text
+    assert r.json()["keys"] == [f"sources/{p}/{name}" for name in tiles]
+    assert blobstore.data().read(f"sources/{p}/derived/abc_files/0/2_0.jpeg") == b"t2"
+    assert client.put(url, content=_tar({"derived/../x.jpeg": b"x"}), headers=W()).status_code == 422
+    assert client.put(url, content=b"not a tar", headers=W()).status_code == 422
+    assert client.put(url, content=_tar(tiles)).status_code in (401, 403)
+    assert client.delete(f"/api/v1/projects/{p}").status_code == 200
+    assert client.put(url, content=_tar(tiles), headers=W()).status_code == 409
+
+
 def test_the_same_slide_in_another_project_reuses_the_conversion(client):
     from studio_api import db as kdb
     from studio_api.models import INCLUDE_TRASHED, Asset

@@ -176,6 +176,12 @@ class _FakeKernel:
     def put(self, url, content=b"", headers=None, params=None):
         self.calls.append((url, params if params is not None else headers))
         self.bodies = getattr(self, "bodies", []) + [content if isinstance(content, bytes) else b"<stream>"]
+        if url.endswith("/tiles"):
+            import io
+            import tarfile
+
+            with tarfile.open(fileobj=io.BytesIO(content)) as tar:
+                return _Resp({"keys": ["uploads/p/" + m.name for m in tar]})
         return _Resp({"key": "uploads/p/" + url.split("/files/")[1]})
 
     def stream(self, _m, _url):
@@ -212,6 +218,58 @@ def test_a_file_over_the_piece_size_goes_up_in_pieces(tmp_path, monkeypatch):
     assert pieces == [{"offset": 0, "total": 10}, {"offset": 4, "total": 10}, {"offset": 8, "total": 10}]
     assert k.bodies == [b"0123", b"4567", b"89"]
     assert k.calls[-1][1]["key"].endswith(".mp4")
+
+
+def _pyramid(tiles: int):
+    def convert(kind, src, out, sha, progress):
+        out.mkdir(parents=True)
+        files = {f"derived/{sha}.dzi": out / "s.dzi"}
+        (out / "s.dzi").write_bytes(b"<Image/>")
+        for i in range(tiles):
+            (out / f"{i}.jpeg").write_bytes(b"tile%d" % i)
+            files[f"derived/{sha}_files/0/{i}_0.jpeg"] = out / f"{i}.jpeg"
+        return derive.Derived(kind, f"derived/{sha}.dzi", files)
+
+    return convert
+
+
+def test_a_slides_tiles_go_up_in_batches(tmp_path, monkeypatch):
+    monkeypatch.setattr(derive, "TILE_BATCH_FILES", 2)
+    k = _FakeKernel()
+    assert derive.DeriveWorker(k, tmp_path, convert=_pyramid(5)).tick() == 1
+    puts = [u for u, _ in k.calls if "/tiles" in u or "/files/" in u]
+    assert sum(u.endswith("/tiles") for u in puts) == 3
+    assert [u for u in puts if "/files/" in u] == [f"/api/v1/worker/derivatives/drv-1/files/derived/{_sha()}.dzi"]
+    done = k.calls[-1][1]
+    assert done["key"] == f"uploads/p/derived/{_sha()}.dzi"
+    assert done["keys"] == [done["key"]] + [f"uploads/p/derived/{_sha()}_files/0/{i}_0.jpeg" for i in range(5)]
+
+
+def test_a_kernel_without_the_batch_route_gets_tiles_one_by_one(tmp_path):
+    import httpx
+
+    k = _FakeKernel()
+    real_put = k.put
+
+    def put(url, content=b"", headers=None, params=None):
+        if url.endswith("/tiles"):
+            k.calls.append((url, headers))
+            r = _Resp({"detail": "Not Found"}, status_code=404)
+            res = httpx.Response(404, request=httpx.Request("PUT", "http://kernel" + url))
+            r.raise_for_status = lambda: (_ for _ in ()).throw(httpx.HTTPStatusError("404", request=res.request, response=res))
+            return r
+        return real_put(url, content, headers, params)
+
+    k.put = put
+    assert derive.DeriveWorker(k, tmp_path, convert=_pyramid(3)).tick() == 1
+    assert sum("/files/" in u for u, _ in k.calls) == 4
+    assert k.calls[-1][0].endswith("/complete") and len(k.calls[-1][1]["keys"]) == 4
+
+
+def _sha() -> str:
+    import hashlib
+
+    return hashlib.sha256(b"avi-bytes").hexdigest()
 
 
 def test_a_busy_kernel_is_retried_per_file_not_per_derivative(tmp_path, monkeypatch):

@@ -231,7 +231,7 @@ async def inspect_derived(node_id: str, role: str, request: Request, db: Session
     from ..kernel import inspection
 
     data = await request.body()
-    return inspection.put_derived(db, node_id, role, data, request.headers.get("Content-Type", ""))
+    return await asyncio.to_thread(inspection.put_derived, db, node_id, role, data, request.headers.get("Content-Type", ""))
 
 
 @router.post("/inspect/imports/{import_id}/nodes", dependencies=[Depends(_auth)])
@@ -279,9 +279,16 @@ async def derivative_file(did: str, rel: str, request: Request, offset: int | No
 
     from .. import blobstore
 
-    row = derivatives.get(db, did)
-    derivatives.stop_if_trashed(db, row)
-    key = derivatives.file_key(row, rel)
+    def check() -> str:
+        row = derivatives.get(db, did)
+        derivatives.stop_if_trashed(db, row)
+        key = derivatives.file_key(row, rel)
+        db.rollback()
+        return key
+
+    # Database and BlobStore calls run in threads: this route takes a slide's tiles by the
+    # thousand, and a blocking call here stalls every other request on the replica.
+    key = await asyncio.to_thread(check)
     ctype = request.headers.get("Content-Type") or "application/octet-stream"
     # Spooled to /tmp and handed to the BlobStore as a file (a converted video can be
     # gigabytes): never held in memory.
@@ -294,23 +301,80 @@ async def derivative_file(did: str, rel: str, request: Request, offset: int | No
             size += len(chunk)
             f.write(chunk)
     store = blobstore.data()
-    try:
-        if offset is None:
-            store.put_file(key, f.name, ctype)
-        else:
-            if total is None or offset < 0 or offset + size > total:
-                raise HTTPException(422, "a piece needs ?offset= and ?total= with offset + its size ≤ total")
-            store.put_file(derivatives.part_key(key, offset), f.name, ctype)
-    finally:
-        os.unlink(f.name)
+
+    def keep() -> None:
+        try:
+            if offset is None:
+                store.put_file(key, f.name, ctype)
+            else:
+                if total is None or offset < 0 or offset + size > total:
+                    raise HTTPException(422, "a piece needs ?offset= and ?total= with offset + its size ≤ total")
+                store.put_file(derivatives.part_key(key, offset), f.name, ctype)
+        finally:
+            os.unlink(f.name)
+
+    await asyncio.to_thread(keep)
     if offset is not None:
         if offset + size < total:
             return {"key": key, "received": offset + size}
         await asyncio.to_thread(derivatives.join_parts, store, key, total, ctype)
         size = total
-    derivatives.register_file(db, row, key, ctype, size)
-    db.commit()
+
+    def register() -> None:
+        derivatives.register_file(db, derivatives.get(db, did), key, ctype, size)
+        db.commit()
+
+    await asyncio.to_thread(register)
     return {"key": key}
+
+
+TILE_BATCH_MAX = 24 * 1024 * 1024
+TILE_PUT_THREADS = 16
+
+
+@router.put("/derivatives/{did}/tiles", dependencies=[Depends(_auth)])
+async def derivative_tiles(did: str, request: Request, db: Session = Depends(get_session)):
+    """Small files of a derivative (a slide's tiles) as one tar, so a pyramid of ~100 k tiles is a
+    few hundred requests. Returns the files' keys in the tar's order."""
+    body = bytearray()
+    async for chunk in request.stream():
+        body += chunk
+        if len(body) > TILE_BATCH_MAX:
+            raise HTTPException(413, f"a tile batch is at most {TILE_BATCH_MAX // 1024**2} MiB")
+    return await asyncio.to_thread(_store_tiles, db, did, bytes(body))
+
+
+def _store_tiles(db: Session, did: str, body: bytes) -> dict:
+    import io
+    import mimetypes
+    import tarfile
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .. import blobstore
+    from ..kernel import derivatives
+
+    row = derivatives.get(db, did)
+    derivatives.stop_if_trashed(db, row)
+    files: list[tuple[str, bytes, str]] = []
+    try:
+        with tarfile.open(fileobj=io.BytesIO(body), mode="r:") as tar:
+            for m in tar:
+                if not m.isfile():
+                    raise HTTPException(422, "a tile batch holds regular files only")
+                data = tar.extractfile(m)
+                ctype = mimetypes.guess_type(m.name)[0] or "application/octet-stream"
+                files.append((derivatives.file_key(row, m.name), data.read() if data else b"", ctype))
+    except tarfile.TarError:
+        raise HTTPException(422, "a tile batch is a tar") from None
+    db.rollback()
+    store = blobstore.data()
+    with ThreadPoolExecutor(max_workers=TILE_PUT_THREADS) as pool:
+        list(pool.map(lambda f: store.put(*f), files))
+    row = derivatives.get(db, did)
+    for key, data, ctype in files:
+        derivatives.register_file(db, row, key, ctype, len(data))
+    db.commit()
+    return {"keys": [key for key, _, _ in files]}
 
 
 @router.post("/derivatives/{did}/complete", dependencies=[Depends(_auth)])

@@ -36,6 +36,9 @@ UPLOAD_THREADS = 8
 UPLOAD_RETRIES = 5
 # Cloud Run refuses HTTP/1 request bodies over 32 MiB: bigger files go up in pieces.
 UPLOAD_PIECE = 16 * 1024 * 1024
+# A slide's tiles go up as tars of at most this many files and bytes (the kernel takes 24 MiB).
+TILE_BATCH_FILES = 500
+TILE_BATCH_BYTES = 16 * 1024 * 1024
 
 Progress = Callable[[int], None]
 log = logging.getLogger(__name__)
@@ -448,57 +451,94 @@ class DeriveWorker:
                     body["unavailable"] = True
                 self.http.post(f"/api/v1/worker/derivatives/{did}/fail", json=body)
                 return "waiting" if e.unavailable else "failed"
-            def upload(item: tuple[str, Path]) -> str:
+            def send(put, rel: str) -> dict:
                 import time
 
                 import httpx
 
+                for attempt in range(UPLOAD_RETRIES + 1):
+                    try:
+                        up = put()
+                        if up.status_code == 409:
+                            stopped.set()
+                            raise Stopped
+                        if up.status_code < 500:
+                            up.raise_for_status()
+                            return up.json()
+                        reason = f"HTTP {up.status_code}"
+                    except httpx.TransportError as e:
+                        reason = type(e).__name__
+                    if attempt == UPLOAD_RETRIES:
+                        log.warning("derivative upload failed", extra={"derivative": did, "file": rel, "reason": reason})
+                        raise DeriveError(f"Uploading the converted files failed ({reason})", retry=True)
+                    time.sleep(0.5 * 2**attempt)
+                raise AssertionError("unreachable")
+
+            def upload(item: tuple[str, Path]) -> str:
                 rel, path = item
                 if stopped.is_set():
                     raise Stopped
                 ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
                 url = f"/api/v1/worker/derivatives/{did}/files/{rel}"
-
-                def send(put) -> dict:
-                    for attempt in range(UPLOAD_RETRIES + 1):
-                        try:
-                            up = put()
-                            if up.status_code == 409:
-                                stopped.set()
-                                raise Stopped
-                            if up.status_code < 500:
-                                up.raise_for_status()
-                                return up.json()
-                            reason = f"HTTP {up.status_code}"
-                        except httpx.TransportError as e:
-                            reason = type(e).__name__
-                        if attempt == UPLOAD_RETRIES:
-                            log.warning("derivative upload failed", extra={"derivative": did, "file": rel, "reason": reason})
-                            raise DeriveError(f"Uploading the converted files failed ({reason})", retry=True)
-                        time.sleep(0.5 * 2**attempt)
-                    raise AssertionError("unreachable")
-
                 size = path.stat().st_size
                 if size <= UPLOAD_PIECE:
                     def whole():
                         with path.open("rb") as body:  # streamed, never read whole
                             return self.http.put(url, content=body, headers={"Content-Type": ctype})
 
-                    return send(whole)["key"]
+                    return send(whole, rel)["key"]
                 with path.open("rb") as fh:
                     for offset in range(0, size, UPLOAD_PIECE):
                         fh.seek(offset)
                         piece = fh.read(UPLOAD_PIECE)
-                        out = send(lambda o=offset, p=piece: self.http.put(url, params={"offset": o, "total": size}, content=p, headers={"Content-Type": ctype}))
+                        out = send(lambda o=offset, p=piece: self.http.put(url, params={"offset": o, "total": size}, content=p, headers={"Content-Type": ctype}), rel)
                 return out["key"]
+
+            def upload_tiles(batch: list[tuple[str, Path]]) -> dict[str, str]:
+                import io
+                import tarfile
+
+                import httpx
+
+                if stopped.is_set():
+                    raise Stopped
+                buf = io.BytesIO()
+                with tarfile.open(fileobj=buf, mode="w") as tar:
+                    for rel, path in batch:
+                        tar.add(path, arcname=rel)
+                body = buf.getvalue()
+                url = f"/api/v1/worker/derivatives/{did}/tiles"
+                try:
+                    out = send(lambda: self.http.put(url, content=body, headers={"Content-Type": "application/x-tar"}), batch[0][0])
+                except httpx.HTTPStatusError as e:
+                    if e.response.status_code not in (404, 405):
+                        raise
+                    return {rel: upload((rel, path)) for rel, path in batch}  # a kernel without the batch route
+                return dict(zip([rel for rel, _ in batch], out["keys"]))
 
             from concurrent.futures import ThreadPoolExecutor
 
             items = list(d.files.items())
-            # A slide pyramid is ~100 k small tiles: one request at a time is most of the wait.
+            # A slide pyramid is ~100 k small tiles: they go up in batches, several at a time.
+            tiles = [(rel, p) for rel, p in items if "_files/" in rel and p.stat().st_size <= TILE_BATCH_BYTES]
+            batches: list[list[tuple[str, Path]]] = []
+            size = TILE_BATCH_BYTES
+            for rel, p in tiles:
+                n = p.stat().st_size
+                if not batches or len(batches[-1]) >= TILE_BATCH_FILES or size + n > TILE_BATCH_BYTES:
+                    batches.append([])
+                    size = 0
+                batches[-1].append((rel, p))
+                size += n
+            batched = {rel for rel, _ in tiles}
+            rest = [item for item in items if item[0] not in batched]
             try:
+                by_rel: dict[str, str] = {}
                 with ThreadPoolExecutor(max_workers=UPLOAD_THREADS if len(items) > 1 else 1) as pool:
-                    keys = list(pool.map(upload, items))
+                    for done in pool.map(upload_tiles, batches):
+                        by_rel.update(done)
+                    by_rel.update(zip([rel for rel, _ in rest], pool.map(upload, rest)))
+                keys = [by_rel[rel] for rel, _ in items]
             except Stopped:
                 log.info("derivative stopped: its file is in Trash", extra={"derivative": did})
                 return "stopped"

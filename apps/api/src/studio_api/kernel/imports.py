@@ -387,20 +387,29 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
     the final state change touches the database. On SQLite a read transaction held across that
     I/O goes stale as parallel uploads commit, and its write then fails at once with "database
     is locked" (WAL mode doesn't wait for a stale snapshot), which made folder uploads crawl."""
-    s, p = require_session(db, ctx, session_id, write=True)
-    if ctx.scopes:
-        raise HTTPException(403, "only people add data to a project")
-    if s.state not in OPEN_STATES:
-        raise HTTPException(409, f"this import is {s.state}")
-    f = db.get(UploadFile, (s.id, file_id))
-    if f is None:
-        raise HTTPException(404, "no such file in this import")
-    if f.state != "pending":
-        return {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
-    if offset != f.received:
-        raise HTTPException(409, f"expected offset {f.received}")
-    sid, fid, size, sha, rel, pid = s.id, f.client_file_id, f.size, f.sha256, f.rel_path, p.id
-    db.rollback()  # no transaction across the I/O below
+    def start() -> tuple[str, str, int, str, str, str] | dict:
+        s, p = require_session(db, ctx, session_id, write=True)
+        if ctx.scopes:
+            raise HTTPException(403, "only people add data to a project")
+        if s.state not in OPEN_STATES:
+            raise HTTPException(409, f"this import is {s.state}")
+        f = db.get(UploadFile, (s.id, file_id))
+        if f is None:
+            raise HTTPException(404, "no such file in this import")
+        if f.state != "pending":
+            return {"clientFileId": f.client_file_id, "state": f.state, "received": f.received, "reason": f.reason}
+        if offset != f.received:
+            raise HTTPException(409, f"expected offset {f.received}")
+        out = (s.id, f.client_file_id, f.size, f.sha256, f.rel_path, p.id)
+        db.rollback()  # no transaction across the I/O below
+        return out
+
+    # Every database and BlobStore call runs in a thread: a blocking call stalls every other
+    # request on the replica.
+    head = await asyncio.to_thread(start)
+    if isinstance(head, dict):
+        return head
+    sid, fid, size, sha, rel, pid = head
     store = blobstore.data()
     max_chunk = settings().upload_max_chunk_bytes
     tmp = tempfile.NamedTemporaryFile(delete=False, dir=None)
@@ -416,7 +425,7 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
                 tmp.write(chunk)
         if n == 0 and size > 0:
             raise HTTPException(422, "empty chunk")
-        _put_file(store, _quarantine(sid, fid, offset), tmp.name)
+        await asyncio.to_thread(_put_file, store, _quarantine(sid, fid, offset), tmp.name)
     finally:
         os.unlink(tmp.name)
     outcome = await asyncio.to_thread(_assemble, store, sid, fid, size, sha, upload_key(pid, sha, rel)) if offset + n == size else None

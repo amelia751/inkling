@@ -328,11 +328,11 @@ async def project_events(project_id: str, request: Request, ctx: RequestContext 
             return [(e.event_id, e.type, e.payload) for e in s.scalars(q.order_by(PluginEvent.created_at).limit(200))]
 
     async def stream():
-        cursor = last or newest()
+        cursor = last or await asyncio.to_thread(newest)
         yield "retry: 3000\n\n"
         waited = quiet = 0.0
         while waited < SSE_MAX_S and not await request.is_disconnected():
-            for eid, kind, payload in after(cursor):
+            for eid, kind, payload in await asyncio.to_thread(after, cursor):
                 cursor = eid
                 quiet = 0.0
                 yield f"id: {eid}\nevent: {kind}\ndata: {json.dumps(payload)}\n\n"

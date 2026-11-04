@@ -87,15 +87,16 @@ def test_posted_nodes_apply_at_once_and_only_once(client):
     assert c["detectedKind"] == "image" and "retrying" not in c["flags"] and "recheck" not in c["flags"]
 
 
-def test_a_file_that_never_recovers_is_set_aside(client):
+def test_a_file_that_keeps_failing_keeps_being_rechecked(client):
+    """D3: no give-up path. The wait grows to an hour; the file stays `checking` + `retrying`."""
     _p, imp, files = _setup(client)
     nodes = [{"nodeId": files[n], "detectedKind": "image", "facts": {}, "flags": {}} for n in ("a.png", "b.png")]
     client.post(f"/api/v1/worker/inspect/imports/{imp['id']}/report", json={"inspector": "v1", "nodes": nodes, "retrying": [files["c.png"]]}, headers=W())
     at = now()
-    for _ in range(sweepers.RECHECK_MAX + 1):
+    for _ in range(30):
         at += timedelta(seconds=sweepers.RECHECK_MAX_WAIT_S + 1)
         with db.session_scope() as s:
-            sweepers.recheck_nodes(s, at=at)
+            assert sweepers.recheck_nodes(s, at=at) == 1
     with db.session_scope() as s:
         n = s.get(SourceNode, files["c.png"])
-        assert n is not None and n.detected_kind == "unknown" and n.flags.get("unsupported") and not n.flags.get("retrying")
+        assert n is not None and n.detected_kind is None and n.flags.get("retrying") and "unsupported" not in n.flags

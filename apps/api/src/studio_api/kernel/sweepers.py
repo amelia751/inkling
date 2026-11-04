@@ -9,8 +9,9 @@ Both are single UPDATE/DELETE statements guarded by the age, so every replica ma
 
 todo28 W1: a file whose bytes the worker couldn't read over HTTP (5 tries) is left `checking` with
 `retrying: true` when its import closes. `recheck_nodes` asks the worker again
-(`source.node.recheck`) with a growing wait, and after `RECHECK_MAX` asks sets it aside with the
-poison reason, so a file is never "checking" forever.
+(`source.node.recheck`) with a growing wait (capped at an hour) until it succeeds. D3: there is no
+"couldn't check, gave up" path; the file shows "Still checking (retrying)" and blocks nothing.
+Content that really can't be read ends as unsupported through the normal inspection, not here.
 """
 
 from __future__ import annotations
@@ -43,7 +44,6 @@ def sweep_idempotency(db: Session, at: datetime | None = None) -> int:
     return db.execute(delete(IdempotencyKey).where(IdempotencyKey.status == "in_progress", IdempotencyKey.created_at < cutoff)).rowcount  # type: ignore[attr-defined]
 
 
-RECHECK_MAX = 12
 RECHECK_MAX_WAIT_S = 3600
 
 
@@ -67,11 +67,7 @@ def recheck_nodes(db: Session, at: datetime | None = None) -> int:
         if due and due > at.isoformat():
             continue
         attempt = int(rc.get("attempt") or 0) + 1
-        if attempt > RECHECK_MAX:
-            n.detected_kind = "unknown"
-            n.flags = {**{k: v for k, v in flags.items() if k not in inspection.RETRY_KEYS}, "unsupported": inspection.POISON_REASON}
-            continue
-        wait_s = min(RECHECK_MAX_WAIT_S, inspection.RECHECK_FIRST_S * 2**attempt)
+        wait_s = min(RECHECK_MAX_WAIT_S, inspection.RECHECK_FIRST_S * 2 ** min(attempt, 20))
         n.flags = {**flags, "recheck": {"attempt": attempt, "at": (at + timedelta(seconds=wait_s)).isoformat()}}
         asks.setdefault((project_id, str(n.import_session_id)), []).append(n.id)
     for (project_id, import_id), ids in asks.items():

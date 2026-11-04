@@ -562,6 +562,9 @@ class Organization(Base):
     # Organization › Settings (todo9 Phase 6): our own flags, not WorkOS's.
     zero_retention: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     ai_assist: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # todo25 D4: projects may use Studio-managed provider keys (spend on the org). None = the
+    # stage's default (on outside production); production needs an admin to turn it on.
+    managed_provider_keys: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
 
 class OrganizationMember(Base):

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 
 from ..config import settings
 from ..context import RequestContext
-from ..models import PermissionUse, Secret
+from ..models import Organization, PermissionUse, PluginVersion, ProjectRow, Secret
 from . import audit
 
 
@@ -65,6 +65,45 @@ def _plaintext(db: Session, workspace_id: str, name: str) -> str:
         raise HTTPException(500, "secret could not be decrypted") from e
 
 
+# ---- Studio-managed provider keys (todo25 D4) ------------------------------------------------
+
+# A project secret name → (the setting holding the platform key, the only hosts it may go to).
+MANAGED_KEYS: dict[str, tuple[str, frozenset[str]]] = {
+    "META_MODEL_API_KEY": ("provider_key_meta", frozenset({"api.meta.ai"})),
+}
+
+
+def org_allows_managed_keys(org: Organization | None) -> bool:
+    """An org admin's explicit choice wins; unset means on outside production, off in it."""
+    if org is not None and org.managed_provider_keys is not None:
+        return bool(org.managed_provider_keys)
+    return not settings().production
+
+
+def _managed_value(db: Session, claims: dict, host: str) -> str | None:
+    """The platform key when the project has none of its own and its org allows it; audited."""
+    name = claims["name"]
+    spec = MANAGED_KEYS.get(name)
+    if spec is None or db.scalar(select(Secret.id).where(Secret.workspace_id == claims["ws"], Secret.name == name)) is not None:
+        return None
+    key = getattr(settings(), spec[0], None)
+    if not key or host not in spec[1]:
+        return None
+    project = db.get(ProjectRow, claims["ws"])
+    org = db.get(Organization, project.org_id) if project is not None else None
+    ctx = RequestContext(claims["ws"], f"plugin:{claims['plugin']}@{claims['version']}", claims.get("job") or "broker")
+    if not org_allows_managed_keys(org):
+        audit.record(db, ctx, "secrets.managed_refused", target=name, after={"host": host, "job": claims.get("job"), "orgId": org.id if org else None})
+        db.commit()  # the refusal is on the record even though the request fails
+        raise HTTPException(403, f"{name} isn't set in this project, and its organization hasn't turned on Studio-managed provider keys. An org admin can turn them on (Organization › Settings), or set the project's own {name}.")
+    # No org budget ledger exists yet: the price per unit and the org go on the audit entry.
+    pv = db.get(PluginVersion, (claims["plugin"], claims["version"]))
+    prov = next((p for p in ((pv.manifest if pv else {}) or {}).get("providers") or [] if name in (p.get("secrets") or [])), None)
+    pricing = (prov or {}).get("pricing") or {}
+    audit.record(db, ctx, "secrets.managed_use", target=name, after={"host": host, "job": claims.get("job"), "orgId": org.id if org else None, "provider": (prov or {}).get("id"), "unit": pricing.get("unit"), "usdPerUnit": pricing.get("usdPerUnit"), "chargedTo": f"org:{org.id}" if org else None})
+    return key
+
+
 # ---- Use tokens and the proxy ------------------------------------------------------------
 
 
@@ -101,7 +140,8 @@ def proxy(db: Session, token: str, method: str, url: str, *, headers: dict[str, 
         raise HTTPException(403, "the broker only calls https endpoints")
     if host not in claims["hosts"]:
         raise HTTPException(403, f"egress to {host} is not granted for {claims['plugin']}")
-    value = _plaintext(db, claims["ws"], claims["name"])
+    managed = _managed_value(db, claims, host)
+    value = managed if managed is not None else _plaintext(db, claims["ws"], claims["name"])
     out = {**(headers or {}), inject: f"{scheme} {value}".strip() if scheme else value}
     db.add(PermissionUse(workspace_id=claims["ws"], plugin_id=claims["plugin"], version=claims["version"], permission=f"secrets.use:{claims['name']}", job_id=claims.get("job")))
     db.add(PermissionUse(workspace_id=claims["ws"], plugin_id=claims["plugin"], version=claims["version"], permission=f"network.egress:{host}", job_id=claims.get("job")))

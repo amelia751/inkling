@@ -75,8 +75,9 @@ def grant_sample_editors(principals) -> None:
 
 @pytest.fixture
 def make_client(seed: Path, tmp_path: Path):
+    # Default plugins (todo25 D3) are off unless a test asks: they add installs and audit entries.
     def make(*, sample_editors=SAMPLE_EDITORS, **overrides) -> TestClient:
-        overrides = {"database_url": database_url_for_tests(), "seed_root": seed, "data_dir": tmp_path / "data", "secret_key": "test-secret-key", **overrides}
+        overrides = {"database_url": database_url_for_tests(), "seed_root": seed, "data_dir": tmp_path / "data", "secret_key": "test-secret-key", "default_plugins": "", **overrides}
         s = config.load_settings(**overrides)
         config.set_settings(s)
         db.reset_engine()

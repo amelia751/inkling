@@ -337,6 +337,14 @@ pipeline token); values shared across the two projects are set twice with the sa
 Key files (the versioning and pipeline signing keys, their JWKS) are mounted as files at the paths
 the GKE overlay used. Add every version before the first deploy, or the revision fails to start.
 
+`run-api-provider-key-meta` is the Studio-managed Meta Model API key (todo25 D4, env
+`STUDIO_API_PROVIDER_KEY_META`): the secrets broker uses it for SAM 3.1 calls from projects that
+have no `META_MODEL_API_KEY` of their own, only when their org turned on managed provider keys
+(`PATCH /api/v1/org {"managedProviderKeys": true}`; unset is off in production). Each use is an
+audit entry (`secrets.managed_use`, with the org and price per image). New projects start with
+`studio.segmentation` on `meta.sam` (`STUDIO_API_DEFAULT_PLUGINS`); projects created before
+that get it from `apps/api/scripts/backfill_default_plugins.py`, run once with the api's env.
+
 The agent's model is ai variable `agent_model` (`provider:model`, `apps/agent/src/agent/providers`).
 The default is Muse on the Meta Model API, whose key is `run-agent-muse-api-key`. That API is outside
 the Google BAA, so a stage using it runs on synthetic data only.

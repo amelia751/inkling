@@ -13,6 +13,7 @@ locals {
     "run-api-workos-api-key"              = ["api"]
     "run-api-workos-cookie-password"      = ["api"] # a Fernet key
     "run-api-versioning-jwt-key"          = ["api"] # Ed25519 PKCS8 PEM (tools/versioning-keys.mjs), mounted as a file
+    "run-api-provider-key-meta"           = ["api"] # todo25 D4: the Studio-managed Meta Model API key (SAM 3.1); add a version before the apply that references it
     "run-worker-token"                    = ["api", "worker"]
     "run-pipeline-token"                  = ["api", "pipeline"]
     "run-web-agent-token"                 = ["web"] # same value as the agent's STUDIO_AGENT_TOKEN

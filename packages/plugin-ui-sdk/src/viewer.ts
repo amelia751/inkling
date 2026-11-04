@@ -16,11 +16,18 @@
  *   - `runtime.get(key)` / `runtime.publish(key, value)`: the item's runtime values;
  *   - `annotations.list()` / `annotations.propose([{ label, geometry, attributes }])`: typed
  *     geometries (`@studio/contracts` types), vetted by the host and stored as `ai-suggested`;
- *     a viewer never writes the annotation document itself.
+ *     a viewer never writes the annotation document itself;
+ *   - `theme`: the active Studio theme, `{ mode, vars }` (todo23 W2). The frame already has the
+ *     theme's CSS variables on `:root` and a stylesheet of styled elements (buttons, inputs,
+ *     tables, tabs, `.badge`, `.empty-state`, `.error-state`; viewer-theme.generated.ts), so plain
+ *     tags look native. Use `var(--g-…)` for anything custom; `viewer-lint` rejects raw colours.
  *
  * This file has no React and no DOM dependency: the runtime is a string the host inlines.
  */
 import type { Annotation, Geometry } from "@studio/contracts/types";
+import { VIEWER_STYLES, VIEWER_THEME_DEFAULTS, VIEWER_THEME_TOKENS } from "./viewer-theme.generated";
+
+export { VIEWER_STYLES, VIEWER_THEME_DEFAULTS, VIEWER_THEME_TOKENS };
 
 /** MCP Apps protocol version the runtime speaks (modelcontextprotocol/ext-apps, stable 2026-01-26). */
 export const MCP_APPS_PROTOCOL = "2026-01-26";
@@ -79,8 +86,16 @@ export interface ProposedAnnotation {
   attributes?: Annotation["attributes"];
 }
 
+/** The active theme: light or dark, and the token CSS variables (`--g-text-primary` → value). */
+export interface ViewerTheme {
+  mode: "light" | "dark";
+  vars: Record<string, string>;
+}
+
 export interface ViewerHost {
   item(): ViewerItem | undefined;
+  /** The active Studio theme; updated in place when the person switches (also `model.on("change:theme")`). */
+  readonly theme: ViewerTheme;
   readAsset(path: string): Promise<Uint8Array>;
   annotations: {
     list(): Promise<Annotation[]>;
@@ -129,6 +144,8 @@ export const VIEWER_RUNTIME = String.raw`(() => {
   const PROTOCOL = ${JSON.stringify(MCP_APPS_PROTOCOL)};
   const TOOLS = ${JSON.stringify(VIEWER_TOOLS)};
   let seq = 0, ctrl = null, cleanup = null, hostContext = {}, rendered = false;
+  const theme = { mode: document.documentElement.dataset.theme === "dark" ? "dark" : "light", vars: {} };
+  for (const k of ${JSON.stringify(VIEWER_THEME_TOKENS)}) { const v = getComputedStyle(document.documentElement).getPropertyValue(k).trim(); if (v) theme.vars[k] = v; }
   const pending = new Map(), listeners = new Map(), state = {};
   const send = (msg) => parent.postMessage(Object.assign({ jsonrpc: "2.0" }, msg), "*");
   const request = (method, params) => new Promise((resolve, reject) => { const id = ++seq; pending.set(id, { resolve, reject }); send({ id, method, params }); });
@@ -150,6 +167,7 @@ export const VIEWER_RUNTIME = String.raw`(() => {
   }
   const host = {
     item: () => state.item,
+    get theme() { return theme; },
     async readAsset(path) {
       const r = await call(TOOLS.readAsset, { path });
       const res = (r.content || []).find((c) => c.type === "resource" && c.resource && typeof c.resource.blob === "string");
@@ -207,8 +225,9 @@ export const VIEWER_RUNTIME = String.raw`(() => {
   }
   function applyTheme(ctx) {
     const vars = ctx && ctx.styles && ctx.styles.variables;
-    if (vars) for (const [k, v] of Object.entries(vars)) if (v) document.documentElement.style.setProperty(k, v);
-    if (ctx && ctx.theme) document.documentElement.dataset.theme = ctx.theme;
+    if (vars) for (const [k, v] of Object.entries(vars)) if (v && /^--[\w-]+$/.test(k)) { document.documentElement.style.setProperty(k, String(v)); theme.vars[k] = String(v); }
+    if (ctx && (ctx.theme === "dark" || ctx.theme === "light")) { document.documentElement.dataset.theme = ctx.theme; theme.mode = ctx.theme; }
+    if (vars || (ctx && ctx.theme)) model.set("theme", theme);
   }
   function merge(next) {
     if (!next || typeof next !== "object") return;
@@ -251,11 +270,42 @@ export const VIEWER_RUNTIME = String.raw`(() => {
     .catch((e) => fail("initialize", e));
 })();`;
 
+/** `:root{--token:value;…}` for a theme. Keys must be custom properties; values can't close the style element. */
+export function viewerThemeCss(theme: ViewerTheme): string {
+  const decls = Object.entries(theme.vars)
+    .filter(([k, v]) => /^--[\w-]+$/.test(k) && typeof v === "string" && v.trim() !== "")
+    .map(([k, v]) => `${k}:${v.replace(/[<>{};]/g, "").trim()};`)
+    .join("");
+  return `:root{${decls}}`;
+}
+
+/**
+ * Inject a theme into a View document (the sandbox proxy's resource, todo23 W2): the token
+ * variables in `<style id="studio-viewer-theme">` (replaced if the document has one, as
+ * `viewerDocument` output does), the styled-element stylesheet if missing (tier-3 pages), and
+ * `data-theme` on `<html>`. The document's CSP is untouched.
+ */
+export function themeViewerDocument(html: string, theme: ViewerTheme): string {
+  const vars = `<style id="studio-viewer-theme">${viewerThemeCss(theme)}</style>`;
+  let out = html;
+  const existing = /<style id="studio-viewer-theme">[^<]*<\/style>/;
+  if (existing.test(out)) out = out.replace(existing, () => vars);
+  else {
+    const styles = out.includes('id="studio-viewer-styles"') ? "" : `<style id="studio-viewer-styles">${VIEWER_STYLES}</style>`;
+    out = /<\/head>/i.test(out) ? out.replace(/<\/head>/i, () => `${vars}${styles}</head>`) : `${vars}${styles}${out}`;
+  }
+  const mode = theme.mode === "dark" ? "dark" : "light";
+  if (/<html\b[^>]*\bdata-theme=/i.test(out)) out = out.replace(/(<html\b[^>]*\bdata-theme=)("[^"]*"|'[^']*')/i, (_m, a: string) => `${a}"${mode}"`);
+  else if (/<html\b/i.test(out)) out = out.replace(/<html\b/i, `<html data-theme="${mode}"`);
+  return out;
+}
+
 /** The document template; `{{title}}` and `{{module}}` are filled by `viewerDocument`. */
 export const VIEWER_TEMPLATE = `<!doctype html>
 <html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${VIEWER_CSP}">
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>{{title}}</title>
-<style>html,body{margin:0;padding:0;background:var(--color-background-primary,#fff);color:var(--color-text-primary,#111);font:13px/1.4 var(--font-sans,system-ui,sans-serif)}#viewer-root{min-height:120px}[data-viewer-error]{color:#b00020;padding:12px}</style>
+<style id="studio-viewer-theme">${viewerThemeCss({ mode: "light", vars: VIEWER_THEME_DEFAULTS.light })}</style>
+<style id="studio-viewer-styles">${VIEWER_STYLES}</style>
 </head><body><div id="viewer-root"></div>
 <script type="application/json" id="viewer-module">{{module}}</script>
 <script>${VIEWER_RUNTIME}</script>

@@ -199,6 +199,9 @@ importers:
       '@studio/observability-ts':
         specifier: workspace:*
         version: link:../../packages/observability-ts
+      '@studio/plugin-ui-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-ui-sdk
       '@studio/studio-tools':
         specifier: workspace:*
         version: link:../../packages/studio-tools

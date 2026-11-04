@@ -4,6 +4,7 @@ import type { DropOrigin } from "@studio/contracts/drops";
 import { apiUrl, runtimeConfig } from "@/extension-host/runtime-config";
 import { api, fetchProject, NeedsApiError } from "@/studio/lib/projects-api";
 import { hashFiles } from "@/studio/lib/uploads/hash";
+import { UPLOAD_CHUNK_BYTES } from "@/studio/lib/uploads/chunk";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { markTimeline } from "@/studio/lib/drop-timeline";
 import { apiFetch } from "@/extension-host/http";
@@ -13,10 +14,10 @@ import { onBeforeSignIn, signInAgain } from "@/studio/lib/session";
  * Uploads (todo6 Phase 4.4): a Drive-style tray that never blocks. One entry per import:
  * the rights attestation (once per project and person), hashing in a worker ("Preparing…"),
  * the session request (the kernel skips what's already there), then the bytes, 4 files at a
- * time, in 64 MB chunks with backoff, then "Checking files…" until inspection reports.
+ * time, in 16 MiB chunks (Cloud Run's 32 MiB body cap, todo24 D4) with backoff, then "Checking files…" until inspection reports.
  * Bytes in flight make `beforeunload` warn; after a reload, dropping the same folder resumes.
  */
-export const CHUNK = 64 * 1024 * 1024;
+export const CHUNK = UPLOAD_CHUNK_BYTES;
 const CONCURRENCY = 4;
 const RETRIES = 4;
 
@@ -34,7 +35,32 @@ export function inspectionStatus(checkingSince: number, now: number, stallMs = r
   return elapsed >= giveUpMs ? "timedOut" : elapsed >= stallMs ? "stalled" : "checking";
 }
 
-export type TrayPhase = "attesting" | "preparing" | "uploading" | "checking" | "done" | "failed" | "cancelled";
+/** `partial` (todo24 D5): the import finished but some files never arrived; never shown as "Ready". */
+export type TrayPhase = "attesting" | "preparing" | "uploading" | "checking" | "done" | "partial" | "failed" | "cancelled";
+
+/** A session that is no longer moving bytes or checking them: its unsent files are "Not uploaded". */
+export const settledPhase = (p: TrayPhase) => p === "done" || p === "partial" || p === "failed" || p === "cancelled";
+
+/**
+ * The tray phase for the kernel's view of a session (todo24 D5). A finished import that left
+ * files behind (`totals.incomplete`, or rows still pending/failed) is `partial`, never `done`.
+ */
+export function phaseFor(server: Pick<ImportSession, "state" | "totals" | "files">, prev: TrayPhase): TrayPhase {
+  switch (server.state) {
+    case "inspecting":
+      return "checking";
+    case "uploading":
+      return prev === "uploading" ? "uploading" : "failed";
+    case "failed":
+      return "failed";
+    case "cancelled":
+      return "cancelled";
+    case "fetching":
+      return "done";
+  }
+  const left = server.totals?.incomplete || (server.files ?? []).some((f) => f.state === "pending" || f.state === "failed");
+  return left ? "partial" : "done";
+}
 
 export interface TrayFile {
   clientFileId: string;
@@ -258,7 +284,7 @@ export const useUploads = create<UploadsState>((set, get) => {
       ...(server.state === "inspecting" ? { checkingSince: s.checkingSince ?? Date.now() } : { checkingSince: undefined, stalled: false }),
       serverState: server.state,
       files: server.files ? server.files.map((f) => ({ clientFileId: f.clientFileId, relPath: f.relPath, size: f.size, received: f.received, state: f.state, reason: f.reason, ...(f.sha256 ? { sha256: f.sha256 } : {}) })) : s.files,
-      phase: server.state === "inspecting" ? "checking" : server.state === "uploading" ? (s.phase === "uploading" ? "uploading" : "failed") : server.state === "failed" ? "failed" : server.state === "cancelled" ? "cancelled" : "done",
+      phase: phaseFor(server, s.phase),
       needsReview: server.state === "needs_review",
       error: server.error ?? undefined,
     }));
@@ -408,6 +434,10 @@ export function trayLine(s: TraySession): string {
     }
     case "checking":
       return s.stalled ? "Still checking. Inspection is slow or unavailable" : "Checking files";
+    case "partial": {
+      const arrived = s.files.filter((f) => f.state === "uploaded" || f.state === "skipped_duplicate").length;
+      return `${arrived} of ${s.files.length} uploaded`;
+    }
     case "done": {
       const bad = s.files.filter((f) => f.state === "failed" || f.state === "rejected").length;
       if (bad) return `${bad} ${bad === 1 ? "file" : "files"} didn't upload`;

@@ -44,7 +44,6 @@ from . import assets, audit, drops, events, fs, ingest, projects, tree
 from .admission import WriteRejected
 from .kinds import is_junk
 
-CHUNK_BYTES = 64 * 1024 * 1024
 OPEN_STATES = ("uploading",)
 SHA = set("0123456789abcdef")
 
@@ -400,14 +399,17 @@ async def receive(db: Session, ctx: RequestContext, session_id: str, file_id: st
     sid, fid, size, sha, rel, pid = s.id, f.client_file_id, f.size, f.sha256, f.rel_path, p.id
     db.rollback()  # no transaction across the I/O below
     store = blobstore.data()
+    max_chunk = settings().upload_max_chunk_bytes
     tmp = tempfile.NamedTemporaryFile(delete=False, dir=None)
     n = 0
     try:
         with tmp:
             async for chunk in chunks:
                 n += len(chunk)
-                if offset + n > size or n > CHUNK_BYTES:
-                    raise HTTPException(413, "more bytes than the file's declared size" if offset + n > size else "chunks are at most 64 MB")
+                if offset + n > size:
+                    raise HTTPException(413, "more bytes than the file's declared size")
+                if n > max_chunk:
+                    raise HTTPException(413, f"upload chunks are at most {max_chunk // 1024**2} MiB; send the file in smaller pieces with ?offset=")
                 tmp.write(chunk)
         if n == 0 and size > 0:
             raise HTTPException(422, "empty chunk")

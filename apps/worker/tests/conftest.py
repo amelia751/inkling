@@ -148,14 +148,36 @@ def stack(tmp_path_factory):
             time.sleep(0.05)
     from studio_api.routes.worker import worker_token
 
+    grant_sample_editors(("user:local-expert",))
     yield {"url": url, "token": worker_token(), "root": root, "seg_id": seg_manifest["id"], "build_key": build_key}
     server.should_exit = True
     t.join(timeout=5)
 
 
+def grant_sample_editors(principals) -> None:
+    """Since todo14 D7 nobody edits a Samples template; the seed projects stand in for "a project
+    the dev person can change" (as in apps/api/tests/conftest.py), so the fixture makes the dev
+    person the templates' maintainer (test data, not a product path)."""
+    from studio_api import db
+    from studio_api.dbutil import insert_ignore
+    from studio_api.kernel import projects
+    from studio_api.models import Organization, OrganizationMember, now
+
+    with db.session_scope() as s:
+        insert_ignore(s, Organization, [{"id": projects.SAMPLES_ORG, "name": "Samples", "kind": "team", "created_at": now()}])
+        for who in principals:
+            projects.ensure_principal(s, who)
+            m = s.get(OrganizationMember, (projects.SAMPLES_ORG, who))
+            if m is None:
+                s.add(OrganizationMember(org_id=projects.SAMPLES_ORG, principal=who, role="member", created_at=now()))
+            else:
+                m.role = "member"
+
+
 def install(url: str, ws: str, plugin: str, grant: list[str] | None = None) -> None:
     h = {"X-Workspace-Id": ws}
     plan = httpx.post(f"{url}/api/v1/workspaces/{ws}/plugins/plan", json={"pluginId": plugin}, headers=h).json()
+    assert "requestId" in plan, plan
     staged = httpx.post(f"{url}/api/v1/workspaces/{ws}/plugins/stage", json={"requestId": plan["requestId"]}, headers=h).json()
     assert staged["state"] == "AWAITING_APPROVAL", staged
     r = httpx.post(f"{url}/api/v1/workspaces/{ws}/plugins/approve", json={"requestId": plan["requestId"], "grantOptional": grant or []}, headers=h).json()

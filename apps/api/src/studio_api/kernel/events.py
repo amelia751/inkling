@@ -77,6 +77,9 @@ EVENT_TYPES = {
     )),
     # `archive.unpack.requested` starts the worker's archive unpack (todo13 M2 item 7).
     "archive.unpack.requested",
+    # todo28 W1: the sweeper asks the worker's inspector again for files still retrying
+    # ({projectId, importId, nodeIds}).
+    "source.node.recheck",
 }
 
 # Project updates (the project SSE stream, GET /v1/projects/:id/events, carries these; the
@@ -87,7 +90,7 @@ PROJECT_EVENTS = {"source.uploaded", "import.updated", "source.node.inspected", 
 
 # Published by the kernel itself when a job ends: never rate limited either, or a busy
 # workspace's job outcomes could be dropped and a waiting pipeline step never told.
-KERNEL_EVENTS = {"job.succeeded", "job.failed"}
+KERNEL_EVENTS = {"job.succeeded", "job.failed", "source.node.recheck"}
 
 
 def claim_for(db: Session, subscriber: str, types: list[str], limit: int = 20) -> list[PluginEvent]:

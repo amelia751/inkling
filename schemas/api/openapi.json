@@ -13509,6 +13509,66 @@
         "summary": "Inspect Import"
       }
     },
+    "/api/v1/worker/inspect/imports/{import_id}/nodes": {
+      "post": {
+        "description": "todo28 W1: files of an import as soon as each is checked (any subset, idempotent per node).",
+        "operationId": "inspect_nodes_api_v1_worker_inspect_imports__import_id__nodes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "import_id",
+            "required": true,
+            "schema": {
+              "title": "Import Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Nodes"
+      }
+    },
     "/api/v1/worker/inspect/imports/{import_id}/report": {
       "post": {
         "operationId": "inspect_report_api_v1_worker_inspect_imports__import_id__report_post",

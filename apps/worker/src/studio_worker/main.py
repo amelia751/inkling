@@ -67,21 +67,22 @@ KILL_GRACE_S = 1.0
 
 
 def kill_group(pid: int, grace_s: float = KILL_GRACE_S) -> None:
-    """SIGTERM the process group led by `pid`, then SIGKILL whatever is left after `grace_s`."""
+    """SIGTERM the process group led by `pid`, then SIGKILL whatever is left after `grace_s`.
+    macOS answers EPERM (not ESRCH) for a group whose members are all zombies: that group is gone too."""
     try:
         os.killpg(pid, signal.SIGTERM)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         return
     deadline = time.monotonic() + grace_s
     while time.monotonic() < deadline:
         try:
             os.killpg(pid, 0)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             return
         time.sleep(0.05)
     try:
         os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
+    except (ProcessLookupError, PermissionError):
         pass
 
 
@@ -109,7 +110,7 @@ def build_env(uv: str, plugin_path: Path, venv: Path) -> None:
 
 
 class Worker:
-    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S, unpack_limits: config.UnpackLimits | None = None, derive_limits: config.DeriveLimits | None = None, job_slots: int = 1):
+    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S, unpack_limits: config.UnpackLimits | None = None, derive_limits: config.DeriveLimits | None = None, job_slots: int = 1, inspect_concurrency: int = 4):
         self.kernel = kernel.rstrip("/")
         self.http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
         self.data_dir = data_dir
@@ -132,7 +133,7 @@ class Worker:
         # Built-in subscriber: the de-identification check for dataset reviews (todo4 Phase 6).
         self.deid = DeidSubscriber(self.http)
         # Built-in subscriber: inspection of uploaded files (`source.uploaded`, todo6 Phase 5).
-        self.inspect = InspectSubscriber(self.http, data_dir / "inspect")
+        self.inspect = InspectSubscriber(self.http, data_dir / "inspect", concurrency=inspect_concurrency)
         # Built-in subscriber: archive unpack for drop plans (`archive.unpack.requested`, todo13 M2).
         self.unpack = UnpackSubscriber(self.http, data_dir / "unpack", unpack_limits)
         # Media derivatives (todo18 D4): video → MP4, slide → DZI, with progress on the item.
@@ -604,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.prepare_envs:
         return prepare_envs(config.REPO_ROOT, s.envs_dir, a.plugins)
     (s.data_dir / "home").mkdir(parents=True, exist_ok=True)
-    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes, unpack_limits=s.unpack, derive_limits=s.derive, job_slots=s.job_slots)
+    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes, unpack_limits=s.unpack, derive_limits=s.derive, job_slots=s.job_slots, inspect_concurrency=s.inspect_concurrency)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:

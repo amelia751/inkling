@@ -2,8 +2,9 @@
 
 The worker (apps/worker `inspect/`) subscribes to `source.uploaded`, reads each committed
 file's bytes here with the worker token, stores thumbnails and derived CSVs (an XLSX's first
-sheet) as assets of the project, and reports kinds, facts and flags in one call. The report
-is applied once: nodes get their detected kind (so they stop being "Checking…"), DICOM series
+sheet) as assets of the project, and posts each file's kind, facts and flags as soon as it's
+checked (`post_nodes`, todo28 W1), then closes the session with one report. Each file is
+applied once: nodes get their detected kind (so they stop being "Checking…"), DICOM series
 become `group` proposals, `explore.build_proposals` adds the relationship, label mapping and
 dataset proposals, and the session moves to `needs_review` or `ready`.
 """
@@ -14,6 +15,7 @@ import hashlib
 import json
 import re
 import uuid
+from datetime import timedelta
 from typing import Any
 
 from fastapi import HTTPException
@@ -23,7 +25,7 @@ from sqlalchemy.orm import Session
 from .. import blobstore
 from ..config import settings
 from ..context import RequestContext
-from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile
+from ..models import Asset, ImportSession, ProjectRow, Proposal, SourceNode, UploadFile, now
 from . import assets, audit, derivatives, drops, events, explore, imports, projects
 
 INSPECTOR = "worker:inspect"
@@ -161,9 +163,88 @@ def _clean_flags(raw: Any) -> dict:
     return out
 
 
+def _apply_node(db: Session, n: SourceNode, r: dict, inspector: str) -> bool:
+    """One file's findings: kind, facts, flags, the conversion it needs. Idempotent per node
+    (todo28 W1): a node already checked by the same inspector keeps its first result; a new
+    inspector version re-applies. Answers whether it applied."""
+    if n.detected_kind is not None and (n.facts or {}).get("inspector") == inspector:
+        return False
+    kind = r.get("detectedKind")
+    n.detected_kind = kind if kind in KINDS else "unknown"
+    raw_facts = r.get("facts")
+    facts: dict = raw_facts if isinstance(raw_facts, dict) else {}
+    if len(json.dumps(facts, default=str)) > MAX_FACTS_BYTES:
+        facts = {k: v for k, v in facts.items() if k in ("format", "width", "height", "frames", "dicom", "series", "thumbnail")} | {"truncated": True}
+    n.facts = {**(n.facts or {}), **facts, "inspector": inspector}
+    flags = {k: v for k, v in (n.flags or {}).items() if k not in RETRY_KEYS}
+    for k, v in _clean_flags(r.get("flags")).items():
+        if k == "privacy" and flags.get("privacy"):
+            continue  # never overwrite a hold (or a person's clearance) already on the node
+        flags[k] = v
+    n.flags = flags
+    need = facts.get("derivative") if isinstance(facts.get("derivative"), dict) else None
+    if need and need.get("kind"):
+        derivatives.request(db, n, str(need["kind"]))  # todo18 D4: the worker converts it
+    return True
+
+
+def apply_nodes(db: Session, nodes: dict[str, SourceNode], reported: Any, inspector: str) -> list[str]:
+    """The per-node part of `report`, shared with `post_nodes`: the ids that were applied."""
+    updated: list[str] = []
+    for r in reported if isinstance(reported, list) else []:
+        if not isinstance(r, dict) or r.get("nodeId") not in nodes:
+            continue
+        if _apply_node(db, nodes[r["nodeId"]], r, inspector):
+            updated.append(r["nodeId"])
+    return updated
+
+
+def _route_ready(db: Session, ctx: RequestContext, node_ids: list[str]) -> None:
+    """todo28 W2: hand newly checked files to the drop's router (owned by `drops_route`). Until
+    that module lands, nothing to do."""
+    if not node_ids:
+        return
+    try:
+        from . import drops_route  # type: ignore[attr-defined]
+
+        route = drops_route.route_ready
+    except (ImportError, AttributeError):
+        return
+    route(db, ctx, node_ids)
+
+
+def post_nodes(db: Session, import_id: str, body: dict) -> dict:
+    """todo28 W1: some of an import's files, as soon as the worker checked them. Applied like
+    `report` applies them; publishes `source.node.inspected` and `drop.file` for those nodes and
+    routes them. Allowed while the session is inspecting, and afterwards only for files still
+    retrying (a recheck); a node already applied is left as it is."""
+    s = _session(db, import_id)
+    q = select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False))
+    nodes = {n.id: n for n in db.scalars(q)}
+    if s.state != "inspecting":
+        nodes = {k: n for k, n in nodes.items() if n.detected_kind is None and (n.flags or {}).get("retrying")}
+    inspector = str(body.get("inspector") or "worker")[:64]
+    updated = apply_nodes(db, nodes, body.get("nodes"), inspector)
+    db.flush()
+    if updated:
+        ctx = service_context(s.project_id)
+        events.publish(db, ctx, "source.node.inspected", {"projectId": s.project_id, "nodeIds": updated[:1000]}, source="kernel")
+        if s.drop_id:
+            drops.session_inspected(db, ctx, s, updated)
+        _route_ready(db, ctx, updated)
+    return {"state": s.state, "inspected": len(updated)}
+
+
+RETRY_KEYS = ("retrying", "recheck")
+RECHECK_FIRST_S = 120
+
+
 def report(db: Session, import_id: str, body: dict, *, unreported_reason: str = "We couldn't check this file") -> dict:
-    """Apply the worker's findings once; a report for a session that already left `inspecting`
-    answers 409 (the worker acks the event and moves on)."""
+    """Close an inspection: the files not posted yet (`post_nodes`), groups, proposals, the
+    session's state. Applied once; a report for a session that already left `inspecting` answers
+    409 (the worker acks the event and moves on). Files in `retrying` (todo28 W1: their bytes
+    couldn't be read over HTTP) stay `checking` with `retrying: true`; the sweeper asks the worker
+    again later (`sweepers.recheck_nodes`)."""
     s = _session(db, import_id)
     if s.state != "inspecting":
         raise HTTPException(409, f"this import is {s.state}")
@@ -171,33 +252,17 @@ def report(db: Session, import_id: str, body: dict, *, unreported_reason: str = 
     assert p is not None
     ctx = service_context(p.id)
     nodes = {n.id: n for n in db.scalars(select(SourceNode).where(SourceNode.import_session_id == s.id, SourceNode.is_dir.is_(False)))}
-    raw_nodes = body.get("nodes")
-    reported: list = raw_nodes if isinstance(raw_nodes, list) else []
-    updated: list[str] = []
-    for r in reported:
-        if not isinstance(r, dict) or r.get("nodeId") not in nodes:
-            continue
-        n = nodes[r["nodeId"]]
-        kind = r.get("detectedKind")
-        n.detected_kind = kind if kind in KINDS else "unknown"
-        raw_facts = r.get("facts")
-        facts: dict = raw_facts if isinstance(raw_facts, dict) else {}
-        if len(json.dumps(facts, default=str)) > MAX_FACTS_BYTES:
-            facts = {k: v for k, v in facts.items() if k in ("format", "width", "height", "frames", "dicom", "series", "thumbnail")} | {"truncated": True}
-        n.facts = {**(n.facts or {}), **facts, "inspector": str(body.get("inspector") or "worker")[:64]}
-        flags = dict(n.flags or {})
-        for k, v in _clean_flags(r.get("flags")).items():
-            if k == "privacy" and flags.get("privacy"):
-                continue  # never overwrite a hold (or a person's clearance) already on the node
-            flags[k] = v
-        n.flags = flags
-        need = facts.get("derivative") if isinstance(facts.get("derivative"), dict) else None
-        if need and need.get("kind"):
-            derivatives.request(db, n, str(need["kind"]))  # todo18 D4: the worker converts it
-        updated.append(n.id)
+    updated = apply_nodes(db, nodes, body.get("nodes"), str(body.get("inspector") or "worker")[:64])
+    raw_retrying = body.get("retrying")
+    retrying = {str(i) for i in raw_retrying if str(i) in nodes} if isinstance(raw_retrying, list) else set()
+    at = (now() + timedelta(seconds=RECHECK_FIRST_S)).isoformat()
+    for nid in retrying:
+        n = nodes[nid]
+        if n.detected_kind is None:
+            n.flags = {**(n.flags or {}), "retrying": True, "recheck": {"attempt": 0, "at": at}}
     # Files the worker didn't report (it crashed on them, or they arrived after it read the list).
     for nid, n in nodes.items():
-        if n.detected_kind is None and nid not in updated:
+        if n.detected_kind is None and nid not in updated and nid not in retrying:
             n.detected_kind = "unknown"
             n.flags = {**(n.flags or {}), "unsupported": unreported_reason}
     db.flush()
@@ -229,6 +294,7 @@ def report(db: Session, import_id: str, body: dict, *, unreported_reason: str = 
         events.publish(db, ctx, "source.node.inspected", {"projectId": p.id, "nodeIds": updated[:1000]}, source="kernel")
     if s.drop_id:
         drops.session_inspected(db, ctx, s, list(nodes))
+    _route_ready(db, ctx, updated)
     events.publish(db, ctx, "import.updated", {"projectId": p.id, "importId": s.id, "state": s.state}, source="kernel")
     # todo13 M2: a drop is classified (and maybe applied) once its last session is inspected.
     from . import drops_plan

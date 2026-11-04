@@ -23,6 +23,7 @@
     "@studio/contracts": "workspace:*",
     "@studio/environment-core": "workspace:*",
     "@studio/plugin-cardiac-metrics": "workspace:*",
+    "@studio/plugin-chart": "workspace:*",
     "@studio/plugin-cine": "workspace:*",
     "@studio/plugin-dicom-export": "workspace:*",
     "@studio/plugin-image2d": "workspace:*",

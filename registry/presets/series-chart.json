@@ -1,0 +1,113 @@
+{
+  "id": "series-chart",
+  "title": "Time-series chart",
+  "description": "Table rows over time on a line or candle chart: mark windows (spans) and events (instants) on the time axis.",
+  "spec": {
+    "$schema": "studio://schema/environment/v1",
+    "id": "series-chart",
+    "title": "Time-series chart",
+    "data": {
+      "kind": "studio.chart.dataKinds.series"
+    },
+    "viewports": [
+      {
+        "name": "main",
+        "renderer": "studio.chart.renderers.series",
+        "config": {
+          "time": "time",
+          "open": "open",
+          "high": "high",
+          "low": "low",
+          "close": "close",
+          "volume": "volume"
+        }
+      }
+    ],
+    "tools": [
+      "studio.core.tools.select",
+      "studio.core.tools.pan",
+      "studio.chart.tools.window",
+      "studio.chart.tools.event"
+    ],
+    "labels": [
+      {
+        "name": "marks",
+        "control": "TimeSeriesLabels",
+        "classes": [
+          {
+            "id": "window",
+            "color": "chart-1"
+          },
+          {
+            "id": "event",
+            "color": "chart-2"
+          }
+        ]
+      }
+    ],
+    "panels": {
+      "left": [
+        "studio.core.panels.files",
+        "studio.core.panels.labels"
+      ],
+      "right": [
+        "studio.core.panels.ai"
+      ]
+    },
+    "reviewRules": [
+      "studio.core.reviewRules.unlabeled-items"
+    ],
+    "layout": null
+  },
+  "rules": {
+    "labels": [
+      {
+        "id": "window",
+        "name": "window",
+        "synonyms": [
+          "regime",
+          "period"
+        ],
+        "colour": "#3b82f6",
+        "allowedGeometries": [
+          "span"
+        ]
+      },
+      {
+        "id": "event",
+        "name": "event",
+        "synonyms": [],
+        "colour": "#ef4444",
+        "allowedGeometries": [
+          "instant"
+        ]
+      }
+    ],
+    "layout": {
+      "folderPatterns": [
+        "**"
+      ],
+      "forbiddenCharacters": "<>:\"\\|?*",
+      "maxDepth": 8
+    },
+    "datasets": {
+      "requiredMetadata": [
+        "license",
+        "source"
+      ],
+      "oneModalityPerDataset": false,
+      "uniqueNames": true
+    },
+    "annotations": {
+      "insideImage": false,
+      "requiredAttributes": []
+    },
+    "imaging": {
+      "checks": {}
+    },
+    "severityOverrides": {},
+    "merge": {
+      "auto": "write-tier"
+    }
+  }
+}

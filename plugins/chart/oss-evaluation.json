@@ -1,0 +1,21 @@
+{
+  "package": "lightweight-charts",
+  "version": "5.2.1",
+  "license": "Apache-2.0",
+  "decision": "adopt",
+  "conditions": [
+    "Visible attribution to TradingView with a link to https://www.tradingview.com/ on every page that shows a chart (the licence NOTICE asks for it): the chart's attributionLogo stays on and the renderer footer names TradingView Lightweight Charts",
+    "Keep the NOTICE file when redistributing the bundle",
+    "Load it only behind the module's load() so Studios without charts don't pay for it"
+  ],
+  "reasons": [
+    "Canvas renderer built for large time-ordered series: lines, candles and histograms in one pane, about 45 kB gzipped",
+    "No runtime dependencies; actively maintained by TradingView (v5 in 2025, series markers and panes as plugins)",
+    "Exposes time <-> pixel conversion and click events, which is what span / instant annotation tools need",
+    "Apache-2.0 is compatible with a proprietary product; the only extra condition is the attribution"
+  ],
+  "alternatives": [
+    { "package": "vega-lite", "license": "BSD-3-Clause", "note": "Used for the `spec` renderer (any chart from a JSON spec), too slow for large interactive series" },
+    { "package": "echarts", "license": "Apache-2.0", "note": "Broader but heavier (~300 kB) and its time-axis interaction is less direct" }
+  ]
+}

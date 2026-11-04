@@ -207,3 +207,41 @@ def synthesize(fp: dict, count: int, seed: int) -> list[dict]:
 def seed_for(fixture_set_id: str) -> int:
     return struct.unpack(">I", bytes.fromhex(fixture_set_id[:8].ljust(8, "0")) if all(c in "0123456789abcdef" for c in fixture_set_id[:8]) else b"\x00\x00\x00\x07")[0]
 
+
+
+def synthesize_table(fp: dict, count: int, seed: int, generator: str | None = None, secret: int | None = None) -> tuple[str, list[dict], dict]:
+    """Tables (todo23 W4): fixtures from the profile, each with planted truth chosen here.
+
+    Returns (generator id, [{name, data, mediaType, variant}], truth). The truth maps each
+    fixture name to its plants and never goes in the fixtures response. The generator's rng
+    mixes the reported `seed` with a secret one kept only in the truth, so the builder can't
+    re-run the generator to learn where the plants are."""
+    import secrets
+
+    import numpy as np
+
+    secret = secrets.randbits(63) if secret is None else secret
+
+    from . import generators
+
+    if len(generators.REGISTRY) <= 1:
+        generators.discover()
+    t = fp.get("table") or {}
+    prof = t.get("profile")
+    g = generators.choose(prof, "table", generator)
+    kind = fp["format"]["kind"] if fp["format"]["kind"] in ("csv", "tsv") else "csv"
+    ext, mt = EXT[kind]
+    delim = "\t" if kind == "tsv" else (t.get("delimiter") or ",")
+    rows = max(20, min(int((prof or {}).get("rows") or t.get("rows") or 200), 2000))
+    out, truth = [], {"generator": g.id, "seed": seed, "secret": secret, "fixtures": {}}
+    for i in range(max(1, min(count, 8))):
+        rng = np.random.default_rng([seed, secret, i])
+        names, body, plants = g.generate(prof, rng, rows)
+        buf = io.StringIO()
+        w = csv.writer(buf, delimiter=delim, lineterminator="\n")
+        w.writerow(names)
+        w.writerows(body)
+        name = f"fixture-{i:02d}-planted.{ext}"
+        out.append({"name": name, "data": buf.getvalue().encode(), "mediaType": mt, "variant": "planted"})
+        truth["fixtures"][name] = plants
+    return g.id, out, truth

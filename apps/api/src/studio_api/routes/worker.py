@@ -447,6 +447,14 @@ async def boundary_fixture(job_id: str, name: str, workerId: str, request: Reque
     return boundary.put_fixture(boundary.worker_job(db, job_id, workerId), name, await request.body(), request.headers.get("Content-Type", ""))
 
 
+@router.put("/boundary/jobs/{job_id}/truth", dependencies=[Depends(_auth)])
+async def boundary_truth(job_id: str, workerId: str, request: Request, db: Session = Depends(get_session)):
+    """A table fixture set's planted truth (todo23 D4): stored for the verifier only."""
+    from ..kernel import boundary
+
+    return boundary.put_truth(boundary.worker_job(db, job_id, workerId), await request.body())
+
+
 @router.put("/boundary/jobs/{job_id}/bundle", dependencies=[Depends(_auth)])
 async def boundary_bundle(job_id: str, workerId: str, request: Request, db: Session = Depends(get_session)):
     from ..kernel import boundary

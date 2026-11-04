@@ -169,13 +169,14 @@ def request_fingerprint(db: Session, ctx: RequestContext, ref: str) -> dict:
     return {"fingerprint": None, "job": summary(j)}
 
 
-def request_fixtures(db: Session, ctx: RequestContext, ref: str, count: int = 3) -> dict:
+def request_fixtures(db: Session, ctx: RequestContext, ref: str, count: int = 3, generator: str | None = None) -> dict:
     a = sample(db, ctx, ref)
     fp = stored_fingerprint(a)
     if fp is None:
         raise HTTPException(409, "fingerprint this sample first (get_fingerprint)")
     canonical = json.dumps(fp, sort_keys=True, separators=(",", ":")).encode()
-    j = start(db, ctx, "synthesize_fixtures", {"sampleId": a.id, "fingerprint": fp, "fingerprintDigest": f"sha256:{hashlib.sha256(canonical).hexdigest()}", "count": max(1, min(int(count), 8)), "fixtureSetId": uuid.uuid4().hex[:24]})
+    j = start(db, ctx, "synthesize_fixtures", {"sampleId": a.id, "fingerprint": fp, "fingerprintDigest": f"sha256:{hashlib.sha256(canonical).hexdigest()}", "count": max(1, min(int(count), 8)), "fixtureSetId": uuid.uuid4().hex[:24]}
+              | ({"generator": generator} if generator and re.fullmatch(r"[a-z0-9-]{1,32}", generator) else {}))
     return {"job": summary(j)}
 
 
@@ -297,6 +298,21 @@ def put_fixture(j: PluginJob, name: str, data: bytes, media_type: str) -> dict:
     return {"sha256": f"sha256:{hashlib.sha256(data).hexdigest()}", "bytes": len(data)}
 
 
+def truth_key(workspace_id: str, fixture_set_id: str) -> str:
+    """Where a table fixture set's planted truth lives (todo23 D4): under `verifier/`, which no
+    agent-facing route serves. Only the verification harness reads it."""
+    return _key(workspace_id, "verifier", fixture_set_id, "truth.json")
+
+
+def put_truth(j: PluginJob, data: bytes) -> dict:
+    if j.tool != "synthesize_fixtures":
+        raise HTTPException(403, "only fixture jobs write planted truth")
+    if not data or len(data) > MAX_FIXTURE_BYTES:
+        raise HTTPException(413, "truth is 1 byte to 32 MB")
+    blobstore.data().put(truth_key(j.workspace_id, str(j.input["fixtureSetId"])), data, "application/json")
+    return {"sha256": f"sha256:{hashlib.sha256(data).hexdigest()}", "bytes": len(data)}
+
+
 def fixture_bytes(db: Session, ctx: RequestContext, fixture_set_id: str, name: str) -> bytes:
     """A synthetic fixture, for the agent to copy into its build sandbox."""
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", fixture_set_id) or not re.fullmatch(r"fixture-\d{2}[a-z0-9-]{0,24}\.[a-z0-9.]{1,12}", name):
@@ -347,6 +363,18 @@ def _clean_fingerprint(j: PluginJob, r: dict) -> dict:
     redacted = _names(r.get("fields") or []) + _names(r.get("arrays") or []) + _names(r.get("sections") or [])
     if r.get("table"):
         redacted += _names(r["table"].get("columns") or [])
+        prof = r["table"].get("profile")
+        if prof:
+            # The worker already k-thresholds categories (todo23 D5a); a value the text check
+            # rejects (a person's name seen 10 times) still becomes its count only.
+            redacted += _names(prof.get("columns") or [])
+            rows = int(prof.get("rows") or 0)
+            for c in prof.get("columns") or []:
+                for cat in c.get("categories") or []:
+                    v = str(cat.get("value", ""))
+                    if not re.fullmatch(r"<category:\d{1,9}>", v) and not textcheck.name_ok(v):
+                        cat["value"] = f"<category:{max(1, round(float(cat.get('share') or 0) * rows))}>"
+                        redacted += 1
     r.setdefault("scrub", {})
     r["scrub"]["namesRedacted"] = int(r["scrub"].get("namesRedacted") or 0) + redacted
     r["scrub"]["textCheck"] = textcheck.checker()
@@ -387,6 +415,12 @@ def _clean_fixtures(j: PluginJob, r: dict) -> dict:
         except blobstore.BlobNotFound:
             raise ValueError("a listed fixture wasn't uploaded") from None
         f["sha256"], f["bytes"] = f"sha256:{hashlib.sha256(data).hexdigest()}", len(data)
+    if r.get("truth"):
+        try:
+            data = blobstore.data().read(truth_key(j.workspace_id, str(j.input["fixtureSetId"])))
+        except blobstore.BlobNotFound:
+            raise ValueError("the planted truth wasn't uploaded") from None
+        r["truth"] = {"truthId": f"{j.input['fixtureSetId']}-truth", "sha256": f"sha256:{hashlib.sha256(data).hexdigest()}", "plants": int(r["truth"].get("plants") or 0)}
     return r
 
 

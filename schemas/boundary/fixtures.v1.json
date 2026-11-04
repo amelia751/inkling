@@ -61,7 +61,8 @@
                   "phantom",
                   "zeros",
                   "edge-min",
-                  "edge-max"
+                  "edge-max",
+                  "planted"
                 ]
               }
             },
@@ -74,6 +75,30 @@
             ],
             "additionalProperties": false
           }
+        },
+        "truth": {
+          "type": "object",
+          "properties": {
+            "truthId": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "plants": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "truthId",
+            "sha256",
+            "plants"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [

@@ -317,6 +317,22 @@ resource "google_cloud_run_v2_service" "api" {
           }
         }
       }
+      # todo25 D4: the Studio-managed Meta key. The broker uses it only for projects without their
+      # own META_MODEL_API_KEY whose org turned managed keys on (off by default in production).
+      env {
+        name = "STUDIO_API_PROVIDER_KEY_META"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.run["run-api-provider-key-meta"].secret_id
+            version = "latest"
+          }
+        }
+      }
+      # todo25 G7: the kernel's mock image.segment stays off here (the api refuses it in production).
+      env {
+        name  = "STUDIO_API_BUILTIN_MOCK_SEGMENT"
+        value = "0"
+      }
       # Plugin signing in Cloud KMS (output plugin_signing_key).
       env {
         name  = "STUDIO_API_SIGNER"

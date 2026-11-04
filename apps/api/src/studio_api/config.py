@@ -23,7 +23,9 @@ that are missing or invalid, never their values.
 | API_DEV_TRUST_HEADERS     | 1                                | requests without a token act as the dev principal |
 | API_SAMPLE_MEMBERS        | user:local-expert                | todo14 D3: comma-separated dev principals that stay read-only (`viewer`) members of the Samples org; everyone else starts empty. Dev mode (trusted headers) only; ignored in `workos` mode |
 | API_SAMPLES_ENABLED       | 1                                | todo14 §8: "Try a sample" (served as `samples` in `GET /api/v1/features`) |
-| API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider |
+| API_BUILTIN_MOCK_SEGMENT  | 0                                | kernel-internal mock image.segment provider; refused in production (todo25 G7) |
+| API_DEFAULT_PLUGINS       | `studio.segmentation:provider=meta.sam` | todo25 D3: plugins every new project starts with, activated through the install path with their config and the grants their provider needs. JSON (`[{"pluginId", "config", "grants"}]`) or compact (`<id>[:k=v;k=v], …`); empty = none |
+| API_PROVIDER_KEY_META     | unset                            | todo25 D4 (secret): the Studio-managed Meta Model API key. The broker uses it for `META_MODEL_API_KEY` when the project has none and its org allows managed keys (`managedProviderKeys`; default on outside production) |
 | API_IMPORT_STALL_MINUTES  | 15                               | todo18 D6: an import `inspecting` longer than this fails with a reason (0 = off) |
 | API_SCHEDULED_RECLAIM_MINUTES | 30                           | todo18 D6: a scheduled run (`files.empty_trash`) stuck `running` this long is reclaimed |
 | API_IDEMPOTENCY_STALL_MINUTES | 10                           | todo18 D6: an Idempotency-Key `in_progress` this long is swept (a retry runs) |
@@ -124,7 +126,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .naming import REPO_ROOT, naming
+from .naming import REPO_ROOT, naming, ns
 
 
 # todo16 D8: the agent's config module has the same dev value, so dev approvals verify unset.
@@ -178,6 +180,10 @@ class Settings(BaseModel):
     # Phase 4 exit path: a kernel-internal mock `image.segment` provider usable without
     # installing a plugin. Off unless asked for (it bypasses installation, never policy).
     builtin_mock_segment: bool = False
+    # todo25 D3: plugins activated in every new project (plugins/defaults.py parses it).
+    default_plugins: str = f"{ns('segmentation')}:provider=meta.sam"
+    # todo25 D4: Studio-managed provider keys (Secret Manager in production). Never logged.
+    provider_key_meta: str | None = None
     signed_url_ttl_s: int = 600
     event_rate_per_minute: int = 600
     event_max_depth: int = 4
@@ -344,6 +350,8 @@ _KEYS: dict[str, str] = {
     "sample_members": "API_SAMPLE_MEMBERS",
     "samples_enabled": "API_SAMPLES_ENABLED",
     "builtin_mock_segment": "API_BUILTIN_MOCK_SEGMENT",
+    "default_plugins": "API_DEFAULT_PLUGINS",
+    "provider_key_meta": "API_PROVIDER_KEY_META",
     "housekeeping_interval_s": "API_HOUSEKEEPING_INTERVAL_S",
     "versioning_url": "API_VERSIONING_URL",
     "versioning_tenant": "API_VERSIONING_TENANT",
@@ -561,6 +569,8 @@ def _check_production(values: dict, missing: list[str], invalid: list[str]) -> l
         refuse("database_url", "must not be SQLite")
     if str(values.get("blob_store") or "local") == "local":
         refuse("blob_store", "must be gcs or s3")
+    if _truthy(values.get("builtin_mock_segment", False)):
+        refuse("builtin_mock_segment", "must be 0")  # todo25 G7: never fake masks on a deployed stage
     return hints
 
 

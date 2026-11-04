@@ -416,6 +416,10 @@ def create_project(db: Session, ctx: RequestContext, title: str, description: st
     db.add(ProjectMember(project_id=p.id, principal=who, role="owner", added_by=who, added_at=now()))
     db.flush()
     audit.record(db, ctx.for_scope(p.id, None), "project.created", target=p.id, after={"title": title})
+    # todo25 D3: the default plugins (segmentation with meta.sam), through the install path.
+    from ..plugins import defaults
+
+    defaults.activate_defaults(db, p.id)
     return p
 
 

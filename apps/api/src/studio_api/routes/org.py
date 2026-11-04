@@ -47,6 +47,7 @@ from ..config import settings
 from ..context import AUTH_COOKIE, RequestContext, get_context
 from ..db import get_session
 from ..kernel import projects
+from ..kernel import secrets as broker
 from ..models import Organization, OrganizationMember, OrgInvitation, PendingProjectGrant, ProjectMember, ProjectRow, User, now
 
 router = APIRouter(prefix="/api/v1", tags=["org"])
@@ -262,7 +263,7 @@ async def _domains(org: Organization) -> list[dict[str, str]]:
 
 
 def _org_dict(org: Organization, domains: list[dict[str, str]]) -> dict[str, Any]:
-    return {"id": org.id, "workosOrgId": org.workos_org_id, "name": org.name, "createdAt": projects.iso(org.created_at), "zeroRetention": bool(org.zero_retention), "aiAssist": bool(org.ai_assist), "domains": domains}
+    return {"id": org.id, "workosOrgId": org.workos_org_id, "name": org.name, "createdAt": projects.iso(org.created_at), "zeroRetention": bool(org.zero_retention), "aiAssist": bool(org.ai_assist), "managedProviderKeys": broker.org_allows_managed_keys(org), "domains": domains}
 
 
 @router.get("/org")
@@ -291,6 +292,13 @@ async def patch_org(body: dict = Body(...), ctx: RequestContext = Depends(requir
             if getattr(org, col) != body[key]:
                 setattr(org, col, body[key])
                 changed[key] = body[key]
+    # todo25 D4: Studio-managed provider keys (spend on this org); an explicit choice in production.
+    if "managedProviderKeys" in body:
+        if not isinstance(body["managedProviderKeys"], bool):
+            raise HTTPException(422, "managedProviderKeys must be true or false")
+        if org.managed_provider_keys != body["managedProviderKeys"]:
+            org.managed_provider_keys = body["managedProviderKeys"]
+            changed["managedProviderKeys"] = body["managedProviderKeys"]
     if changed:
         audit(db, ctx, "org.updated", target=org.id, org_id=org.id, detail=changed)
     db.flush()

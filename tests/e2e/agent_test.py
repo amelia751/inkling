@@ -64,6 +64,13 @@ def check(name: str, ok: bool, detail: str = "") -> None:
     print(("PASS " if ok else "FAIL ") + name + (f" — {detail}" if detail else ""), flush=True)
 
 
+def tool_steps(page) -> list[str]:
+    """The thread's tool rows; consecutive tools fold into one "Worked for N s" line (todo29 D6), opened first."""
+    for b in page.locator("[data-testid='agent-tool-group'] > button[aria-expanded='false']").all():
+        b.click()
+    return page.locator("[data-testid='agent-log'] li").all_inner_texts()
+
+
 def wait(fn, timeout=30.0, every=0.25):
     end = time.time() + timeout
     last = None
@@ -143,7 +150,7 @@ def t_environment_edit(browser, port):
         classes = st.store("s => s.env.labels[0].classes.map(c => c.id)")
         check("environment: patch applied to the running environment", classes[-1] == "mitosis", str(classes))
         check("environment: saved as an agent edit", bool(saved) and saved[-1].get("author") == "agent:replay", str(saved and saved[-1].get("author")))
-        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        steps = tool_steps(page)
         check("environment: tool steps shown", any("Read environment" in s for s in steps) and any("Edited environment" in s for s in steps), str(steps))
         page.get_by_test_id("agent-change").get_by_role("button", name="Undo").click()
         undone = wait(lambda: "mitosis" not in st.store("s => s.env.labels[0].classes.map(c => c.id)"))
@@ -174,7 +181,7 @@ def t_approval_and_reattach(browser, port):
         card.get_by_role("button", name="Approve").click()
         page.get_by_text("The command ran.").wait_for(timeout=20000)
         check("approval: approved state shown", "Approved" in card.inner_text(), card.inner_text()[-60:])
-        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        steps = tool_steps(page)
         check("approval: the command ran in the Studio after approval", any(s.startswith("Ran command") for s in steps), str(steps))
         check("approval: no console errors", not st.errors, str(st.errors[:2]))
     finally:
@@ -227,7 +234,7 @@ def t_project_assistant(browser, port):
         check("context chip: Sources", chip.inner_text().strip().startswith("Sources"), chip.inner_text())
         ask(page, "What did I import?")
         page.get_by_text("You imported one source with 20 images").wait_for(timeout=20000)
-        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        steps = tool_steps(page)
         check("sources: answered from list_sources", any(s.startswith("Listed sources") and "20 files" in s for s in steps), str(steps))
         loc = page.get_by_test_id("agent-location").get_by_role("button")
         check("open_location: a button, the agent didn't navigate", "Open Sources › 2d-xray" in loc.inner_text() and "/sources" in page.url and "/nod-" not in page.url, loc.inner_text() + " " + page.url)
@@ -248,7 +255,7 @@ def t_project_assistant(browser, port):
         check("propose: behind an approval card", "proposal" in card.inner_text().lower(), card.inner_text()[:160])
         card.get_by_role("button", name="Approve").click()
         page.get_by_text("The API refused to let me confirm it (403)").wait_for(timeout=20000)
-        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        steps = tool_steps(page)
         check("confirm: refused by the API with 403 and shown", any("Refused by the API (403)" in s for s in steps), str(steps[-4:]))
         made = [p for p in kernel_json("/projects/2d-xray/proposals?status=proposed")["proposals"] if p["id"] not in before]
         check("propose: one proposal, still proposed, by agent:<run>", len(made) == 1 and made[0]["createdBy"].startswith("agent:run_"), str(made))
@@ -352,7 +359,7 @@ def t_files_reorganize(browser, port):
         card = page.get_by_test_id("agent-reorg")
         card.wait_for(timeout=20000)
         page.get_by_text("Nothing changes until you apply it").wait_for(timeout=20000)
-        steps = page.locator("[data-testid='agent-log'] li").all_inner_texts()
+        steps = tool_steps(page)
         check("files: the agent searched with find_files", any("Found files" in s and "6 matches" in s for s in steps), str(steps))
         kinds = card.get_by_test_id("agent-reorg-op").evaluate_all("els => els.map(e => e.dataset.kind)")
         check("files: the card lists the plan (2 new folders, 2 moves)", kinds == ["mkdir", "mkdir", "move", "move"], str(kinds))

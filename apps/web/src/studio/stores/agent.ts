@@ -18,7 +18,7 @@ export type ApprovalState = "pending" | "approved" | "rejected" | "expired";
 export type MessagePart =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
+  | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string; pastTitle?: string; progress?: boolean; startedAt?: number; endedAt?: number }
   | { type: "card"; id: string; card: AgentCard; state: CardState }
   /** `used`: replayed from the server after it was decided or expired (todo22 W4); never live again. */
   | { type: "approval"; id: string; toolName: string; summary: string; inputPreview: string; state: ApprovalState; expiresAt: number; detail?: ApprovalDetail; toolCallId?: string; failed?: string; used?: boolean }
@@ -137,6 +137,13 @@ interface AgentState {
   runs: Record<string, ActiveRun>;
   /** Chats whose run this tab is streaming now. */
   streaming: Record<string, true>;
+  /**
+   * todo29 D5: chats whose assistant follows a drop it was sent (chat id → drop id): from a Send
+   * carrying a drop until the drop settles (`unfollow`) or Stop. The composer is busy meanwhile.
+   */
+  following: Record<string, string>;
+  /** The followed drop settled: the chat is idle once its run (if any) ends. */
+  unfollow: (chatId: string) => void;
   /** todo21 D3: when each chat was last open here (ISO), for the rail's unread dot. */
   lastOpened: Record<string, string>;
   /** Chats whose run ended here while another chat was open. */
@@ -255,7 +262,7 @@ export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
       else parts.push({ type: "reasoning", text: e.delta });
       return { ...m, parts };
     case "tool-call":
-      if (at((p) => p.type === "tool" && p.id === e.id) < 0) parts.push({ type: "tool", id: e.id, name: e.name, title: e.title, status: "running" });
+      if (at((p) => p.type === "tool" && p.id === e.id) < 0) parts.push({ type: "tool", id: e.id, name: e.name, title: e.title, status: "running", ...(e.pastTitle ? { pastTitle: e.pastTitle } : {}), ...(e.progress ? { progress: true } : {}), startedAt: Date.now() });
       return { ...m, parts };
     case "tool-progress": {
       const i = at((p) => p.type === "tool" && p.id === e.id);
@@ -267,7 +274,7 @@ export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
       if (i >= 0) {
         const p = parts[i] as Extract<MessagePart, { type: "tool" }>;
         // A summary the browser already set (card and environment tools) is more specific than the service's.
-        parts[i] = { ...p, status: e.ok ? "done" : "error", summary: p.summary ?? (e.summary ? toolSummaryText(e.summary) : e.summary), input: e.input };
+        parts[i] = { ...p, status: e.ok ? "done" : "error", endedAt: Date.now(), summary: p.summary ?? (e.summary ? toolSummaryText(e.summary) : e.summary), input: e.input };
       }
       // todo18 D: approved, then the tool failed (target gone): the card says so.
       if (!e.ok) {
@@ -599,6 +606,14 @@ export const useAgent = create<AgentState>()(
         chats: {},
         runs: {},
         streaming: {},
+        following: {},
+        unfollow: (chatId) =>
+          set((s) => {
+            if (!s.following[chatId]) return {};
+            const following = { ...s.following };
+            delete following[chatId];
+            return { following };
+          }),
         lastOpened: {},
         unread: {},
         // One assistant (the specialists, builder and coder, are reached through offer_specialist cards).
@@ -820,6 +835,7 @@ export const useAgent = create<AgentState>()(
           const assistant: ChatMessage = { id: crypto.randomUUID(), role: "assistant", parts: [] };
           set((s) => ({
             threads: { ...s.threads, [chatId]: [...(s.threads[chatId] ?? []), user, assistant] },
+            ...(opts.drop ? { following: { ...s.following, [chatId]: opts.drop.dropId } } : {}),
             chats: {
               ...s.chats,
               [projectId]: (s.chats[projectId] ?? [])
@@ -851,6 +867,7 @@ export const useAgent = create<AgentState>()(
           } catch (e) {
             patchThread(chatId, assistant.id, (m) => ({ ...m, error: e instanceof Error ? e.message : String(e) }));
             setStreaming(chatId, false);
+            get().unfollow(chatId);
           }
         },
         takeOver: () => {
@@ -868,8 +885,11 @@ export const useAgent = create<AgentState>()(
         stop: (projectId, chatId) => {
           const p = projectId ?? host?.projectId;
           const c = chatId ?? (p ? threadKey(get(), p) : undefined);
-          if (c) stopRun(c);
-          else abortTools(() => true);
+          if (c) {
+            // todo29 D5: Stop also ends the drop follow-up (the service drops its wakes on abort).
+            get().unfollow(c);
+            stopRun(c);
+          } else abortTools(() => true);
         },
         addNote: (projectId, note) => {
           set((s) => ({ notes: { ...s.notes, [projectId]: [...(s.notes[projectId] ?? []), note] } }));

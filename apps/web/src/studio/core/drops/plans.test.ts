@@ -70,7 +70,7 @@ describe("drop plans store (project drop.* events)", () => {
       { groupId: "g-waveform", kind: "waveform", count: 1, nodeIds: ["c"] },
       { groupId: "g-video", kind: "video", count: 1, nodeIds: ["d"] },
     ] };
-    expect(actionLabel(one)).toBe("One Studio · 4 files · 3 kinds");
+    expect(actionLabel(one)).toBe("New Studio · 4 files");
     expect(memberCounts(one).map((m) => m.label)).toEqual(["2 images", "1 recording", "1 video"]);
     expect(actionLabel(PLAN.actions[1])).toBe("1 table: labels or metadata for these items?");
     expect(actionLabel(PLAN.actions[2])).toBe("1 file: kept in Sources, can't use yet");

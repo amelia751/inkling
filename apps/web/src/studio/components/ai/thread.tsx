@@ -14,7 +14,6 @@ import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
 import { BLOCKED_PREFIX, useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
-import { toolSummaryText } from "@studio/studio-tools/tool-summary";
 import { changesUrl, exploreUrl, trashUrl } from "@/studio/lib/routes";
 import { changeRequestOf } from "@/studio/lib/governance-api";
 import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
@@ -24,24 +23,7 @@ import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
 import { Markdown } from "./markdown";
 import { DropCard } from "@/studio/core/drops";
-
-const PAST: Record<string, string> = {
-  Reading: "Read",
-  Listing: "Listed",
-  Checking: "Checked",
-  Preparing: "Prepared",
-  Drafting: "Drafted",
-  Writing: "Wrote",
-  Picking: "Picked",
-  Finding: "Found",
-  Editing: "Edited",
-  Running: "Ran",
-  Validating: "Validated",
-  Previewing: "Previewed",
-  Uploading: "Uploaded",
-  Exporting: "Exported",
-};
-const pastTense = (title: string) => title.replace(/^(\w+)/, (w) => PAST[w] ?? w);
+import { toolDoneLabel, toolGroupLabel, toolRowSummary } from "./tool-rows";
 
 const textOf = (message: ChatMessage) =>
   message.parts
@@ -316,10 +298,11 @@ function TrashCard({ projectId, name, batchId, turnId }: { projectId: string; na
   );
 }
 
-type Group = { kind: "tools"; parts: Extract<MessagePart, { type: "tool" }>[] } | { kind: "part"; part: Exclude<MessagePart, { type: "tool" }> };
+type ToolPart = Extract<MessagePart, { type: "tool" }>;
+type Group = { kind: "tools"; parts: ToolPart[] } | { kind: "part"; part: Exclude<MessagePart, { type: "tool" }> };
 
-/** Consecutive tool calls render as one compact step list. */
-function groupParts(parts: MessagePart[]): Group[] {
+/** Consecutive tool calls render as one compact step list (todo29 D6: folded into one line). */
+export function groupParts(parts: MessagePart[]): Group[] {
   const out: Group[] = [];
   for (const p of parts) {
     const last = out[out.length - 1];
@@ -331,11 +314,32 @@ function groupParts(parts: MessagePart[]): Group[] {
   return out;
 }
 
-function ToolSteps({ parts, live }: { parts: Extract<MessagePart, { type: "tool" }>[]; live: boolean }) {
+function ToolSteps({ parts, live }: { parts: ToolPart[]; live: boolean }) {
+  const [open, setOpen] = useState(false);
+  // todo29 D6: one tool is one row; several fold into "Worked for N s" that expands to the rows.
+  if (parts.length === 1)
+    return (
+      <ul className="flex flex-col gap-0.5">
+        <ToolStep part={parts[0]!} live={live} />
+      </ul>
+    );
+  const running = live ? parts.find((p) => p.status === "running") : undefined;
+  const failed = parts.some((p) => p.status === "error" || (p.status === "running" && !live));
   return (
-    <ul className="flex flex-col gap-0.5">
-      {parts.map((p) => <ToolStep key={p.id} part={p} live={live} />)}
-    </ul>
+    <div data-testid="agent-tool-group">
+      <button onClick={() => setOpen(!open)} className="group flex h-7 w-full min-w-0 items-center gap-2 rounded-md text-left text-muted-foreground hover:text-foreground" aria-expanded={open}>
+        {running ? <Spinner className="size-4" /> : failed ? <ErrorIcon className="size-4 shrink-0 text-danger" /> : <DoneIcon className="size-4 shrink-0 text-hint" />}
+        <span className={cn("min-w-0 truncate", running && "shimmer-text")} data-testid="agent-tool-group-label">
+          {toolGroupLabel(parts, live)}
+        </span>
+        <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-hint opacity-0 transition group-hover:opacity-100", open && "rotate-180 opacity-100")} />
+      </button>
+      {open && (
+        <ul className="ml-6 flex flex-col gap-0.5">
+          {parts.map((p) => <ToolStep key={p.id} part={p} live={live} />)}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -344,8 +348,9 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
   const running = part.status === "running" && live;
   const failed = part.status === "error" || (part.status === "running" && !live);
   // todo24 W6: the row reads a sentence; a raw body (rows stored before) stays behind the chevron.
-  const summary = part.summary ? toolSummaryText(part.summary) : "";
-  const raw = part.summary && summary !== part.summary ? part.summary : undefined;
+  // todo29 D6: never a live snapshot ("0 ready · 35 checking"); a failure keeps its one-line reason.
+  const summary = toolRowSummary(part);
+  const raw = part.summary && summary !== part.summary && !part.progress && !failed ? part.summary : undefined;
   const expandable = part.input !== undefined || !!part.output || !!raw;
   return (
     <li>
@@ -356,7 +361,7 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
       >
         {running ? <Spinner className="size-4" /> : failed ? <ErrorIcon className="size-4 shrink-0 text-danger" /> : <DoneIcon className="size-4 shrink-0 text-hint" />}
         <span className={cn("min-w-0 truncate", running && "shimmer-text")}>
-          {running ? `${part.title}…` : pastTense(part.title)}
+          {running ? `${part.title}…` : toolDoneLabel(part)}
           {summary && <span className="text-hint" data-testid="agent-tool-summary"> · {summary}</span>}
         </span>
         {expandable && <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-hint opacity-0 transition group-hover:opacity-100", open && "rotate-180 opacity-100")} />}

@@ -41,8 +41,19 @@ export function SeriesRenderer({ item, config, runtime, env }: RendererProps) {
   useEffect(() => {
     const el = host.current;
     if (!el || !data) return;
-    const fg = resolveToken("--foreground");
-    const grid = resolveToken("--border", 0.6);
+    // The theme's own colour values (rgb strings), read from the active theme's tokens.
+    // The chart library parses only legacy rgb()/rgba(); a probe element's computed colour is
+    // always serialised that way, whatever syntax the theme token uses.
+    const token = (name: string) => {
+      const probe = document.createElement("span");
+      probe.style.color = `var(${name})`;
+      el.appendChild(probe);
+      const c = getComputedStyle(probe).color;
+      probe.remove();
+      return c;
+    };
+    const fg = token("--g-text-secondary");
+    const grid = token("--g-line");
     const chart = createChart(el, {
       autoSize: true,
       layout: { background: { color: "transparent" }, textColor: fg, attributionLogo: true },
@@ -62,10 +73,11 @@ export function SeriesRenderer({ item, config, runtime, env }: RendererProps) {
       });
       main = all[0] ?? chart.addSeries(LineSeries, {});
     }
+    let volume: ISeriesApi<"Histogram"> | null = null;
     if (data.volume.length) {
-      const v = chart.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, color: resolveToken("--muted-foreground", 0.5) });
-      v.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-      v.setData(data.volume.map((p) => ({ time: ts(p.time), value: p.value })));
+      volume = chart.addSeries(HistogramSeries, { priceScaleId: "", priceFormat: { type: "volume" }, color: token("--g-line") });
+      volume.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+      volume.setData(data.volume.map((p) => ({ time: ts(p.time), value: p.value })));
     }
     chart.timeScale().fitContent();
     const bump = () => setFrame((f) => f + 1);
@@ -75,7 +87,17 @@ export function SeriesRenderer({ item, config, runtime, env }: RendererProps) {
     markersRef.current = createSeriesMarkers(main, []);
     runtime.publish("chartInfo", { mode: data.mode, rows: data.times.length, lines: data.lines.map((l) => l.name), bars: data.bars.length, start: data.times[0], end: data.times.at(-1) });
     bump();
+    // Theme switches (light/dark class on <html>) recolour the chart's text, grid and volume.
+    const recolour = () => {
+      const g = token("--g-line");
+      chart.applyOptions({ layout: { textColor: token("--g-text-secondary") }, grid: { vertLines: { color: g }, horzLines: { color: g } } });
+      volume?.applyOptions({ color: g });
+    };
+    const themeWatch = new MutationObserver(recolour);
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme", "style"] });
+    recolour();
     return () => {
+      themeWatch.disconnect();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(bump);
       chart.remove();
       chartRef.current = mainRef.current = markersRef.current = null;

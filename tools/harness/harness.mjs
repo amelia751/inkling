@@ -51,7 +51,12 @@ const freePort = (port) =>
 
 async function pickPort(want) {
   if (want) return Number(want);
-  for (let p = PORTS[0]; p <= PORTS[1]; p++) if (await freePort(p)) return p;
+  // Start at a per-process offset so parallel runs don't race for the same first free port.
+  const n = PORTS[1] - PORTS[0] + 1;
+  for (let i = 0; i < n; i++) {
+    const p = PORTS[0] + ((process.pid + i) % n);
+    if (await freePort(p)) return p;
+  }
   throw new Error(`no free port in ${PORTS[0]}–${PORTS[1]}`);
 }
 
@@ -124,8 +129,11 @@ async function waitUp(port, vite, timeoutMs = 90_000) {
   while (Date.now() < end) {
     if (vite.child.exitCode !== null) throw new Error(`vite exited: ${vite.log()}`);
     try {
+      // Only our own Vite counts: another run's server on the same port (localhost may resolve
+      // to ::1 while the port probe bound 127.0.0.1) must not be driven by mistake.
+      const ours = vite.log().includes(`:${port}/`);
       const r = await fetch(`http://localhost:${port}/seed/manifest.json`);
-      if (r.ok) return;
+      if (r.ok && ours) return;
     } catch {}
     await new Promise((r) => setTimeout(r, 500));
   }

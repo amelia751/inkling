@@ -1,0 +1,55 @@
+{
+  "$schema": "studio://schema/environment/v1",
+  "id": "finance-ledger",
+  "title": "Ledger review",
+  "data": {
+    "kind": "studio.table.dataKinds.table"
+  },
+  "viewports": [
+    {
+      "name": "main",
+      "renderer": "studio.table.renderers.grid"
+    }
+  ],
+  "tools": [
+    "studio.core.tools.select",
+    "studio.table.tools.rows"
+  ],
+  "labels": [
+    {
+      "name": "anomaly",
+      "control": "Choices",
+      "classes": [
+        {
+          "id": "ok"
+        },
+        {
+          "id": "duplicate"
+        },
+        {
+          "id": "outlier"
+        },
+        {
+          "id": "miscategorised"
+        }
+      ]
+    }
+  ],
+  "panels": {
+    "left": [
+      "studio.core.panels.files",
+      "studio.core.panels.labels"
+    ],
+    "right": [
+      "studio.core.panels.ai"
+    ]
+  },
+  "exporters": [
+    "studio.table.exporters.labeled-csv"
+  ],
+  "reviewRules": [
+    "studio.table.reviewRules.row-label-disagreement",
+    "studio.core.reviewRules.unlabeled-items"
+  ],
+  "layout": null
+}

@@ -64,7 +64,8 @@ def timing(moment: str, seconds: float | None, budget: float) -> None:
 
 def call(method: str, path: str, body=None):
     data = json.dumps(body).encode() if body is not None else None
-    headers = {"Authorization": f"Bearer {TOKEN}", "X-Workspace-Id": PROJECT, **({"Content-Type": "application/json"} if body is not None else {})}
+    # No token: a local dev stack (trusted dev headers through the Vite proxy).
+    headers = {**({"Authorization": f"Bearer {TOKEN}"} if TOKEN else {}), "X-Workspace-Id": PROJECT, **({"Content-Type": "application/json"} if body is not None else {})}
     req = urllib.request.Request(BASE + path, data=data, method=method, headers=headers)
     with urllib.request.urlopen(req, timeout=30) as r:
         text = r.read()
@@ -150,7 +151,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--headed", action="store_true")
     args = ap.parse_args()
-    missing = [n for n, v in (("DEMO_URL", BASE), ("DEMO_PROJECT", PROJECT), ("DEMO_STUDIO", STUDIO), ("DEMO_TOKEN", TOKEN)) if not v]
+    missing = [n for n, v in (("DEMO_URL", BASE), ("DEMO_PROJECT", PROJECT), ("DEMO_STUDIO", STUDIO)) if not v]
     if missing:
         print("set " + ", ".join(f"{P}E2E_{m}" for m in missing), file=sys.stderr)
         return 2

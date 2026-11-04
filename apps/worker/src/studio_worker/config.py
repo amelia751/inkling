@@ -11,6 +11,7 @@ startup: a missing key stops the process with its name, never a value.
 | WORKER_HEALTH_PORT       | 8081                                      | `/healthz`, `/readyz`, `/version` (0 = off) |
 | WORKER_SHUTDOWN_GRACE_S  | 270                                       | after SIGTERM, how long the current job may keep running before it's handed back |
 | WORKER_POLL_S            | 1.0                                       | idle wait between claims |
+| WORKER_JOB_SLOTS         | 8                                         | plugin jobs run at once, each in its own subprocess (todo25: a Studio's batch lands in seconds) |
 | WORKER_PLUGINS           | (all)                                     | comma-separated plugin ids this worker runs |
 | WORKER_RESOURCE_CLASSES  | cpu,memory                                | job resource classes this worker claims (`cpu`, `memory`, `gpu`): `cpu,memory` for the CPU Deployment, `gpu` for `worker-gpu` |
 | WORKER_ID                | <hostname>-<pid>                          | lease owner name |
@@ -113,6 +114,7 @@ class WorkerSettings:
     health_port: int = 8081
     shutdown_grace_s: float = 270.0
     poll_s: float = 1.0
+    job_slots: int = 8
     plugins: list[str] | None = None
     worker_id: str = field(default_factory=lambda: f"{socket.gethostname()}-{os.getpid()}")
     git_sha: str = "unknown"
@@ -180,6 +182,7 @@ def load_settings(require_token: bool = True, **overrides) -> WorkerSettings:
         health_port=num("WORKER_HEALTH_PORT", "8081", int),
         shutdown_grace_s=num("WORKER_SHUTDOWN_GRACE_S", "270"),
         poll_s=num("WORKER_POLL_S", "1.0"),
+        job_slots=max(1, int(num("WORKER_JOB_SLOTS", "8"))),
         plugins=overrides.pop("plugins", None) or plugins,
         git_sha=env("GIT_SHA") or os.environ.get("GIT_SHA") or "unknown",
         signer=env("WORKER_SIGNER", "local") or "local",

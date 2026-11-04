@@ -34,6 +34,7 @@ import signal
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
@@ -108,7 +109,7 @@ def build_env(uv: str, plugin_path: Path, venv: Path) -> None:
 
 
 class Worker:
-    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S, unpack_limits: config.UnpackLimits | None = None, derive_limits: config.DeriveLimits | None = None):
+    def __init__(self, kernel: str, token: str, data_dir: Path, worker_id: str, plugins: list[str] | None = None, uv: str = "uv", *, envs_dir: Path | None = None, build_envs: bool = True, shutdown_grace_s: float = 270.0, signer=None, verify_python: str | None = None, verify_memory_mb: int = 2048, resource_classes: list[str] | None = None, heartbeat_s: float = HEARTBEAT_S, unpack_limits: config.UnpackLimits | None = None, derive_limits: config.DeriveLimits | None = None, job_slots: int = 1):
         self.kernel = kernel.rstrip("/")
         self.http = httpx.Client(base_url=self.kernel, headers={"X-Worker-Token": token}, timeout=30, event_hooks={"request": [httpx_request_hook]})
         self.data_dir = data_dir
@@ -123,6 +124,11 @@ class Worker:
         self.stopping = threading.Event()
         self._stop_at: float | None = None
         self.busy = False
+        # todo25 D6: plugin jobs this worker runs at once (each is its own subprocess). 1 = serial.
+        self.job_slots = max(1, int(job_slots))
+        self._active = 0
+        self._active_lock = threading.Lock()
+        self._pool: ThreadPoolExecutor | None = None
         # Built-in subscriber: the de-identification check for dataset reviews (todo4 Phase 6).
         self.deid = DeidSubscriber(self.http)
         # Built-in subscriber: inspection of uploaded files (`source.uploaded`, todo6 Phase 5).
@@ -181,11 +187,17 @@ class Worker:
     def run_job(self, claim: dict) -> None:
         job = claim["job"]
         with bound(request_id=job.get("correlationId"), traceparent=job.get("traceparent"), name=f"job {job.get('tool')}", kind="consumer", attributes={"job.id": job["jobId"], "plugin.id": claim["plugin"]["id"]}):
+            self._run_job(claim)
+
+    def _hold_slot(self) -> None:
+        with self._active_lock:
+            self._active += 1
             self.busy = True
-            try:
-                self._run_job(claim)
-            finally:
-                self.busy = False
+
+    def _free_slot(self) -> None:
+        with self._active_lock:
+            self._active -= 1
+            self.busy = self._active > 0
 
     def heartbeat(self, job: dict, on_lost=None) -> Heartbeat:
         return Heartbeat(self.http, job["jobId"], self.worker_id, job.get("attempts"), interval_s=self.heartbeat_s, on_lost=on_lost)
@@ -389,6 +401,8 @@ class Worker:
             self.scheduled.tick()
         except httpx.HTTPError as e:
             log.warning("scheduled jobs: %s", type(e).__name__)
+        if self._active >= self.job_slots:
+            return did > 0  # every slot is running a job; claim again when one frees
         r = self.http.post("/api/v1/worker/claim", json={"workerId": self.worker_id, "plugins": self.plugins, "resourceClasses": self.resource_classes, "heartbeat": True})
         r.raise_for_status()
         claim = r.json()
@@ -419,7 +433,21 @@ class Worker:
             finally:
                 self.busy = False
             return True
-        self.run_job(claim)
+        # The slot is held from the claim, so the next tick can't over-claim before a thread starts.
+        self._hold_slot()
+        if self.job_slots > 1 and self._pool is not None:
+            def go() -> None:
+                try:
+                    self.run_job(claim)
+                finally:
+                    self._free_slot()
+
+            self._pool.submit(go)
+            return True
+        try:
+            self.run_job(claim)
+        finally:
+            self._free_slot()
         return True
 
     def run_service_job(self, job: dict) -> None:
@@ -487,6 +515,8 @@ class Worker:
         if not once and self._derive_thread is None:
             self._derive_thread = threading.Thread(target=self.run_derive, name="derive", daemon=True)
             self._derive_thread.start()
+        if not once and self.job_slots > 1 and self._pool is None:
+            self._pool = ThreadPoolExecutor(max_workers=self.job_slots, thread_name_prefix="job")
         while not self.stopping.is_set():
             try:
                 had = self.tick()
@@ -497,6 +527,8 @@ class Worker:
                 return 0
             if not had:
                 self.stopping.wait(poll_s)
+        if self._pool is not None:
+            self._pool.shutdown(wait=True)  # running jobs finish (or hit the grace period)
         log.info("stopped")
         return 0
 
@@ -572,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     if a.prepare_envs:
         return prepare_envs(config.REPO_ROOT, s.envs_dir, a.plugins)
     (s.data_dir / "home").mkdir(parents=True, exist_ok=True)
-    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes, unpack_limits=s.unpack, derive_limits=s.derive)
+    w = Worker(s.kernel_url, s.token, s.data_dir, s.worker_id, s.plugins, envs_dir=s.envs_dir, build_envs=s.build_envs, shutdown_grace_s=s.shutdown_grace_s, signer=make_signer(s), verify_python=s.verify_python, verify_memory_mb=s.verify_memory_mb, resource_classes=s.resource_classes, unpack_limits=s.unpack, derive_limits=s.derive, job_slots=s.job_slots)
     for sig in (signal.SIGTERM, signal.SIGINT):
         signal.signal(sig, lambda *_: w.request_stop())
     if s.health_port:

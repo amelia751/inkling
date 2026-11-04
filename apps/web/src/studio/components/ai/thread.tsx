@@ -14,6 +14,7 @@ import { formatBytes } from "@/studio/lib/format";
 import { cn } from "@studio/ui/utils";
 import { BLOCKED_PREFIX, useAgent, type ChatMessage, type MessagePart } from "@/studio/stores/agent";
 import type { ApprovalDetail } from "@studio/agent-protocol";
+import { toolSummaryText } from "@studio/studio-tools/tool-summary";
 import { changesUrl, exploreUrl, trashUrl } from "@/studio/lib/routes";
 import { changeRequestOf } from "@/studio/lib/governance-api";
 import { postUndo, restoreTrashBatch } from "@/studio/lib/files/api";
@@ -342,7 +343,10 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
   const [open, setOpen] = useState(false);
   const running = part.status === "running" && live;
   const failed = part.status === "error" || (part.status === "running" && !live);
-  const expandable = part.input !== undefined || !!part.output;
+  // todo24 W6: the row reads a sentence; a raw body (rows stored before) stays behind the chevron.
+  const summary = part.summary ? toolSummaryText(part.summary) : "";
+  const raw = part.summary && summary !== part.summary ? part.summary : undefined;
+  const expandable = part.input !== undefined || !!part.output || !!raw;
   return (
     <li>
       <button
@@ -353,11 +357,12 @@ function ToolStep({ part, live }: { part: Extract<MessagePart, { type: "tool" }>
         {running ? <Spinner className="size-4" /> : failed ? <ErrorIcon className="size-4 shrink-0 text-danger" /> : <DoneIcon className="size-4 shrink-0 text-hint" />}
         <span className={cn("min-w-0 truncate", running && "shimmer-text")}>
           {running ? `${part.title}…` : pastTense(part.title)}
-          {part.summary && <span className="text-hint"> · {part.summary}</span>}
+          {summary && <span className="text-hint" data-testid="agent-tool-summary"> · {summary}</span>}
         </span>
         {expandable && <ChevronDownIcon className={cn("ml-auto size-3.5 shrink-0 text-hint opacity-0 transition group-hover:opacity-100", open && "rotate-180 opacity-100")} />}
       </button>
       {open && part.input !== undefined && <ToolCode name={part.name} code={JSON.stringify(part.input, null, 2)} className="mt-1 mb-2 ml-6" />}
+      {open && raw && <ToolCode name="Details" code={raw} className="mt-1 mb-2 ml-6" bodyClassName="max-h-40" />}
       {part.output && (running || open) && (
         <ToolCode name="Output" code={part.output.length > 4000 ? `…${part.output.slice(-4000)}` : part.output} className="mt-1 mb-2 ml-6" bodyClassName="max-h-40" testId="agent-tool-output" />
       )}
@@ -370,7 +375,7 @@ function ToolCode({ name, code, className, bodyClassName, testId }: { name: stri
   return (
     <div className={cn("overflow-hidden rounded-lg border border-border bg-code-well", className)} data-testid={testId}>
       <div className="flex h-8 items-center justify-between gap-2 bg-generic pr-2 pl-3">
-        <span className="truncate font-mono text-code">{name === "Output" ? name : `Tool: ${name}`}</span>
+        <span className="truncate font-mono text-code">{name === "Output" || name === "Details" ? name : `Tool: ${name}`}</span>
         <CopyButton text={code} label="Copy" />
       </div>
       <pre className={cn("max-h-48 overflow-auto px-3 py-2.5 font-mono text-code break-all whitespace-pre-wrap text-complementary", bodyClassName)}>{code}</pre>

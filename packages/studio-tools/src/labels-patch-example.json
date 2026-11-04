@@ -1,0 +1,14 @@
+{
+  "op": "add",
+  "path": "/labels",
+  "value": [
+    {
+      "name": "Finding",
+      "control": "Choices",
+      "classes": [
+        { "id": "normal", "name": "Normal" },
+        { "id": "pneumonia", "name": "Pneumonia" }
+      ]
+    }
+  ]
+}

@@ -39,6 +39,13 @@ describe("todo18 D assistant store", () => {
     expect(m.parts[0]).toMatchObject({ state: "approved", failed: "Target is gone" });
   });
 
+  it("a tool row's summary is a sentence, never a raw error body (todo24 W6)", () => {
+    let m: ChatMessage = { id: "m", role: "assistant", parts: [] };
+    m = reduce(m, { type: "tool-call", id: "c1", name: "boot_studio", title: "Setting up Studio" } as never);
+    m = reduce(m, { type: "tool-result", id: "c1", ok: false, summary: '{"error":"The change doesn\'t validate.","status":422,"errors":[{"path":"/labels/0/control"', input: {} } as never);
+    expect(m.parts[0]).toMatchObject({ status: "error", summary: "Label set needed a fix" });
+  });
+
   it("second tab: another tab following the run shows Take over here; its end clears this tab", async () => {
     useAgent.setState({ streaming: { c1: true }, runs: { c1: { projectId: "p", chatId: "c1", runId: "r1", messageId: "m", lastSeq: 0, answered: [] } } });
     const other = new BroadcastChannel(`${RES}-agent-follow`);

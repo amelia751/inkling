@@ -16,6 +16,9 @@ import type { Picked } from "@/studio/lib/uploads/walk";
 import { usePendingAsks } from "./pending-ask";
 import { feature } from "@/studio/lib/features";
 import { newDropId } from "@/studio/core/drops/api";
+import { AttachmentTiles } from "@/studio/core/drops/attachment-tiles";
+import { cancelDrop } from "@/studio/core/drops/start";
+import { useComposerAttachments } from "./composer-attachments";
 import { useAgent } from "@/studio/stores/agent";
 import { AiNotice, useAckAiNotice } from "@/studio/components/ai/ai-notice";
 
@@ -62,45 +65,69 @@ function useAskInDrawer(projectId: string) {
 }
 
 /**
- * Files dropped or attached in an empty project's chat go to the assistant with the message: with
- * chat drops on, shared in the project's conversation; otherwise through the tray, the message
- * waiting for the upload (todo24 D2).
+ * Files dropped or attached in an empty project's chat (its Overview composer, or anywhere on the
+ * empty page) are attached to that composer: the upload starts at once (with chat drops on, as a
+ * drop shared in the project's conversation; otherwise through the tray), but nothing is sent.
+ * todo29 D1: attaching never sends; Send (`useSendWithAttachments`) carries the files.
  */
 export function useChatDrop(projectId: string) {
   const drop = useDropFiles();
-  const queue = usePendingAsks((s) => s.queue);
-  const setAssistant = useShell((s) => s.setAssistant);
-  return async (picked: Picked, message = "", timelineStarted = false) => {
+  return async (picked: Picked, timelineStarted = false) => {
     if (!timelineStarted) startTimeline("overview");
     if (!picked.files.length) return;
-    const text = message.trim();
-    setAssistant(true);
+    const { attach, byProject } = useComposerAttachments.getState();
     if (feature("chatDrops")) {
       const conv = await useAgent.getState().ensureConversation(projectId);
-      const pending = { dropId: newDropId(), messageId: crypto.randomUUID() };
-      queue(projectId, text, pending);
-      await drop({ projectId, picked, origin: "chat", surface: "overview", timelineStarted: true, conversationId: conv.id, conversationTitle: conv.title ?? (text.slice(0, 80) || undefined), ...pending });
+      // More files before Send join the same drop.
+      const pending = byProject[projectId]?.drop ?? { dropId: newDropId(), messageId: crypto.randomUUID() };
+      attach(projectId, { drop: pending });
+      await drop({ projectId, picked, origin: "chat", surface: "overview", timelineStarted: true, conversationId: conv.id, conversationTitle: conv.title ?? undefined, ...pending });
       return;
     }
-    await drop({ projectId, picked, origin: "files", surface: "overview", timelineStarted: true, onUploadKey: (key) => text && queue(projectId, text, undefined, { key }) });
+    await drop({ projectId, picked, origin: "files", surface: "overview", timelineStarted: true, onUploadKey: (key) => attach(projectId, { uploadKey: key }) });
+  };
+}
+
+/**
+ * Send from the empty Overview composer: the text and whatever is attached go to the drawer's
+ * conversation (queued until it's ready), and the drawer opens now, not on the drop.
+ */
+export function useSendWithAttachments(projectId: string) {
+  const setAssistant = useShell((s) => s.setAssistant);
+  const queue = usePendingAsks((s) => s.queue);
+  return (text: string) => {
+    const t = text.trim();
+    const a = useComposerAttachments.getState().take(projectId);
+    if (!t && !a?.drop && !a?.uploadKey) return;
+    startTimeline("send");
+    queue(projectId, t, a?.drop, a?.uploadKey ? { key: a.uploadKey } : undefined);
+    setAssistant(true, true);
   };
 }
 
 function useChatFiles(projectId: string) {
-  const send = useChatDrop(projectId);
-  return async (files: ComposerFiles, message: string) => {
+  const attach = useChatDrop(projectId);
+  return async (files: ComposerFiles) => {
     startTimeline("overview");
-    await send(await pickedFrom(files), message, true);
+    await attach(await pickedFrom(files), true);
   };
+}
+
+/** The empty composer's attached files, as tiles (chat drops on) or the tray's line (off). */
+function EmptyComposerAttachments({ projectId }: { projectId: string }) {
+  const a = useComposerAttachments((s) => s.byProject[projectId]);
+  if (!a?.drop) return null;
+  return <AttachmentTiles dropId={a.drop.dropId} projectId={projectId} variant="composer" onCancel={() => (void cancelDrop(a.drop!.dropId), useComposerAttachments.getState().clear(projectId))} />;
 }
 
 /** Overview of a project with nothing in it yet: only the chat with the assistant. */
 export function ProjectEmptyState({ projectId, title }: { projectId: string; title: string }) {
-  const sendFiles = useChatFiles(projectId);
-  const ask = useAskInDrawer(projectId);
+  const attachFiles = useChatFiles(projectId);
+  const send = useSendWithAttachments(projectId);
   const ackAiNotice = useAckAiNotice();
   const blocked = useFilesBlocked(projectId);
   const [text, setText] = useState("");
+  const attached = useComposerAttachments((s) => !!s.byProject[projectId]);
   return (
     <div className="flex flex-col gap-2" data-testid="empty-project">
       <ComposerEmptyState
@@ -111,8 +138,9 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
         placeholder="“Outline the liver in these CT series”"
         value={text}
         onValueChange={setText}
-        onSend={(t) => (ackAiNotice(), ask(t), setText(""))}
-        onFiles={(f) => (ackAiNotice(), void sendFiles(f, text), setText(""))}
+        onSend={(t) => (ackAiNotice(), send(t), setText(""))}
+        attachments={attached ? <EmptyComposerAttachments projectId={projectId} /> : undefined}
+        onFiles={(f) => (ackAiNotice(), void attachFiles(f))}
         filesDisabledReason={blocked}
         dropLabel={`Drop to add these files to ${title}`}
         footnote={<AiNotice />}

@@ -33,7 +33,7 @@ import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import { SPECIALIST_LABEL, type StudioCardContext } from "./cards";
 import { usePendingAsk, withUploadNote } from "@/studio/app/entry/pending-ask";
 import { useDropFiles } from "@/studio/app/entry/drop-adapter";
-import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, useDropChips, whenRegistered } from "@/studio/core/drops";
+import { AttachmentTiles, cancelDrop, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, useDropChips, whenRegistered } from "@/studio/core/drops";
 import { runtimeConfig } from "@/extension-host/runtime-config";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
@@ -334,8 +334,10 @@ function Conversation({
   // going it waits in the composer and goes with the next message.
   // todo18 D: it says so, and goes by itself when the current reply finishes.
   const [deferred, setDeferred] = useState<{ text: string; drop: { dropId: string; messageId: string } } | null>(null);
-  const waitingForFiles = usePendingAsk(project.id, (text, drop) => {
-    if (drop && (busy || running)) {
+  const waitingForFiles = usePendingAsk(project.id, (text, drop, opts) => {
+    // todo29 D1: attaching never sends: an attach-only drop waits in the composer for Send.
+    if (drop && opts?.attachOnly) setPending(drop);
+    else if (drop && (busy || running)) {
       setPending(drop);
       setDeferred({ text, drop });
     } else ask(text, drop);
@@ -630,7 +632,7 @@ function Composer({
         )}
         {pending && (
           <div className="mb-2">
-            <DropCard dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />
+            <AttachmentTiles dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />
             {deferred && (
               <p className="mt-1 text-hint text-muted-foreground" data-testid="agent-drop-deferred">
                 Will send when the current reply finishes.

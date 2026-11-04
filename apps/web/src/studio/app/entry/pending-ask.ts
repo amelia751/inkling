@@ -32,11 +32,13 @@ interface PendingAsk {
   text: string;
   drop?: PendingDrop;
   upload?: PendingUpload;
+  /** todo29 D1: the drop only joins the composer (the assistant's upload card); Send sends it. */
+  attachOnly?: boolean;
 }
 
 interface PendingAsks {
   asks: Record<string, PendingAsk>;
-  queue: (projectId: string, text: string, drop?: PendingDrop, upload?: PendingUpload) => void;
+  queue: (projectId: string, text: string, drop?: PendingDrop, upload?: PendingUpload, opts?: { attachOnly?: boolean }) => void;
   take: (projectId: string) => PendingAsk | undefined;
 }
 
@@ -64,8 +66,8 @@ function savePendingAsks(asks: Record<string, PendingAsk>): void {
 
 export const usePendingAsks = create<PendingAsks>((set, get) => ({
   asks: loadPendingAsks(),
-  queue: (projectId, text, drop, upload) => {
-    const asks = { ...loadPendingAsks(), ...get().asks, [projectId]: { text, ...(drop ? { drop } : {}), ...(upload ? { upload } : {}) } };
+  queue: (projectId, text, drop, upload, opts) => {
+    const asks = { ...loadPendingAsks(), ...get().asks, [projectId]: { text, ...(drop ? { drop } : {}), ...(upload ? { upload } : {}), ...(opts?.attachOnly ? { attachOnly: true } : {}) } };
     savePendingAsks(asks);
     set({ asks });
   },
@@ -128,7 +130,7 @@ export function withUploadNote(text: string, note: string): string {
  * mounted. A message queued with an upload session (todo24 D2) waits until that session stops
  * moving. Returns whether it's waiting on its files (the drawer says so).
  */
-export function usePendingAsk(projectId: string, ask: (text: string, drop?: PendingDrop) => void, ready = true): boolean {
+export function usePendingAsk(projectId: string, ask: (text: string, drop?: PendingDrop, opts?: { attachOnly?: boolean }) => void, ready = true): boolean {
   const pending = usePendingAsks((s) => s.asks[projectId]);
   const uploadKey = pending?.upload?.key;
   const waiting = useUploads((s) => (uploadKey ? !uploadGate(s.sessions.find((x) => x.key === uploadKey)).ready : false));
@@ -139,7 +141,7 @@ export function usePendingAsk(projectId: string, ask: (text: string, drop?: Pend
     if (!queued) return;
     const note = queued.upload ? uploadGate(useUploads.getState().sessions.find((x) => x.key === queued.upload!.key)).note : "";
     const text = withUploadNote(queued.text, note);
-    if (text || queued.drop) ask(text, queued.drop);
+    if (text || queued.drop) ask(text, queued.drop, queued.attachOnly ? { attachOnly: true } : undefined);
     // `ask` changes every render; the queued text is what triggers this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, pending, ready, waiting]);

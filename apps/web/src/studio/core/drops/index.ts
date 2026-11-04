@@ -7,6 +7,7 @@
  */
 export { dropsApi, newDropId } from "./api";
 export { DropCard, type DropCardProps } from "./drop-card";
+export { AttachmentTiles, tileState, type AttachmentTilesProps, type TileState } from "./attachment-tiles";
 export { chipsOf, dropKeys, useChatDropsEnabled, useConversationDrops, useDrop, useDropChips, useDropEvents, type Chip } from "./hooks";
 export { SharedFiles } from "./shared-files";
 export { cancelDrop, pastedFiles, resumeDrop, startDrop, whenRegistered, type StartDropOptions } from "./start";

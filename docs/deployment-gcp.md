@@ -75,6 +75,8 @@ test checks each entry exists. Change this list and that file together.
 - Boots (todo11 D1): `POST /api/v1/projects/{id}/boots` (drafts only, on behalf of a person),
   `GET /api/v1/boots/{id}`, `GET /api/v1/tasks/{id}`. `POST /api/v1/tasks/{id}/publish` is not on
   the list: only a person publishes.
+- Previews (todo23 W6): `POST`/`GET /api/v1/projects/{id}/previews`, `GET …/previews/{pid}`.
+  `…/keep` and `…/discard` are not on the list: only the requester keeps or discards a preview.
 - Studio definitions (todo10 Phases 1, 2, 4): `GET /api/environments/{id}/lockfile`,
   `…/last-known-good`, `…/audit`, `PUT …/readme` (notes), `GET /api/v1/datasets/{id}/studio` and
   `POST …/studio/commits` (only onto `work/agent-*`). Moving last-known-good, boot checks and

@@ -122,6 +122,14 @@ def _project(project_id: str, ctx: RequestContext, db: Session, *, write: bool =
     c = ctx.for_scope(workspace, task)
     try:
         projects.project_of_scope(db, c, write=write)
+        if task != workspace:
+            from ..kernel import previews
+            from ..models import TaskRow
+
+            t = db.get(TaskRow, task)
+            previews.guard_task(db, c, t)
+            if write and t is not None and t.state == previews.PREVIEW_STATE:
+                raise HTTPException(409, "a preview's environment is immutable: boot a new preview to change it")
     except HTTPException as e:
         return _json(e.status_code, {"error": e.detail})
     return c

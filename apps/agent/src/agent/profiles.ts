@@ -79,7 +79,9 @@ export const PROFILES: Record<ProfileName, Profile> = {
     clientTools: [...CARD_TOOLS, ...ENVIRONMENT_TOOLS.filter((t) => t !== "run_command" && !(KERNEL_SHADOWED as readonly string[]).includes(t))],
     sandbox: "optional",
     kernel: "builder",
-    prompts: ["base", "environment", "builder"],
+    // todo23 W6: offer_studio's preview mode is the builder's final step.
+    studio: true,
+    prompts: ["base", "environment", "builder", "boot"],
   },
   // Task tools only: uses what's installed, can't change the plugin set or the environment.
   task: { name: "task", clientTools: CARD_TOOLS, sandbox: false, kernel: "task", prompts: ["base", "task"] },

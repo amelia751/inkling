@@ -73,6 +73,10 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/projects/{{project_id}}/boots"),
         ("GET", f"{P}/boots/{{boot_id}}"),
         ("GET", f"{P}/tasks/{{task_id}}"),
+        # todo23 W6: previews, on behalf of a person; Keep and Discard stay the requester's.
+        ("POST", f"{P}/projects/{{project_id}}/previews"),
+        ("GET", f"{P}/projects/{{project_id}}/previews"),
+        ("GET", f"{P}/projects/{{project_id}}/previews/{{preview_id}}"),
         # Plugin control plane
         ("GET", f"{P}/plugins"),
         ("GET", f"{P}/plugins/{{plugin_id}}"),

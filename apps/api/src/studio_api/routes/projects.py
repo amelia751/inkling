@@ -194,7 +194,8 @@ def get_dataset_profile(project_id: str, dataset_id: str, ctx: RequestContext = 
 @router.get("/projects/{project_id}/datasets/{dataset_id}/tasks")
 def list_tasks(project_id: str, dataset_id: str, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     d = _dataset(db, ctx, project_id, dataset_id)
-    return {"tasks": [projects.task_dict(db, t) for t in db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at))]}
+    rows = db.scalars(select(TaskRow).where(TaskRow.dataset_id == d.id).order_by(TaskRow.created_at))
+    return {"tasks": [projects.task_dict(db, t) for t in rows if t.state != "preview"]}  # previews: GET …/previews
 
 
 @router.post("/projects/{project_id}/datasets/{dataset_id}/tasks", status_code=201)

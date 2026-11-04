@@ -43,7 +43,16 @@ export interface PolicyState {
   projectHasTask?: boolean;
   /** todo16 D8: trashing more files than this asks first (`STUDIO_API_AGENT_TRASH_ASK_OVER`). */
   trashAskOver?: number;
+  /**
+   * todo28 W3: a wake run (a drop milestone brought the assistant back): read the drop and the
+   * Studio, patch the attached Studio (`taskId`, when known), one short message. No second boot,
+   * no plugin changes, no long work; at most WAKE_MAX_TOOL_CALLS tool calls.
+   */
+  wake?: { taskId?: string };
 }
+
+export const WAKE_TOOLS = new Set(["get_drop", "get_studio_state", "patch_studio", "search_catalog"]);
+export const WAKE_MAX_TOOL_CALLS = 4;
 
 /**
  * todo15 D3: `boot_studio` runs on an explicit "create", or in a project without a Studio when the
@@ -119,6 +128,8 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | catalogue trash: files up to trashAskOver                                | allow (the chat shows Undo) |
  * | catalogue trash: more files, a dataset, a Studio or the project          | ask |
  * | catalogue destroy (purge, empty trash, delete forever)                  | ask, "can't be undone" |
+ * | a wake run (todo28 W3): anything but get_drop / get_studio_state / search_catalog / patch_studio of the attached Studio | deny, soft |
+ * | a wake run past 4 tool calls                                              | deny |
  * | anything after a budget is exhausted                                     | deny |
  */
 /** Batches up to this many inputs run without an approval card (todo25 §5: no approval on screen). */
@@ -136,6 +147,13 @@ export function decide(
   if (s.spendUsd >= b.maxSpendUsd) return { kind: "deny", reason: `spend budget ($${b.maxSpendUsd}) exhausted` };
 
   const str = (k: string) => (typeof call.input[k] === "string" ? (call.input[k] as string) : "");
+  if (s.wake) {
+    if (s.toolCalls >= WAKE_MAX_TOOL_CALLS) return { kind: "deny", reason: `A drop update allows ${WAKE_MAX_TOOL_CALLS} tool calls; tell the person what's left in one short message.` };
+    if (!WAKE_TOOLS.has(call.toolName))
+      return { kind: "deny", soft: true, reason: "On a drop update you may only read the drop and the Studio and patch the attached Studio. Don't boot another Studio, change plugins or start long work; tell the person in one short message." };
+    if (call.toolName === "patch_studio" && s.wake.taskId && str("taskId") !== s.wake.taskId)
+      return { kind: "deny", soft: true, reason: `Patch only the Studio this drop is attached to (${s.wake.taskId}).` };
+  }
   // todo21 D9: a project chat's tools reach only its own project. A `projectId` / `workspaceId`
   // argument naming another one is refused, whatever the tool (copy_into_project names its source
   // as `fromProjectId`, behind the rights card). Home chats have no workspace and no data tools.

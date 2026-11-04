@@ -7,6 +7,7 @@ import { createBus } from "./bus/index.ts";
 import { SERVICE_NAME, SERVICE_VERSION } from "./cluster/naming.ts";
 import { type Config, ConfigError, describeSecrets, envName, loadConfig } from "./config.ts";
 import { createServiceLog } from "./observability.ts";
+import { DropWakes } from "./runtime/drop-wakes.ts";
 import { SessionService } from "./runtime/sessions.ts";
 import { createDaytona } from "./sandbox/client.ts";
 import { createProvider } from "./sandbox/providers.ts";
@@ -139,6 +140,10 @@ if (config.sweeperEnabled) {
   log.info(`in-process sweeper disabled (${envName("AGENT_SWEEPER_ENABLED")}=false); run scripts/sweep.ts as a CronJob`);
 }
 
+// todo28 W3: drop milestones bring the assistant back (any replica claims them from the kernel).
+const stopDropWakes =
+  config.kernelServiceToken && config.kernelUrl ? new DropWakes({ kernelUrl: config.kernelUrl, token: config.kernelServiceToken, sessions, log }).start() : undefined;
+
 const app = createApp({ config, sessions, log, ready });
 const server = serve({ fetch: app.fetch, hostname: config.host, port: config.port }, (info) =>
   log.info({ url: `http://${info.address}:${info.port}`, replica: config.cluster.replicaId }, "agent service listening"),
@@ -158,6 +163,7 @@ async function shutdown(signal: string) {
   stopping = true;
   log.info({ signal, graceS: config.shutdownGraceS, localRuns: sessions.cluster.localRunCount }, "draining");
   if (sweeper) clearInterval(sweeper);
+  stopDropWakes?.();
   try {
     const interrupted = await sessions.drain(config.shutdownGraceS * 1000);
     if (interrupted) log.warn({ interrupted }, "runs interrupted at shutdown");

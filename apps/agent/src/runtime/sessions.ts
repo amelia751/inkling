@@ -40,7 +40,7 @@ import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
-import { createDropTools, dropBlock, dropPart, waitForDrop } from "../tools/drops.ts";
+import { type DropMilestone, createDropTools, dropBlock, dropPart, dropUpdateBlock, dropUpdateStatus, fetchDropSummary, needsDecision, waitForDrop } from "../tools/drops.ts";
 import { createReviewTools } from "../tools/review.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { createRecipeTools } from "../tools/recipes.ts";
@@ -110,6 +110,41 @@ interface SessionMeta {
   lastOpenedAt?: string;
   sandboxId?: string;
   artifacts: (ArtifactInfo & { hostPath: string })[];
+  /**
+   * todo28 W3: the drops this chat follows, keyed by drop id: wake-ups delivered (capped), when
+   * the last one was (coalescing), and milestone event ids already handled (any replica may claim).
+   */
+  drops?: Record<string, DropFollow>;
+}
+
+export interface DropFollow {
+  wakes: number;
+  lastAt: number;
+  seen: string[];
+}
+
+/** todo28 D7: at most one wake per drop every 15 s, at most 4 per drop. */
+export const WAKE_COALESCE_MS = 15_000;
+export const WAKE_CAP = 4;
+/** A wake run needs the person's token to last at least this long. */
+export const WAKE_TOKEN_MIN_MS = 5 * 60_000;
+/** The browser hands over a token with at least this long left (kernel-token.ts: reused until 10 min before expiry). */
+const TOKEN_MIN_LIFE_MS = 10 * 60_000;
+
+export type WakeOutcome = "no-conversation" | "duplicate" | "nothing" | "capped" | "coalesced" | "steered" | "started" | "status";
+
+/** When a kernel token stops working: its JWT `exp` if it has one, else the least the browser guarantees. */
+export function tokenExpiresAt(token: string, receivedAt: number): number {
+  const part = token.split(".")[1];
+  if (part) {
+    try {
+      const exp = JSON.parse(Buffer.from(part, "base64url").toString("utf8"))?.exp;
+      if (typeof exp === "number") return exp * 1000;
+    } catch {
+      // not a JWT
+    }
+  }
+  return receivedAt + TOKEN_MIN_LIFE_MS;
 }
 
 /** Everything per session lives here and in tool closures; there is no module-level mutable state. */
@@ -132,7 +167,16 @@ export class SessionContext {
   emitHook: ((body: Parameters<Run["events"]["push"]>[0]) => void) | undefined;
   onClientToolSettled: ((callId: string) => void) | undefined;
   /** Kernel session token (builder / task); memory only, the Studio refreshes it per message. */
-  kernelToken: string | undefined;
+  get kernelToken(): string | undefined {
+    return this.#kernelToken;
+  }
+  set kernelToken(t: string | undefined) {
+    if (t && t !== this.#kernelToken) this.kernelTokenAt = Date.now();
+    this.#kernelToken = t;
+  }
+  #kernelToken: string | undefined;
+  /** todo28 W3: when the current kernel token arrived (a wake run needs it to last 5 more minutes). */
+  kernelTokenAt = 0;
   /** todo18 D: ask the browser for a fresh delegated token mid-run (set with the kernel client). */
   refreshToken?: () => Promise<boolean>;
   /** The kernel client the project tools use (set in build), also for reading a message's drop. */
@@ -464,7 +508,8 @@ export class SessionService {
       headers: (): Record<string, string> => (ctx.activeRun ? { "X-Agent-Run": ctx.activeRun.id, "X-Turn-Id": ctx.activeRun.id } : {}),
       // todo18 D: a long run outlives the delegated token; ask the browser for a fresh one.
       refresh: (ctx.refreshToken = async () => {
-        if (!ctx.activeRun) return false;
+        // A wake run (todo28 W3) has no browser to ask.
+        if (!ctx.activeRun || ctx.policy.wake) return false;
         const r = await ctx.bridge.request(`tok_${randomUUID()}`, REFRESH_TOKEN_TOOL, {}).catch(() => undefined);
         const token = r?.ok ? (r.output as { token?: unknown } | null)?.token : undefined;
         if (typeof token !== "string" || !token) return false;
@@ -1090,6 +1135,7 @@ export class SessionService {
     }
     // Only the user's own words this run can authorise plugin changes (policy INTENT_GATED).
     ctx.policy.userText = req.text;
+    ctx.policy.wake = undefined;
     ctx.activeRun = run;
     ctx.runs.set(run.id, run);
     this.runIndex.set(run.id, ctx);
@@ -1101,6 +1147,81 @@ export class SessionService {
     if (drop?.part) run.events.push({ type: "custom", name: "drop", value: drop.part });
     void this.execute(ctx, run);
     return { run, steered: false };
+  }
+
+  /**
+   * todo28 W3: one drop's milestones, claimed together from the kernel's `agent-drops`
+   * subscription. Appends a `<drop_update>` to the drop's conversation: steered into an active
+   * run, else a short wake run under the narrow wake policy while the person's token has 5 more
+   * minutes, else a plain status line with no model call. Coalesced (15 s) and capped (4) per drop,
+   * with the counters in the session's stored meta so any replica sees them. "coalesced" means
+   * the caller leaves the events unacked (they come back on a later claim); everything else acks.
+   */
+  async wakeForDrop(ms: DropMilestone[], now = Date.now()): Promise<{ outcome: WakeOutcome; runId?: string }> {
+    const first = ms[0];
+    const sessionId = ms.find((m) => m.conversationId)?.conversationId;
+    if (!first || !sessionId) return { outcome: "no-conversation" };
+    const dropId = first.dropId;
+    const live = this.sessions.get(sessionId);
+    const meta = live?.meta ?? (await this.readMeta(sessionId));
+    if (!meta || meta.scope === "home") return { outcome: "no-conversation" };
+    const follow: DropFollow = { wakes: 0, lastAt: 0, seen: [], ...meta.drops?.[dropId] };
+    const fresh = ms.filter((m) => !follow.seen.includes(m.eventId));
+    const save = (f: DropFollow) => {
+      meta.drops = { ...meta.drops, [dropId]: { ...f, seen: [...f.seen, ...fresh.map((m) => m.eventId)].slice(-40) } };
+      this.writeMeta(meta);
+    };
+    if (!fresh.length) return { outcome: "duplicate" };
+    // Files that simply joined the Studio need no model call (D7).
+    if (!fresh.some(needsDecision)) return save(follow), { outcome: "nothing" };
+    if (follow.wakes >= WAKE_CAP) {
+      this.deps.log.info({ sessionId, dropId, wakes: follow.wakes }, "drop wake capped");
+      return save(follow), { outcome: "capped" };
+    }
+    if (now - follow.lastAt < WAKE_COALESCE_MS) return { outcome: "coalesced" };
+    save({ ...follow, wakes: follow.wakes + 1, lastAt: now });
+    const summary = live?.kernel && live.kernelToken ? await fetchDropSummary(live.kernel, dropId).catch(() => undefined) : undefined;
+    const text = dropUpdateBlock(dropId, fresh, summary);
+    const active = live?.activeRun;
+    if (live && active && !active.done) {
+      if (active.status === "queued") active.pending.push(text);
+      else await live.piSession.steer(text);
+      return { outcome: "steered", runId: active.id };
+    }
+    const elsewhere = await this.cluster.activeElsewhere(sessionId);
+    if (elsewhere) {
+      await this.cluster.steer(elsewhere, text);
+      return { outcome: "steered", runId: elsewhere.id };
+    }
+    const token = live?.kernelToken;
+    if (live && token && !this.cluster.draining && tokenExpiresAt(token, live.kernelTokenAt) - now > WAKE_TOKEN_MIN_MS) {
+      const run = new Run(live.id, { principal: live.meta.owner, orgId: live.meta.orgId });
+      run.pending.push(text);
+      const taken = await this.cluster.startRun(live, run);
+      if (taken) {
+        await this.cluster.steer(taken, text);
+        return { outcome: "steered", runId: taken.id };
+      }
+      // The narrow wake policy (todo28 W3): read the drop and the Studio, patch the attached Studio, one message.
+      live.policy.userText = "";
+      live.policy.wake = { ...(summary?.studioTaskId ? { taskId: summary.studioTaskId } : {}) };
+      live.activeRun = run;
+      live.runs.set(run.id, run);
+      this.runIndex.set(run.id, live);
+      for (const old of [...live.runs.keys()].slice(0, -RUNS_KEPT)) {
+        live.runs.delete(old);
+        this.runIndex.delete(old);
+      }
+      run.events.push({ type: "run-status", status: "queued" });
+      void this.execute(live, run);
+      return { outcome: "started", runId: run.id };
+    }
+    // The person's token is gone or about to expire: a plain status line, no model call.
+    const id = `drop-update-${dropId}-${follow.wakes + 1}`;
+    await this.queueUiWrite(sessionId, () =>
+      this.store.putUiPart({ sessionId, runId: null, messageId: id, partKey: `status:${id}`, part: { type: "status", id, text: dropUpdateStatus(fresh) } }),
+    );
+    return { outcome: "status" };
   }
 
   /** The org's `aiAssist` setting, read from the API as the person; unreadable counts as on. */
@@ -1130,9 +1251,9 @@ export class SessionService {
   private async readDrop(ctx: SessionContext, dropId: string) {
     if (!ctx.kernel) return { block: dropBlock(undefined, dropId, "no kernel access"), part: undefined };
     try {
-      // todo20 D8: give a fresh drop a few seconds to finish uploading before the model reads it
-      // (its block then says "Still checking …", never "0 files").
-      const { summary } = await waitForDrop(ctx.kernel, dropId, { timeoutMs: 8_000, done: (s) => s.state !== "uploading" });
+      // todo28 D8: wait only until the drop has files registered (at most 3 s), never for checking;
+      // files still being checked join the attached Studio on their own.
+      const { summary } = await waitForDrop(ctx.kernel, dropId, { timeoutMs: 3_000, intervalMs: 500, done: (s) => s.total > 0 });
       return { block: dropBlock(summary, dropId), part: dropPart(summary) };
     } catch (err) {
       this.deps.log.warn({ sessionId: ctx.id, dropId, err: sanitizeError(String(err)) }, "drop not readable");

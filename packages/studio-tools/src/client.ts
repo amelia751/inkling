@@ -53,6 +53,8 @@ export interface BootRequest {
   folders?: string[];
   name?: string;
   intent?: string;
+  /** todo28 D6: boot on a drop's ready files and attach the drop (the rest join as they're checked). */
+  dropId?: string;
 }
 
 export interface BootAccepted {

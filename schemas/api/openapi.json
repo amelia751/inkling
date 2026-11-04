@@ -13355,6 +13355,54 @@
         "summary": "Derivative Progress"
       }
     },
+    "/api/v1/worker/derivatives/{did}/tiles": {
+      "put": {
+        "description": "Small files of a derivative (a slide's tiles) as one tar, so a pyramid of ~100 k tiles is a\nfew hundred requests. Returns the files' keys in the tar's order.",
+        "operationId": "derivative_tiles_api_v1_worker_derivatives__did__tiles_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "did",
+            "required": true,
+            "schema": {
+              "title": "Did",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Derivative Tiles"
+      }
+    },
     "/api/v1/worker/events/deliver": {
       "post": {
         "operationId": "deliver_api_v1_worker_events_deliver_post",

@@ -4354,6 +4354,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/worker/derivatives/{did}/tiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Derivative Tiles
+         * @description Small files of a derivative (a slide's tiles) as one tar, so a pyramid of ~100 k tiles is a
+         *     few hundred requests. Returns the files' keys in the tar's order.
+         */
+        put: operations["derivative_tiles_api_v1_worker_derivatives__did__tiles_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/worker/events/deliver": {
         parameters: {
             query?: never;
@@ -14440,6 +14461,39 @@ export interface operations {
                 };
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    derivative_tiles_api_v1_worker_derivatives__did__tiles_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path: {
+                did: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

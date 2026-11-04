@@ -11,6 +11,10 @@ from .blobstore import BlobNotFound, BlobStore
 
 _RANGE = re.compile(r"bytes=(\d*)-(\d*)")
 
+# Cloud Run refuses a response over 32 MiB that declares its length; without Content-Length it
+# goes out chunked, with no size limit.
+CHUNKED_OVER = 32 * 1024 * 1024
+
 
 def blob_response(store: BlobStore, key: str, media_type: str, request: Request, *, cache_control: str | None = None) -> Response:
     info = store.stat(key)
@@ -34,9 +38,11 @@ def blob_response(store: BlobStore, key: str, media_type: str, request: Request,
             return Response(status_code=416, headers={"Content-Range": f"bytes */{size}", **headers})
         status = 206
         headers["Content-Range"] = f"bytes {start}-{end}/{size}"
-    headers["Content-Length"] = str(max(0, end - start + 1))
+    length = max(0, end - start + 1)
     if request.method == "HEAD" or size == 0:
-        return Response(status_code=status, headers=headers, media_type=media_type)
+        return Response(status_code=status, headers={**headers, "Content-Length": str(length)}, media_type=media_type)
+    if length <= CHUNKED_OVER:
+        headers["Content-Length"] = str(length)
     try:
         body = store.iter_range(key, start, end)
         first = next(body, b"")  # surfaces a missing object as a 404 before headers go out

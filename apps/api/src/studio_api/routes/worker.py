@@ -240,7 +240,7 @@ def derivative_progress(did: str, body: dict = Body(...), db: Session = Depends(
 
 
 @router.put("/derivatives/{did}/files/{rel:path}", dependencies=[Depends(_auth)])
-async def derivative_file(did: str, rel: str, request: Request, db: Session = Depends(get_session)):
+async def derivative_file(did: str, rel: str, request: Request, offset: int | None = None, total: int | None = None, db: Session = Depends(get_session)):
     from ..kernel import derivatives
 
     from .. import blobstore
@@ -259,10 +259,21 @@ async def derivative_file(did: str, rel: str, request: Request, db: Session = De
         async for chunk in request.stream():
             size += len(chunk)
             f.write(chunk)
+    store = blobstore.data()
     try:
-        blobstore.data().put_file(key, f.name, ctype)
+        if offset is None:
+            store.put_file(key, f.name, ctype)
+        else:
+            if total is None or offset < 0 or offset + size > total:
+                raise HTTPException(422, "a piece needs ?offset= and ?total= with offset + its size ≤ total")
+            store.put_file(derivatives.part_key(key, offset), f.name, ctype)
     finally:
         os.unlink(f.name)
+    if offset is not None:
+        if offset + size < total:
+            return {"key": key, "received": offset + size}
+        await asyncio.to_thread(derivatives.join_parts, store, key, total, ctype)
+        size = total
     derivatives.register_file(db, row, key, ctype, size)
     db.commit()
     return {"key": key}

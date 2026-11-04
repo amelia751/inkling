@@ -55,6 +55,35 @@ def test_codec_failure_is_not_retried():
     assert d.state_for(db, ["nod-3"])["nod-3"]["error"].endswith("cinepak video")
 
 
+def test_a_converted_file_goes_up_in_pieces(client):
+    from studio_api import blobstore
+
+    from .conftest import worker_headers as W
+    from .test_explore import _report
+    from .test_projects import _import
+
+    p = client.post("/api/v1/projects", json={"title": "Big video"}).json()["id"]
+    imp = _import(client, p, {"clips/b.avi": b"RIFF....AVI "})
+    _report(client, imp, {"b.avi": "video"}, {"b.avi": {"derivative": {"kind": "video-mp4"}}})
+    [row] = client.post("/api/v1/worker/derivatives/claim", json={}, headers=W()).json()["derivatives"]
+    url = f"/api/v1/worker/derivatives/{row['id']}/files/derived/big.mp4"
+    data = b"0123456789" * 3
+    h = {**W(), "Content-Type": "video/mp4"}
+    assert client.put(url, params={"offset": 10, "total": 30}, content=data[10:20], headers=h).json()["received"] == 20
+    assert client.put(url, params={"offset": 0, "total": 30}, content=data[:10], headers=h).json()["received"] == 10
+    assert client.put(url, params={"offset": 0, "total": 30}, content=data[:10], headers=h).status_code == 200
+    last = client.put(url, params={"offset": 20, "total": 30}, content=data[20:], headers=h)
+    assert last.status_code == 200, last.text
+    key = last.json()["key"]
+    store = blobstore.data()
+    assert store.read(key) == data
+    assert all(store.stat(f"{key}.part.{o:012d}") is None for o in (0, 10, 20))
+    assert client.put(url, params={"offset": 25, "total": 30}, content=b"0123456789", headers=h).status_code == 422
+    gap = f"/api/v1/worker/derivatives/{row['id']}/files/derived/gap.mp4"
+    client.put(gap, params={"offset": 0, "total": 30}, content=data[:10], headers=h)
+    assert client.put(gap, params={"offset": 20, "total": 30}, content=data[20:], headers=h).status_code == 422
+
+
 def test_worker_routes_convert_an_uploaded_avi_end_to_end(client):
     """Report → pending row → claim → progress → streamed files → complete; purge keys."""
     from studio_api import blobstore

@@ -223,6 +223,39 @@ def file_key(row: Derivative, rel: str) -> str:
     return f"{assets.UPLOAD_PREFIX}{row.project_id}/{rel}"
 
 
+def part_key(key: str, offset: int) -> str:
+    return f"{key}.part.{offset:012d}"
+
+
+def join_parts(store, key: str, total: int, media_type: str) -> None:
+    """A file sent in pieces (`?offset=&total=`): the pieces, in order, become `key`."""
+    import os
+    import tempfile
+
+    from fastapi import HTTPException
+
+    offsets, pos = [], 0
+    while pos < total:
+        info = store.stat(part_key(key, pos))
+        if info is None or info.size == 0:
+            raise HTTPException(422, f"no piece at offset {pos}; send the file again from offset 0")
+        offsets.append(pos)
+        pos += info.size
+    if pos != total:
+        raise HTTPException(422, f"the pieces add up to {pos} bytes, not {total}")
+    tmp = tempfile.NamedTemporaryFile(prefix="derive-", delete=False)
+    try:
+        with tmp:
+            for off in offsets:
+                for chunk in store.iter_range(part_key(key, off)):
+                    tmp.write(chunk)
+        store.put_file(key, tmp.name, media_type)
+    finally:
+        os.unlink(tmp.name)
+    for off in offsets:
+        store.delete(part_key(key, off))
+
+
 def register_file(db: Session, row: Derivative, key: str, media_type: str, size: int) -> None:
     """The viewable file (.mp4, .dzi, thumbnail) is an Asset of the project so `assetUrl` signs it;
     DZI tiles are served as companions of their `.dzi` asset."""

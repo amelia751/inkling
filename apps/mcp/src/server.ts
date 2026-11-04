@@ -10,6 +10,7 @@ import { CONTEXT_URI_TEMPLATE, type Caller, callOperationTool, hints, operationT
 import { createViewers } from "./viewers.js";
 import { studioKinds } from "./profiles.js";
 import { jobStatus, runHarness } from "./harness.js";
+import { RECIPE_TOOLS, callRecipeTool } from "./recipes.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -91,7 +92,7 @@ export const HARNESS_TOOLS: ToolDef[] = [
 export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment"]);
 
 /** Every tool, `project_context` first (D9). */
-export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
+export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...RECIPE_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
 
 /**
  * `remote`: built for one stateless HTTP request. The MCP Apps viewers are then off: their
@@ -207,7 +208,7 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       if (op) return op as never;
       const v = await viewers.call(req.params.name, args);
       if (v) return v as never;
-      const r = await call(req.params.name, args);
+      const r = (await callRecipeTool(caller, req.params.name, args)) ?? (await call(req.params.name, args));
       const text = typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
       return { content: [{ type: "text", text }], isError: !r.ok };
     } catch (e) {

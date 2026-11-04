@@ -26,3 +26,4 @@ export * as pipeline from "./pipeline";
 export * from "./operations";
 export * from "./rules";
 export * from "./lint-rules";
+export * from "./recipe";

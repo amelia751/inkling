@@ -45,7 +45,9 @@ In `apps/web` before you hand work back:
 - `pnpm typecheck`
 - `pnpm test` (vitest unit tests: extension host, packages, plugins)
 - `pnpm check:boundaries`, `pnpm check:names` and `pnpm check:icons`
-- `pnpm emit:schemas --check` (fails if generated schemas are stale; run `pnpm emit:schemas`)
+- `pnpm check:generated` (fails if any generated file is stale: schemas, `registry/index.json`,
+  kernel contracts, the OpenAPI spec, the api-client; run `pnpm regen` and commit the result).
+  The pre-push hook (`.githooks/pre-push`, installed by `pnpm install`) runs it too.
 - e2e: start a frozen dev server with `STUDIO_E2E=1 pnpm exec vite --port 5199 --strictPort`
   (it serves annotations from a temp copy of `e2e/fixtures/annotations/`, never your
   `seed-data/.annotations`), then run `python3 e2e/<name>_test.py --port 5199`. Tests that span services (agent,
@@ -134,5 +136,6 @@ Read `docs/modules.md`.
   (`packages/contracts/src/migrations/annotations-v1-to-v2.ts`).
 - Icons come only from `@studio/ui/icons`.
 - Never hand-edit generated files: `schemas/*.json`, `schemas/catalog.md`,
-  `docs/modules-reference.md`. The web server serves the catalogue and environment schema from
+ `docs/modules-reference.md`, `registry/index.json`. `pnpm regen` rebuilds every one; run it
+ after touching plugins, contracts or api routes, and after merging main. The web server serves the catalogue and environment schema from
   `schemas/` at `/catalog.json`, `/catalog.md` and `/schema/environment.v1.json`.

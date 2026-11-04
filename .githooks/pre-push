@@ -1,0 +1,10 @@
+#!/bin/sh
+# Installed by `pnpm install` (core.hooksPath). Stops a push whose generated files are stale,
+# which ci would fail on. Fix with `pnpm regen`; skip once with `git push --no-verify`.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+if [ ! -d node_modules ]; then
+  echo "pre-push: no node_modules here, skipping the generated-files check (run pnpm install)" >&2
+  exit 0
+fi
+node tools/generated.mjs --check

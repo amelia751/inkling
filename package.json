@@ -10,6 +10,9 @@
     }
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "regen": "node tools/generated.mjs",
+    "check:generated": "node tools/generated.mjs --check",
     "dev": "node tools/dev.mjs",
     "dev:signin": "node tools/dev.mjs --signin",
     "dev:reset": "node tools/dev-reset.mjs",

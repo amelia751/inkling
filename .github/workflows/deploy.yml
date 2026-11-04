@@ -1,6 +1,6 @@
 # Continuous deploy to the Cloud Run stage. Runs after `images` finishes on main and deploys
 # that commit only if `ci` passed for it too and it is still main's head (a newer push deploys
-# instead). tools/deploy-run.sh runs the migrate jobs, rolls each rebuilt app, smoke-tests the
+# instead). A commit whose ci failed is skipped, not failed, so one bad push sends one email. tools/deploy-run.sh runs the migrate jobs, rolls each rebuilt app, smoke-tests the
 # Studio host and the agent, and puts every moved service back on its previous revision when
 # anything fails. Rerun by hand with `gh workflow run deploy.yml` (deploys main's head).
 #
@@ -51,7 +51,10 @@ jobs:
             state="$(gh run list -R "$REPO" --workflow ci.yml --commit "$SHA" --event push --limit 1 --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')"
             case "$state" in
               "completed success") echo "go=true" >> "$GITHUB_OUTPUT"; echo "sha=$SHA" >> "$GITHUB_OUTPUT"; exit 0 ;;
-              completed*) echo "::error::ci for ${SHA::7} ended: $state"; exit 1 ;;
+              completed*)
+                echo "::notice::ci for ${SHA::7} ended: $state; not deploying (ci already reports the failure)"
+                echo "go=false" >> "$GITHUB_OUTPUT"
+                exit 0 ;;
             esac
             sleep 20
           done

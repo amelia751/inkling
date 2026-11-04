@@ -45,17 +45,8 @@ jobs:
         run: uv run lint-imports
       - name: Ruff
         run: uv run ruff check
-      - name: Generated schemas are current
-        run: pnpm emit:schemas --check
-      - name: Registry index is current
-        run: node tools/build-registry.mjs --check
-      - name: Generated kernel contracts are current
-        run: pnpm --filter @studio/api contracts:check
-      - name: OpenAPI spec and api-client are current
-        run: |
-          uv run --package studio-api python apps/api/scripts/dump_openapi.py --check
-          pnpm --filter @studio/api-client generate
-          git diff --exit-code packages/api-client/src/schema.d.ts
+      - name: Generated files are current (schemas, registry, kernel contracts, OpenAPI, api-client)
+        run: pnpm check:generated
 
   workos-emulate:
     # todo9 Phase 13: the api's WorkOS sign-in against WorkOS Emulate (apps/api/tests/emulate):

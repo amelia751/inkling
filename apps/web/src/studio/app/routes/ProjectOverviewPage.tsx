@@ -24,6 +24,7 @@ import { ProjectEmptyState } from "@/studio/app/entry/empty-states";
 import { useDropFiles } from "@/studio/app/entry/drop-adapter";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { AppLayout } from "@/studio/components/layout/app-layout";
+import { DeleteProjectDialog } from "@/studio/app/routes/DeletedProjectsPage";
 import { DropOverlay, usePickers } from "@/studio/components/uploads/uploads";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button } from "@studio/ui/ui/button";
@@ -109,14 +110,15 @@ function OverviewSkeleton() {
 
 // ---- Header ------------------------------------------------------------------------------------
 
-/** Title and description edit in place; the `•••` menu has Settings, Rename and Archive. */
+/** Title and description edit in place; the `•••` menu has Settings, Rename and Delete. */
 function ProjectHeader({ project }: { project: ProjectSummary }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [editing, setEditing] = useState<null | "title" | "description">(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: (patch: Partial<Pick<ProjectSummary, "title" | "description" | "archived">>) => api<ProjectSummary>(`/projects/${project.id}`, { method: "PATCH", json: patch }),
+    mutationFn: (patch: Partial<Pick<ProjectSummary, "title" | "description">>) => api<ProjectSummary>(`/projects/${project.id}`, { method: "PATCH", json: patch }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: projectKeys.all }),
     onError: (e) => setError(e instanceof NeedsApiError ? "Editing projects needs the full stack: see docs/running.md" : String(e)),
   });
@@ -168,9 +170,10 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
               <DropdownMenuItem onSelect={() => navigate(settingsUrl(project.id))}>Settings</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setEditing("title")}>Rename</DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled={isSampleTemplate(project)} onSelect={() => save.mutate({ archived: true }, { onSuccess: () => navigate("/projects") })}>Archive</DropdownMenuItem>
+              <DropdownMenuItem className="text-danger focus:text-danger" disabled={isSampleTemplate(project)} onSelect={() => setDeleting(true)} data-testid="overview-delete-project">Delete project</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <DeleteProjectDialog projectId={project.id} name={project.title} open={deleting} onOpenChange={setDeleting} />
         </div>
       </div>
     </header>

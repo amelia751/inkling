@@ -340,7 +340,6 @@ export interface ProjectSummary {
   defaultTaskId?: string | null;
   /** What the project's files are (images, volumes…), most first; masks and unreadable files left out. */
   kinds?: { kind: DetectedKind; count: number }[];
-  archived: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

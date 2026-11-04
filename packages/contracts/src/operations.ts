@@ -97,8 +97,7 @@ export const OPERATIONS: Operation[] = [
   { id: "project.overview", tier: "read", method: "GET", path: "/projects/{pid}/overview", input: none, description: "The project at a glance: sources, datasets, Studios, counts." },
   { id: "project.rename", tier: "write", method: "PATCH", path: "/projects/{pid}", input: z.object({ name }), description: "Rename the project." },
   { id: "project.describe", tier: "write", method: "PATCH", path: "/projects/{pid}", input: z.object({ description: z.string().max(2000) }), description: "Change the project's description." },
-  { id: "project.archive", tier: "write", method: "PATCH", path: "/projects/{pid}", input: z.object({ archived: z.boolean() }), description: "Archive or unarchive the project (hidden but kept)." },
-  { id: "project.delete", tier: "trash", method: "DELETE", path: "/projects/{pid}", input: none, removes: "project", description: "Move the whole project to Deleted projects (restorable for 30 days)." },
+  { id: "project.delete", tier: "trash", method: "DELETE", path: "/projects/{pid}", input: none, removes: "project", description: "Move the whole project to Trash: restorable for 30 days, then deleted for good." },
   // ---- Trash ----------------------------------------------------------------------------------
   { id: "trash.list", tier: "read", method: "GET", path: "/projects/{pid}/trash", input: z.object({ kind: z.enum(["all", "sources", "datasets", "collections", "studios"]).optional() }), description: "What is in the project's Trash: who deleted it, when, days left." },
   { id: "trash.restore", tier: "write", method: "POST", path: "/projects/{pid}/trash/{batchId}/restore", input: z.object({ batchId: id }), description: "Restore everything deleted together in one batch." },

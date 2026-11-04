@@ -306,7 +306,7 @@ def drain(db: Session, *, limit: int = 20) -> list[str]:
 
 def scan_all(db: Session) -> dict[str, Any]:
     n = 0
-    for p in list(db.scalars(select(ProjectRow).where(ProjectRow.trashed_at.is_(None), ProjectRow.archived.is_(False)))):
+    for p in list(db.scalars(select(ProjectRow).where(ProjectRow.trashed_at.is_(None)))):
         scan_project(db, p)
         n += 1
     return {"projects": n}

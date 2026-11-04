@@ -203,11 +203,7 @@ def main() -> int:
             page.wait_for_selector("[data-testid=settings-saved]", timeout=10000)
             _, after = api("GET", f"/v1/projects/{pid}")
             check("Settings › General saves title and visibility", after["title"] == "Phase 8 e2e (renamed)" and after["visibility"] == "shared", str({k: after[k] for k in ("title", "visibility")}))
-            page.get_by_test_id("archive-project").click()
-            page.get_by_test_id("confirm-archive").click()
-            page.wait_for_url(f"{base}/projects", timeout=10000)
-            _, after = api("GET", f"/v1/projects/{pid}")
-            check("archive hides the project", after["archived"] is True)
+            check("Settings has no Archive, only Delete project", page.locator("[data-testid=archive-project]").count() == 0 and page.get_by_test_id("delete-project").count() == 1)
         finally:
             ctx.close()
             browser.close()

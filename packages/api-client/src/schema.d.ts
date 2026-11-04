@@ -9407,7 +9407,6 @@ export interface operations {
             query?: {
                 q?: string | null;
                 sort?: string;
-                archived?: boolean;
             };
             header?: never;
             path?: never;

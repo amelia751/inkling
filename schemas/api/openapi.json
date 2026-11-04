@@ -5915,16 +5915,6 @@
               "title": "Sort",
               "type": "string"
             }
-          },
-          {
-            "in": "query",
-            "name": "archived",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Archived",
-              "type": "boolean"
-            }
           }
         ],
         "responses": {

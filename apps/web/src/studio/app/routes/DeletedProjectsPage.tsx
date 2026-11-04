@@ -15,12 +15,12 @@ import { relativeTime } from "@/studio/components/files";
 import { ImpactList } from "@/studio/components/trash/delete-dialog";
 import { AppLayout, PageHeading } from "@/studio/components/layout/app-layout";
 import { projectKeys } from "@/studio/lib/projects-api";
-import { deletedProjectsUrl, homeUrl, projectUrl } from "@/studio/lib/routes";
+import { deletedProjectsUrl, projectsUrl, projectUrl } from "@/studio/lib/routes";
 import { deletedByLabel, deleteProject, destroyDeletedProject, messageOf, previewDeleteProject, restoreProject, trashKeys, useDeletedProjects, type Impact } from "@/studio/lib/trash-api";
 
-export const DELETED_PROJECTS_EMPTY = "No deleted projects. A deleted project stays here for 30 days, then it's gone.";
+export const DELETED_PROJECTS_EMPTY = "A deleted project stays here for 30 days, then it's deleted for good.";
 
-/** Deleted projects (todo16 D6): restore puts everything back; Delete forever is for org admins. */
+/** Projects in Trash (todo16 D6): restore puts everything back; Delete forever is for owners and org admins. */
 export function DeletedProjectsPage() {
   const q = useDeletedProjects();
   const qc = useQueryClient();
@@ -37,13 +37,13 @@ export function DeletedProjectsPage() {
   return (
     <AppLayout>
       <div className="mx-auto w-full max-w-4xl px-4 py-5 md:px-6 md:py-6" data-testid="deleted-projects-page">
-        <PageHeading title="Deleted projects" description="Deleted projects stay here for 30 days. Restoring one puts back everything in it." />
+        <PageHeading title="Trash" description="Deleted projects stay here for 30 days, then they're deleted for good. Restoring one puts back everything in it." />
         {q.error ? (
           <ErrorView variant="section" error={q.error} what="deleted projects" onRetry={() => void q.refetch()} />
         ) : q.isLoading ? (
           <Skeleton className="h-24 w-full" />
         ) : list.length === 0 ? (
-          <EmptyState art="trash" title="No deleted projects" description={DELETED_PROJECTS_EMPTY} data-testid="deleted-projects-empty" />
+          <EmptyState art="trash" title="Trash is empty" description={DELETED_PROJECTS_EMPTY} data-testid="deleted-projects-empty" />
         ) : (
           <Card className="divide-y divide-border overflow-hidden">
             {list.map((p) => (
@@ -51,7 +51,9 @@ export function DeletedProjectsPage() {
                 <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
                 <span className="text-muted-foreground">{typeof p.trashedBy === "string" ? p.trashedBy : deletedByLabel(p.trashedBy)}</span>
                 <span className="text-muted-foreground">{relativeTime(p.trashedAt)}</span>
-                <span className="tnum text-muted-foreground">{p.daysLeft} {p.daysLeft === 1 ? "day" : "days"} left</span>
+                <span className="tnum text-muted-foreground" title={p.deletesAt ? `Deleted for good on ${new Date(p.deletesAt).toLocaleString()}` : undefined} data-testid="deleted-project-days">
+                  {p.daysLeft} {p.daysLeft === 1 ? "day" : "days"} left{p.deletesAt && ` · gone ${new Date(p.deletesAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+                </span>
                 <Button variant="outline" size="sm" disabled={restore.isPending} onClick={() => restore.mutate(p.id)} data-testid="deleted-project-restore">
                   <RestoreIcon /> Restore
                 </Button>
@@ -109,14 +111,14 @@ export function DeleteProjectDialog({ projectId, name, open, onOpenChange }: { p
       void qc.invalidateQueries({ queryKey: projectKeys.all });
       void qc.invalidateQueries({ queryKey: trashKeys.deletedProjects() });
       onOpenChange(false);
-      navigate(homeUrl());
-      toast(`Moved to Deleted projects: ${name}`, {
+      navigate(projectsUrl());
+      toast(`Moved to Trash: ${name}`, {
         duration: 10_000,
         action: {
           label: <span data-testid="toast-undo">Undo</span>,
           onClick: () => void restoreProject(projectId).then(() => (void qc.invalidateQueries({ queryKey: projectKeys.all }), navigate(projectUrl(projectId)))).catch((e) => toast(`Couldn't undo: ${messageOf(e)}`)),
         },
-        cancel: { label: "Deleted projects", onClick: () => navigate(deletedProjectsUrl()) },
+        cancel: { label: "Trash", onClick: () => navigate(deletedProjectsUrl()) },
       });
     } catch (e) {
       setError(messageOf(e));
@@ -129,7 +131,7 @@ export function DeleteProjectDialog({ projectId, name, open, onOpenChange }: { p
       <AlertDialogContent data-testid="delete-dialog" data-kind="project">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete {name}?</AlertDialogTitle>
-          <AlertDialogDescription>It moves to Deleted projects for 30 days: hidden from Home and search, and members lose access until it's restored.</AlertDialogDescription>
+          <AlertDialogDescription>It moves to Trash: hidden from Projects and search, and members lose access. You can restore it for 30 days; after that it's deleted for good.</AlertDialogDescription>
         </AlertDialogHeader>
         <ImpactList impact={impact} error={error} />
         <div className="space-y-1.5">

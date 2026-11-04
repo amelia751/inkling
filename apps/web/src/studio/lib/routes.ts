@@ -17,8 +17,8 @@ export const trashUrl = (projectId: string) => `${projectUrl(projectId, "sources
 export const projectTrashUrl = (projectId: string, kind?: "sources" | "datasets" | "studios") => `/projects/${encodeURIComponent(projectId)}/trash${kind ? `?kind=${kind}` : ""}`;
 /** Change requests (todo17 M2): the list, or one change by id. */
 export const changesUrl = (projectId: string, changeId?: string) => `/projects/${encodeURIComponent(projectId)}/changes${changeId ? `/${encodeURIComponent(changeId)}` : ""}`;
-/** Deleted projects (todo16 D6), kept 30 days. */
-export const deletedProjectsUrl = () => "/deleted-projects";
+/** Projects in Trash (todo16 D6), kept 30 days. */
+export const deletedProjectsUrl = () => "/trash";
 /** Pipeline runs (todo12 M1): under Data, like the Trash; `runId` opens one run. */
 export const pipelinesUrl = (projectId: string, runId?: string) => `${projectUrl(projectId, "sources")}/pipelines${runId ? `/${encodeURIComponent(runId)}` : ""}`;
 /** An alias of `filesUrl` (`/files/*` redirects there too). */

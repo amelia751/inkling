@@ -119,6 +119,6 @@ def backfill(db: Session, defaults: list[Default] | None = None) -> dict[str, di
     from ..models import ProjectRow
 
     out: dict[str, dict[str, str]] = {}
-    for pid in db.scalars(select(ProjectRow.id).where(ProjectRow.archived.is_(False)).order_by(ProjectRow.id)):
+    for pid in db.scalars(select(ProjectRow.id).order_by(ProjectRow.id)):
         out[pid] = activate_defaults(db, pid, defaults)
     return out

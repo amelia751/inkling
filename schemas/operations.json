@@ -915,32 +915,12 @@
       }
     },
     {
-      "id": "project.archive",
-      "tool": "project_archive",
-      "tier": "write",
-      "method": "PATCH",
-      "path": "/projects/{pid}",
-      "description": "Archive or unarchive the project (hidden but kept).",
-      "input": {
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {
-          "archived": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "archived"
-        ]
-      }
-    },
-    {
       "id": "project.delete",
       "tool": "project_delete",
       "tier": "trash",
       "method": "DELETE",
       "path": "/projects/{pid}",
-      "description": "Move the whole project to Deleted projects (restorable for 30 days).",
+      "description": "Move the whole project to Trash: restorable for 30 days, then deleted for good.",
       "removes": "project",
       "input": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",

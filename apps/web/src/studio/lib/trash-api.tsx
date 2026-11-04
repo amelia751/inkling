@@ -56,6 +56,8 @@ export interface DeletedProject {
   trashedAt: string;
   trashedBy: TrashActor | string;
   daysLeft: number;
+  /** When the daily purge deletes it for good. */
+  deletesAt?: string;
 }
 
 const P = encodeURIComponent;

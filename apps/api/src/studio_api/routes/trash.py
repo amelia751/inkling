@@ -10,8 +10,8 @@
     DELETE /api/v1/projects/{pid}/datasets/{id}?dryRun=       { impact } | { batchId, impact }
     PATCH|DELETE /api/v1/projects/{pid}/collections/{id}      the same
     PATCH|DELETE /api/v1/projects/{pid}/studios/{taskId}      the same
-    DELETE /api/v1/projects/{pid}?dryRun=                     to Deleted projects (owners)
-    POST   /api/v1/projects/{pid}/restore                     back from Deleted projects
+    DELETE /api/v1/projects/{pid}?dryRun=                     to Trash (owners)
+    POST   /api/v1/projects/{pid}/restore                     back from Trash
     GET    /api/v1/org/deleted-projects                       { projects }
     DELETE /api/v1/org/deleted-projects/{pid}                 forever (owners / org admins)
 """

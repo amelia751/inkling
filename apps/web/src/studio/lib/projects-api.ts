@@ -198,7 +198,7 @@ export const fetchReviewQueue = (id: string, f: ReviewFilters = {}) =>
 export const fetchDataset = (projectId: string, datasetId: string) => api<DatasetSummary>(`/projects/${encodeURIComponent(projectId)}/datasets/${encodeURIComponent(datasetId)}`);
 export const createDataset = (projectId: string, body: { title: string; description?: string; nodeIds: string[]; task?: { title: string; preset?: string; kind?: string } }) =>
   api<DatasetSummary>(`/projects/${encodeURIComponent(projectId)}/datasets`, { method: "POST", json: body });
-export const patchProject = (id: string, body: Partial<Pick<ProjectSummary, "title" | "description" | "visibility" | "archived">>) =>
+export const patchProject = (id: string, body: Partial<Pick<ProjectSummary, "title" | "description" | "visibility">>) =>
   api<ProjectSummary>(`/projects/${encodeURIComponent(id)}`, { method: "PATCH", json: body });
 
 export function useReviewQueue(id: string, f: ReviewFilters = {}) {
@@ -213,7 +213,7 @@ export function useDataset(projectId: string, datasetId: string) {
   return useQuery({ queryKey: [...projectKeys.datasets(projectId), datasetId], queryFn: () => fetchDataset(projectId, datasetId), staleTime: 5_000 });
 }
 
-/** One project by id, archived ones included (the list hides those). */
+/** One project by id. */
 export function useProjectDetail(id: string) {
   return useQuery({ queryKey: projectKeys.one(id), queryFn: () => fetchProject(id), staleTime: 5_000 });
 }

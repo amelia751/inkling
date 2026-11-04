@@ -45,8 +45,8 @@ router = APIRouter(prefix="/api/v1")
 
 
 @router.get("/projects")
-def list_projects(q: str | None = None, sort: str = "recent", archived: bool = False, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
-    return {"projects": projects.list_projects(db, ctx, q, sort, archived)}
+def list_projects(q: str | None = None, sort: str = "recent", ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    return {"projects": projects.list_projects(db, ctx, q, sort)}
 
 
 @router.post("/projects", status_code=201, openapi_extra=declares(write_doors.PROJECTS_CREATE.id))

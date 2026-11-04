@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from sqlalchemy import select
 
 from studio_api import db as kdb
@@ -133,7 +135,7 @@ def test_viewers_cannot_delete_and_only_owners_destroy(client):
     assert client.delete(f"/api/v1/projects/{p}/trash/{batch}").status_code == 200  # the owner
 
 
-def test_projects_go_to_deleted_projects_and_come_back(client):
+def test_projects_go_to_trash_and_come_back(client):
     p, _, _ = _setup(client)
     dry = client.delete(f"/api/v1/projects/{p}", params={"dryRun": "true"}).json()
     assert dry["impact"]["files"] == 2
@@ -142,6 +144,7 @@ def test_projects_go_to_deleted_projects_and_come_back(client):
     assert p not in [x["id"] for x in client.get("/api/v1/projects").json()["projects"]]
     gone = client.get("/api/v1/org/deleted-projects").json()["projects"]
     assert [x["id"] for x in gone] == [p] and gone[0]["daysLeft"] == 30
+    assert (datetime.fromisoformat(gone[0]["deletesAt"]) - datetime.fromisoformat(gone[0]["trashedAt"])).days == 30
     client.post(f"/api/v1/projects/{p}/restore").raise_for_status()
     assert client.get(f"/api/v1/projects/{p}").status_code == 200
     assert client.get("/api/v1/org/deleted-projects").json()["projects"] == []

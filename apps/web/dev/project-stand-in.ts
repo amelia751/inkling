@@ -222,7 +222,6 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir, e2
       description: "",
       visibility: "shared",
       sample: true,
-      archived: false,
       createdBy: SEED_PRINCIPAL,
       createdAt: createdAt(),
       updatedAt: createdAt(),

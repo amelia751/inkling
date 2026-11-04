@@ -124,12 +124,10 @@ def test_activity_names_version_events_and_links_reviews(client):
     assert [i["type"] for i in q] == ["version-review"]
 
 
-def test_settings_patch_is_audited_and_archive_hides_from_the_list(client):
+def test_settings_patch_is_audited(client):
     p = client.post("/api/v1/projects", json={"title": "Old"}).json()
     r = client.patch(f"/api/v1/projects/{p['id']}", json={"title": "New", "description": "d", "visibility": "shared"})
     assert r.status_code == 200 and r.json()["visibility"] == "shared"
-    assert client.patch(f"/api/v1/projects/{p['id']}", json={"archived": True}).json()["archived"] is True
-    assert p["id"] not in {x["id"] for x in client.get("/api/v1/projects").json()["projects"]}
-    assert p["id"] in {x["id"] for x in client.get("/api/v1/projects", params={"archived": True}).json()["projects"]}
+    assert client.patch(f"/api/v1/projects/{p['id']}", json={"title": "Newer"}).json()["title"] == "Newer"
     feed = client.get(f"/api/v1/projects/{p['id']}/activity").json()["entries"]
     assert [e["action"] for e in feed].count("project.updated") == 2 and feed[0]["link"] == {"section": "settings"}

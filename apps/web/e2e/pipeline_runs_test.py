@@ -84,7 +84,7 @@ class Backend:
         self.events.append((type_, payload))
 
     def install(self, ctx) -> None:
-        summary = {"id": PROJECT, "orgId": "org_e2e", "title": "Pipeline e2e", "description": "", "visibility": "shared", "sample": False, "archived": False, "createdBy": "user:ana", "createdAt": "2026-10-01T00:00:00Z", "updatedAt": "2026-11-01T00:00:00Z", "lastActivityAt": "2026-11-01T09:20:00Z", "attested": True, "restricted": False}
+        summary = {"id": PROJECT, "orgId": "org_e2e", "title": "Pipeline e2e", "description": "", "visibility": "shared", "sample": False, "createdBy": "user:ana", "createdAt": "2026-10-01T00:00:00Z", "updatedAt": "2026-11-01T00:00:00Z", "lastActivityAt": "2026-11-01T09:20:00Z", "attested": True, "restricted": False}
 
         def json_(route: Route, body, status: int = 200) -> None:
             route.fulfill(status=status, content_type="application/json", body=json.dumps(body))

@@ -404,12 +404,12 @@ Never claim data is normalized, linked, published, or saved before a backend ope
 
 Delete always means "move to Trash" (30 days). The delete dialog (`delete-dialog`) shows what goes
 with it; the toast says "Moved to Trash: <name>" with **Undo** (`toast-undo`) and **Open Trash**.
-A project goes to Deleted projects after you type its name (Settings › Danger zone).
+Projects have no archive: Delete project (Settings › Danger zone, or the Overview's ••• menu) moves one to Trash after you type its name. Like a Google Cloud project pending deletion, it stays there for 30 days, restorable by its owners, and the daily purge then deletes it for good, with its rows and blobs.
 
 | Where | Empty state |
 |---|---|
 | Trash (`/projects/:p/trash`) | "Nothing in Trash. Deleted things stay here for 30 days, then they're gone." |
-| Deleted projects (`/deleted-projects`, linked under the Projects list) | "No deleted projects. A deleted project stays here for 30 days, then it's gone." |
+| Trash (`/trash`, linked under the Projects list; `/deleted-projects` redirects) | "Trash is empty. A deleted project stays here for 30 days, then it's deleted for good." |
 | A dataset whose files are all in Trash | "This dataset's files are in Trash" + **Restore** |
 | A Studio whose dataset is in Trash | "This Studio's dataset is in Trash" + **Open Trash** |
 | Sources after deleting everything | Same as first run (drop files, ask) |
@@ -426,7 +426,7 @@ Round 2 (test ids are a regression contract):
 - An item whose file is in Trash (`state: "trashed"`) shows greyed with an **In Trash** badge
   (`item-in-trash`) in the Studio's item list.
 - Empty states: `empty-files-in-trash` (Restore opens Trash), `empty-dataset-in-trash`,
-  `search-trashed-matches`. Org Settings links to Deleted projects (`org-deleted-projects`).
+  `search-trashed-matches`. Org Settings links to Trash (`org-deleted-projects`).
 
 ## 10. Review and versioning language
 

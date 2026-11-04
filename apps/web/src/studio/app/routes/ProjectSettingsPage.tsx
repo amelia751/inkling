@@ -1,8 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { NavLink, useNavigate, useParams } from "react-router";
+import { NavLink, useParams } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppLayout, NestedPage, PageHeading } from "@/studio/components/layout/app-layout";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@studio/ui/ui/alert-dialog";
 import { Alert } from "@studio/ui/ui/alert";
 import { Button } from "@studio/ui/ui/button";
 import { Card } from "@studio/ui/ui/card";
@@ -14,7 +13,7 @@ import { Textarea } from "@studio/ui/ui/textarea";
 import { cn } from "@studio/ui/utils";
 import type { ProjectSummary } from "@studio/contracts/types";
 import { isSampleTemplate, NeedsApiError, patchProject, projectKeys, useProjectDetail } from "@/studio/lib/projects-api";
-import { projectsUrl, settingsUrl } from "@/studio/lib/routes";
+import { settingsUrl } from "@/studio/lib/routes";
 import { PluginsPage } from "./PluginsPage";
 import { ProjectMembers } from "./settings/ProjectMembers";
 import { RulesEditor } from "./settings/RulesEditor";
@@ -23,7 +22,7 @@ import { DeleteProjectDialog } from "./DeletedProjectsPage";
 type SettingsTab = "general" | "members" | "rules" | "plugins";
 
 /**
- * Project settings (todo6 Phase 8, D10): General (title, description, visibility, archive),
+ * Project settings (todo6 Phase 8, D10): General (title, description, visibility, delete),
  * Members (project Team & Access, mocked until WorkOS: todo/todo9.md), Rules (todo17 D3) and Plugins (what used
  * to be the dataset's Plugins page).
  */
@@ -86,7 +85,6 @@ function General({ projectId }: { projectId: string }) {
 
 function GeneralForm({ project }: { project: ProjectSummary }) {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const [title, setTitle] = useState(project.title);
   const [description, setDescription] = useState(project.description);
   const [visibility, setVisibility] = useState(project.visibility);
@@ -101,18 +99,10 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
       setSaved(true);
     },
   });
-  const archive = useMutation({
-    mutationFn: (archived: boolean) => patchProject(project.id, { archived }),
-    onSuccess: (p) => {
-      qc.setQueryData(projectKeys.one(project.id), p);
-      refresh();
-      if (p.archived) navigate(projectsUrl());
-    },
-  });
   const dirty = title.trim() !== project.title || description !== project.description || visibility !== project.visibility;
   // A template is read-only (todo14 D7); a person's copy of one is theirs to change.
   const readOnly = isSampleTemplate(project);
-  const error = save.error ?? archive.error;
+  const error = save.error;
 
   return (
     <div className="flex flex-col gap-4">
@@ -158,33 +148,6 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
         </form>
       </Card>
 
-      <Card className="flex flex-wrap items-center justify-between gap-3 p-4">
-        <div className="max-w-xl">
-          <h2 className="text-sm font-medium">{project.archived ? "Archived" : "Archive this project"}</h2>
-          <p className="text-sm text-muted-foreground">
-            {project.archived ? "It's hidden from Home and Projects. Restore it to work on it again." : "Hides it from Home and Projects. Nothing is deleted, and you can restore it here."}
-          </p>
-        </div>
-        {project.archived ? (
-          <Button variant="outline" disabled={readOnly || archive.isPending} onClick={() => archive.mutate(false)} data-testid="unarchive-project">Restore</Button>
-        ) : (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" disabled={readOnly || archive.isPending} data-testid="archive-project">Archive</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Archive {project.title}?</AlertDialogTitle>
-                <AlertDialogDescription>It disappears from Home and Projects. Its sources, datasets and annotations stay as they are.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => archive.mutate(true)} data-testid="confirm-archive">Archive</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-      </Card>
       <DangerZone projectId={project.id} name={project.title} disabled={readOnly} />
       {error && (
         <Alert theme="danger">
@@ -195,14 +158,14 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
   );
 }
 
-/** Settings › Danger zone (todo16 D6): Delete project moves it to Deleted projects for 30 days. */
+/** Settings › Danger zone (todo16 D6): Delete project moves it to Trash for 30 days. */
 function DangerZone({ projectId, name, disabled }: { projectId: string; name: string; disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <Card className="flex flex-wrap items-center justify-between gap-3 border-danger/40 p-4" data-testid="danger-zone">
       <div className="max-w-xl">
         <h2 className="text-sm font-medium">Delete this project</h2>
-        <p className="text-sm text-muted-foreground">Moves it to Deleted projects for 30 days, with its sources, datasets, Studios and annotations. Then it's gone.</p>
+        <p className="text-sm text-muted-foreground">Moves it to Trash with its sources, datasets, Studios and annotations. You can restore it for 30 days; after that it's deleted for good.</p>
       </div>
       <Button variant="destructive" disabled={disabled} onClick={() => setOpen(true)} data-testid="delete-project">Delete project</Button>
       <DeleteProjectDialog projectId={projectId} name={name} open={open} onOpenChange={setOpen} />

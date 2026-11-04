@@ -343,7 +343,6 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
         "visibility": p.visibility,
         "sample": p.seed or p.sample_of is not None,
         "sampleOf": p.sample_of,
-        "archived": p.archived,
         "createdBy": p.created_by,
         "createdAt": iso(p.created_at),
         "updatedAt": iso(p.updated_at),
@@ -363,7 +362,7 @@ def project_dict(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     return out
 
 
-def list_projects(db: Session, ctx: RequestContext, q: str | None = None, sort: str = "recent", include_archived: bool = False) -> list[dict]:
+def list_projects(db: Session, ctx: RequestContext, q: str | None = None, sort: str = "recent") -> list[dict]:
     ensure_seeds_once(db)
     who = person(ctx)
     if settings().workos or ctx.org_id is not None:
@@ -377,8 +376,6 @@ def list_projects(db: Session, ctx: RequestContext, q: str | None = None, sort: 
         query = select(ProjectRow).where(ProjectRow.org_id.in_(orgs))
     if ctx.scopes:
         query = query.where(ProjectRow.id == ctx.workspace_id)
-    if not include_archived:
-        query = query.where(ProjectRow.archived.is_(False))
     rows = list(db.scalars(query))
     if q:
         needle = q.lower()
@@ -424,7 +421,7 @@ def create_project(db: Session, ctx: RequestContext, title: str, description: st
 
 
 def patch_project(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -> ProjectRow:
-    before = {"title": p.title, "description": p.description, "visibility": p.visibility, "archived": p.archived}
+    before = {"title": p.title, "description": p.description, "visibility": p.visibility}
     if "title" in body:
         title = str(body["title"] or "").strip()[:256]
         if not title:
@@ -436,10 +433,8 @@ def patch_project(db: Session, ctx: RequestContext, p: ProjectRow, body: dict) -
         if body["visibility"] not in ("private", "shared"):
             raise HTTPException(422, "visibility is private or shared")
         p.visibility = body["visibility"]
-    if "archived" in body:
-        p.archived = bool(body["archived"])
     p.updated_at = now()
-    after = {"title": p.title, "description": p.description, "visibility": p.visibility, "archived": p.archived}
+    after = {"title": p.title, "description": p.description, "visibility": p.visibility}
     if after != before:
         audit.record(db, ctx.for_scope(p.id, None), "project.updated", target=p.id, before=before, after=after)
     return p

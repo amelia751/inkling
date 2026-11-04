@@ -512,7 +512,7 @@ def empty(db: Session, ctx: RequestContext, p: ProjectRow, *, dry_run: bool = Fa
     return out
 
 
-# ---- Projects (Deleted projects) ---------------------------------------------------------------
+# ---- Projects in Trash -----------------------------------------------------------------------
 
 
 def trash_project(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
@@ -531,13 +531,13 @@ def deleted_projects(db: Session, ctx: RequestContext) -> dict:
     org = ctx.org_id
     q = select(ProjectRow).where(ProjectRow.trashed_at.is_not(None)).execution_options(**INCLUDE_TRASHED)
     rows = [r for r in db.scalars(q.order_by(ProjectRow.trashed_at.desc())) if (org is None or r.org_id == org) and project_role(db, ctx, r) == "owner"]
-    return {"projects": [{"id": r.id, "name": r.title, "trashedAt": _iso(r.trashed_at), "trashedBy": _who(db, r.trashed_by, _actor(db, r.trash_batch_id)), "daysLeft": days_left(r.trashed_at)} for r in rows]}
+    return {"projects": [{"id": r.id, "name": r.title, "trashedAt": _iso(r.trashed_at), "trashedBy": _who(db, r.trashed_by, _actor(db, r.trash_batch_id)), "daysLeft": days_left(r.trashed_at), "deletesAt": _iso(_utc(r.trashed_at) + timedelta(days=days()))} for r in rows]}  # type: ignore[operator]
 
 
 def destroy_project(db: Session, ctx: RequestContext, p: ProjectRow) -> dict:
     require_destroy(db, ctx, p, "project.destroy", [p.id])
     if p.trashed_at is None:
-        raise HTTPException(409, "move the project to Deleted projects first")
+        raise HTTPException(409, "move the project to Trash first")
     org = p.org_id
     _destroy_project(db, p.id)
     db.flush()

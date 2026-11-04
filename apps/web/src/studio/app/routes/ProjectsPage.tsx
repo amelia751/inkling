@@ -59,7 +59,7 @@ export function ProjectsPage() {
           ))}
         {!!data?.length && (
           <p className="mt-3 text-sm">
-            <Link to={deletedProjectsUrl()} className="text-muted-foreground hover:underline" data-testid="deleted-projects-link">Deleted projects</Link>
+            <Link to={deletedProjectsUrl()} className="text-muted-foreground hover:underline" data-testid="deleted-projects-link">Trash</Link>
           </p>
         )}
       </div>

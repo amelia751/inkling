@@ -41,7 +41,8 @@ const studio = (
 const routes = [
   { path: "/", element: <Navigate to="/projects" replace /> },
   { path: "/projects", element: <ProjectsPage /> },
-  { path: "/deleted-projects", element: <DeletedProjectsPage /> },
+  { path: "/trash", element: <DeletedProjectsPage /> },
+  { path: "/deleted-projects", element: <Navigate to="/trash" replace /> },
   { path: "/projects/new", element: <Navigate to="/projects" replace /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },

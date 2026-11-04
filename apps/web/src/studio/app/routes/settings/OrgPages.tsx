@@ -56,7 +56,6 @@ export function OrgProjectsPage() {
       ),
     },
     { key: "users", label: "Members", className: "tnum", render: (p) => <span className="text-muted-foreground">{counts[p.id] === undefined ? "—" : `${counts[p.id]} ${counts[p.id] === 1 ? "user" : "users"}`}</span> },
-    { key: "state", label: "Status", render: (p) => (p.archived ? <Badge theme="unknown">Archived</Badge> : <Badge theme="success">Active</Badge>) },
     { key: "created", label: "Created", render: (p) => <span className="text-muted-foreground">{fmtDate(p.createdAt)}</span> },
     {
       key: "menu",
@@ -557,11 +556,11 @@ export function OrgSettingsPage() {
             <span className="mt-0.5 block leading-5 text-muted-foreground">Members can ask for AI contours and labels. Every suggestion is marked and needs a person to accept it.</span>
           </span>
         </label>
-        <Field label="Deleted projects">
+        <Field label="Trash">
           <span className="text-sm text-muted-foreground">
-            Deleted projects are kept for 30 days.{" "}
+            Deleted projects stay in Trash for 30 days, then they're deleted for good.{" "}
             <Link to={deletedProjectsUrl()} className="text-foreground underline-offset-2 hover:underline" data-testid="org-deleted-projects">
-              Restore or delete them forever
+              Open Trash
             </Link>
           </span>
         </Field>

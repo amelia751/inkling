@@ -17,6 +17,8 @@ import { SandboxViewport } from "./sandbox/SandboxViewport";
 export interface TrustedRendererProps extends PanelProps {
   /** What the descriptor's `dataBinding` asked for, resolved by the host. */
   binding?: DataBinding;
+  /** The plugin whose contributions named this panel: its commands' scope for `useCommands`. */
+  pluginId?: string;
 }
 
 /** A trusted renderer used as a viewport (`renderers` in contributions.json). */

@@ -454,7 +454,10 @@
                   "studio.table.commands.clearRows",
                   "studio.chart.commands.fitAll",
                   "studio.chart.commands.cancelWindow",
-                  "studio.segmentation.commands.segment"
+                  "studio.segmentation.commands.segment",
+                  "studio.segmentation.commands.acceptItemMasks",
+                  "studio.segmentation.commands.rejectItemMasks",
+                  "studio.segmentation.commands.acceptAllMasks"
                 ]
               },
               "keys": {
@@ -669,6 +672,9 @@
                   "studio.chart.commands.fitAll",
                   "studio.chart.commands.cancelWindow",
                   "studio.segmentation.commands.segment",
+                  "studio.segmentation.commands.acceptItemMasks",
+                  "studio.segmentation.commands.rejectItemMasks",
+                  "studio.segmentation.commands.acceptAllMasks",
                   "studio.core.panels.files",
                   "studio.core.panels.labels",
                   "studio.core.panels.review",

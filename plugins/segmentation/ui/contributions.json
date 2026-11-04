@@ -7,7 +7,13 @@
       "description": "Segment objects in this image (selected label, or the provider's)",
       "command": "studio.segmentation.segment_objects",
       "icon": "AiIcon",
-      "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg", "image/webp"] }
+      "visibleWhen": {
+        "assetMediaType": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
     }
   ],
   "panels": [
@@ -18,7 +24,58 @@
       "description": "Review AI-suggested masks: accept, reject or edit each instance",
       "renderer": "studio.mask-review.v1",
       "dataBinding": "annotations.currentItem",
-      "visibleWhen": { "assetMediaType": ["image/png", "image/jpeg", "image/webp"] }
+      "visibleWhen": {
+        "assetMediaType": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
+    }
+  ],
+  "commands": [
+    {
+      "id": "acceptItemMasks",
+      "title": "Accept this image's masks",
+      "description": "Accept every pending AI mask on the current image",
+      "keys": [
+        "shift+a"
+      ],
+      "visibleWhen": {
+        "assetMediaType": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
+    },
+    {
+      "id": "rejectItemMasks",
+      "title": "Reject this image's masks",
+      "description": "Reject (hide) every pending AI mask on the current image",
+      "keys": [
+        "shift+x"
+      ],
+      "visibleWhen": {
+        "assetMediaType": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
+    },
+    {
+      "id": "acceptAllMasks",
+      "title": "Accept all masks",
+      "description": "Accept every pending AI mask in this Studio",
+      "keys": [],
+      "visibleWhen": {
+        "assetMediaType": [
+          "image/png",
+          "image/jpeg",
+          "image/webp"
+        ]
+      }
     }
   ]
 }

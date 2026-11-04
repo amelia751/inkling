@@ -90,6 +90,17 @@ class Renderer(BaseModel):
     config: dict[str, Any] | None = None
 
 
+class Command(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    id: Annotated[str, Field(pattern='^[a-zA-Z][\\w.-]*$')]
+    title: Annotated[str, Field(min_length=1)]
+    description: str | None = None
+    keys: list[str] | None = []
+    visibleWhen: VisibleWhen | None = None
+
+
 class UiContributions(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -101,3 +112,4 @@ class UiContributions(BaseModel):
     ] = []
     panels: Annotated[list[Panel] | None, Field(validate_default=True)] = []
     renderers: Annotated[list[Renderer] | None, Field(validate_default=True)] = []
+    commands: Annotated[list[Command] | None, Field(validate_default=True)] = []

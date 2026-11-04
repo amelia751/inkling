@@ -89,6 +89,23 @@ export const RendererDecl = z
   .strict();
 export type RendererDecl = z.infer<typeof RendererDecl>;
 
+/**
+ * A keyboard command a plugin's trusted panel handles (todo25 W5): declared here with its keys
+ * and label, bound by the renderer with `useCommands` under the plugin's id. The renderer
+ * documents which local ids it answers (e.g. `studio.mask-review.v1`: `acceptItemMasks`,
+ * `rejectItemMasks`, `acceptAllMasks`); ids it doesn't know simply do nothing.
+ */
+export const PanelCommand = z
+  .object({
+    id: z.string().regex(/^[a-zA-Z][\w.-]*$/, "a local command id"),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    keys: z.array(z.string()).default([]),
+    visibleWhen: VisibleWhen.optional(),
+  })
+  .strict();
+export type PanelCommand = z.infer<typeof PanelCommand>;
+
 export const UiContributions = z
   .object({
     $schema: z.string().optional(),
@@ -96,6 +113,7 @@ export const UiContributions = z
     toolbarActions: z.array(ToolbarAction).default([]),
     panels: z.array(PanelDecl).default([]),
     renderers: z.array(RendererDecl).default([]),
+    commands: z.array(PanelCommand).default([]),
   })
   .strict()
   .meta({ id: "UiContributions" });

@@ -41,14 +41,14 @@ export function itemMediaType(item: { assets: { path: string; role?: string }[] 
 }
 
 /** A panel whose component is the named trusted renderer; unknown names fail closed. */
-function trustedPanel(p: PanelDecl) {
+function trustedPanel(pluginId: string, p: PanelDecl) {
   const r = trustedRenderer(p.renderer);
   function DeclaredPanel(props: PanelProps) {
     if (!r) return <RendererUnavailable name={p.renderer} />;
     const config = r.configSchema ? (r.configSchema.safeParse({ ...p.config, ...props.config }).data as Record<string, unknown> | undefined) : { ...p.config, ...props.config };
     if (!config) return <RendererUnavailable name={p.renderer} reason="its config is invalid" />;
     const Component = r.component;
-    const rendererProps: TrustedRendererProps = { ...props, config, binding: p.dataBinding };
+    const rendererProps: TrustedRendererProps = { ...props, config, binding: p.dataBinding, pluginId };
     return <Component {...rendererProps} />;
   }
   DeclaredPanel.displayName = `DeclaredPanel(${p.renderer})`;
@@ -89,6 +89,8 @@ export function declarativeModule(m: Pick<PluginManifest, "id" | "version" | "na
     iconName: a.icon,
     run: { command: a.command, args: a.args },
   }));
+  // Keyboard commands the plugin's trusted panels handle (useCommands under the plugin's id).
+  for (const c of ui.commands ?? []) commands.push({ id: c.id, label: c.title, group: "Edit", keys: c.keys, when: whenFrom(c.visibleWhen), description: c.description ?? c.title });
   const panels: PanelContribution[] = ui.panels.map((p) => {
     const place = SURFACE_PLACEMENT[p.surface];
     return {
@@ -108,7 +110,7 @@ export function declarativeModule(m: Pick<PluginManifest, "id" | "version" | "na
     capabilities: d.capabilities,
     description: d.description ?? d.title ?? `${d.renderer} viewer`,
   }));
-  const impl = { panels: Object.fromEntries(ui.panels.map((p) => [p.id, trustedPanel(p)])), renderers: Object.fromEntries(decls.map((d) => [d.id, trustedViewport(m.id, d)])) };
+  const impl = { panels: Object.fromEntries(ui.panels.map((p) => [p.id, trustedPanel(m.id, p)])), renderers: Object.fromEntries(decls.map((d) => [d.id, trustedViewport(m.id, d)])) };
   return defineModule({
     id: m.id,
     version: m.version,

@@ -4296,6 +4296,65 @@
       }
     },
     {
+      "id": "studio.segmentation.commands.acceptItemMasks",
+      "type": "commands",
+      "module": "studio.segmentation",
+      "description": "Accept every pending AI mask on the current image",
+      "label": "Accept this image's masks",
+      "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
+      "keys": [
+        "shift+a"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.segmentation.commands.acceptItemMasks",
+            "keys": [
+              "shift+a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "studio.segmentation.commands.rejectItemMasks",
+      "type": "commands",
+      "module": "studio.segmentation",
+      "description": "Reject (hide) every pending AI mask on the current image",
+      "label": "Reject this image's masks",
+      "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
+      "keys": [
+        "shift+x"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.segmentation.commands.rejectItemMasks",
+            "keys": [
+              "shift+x"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "studio.segmentation.commands.acceptAllMasks",
+      "type": "commands",
+      "module": "studio.segmentation",
+      "description": "Accept every pending AI mask in this Studio",
+      "label": "Accept all masks",
+      "when": "item.mediaType =~ /^(?:image\\/png|image\\/jpeg|image\\/webp)$/",
+      "keys": [],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.segmentation.commands.acceptAllMasks",
+            "keys": []
+          }
+        ]
+      }
+    },
+    {
       "id": "studio.core.panels.files",
       "type": "panels",
       "module": "studio.core",

@@ -218,6 +218,9 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.chart.commands.fitAll` — Zoom the time axis to show every row (when renderer == studio.chart.renderers.series)
 - `studio.chart.commands.cancelWindow` — Drop the window whose start was clicked but not its end
 - `studio.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
+- `studio.segmentation.commands.acceptItemMasks` — Accept every pending AI mask on the current image (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
+- `studio.segmentation.commands.rejectItemMasks` — Reject (hide) every pending AI mask on the current image (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
+- `studio.segmentation.commands.acceptAllMasks` — Accept every pending AI mask in this Studio (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 
 ## panels
 - `studio.core.panels.files` — The task's items, grouped, with per-item progress and a filter; the Studio titles the tab with the data kind's plural noun (Images, Studies, Slides) (slot left)

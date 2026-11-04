@@ -310,7 +310,7 @@ function Conversation({
   // going it waits in the composer and goes with the next message.
   // todo18 D: it says so, and goes by itself when the current reply finishes.
   const [deferred, setDeferred] = useState<{ text: string; drop: { dropId: string; messageId: string } } | null>(null);
-  usePendingAsk(project.id, (text, drop) => {
+  const waitingForFiles = usePendingAsk(project.id, (text, drop) => {
     if (drop && (busy || running)) {
       setPending(drop);
       setDeferred({ text, drop });
@@ -425,6 +425,7 @@ function Conversation({
         attach={attach}
         pending={pending?.dropId}
         deferred={!!deferred}
+        waitingForFiles={waitingForFiles}
         onCancelDrop={() => {
           if (pending) void cancelDrop(pending.dropId);
           setPending(undefined);
@@ -475,6 +476,7 @@ function Composer({
   attach,
   pending,
   deferred,
+  waitingForFiles,
   onCancelDrop,
 }: {
   project: AssistantProject;
@@ -488,6 +490,8 @@ function Composer({
   attach: Attach;
   pending?: string;
   deferred?: boolean;
+  /** Home's message waits for its upload to finish (todo24 D2). */
+  waitingForFiles?: boolean;
   onCancelDrop: () => void;
 }) {
   const [text, setText] = useState("");
@@ -525,6 +529,11 @@ function Composer({
         )}
         onClick={(e) => e.target === e.currentTarget && area.current?.focus()}
       >
+        {waitingForFiles && (
+          <p className="mb-2 text-hint text-muted-foreground" data-testid="agent-waiting-files">
+            Your message goes once your files finish uploading.
+          </p>
+        )}
         {pending && (
           <div className="mb-2">
             <DropCard dropId={pending} projectId={project.id} variant="composer" onCancel={onCancelDrop} />

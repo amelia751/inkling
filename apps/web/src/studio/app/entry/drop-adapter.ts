@@ -42,6 +42,8 @@ export interface DropRequest {
   timelineStarted?: boolean;
   onRegistered?: (items: SeedAsset[]) => void;
   onChanged?: (projectId: string) => void;
+  /** Chat drops off: the tray session's key, synchronously (a queued message waits on it, todo24 D2). */
+  onUploadKey?: (key: string) => void;
 }
 
 /** A drop, a paste or a picker's files, folders walked (system clutter skipped and counted). */
@@ -71,7 +73,10 @@ export function dropFiles(req: DropRequest): Promise<void> {
   });
   // `add` puts its session first synchronously (before the attestation's await).
   const key = useUploads.getState().sessions[0]?.key;
-  if (key) watchUpload(key);
+  if (key) {
+    req.onUploadKey?.(key);
+    watchUpload(key);
+  }
   return done.then(() => undefined);
 }
 

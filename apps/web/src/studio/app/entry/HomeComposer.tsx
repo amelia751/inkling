@@ -60,9 +60,13 @@ export function HomeComposer({ projects, surface = "home", actions, className, c
       navigate(projectUrl(projectId));
       void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true, conversationId: conv.id, conversationTitle: conv.title ?? (text.slice(0, 80) || undefined), ...pending });
     } else {
-      if (g.kind === "send" || text) queue(projectId, text);
+      // todo24 D2: a message sent with files waits for them. The upload starts first (its tray
+      // session's key is known at once) and the queued message carries the key; the drawer
+      // sends it once that session stops moving, naming the files that didn't make it.
+      let uploadKey: string | undefined;
+      if (g.kind === "drop") void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true, onUploadKey: (k) => (uploadKey = k) });
+      if (g.kind === "send" || text) queue(projectId, text, undefined, uploadKey ? { key: uploadKey } : undefined);
       navigate(projectUrl(projectId));
-      if (g.kind === "drop") void drop({ projectId, picked: g.picked, origin: "home", surface, timelineStarted: true });
     }
     setText("");
   };

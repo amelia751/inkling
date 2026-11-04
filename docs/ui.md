@@ -2,18 +2,24 @@
 
 **Status:** MVP design proposal  
 **Platform:** Browser-first, desktop-first responsive web application  
-**Audience:** Medical domain experts with limited programming or machine-learning experience  
-**Primary objective:** Enable an expert to import authorized medical imaging data, create and review annotations, then export a well-documented dataset without writing code.
+**Audience:** Domain experts in any field (imaging, signals, video, text, tables, time series…) with limited programming or machine-learning experience  
+**Primary objective:** Enable an expert to import data they are authorized to use, create and review annotations, then export a well-documented dataset without writing code.
+
+The Studio names no single audience. The principles below hold for any expert; what a field calls
+things (structures, codes, classes, column meanings) lives in presets and module config, not in the
+shell. The medical examples later in this document are one such preset, kept as worked examples.
 
 ## 1. Product principles
 
-1. **Canvas-first inside the Studio.** The image/volume being annotated is the visual focus.
+1. **Data-first inside the Studio.** The thing being annotated (image, volume, signal, document, table) is the visual focus.
 2. **Progressive disclosure.** Everyday tools stay obvious; specialist controls appear when relevant.
 3. **Manual workflow always works.** AI suggestions accelerate tasks but are never required.
 4. **No silent AI edits.** Suggested labels, contours, or metadata must be previewed and confirmed before they are committed.
-5. **One workflow, different viewers.** The shell stays consistent across 2D images, 3D volumes, video, and eventual pathology slides.
-6. **Preserve provenance and privacy.** Keep original files, track annotation authorship and revisions, and do not presume that clinical images are redistributable.
+5. **One workflow, different viewers.** The shell stays consistent across 2D images, 3D volumes, video, slides, signals, text, tables and charts.
+6. **Preserve provenance and privacy.** Keep original files, track annotation authorship and revisions, and do not presume that source data (clinical images, customer records, proprietary tables) is redistributable.
 7. **Avoid unnecessary panels.** Sidebars collapse; the canvas can expand.
+8. **Speak the expert's language, from the preset.** Labels, hints and examples use the field's own vocabulary, supplied by the preset; the shell's copy stays domain-neutral.
+9. **Experts judge, the tool counts.** Surface disagreement, gaps and outliers for a person to decide; never present the tool's output as the expert's verdict.
 
 ## 2. Primary information architecture
 
@@ -88,7 +94,7 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 
 **Files:** Nested datasets, studies, series, images or frames; search/filter; upload; active item; import/processing state. Show patient/study grouping when permitted, but avoid presenting identifying details by default.
 
-**Labels:** Ontology/classes, annotation layers, per-layer visibility, label colors, counts, selected class. Include quick Add label and per-label description. Explain medical terms in plain language when helpful, without replacing clinical expertise.
+**Labels:** Ontology/classes, annotation layers, per-layer visibility, label colors, counts, selected class. Include quick Add label and per-label description. Explain domain terms in plain language when helpful, without replacing the expert's judgement.
 
 **Review:** Outstanding annotations, AI suggestions awaiting acceptance, reported issues, unresolved warnings, and reviewed items. Filters: My work, Needs review, Completed. Annotations link back to their exact slice/frame and version.
 
@@ -107,7 +113,7 @@ Public marketplace browsing, paid licensing, and creator storefronts are later p
 - Sample prompts: “Help me define labels,” “Suggest a contour,” “Find unlabeled scans,” “Explain validation warnings,” “Prepare dataset documentation.”
 - AI responses can contain structured actions: preview proposed label schema, show annotation overlay, highlight missing cases.
 - **Preview → Approve/Reject** required for all AI-generated or AI-modified annotations. Always mark provenance `AI suggested`, `Human corrected`, or `Human created`.
-- Surface failures, uncertainty, and processing cost/limits. Don't claim clinical diagnosis or expert verification.
+- Surface failures, uncertainty, and processing cost/limits. Don't claim a professional judgement (a diagnosis, an audit opinion, a verdict) or expert verification.
 - Chat can be hidden without blocking any core manual workflow.
 
 **Look (modelled on Nebius Echo, `components/ai/`).** The panel sits on `float`; code, tables and
@@ -146,6 +152,7 @@ is anchored to the bottom with 24px between messages:
 | 3D + time (4D) | Dedicated temporal volume workflow | Time-indexed volumetric annotations | Time slider + spatial navigation; **later phase** |
 | Whole-slide pathology | OpenSeadragon or dedicated WSI viewer | Tile-based pan/zoom, polygons, regions | Magnification, overview minimap; **later phase** |
 | ECG/physiological signals | Waveform viewer | Segment/events/markers | Channels, time scale; **later phase** |
+| Tables (CSV, Parquet, Arrow) | Row grid (`studio.table.renderers.grid`) | Select rows or cells; a row label is a `class` annotation with `attributes.rows` | Selection count, row-label disagreement review |
 
 For the MVP, support **2D images first**, followed by one **3D CT/MRI** workflow. Architect a `ViewerAdapter` boundary for future data types.
 
@@ -269,7 +276,7 @@ a row's context menu.
 
 ## 9. Visual language
 
-- Calm, neutral UI; let the underlying medical images take priority.
+- Calm, neutral UI; let the underlying data take priority.
 - Dark canvas by default, with light/dark application chrome optional.
 - Clear typography and sparse icons; descriptive tooltips for nontechnical users.
 - Human-review and AI-suggestion states must be visibly distinct.

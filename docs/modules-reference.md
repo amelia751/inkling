@@ -15,6 +15,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.wsi.dataKinds.raster-pyramid` → `preset:pathology` (renderer studio.wsi.renderers.osd)
 - `studio.wsi.dataKinds.raster-pyramid` → `preset:satellite-tiles` (renderer studio.wsi.renderers.osd)
 - `studio.timeseries.dataKinds.multichannel-timeseries` → `preset:sensor-timeseries-events` (renderer studio.timeseries.renderers.strip-chart)
+- `studio.table.dataKinds.table` → `preset:table-review` (renderer studio.table.renderers.grid)
 - `studio.video.dataKinds.video` → `preset:video` (renderer studio.video.renderers.frame-canvas)
 - `studio.volume.dataKinds.volume` → `preset:volume-3d` (renderer studio.volume.renderers.cornerstone-mpr)
 
@@ -27,6 +28,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.dataKinds.volume-time` — A 4D series plus reference segmentations, as one study
 - `studio.wsi.dataKinds.raster-pyramid` — One item per pyramid (slide); thumbnails are skipped
 - `studio.text-spans.dataKinds.text` — One item per UTF-8 text file
+- `studio.table.dataKinds.table` — One item per tabular file (CSV, Parquet or Arrow)
 
 ## renderers
 - `studio.file-view.renderers.file` — Generic file view: name, size, kind, facts, preview for images, download (consumes studio.generic.dataKinds.files; space image2d)
@@ -38,6 +40,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage (consumes studio.cine.dataKinds.volume-time; space image2d)
 - `studio.wsi.renderers.osd` — OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments (consumes studio.wsi.dataKinds.raster-pyramid; space image2d)
 - `studio.text-spans.renderers.reader` — Reading view: select text to label a span; click a span to select it (consumes studio.text-spans.dataKinds.text; space text)
+- `studio.table.renderers.grid` — Row grid: click rows to select (Shift range, ⌘ toggle); selection published as runtime `selection` (consumes studio.table.dataKinds.table; space table)
 
 ## geometries
 - `studio.core.geometries.class` — Item-level class (whole image, recording or study)
@@ -116,6 +119,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.wsi.tools.mark` — Point (cell) counting (creates keypoint; when renderer == studio.wsi.renderers.osd)
 - `studio.wsi.tools.length` — Distance in µm (creates measurement; when renderer == studio.wsi.renderers.osd)
 - `studio.text-spans.tools.entity` — Label a selected text span (creates studio.text-spans.span; when renderer.space == text)
+- `studio.table.tools.rows` — Label table rows with a click (creates class; when renderer.space == table)
 
 ## commands
 - `studio.core.commands.undo` — Undo the last change (an annotation in the Studio; a file operation in Sources)
@@ -203,6 +207,8 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.commands.goTo` — Show a slice and frame; args { slice?, frame? } (0-based)
 - `studio.wsi.commands.toggleClassNames` — Toggle class names on regions (takes N from Next to do) (when renderer == studio.wsi.renderers.osd)
 - `studio.wsi.commands.importGeoJSON` — Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step (when renderer == studio.wsi.renderers.osd)
+- `studio.table.commands.labelRows` — Give the selected rows the active class (when renderer.space == table)
+- `studio.table.commands.clearRows` — Deselect all rows (when renderer.space == table)
 - `studio.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 
 ## panels
@@ -225,6 +231,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.inspectors.main` — Areas, perimeters and structure roles in mm (from runtime.grid); key frame names
 - `studio.wsi.inspectors.main` — Areas and lengths in µm from the runtime's `mpp`, and points inside regions
 - `studio.text-spans.inspectors.main` — Offsets, length and covered text
+- `studio.table.inspectors.rows` — Rows and column a row label covers
 
 ## exporters
 - `studio.image2d.exporters.coco` — Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels. (accepts box, polygon, keypoint, measurement, mask, class)
@@ -245,6 +252,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.dicom-export.exporters.dicom-seg` — Masks as a DICOM Segmentation object referencing the source DICOM images (one segment per label). DICOM inputs only. (accepts mask)
 - `studio.dicom-export.exporters.dicom-sr` — Lengths, angles, ROIs, probes and arrows as a DICOM Structured Report (TID 1500). DICOM inputs only. (accepts measurement)
 - `studio.text-spans.exporters.jsonl` — One line per document: {"text", "spans": [[start, end, label]…]}, readable by spaCy and doccano. (accepts studio.text-spans.span)
+- `studio.table.exporters.labeled-csv` — The table(s) as CSV with a `file` column and a `label` column joined from row labels. (accepts class)
 
 ## labelControls
 - `studio.core.labelControls.Labels` — Classes for any drawn geometry
@@ -257,10 +265,12 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.core.labelControls.VideoRectangle` — Classes for objects tracked through video
 - `studio.core.labelControls.Choices` — Item-level classes; `multiple: true` allows several per item
 - `studio.text-spans.labelControls.SpanLabels` — Classes for text spans (named entities)
+- `studio.table.labelControls.RowLabels` — Classes for table rows and cells (stored with `attributes.rows`)
 
 ## reviewRules
 - `studio.core.reviewRules.source-label-disagreement` — Flags item classes that differ from the source dataset's label for that item
 - `studio.core.reviewRules.unlabeled-items` — Flags items with no annotations yet
+- `studio.table.reviewRules.row-label-disagreement` — Flags table rows that carry more than one distinct label
 
 ## presets
 - `preset:ner` — Person / organisation / location spans on plain text, JSONL export.
@@ -272,5 +282,6 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `preset:pathology` — Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.
 - `preset:satellite-tiles` — Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.
 - `preset:sensor-timeseries-events` — Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).
+- `preset:table-review` — Any CSV, Parquet or Arrow table on a row grid: label rows or cells with a class, flag rows labelled two ways, export CSV with labels joined.
 - `preset:video` — Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.
 - `preset:volume-3d` — MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.

@@ -1,0 +1,6 @@
+id,name,amount,note
+1,alpha,10.5,first
+2,beta,7,"has, comma"
+3,gamma,12,
+4,delta,3.25,"quoted ""word"""
+5,epsilon,9,last

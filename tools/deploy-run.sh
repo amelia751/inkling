@@ -20,7 +20,13 @@ project_of() { cut -d/ -f2 <<<"$1"; }
 
 phi() { CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$PHI_CREDENTIALS" gcloud --quiet --project "$(project_of "$PHI_REGISTRY")" "$@"; }
 ai() { CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE="$AI_CREDENTIALS" gcloud --quiet --project "$(project_of "$AI_REGISTRY")" "$@"; }
-built() { "$1" artifacts docker images describe "$2:$tag" --format='value(image_summary.digest)' >/dev/null 2>&1; }
+built() {
+  local out
+  if out="$("$1" artifacts docker images describe "$2:$tag" --format='value(image_summary.digest)' 2>&1)"; then return 0; fi
+  if grep -qiE "not.?found" <<<"$out"; then return 1; fi
+  echo "::error::can't read $2:$tag: $out" >&2
+  exit 1
+}
 
 declare -A image cli prev
 order=()

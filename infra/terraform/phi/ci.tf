@@ -92,6 +92,14 @@ resource "google_project_iam_member" "ci_deploy" {
   member  = "serviceAccount:${google_service_account.ci_deploy[0].email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "ci_deploy" {
+  count      = local.ci_enabled ? 1 : 0
+  repository = google_artifact_registry_repository.this["images"].name
+  location   = var.region
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.ci_deploy[0].email}"
+}
+
 resource "google_service_account_iam_member" "ci_deploy_act_as" {
   for_each           = local.ci_enabled ? toset(distinct(values(local.run_sa))) : toset([])
   service_account_id = "projects/${var.project}/serviceAccounts/${each.value}"

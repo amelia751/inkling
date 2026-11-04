@@ -38,10 +38,6 @@ class WorkspaceInstallation(BaseModel):
     state: State
 
 
-class Data(BaseModel):
-    kind: Annotated[str, Field(description='Data kind contribution id')]
-
-
 class Viewport(BaseModel):
     name: Annotated[str, Field(min_length=1)]
     renderer: Annotated[str, Field(description='Renderer contribution id')]
@@ -95,6 +91,46 @@ class Studio(BaseModel):
     ] = None
 
 
+class Panels1(BaseModel):
+    """
+    Panels for this kind; unset: the environment's panels
+    """
+
+    left: list[str] | None = None
+    right: list[str] | None = None
+    bottom: list[str] | None = None
+    viewport_bar: Annotated[list[str] | None, Field(alias='viewport-bar')] = None
+
+
+class KindProfile(BaseModel):
+    renderer: Annotated[
+        str, Field(description='Renderer contribution id; must consume this kind')
+    ]
+    config: Annotated[dict[str, Any] | None, Field(description='Renderer config')] = (
+        None
+    )
+    viewports: Annotated[
+        list[Viewport] | None,
+        Field(description='Several viewports for this kind; wins over renderer/config'),
+    ] = None
+    tools: Annotated[
+        list[str] | None,
+        Field(
+            description="Tool ids for this kind, in toolbar order; unset: the environment's tools"
+        ),
+    ] = None
+    panels: Annotated[
+        Panels1 | None,
+        Field(description="Panels for this kind; unset: the environment's panels"),
+    ] = None
+    exporters: list[str] | None = None
+    reviewRules: list[str] | None = None
+    profile: Annotated[
+        str | None,
+        Field(description='The preset this profile came from, e.g. preset:ecg'),
+    ] = None
+
+
 class Type(StrEnum):
     boolean = 'boolean'
     string = 'string'
@@ -109,6 +145,21 @@ class Attribute(BaseModel):
     ] = None
     default: str | float | bool | None = None
     description: str | None = None
+
+
+class Data(BaseModel):
+    kind: Annotated[
+        str | None,
+        Field(
+            description='Data kind contribution id (one-kind shorthand; normalised into kinds)'
+        ),
+    ] = None
+    kinds: Annotated[
+        dict[str, KindProfile] | None,
+        Field(
+            description="Data kind id → its profile (todo19 D3). The active item's kind picks the profile"
+        ),
+    ] = None
 
 
 class LabelClass(BaseModel):
@@ -162,6 +213,12 @@ class LabelGroup(BaseModel):
         dict[str, Attribute] | None,
         Field(description='Attributes every class in the group carries'),
     ] = None
+    appliesTo: Annotated[
+        list[str] | None,
+        Field(
+            description='Data kind ids this group applies to (todo19 D7); unset: every kind the Studio accepts'
+        ),
+    ] = None
 
 
 class EnvironmentSpec(BaseModel):
@@ -183,6 +240,12 @@ class EnvironmentSpec(BaseModel):
         dict[str, str] | None, Field(description='Module id → semver range')
     ] = None
     data: Data | None = None
+    accepts: Annotated[
+        list[str] | None,
+        Field(
+            description="Data kind ids this Studio's task accepts (todo19 D2); unset: the keys of data.kinds"
+        ),
+    ] = None
     collectionId: Annotated[
         str | None,
         Field(

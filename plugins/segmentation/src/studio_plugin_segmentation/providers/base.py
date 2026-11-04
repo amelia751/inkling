@@ -25,6 +25,9 @@ class RawInstance:
     bits: bytes  # row-major, 1 byte per pixel, nonzero = foreground
     label: str | None = None
     confidence: float | None = None
+    # Which box/point prompt (by position in `request.prompts`) produced this mask, when the
+    # provider says; recipes use it to name masks even if the provider drops a no-match.
+    prompt_index: int | None = None
 
 
 class Provider(Protocol):

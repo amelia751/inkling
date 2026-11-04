@@ -1,4 +1,7 @@
-"""Deterministic provider for CI and demos: an ellipse per prompt (or one centred ellipse)."""
+"""Deterministic provider for CI and demos: an ellipse per prompt (or one centred ellipse).
+
+Recipes (recipes.py) reach it as ordinary box prompts, so a `lungs` request gives two
+ellipses inscribed in the recipe's boxes, named "right lung" and "left lung" by the tool."""
 
 from __future__ import annotations
 
@@ -25,12 +28,12 @@ class MockProvider:
     def segment(self, ctx, image: bytes, width: int, height: int, request: dict) -> list[RawInstance]:
         prompts = request.get("prompts") or []
         out: list[RawInstance] = []
-        for p in prompts:
+        for i, p in enumerate(prompts):
             if p["type"] == "point" and p.get("positive", True):
                 out.append(RawInstance(ellipse(width, height, p["x"], p["y"], max(4, width / 20), max(4, height / 20))))
             elif p["type"] == "box":
                 x0, y0, x1, y1 = p["box"]
-                out.append(RawInstance(ellipse(width, height, (x0 + x1) / 2, (y0 + y1) / 2, max(1, (x1 - x0) / 2), max(1, (y1 - y0) / 2))))
+                out.append(RawInstance(ellipse(width, height, (x0 + x1) / 2, (y0 + y1) / 2, max(1, (x1 - x0) / 2), max(1, (y1 - y0) / 2)), prompt_index=i))
             elif p["type"] == "text":
                 out.append(RawInstance(ellipse(width, height, width / 2, height / 2, width / 6, height / 8), label=p["text"]))
         if not prompts:

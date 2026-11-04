@@ -2,7 +2,9 @@
 sources in providers/meta_sam.py). No network: the broker client is faked."""
 
 import json
+from pathlib import Path
 
+import jsonschema
 import pytest
 from studio_plugin_sdk import SecretsClient
 
@@ -10,6 +12,10 @@ from studio_plugin_segmentation.normalize import to_result
 from studio_plugin_segmentation.providers import ProviderError
 from studio_plugin_segmentation.providers.meta_sam import ENDPOINT, MODEL, MetaSam, from_provider_response, parse_output, prompt_text, to_provider_request
 from studio_plugin_segmentation.tools import segment_objects
+
+from .conftest import REPO
+
+RESULT = json.loads((REPO / "schemas/capabilities/image.segment.result.json").read_text())
 
 
 def test_text_prompt_is_the_noun_phrase_and_image_is_a_data_url():
@@ -84,22 +90,46 @@ def test_malformed_output_is_a_provider_error(text):
         parse_output(text, 8, 6)
 
 
-def test_without_metas_parser_masks_fail_closed(ctx):
-    try:
-        import meta_sam_parser  # noqa: F401
-    except ImportError:
-        with pytest.raises(ProviderError, match="meta-sam-parser") as e:
-            from_provider_response({"output_text": SAMPLE}, 8, 6)
-        assert not e.value.recoverable
-        # And the provider refuses before making the (billable) call.
-        broker = FakeBroker()
-        c = ctx("meta.sam")
-        c.secrets = SecretsClient(broker, {"META_MODEL_API_KEY": "t"})
-        with pytest.raises(ProviderError, match="meta-sam-parser"):
-            MetaSam(c).segment(c, b"", 8, 6, {"prompts": [{"type": "text", "text": "x"}]})
-        assert broker.sent == []
-    else:
-        pytest.skip("meta-sam-parser is installed")
+RECORDED = json.loads((Path(__file__).parent / "fixtures/meta_sam_two_lungs.json").read_text())
+
+
+def test_recorded_two_box_reply_decodes_through_metas_parser(ctx):
+    """The probe's two-box reply (payload trimmed), decoded by the real `meta-sam-parser`."""
+    a, b = from_provider_response(RECORDED, 1776, 1416)  # default decoder: the real parser
+    assert (a.confidence, b.confidence) == (0.87, 0.84) and (a.prompt_index, b.prompt_index) == (0, 1)
+    result = to_result([a, b], 1776, 1416, provider="meta.sam", model=MODEL)
+    jsonschema.validate(result, RESULT)
+    boxes = [i["box_xyxy"] for i in result["instances"]]
+    # Each mask sits inside its box ([280, 190, 850, 1190] and [930, 200, 1500, 1170]).
+    assert 280 <= boxes[0][0] and boxes[0][2] <= 850 and 930 <= boxes[1][0] and boxes[1][2] <= 1500
+    assert 0.05 < sum(a.bits) / (1776 * 1416) < 0.2 and 0.05 < sum(b.bits) / (1776 * 1416) < 0.2
+
+
+def test_a_corrupt_payload_is_a_provider_error_not_a_guess():
+    bad = RECORDED["output"][0]["content"][0]["text"].replace("data=40,24,!!!!!FE", "data=40,24,!!!!!FF", 1)
+    with pytest.raises(ProviderError, match="invalid Meta SAM mask"):
+        from_provider_response({"output_text": bad}, 1776, 1416)
+
+
+def test_lungs_recipe_through_meta_names_masks_and_sends_two_boxes(ctx):
+    """End to end in the plugin: label `lungs`, no prompts → two box tokens → the recorded reply → named masks."""
+    broker = FakeBroker(body=RECORDED)
+    c = ctx("meta.sam")
+    c.secrets = SecretsClient(broker, {"META_MODEL_API_KEY": "t"})
+    c.assets.data["img/xray.png"] = png_header(1776, 1416)
+    out = segment_objects(c, {"asset_id": "img/xray.png", "label": "lungs"})
+    assert [i["label"] for i in out["instances"]] == ["right lung", "left lung"]
+    sent = json.loads(broker.sent[0][2]["body"])
+    assert sent["input"][0]["content"][0]["text"] == "<0f>0<|box;x1=266;y1=184;x2=851;y2=1203;w=1776;h=1416|>,1<|box;x1=924;y1=184;x2=1509;y2=1203;w=1776;h=1416|>"
+
+
+def png_header(width: int, height: int) -> bytes:
+    """Enough of a PNG for the size check (the fake broker never looks at pixels)."""
+    import struct
+    import zlib
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + ihdr + struct.pack(">I", zlib.crc32(b"IHDR" + ihdr))
 
 
 class FakeBroker:

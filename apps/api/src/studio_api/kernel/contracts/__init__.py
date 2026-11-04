@@ -158,6 +158,10 @@ def normalize_result(capability: str, result: dict, job, *, author: str, db=None
     out = []
     now = datetime.now(UTC).isoformat()
     prompt = {k: req[k] for k in ("prompts",) if req.get(k)}
+    # A label with no prompts names a prompt recipe (todo25 D2): the plugin sizes the recipe's
+    # boxes and names each mask ("right lung"), so the mask's own label wins and the recipe
+    # name is kept as `attributes.recipe`. With prompts, the requested label wins as before.
+    recipe = req.get("label") if req.get("label") and not req.get("prompts") else None
     for inst in result["instances"]:
         m = inst["mask"]
         if m["encoding"] == "rle":
@@ -181,13 +185,15 @@ def normalize_result(capability: str, result: dict, job, *, author: str, db=None
         }
         if prompt:
             attrs["prompt"] = json.dumps(prompt, separators=(",", ":"))[:2000]
+        if recipe and inst.get("label"):
+            attrs["recipe"] = recipe
         if inst.get("confidence") is not None:
             attrs["confidence"] = inst["confidence"]
         out.append(
             {
                 "id": uuid.uuid5(uuid.NAMESPACE_URL, f"{job.job_id}/{inst['instance_id']}").hex,
                 "itemId": req.get("item_id") or req["asset_id"],
-                "label": req.get("label") or inst.get("label") or "segment",
+                "label": (inst.get("label") if recipe else None) or req.get("label") or inst.get("label") or "segment",
                 "geometry": {"type": "mask", "dims": dims, "counts": counts, "voxels": n},
                 "provenance": "ai-suggested",
                 "author": author,

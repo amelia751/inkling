@@ -29,7 +29,7 @@ export function ProjectsPage() {
       <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-6 md:py-6">
         <PageHeading
           title="Projects"
-          actions={<NewProjectButton size="lg" testId="projects-new-project" />}
+          actions={<NewProjectButton size="lg" variant="default" testId="projects-new-project" />}
         />
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <div className="relative min-w-[240px] flex-1">

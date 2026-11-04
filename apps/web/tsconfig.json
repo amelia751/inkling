@@ -70,8 +70,14 @@
       "@plugins/text-spans/*": [
         "../../plugins/text-spans/ui/*"
       ],
+      "@plugins/table/*": [
+        "../../plugins/table/ui/*"
+      ],
       "@plugins/dicom-export/*": [
         "../../plugins/dicom-export/ui/*"
+      ],
+      "@plugins/chart/*": [
+        "../../plugins/chart/ui/*"
       ]
     }
   },

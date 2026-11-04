@@ -13,6 +13,8 @@ import type { Logger } from "./log.ts";
 import type { AgentStatus, CreateSessionResponse, ProfileName, SendMessageResponse, ThreadResponse } from "@studio/agent-protocol";
 import { sanitizeError } from "./runtime/events.ts";
 import { HttpError, SESSION_ID, type SessionService } from "./runtime/sessions.ts";
+import { ScoutSchemas } from "./scout/service.ts";
+import { TrialRefused } from "./scout/trial.ts";
 
 export interface ReadyCheck {
   ok: boolean;
@@ -134,6 +136,8 @@ async function body<T extends z.ZodType>(c: Context, schema: T): Promise<z.infer
 }
 
 const ORG_ID = /^[A-Za-z0-9_.-]{1,128}$/;
+/** todo23 W10: every scout route is scoped to one project (sandbox labels, audit). */
+const scoped = <T extends z.ZodRawShape>(s: z.ZodObject<T>) => s.extend({ projectId: z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, "projectId must be a slug") });
 const PRINCIPAL = /^user:[A-Za-z0-9_.@-]{1,200}$/;
 
 function internalParam(value: string, pattern: RegExp, name: string): string {
@@ -192,7 +196,7 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
       provider: config.model.provider,
       model: config.model.id,
       sandbox: sessions.sandboxes?.provider.kind ?? "off",
-      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes)),
+      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes, !!config.reviewerModel)),
     };
     return c.json(status);
   });
@@ -299,6 +303,35 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
   app.get("/v1/sessions/:id/artifacts", async (c) => {
     const { principal, orgId } = c.get("caller");
     return c.json((await sessions.get(c.req.param("id"), principal, orgId)).info().artifacts);
+  });
+
+  // todo23 W3/W10: the open-source scout for outside agents (apps/mcp), the same calls as the
+  // scout profile's tools. Authenticated like every /v1 route; one project per call.
+  app.post("/v1/scout/search", async (c) => {
+    const { projectId: _p, ...req } = await body(c, scoped(ScoutSchemas.search));
+    return c.json(await sessions.scout.search(req));
+  });
+  app.post("/v1/scout/vet", async (c) => {
+    const { projectId: _p, ...req } = await body(c, scoped(ScoutSchemas.vet));
+    return c.json(await sessions.scout.vet(req));
+  });
+  app.post("/v1/scout/trial", async (c) => {
+    const { projectId, ...req } = await body(c, scoped(ScoutSchemas.trial));
+    try {
+      return c.json(await sessions.scout.trial(req, { projectId, owner: c.get("caller").principal ?? "local" }));
+    } catch (err) {
+      if (err instanceof TrialRefused) return c.json({ error: "trial_refused", message: err.message }, 409);
+      throw err;
+    }
+  });
+  app.post("/v1/scout/compare", async (c) => {
+    const { projectId: _p, ...req } = await body(c, scoped(ScoutSchemas.compare));
+    try {
+      return c.json(sessions.scout.compare(req));
+    } catch (err) {
+      if (err instanceof z.ZodError) throw new HttpError(400, `evaluations must be oss-evaluation.v1 records: ${err.issues[0]?.message ?? ""}`);
+      throw err;
+    }
   });
 
   app.get("/v1/artifacts/:artifactId", async (c) => {

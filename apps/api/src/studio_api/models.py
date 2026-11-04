@@ -217,6 +217,40 @@ class PluginPromotion(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ArtifactReview(Base):
+    """todo23 W9 (D11): one `review.v1` per reviewer pass over an artifact version. Promotion and
+    preview Keep need a `pass` row (kernel/reviews.py `has_passing_review`). Append-only."""
+
+    __tablename__ = "artifact_reviews"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    workspace_id: Mapped[str] = mapped_column(String(128), index=True)
+    artifact_kind: Mapped[str] = mapped_column(String(64))
+    artifact_id: Mapped[str] = mapped_column(String(256))
+    artifact_version: Mapped[str] = mapped_column(String(128))
+    review: Mapped[dict[str, Any]] = mapped_column(JSON)
+    verdict: Mapped[str] = mapped_column(String(16))  # pass | block | needs-person
+    reviewer: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+    __table_args__ = (Index("ix_artifact_reviews_artifact", "artifact_kind", "artifact_id", "artifact_version"),)
+
+
+class HiddenTest(Base):
+    """todo23 W9 (D4): adversarial tests a reviewer wrote. Kernel-held, never builder-writable or
+    readable: only reviewer sessions and people read them; the harness runs them."""
+
+    __tablename__ = "hidden_tests"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=new_id)
+    workspace_id: Mapped[str] = mapped_column(String(128), index=True)
+    artifact_kind: Mapped[str] = mapped_column(String(64))
+    artifact_id: Mapped[str] = mapped_column(String(256))
+    artifact_version: Mapped[str] = mapped_column(String(128))
+    path: Mapped[str] = mapped_column(String(512))
+    content: Mapped[str] = mapped_column(Text)
+    created_by: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class PluginCapability(Base):
     __tablename__ = "plugin_capabilities"
     plugin_id: Mapped[str] = mapped_column(String(256), primary_key=True)
@@ -1356,3 +1390,23 @@ class AgentApproval(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class EnvironmentPreview(Base):
+    """todo23 D8/W6: a generated Studio booted as a preview. Its environment revision and plugin
+    pins are immutable; only `requested_by` sees it (and its Studio, `task_id`, in `state`
+    `preview`). Keep publishes the Studio to the workspace tier; discard deletes the row, the
+    Studio and every annotation made under it. An expired preview counts as discarded."""
+
+    __tablename__ = "environment_previews"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id"), index=True)
+    task_id: Mapped[str] = mapped_column(String(128), index=True)
+    environment: Mapped[dict] = mapped_column(JSON)
+    plugin_versions: Mapped[dict] = mapped_column(JSON, default=dict)
+    requested_by: Mapped[str] = mapped_column(String(256), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active | kept | discarded
+    verification: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    kept_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -122,6 +122,14 @@ def _project(project_id: str, ctx: RequestContext, db: Session, *, write: bool =
     c = ctx.for_scope(workspace, task)
     try:
         projects.project_of_scope(db, c, write=write)
+        if task != workspace:
+            from ..kernel import previews
+            from ..models import TaskRow
+
+            t = db.get(TaskRow, task)
+            previews.guard_task(db, c, t)
+            if write and t is not None and t.state == previews.PREVIEW_STATE:
+                raise HTTPException(409, "a preview's environment is immutable: boot a new preview to change it")
     except HTTPException as e:
         return _json(e.status_code, {"error": e.detail})
     return c
@@ -145,6 +153,24 @@ async def validate_environment(request: Request, ctx: RequestContext = Depends(g
     if not checked.ok:
         return _json(422, {**checked.body(), "warnings": checked.warnings})
     return {"ok": True, "spec": body, "warnings": checked.warnings}
+
+
+@router.post("/api/v1/environments/validate", include_in_schema=False)
+async def validate_environment_v1(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo23 W10 (closes S12): the full validation report without the web dev server, for the
+    MCP `validate_environment` tool and the harness. Always 200 for a readable body: `ok` says
+    whether it passes; `errors` (schema, reference, resolver) and `warnings` are the same rules
+    a write gets; `resolved` is the spec with its `extends` presets merged."""
+    try:
+        body = await _body(request)
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, ctx.workspace_id), environment=body)
+    from ..config import settings
+    from ..kernel.environment_resolve import merged_spec
+
+    resolved = merged_spec(body, settings().repo_root) if checked.ok else None
+    return {"ok": checked.ok, "errors": checked.errors, "warnings": checked.warnings, "resolved": resolved}
 
 
 @router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)

@@ -41,7 +41,12 @@ import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
 import { createDropTools, dropBlock, dropPart, waitForDrop } from "../tools/drops.ts";
+import { createReviewTools } from "../tools/review.ts";
 import { createStudioTools } from "../tools/studio.ts";
+import { createRecipeTools } from "../tools/recipes.ts";
+import { createScoutTools } from "../tools/scout.ts";
+import { type Scout, createScout, daytonaSnapshot } from "../scout/service.ts";
+import type { Fetcher } from "../scout/http.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
@@ -209,6 +214,8 @@ export interface SessionServiceDeps {
   studio?: StudioCatalog;
   /** Run event fan-out (bus/); defaults to in-process. */
   bus?: RunEventBus;
+  /** todo23 W3: the scout's metadata fetcher (tests pass a fake); the global fetch otherwise. */
+  scoutFetch?: Fetcher;
 }
 
 /** FIFO slots for AGENT_MAX_CONCURRENT_RUNS; extra runs wait in `queued`. */
@@ -260,6 +267,8 @@ export class SessionService {
   readonly cluster: RunCoordinator;
   /** Read once at startup (agent/catalog.ts): static per deployment, never request state. */
   readonly studio: StudioCatalog;
+  /** todo23 W3: the open-source scout, shared by the scout profile's tools and /v1/scout/* routes. */
+  readonly scout: Scout;
 
   constructor(private readonly deps: SessionServiceDeps) {
     this.studio = deps.studio ?? loadStudioCatalog(deps.config);
@@ -299,6 +308,7 @@ export class SessionService {
         reclaim: daytona ? () => reclaimForQuota(daytona, deps.config.env, this.activeSessionIds(), (m) => deps.log.warn(m)) : undefined,
       });
     }
+    this.scout = createScout({ fetch: deps.scoutFetch, provider, egress: deps.egress, env: deps.config.env, snapshot: provider?.kind === "daytona" ? daytonaSnapshot : undefined });
   }
 
   private get config() {
@@ -353,6 +363,7 @@ export class SessionService {
     const profileName = home ? "home" : (req.profile ?? "assistant");
     const profile = PROFILES[profileName];
     if (profile.sandbox === true && !this.sandboxes) throw new HttpError(409, `The ${profileName} profile needs a Daytona sandbox; DAYTONA_API_KEY is not configured.`);
+    if (profile.review && !this.config.reviewerModel) throw new HttpError(409, `The ${profileName} profile needs AGENT_REVIEWER_MODEL (a model from another family than the builder's).`);
     if (req.sessionId) {
       // todo20 W3: the browser names the conversation; creating it twice returns the first one.
       if (!SESSION_ID.test(req.sessionId)) throw new HttpError(400, "sessionId must look like ses_… or conv-…");
@@ -431,6 +442,7 @@ export class SessionService {
     const egress = this.deps.egress?.();
     const ctx = new SessionContext(meta, profile, this.config, !!egress?.canOverride);
     if (profile.home) return this.buildHome(ctx, meta, sessionManager);
+    if (profile.review) return this.buildReview(ctx, meta, sessionManager);
     // Tool order is fixed so the declared tool list is byte-identical across sessions of a profile
     // (prompt caching, todo11): dataset, browser tools (sorted by name), project, Studio, kernel,
     // sandbox, then test extras. Each group's own order is fixed in its module.
@@ -484,6 +496,8 @@ export class SessionService {
       if (profile.kernel === "builder" && this.sandboxes) tools.push(...this.pluginSandboxTools(ctx, kernel));
       // Without a sandbox the builder can still read fingerprints and probe (todo10 Phase 7).
       else if (profile.kernel === "builder") tools.push(...createBoundaryTools(kernel, { sourceDir: PLUGIN_DIR }).filter((t) => t.name === "get_fingerprint" || t.name === "probe_sample"));
+      // todo23 W7: kept Studios (recipes) are searched before any build.
+      if (profile.kernel === "builder") tools.push(...createRecipeTools({ kernel }));
     }
     if (profile.sandbox === true && this.sandboxes) {
       tools.push(...this.sandboxTools(ctx));
@@ -493,6 +507,7 @@ export class SessionService {
       const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
       tools.push(...createBoundaryTools(kernel, { acquire, sourceDir: SANDBOX_CWD }).filter((t) => t.name === "get_fingerprint" || t.name === "get_fixtures"));
     }
+    if (profile.scout) tools.push(...createScoutTools(this.scout, () => ({ projectId: pid, owner: meta.owner })));
     tools.push(...(this.deps.extraTools ?? []));
 
     const session = await createStudioSession({
@@ -534,6 +549,53 @@ export class SessionService {
    * open_in_project. Nothing else: no dataset, project, Studio, kernel or sandbox tools, and no
    * test extras, so no tool output from a project's data can reach its context.
    */
+  /**
+   * todo23 W9 (D11): reviewer and red-team sessions. Only the review tools (read the artifact,
+   * record findings, write hidden tests): no project, operation, drop, Studio, plugin or sandbox
+   * tools, so nothing they do changes the artifact. They run on AGENT_REVIEWER_MODEL, a model
+   * family other than the builder's, under their own principal (`agent:<profile>`).
+   */
+  private async buildReview(ctx: SessionContext, meta: SessionMeta, sessionManager: SessionManager): Promise<SessionContext> {
+    const pid = meta.projectId ?? "";
+    const reviewer = this.config.reviewerModel;
+    if (!reviewer) throw new HttpError(409, `The ${meta.profile} profile needs AGENT_REVIEWER_MODEL.`);
+    const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: pid, token: () => ctx.kernelToken, refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false), fetchImpl: this.deps.fetchImpl });
+    ctx.kernel = kernel;
+    const tools: ToolDefinition<any, any, any>[] = [...createReviewTools(kernel, { projectId: pid, model: reviewer }), ...(this.deps.extraTools ?? [])];
+    const session = await createStudioSession({
+      config: this.config,
+      runtime: this.deps.runtime,
+      cwd: SANDBOX_CWD,
+      systemPrompt: systemPrompt(ctx.profile),
+      tools,
+      sessionManager,
+      model: resolveModel(this.deps.runtime, this.config, reviewer),
+      extensions: [
+        policyExtension({
+          state: () => ctx.policy,
+          budgets: this.config.budgets,
+          approvals: ctx.approvals,
+          signal: () => ctx.activeRun?.abort.signal,
+          onCall: () => {
+            ctx.policy.toolCalls++;
+            if (ctx.activeRun) ctx.activeRun.toolCalls++;
+          },
+          onAwaiting: (waiting) => this.transition(ctx, waiting ? "awaiting_approval" : "running"),
+          facts: () => Promise.resolve({}),
+          onApproved: (callId, approvalId) => ctx.approvalIds.set(callId, approvalId),
+        }),
+      ],
+    });
+    ctx.bind(session, (c, e) => this.onPiEvent(c, e));
+    ctx.emitHook = (body) => {
+      this.recordServerPart(ctx, body);
+      this.cluster.emit(ctx, body);
+    };
+    ctx.onClientToolSettled = (callId) => this.cluster.clientToolSettled(ctx, callId);
+    this.sessions.set(meta.id, ctx);
+    return ctx;
+  }
+
   private async buildHome(ctx: SessionContext, meta: SessionMeta, sessionManager: SessionManager): Promise<SessionContext> {
     const kernel = new KernelClient({ baseUrl: this.config.kernelUrl, workspaceId: "", token: () => ctx.kernelToken, refresh: () => ctx.refreshToken?.() ?? Promise.resolve(false), fetchImpl: this.deps.fetchImpl });
     ctx.refreshToken = async () => {

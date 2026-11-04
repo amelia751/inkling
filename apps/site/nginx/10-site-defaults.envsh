@@ -1,0 +1,6 @@
+#!/bin/sh
+# Sourced by the nginx entrypoint before envsubst: unset page settings fall back to the image's
+# defaults, so the template never renders an empty name or link.
+: "${STUDIO_DISPLAY_NAME:=$(cat /etc/nginx/site-defaults/display-name)}"
+: "${STUDIO_SITE_APP_URL:=$(cat /etc/nginx/site-defaults/app-url)}"
+export STUDIO_DISPLAY_NAME STUDIO_SITE_APP_URL

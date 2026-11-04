@@ -2,15 +2,15 @@
 # Rolls one commit out to the Cloud Run stage (.github/workflows/deploy.yml).
 #
 # Every app whose image exists at sha-<commit> moves to it; the others keep their revision. Order:
-# migrate jobs (api, versioning, pipeline), backends, agent, web, then a smoke test through the
-# Studio host. Cloud Run only sends traffic to a revision whose startup probe passes; if a
+# migrate jobs (api, versioning, pipeline), backends, agent, web, site, then a smoke test through
+# the Studio and site hosts. An app with an image but no Cloud Run service yet is skipped. Cloud Run only sends traffic to a revision whose startup probe passes; if a
 # rollout or the smoke test fails, every service moved here goes back to its previous revision.
 # Migrations are not undone, so they must work with the previous revision too.
 #
 # Env: SHA, PHI_REGISTRY, AI_REGISTRY (us-central1-docker.pkg.dev/<project>/images),
 # PHI_CREDENTIALS, AI_CREDENTIALS (credential files from google-github-actions/auth),
 # STUDIO_URL (https://<studio host>; empty skips the checks through the load balancer),
-# AGENT_URL (the agent's run.app URL).
+# AGENT_URL (the agent's run.app URL), SITE_URL (https://<site host>; empty skips its checks).
 set -euo pipefail
 
 short="${SHA::7}"
@@ -28,16 +28,26 @@ built() {
   exit 1
 }
 
+provisioned() {
+  local out
+  if out="$("$1" run services describe "$2" --region "$region" --format='value(metadata.name)' 2>&1)"; then return 0; fi
+  if grep -qiE "not.?found|cannot find" <<<"$out"; then
+    echo "::warning::$2 has an image for $short but no Cloud Run service yet (Terraform creates it); skipping"
+    return 1
+  fi
+  echo "::error::can't read service $2: $out" >&2
+  exit 1
+}
+
 declare -A image cli prev
 order=()
-for app in versioning pipeline api worker web; do
-  if built phi "$PHI_REGISTRY/studio-$app"; then image[$app]="$PHI_REGISTRY/studio-$app:$tag" cli[$app]=phi order+=("$app"); fi
-done
-if built ai "$AI_REGISTRY/studio-agent"; then image[agent]="$AI_REGISTRY/studio-agent:$tag" cli[agent]=ai; fi
 # The agent goes after the backends it calls and before web, which proxies to it.
-if [ -n "${image[agent]:-}" ]; then
-  if [ -n "${image[web]:-}" ]; then order=("${order[@]:0:${#order[@]}-1}" agent web); else order+=(agent); fi
-fi
+for app in versioning pipeline api worker agent web site; do
+  if [ "$app" = agent ]; then c=ai registry="$AI_REGISTRY"; else c=phi registry="$PHI_REGISTRY"; fi
+  if built "$c" "$registry/studio-$app" && provisioned "$c" "$app"; then
+    image[$app]="$registry/studio-$app:$tag" cli[$app]=$c order+=("$app")
+  fi
+done
 echo "Commit $short: ${order[*]:-nothing new}"
 
 moved=()
@@ -96,6 +106,11 @@ if [ -n "${image[agent]:-}" ]; then
   retry sha_is "$AGENT_URL" || failed+=("agent /version is not $short")
 else
   retry curl -fsS --max-time 10 -o /dev/null "$AGENT_URL/version" || failed+=("agent /version")
+fi
+site_page_ok() { curl -fsS --max-time 10 "$SITE_URL/" | grep -q '<meta name="studio-site" data-display-name="[^%"]'; }
+if [ -n "$SITE_URL" ]; then
+  retry site_page_ok || failed+=("site / (name not filled in)")
+  [ -z "${image[site]:-}" ] || retry sha_is "$SITE_URL" || failed+=("site /version is not $short")
 fi
 
 if [ "${#failed[@]}" -gt 0 ]; then

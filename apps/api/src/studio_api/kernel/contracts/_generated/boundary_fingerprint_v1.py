@@ -170,16 +170,6 @@ class Delimiter(StrEnum):
     field__3 = '|'
 
 
-class Table(BaseModel):
-    model_config = ConfigDict(
-        extra='forbid',
-    )
-    columns: Annotated[list[Column], Field(max_length=512)]
-    rows: Annotated[int, Field(ge=0, le=9007199254740991)]
-    delimiter: Delimiter | None
-    header: bool
-
-
 class TransferSyntax(RootModel[str]):
     root: Annotated[str, Field(pattern='^1\\.2\\.840\\.10008\\.[0-9.]{1,40}$')]
 
@@ -250,6 +240,110 @@ class Scrub(BaseModel):
     valuesDropped: Annotated[int, Field(ge=0, le=9007199254740991)]
     namesRedacted: Annotated[int, Field(ge=0, le=9007199254740991)]
     textCheck: Annotated[str, Field(pattern='^[a-z0-9-]{1,32}$')]
+
+
+class Name8(RootModel[str]):
+    root: Annotated[str, Field(pattern='^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$')]
+
+
+class Name9(RootModel[str]):
+    root: Annotated[str, Field(pattern='^<redacted:\\d{1,5}>$')]
+
+
+class LogicalType(StrEnum):
+    integer = 'integer'
+    number = 'number'
+    boolean = 'boolean'
+    date = 'date'
+    datetime = 'datetime'
+    categorical = 'categorical'
+    text = 'text'
+    identifier = 'identifier'
+    empty = 'empty'
+
+
+class Cardinality(StrEnum):
+    field_1 = '1'
+    field_2_10 = '2-10'
+    field_11_100 = '11-100'
+    field_101_1000 = '101-1000'
+    field_1001_10000 = '1001-10000'
+    field_10000 = '>10000'
+
+
+class Frequency(StrEnum):
+    sub_daily = 'sub-daily'
+    daily = 'daily'
+    business_daily = 'business-daily'
+    weekly = 'weekly'
+    monthly = 'monthly'
+    quarterly = 'quarterly'
+    yearly = 'yearly'
+    irregular = 'irregular'
+
+
+class Dates(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    from_: Annotated[str, Field(alias='from', pattern='^\\d{4}-\\d{2}$')]
+    to: Annotated[str, Field(pattern='^\\d{4}-\\d{2}$')]
+    frequency: Frequency
+
+
+class Value(RootModel[str]):
+    root: Annotated[str, Field(pattern='^[A-Za-z_][A-Za-z0-9_.:/-]{0,63}$')]
+
+
+class Value1(RootModel[str]):
+    root: Annotated[str, Field(pattern='^<redacted:\\d{1,5}>$')]
+
+
+class Value2(RootModel[str]):
+    root: Annotated[str, Field(pattern='^<category:\\d{1,9}>$')]
+
+
+class Category(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    value: Value | Value1 | Value2
+    share: Annotated[float, Field(ge=0.0, le=1.0)]
+
+
+class Column1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: Name8 | Name9
+    logicalType: LogicalType
+    identifier: bool
+    nullRate: Annotated[float, Field(ge=0.0, le=1.0)]
+    cardinality: Cardinality
+    quantiles: Annotated[list[float] | None, Field(max_length=5)] = None
+    dates: Dates | None = None
+    categories: Annotated[list[Category] | None, Field(max_length=64)] = None
+
+
+class BoundaryTableProfile(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    rows: Annotated[int, Field(ge=0, le=9007199254740991)]
+    k: Literal[10]
+    noise: bool
+    columns: Annotated[list[Column1], Field(max_length=512)]
+
+
+class Table(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    columns: Annotated[list[Column], Field(max_length=512)]
+    rows: Annotated[int, Field(ge=0, le=9007199254740991)]
+    delimiter: Delimiter | None
+    header: bool
+    profile: BoundaryTableProfile | None = None
 
 
 class BoundaryFingerprint(BaseModel):

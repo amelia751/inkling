@@ -10,13 +10,21 @@ const repo = path.resolve(__dirname, "../..");
 /** The one place the site reads the environment: `env("SITE_APP_URL")` → `<envPrefix>SITE_APP_URL`. */
 const env = (key: string): string | undefined => process.env[`${NAMING.envPrefix}${key}`] || undefined;
 
+const appUrl = env("SITE_APP_URL") ?? "http://localhost:5173";
+
 export default defineConfig({
-  // Where "Sign in" and "Start" go: the web app (apps/web). Baked in at build time.
-  define: { __APP_URL__: JSON.stringify(env("SITE_APP_URL") ?? "http://localhost:5173") },
+  // Where "Sign in" and "Start" go: the web app (apps/web). The image's nginx fills it in at
+  // request time (%APP_URL% in index.html); this is the fallback when nothing did.
+  define: { __APP_URL__: JSON.stringify(appUrl) },
   plugins: [
     react(),
     tailwindcss(),
-    { name: "site-title", transformIndexHtml: (html) => html.replaceAll("%DISPLAY_NAME%", NAMING.displayName) },
+    {
+      // The dev server fills the placeholders; a build keeps them for nginx (nginx/default.conf.template).
+      name: "site-placeholders",
+      transformIndexHtml: (html, ctx) =>
+        ctx.server ? html.replaceAll("%DISPLAY_NAME%", NAMING.displayName).replaceAll("%APP_URL%", appUrl) : html,
+    },
   ],
   resolve: {
     alias: [

@@ -22,6 +22,11 @@ export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
   task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
   // todo21 D8: Home only lists projects and checks access to one (open_in_project); no data scopes.
   home: [],
+  // todo23 W3: the scout reads only public package metadata; no project data scopes.
+  scout: [],
+  // todo23 W9: reviewers read plugins and write only reviews and hidden tests (never the artifact).
+  reviewer: ["plugins.read", "reviews.read", "reviews.write"],
+  "red-team": ["plugins.read", "reviews.read", "reviews.write"],
 };
 
 const TTL_S = 3600;

@@ -7,8 +7,14 @@ variable "studio_host" {
   default     = "studio.example.com"
 }
 
+variable "site_host" {
+  description = "Host of the public site (apps/site, e.g. example.com) on the same load balancer; www.<site_host> redirects to it. Empty: no site."
+  type        = string
+  default     = ""
+}
+
 variable "display_name" {
-  description = "Product name the Studio shows in this stage (STUDIO_DISPLAY_NAME, served in /config.json). Empty: the naming config's."
+  description = "Product name the Studio and the site show in this stage (STUDIO_DISPLAY_NAME: web's /config.json, the site's pages). Empty: the naming config's."
   type        = string
   default     = ""
 }

@@ -174,3 +174,16 @@ def test_lockfile_is_generated_from_the_workspace_pins_and_round_trips(c):
     assert studio_defs.normalize_lockfile(json.loads(text)) == lock
     assert body["contentHash"] == content_hash(lock) == studio_defs.lockfile_hash(json.loads(text))
     assert c.get("/api/environments/ws-a/lockfile").json()["contentHash"] == body["contentHash"]  # stable
+
+
+def test_v1_validate_reports_without_the_web_server(c):
+    """todo23 W10 (S12): a full report from the kernel alone; a planted bug fails it."""
+    r = c.post("/api/v1/environments/validate", json=ENV)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] and body["errors"] == [] and isinstance(body["warnings"], list)
+    assert body["resolved"]["task"] == "classification" and body["resolved"].get("viewports")  # preset merged in
+    bad = c.post("/api/v1/environments/validate", json={**ENV, "viewports": [{"id": "main", "renderer": "studio.nope.renderers.ghost"}]})
+    assert bad.status_code == 200 and not bad.json()["ok"] and bad.json()["resolved"] is None
+    assert any(e["code"] in ("schema", "reference") for e in bad.json()["errors"])
+    assert c.post("/api/v1/environments/validate", content=b"not json").status_code == 400

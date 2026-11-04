@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { Sandbox } from "@daytona/sdk";
 import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import { type ViewerLintFile, type ViewerLintFinding, VIEWER_MAX_BUNDLE_BYTES, VIEWER_SOURCE_RE, lintViewerFiles, viewerLintOk } from "@studio/plugin-ui-sdk/viewer-lint.ts";
 import { Type } from "typebox";
 import { env } from "../config.ts";
 import { NAMING, canonicalId, ns } from "../naming.ts";
@@ -54,6 +55,9 @@ export const KERNEL_SCOPES = {
   // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints, fixtures, verify, probes.
   builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
   task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+  // todo23 W9: reviewers write only reviews and hidden tests (kernel/reviews.py), never the artifact.
+  reviewer: ["plugins.read", "reviews.read", "reviews.write"],
+  "red-team": ["plugins.read", "reviews.read", "reviews.write"],
 } as const;
 
 export class KernelClient {
@@ -631,6 +635,36 @@ export function parseSandboxChecks(output: string, exitCode: number) {
   };
 }
 
+/**
+ * Lists a plugin's sandboxed-viewer files (todo23 W2): everything under ui/ and viewers/ that
+ * ships to the View (JS, CSS, HTML, WASM), one `<bytes> <path>` per line.
+ */
+export const VIEWER_LIST_SCRIPT =
+  "for d in ui viewers; do [ -d \"$d\" ] && find \"$d\" -type f \\( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.html' -o -name '*.wasm' \\) -not -path '*/node_modules/*'; done | while read -r f; do echo \"$(wc -c < \"$f\" | tr -d ' ') $f\"; done";
+
+export function parseViewerFileList(output: string): { path: string; bytes: number }[] {
+  return output
+    .split("\n")
+    .map((l) => /^(\d+) (.+)$/.exec(l.trim()))
+    .filter((m): m is RegExpExecArray => !!m)
+    .map((m) => ({ path: m[2]!, bytes: Number(m[1]) }));
+}
+
+/** `viewer-lint` over the sandbox plugin's viewer files; null when the plugin ships no viewer. */
+export async function lintSandboxViewer(sb: Sandbox, timeoutS: number): Promise<{ ok: boolean; findings: ViewerLintFinding[] } | null> {
+  const list = await execCommand(sb, VIEWER_LIST_SCRIPT, { cwd: PLUGIN_DIR, timeoutS });
+  const entries = parseViewerFileList(list.output);
+  if (!entries.length) return null;
+  const files: ViewerLintFile[] = [];
+  for (const e of entries) {
+    // Sources are read for linting (oversized ones only count toward the cap); binaries only count.
+    if (!VIEWER_SOURCE_RE.test(e.path) || e.bytes > VIEWER_MAX_BUNDLE_BYTES) files.push({ path: e.path, bytes: e.bytes });
+    else files.push({ path: e.path, content: new Uint8Array(await withRecovery(sb, () => sb.fs.downloadFile(`${PLUGIN_DIR}/${e.path}`))) });
+  }
+  const findings = lintViewerFiles(files, { root: "." });
+  return { ok: viewerLintOk(findings), findings };
+}
+
 export function createPluginSandboxTools(k: KernelClient, deps: PluginSandboxDeps): ToolDefinition<any, any, any>[] {
   const create = defineTool({
     name: "create_plugin_sandbox",
@@ -669,16 +703,19 @@ export function createPluginSandboxTools(k: KernelClient, deps: PluginSandboxDep
     label: "Checking plugin",
     description:
       "Check the plugin in the sandbox: in the sandbox, uv sync --locked, the plugin's tests and a licence scan of installed packages; in the kernel, a dry-run build " +
-      "(manifest schema, declarative-UI rules, trusted renderer names, dependency sources). Tests run on synthetic fixtures (get_fixtures), never real samples. Fix every error before build_plugin_artifact.",
+      "(manifest schema, declarative-UI rules, trusted renderer names, dependency sources); and viewer-lint on sandboxed viewers under ui/ or viewers/ " +
+      "(theme tokens only, no raw colours or px fonts, no network APIs, no eval, keyboard-reachable controls, 2 MB bundle cap with WASM). Tests run on synthetic fixtures (get_fixtures), never real samples. Fix every error before build_plugin_artifact.",
     promptSnippet: "Validate and test the sandbox plugin",
     parameters: Type.Object({}),
     async execute(_id, _args, signal) {
       const sb = await deps.acquire();
       const r = await execCommand(sb, SANDBOX_CHECK_SCRIPT, { cwd: PLUGIN_DIR, timeoutS: deps.execTimeoutS });
       const sandbox = parseSandboxChecks(r.output, r.exitCode);
+      const viewer = await lintSandboxViewer(sb, deps.execTimeoutS);
       const kernel = await k.request<{ ok: boolean; errors: string[]; warnings: string[] }>("POST", "/plugins/artifacts?dryRun=true", { body: await packTarball(sb, deps.execTimeoutS), contentType: "application/gzip", signal });
-      const ok = sandbox.ok && kernel.ok;
-      return out({ ok, sandbox, kernel }, ok ? "All checks passed" : plural(sandbox.problems.length + kernel.errors.length, "problem"));
+      const ok = sandbox.ok && kernel.ok && (viewer?.ok ?? true);
+      const viewerErrors = viewer?.findings.filter((f) => f.severity === "error").length ?? 0;
+      return out({ ok, sandbox, kernel, ...(viewer ? { viewer } : {}) }, ok ? "All checks passed" : plural(sandbox.problems.length + kernel.errors.length + viewerErrors, "problem"));
     },
   });
 

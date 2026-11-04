@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/Recipe",
+  "$defs": {
+    "Recipe": {
+      "type": "object",
+      "properties": {
+        "manifest": {
+          "$ref": "#/$defs/RecipeManifest"
+        },
+        "skill": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "plugins": {
+          "$ref": "#/$defs/RecipePluginsLock"
+        },
+        "evaluations": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeEvaluation"
+          }
+        },
+        "verification": {
+          "$ref": "#/$defs/RecipeVerification"
+        },
+        "history": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+          }
+        }
+      },
+      "required": [
+        "manifest",
+        "skill",
+        "environment",
+        "plugins"
+      ],
+      "additionalProperties": false
+    },
+    "RecipeManifest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "whenToUse": {
+          "default": "",
+          "type": "string",
+          "maxLength": 2048
+        },
+        "needs": {
+          "default": {
+            "kinds": [],
+            "columns": [],
+            "shape": []
+          },
+          "type": "object",
+          "properties": {
+            "kinds": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "columns": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "shape": {
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "limits": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requiresPlugins": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "tier": {
+          "default": "workspace",
+          "type": "string",
+          "enum": [
+            "workspace",
+            "curated",
+            "external"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "version",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "RecipePluginsLock": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+          },
+          "digest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              {
+                "type": "string",
+                "const": "pending"
+              }
+            ]
+          }
+        },
+        "required": [
+          "version",
+          "digest"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "RecipeEvaluation": {
+      "type": "object",
+      "properties": {
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "package",
+        "verdict"
+      ],
+      "additionalProperties": {}
+    },
+    "RecipeVerification": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+        },
+        "passed": {
+          "type": "boolean"
+        },
+        "tests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "passed": {
+                "type": "boolean"
+              },
+              "hidden": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "passed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "harness": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "passed",
+        "tests"
+      ],
+      "additionalProperties": {}
+    }
+  },
+  "$id": "studio://schema/recipe/v1"
+}

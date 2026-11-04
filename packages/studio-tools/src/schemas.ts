@@ -108,6 +108,17 @@ export const OfferStudioArgs = Type.Object(
     preset: presetRef,
     title: Type.String({ maxLength: 80, description: "Button text, e.g. 'Create X-ray Studio'." }),
     reason: Type.String({ maxLength: 200, description: "One sentence: what it is for." }),
+    preview: Type.Optional(
+      Type.Object(
+        {
+          projectId: Type.Optional(Type.String()),
+          datasetId: Type.Optional(Type.String()),
+          environment: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "The complete, validated environment. Omitted: `{extends: preset}`." })),
+          verification: Type.Optional(Type.Record(Type.String(), Type.Unknown(), { description: "The verification summary (checks run, results) shown beside the preview." })),
+        },
+        { additionalProperties: false, description: "Boot it now as a preview only the person sees (Keep / Change / Discard). Never switches their current Studio." },
+      ),
+    ),
   },
   { additionalProperties: false },
 );
@@ -154,7 +165,8 @@ export const STUDIO_TOOLS = [
   {
     name: "offer_studio",
     label: "Offering Studio",
-    description: "Show a 'Create … Studio' button when the person only floats the idea; clicking it is their go-ahead. Creates nothing.",
+    description:
+      "Show a 'Create … Studio' button when the person only floats the idea; clicking it is their go-ahead. Creates nothing. With `preview`, boots the Studio as a preview only the person sees, which they Keep or Discard (a builder's final step).",
     parameters: OfferStudioArgs,
   },
 ] as const satisfies readonly StudioToolSpec[];

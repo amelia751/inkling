@@ -1,0 +1,6 @@
+# todo23 W9 (D11): shared code a generated change can reach needs a person's review.
+# Branch protection on main requires a code-owner approval for these paths, so the assistant's
+# bot identity can open pull requests but never merge them (docs/plugins.md §9.6).
+/packages/renderers/   @amelia751
+/packages/ui/          @amelia751
+/plugins/              @amelia751

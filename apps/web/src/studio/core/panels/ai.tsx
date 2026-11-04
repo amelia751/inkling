@@ -64,6 +64,9 @@ const PROFILE_BLURB: Record<ProfileName, string> = {
   task: ". I can also run this workspace's installed capabilities; you approve each run.",
   "environment-designer": ". I can also reshape this workspace: tools, panels and labels.",
   home: ". I can list your projects, start a new one, or open a chat in one of them.",
+  scout: ". I can find, vet and try open-source packages, and explain why each was picked or refused.",
+  reviewer: ". I review a built artifact and record findings; I can't change it.",
+  "red-team": ". I probe a built artifact for escapes and record findings; I can't change it.",
 };
 
 /**

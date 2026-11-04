@@ -123,3 +123,10 @@ test("scopes and write counting", () => {
   assert.equal(isWriteCall("dataset_list", {}), false);
   assert.equal(isWriteCall("patch_environment", {}, new Set(["patch_environment"])), true);
 });
+
+test("get_review is a read tool over the kernel's review rows (todo23 W9)", async () => {
+  const { reviewPath } = await import("../../src/server.ts");
+  const t = staticTools().find((x) => x.name === "get_review")!;
+  assert.equal(t.annotations!.readOnlyHint, true);
+  assert.equal(reviewPath({ projectId: "p 1", kind: "plugin", id: "studio.generated.x", version: "0.1.0" }), "/api/v1/projects/p%201/reviews?artifact=plugin%3Astudio.generated.x%400.1.0");
+});

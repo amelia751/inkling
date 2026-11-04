@@ -39,6 +39,11 @@ def task_ctx(db: Session, ctx: RequestContext, task_id: str, *, write: bool = Fa
     if ctx.workspace_bound and ctx.workspace_id != workspace:
         raise HTTPException(403, "session token is bound to another workspace")
     c = ctx.for_scope(workspace, task)
+    if task != workspace:
+        from ..kernel import previews
+        from ..models import TaskRow
+
+        previews.guard_task(db, ctx, db.get(TaskRow, task))
     ensure_workspace(db, workspace)
     projects.project_of_scope(db, c, write=write)
     return c

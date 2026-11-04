@@ -235,6 +235,10 @@ def _table(fp: dict, data: bytes) -> None:
     sample = body[:500]
     cols = [{"name": n, "dtype": _infer([r[i] for r in sample if i < len(r)])} for i, n in enumerate(names[:512])]
     fp["table"] = {"columns": cols, "rows": len(body), "delimiter": delim, "header": header}
+    # The D5a profile (todo23): distributions, k-thresholded, never a raw value below k.
+    from .profile import profile_rows
+
+    fp["table"]["profile"] = profile_rows([c["name"] for c in cols], body[:200_000])
     fp["endianness"] = "none"
     fp["sections"] = [{"name": "header", "offset": 0, "length": len(delim.join(first).encode()) if header else 0, "kind": "header"}, {"name": "data", "offset": 0, "length": len(data), "kind": "data"}]
     fp["scrub"]["valuesDropped"] = sum(len(r) for r in body)

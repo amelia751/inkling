@@ -84,9 +84,29 @@ export interface EnvironmentState {
   savedAt?: string;
 }
 
+/** `POST /api/v1/projects/{id}/previews` (todo23 D8): an immutable environment booted as a preview. */
+export interface PreviewRequest {
+  environment: Record<string, unknown>;
+  datasetId?: string;
+  title?: string;
+  pluginVersions?: Record<string, string>;
+  verification?: Record<string, unknown>;
+}
+
+export interface PreviewInfo {
+  id: string;
+  projectId: string;
+  taskId: string;
+  status: "active" | "kept" | "discarded";
+  expiresAt: string | null;
+  pluginVersions: Record<string, string>;
+  verification?: Record<string, unknown> | null;
+  [key: string]: unknown;
+}
+
 export interface TaskInfo {
   id: string;
-  state?: "draft" | "published";
+  state?: "draft" | "published" | "preview";
   bootId?: string | null;
   [key: string]: unknown;
 }
@@ -159,6 +179,11 @@ export class StudioClient {
   /** `revision` is required; a stale one is a 409 whose error carries `current`. */
   patchEnvironment(taskId: string, patch: JsonPatchOp[], revision: number, signal?: AbortSignal): Promise<EnvironmentState> {
     return this.request("PATCH", `/api/environments/${enc(taskId)}`, { patch, revision }, signal);
+  }
+
+  /** Boots a preview only the person sees; it never replaces their current Studio. */
+  bootPreview(projectId: string, body: PreviewRequest, signal?: AbortSignal): Promise<PreviewInfo> {
+    return this.request("POST", `/api/v1/projects/${enc(projectId)}/previews`, body, signal);
   }
 
   getTask(taskId: string, signal?: AbortSignal): Promise<TaskInfo> {

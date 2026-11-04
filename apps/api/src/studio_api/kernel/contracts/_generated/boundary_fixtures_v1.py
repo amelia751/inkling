@@ -16,6 +16,7 @@ class Variant(StrEnum):
     zeros = 'zeros'
     edge_min = 'edge-min'
     edge_max = 'edge-max'
+    planted = 'planted'
 
 
 class Fixture(BaseModel):
@@ -31,6 +32,15 @@ class Fixture(BaseModel):
     variant: Variant
 
 
+class Truth(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    truthId: Annotated[str, Field(pattern='^[A-Za-z0-9_-]{1,64}$')]
+    sha256: Annotated[str, Field(pattern='^sha256:[0-9a-f]{64}$')]
+    plants: Annotated[int, Field(ge=0, le=9007199254740991)]
+
+
 class BoundaryFixtureSet(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -42,6 +52,7 @@ class BoundaryFixtureSet(BaseModel):
     generator: Annotated[str, Field(pattern='^[a-z0-9-]{1,32}$')]
     seed: Annotated[int, Field(ge=0, le=9007199254740991)]
     fixtures: Annotated[list[Fixture], Field(max_length=16, min_length=1)]
+    truth: Truth | None = None
 
 
 class FixtureSet(RootModel[BoundaryFixtureSet]):

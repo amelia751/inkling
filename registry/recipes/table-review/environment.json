@@ -1,0 +1,9 @@
+{
+  "$schema": "studio://schema/environment/v1",
+  "id": "table-review",
+  "title": "Table review",
+  "data": { "kind": "studio.table.dataKinds.table" },
+  "viewports": [{ "name": "main", "renderer": "studio.table.renderers.grid", "config": {} }],
+  "tools": ["studio.core.tools.select"],
+  "layout": null
+}

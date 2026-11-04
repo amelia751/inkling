@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { StudioItem } from "@studio/contracts/types";
 import type { ResolvedEnv } from "@studio/plugin-ui-sdk";
 import { NAMING } from "@studio/contracts/naming";
-import { createSandboxHost } from "./bridge-host";
+import { createSandboxHost, readStudioTheme } from "./bridge-host";
 import { viewerState, viewerTools } from "./viewer-tools";
 import { sandboxProxyUrl } from "../runtime-config";
 
@@ -44,10 +44,10 @@ export function SandboxFrame({ title, html, env, item, config, author, height, t
       html: () => live.current.html,
       hostInfo: { name: `${NAMING.resourcePrefix}-studio`, version: "1.0.0" },
       context: () => ({
-        theme: document.documentElement.classList.contains("dark") ? "dark" : "light",
         locale: navigator.language,
         containerDimensions: { maxHeight: height ?? frame.current?.clientHeight ?? 600, width: frame.current?.clientWidth ?? 600 },
       }),
+      theme: () => readStudioTheme(),
       state: () => viewerState(live.current.env, live.current.item, live.current.config),
       input: () => ({ itemId: live.current.item?.id ?? null }),
       callTool: viewerTools({
@@ -60,7 +60,11 @@ export function SandboxFrame({ title, html, env, item, config, author, height, t
     bridge.current = b;
     const on = (e: MessageEvent) => b.onMessage(e);
     window.addEventListener("message", on);
+    // Theme switches toggle `.dark` (or restyle) <html>: re-send the variables to the View.
+    const themeWatch = new MutationObserver(() => b.themeChanged());
+    themeWatch.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "style", "data-theme"] });
     return () => {
+      themeWatch.disconnect();
       window.removeEventListener("message", on);
       b.dispose();
     };
@@ -79,7 +83,7 @@ export function SandboxFrame({ title, html, env, item, config, author, height, t
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
       style={fixed ? { height } : undefined}
-      className={fixed ? "w-full shrink-0 border-0 bg-white" : "h-full w-full border-0 bg-white"}
+      className={fixed ? "w-full shrink-0 border-0 bg-background" : "h-full w-full border-0 bg-background"}
       data-testid={testId}
       data-sandbox-proxy=""
     />

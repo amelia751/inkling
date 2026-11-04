@@ -33,6 +33,7 @@ import { useStudio } from "@/studio/stores/studio";
 import type { Project } from "@studio/contracts/types";
 import { NAMING } from "@studio/contracts/naming";
 import { BootPill } from "@/studio/components/layout/boot-status";
+import { PreviewBadge } from "@/studio/components/studio/PreviewBadge";
 import { RequestReview, StaleNotice, useDraftHasChanges, useVersioning, WorkStateChip } from "@/studio/core/versioning";
 import { CollectionSwitcher } from "@/studio/core/collections/CollectionSwitcher";
 
@@ -117,6 +118,7 @@ export function StudioTopBar({ project, onRetrySave, onOpenSidebar, onShowShortc
 
       {/* The state of my work */}
       <div className="flex min-w-0 shrink-0 items-center gap-2">
+        <PreviewBadge projectId={p} taskId={project.id} />
         <WorkStateChip projectId={project.id} onRetry={onRetrySave} />
         <StaleNotice projectId={project.id} />
       </div>

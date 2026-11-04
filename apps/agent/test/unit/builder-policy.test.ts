@@ -218,8 +218,9 @@ describe("install flow through the approval broker", () => {
     expect(approval).toMatchObject({ toolName: "request_install_approval", detail: { kind: "plugin-install", requestId: "req_1", workspaceId: "demo" } });
     const last = events.filter((e) => e.type === "tool-result").at(-1) as Extract<AgentEvent, { type: "tool-result" }>;
     expect(last).toMatchObject({ ok: true, summary: `Activated ${SEG}@1.0.0` });
-    // todo15 D2: every message first reads the org's aiAssist setting.
-    expect(k!.calls.map((c) => `${c.method} ${c.path}`).filter((c) => c !== "GET /api/v1/org")).toEqual([
+    // todo15 D2: every message first reads the org's aiAssist setting; todo23 W6: the builder has
+    // the Studio tools (offer_studio's preview), so it reads whether the project has a Studio.
+    expect(k!.calls.map((c) => `${c.method} ${c.path}`).filter((c) => c !== "GET /api/v1/org" && c !== "GET /api/v1/projects/demo/overview")).toEqual([
       "POST /api/v1/workspaces/demo/plugins/plan",
       "POST /api/v1/workspaces/demo/plugins/stage",
       "GET /api/v1/workspaces/demo/plugins/requests/req_1",

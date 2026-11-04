@@ -9,6 +9,9 @@ import { writeEnvironment } from "./environment-write.js";
 import { CONTEXT_URI_TEMPLATE, type Caller, callOperationTool, hints, operationTools, projectContextTool, readContextResource, type ToolDef } from "./operations.js";
 import { createViewers } from "./viewers.js";
 import { studioKinds } from "./profiles.js";
+import { jobStatus, runHarness } from "./harness.js";
+import { RECIPE_TOOLS, callRecipeTool } from "./recipes.js";
+import { SCOUT_TOOLS, callScoutTool } from "./scout.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -65,13 +68,84 @@ export const ENV_TOOLS: ToolDef[] = [
     inputSchema: obj({ projectId: { type: "string" }, spec: { type: "object" }, revision: REVISION }, ["projectId", "spec"]),
     annotations: hints("write", "PUT"),
   },
+  {
+    name: "get_review",
+    description:
+      "todo23 W9: the review.v1 verdicts and findings recorded for one artifact version (newest first) and whether the latest passed. An artifact without a passing review can't leave preview. Read-only; hidden tests are never returned here.",
+    inputSchema: obj(
+      {
+        projectId: { type: "string" },
+        kind: { type: "string", description: "plugin, preview, recipe…" },
+        id: { type: "string" },
+        version: { type: "string" },
+      },
+      ["projectId", "kind", "id", "version"],
+    ),
+    annotations: READ,
+  },
+  {
+    name: "boot_preview",
+    description:
+      "Boot a Studio as a preview (todo23 D8): an immutable environment on a project's dataset, visible only to the person you act for, with a Preview badge. Never switches anyone's Studio. Returns the preview (`id`, `taskId`, `expiresAt`); show the person what you verified and let them Keep or Discard it.",
+    inputSchema: obj(
+      {
+        projectId: { type: "string", description: "The project (not a task) id" },
+        spec: { type: "object", description: "The complete environment (validate it first)" },
+        datasetId: { type: "string", description: "Dataset to preview on. Omitted: the project's default Studio's dataset" },
+        title: { type: "string" },
+        pluginVersions: { type: "object", description: "Pinned plugin versions {pluginId: version}. Omitted: the project's installed versions" },
+        verification: { type: "object", description: "The verification summary to show beside the preview" },
+      },
+      ["projectId", "spec"],
+    ),
+    annotations: hints("write", "POST"),
+  },
+  { name: "list_previews", description: "The previews you (or the person you act for) booted in a project and haven't kept or discarded.", inputSchema: obj({ projectId: { type: "string" } }, ["projectId"]), annotations: READ },
+  {
+    name: "keep_preview",
+    description: "Keep a preview: its Studio moves to the project's workspace tier and everyone in the project sees it. Only the requester keeps; only on their explicit say-so.",
+    inputSchema: obj({ projectId: { type: "string" }, previewId: { type: "string" } }, ["projectId", "previewId"]),
+    annotations: hints("write", "POST"),
+  },
+  {
+    name: "discard_preview",
+    description: "Discard a preview: deletes it, its Studio and every annotation made in it.",
+    inputSchema: obj({ projectId: { type: "string" }, previewId: { type: "string" } }, ["projectId", "previewId"]),
+    annotations: hints("destroy", "POST"),
+  },
 ];
 
-/** Environment tools that save (count against the write quota, need project:write). */
-export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment"]);
+/** todo23 W10: build and test tools. Local processes, so stdio only (refused over HTTP). */
+export const HARNESS_TOOLS: ToolDef[] = [
+  {
+    name: "run_harness",
+    description:
+      "Run the verification harness on an environment: resolver and lint, the plugin's own tests, hidden acceptance tests, an interaction smoke test, an accessibility snapshot, light and dark screenshots at two sizes, viewer and token lint. Returns a job id: poll get_job_status for the fixed-schema report ({steps:[{name,status,blocking,details}], passed}). Local mode only for now; fixtures and hidden tests are copied read-only.",
+    inputSchema: obj({
+      env: { type: "object", description: "Environment spec (or pass envFile)" },
+      envFile: { type: "string", description: "Path to an environment or preset JSON file" },
+      plugins: { type: "string", description: "Folder of the plugin(s) under test (its tests and lint run)" },
+      fixtures: { type: "string", description: "Folder of sample files the Studio opens as items" },
+      hiddenTests: { type: "string", description: "Folder of Python acceptance tests (run with --port <studio port>)" },
+      mode: { type: "string", enum: ["local", "daytona"], description: "local (default); daytona is not wired yet" },
+    }),
+    annotations: hints("read", "POST"),
+  },
+  { name: "get_job_status", description: "State of a long job (run_harness): running, done with its report, or failed.", inputSchema: obj({ jobId: { type: "string" } }, ["jobId"]), annotations: READ },
+];
+
+/** `GET …/reviews?artifact=kind:id@version`, the kernel's review rows for one artifact version. */
+export const reviewPath = (a: { projectId: string; kind: string; id: string; version: string }) =>
+  `/api/v1/projects/${encodeURIComponent(a.projectId)}/reviews?artifact=${encodeURIComponent(`${a.kind}:${a.id}@${a.version}`)}`;
+
+/** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
+export const ENV_WRITES_PREVIEW = ["boot_preview", "keep_preview", "discard_preview"] as const;
 
 /** Every tool, `project_context` first (D9). */
-export const staticTools = (): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS];
+export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...RECIPE_TOOLS, ...SCOUT_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
+/** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
+export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment", "trial_oss", ...ENV_WRITES_PREVIEW]);
+
 
 /**
  * `remote`: built for one stateless HTTP request. The MCP Apps viewers are then off: their
@@ -98,6 +172,24 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
     }
     return { ok: res.ok, status: res.status, data };
   }
+
+  /**
+   * todo23 W10 (S12): the kernel's validate route answers without the web dev server; an older
+   * kernel (404) or none (unreachable) falls back to the Studio's Vite route.
+   */
+  async function validate(spec: unknown): Promise<Result> {
+    try {
+      const res = await fetch(`${config.apiUrl}/api/v1/environments/validate`, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify(spec ?? null) });
+      if (res.ok || ![404, 405, 501].includes(res.status)) {
+        const data: any = await res.json().catch(() => ({ error: `kernel answered ${res.status}` }));
+        return { ok: res.ok && data.ok !== false, status: res.status, data };
+      }
+    } catch {
+      // kernel unreachable: the dev server below
+    }
+    return http("POST", "/api/environments/validate", spec);
+  }
+  const previews = (projectId: unknown) => `/api/v1/projects/${encodeURIComponent(String(projectId))}/previews`;
 
   async function call(name: string, args: Record<string, any>): Promise<Result> {
     switch (name) {
@@ -126,15 +218,34 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       case "get_environment": {
         const r = await http("GET", `/api/environments/${encodeURIComponent(args.projectId)}`);
         if (!r.ok) return r;
-        const v = await http("POST", "/api/environments/validate", r.data.effective);
+        const v = await validate(r.data.effective);
         return { ok: true, data: { revision: r.data.revision, source: r.data.effective, resolved: v.data.resolved, errors: v.data.errors, ...studioKinds(v.data.resolved ?? r.data.effective) } };
       }
+      case "get_review":
+        return http("GET", reviewPath({ projectId: String(args.projectId), kind: String(args.kind), id: String(args.id), version: String(args.version) }));
       case "validate_environment":
-        return http("POST", "/api/environments/validate", args.spec);
+        return validate(args.spec);
+      case "run_harness":
+      case "get_job_status":
+        if (opts.remote) return { ok: false, data: { error: `${name} runs on this machine: use the stdio server (pnpm mcp)` } };
+        return name === "run_harness" ? runHarness(args) : jobStatus(String(args.jobId ?? ""));
       case "patch_environment":
         return writeEnvironment(http, "PATCH", String(args.projectId), authored({ patch: args.patch }), args.revision);
       case "set_environment":
         return writeEnvironment(http, "PUT", String(args.projectId), authored({ environment: args.spec }), args.revision);
+      case "boot_preview": {
+        const body: Record<string, unknown> = { environment: args.spec };
+        for (const k of ["datasetId", "title", "pluginVersions", "verification"]) if (args[k] !== undefined) body[k] = args[k];
+        return http("POST", previews(args.projectId), body);
+      }
+      case "list_previews":
+        return http("GET", previews(args.projectId));
+      case "keep_preview":
+        return http("POST", `${previews(args.projectId)}/${encodeURIComponent(String(args.previewId))}/keep`);
+      case "discard_preview": {
+        const r = await http("POST", `${previews(args.projectId)}/${encodeURIComponent(String(args.previewId))}/discard`);
+        return r.ok ? { ok: true, data: { discarded: String(args.previewId) } } : r;
+      }
       default:
         return { ok: false, data: { error: `Unknown tool "${name}"` } };
     }
@@ -147,7 +258,7 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       instructions: `${NAMING.displayName} projects: call project_context first, before any write, and follow its rules. Writes accept dryRun: true to check without saving. A rejected write lists every violation with its fix: apply them all and retry. Changing something published opens a change request. Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. view_* tools show a file in a sandboxed viewer to the user.`,
     },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...staticTools(), ...(await viewers.tools())] as never }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...staticTools(opts), ...(await viewers.tools())] as never }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: await viewers.resources() }));
   server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
     resourceTemplates: [{ uriTemplate: CONTEXT_URI_TEMPLATE, name: "project-context", title: "Project context", description: "Rules, open findings, what's published and how to add data: read before writing.", mimeType: "application/json" }],
@@ -164,9 +275,11 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
     try {
       const op = await callOperationTool(caller, req.params.name, args);
       if (op) return op as never;
+      const scout = await callScoutTool(config, token, req.params.name, args);
+      if (scout) return scout as never;
       const v = await viewers.call(req.params.name, args);
       if (v) return v as never;
-      const r = await call(req.params.name, args);
+      const r = (await callRecipeTool(caller, req.params.name, args)) ?? (await call(req.params.name, args));
       const text = typeof r.data === "string" ? r.data : JSON.stringify(r.data, null, 2);
       return { content: [{ type: "text", text }], isError: !r.ok };
     } catch (e) {

@@ -30,6 +30,8 @@ const STAYS_ON_VITE = /^\/api\/(agent|catalog|environments\/validate)(\/|$|\?)/;
 // annotations in a fresh temp copy of e2e/fixtures/annotations/, so no test reads or writes the
 // developer's seed-data/.annotations. <envPrefix>WEB_ANNOTATIONS_DIR picks the folder explicitly.
 const e2e = !!env("E2E");
+// <envPrefix>WEB_SEED_DIR: serve seeds (manifest + files) from another folder; `pnpm harness` (todo23
+// W10) points it at a temp copy of the caller's fixtures so nothing in seed-data/ is read.
 function e2eAnnotations(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), `${NAMING.resourcePrefix}-e2e-annotations-`));
   fs.cpSync(path.resolve(__dirname, "e2e/fixtures/annotations"), dir, { recursive: true });
@@ -187,7 +189,7 @@ export default defineConfig({
     react(),
     tailwindcss(),
     viteCommonjs(),
-    seedServer(path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir, e2e }),
+    seedServer(env("WEB_SEED_DIR") ?? path.resolve(__dirname, "../../seed-data"), { kernel, annotationsDir, resumeDir, e2e }),
     schemaFiles,
     sandboxProxy,
     // index.html takes the display name from the naming config.

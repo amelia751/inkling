@@ -31,6 +31,8 @@
                 "preset:pathology",
                 "preset:satellite-tiles",
                 "preset:sensor-timeseries-events",
+                "preset:series-chart",
+                "preset:table-review",
                 "preset:video",
                 "preset:volume-3d"
               ]
@@ -49,6 +51,8 @@
                   "preset:pathology",
                   "preset:satellite-tiles",
                   "preset:sensor-timeseries-events",
+                  "preset:series-chart",
+                  "preset:table-review",
                   "preset:video",
                   "preset:volume-3d"
                 ]
@@ -82,6 +86,8 @@
               "studio.wsi",
               "studio.dicom-export",
               "studio.text-spans",
+              "studio.table",
+              "studio.chart",
               "studio.segmentation",
               "studio.presets"
             ]
@@ -103,7 +109,9 @@
                 "studio.video.dataKinds.video",
                 "studio.cine.dataKinds.volume-time",
                 "studio.wsi.dataKinds.raster-pyramid",
-                "studio.text-spans.dataKinds.text"
+                "studio.text-spans.dataKinds.text",
+                "studio.table.dataKinds.table",
+                "studio.chart.dataKinds.series"
               ],
               "description": "Data kind contribution id"
             },
@@ -157,7 +165,10 @@
                   "studio.video.renderers.frame-canvas",
                   "studio.cine.renderers.slice-frame-canvas",
                   "studio.wsi.renderers.osd",
-                  "studio.text-spans.renderers.reader"
+                  "studio.text-spans.renderers.reader",
+                  "studio.table.renderers.grid",
+                  "studio.chart.renderers.series",
+                  "studio.chart.renderers.spec"
                 ],
                 "description": "Renderer contribution id"
               },
@@ -223,7 +234,10 @@
               "studio.wsi.tools.wand",
               "studio.wsi.tools.mark",
               "studio.wsi.tools.length",
-              "studio.text-spans.tools.entity"
+              "studio.text-spans.tools.entity",
+              "studio.table.tools.rows",
+              "studio.chart.tools.window",
+              "studio.chart.tools.event"
             ]
           }
         },
@@ -327,7 +341,8 @@
               "studio.wsi.exporters.point-counts-csv",
               "studio.dicom-export.exporters.dicom-seg",
               "studio.dicom-export.exporters.dicom-sr",
-              "studio.text-spans.exporters.jsonl"
+              "studio.text-spans.exporters.jsonl",
+              "studio.table.exporters.labeled-csv"
             ]
           }
         },
@@ -337,7 +352,8 @@
             "type": "string",
             "enum": [
               "studio.core.reviewRules.source-label-disagreement",
-              "studio.core.reviewRules.unlabeled-items"
+              "studio.core.reviewRules.unlabeled-items",
+              "studio.table.reviewRules.row-label-disagreement"
             ]
           }
         },
@@ -434,6 +450,10 @@
                   "studio.cine.commands.goTo",
                   "studio.wsi.commands.toggleClassNames",
                   "studio.wsi.commands.importGeoJSON",
+                  "studio.table.commands.labelRows",
+                  "studio.table.commands.clearRows",
+                  "studio.chart.commands.fitAll",
+                  "studio.chart.commands.cancelWindow",
                   "studio.segmentation.commands.segment"
                 ]
               },
@@ -468,6 +488,8 @@
                   "studio.cine.dataKinds.volume-time",
                   "studio.wsi.dataKinds.raster-pyramid",
                   "studio.text-spans.dataKinds.text",
+                  "studio.table.dataKinds.table",
+                  "studio.chart.dataKinds.series",
                   "studio.file-view.renderers.file",
                   "studio.image2d.renderers.cornerstone-stack",
                   "studio.image2d.renderers.canvas-raster",
@@ -477,6 +499,9 @@
                   "studio.cine.renderers.slice-frame-canvas",
                   "studio.wsi.renderers.osd",
                   "studio.text-spans.renderers.reader",
+                  "studio.table.renderers.grid",
+                  "studio.chart.renderers.series",
+                  "studio.chart.renderers.spec",
                   "studio.core.geometries.class",
                   "studio.core.geometries.box",
                   "studio.core.geometries.ellipse",
@@ -551,6 +576,9 @@
                   "studio.wsi.tools.mark",
                   "studio.wsi.tools.length",
                   "studio.text-spans.tools.entity",
+                  "studio.table.tools.rows",
+                  "studio.chart.tools.window",
+                  "studio.chart.tools.event",
                   "studio.core.commands.undo",
                   "studio.core.commands.redo",
                   "studio.core.commands.deleteSelection",
@@ -636,6 +664,10 @@
                   "studio.cine.commands.goTo",
                   "studio.wsi.commands.toggleClassNames",
                   "studio.wsi.commands.importGeoJSON",
+                  "studio.table.commands.labelRows",
+                  "studio.table.commands.clearRows",
+                  "studio.chart.commands.fitAll",
+                  "studio.chart.commands.cancelWindow",
                   "studio.segmentation.commands.segment",
                   "studio.core.panels.files",
                   "studio.core.panels.labels",
@@ -654,6 +686,7 @@
                   "studio.cine.inspectors.main",
                   "studio.wsi.inspectors.main",
                   "studio.text-spans.inspectors.main",
+                  "studio.table.inspectors.rows",
                   "studio.image2d.exporters.coco",
                   "studio.volume.exporters.nifti-labelmap",
                   "studio.volume.exporters.masks-json",
@@ -672,6 +705,7 @@
                   "studio.dicom-export.exporters.dicom-seg",
                   "studio.dicom-export.exporters.dicom-sr",
                   "studio.text-spans.exporters.jsonl",
+                  "studio.table.exporters.labeled-csv",
                   "studio.core.labelControls.Labels",
                   "studio.core.labelControls.RectangleLabels",
                   "studio.core.labelControls.EllipseLabels",
@@ -682,8 +716,10 @@
                   "studio.core.labelControls.VideoRectangle",
                   "studio.core.labelControls.Choices",
                   "studio.text-spans.labelControls.SpanLabels",
+                  "studio.table.labelControls.RowLabels",
                   "studio.core.reviewRules.source-label-disagreement",
                   "studio.core.reviewRules.unlabeled-items",
+                  "studio.table.reviewRules.row-label-disagreement",
                   "studio.text-spans.presets.ner",
                   "studio.presets.presets.cine-4d",
                   "studio.presets.presets.drone-video-tracks",
@@ -693,6 +729,8 @@
                   "studio.presets.presets.pathology",
                   "studio.presets.presets.satellite-tiles",
                   "studio.presets.presets.sensor-timeseries-events",
+                  "studio.presets.presets.series-chart",
+                  "studio.presets.presets.table-review",
                   "studio.presets.presets.video",
                   "studio.presets.presets.volume-3d"
                 ]
@@ -863,7 +901,8 @@
             "TimeSeriesLabels",
             "VideoRectangle",
             "Choices",
-            "SpanLabels"
+            "SpanLabels",
+            "RowLabels"
           ],
           "description": "Label control id, e.g. Labels, RectangleLabels, PolygonLabels, Choices"
         },

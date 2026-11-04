@@ -43,7 +43,7 @@ export interface DataKindContribution extends ContributionBase {
 }
 
 /** Coordinate space a renderer draws in; tools and geometries declare which they support. */
-export type Space = "image2d" | "volume" | "time" | "text";
+export type Space = "image2d" | "volume" | "time" | "text" | "table";
 
 export interface RendererContribution extends ContributionBase {
   /** Data kind ids (full) this renderer can display. */

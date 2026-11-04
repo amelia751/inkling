@@ -73,6 +73,10 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         ("POST", f"{P}/projects/{{project_id}}/boots"),
         ("GET", f"{P}/boots/{{boot_id}}"),
         ("GET", f"{P}/tasks/{{task_id}}"),
+        # todo23 W6: previews, on behalf of a person; Keep and Discard stay the requester's.
+        ("POST", f"{P}/projects/{{project_id}}/previews"),
+        ("GET", f"{P}/projects/{{project_id}}/previews"),
+        ("GET", f"{P}/projects/{{project_id}}/previews/{{preview_id}}"),
         # Plugin control plane
         ("GET", f"{P}/plugins"),
         ("GET", f"{P}/plugins/{{plugin_id}}"),
@@ -153,6 +157,12 @@ AGENT_ROUTES: frozenset[tuple[str, str]] = frozenset(
         # an outside agent polling the approval a person gives for its destroy (202 + link).
         ("GET", f"{P}/projects/{{project_id}}/rules/history"),
         ("GET", f"{P}/approvals/{{approval_id}}"),
+        # todo23 W9: reviews. Only reviewer/red-team sessions (`reviews.write`) may write reviews
+        # and hidden tests or read hidden tests; the kernel refuses the builder (kernel/reviews.py).
+        ("GET", f"{P}/projects/{{project_id}}/reviews"),
+        ("POST", f"{P}/projects/{{project_id}}/reviews"),
+        ("GET", f"{P}/projects/{{project_id}}/reviews/hidden-tests"),
+        ("POST", f"{P}/projects/{{project_id}}/reviews/hidden-tests"),
     }
 )
 

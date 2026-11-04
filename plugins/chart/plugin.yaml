@@ -1,0 +1,20 @@
+# Data-only manifest (docs/plugins.md §5.2). ui/manifest.ts stays the source of truth for the
+# trusted UI code; this file is what the registry, installer and agent read.
+schemaVersion: studio.plugins/v1
+id: studio.chart
+name: Charts
+version: 0.1.0
+description: "Time-series lines and candles over table rows (Lightweight Charts), Vega-Lite specs, and window / event annotations on the time axis."
+publisher: first-party
+license: Proprietary
+compatibility:
+  studio: ">=0.1.0 <1.0.0"
+  pluginApi: "^1"
+capabilities: []
+runtime:
+  kind: browser-bundled
+ui:
+  module: ui/manifest.ts
+permissions:
+  required: []
+  optional: []

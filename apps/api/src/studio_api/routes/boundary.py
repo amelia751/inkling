@@ -33,7 +33,7 @@ def get_fingerprint(body: dict = Body(...), ctx: RequestContext = Depends(get_co
 @router.post("/fixtures")
 def get_fixtures(body: dict = Body(...), ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
     _need(ctx, "samples.inspect")
-    return boundary.request_fixtures(db, ctx, str(body.get("sample") or ""), int(body.get("count") or 3))
+    return boundary.request_fixtures(db, ctx, str(body.get("sample") or ""), int(body.get("count") or 3), body.get("generator"))
 
 
 @router.get("/fixtures/{fixture_set_id}/{name}")

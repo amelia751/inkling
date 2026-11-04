@@ -1,0 +1,10 @@
+{
+  "version": "0.1.0",
+  "passed": true,
+  "harness": "seed (hand-written; replace with the harness report of the first kept build)",
+  "tests": [
+    { "id": "boots", "passed": true, "hidden": false },
+    { "id": "grid-renders-rows", "passed": true, "hidden": false },
+    { "id": "row-label-roundtrip", "passed": true, "hidden": true }
+  ]
+}

@@ -472,6 +472,23 @@ worker runs it (`apps/worker/src/studio_worker/convert/`, `python -m studio_work
 wasmtime, with no network, and returns only a fixed-schema `ConversionSummary`. The same WASI
 module runs in Node or the browser through jco (`jco new --wasi-command` + `jco transpile`).
 
+### 9.6 Review before anything leaves preview (todo23 W9)
+
+The builder never approves its own work. A `reviewer` (and, for kits, a `red-team`) agent profile
+with its own principal (`agent:reviewer`, `agent:red-team`), no write tools and a model from
+another family (`AGENT_REVIEWER_MODEL`; startup fails if it shares `AGENT_MODEL`'s family) reads
+the diff, evaluation records, harness report and screenshots, then records a `review.v1`
+(`packages/contracts/src/review.ts`) with `POST /api/v1/projects/{id}/reviews` and writes
+adversarial tests to the kernel's hidden-tests store, which builder sessions can't read or write.
+Reviews are `artifact_reviews` rows per artifact version; the reviewer can't be the artifact's
+author (403). Promotion (§9.4) and preview Keep call `has_passing_review`
+(`apps/api/src/studio_api/kernel/reviews.py`): the latest review of that exact version must pass.
+`tests/review-canaries/` calibrates the reviewer. **Branch protection** (set in GitHub, not in the
+repo): `main` requires a pull request, passing checks and a code-owner approval
+(`.github/CODEOWNERS`: `packages/renderers`, `packages/ui`, `plugins/`); the assistant's bot
+identity has write access to open pull requests but is not a code owner and is not allowed to
+bypass the rules, so it can open PRs but never merge them.
+
 ## 10. Security and multi-tenancy
 
 **Threats:** malicious plugin package, prompt-injected skill instructions, dependency compromise, SSRF, cross-tenant asset access, API-key exfiltration, infinite job loops, surprise API charges, browser-origin compromise and unsafe migrations.

@@ -25,6 +25,7 @@ COPY tsconfig.base.json ./
 COPY schemas schemas
 # The preset intent table (todo11 D5), read at startup by the Studio tools.
 COPY registry/intents.json registry/intents.json
+COPY registry/recipes registry/recipes
 # esbuild bundle: dist/main.js, dist/scripts/{migrate,sweep}.js (the migrate Job, the sweeper CronJob).
 RUN pnpm --filter @studio/agent run build
 
@@ -50,6 +51,7 @@ COPY --from=build /repo/apps/agent/sandbox-image apps/agent/sandbox-image
 COPY --from=build /repo/apps/agent/NOTICE apps/agent/NOTICE
 COPY --from=build /repo/schemas schemas
 COPY --from=build /repo/registry/intents.json registry/intents.json
+COPY --from=build /repo/registry/recipes registry/recipes
 # Read-only root filesystem: run data (pi agent dir, scratch) under /tmp only.
 ENV NODE_ENV=production \
     STUDIO_ENV=production \

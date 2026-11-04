@@ -1,0 +1,57 @@
+{
+  "$schema": "studio://schema/environment/v1",
+  "id": "finance-prices",
+  "title": "Price chart",
+  "data": {
+    "kind": "studio.chart.dataKinds.series"
+  },
+  "viewports": [
+    {
+      "name": "main",
+      "renderer": "studio.chart.renderers.series",
+      "config": {
+        "time": "date",
+        "open": "open",
+        "high": "high",
+        "low": "low",
+        "close": "close",
+        "volume": "volume"
+      }
+    }
+  ],
+  "tools": [
+    "studio.core.tools.select",
+    "studio.core.tools.pan",
+    "studio.chart.tools.window",
+    "studio.chart.tools.event"
+  ],
+  "labels": [
+    {
+      "name": "marks",
+      "control": "TimeSeriesLabels",
+      "classes": [
+        {
+          "id": "window",
+          "color": "chart-1"
+        },
+        {
+          "id": "event",
+          "color": "chart-2"
+        }
+      ]
+    }
+  ],
+  "panels": {
+    "left": [
+      "studio.core.panels.files",
+      "studio.core.panels.labels"
+    ],
+    "right": [
+      "studio.core.panels.ai"
+    ]
+  },
+  "reviewRules": [
+    "studio.core.reviewRules.unlabeled-items"
+  ],
+  "layout": null
+}

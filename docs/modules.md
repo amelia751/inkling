@@ -296,7 +296,8 @@ The assistant (`studio.core.panels.ai`) and the dev API expose: `list_modules`,
 `pnpm mcp` starts a stdio MCP server (`apps/mcp/src/main.ts`) over a running dev server
 (`<envPrefix>WEB_URL`, e.g. `STUDIO_WEB_URL`; default `http://localhost:5173`). Tools: `list_projects`, `catalog`,
 `list_modules`, `describe_contribution`, `get_environment`, `validate_environment`,
-`patch_environment`, `set_environment`. Edits are validated by the app's resolver and saved
+`patch_environment`, `set_environment`, and the preview lifecycle (todo23 D8) `boot_preview`,
+`list_previews`, `keep_preview`, `discard_preview` over `/api/v1/projects/{id}/previews`. Edits are validated by the app's resolver and saved
 with author `agent:mcp`; the Studio shows them the next time the project opens.
 `get_environment` also returns `accepts` and `kinds` (each kind's renderer and preset).
 
@@ -348,6 +349,16 @@ export default { async render({ model, el, signal, host }) {
   // draw into el; host.annotations.propose([{ label, geometry: { type: "class" } }])
 } };
 ```
+
+Viewers look native (todo23 W2): the host injects the active theme into the View (token
+variables on `:root`, `data-theme`, and a stylesheet of styled elements: buttons, inputs,
+tables, tabs, `.badge`, `.empty-state`, `.error-state`), re-sends it on a theme switch
+(`ui/notifications/host-context-changed`), and exposes it as `host.theme` (`{ mode, vars }`).
+Both are generated from the Studio theme by `pnpm emit:schemas`
+(`packages/plugin-ui-sdk/src/viewer-theme.generated.ts`). `viewer-lint`
+(`packages/plugin-ui-sdk/src/viewer-lint.ts`; CLI `pnpm viewer-lint <dir> [--json]`; part of
+`run_plugin_checks`) rejects raw colours, px fonts and font families outside the tokens,
+network APIs, `eval`, click handlers a keyboard can't reach, and bundles over 2 MB (WASM counts).
 
 A declarative plugin ships it in `ui/contributions.json` as a viewport renderer, so no code
 reaches the main origin and the kernel signs it like any generated plugin:

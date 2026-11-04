@@ -1,0 +1,17 @@
+{
+  "name": "@studio/plugin-table",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "First-party plugin: see plugin.yaml and README.md",
+  "exports": {
+    "./*": "./ui/*"
+  },
+  "dependencies": {
+    "react": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "vitest": "^5.0.5"
+  }
+}

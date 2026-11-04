@@ -90,14 +90,18 @@ export function createBoundaryTools(k: KernelClient, deps: BoundaryDeps): ToolDe
       `Synthetic files with the sample's structure (same format, shapes, dtypes; noise, a phantom, edge values; placeholder header values), made from the fingerprint alone. ` +
       `They are copied into the build sandbox under ${deps.sourceDir}/${FIXTURES_DIR}/ for your tests. Real samples never enter the sandbox: test there on these, then verify_on_sample.`,
     promptSnippet: "Synthetic fixtures of a sample, copied into the build sandbox",
-    parameters: Type.Object({ sample: SAMPLE, count: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })) }),
+    parameters: Type.Object({
+      sample: SAMPLE,
+      count: Type.Optional(Type.Integer({ minimum: 1, maximum: 8 })),
+      generator: Type.Optional(Type.String({ description: "Fixture generator for a table (e.g. a plugin's; default profile-v1). You pick the generator; our worker picks the planted truth, which you never see." })),
+    }),
     async execute(_id, args, signal) {
       try {
         await fingerprint(args.sample, signal);
       } catch (err) {
         if (!(err instanceof KernelError)) throw err;
       }
-      const r = await k.post<{ job: unknown }>("/boundary/fixtures", { sample: args.sample, count: args.count ?? 3 }, signal);
+      const r = await k.post<{ job: unknown }>("/boundary/fixtures", { sample: args.sample, count: args.count ?? 3, ...(args.generator ? { generator: args.generator } : {}) }, signal);
       const v = await awaitJob(k, r.job, FixtureSet, deps, signal);
       if (!v.result) throw failed(v);
       const set = v.result;

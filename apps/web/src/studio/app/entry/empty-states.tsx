@@ -12,6 +12,7 @@ import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useShell } from "@/studio/stores/shell";
 import { useStudio } from "@/studio/stores/studio";
 import { pickedFrom, useDropFiles, type DropOrigin } from "./drop-adapter";
+import type { Picked } from "@/studio/lib/uploads/walk";
 import { usePendingAsks } from "./pending-ask";
 import { feature } from "@/studio/lib/features";
 import { newDropId } from "@/studio/core/drops/api";
@@ -65,13 +66,12 @@ function useAskInDrawer(projectId: string) {
  * chat drops on, shared in the project's conversation; otherwise through the tray, the message
  * waiting for the upload (todo24 D2).
  */
-function useChatFiles(projectId: string) {
+export function useChatDrop(projectId: string) {
   const drop = useDropFiles();
   const queue = usePendingAsks((s) => s.queue);
   const setAssistant = useShell((s) => s.setAssistant);
-  return async (files: ComposerFiles, message: string) => {
-    startTimeline("overview");
-    const picked = await pickedFrom(files);
+  return async (picked: Picked, message = "", timelineStarted = false) => {
+    if (!timelineStarted) startTimeline("overview");
     if (!picked.files.length) return;
     const text = message.trim();
     setAssistant(true);
@@ -83,6 +83,14 @@ function useChatFiles(projectId: string) {
       return;
     }
     await drop({ projectId, picked, origin: "files", surface: "overview", timelineStarted: true, onUploadKey: (key) => text && queue(projectId, text, undefined, { key }) });
+  };
+}
+
+function useChatFiles(projectId: string) {
+  const send = useChatDrop(projectId);
+  return async (files: ComposerFiles, message: string) => {
+    startTimeline("overview");
+    await send(await pickedFrom(files), message, true);
   };
 }
 

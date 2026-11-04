@@ -21,7 +21,7 @@ import {
   type IconComponent,
   LicenseIcon,
 } from "@studio/ui/icons";
-import { ProjectEmptyState } from "@/studio/app/entry/empty-states";
+import { ProjectEmptyState, useChatDrop } from "@/studio/app/entry/empty-states";
 import { useDropFiles } from "@/studio/app/entry/drop-adapter";
 import type { Picked } from "@/studio/lib/uploads/walk";
 import { AppLayout } from "@/studio/components/layout/app-layout";
@@ -58,11 +58,12 @@ export function ProjectOverviewPage() {
   // todo13: drops on Overview go through the entry drop adapter (one way in).
   const dropFiles = useDropFiles();
   const addData = (picked: Picked) => dropFiles({ projectId, picked, origin: "files", surface: "overview" });
+  const chatDrop = useChatDrop(projectId);
   const o = overview.data;
 
   return (
     <AppLayout>
-      <DropOverlay label={o?.project.title ?? "this project"} onDrop={(p) => void addData(p)} className="min-h-full">
+      <DropOverlay label={o?.project.title ?? "this project"} onDrop={(p) => void (o?.empty ? chatDrop(p) : addData(p))} className="min-h-full">
         <div className="mx-auto w-full max-w-6xl px-4 py-5 md:px-6 md:py-6" data-testid="overview">
           {overview.error ? (
             <ErrorView variant="section" error={overview.error} what="project" onRetry={() => void overview.refetch()} />

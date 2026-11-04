@@ -2,6 +2,7 @@ import { Component, Suspense, useEffect, useState, useSyncExternalStore, type Er
 import { useLocation } from "react-router";
 import { registry } from "@/extension-host/registry";
 import { isSafeMode, safeHref } from "@/studio/lib/safe-mode";
+import { describeError } from "@/studio/lib/errors";
 import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { Loader } from "@studio/ui/ui/loader";
 import { Skeleton, SkeletonText } from "@studio/ui/ui/skeleton";
@@ -79,6 +80,17 @@ export function PanelBodySkeleton() {
 export function SlotFailed({ kind, id, message, onRetry }: { kind: SlotKind; id: string; message: string; onRetry?: () => void }) {
   const safe = isSafeMode(useLocation().search);
   const viewport = kind === "viewport";
+  const d = describeError(new Error(message));
+  if (d.name === "stale")
+    return (
+      <div className={viewport ? "flex h-full w-full flex-col items-center justify-center gap-3 bg-canvas p-6 text-center text-sm text-canvas-foreground/80" : "flex flex-col gap-2 p-3 text-sm"} data-testid="slot-failed" data-slot-id={id} data-stale role="alert">
+        <div className="font-medium">{d.title}</div>
+        <div className={viewport ? "max-w-md text-canvas-foreground/60" : "text-muted-foreground"}>{d.description}</div>
+        <Button size="sm" className="w-fit" onClick={() => window.location.reload()} data-testid="slot-reload">
+          Reload
+        </Button>
+      </div>
+    );
   return (
     <div
       className={viewport ? "flex h-full w-full flex-col items-center justify-center gap-3 bg-canvas p-6 text-center text-sm text-canvas-foreground/80" : "flex flex-col gap-2 p-3 text-sm"}

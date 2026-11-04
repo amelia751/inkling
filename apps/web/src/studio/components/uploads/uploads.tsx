@@ -112,6 +112,10 @@ export function DropOverlay({ onDrop, label, children, className }: { onDrop: (p
       onDragOver={(e) => {
         if (hasFiles(e.dataTransfer)) e.preventDefault();
       }}
+      onDropCapture={() => {
+        depth.current = 0;
+        setOver(false);
+      }}
       onDrop={async (e) => {
         if (!hasFiles(e.dataTransfer)) return;
         e.preventDefault();

@@ -109,10 +109,26 @@ class BoundaryRunner:
         fp, set_id = inp["fingerprint"], inp["fixtureSetId"]
         seed = fixtures.seed_for(set_id)
         listed = []
+        if (fp.get("table") or {}).get("profile") is not None:
+            return self._table_fixtures(job_id, inp, seed)
         for f in fixtures.synthesize(fp, int(inp.get("count") or 3), seed):
             meta = self._put(job_id, f"fixtures/{f['name']}", f["data"], f["mediaType"])
             listed.append({"name": f["name"], "bytes": meta["bytes"], "sha256": meta["sha256"], "mediaType": f["mediaType"], "variant": f["variant"]})
         return {"schema": "boundary.fixtures/v1", "fixtureSetId": set_id, "sampleId": inp["sampleId"], "fingerprintDigest": inp["fingerprintDigest"], "generator": fixtures.GENERATOR, "seed": seed, "fixtures": listed}
+
+    def _table_fixtures(self, job_id: str, inp: dict, seed: int) -> dict:
+        """todo23 W4: profile → fixtures with planted truth. The truth goes to the kernel's
+        verifier store; the response names it by id and digest only."""
+        set_id = inp["fixtureSetId"]
+        gen, made, truth = fixtures.synthesize_table(inp["fingerprint"], int(inp.get("count") or 3), seed, inp.get("generator"))
+        listed = []
+        for f in made:
+            meta = self._put(job_id, f"fixtures/{f['name']}", f["data"], f["mediaType"])
+            listed.append({"name": f["name"], "bytes": meta["bytes"], "sha256": meta["sha256"], "mediaType": f["mediaType"], "variant": f["variant"]})
+        meta = self._put(job_id, "truth", json.dumps(truth, sort_keys=True).encode(), "application/json")
+        plants = sum(len(p) for p in truth["fixtures"].values())
+        return {"schema": "boundary.fixtures/v1", "fixtureSetId": set_id, "sampleId": inp["sampleId"], "fingerprintDigest": inp["fingerprintDigest"], "generator": gen, "seed": seed, "fixtures": listed,
+                "truth": {"truthId": f"{set_id}-truth", "sha256": meta["sha256"], "plants": plants}}
 
     def probe(self, job_id: str, inp: dict, _timeout: int) -> dict:
         data = self._get(job_id, "sample")

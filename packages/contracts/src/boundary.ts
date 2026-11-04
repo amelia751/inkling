@@ -47,6 +47,53 @@ export const Endianness = z.enum(["little", "big", "none", "unknown"]);
 export const FORMAT_KINDS = ["dicom", "nifti", "hdf5", "npy", "npz", "csv", "tsv", "parquet", "json", "png", "jpeg", "tiff", "zip", "gzip", "text", "binary"] as const;
 export const SCRUB_PROFILES = ["dicom-ps3.15-annex-e-basic", "generic-structure-v1"] as const;
 
+// ---- Table profile (todo23 D5a) -------------------------------------------------------------
+
+/** A categorical value is shown only when it appears at least this many times (k-anonymity). */
+export const PROFILE_K = 10;
+/** What a rarer category, or any value that fails the free-text check, becomes: its count. */
+export const CATEGORY_PLACEHOLDER = /^<category:\d{1,9}>$/;
+export const LOGICAL_TYPES = ["integer", "number", "boolean", "date", "datetime", "categorical", "text", "identifier", "empty"] as const;
+export const CARDINALITY_BUCKETS = ["1", "2-10", "11-100", "101-1000", "1001-10000", ">10000"] as const;
+export const DATE_FREQUENCIES = ["sub-daily", "daily", "business-daily", "weekly", "monthly", "quarterly", "yearly", "irregular"] as const;
+
+/** One column's shape: never a raw value, except categories seen at least k = 10 times. */
+export const TableProfileColumn = z
+  .object({
+    name: SafeName,
+    logicalType: z.enum(LOGICAL_TYPES),
+    /** Screened as an identifier by its name or its values: nothing below is reported for it. */
+    identifier: z.boolean(),
+    /** Fraction of empty cells, rounded to 0.01. */
+    nullRate: z.number().min(0).max(1),
+    cardinality: z.enum(CARDINALITY_BUCKETS),
+    /** Numeric columns: coarse quantile edges (p5, p25, p50, p75, p95), rounded to 2 significant digits. */
+    quantiles: z.array(Finite).max(5).optional(),
+    /** Date columns: the range rounded to the month, and the typical spacing. */
+    dates: z
+      .object({ from: z.string().regex(/^\d{4}-\d{2}$/), to: z.string().regex(/^\d{4}-\d{2}$/), frequency: z.enum(DATE_FREQUENCIES) })
+      .strict()
+      .optional(),
+    /** Categorical columns: value → share, only values seen ≥ k times; rarer ones as `<category:N>`. */
+    categories: z
+      .array(z.object({ value: z.union([SafeName, z.string().regex(CATEGORY_PLACEHOLDER)]), share: z.number().min(0).max(1) }).strict())
+      .max(64)
+      .optional(),
+  })
+  .strict();
+
+export const TableProfile = z
+  .object({
+    /** Row count, rounded to 2 significant digits (and noised when `noise` is set). */
+    rows: Uint,
+    k: z.literal(PROFILE_K),
+    noise: z.boolean(),
+    columns: z.array(TableProfileColumn).max(512),
+  })
+  .strict()
+  .meta({ id: "BoundaryTableProfile" });
+export type TableProfile = z.infer<typeof TableProfile>;
+
 // ---- Fingerprint ----------------------------------------------------------------------------
 
 export const FingerprintField = z
@@ -83,7 +130,7 @@ export const Fingerprint = z
     fields: z.array(FingerprintField).max(512),
     arrays: z.array(FingerprintArray).max(64),
     table: z
-      .object({ columns: z.array(z.object({ name: SafeName, dtype: Dtype }).strict()).max(512), rows: Uint, delimiter: z.enum([",", "\t", ";", "|"]).nullable(), header: z.boolean() })
+      .object({ columns: z.array(z.object({ name: SafeName, dtype: Dtype }).strict()).max(512), rows: Uint, delimiter: z.enum([",", "\t", ";", "|"]).nullable(), header: z.boolean(), profile: TableProfile.optional() })
       .strict()
       .nullable(),
     dicom: z
@@ -116,7 +163,7 @@ export const Fixture = z
     bytes: Uint,
     sha256: Sha256,
     mediaType: z.string().regex(/^[a-z]+\/[a-z0-9.+-]{1,64}$/),
-    variant: z.enum(["noise", "phantom", "zeros", "edge-min", "edge-max"]),
+    variant: z.enum(["noise", "phantom", "zeros", "edge-min", "edge-max", "planted"]),
   })
   .strict();
 
@@ -129,6 +176,11 @@ export const FixtureSet = z
     generator: z.string().regex(/^[a-z0-9-]{1,32}$/),
     seed: Uint,
     fixtures: z.array(Fixture).min(1).max(16),
+    /**
+     * Tables: the planted truth (anomalies, regimes, events) our worker chose, stored where only
+     * the verifier reads it (todo23 D4). The builder gets its id and digest, never its contents.
+     */
+    truth: z.object({ truthId: OpaqueId, sha256: Sha256, plants: Uint }).strict().optional(),
   })
   .strict()
   .meta({ id: "BoundaryFixtureSet" });
@@ -310,4 +362,5 @@ export const BOUNDARY_SCHEMAS = {
   "build.v1.json": BuildResult,
   "job-summary.v1.json": JobSummary,
   "annotations.v1.json": FilteredAnnotations,
+  "table-profile.v1.json": TableProfile,
 } as const;

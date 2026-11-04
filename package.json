@@ -25,6 +25,7 @@
     "check:deploy-auth": "node tools/check-deploy-auth.mjs && node --test tools/check-deploy-auth.test.mjs",
     "check:python-imports": "uv run lint-imports",
     "check:writes": "uv run pytest tools/check-writes -q -s -p no:cacheprovider",
+    "viewer-lint": "node packages/plugin-ui-sdk/scripts/viewer-lint.mjs",
     "emit:schemas": "pnpm --filter @studio/web emit:schemas",
     "build:registry": "node tools/build-registry.mjs",
     "seeds": "uv run tools/fetch-seeds.py",

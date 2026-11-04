@@ -1,4 +1,4 @@
-import { MCP_APPS_PROTOCOL } from "@studio/plugin-ui-sdk/viewer";
+import { MCP_APPS_PROTOCOL, VIEWER_THEME_TOKENS, themeViewerDocument, type ViewerTheme } from "@studio/plugin-ui-sdk/viewer";
 
 /**
  * The host side of the MCP Apps bridge (modelcontextprotocol/ext-apps, spec 2026-01-26) for
@@ -42,6 +42,12 @@ export interface SandboxHostOptions {
   hostInfo: { name: string; version: string };
   /** Host context for `ui/initialize` (theme, container size, locale). */
   context: () => Record<string, unknown>;
+  /**
+   * The active Studio theme (todo23 W2). Injected into the View document (token variables and the
+   * styled-element stylesheet), sent as `hostContext.theme` / `styles.variables`, and re-sent with
+   * `ui/notifications/host-context-changed` on `themeChanged()`.
+   */
+  theme?: () => ViewerTheme;
   /** What the View shows: sent as the tool result's `structuredContent`. */
   state: () => Record<string, unknown>;
   /** Tool-call arguments sent as `tool-input`. */
@@ -68,6 +74,11 @@ export function createSandboxHost(o: SandboxHostOptions) {
   const reply = (id: JsonRpcMessage["id"], result: unknown) => post({ id, result });
   const fail = (id: JsonRpcMessage["id"], code: number, message: string) => post({ id, error: { code, message } });
 
+  const themeContext = () => {
+    const t = o.theme?.();
+    return t ? { theme: t.mode, styles: { variables: t.vars } } : {};
+  };
+
   const sendState = () => {
     notify("ui/notifications/tool-input", { arguments: o.input?.() ?? {} });
     notify("ui/notifications/tool-result", { content: [{ type: "text", text: "Viewer state" }], structuredContent: o.state() });
@@ -81,7 +92,7 @@ export function createSandboxHost(o: SandboxHostOptions) {
           protocolVersion: MCP_APPS_PROTOCOL,
           hostInfo: o.hostInfo,
           hostCapabilities: { serverTools: {}, logging: {}, sandbox: { csp: APPROVED_CSP, permissions: {} } },
-          hostContext: { displayMode: "inline", availableDisplayModes: ["inline"], platform: "web", ...o.context() },
+          hostContext: { displayMode: "inline", availableDisplayModes: ["inline"], platform: "web", ...o.context(), ...themeContext() },
         });
       case "tools/call": {
         const name = typeof params.name === "string" ? params.name : "";
@@ -112,7 +123,7 @@ export function createSandboxHost(o: SandboxHostOptions) {
     switch (m.method) {
       case "ui/notifications/sandbox-proxy-ready":
         initialized = false;
-        return notify("ui/notifications/sandbox-resource-ready", { html: o.html(), sandbox: "allow-scripts", csp: APPROVED_CSP, permissions: {} });
+        return notify("ui/notifications/sandbox-resource-ready", { html: viewHtml(o.html(), o.theme?.()), sandbox: "allow-scripts", csp: APPROVED_CSP, permissions: {} });
       case "ui/notifications/initialized":
         initialized = true;
         sendState();
@@ -134,6 +145,10 @@ export function createSandboxHost(o: SandboxHostOptions) {
       if (m.method && m.id !== undefined) void onRequest(m);
       else if (m.method) onNotification(m);
     },
+    /** The Studio theme changed: send the new variables (if the View is connected). */
+    themeChanged() {
+      if (initialized && o.theme) notify("ui/notifications/host-context-changed", themeContext());
+    },
     /** The item or labels changed: send the new state (if the View is connected). */
     update() {
       if (initialized) sendState();
@@ -150,3 +165,18 @@ export function createSandboxHost(o: SandboxHostOptions) {
 }
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** The View document as the proxy receives it: with the theme injected when there is one. */
+export const viewHtml = (html: string, theme: ViewerTheme | undefined) => (theme ? themeViewerDocument(html, theme) : html);
+
+/** The active theme of a document: `.dark` on `<html>` and the computed token variables (todo23 W2). */
+export function readStudioTheme(doc: Document = document): ViewerTheme {
+  const root = doc.documentElement;
+  const style = doc.defaultView?.getComputedStyle(root);
+  const vars: Record<string, string> = {};
+  for (const k of VIEWER_THEME_TOKENS) {
+    const v = style?.getPropertyValue(k).trim();
+    if (v) vars[k] = v;
+  }
+  return { mode: root.classList.contains("dark") ? "dark" : "light", vars };
+}

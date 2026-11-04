@@ -349,6 +349,16 @@ export default { async render({ model, el, signal, host }) {
 } };
 ```
 
+Viewers look native (todo23 W2): the host injects the active theme into the View (token
+variables on `:root`, `data-theme`, and a stylesheet of styled elements: buttons, inputs,
+tables, tabs, `.badge`, `.empty-state`, `.error-state`), re-sends it on a theme switch
+(`ui/notifications/host-context-changed`), and exposes it as `host.theme` (`{ mode, vars }`).
+Both are generated from the Studio theme by `pnpm emit:schemas`
+(`packages/plugin-ui-sdk/src/viewer-theme.generated.ts`). `viewer-lint`
+(`packages/plugin-ui-sdk/src/viewer-lint.ts`; CLI `pnpm viewer-lint <dir> [--json]`; part of
+`run_plugin_checks`) rejects raw colours, px fonts and font families outside the tokens,
+network APIs, `eval`, click handlers a keyboard can't reach, and bundles over 2 MB (WASM counts).
+
 A declarative plugin ships it in `ui/contributions.json` as a viewport renderer, so no code
 reaches the main origin and the kernel signs it like any generated plugin:
 

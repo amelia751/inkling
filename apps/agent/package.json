@@ -28,6 +28,7 @@
     "@studio/agent-protocol": "workspace:*",
     "@studio/contracts": "workspace:*",
     "@studio/observability-ts": "workspace:*",
+    "@studio/plugin-ui-sdk": "workspace:*",
     "@studio/studio-tools": "workspace:*",
     "@workos-inc/node": "^12.1.0",
     "hono": "4.13.14",

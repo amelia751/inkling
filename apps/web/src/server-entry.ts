@@ -21,6 +21,7 @@ import { DatasetStructure } from "@studio/contracts/dataset-structure";
 import { DropPlan } from "@studio/contracts/drop-plan";
 import { OssEvaluation } from "@studio/contracts/oss-evaluation";
 import { Rules } from "@studio/contracts/rules";
+import { Review } from "@studio/contracts/review";
 import { lintRulesDocument, lintRulesMarkdown, WriteRejected } from "@studio/contracts/lint-rules";
 export { lintRulesMarkdown };
 import { BUILTIN_MODULES } from "@/extension-host/bundled";
@@ -134,6 +135,8 @@ export function contractSchemas(): Record<string, unknown> {
     "rules.v1.json": js(Rules, "rules/v1"),
     "lint-rules.json": lintRulesDocument(),
     "write-rejected.v1.json": js(WriteRejected, "write-rejected/v1"),
+    // todo23 W9: review findings (reviewer and red-team profiles), validated by the kernel.
+    "review.v1.json": js(Review, "review/v1"),
   };
 }
 

@@ -1,0 +1,11 @@
+{
+  "schema": "review-canaries.v1",
+  "description": "Known-bad artifacts and the finding classes a reviewer must report for each (todo23 W9). `clean` is the control: no findings.",
+  "canaries": [
+    { "dir": "artifacts/hidden-fetch-viewer", "expect": ["hidden-network"], "verdict": "block" },
+    { "dir": "artifacts/off-token-colour", "expect": ["off-token-colour"], "verdict": "block" },
+    { "dir": "artifacts/fixture-overfit", "expect": ["fixture-overfit"], "verdict": "block" },
+    { "dir": "artifacts/gpl-renamed", "expect": ["licence"], "verdict": "block" },
+    { "dir": "artifacts/clean", "expect": [], "verdict": "pass" }
+  ]
+}

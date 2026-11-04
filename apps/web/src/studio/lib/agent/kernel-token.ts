@@ -24,6 +24,9 @@ export const KERNEL_SCOPES: Record<ProfileName, string[]> = {
   home: [],
   // todo23 W3: the scout reads only public package metadata; no project data scopes.
   scout: [],
+  // todo23 W9: reviewers read plugins and write only reviews and hidden tests (never the artifact).
+  reviewer: ["plugins.read", "reviews.read", "reviews.write"],
+  "red-team": ["plugins.read", "reviews.read", "reviews.write"],
 };
 
 const TTL_S = 3600;

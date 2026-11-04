@@ -196,7 +196,7 @@ export function createApp({ config, sessions, log, ready, verifier }: AppDeps): 
       provider: config.model.provider,
       model: config.model.id,
       sandbox: sessions.sandboxes?.provider.kind ?? "off",
-      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes)),
+      profiles: (Object.keys(PROFILES) as ProfileName[]).filter((p) => profileAvailable(PROFILES[p], !!sessions.sandboxes, !!config.reviewerModel)),
     };
     return c.json(status);
   });

@@ -67,6 +67,11 @@ const schema = z.object({
 
   AGENT_MODEL: z.string().default(DEFAULT_MODEL),
   AGENT_MODEL_ALLOWLIST: z.string().default(DEFAULT_ALLOWLIST),
+  /**
+   * todo23 W9 (D11): the reviewer and red-team profiles' model, `provider:model-id`, from a
+   * different family than AGENT_MODEL (startup fails otherwise). Unset: those profiles are off.
+   */
+  AGENT_REVIEWER_MODEL: z.string().optional(),
   AGENT_THINKING: z.enum(["off", "minimal", "low", "medium", "high"]).default("low"),
   OPENAI_API_KEY: optional,
   ANTHROPIC_API_KEY: optional,
@@ -182,6 +187,8 @@ export interface Config {
   /** How callers are identified (todo9 Phase 5); `workos` carries what verifying access tokens needs. */
   auth: { mode: "dev" } | { mode: "workos"; clientId: string; issuer: string | undefined; baseUrl: string | undefined };
   model: { provider: string; id: string; allowlist: string[]; thinking: Env["AGENT_THINKING"] };
+  /** todo23 W9: the reviewer/red-team model (`provider:model-id`), another family than `model`; undefined disables them. */
+  reviewerModel: string | undefined;
   providerKeys: Record<string, string>;
   /** Set when Vertex AI is configured (project and location); its "key" in providerKeys is the ADC marker. */
   vertex: { project: string; location: string } | undefined;
@@ -230,6 +237,30 @@ export const DEV_APPROVAL_SECRET = "dev-approval-secret-not-for-production";
 export const DEV_KERNEL_SERVICE_TOKEN = "dev-only-agent-service-token";
 
 export const SCRIPTED_PROVIDER = "scripted";
+
+/**
+ * todo23 D11: a model's family, so the reviewer never shares the builder's (model judges favour
+ * their own family's output). By model id first (Vertex serves several families), else provider.
+ */
+export function modelFamily(ref: string): string {
+  const [provider = "", ...rest] = ref.split(":");
+  const id = rest.join(":").toLowerCase();
+  const byId: [RegExp, string][] = [[/^claude/, "anthropic"], [/^(gpt|o\d|codex)/, "openai"], [/^gemini/, "google"], [/^muse/, "muse"]];
+  return byId.find(([re]) => re.test(id))?.[1] ?? provider;
+}
+
+/** AGENT_REVIEWER_MODEL: allowlisted and from another family than AGENT_MODEL. Scripted is exempt outside production. */
+export function checkReviewerModel(reviewer: string | undefined, builder: string, allowlist: string[], env: string): string | undefined {
+  if (!reviewer) return undefined;
+  const NAME = envName("AGENT_REVIEWER_MODEL");
+  if (reviewer === SCRIPTED_PROVIDER || builder === SCRIPTED_PROVIDER) {
+    if (env === "production") throw new ConfigError(`${NAME}=scripted (or a scripted ${envName("AGENT_MODEL")}) is for development and tests only`);
+    return reviewer === SCRIPTED_PROVIDER ? `${SCRIPTED_PROVIDER}:replay` : reviewer;
+  }
+  if (!allowlist.includes(reviewer)) throw new ConfigError(`${NAME} ${reviewer} is not in ${envName("AGENT_MODEL_ALLOWLIST")}`);
+  if (modelFamily(reviewer) === modelFamily(builder)) throw new ConfigError(`${NAME} ${reviewer} is the same model family as ${envName("AGENT_MODEL")} (${modelFamily(builder)}); the reviewer must come from another family`);
+  return reviewer;
+}
 /** pi's Vertex AI provider. Its key is the marker pi reads as "use Application Default Credentials". */
 export const VERTEX_PROVIDER = "google-vertex";
 export const VERTEX_ADC = "gcp-vertex-credentials";
@@ -258,6 +289,8 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   const allowlist = e.AGENT_MODEL_ALLOWLIST.split(",").map((s) => s.trim()).filter(Boolean);
   if (scripted) allowlist.push(`${provider}:${id}`);
   else if (!allowlist.includes(e.AGENT_MODEL)) throw new ConfigError(`${MODEL} ${e.AGENT_MODEL} is not in ${envName("AGENT_MODEL_ALLOWLIST")}`);
+
+  const reviewerModel = checkReviewerModel(e.AGENT_REVIEWER_MODEL, scripted ? SCRIPTED_PROVIDER : e.AGENT_MODEL, allowlist, e.ENV);
 
   const providerKeys: Record<string, string> = {};
   for (const p of PROVIDERS) {
@@ -317,6 +350,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
           ? { mode: "workos", clientId: e.AGENT_WORKOS_CLIENT_ID!, issuer: e.AGENT_WORKOS_ISSUER, baseUrl: e.AGENT_WORKOS_BASE_URL }
           : { mode: "dev" },
       model: { provider, id, allowlist, thinking: e.AGENT_THINKING },
+      reviewerModel,
       providerKeys,
       vertex,
       daytona: sandboxOn && e.DAYTONA_API_KEY

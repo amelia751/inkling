@@ -68,6 +68,21 @@ export const ENV_TOOLS: ToolDef[] = [
     inputSchema: obj({ projectId: { type: "string" }, spec: { type: "object" }, revision: REVISION }, ["projectId", "spec"]),
     annotations: hints("write", "PUT"),
   },
+  {
+    name: "get_review",
+    description:
+      "todo23 W9: the review.v1 verdicts and findings recorded for one artifact version (newest first) and whether the latest passed. An artifact without a passing review can't leave preview. Read-only; hidden tests are never returned here.",
+    inputSchema: obj(
+      {
+        projectId: { type: "string" },
+        kind: { type: "string", description: "plugin, preview, recipe…" },
+        id: { type: "string" },
+        version: { type: "string" },
+      },
+      ["projectId", "kind", "id", "version"],
+    ),
+    annotations: READ,
+  },
 ];
 
 /** todo23 W10: build and test tools. Local processes, so stdio only (refused over HTTP). */
@@ -88,6 +103,10 @@ export const HARNESS_TOOLS: ToolDef[] = [
   },
   { name: "get_job_status", description: "State of a long job (run_harness): running, done with its report, or failed.", inputSchema: obj({ jobId: { type: "string" } }, ["jobId"]), annotations: READ },
 ];
+
+/** `GET …/reviews?artifact=kind:id@version`, the kernel's review rows for one artifact version. */
+export const reviewPath = (a: { projectId: string; kind: string; id: string; version: string }) =>
+  `/api/v1/projects/${encodeURIComponent(a.projectId)}/reviews?artifact=${encodeURIComponent(`${a.kind}:${a.id}@${a.version}`)}`;
 
 
 /** Every tool, `project_context` first (D9). */
@@ -169,6 +188,8 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
         const v = await validate(r.data.effective);
         return { ok: true, data: { revision: r.data.revision, source: r.data.effective, resolved: v.data.resolved, errors: v.data.errors, ...studioKinds(v.data.resolved ?? r.data.effective) } };
       }
+      case "get_review":
+        return http("GET", reviewPath({ projectId: String(args.projectId), kind: String(args.kind), id: String(args.id), version: String(args.version) }));
       case "validate_environment":
         return validate(args.spec);
       case "run_harness":

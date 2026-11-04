@@ -20,6 +20,11 @@ describe("chatUploadsGate", () => {
     expect(g.note).not.toContain("scans");
   });
 
+  it("todo28 D8: goes once uploads land, with how many are still being checked", () => {
+    const g = chatUploadsGate([session({ phase: "checking", total: 2, files: [file("a.png", "uploaded"), file("b.png", "uploaded")] })]);
+    expect(g).toEqual({ ready: true, note: "(Attached 2 files, now in Sources: 2 .png.)\n(2 files still being checked)" });
+  });
+
   it("goes with no note when the uploads were dismissed", () => {
     expect(chatUploadsGate([undefined])).toEqual({ ready: true, note: "" });
   });

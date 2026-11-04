@@ -17,8 +17,7 @@ project the way the product did before todo13 (an upload, a dataset, a Studio), 
 database goes down to 0010 (before todo13) and back up through 0011/0012; then the API starts
 again with the flags on and the rest of the journeys run on that upgraded database.
 
-The uploader sends a big drop's first images as their own session (`priority: "first"`), so the
-J8 steps are the first part's; the rest streams in after (todo13 M4 item 2).
+Each file of a drop is shown as soon as it is checked (todo28 D1); there is no "first" part.
 
 Budgets gated here (§6): drop → drop card < 300 ms; drop → first file inspected < 3 s; J1 drop
 → first item interactive < 15 s (fast path); J4 second drop → plan card < 5 s after its first

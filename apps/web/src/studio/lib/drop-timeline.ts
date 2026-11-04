@@ -21,7 +21,10 @@ import { apiFetch } from "@/extension-host/http";
  *   (the server's own timestamps live in its `drop.*` log lines, §7.3);
  * - `studio:route-enter`, `studio:items-painted`, `studio:first-frame`: the Studio boot
  *   (`extension-host/boot-timing.ts`) after the gesture;
- * - `first-interactive`: the first frame of the first item (the J1 budget, §6).
+ * - `first-interactive`: the first frame of the first item (the J1 budget, §6);
+ * - `drop:first-in-studio`, `drop:settled` (todo28): the first file of the timeline's drop that
+ *   joined its Studio, and the moment every file of it ended (in a Studio, kept, failed), from
+ *   the drop's `drop.file` / `drop.settled` events or its summary, whichever comes first.
  *
  * At `first-interactive` (or when the page hides) the durations are posted once to
  * `POST /api/v1/telemetry/timeline`: step names and milliseconds, never a name or a count of
@@ -159,7 +162,21 @@ function watchBoot(): void {
 }
 
 /** Project stream events that tell the server's side of the story (first occurrence each). */
-export const SERVER_EVENTS = ["import.updated", "source.node.inspected", "boot.started", "boot.ready", "item.ready", "drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed"] as const;
+export const SERVER_EVENTS = ["import.updated", "source.node.inspected", "boot.started", "boot.ready", "item.ready", "drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed", "drop.kind_waiting", "drop.files_failed", "drop.settled"] as const;
+
+/** States a file of a drop ends in (todo28): nothing more will happen to it on its own. */
+const FILE_DONE = new Set(["in_studio", "ready", "kept", "failed", "duplicate", "removed", "deleted", "waiting_kind"]);
+
+/**
+ * todo28: what a fetched drop says about the timeline's drop: the first file in its Studio and
+ * the drop settled. Other drops (and no timeline) are ignored. Takes the kernel's drop loosely.
+ */
+export function noteDropProgress(d: { id: string; state?: string; files?: { state: string }[]; summary?: { inStudio?: number } } | undefined): void {
+  if (!d || !live() || !current?.dropId || current.dropId !== d.id) return;
+  const files = d.files ?? [];
+  if ((d.summary?.inStudio ?? 0) > 0 || files.some((f) => f.state === "in_studio")) markTimeline("drop:first-in-studio");
+  if (files.length && files.every((f) => FILE_DONE.has(f.state))) markTimeline("drop:settled");
+}
 
 /** Called by the project stream's subscriber (`useTimelineServerEvents`). */
 export function onServerEvent(type: string, data: unknown): void {
@@ -169,6 +186,12 @@ export function onServerEvent(type: string, data: unknown): void {
     if (typeof id === "string") setTimelineDrop(id);
   }
   markTimeline(`server:${type}`);
+  // todo28: time to the first item in the Studio, and to the drop settled.
+  const e = data as { dropId?: unknown; state?: unknown } | null;
+  if (current?.dropId && e?.dropId === current.dropId) {
+    if (type === "drop.file" && e.state === "in_studio") markTimeline("drop:first-in-studio");
+    if (type === "drop.settled") markTimeline("drop:settled");
+  }
 }
 
 if (typeof window !== "undefined") {

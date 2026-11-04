@@ -56,6 +56,10 @@ export const FORWARDED = [
   "drop.planned",
   "drop.applied",
   "drop.failed",
+  // todo28: per-file progress milestones (the drop card, the open Studio and the timeline follow them).
+  "drop.kind_waiting",
+  "drop.files_failed",
+  "drop.settled",
   // todo25 W5: a job committed AI suggestions (the open Studio pulls them, lib/live-suggestions.ts).
   "annotations.committed",
   "job.succeeded",
@@ -89,11 +93,20 @@ const connections = new Map<string, Connection>();
 /** Last event id seen per project: a reopened stream continues from there (`?after=`). */
 const lastIds = new Map<string, string>();
 let client: QueryClient | null = null;
+/** Projects whose stream is open right now (todo28 W4: pollers back off while events flow). */
+const openStreams = new Set<string>();
+
+/** Whether this page's project stream is connected (events arrive; polling can rest). */
+export function projectStreamOpen(projectId: string | undefined): boolean {
+  return !!projectId && openStreams.has(projectId);
+}
 
 function open(projectId: string): EventSource {
   const after = lastIds.get(projectId);
   // No headers on an EventSource: the dev principal rides in the URL (the Vite proxy makes it a header).
   const es = new EventSource(withDevPrincipal(apiUrl(`/v1/projects/${encodeURIComponent(projectId)}/events${after ? `?after=${encodeURIComponent(after)}` : ""}`)));
+  es.addEventListener("open", () => openStreams.add(projectId));
+  es.addEventListener("error", () => openStreams.delete(projectId));
   const seen = (e: Event) => {
     const id = (e as MessageEvent).lastEventId;
     if (id) lastIds.set(projectId, id);
@@ -137,6 +150,7 @@ export function useProjectEvents(projectId: string | undefined) {
       conn.close = setTimeout(() => {
         if (conn.refs > 0) return;
         conn.es.close();
+        openStreams.delete(projectId);
         if (connections.get(projectId) === conn) connections.delete(projectId);
       }, LINGER_MS);
     };

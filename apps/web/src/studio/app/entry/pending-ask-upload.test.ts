@@ -11,8 +11,11 @@ const file = (relPath: string, state: TrayFile["state"]): TrayFile => ({ clientF
 const session = (p: Partial<TraySession>): TraySession => ({ key: "upload-1", projectId: "p1", title: "x", phase: "uploading", total: 3, prepared: 3, skippedJunk: 0, files: [], ...p });
 
 describe("todo24 D2: uploadGate", () => {
-  it("holds while bytes move or the kernel checks them", () => {
-    for (const phase of ["attesting", "preparing", "uploading", "checking"] as const) expect(uploadGate(session({ phase })).ready).toBe(false);
+  it("holds while bytes move, never for the check (todo28 D8)", () => {
+    for (const phase of ["attesting", "preparing", "uploading"] as const) expect(uploadGate(session({ phase })).ready).toBe(false);
+    expect(uploadGate(session({ phase: "checking", total: 12, files: [] }))).toEqual({ ready: true, note: "(12 files still being checked)" });
+    expect(uploadGate(session({ phase: "checking", files: [file("a.jpg", "uploaded")] })).note).toBe("(1 file still being checked)");
+    expect(uploadGate(session({ phase: "checking", total: 3, files: [file("a.jpg", "uploaded"), file("b.jpg", "uploaded"), file("c.avi", "failed")] })).note).toBe("(1 of 3 files didn't upload: 1 .avi.)\n(2 files still being checked)");
     // absorb's moment between registering and uploading is not a failure.
     expect(uploadGate(session({ phase: "failed" })).ready).toBe(false);
   });
@@ -60,12 +63,19 @@ describe("todo24 D2: the queued message waits for its upload", () => {
     usePendingAsks.getState().queue("p1", "Label these", undefined, { key: "upload-1" });
     act(() => root.render(createElement(Probe)));
     expect(sent).toEqual([]);
-    act(() => useUploads.setState({ sessions: [session({ phase: "checking", total: 2 })] }));
-    expect(sent).toEqual([]);
     act(() => useUploads.setState({ sessions: [session({ phase: "done", total: 2, files: [file("a.jpg", "uploaded"), file("b.avi", "failed")] })] }));
     expect(sent).toEqual(["Label these\n\n(1 of 2 files didn't upload: 1 .avi.)"]);
     act(() => useUploads.setState({ sessions: [] }));
     expect(sent).toHaveLength(1);
+  });
+
+  it("todo28 D8: goes once the bytes are in, saying how many are still being checked", () => {
+    useUploads.setState({ sessions: [session({ phase: "uploading", total: 2 })] });
+    usePendingAsks.getState().queue("p1", "Label these", undefined, { key: "upload-1" });
+    act(() => root.render(createElement(Probe)));
+    expect(sent).toEqual([]);
+    act(() => useUploads.setState({ sessions: [session({ phase: "checking", total: 2, files: [file("a.jpg", "uploaded"), file("b.jpg", "uploaded")] })] }));
+    expect(sent).toEqual(["Label these\n\n(2 files still being checked)"]);
   });
 
   it("a message without an upload goes at once", () => {

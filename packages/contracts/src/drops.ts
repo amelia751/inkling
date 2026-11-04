@@ -51,6 +51,7 @@ export interface DropOrigin {
    * `"first"`: this session holds a big drop's first files (todo13 M4). The kernel inspects it
    * ahead of older work and classifies it without waiting for the rest of the drop, so the
    * fast path can open a Studio while the rest uploads; the rest gets a follow-up plan.
+   * @deprecated todo28: the web no longer sends it; per-file readiness covers it.
    */
   priority?: "first";
 }

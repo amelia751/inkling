@@ -20,8 +20,9 @@ export interface PendingDrop {
 
 /**
  * todo24 D2: the tray upload the message waits for (Home's drop with chat drops off). The
- * message is sent only once that session stops moving, so the assistant never answers before
- * the files it's about are committed (or have definitively failed).
+ * message is sent once that session's bytes are in (todo28 D8: uploaded, not checked), so the
+ * assistant never answers before the files it's about are committed (or have definitively
+ * failed), and never waits on the slowest file's check either.
  */
 export interface PendingUpload {
   key: string;
@@ -82,13 +83,14 @@ export const usePendingAsks = create<PendingAsks>((set, get) => ({
 
 type GateSession = Pick<TraySession, "phase" | "error" | "stalled" | "files" | "total">;
 
-/** Phases where bytes are still moving or the kernel is still checking them. */
-const MOVING = new Set(["attesting", "preparing", "uploading", "checking"]);
+/** Phases where bytes are still moving (todo28 D8: `checking` isn't one; the message goes then). */
+const MOVING = new Set(["attesting", "preparing", "uploading"]);
 
 /**
  * todo24 D2: whether a message waiting on an upload session may go, and what to add to it about
- * files that didn't make it. No session (dismissed, or the tab reloaded) or a stalled check:
- * go now rather than hold the message forever. `failed` with no error is `absorb`'s moment
+ * files that didn't make it, and (todo28 D8) how many are still being checked: "(12 files still
+ * being checked)". No session (dismissed, or the tab reloaded) or a stall: go now rather than
+ * hold the message forever. `failed` with no error is `absorb`'s moment
  * between registering and uploading, not a failure. File names never go in the note (only
  * counts and extensions): the assistant reads screened names from the kernel, not the browser.
  */
@@ -96,8 +98,9 @@ export function uploadGate(s: GateSession | undefined): { ready: boolean; note: 
   if (!s) return { ready: true, note: "" };
   const moving = MOVING.has(s.phase) || (s.phase === "failed" && !s.error);
   if (moving && !s.stalled) return { ready: false, note: "" };
+  const checking = s.phase === "checking" ? stillChecking(s) : "";
   const missed = s.files.length ? s.files.filter((f) => f.state === "failed" || f.state === "rejected" || f.state === "pending").map((f) => f.relPath) : s.phase === "failed" || s.phase === "cancelled" ? Array.from({ length: s.total }, () => "") : [];
-  if (!missed.length) return { ready: true, note: "" };
+  if (!missed.length) return { ready: true, note: checking };
   const total = Math.max(s.total, s.files.length);
   const exts = new Map<string, number>();
   for (const p of missed) {
@@ -106,7 +109,13 @@ export function uploadGate(s: GateSession | undefined): { ready: boolean; note: 
   }
   const kinds = [...exts].map(([e, n]) => `${n} ${e}`).join(", ");
   const head = missed.length === total ? `None of the ${total} ${total === 1 ? "file" : "files"} uploaded` : `${missed.length} of ${total} files didn't upload`;
-  return { ready: true, note: `(${head}${kinds ? `: ${kinds}` : ""}.)` };
+  return { ready: true, note: [`(${head}${kinds ? `: ${kinds}` : ""}.)`, checking].filter(Boolean).join("\n") };
+}
+
+/** "(12 files still being checked)": the session's uploaded files the kernel hasn't finished. */
+function stillChecking(s: GateSession): string {
+  const n = s.files.length ? s.files.filter((f) => f.state === "uploaded").length : s.total;
+  return n ? `(${n} ${n === 1 ? "file" : "files"} still being checked)` : "";
 }
 
 /** The queued text with what didn't upload appended. */

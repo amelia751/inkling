@@ -5,14 +5,14 @@ import { CloseIcon, ErrorIcon, WarningIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { cn } from "@studio/ui/utils";
-import type { DropFileState } from "@studio/contracts/drops";
 import { guessKind, kindIcon } from "@/studio/lib/file-kinds";
 import { formatBytes } from "@/studio/lib/format";
 import { filesUrl } from "@/studio/lib/routes";
 import { fromFileList } from "@/studio/lib/uploads/walk";
 import { dropsApi } from "./api";
 import { dropKeys, useDropChips, useDropEvents, type Chip } from "./hooks";
-import { failureText } from "@/studio/stores/uploads";
+import { dropCounts, dropHeadline, waitingText, type ChipState, type DropProgressSummary } from "./progress";
+import { failureText, useUploads } from "@/studio/stores/uploads";
 import { findingLine, renamedExample } from "@/studio/lib/findings";
 import { dismissDrop, resumeDrop } from "./start";
 import { useDrops } from "./store";
@@ -23,13 +23,20 @@ import { useDrops } from "./store";
  * browser, a thumbnail from their own file. In a sent message a file can be removed from the
  * chat (the reference only: the File stays in Files, D4). After a reload an unfinished drop asks
  * for the same files again and resumes from the server's offset.
+ *
+ * todo28 D8: the headline comes from counts ("12 in the Studio · 22 checking · 1 kept in
+ * Sources"), never one "Checking" for the whole drop; a file that retries or waits for its kind
+ * says so, and while the rights dialog is open the card says "Waiting for you to confirm".
  */
 
-const STATE_TEXT: Record<DropFileState | "preparing", string> = {
+const STATE_TEXT: Record<ChipState, string> = {
+  confirming: "Waiting for you to confirm",
   preparing: "Preparing",
   uploading: "Uploading",
   checking: "Checking",
   ready: "Ready",
+  in_studio: "In the Studio",
+  waiting_kind: "Waiting for the assistant",
   kept: "Kept in Sources",
   failed: "Didn't upload",
   duplicate: "Already in Sources",
@@ -51,7 +58,10 @@ export interface DropCardProps {
 
 export function DropCard({ dropId, projectId, variant = "message", onCancel, canEdit = true }: DropCardProps) {
   useDropEvents(projectId);
-  const { local, server, trays, chips, interrupted, missing } = useDropChips(dropId);
+  const { local, server, trays, chips: raw, interrupted, missing } = useDropChips(dropId);
+  // todo26 W2d: the rights dialog for this project is open: the files wait on the person.
+  const confirming = useUploads((s) => s.attestation?.projectId === projectId);
+  const chips = confirming ? raw.map((c) => (c.state === "preparing" ? { ...c, state: "confirming" as const } : c)) : raw;
   const dismissed = useDrops((s) => !!s.dismissed[dropId]);
   const qc = useQueryClient();
   const [showAll, setShowAll] = useState(false);
@@ -60,6 +70,7 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
   const shown = showAll ? chips : chips.slice(0, MAX_CHIPS);
   const total = chips.reduce((n, c) => n + c.size, 0);
   const overall = interrupted ? "interrupted" : local?.error ? "failed" : paused ? "paused" : summaryState(chips);
+  const headline = overall === "interrupted" || overall === "paused" || (overall === "failed" && local?.error) ? OVERALL_TEXT[overall] : dropHeadline(dropCounts(chips, server?.summary as DropProgressSummary | undefined));
   const again = (list: FileList) => {
     if (local) void resumeDrop(local, fromFileList(list));
   };
@@ -76,7 +87,7 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
       <div className="flex items-center gap-2 px-0.5 text-caption text-hint">
         <span className="min-w-0 flex-1 truncate" data-testid="drop-card-summary">
           {chips.length.toLocaleString()} {chips.length === 1 ? "file" : "files"}
-          {total ? ` · ${formatBytes(total)}` : ""} · {OVERALL_TEXT[overall]}
+          {total ? ` · ${formatBytes(total)}` : ""} · {headline}
         </span>
         {variant === "composer" && onCancel && (
           <Button variant="ghost-secondary" size="icon-xs" onClick={onCancel} aria-label="Remove these files" data-testid="drop-cancel">
@@ -163,26 +174,37 @@ export function DropCard({ dropId, projectId, variant = "message", onCancel, can
   );
 }
 
+/** The headline when the drop as a whole stopped (otherwise it's the counts, `dropHeadline`). */
 const OVERALL_TEXT: Record<string, string> = {
-  preparing: "Preparing",
-  uploading: "Uploading",
-  checking: "Checking",
-  ready: "Ready",
-  partly_ready: "Some files didn't upload",
-  duplicate: "Already in this project",
   failed: "Some files didn't upload",
   interrupted: "Not uploaded",
   paused: "Paused",
-  empty: "Nothing to share",
 };
 
-function summaryState(chips: Chip[]): string {
+/**
+ * The card's `data-state`: where the drop stands as a whole, for tests and styling. Never
+ * "checking" once a file is ready: a drop with ready files is `filling`.
+ */
+export function summaryState(chips: Pick<Chip, "state">[]): string {
   if (!chips.length) return "empty";
+  if (chips.some((c) => c.state === "confirming")) return "confirming";
+  const ready = chips.some((c) => c.state === "ready" || c.state === "in_studio" || c.state === "waiting_kind");
+  const moving = chips.some((c) => c.state === "preparing" || c.state === "uploading" || c.state === "checking");
+  if (ready && moving) return "filling";
   if (chips.some((c) => c.state === "preparing")) return "preparing";
   if (chips.some((c) => c.state === "uploading")) return "uploading";
   if (chips.some((c) => c.state === "checking")) return "checking";
   if (chips.every((c) => c.state === "failed")) return "failed";
   return "ready";
+}
+
+/** What one chip says under its name (todo28: retrying and waiting-for-a-kind files say so). */
+export function chipText(chip: Pick<Chip, "state" | "progress" | "reason" | "retrying" | "kind">): string {
+  if (chip.state === "uploading" && chip.progress !== undefined) return `${Math.round(chip.progress * 100)}%`;
+  if (chip.state === "failed" && chip.reason) return chip.reason;
+  if (chip.state === "checking" && chip.retrying) return "Still checking (retrying)";
+  if (chip.state === "waiting_kind") return waitingText(chip.kind);
+  return STATE_TEXT[chip.state];
 }
 
 function DropChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
@@ -191,9 +213,9 @@ function DropChip({ chip, onRemove }: { chip: Chip; onRemove?: () => void }) {
   const [broken, setBroken] = useState(false);
   // A local preview only for what really is an image (a `.png` that's a ZIP gets its kind's icon).
   const preview = chip.preview && !gone && !broken && !chip.looksLike && (!chip.kind || chip.kind === "image") ? chip.preview : undefined;
-  const text = chip.state === "uploading" && chip.progress !== undefined ? `${Math.round(chip.progress * 100)}%` : chip.state === "failed" && chip.reason ? chip.reason : STATE_TEXT[chip.state];
+  const text = chipText(chip);
   return (
-    <li className={cn("group relative flex min-w-0 items-center gap-2 rounded-lg bg-generic p-1.5 pr-2", gone && "opacity-60")} data-testid="drop-chip" data-state={chip.state} data-node-id={chip.nodeId ?? undefined}>
+    <li className={cn("group relative flex min-w-0 items-center gap-2 rounded-lg bg-generic p-1.5 pr-2", gone && "opacity-60")} data-testid="drop-chip" data-state={chip.state} data-retrying={chip.retrying ? "true" : undefined} data-node-id={chip.nodeId ?? undefined}>
       <span className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-background text-hint">
         {preview ? <img src={preview} alt="" className="size-full object-cover" onError={() => setBroken(true)} /> : <Icon className="size-4" />}
         {chip.state === "uploading" && chip.progress !== undefined && (

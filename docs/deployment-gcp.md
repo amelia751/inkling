@@ -391,6 +391,16 @@ synthetic data only until the perimeter is enforced (todo10 A9)**.
 - Cloud Run caps an HTTP/1 request body at 32 MiB, so large uploads must arrive in chunks.
 - The perimeter must list `run.googleapis.com` among its restricted services before it is enforced.
 
+### Stage flags and name (todo24)
+
+The api's todo13 flags (`chatDrops`, `autoApply`, `fastPath`, `datasetsTab`) default to off when
+`STUDIO_ENV=production`, which every Cloud Run stage sets. A stage turns them on with the `phi`
+variable `features` (a map of flag to bool, emitted as `STUDIO_API_FEATURE_<FLAG>`). Staging runs
+what we demo and test: `features = { chat_drops = true, auto_apply = true, fast_path = true }`
+(todo24 D1); production keeps the defaults until we decide otherwise, and `datasets_tab` stays off.
+The product name a stage shows is `display_name` (`STUDIO_DISPLAY_NAME`); leave it empty to use
+`NAMING.displayName`. After an apply, check `GET /api/v1/features` and `/config.json`.
+
 ## Sample templates
 
 Sample projects (todo14 §3, §4.3) are templates in the Samples organization; "Try a sample"

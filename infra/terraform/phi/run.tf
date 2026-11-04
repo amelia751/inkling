@@ -179,6 +179,14 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "STUDIO_API_CREATE_TABLES"
         value = "0"
       }
+      # todo24 D1: the stage's feature flags (var.features); unset flags keep the production default.
+      dynamic "env" {
+        for_each = var.features
+        content {
+          name  = "STUDIO_API_FEATURE_${upper(env.key)}"
+          value = env.value ? "1" : "0"
+        }
+      }
       # Sign-in (todo9, todo22 D1): WorkOS only.
       env {
         name  = "STUDIO_API_AUTH_MODE"

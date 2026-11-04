@@ -13,6 +13,16 @@ variable "display_name" {
   default     = ""
 }
 
+variable "features" {
+  description = "todo13 feature flags the api turns on or off in this stage (chat_drops, auto_apply, fast_path, datasets_tab → STUDIO_API_FEATURE_<FLAG>). Unset flags keep the api's default (off in production). Staging sets { chat_drops = true, auto_apply = true, fast_path = true } (todo24 D1)."
+  type        = map(bool)
+  default     = {}
+  validation {
+    condition     = alltrue([for k in keys(var.features) : contains(["chat_drops", "auto_apply", "fast_path", "datasets_tab"], k)])
+    error_message = "features keys are chat_drops, auto_apply, fast_path, datasets_tab."
+  }
+}
+
 variable "image_tag" {
   description = "Tag of every Studio image in the `images` registry (immutable tags: the git SHA CI pushed)."
   type        = string

@@ -1,4 +1,5 @@
 import { Type } from "typebox";
+import labelsPatchExample from "./labels-patch-example.json" with { type: "json" };
 
 /**
  * The four Studio tools (todo11 D10, Milestone 2 item 5), framework-neutral: typebox schemas
@@ -36,6 +37,20 @@ export const ItemFilter = Type.Object(
 );
 export type ItemFilter = Type.Static<typeof ItemFilter>;
 
+/**
+ * todo24 W6: the label set a model writes on its first try. A boot's base is only
+ * `{extends: <preset>}`, so `replace` or `/labels/-` fail; `control` is the short name
+ * (`Choices`, not the catalogue id); classes need `id`. apps/api tests check it against the
+ * environment policy (`test_agent_label_example.py`).
+ */
+export const LABELS_PATCH_EXAMPLE = labelsPatchExample;
+
+const BOOT_PATCH_HELP =
+  "JSON Patch on top of the preset. The base is only {extends: preset}, so use add (never replace, never /labels/-). " +
+  `Labels: ${JSON.stringify(LABELS_PATCH_EXAMPLE)}. ` +
+  "control is a short name: Choices (one class per image; multiple: true for several), Labels, RectangleLabels, PolygonLabels, EllipseLabels, KeyPointLabels, BrushLabels. Each class needs an id; color is optional. " +
+  'Title: {"op":"add","path":"/title","value":"Chest X-ray triage"}.';
+
 export const BootStudioArgs = Type.Object(
   {
     projectId: Type.Optional(Type.String({ description: "Omit in the app (the session has one project)." })),
@@ -45,7 +60,7 @@ export const BootStudioArgs = Type.Object(
       Type.Array(kindRef, { minItems: 1, maxItems: 32, description: "Data kinds the Studio's task takes (one Studio over all of them; each kind gets its profile). Omit: every kind the project's data has." }),
     ),
     filter: Type.Optional(ItemFilter),
-    patch: Type.Optional(patchList("JSON Patch on top of the preset: labels, title, layout.")),
+    patch: Type.Optional(patchList(BOOT_PATCH_HELP)),
     files: Type.Optional(Type.Array(Type.String(), { maxItems: 500, description: "File node ids for the task's data." })),
     folders: Type.Optional(Type.Array(Type.String(), { maxItems: 50, description: "Folder node ids for the task's data." })),
     name: Type.Optional(Type.String({ maxLength: 120, description: "Task name, e.g. 'Chest X-ray triage'." })),
@@ -121,7 +136,7 @@ export const STUDIO_TOOLS = [
     name: "patch_studio",
     label: "Changing Studio",
     description:
-      "Apply a small JSON Patch to a task's Studio setup at the revision you read; errors come back with paths. A kind's view (renderer, config, tools, panels) is at /data/kinds/<kind id>.",
+      "Apply a small JSON Patch to a task's Studio setup at the revision you read; errors come back with paths. A kind's view (renderer, config, tools, panels) is at /data/kinds/<kind id>. Labels are /labels, a list of groups {name, control (short name, e.g. Choices), classes: [{id, name}]}: add the whole list when the Studio has none.",
     parameters: PatchStudioArgs,
   },
   {

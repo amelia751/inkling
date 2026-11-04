@@ -9,6 +9,7 @@ import { sessionTools } from "@/studio/lib/agent/session";
 import { kernelToken } from "@/studio/lib/agent/kernel-token";
 import { api } from "@/studio/lib/projects-api";
 import type { CreateSessionResponse, RefreshTokenTool, AgentCard, DatasetSnapshot as AgentContext, AgentEvent, ApprovalDetail, ClientToolSpec, ProfileName, RunStatus, SandboxState } from "@studio/agent-protocol";
+import { toolSummaryText } from "@studio/studio-tools/tool-summary";
 
 /** `undone`: an applied card whose change was reverted from the card (reorganization plans). */
 export type CardState = "open" | "applied" | "dismissed" | "undone";
@@ -231,8 +232,8 @@ const streamed = new Map<string, { projectId: string; messageId: string; chatId:
 const plainSummary = (output: unknown): string | undefined => {
   if (!output || typeof output !== "object") return undefined;
   const o = output as { error?: unknown; errors?: unknown[] };
-  if (o.error) return String(o.error).slice(0, 120);
-  if (Array.isArray(o.errors)) return `${o.errors.length} error${o.errors.length === 1 ? "" : "s"}`;
+  // todo24 W6: a sentence, never the error body.
+  if (o.error || Array.isArray(o.errors)) return toolSummaryText(JSON.stringify(output));
   return undefined;
 };
 
@@ -266,7 +267,7 @@ export function reduce(m: ChatMessage, e: AgentEvent): ChatMessage {
       if (i >= 0) {
         const p = parts[i] as Extract<MessagePart, { type: "tool" }>;
         // A summary the browser already set (card and environment tools) is more specific than the service's.
-        parts[i] = { ...p, status: e.ok ? "done" : "error", summary: p.summary ?? e.summary, input: e.input };
+        parts[i] = { ...p, status: e.ok ? "done" : "error", summary: p.summary ?? (e.summary ? toolSummaryText(e.summary) : e.summary), input: e.input };
       }
       // todo18 D: approved, then the tool failed (target gone): the card says so.
       if (!e.ok) {

@@ -1,5 +1,6 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import type { AgentEvent, AgentEventBody } from "@studio/agent-protocol";
+import { toolSummaryText } from "@studio/studio-tools/tool-summary";
 
 const RING = 2000;
 
@@ -180,7 +181,10 @@ export class Projector {
 function summarize(result: any): string {
   const own = result?.details?.summary;
   if (typeof own === "string") return clip(own, 200);
-  const line = firstText(result).split("\n").find((l) => l.trim()) ?? "";
+  // todo24 W6: a JSON error body (a Studio tool's refused change) reads as a sentence; the JSON
+  // stays in the run record.
+  const text = firstText(result).trim();
+  const line = toolSummaryText(text.startsWith("{") || /^Error:\s*\{/.test(text) ? text : (text.split("\n").find((l) => l.trim()) ?? ""));
   return clip(sanitizeError(line), 200);
 }
 

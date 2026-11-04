@@ -30,6 +30,14 @@ describe("event projection (recorded pi stream)", () => {
     expect(out.find((e) => e.type === "tool-result")).toMatchObject({ ok: true, summary: "hi" });
   });
 
+  it("a refused Studio change reads as a sentence on the tool row, never JSON (todo24 W6)", () => {
+    const p = new Projector("scripted:replay");
+    const body = JSON.stringify({ error: "The change doesn't validate. Fix each error at its path and try again.", status: 422, errors: [{ path: "/labels/0/control", code: "schema", message: "required" }] });
+    p.project({ type: "tool_execution_start", toolCallId: "tc_9", toolName: "boot_studio", args: {} } as unknown as AgentSessionEvent);
+    const out = p.project({ type: "tool_execution_end", toolCallId: "tc_9", toolName: "boot_studio", result: { content: [{ type: "text", text: body }] }, isError: true } as unknown as AgentSessionEvent);
+    expect(out.find((e) => e.type === "tool-result")).toMatchObject({ ok: false, summary: "Label set needed a fix" });
+  });
+
   it("streams boot_studio arguments as the start / args / end triple (string fragments), and nothing else", () => {
     const p = new Projector("scripted:replay");
     const call = (name: string, id: string) => ({ type: "toolCall", id, name, arguments: {} });

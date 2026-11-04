@@ -174,7 +174,7 @@ export function spanDetails(n) {
   const tin = a["gen_ai.usage.input_tokens"];
   const tout = a["gen_ai.usage.output_tokens"];
   if (tin != null || tout != null) parts.push(`tokens=${tin ?? "?"}/${tout ?? "?"}`);
-  const cached = a["gen_ai.usage.cache_read_input_tokens"] ?? a["gen_ai.usage.cached_tokens"];
+  const cached = a["gen_ai.usage.cache_read.input_tokens"] ?? a["gen_ai.usage.cache_read_input_tokens"] ?? a["gen_ai.usage.cached_tokens"];
   if (cached != null && Number(cached) > 0) parts.push(`cached=${cached}`);
   const cost = a["studio.cost_usd"];
   if (cost != null && cost !== "") parts.push(`cost=$${Number(cost).toFixed(4)}`);

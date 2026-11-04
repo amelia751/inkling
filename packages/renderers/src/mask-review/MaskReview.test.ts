@@ -46,10 +46,11 @@ function fakeHost(annotations: Annotation[]) {
     remove: (...args: unknown[]) => calls.push({ op: "remove", args }),
   } as unknown as StudioHostState;
   const noop = () => {};
+  const commands: { map: Record<string, () => unknown>; scope?: unknown }[] = [];
   const h: StudioHost = {
     store: { getState: () => state, subscribe: (l) => (listeners.add(l), () => listeners.delete(l)) },
     assetUrl: (p) => p,
-    useCommands: noop,
+    useCommands: ((map: Record<string, () => unknown>, opts?: { scope?: unknown }) => commands.push({ map, scope: opts?.scope })) as never,
     useHotkeys: noop,
     execute: () => false,
     registerCommand: () => noop,
@@ -59,7 +60,7 @@ function fakeHost(annotations: Annotation[]) {
     inspectRows: () => [],
     resolveSpec: () => ({ errors: [] }) as never,
   };
-  return { h, calls, state: () => state };
+  return { h, calls, state: () => state, commands: () => commands.at(-1)! };
 }
 
 const env = (tools: string[] = ["brush"]) => ({ labels: [{ name: "cells", control: "BrushLabels", classes: [{ id: "cell" }] }], tools: tools.map((name) => ({ name })) });
@@ -141,13 +142,30 @@ describe("MaskReview (studio.mask-review.v1)", () => {
     expect(button("Edit cell")).toBeNull();
   });
 
-  it("accept all accepts every pending mask in one batch", () => {
-    const fake = render([mask("m1"), mask("m2"), mask("m3", { attributes: { provider: "mock", review_status: "rejected" } })]);
+  it("Accept and Reject review every pending mask on this item in one batch", () => {
+    const fake = render([mask("m1"), mask("m2"), mask("m3", { attributes: { provider: "mock", review_status: "rejected" } }), mask("o1", { itemId: "img/other.png" })]);
     expect(el.textContent).toContain("2 to review");
-    const all = [...el.querySelectorAll("button")].find((b) => b.textContent === "Accept all")!;
-    click(all);
+    click(el.querySelector<HTMLButtonElement>('[data-testid="mask-accept-item"]')!);
     expect(fake.calls.filter((c) => c.op === "batch")).toHaveLength(1);
-    expect(fake.state().annotations.map((a) => a.attributes?.review_status)).toEqual(["accepted", "accepted", "rejected"]);
+    expect(fake.state().annotations.map((a) => a.attributes?.review_status)).toEqual(["accepted", "accepted", "rejected", "pending"]);
     expect(el.textContent).toContain("0 to review");
+  });
+
+  it("Accept all accepts pending masks on every item; shown only when other items have some", () => {
+    const fake = render([mask("m1"), mask("o1", { itemId: "img/other.png" }), mask("o2", { itemId: "img/other.png", attributes: { provider: "mock", review_status: "rejected" } })]);
+    click(el.querySelector<HTMLButtonElement>('[data-testid="mask-accept-all"]')!);
+    expect(fake.state().annotations.map((a) => a.attributes?.review_status)).toEqual(["accepted", "accepted", "rejected"]);
+    expect(el.querySelector('[data-testid="mask-accept-all"]')).toBeNull();
+  });
+
+  it("binds its keyboard commands under the plugin's scope: accept / reject this item, accept all", () => {
+    const fake = render([mask("m1"), mask("m2", { label: "nucleus" }), mask("o1", { itemId: "img/other.png" })], { pluginId: "studio.segmentation" });
+    expect(fake.commands().scope).toBe("studio.segmentation");
+    expect(Object.keys(fake.commands().map).sort()).toEqual(["acceptAllMasks", "acceptItemMasks", "rejectItemMasks"]);
+    act(() => void fake.commands().map.rejectItemMasks());
+    expect(fake.state().annotations.filter((a) => a.itemId === item.id).every((a) => a.hidden && a.attributes?.review_status === "rejected")).toBe(true);
+    expect(fake.commands().map.rejectItemMasks()).toBe(false); // nothing left to review: the key falls through
+    act(() => void fake.commands().map.acceptAllMasks());
+    expect(fake.state().annotations.find((a) => a.id === "o1")?.attributes?.review_status).toBe("accepted");
   });
 });

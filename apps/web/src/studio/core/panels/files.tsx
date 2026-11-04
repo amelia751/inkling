@@ -50,6 +50,32 @@ export function itemStates(annotations: Annotation[]): Map<string, ItemState> {
   return out;
 }
 
+/**
+ * AI suggestions waiting for review per item (todo25 W5): ai-suggested annotations whose
+ * `review_status` is still pending (or unset) and that aren't hidden. Shown as a small AI-tinted
+ * count on the item's row, whatever the item's overall state, so a batch landing is visible.
+ */
+export function pendingSuggestions(annotations: Annotation[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const a of annotations) {
+    if (a.provenance !== "ai-suggested" || a.hidden) continue;
+    const review = a.attributes?.review_status;
+    if (review !== undefined && review !== "pending") continue;
+    out.set(a.itemId, (out.get(a.itemId) ?? 0) + 1);
+  }
+  return out;
+}
+
+function SuggestionsPending({ count }: { count: number | undefined }) {
+  if (!count) return null;
+  return (
+    <span className="tnum inline-flex shrink-0 items-center gap-0.5 rounded bg-ai-tint px-1 text-xs text-ai-text" title={`${count} AI ${count === 1 ? "suggestion" : "suggestions"} to review`} data-testid="item-suggestions-pending" data-count={count}>
+      <AiIcon className="size-3" aria-hidden />
+      {count}
+    </span>
+  );
+}
+
 const STATE = {
   annotated: { icon: DoneIcon, label: "Annotated", className: "text-state-pass" },
   imported: { icon: ImportedIcon, label: "Imported labels, not reviewed", className: "text-info" },
@@ -94,6 +120,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
   const setItemIndex = useStudio((s) => s.setItemIndex);
   const annotations = useStudio((s) => s.annotations);
   const states = useMemo(() => itemStates(annotations), [annotations]);
+  const suggestions = useMemo(() => pendingSuggestions(annotations), [annotations]);
   const stateOf = useCallback((i: StudioItem): ItemState => states.get(i.id) ?? "todo", [states]);
   const showLabel = showSourceLabels(env);
   const showPath = showFilePaths(env);
@@ -321,6 +348,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
                 current={index === itemIndex}
                 state={stateOf(items[index])}
                 suffix={suffixes[index]}
+                suggestions={suggestions.get(items[index].id)}
                 kindIcon={mixed ? kindIconOf(items[index], env.dataKind.icon) : undefined}
                 thumb={thumbs ? <ItemThumb itemId={items[index].id} asset={items[index].assets[0]} /> : undefined}
                 onChoose={choose}
@@ -337,6 +365,7 @@ export function FilesPanel({ items, env, project }: PanelProps) {
           items={viewItems}
           indices={matching}
           states={states}
+          suggestions={suggestions}
           itemIndex={itemIndex}
           suffixes={suffixes}
           mixed={mixed}
@@ -505,7 +534,7 @@ function ChipRow({ label, testid, children }: { label: string; testid?: string; 
   );
 }
 
-function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string }; thumb?: ReactNode } & RowEvents) {
+function QueueRow({ item, index, current, state, suffix, suggestions, kindIcon, thumb, onChoose, onEnter, onLeave, onMenu }: { item: StudioItem; index: number; current: boolean; state: ItemState; suffix: string; suggestions?: number; kindIcon?: { icon: ComponentType<{ className?: string }>; label: string }; thumb?: ReactNode } & RowEvents) {
   const s = STATE[state];
   const count = bundleCount(item);
   const trashed = isTrashedItem(item);
@@ -532,6 +561,7 @@ function QueueRow({ item, index, current, state, suffix, kindIcon, thumb, onChoo
       <span className="min-w-0 truncate" data-testid="file-name">{item.name}</span>
       {suffix && <span className="min-w-0 flex-1 truncate text-xs text-hint" data-testid="file-suffix">{suffix}</span>}
       {!suffix && <span className="flex-1" />}
+      <SuggestionsPending count={suggestions} />
       {count && <span className="tnum shrink-0 text-xs text-hint">{count}</span>}
       {trashed && <InTrashBadge />}
     </button>
@@ -542,6 +572,7 @@ function FoldersView({
   items,
   indices,
   states,
+  suggestions,
   itemIndex,
   suffixes,
   mixed,
@@ -557,6 +588,7 @@ function FoldersView({
   items: StudioItem[];
   indices: number[];
   states: Map<string, ItemState>;
+  suggestions: Map<string, number>;
   itemIndex: number;
   suffixes: string[];
   mixed: boolean;
@@ -580,7 +612,13 @@ function FoldersView({
         name: item.name,
         title: "",
         icon: STATE_TREE_ICON[state],
-        badges: suffixes[index] ? <span className="max-w-32 truncate text-xs" data-testid="file-suffix">{suffixes[index]}</span> : undefined,
+        badges:
+          suffixes[index] || suggestions.get(item.id) ? (
+            <>
+              {suffixes[index] && <span className="max-w-32 truncate text-xs" data-testid="file-suffix">{suffixes[index]}</span>}
+              <SuggestionsPending count={suggestions.get(item.id)} />
+            </>
+          ) : undefined,
         count: count ?? undefined,
         status: kind ? <kind.icon className="size-3.5 text-hint" aria-label={kind.label} data-testid="file-kind" /> : undefined,
         // A subject's sequences (or a study's series) as rows under it; click shows that one.
@@ -606,7 +644,7 @@ function FoldersView({
       ],
     });
     return dir(tree).children ?? [];
-  }, [tree, items, states, suffixes, mixed, fallbackIcon]);
+  }, [tree, items, states, suggestions, suffixes, mixed, fallbackIcon]);
 
   // Folders open at mount: all of them when there are few (or while filtering), else the way to the current item.
   const allDirs = useMemo(() => {

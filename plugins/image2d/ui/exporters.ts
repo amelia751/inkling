@@ -44,13 +44,24 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
  * as `images[].<resourcePrefix>_class`; other measurements (length, angle…) go to
  * `<resourcePrefix>_measurements` since COCO has no slot for them.
  */
+/** Whether an annotation belongs in an export: not rejected, and AI suggestions only once accepted. */
+export function exportable(a: Annotation): boolean {
+  const review = a.attributes?.review_status;
+  if (review === "rejected") return false;
+  if (a.provenance === "ai-suggested") return review === "accepted" || review === "edited";
+  return true;
+}
+
 export const cocoExporter: Exporter = {
   id: "coco",
   label: "COCO JSON",
   description: "Boxes, polygons, RLE masks and keypoints in COCO format (pixel coordinates), plus image-level class labels.",
   filename: (project) => `${project.id}-coco.json`,
-  async build({ project, items, annotations }) {
-    const labels = labelNames(project.labels);
+  async build({ project, items, annotations: all }) {
+    // Reviewed work only (todo25 W5): rejected suggestions and ones nobody accepted yet stay out.
+    const annotations = all.filter(exportable);
+    // Mask labels from a provider's recipe ("right lung", "left lung") get categories too.
+    const labels = [...new Set([...labelNames(project.labels), ...annotations.filter((a) => a.geometry.type !== "class").map((a) => a.label)])];
     const categories = labels.map((name, i) => ({ id: i + 1, name, supercategory: project.id }));
     const catId = (label: string) => labels.indexOf(label) + 1 || null;
     const sizes = new Map<string, [number, number]>();

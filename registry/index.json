@@ -249,7 +249,7 @@
       "version": "1.1.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:61885489454cddfd98cd0dc5e66d7f8e75357ce4706fd62765bcb925f9ed1047",
+      "artifactDigest": "sha256:e543e6a5c21f0a2b2db0c87c25041170ee51fec017a5168fbc3c8d2bfa9e474a",
       "path": "plugins/image2d",
       "capabilities": [
         "image.view",
@@ -328,7 +328,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:6d083cc6448fa443f532eca3149c7508962789f0a4ea0cd6f48963f779b3d6a5",
+      "artifactDigest": "sha256:2a63c41d28ca6be616163711e3d7b184c08b1babb79fa307a975ded42cbd7a45",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"

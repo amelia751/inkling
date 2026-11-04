@@ -56,6 +56,9 @@ export const FORWARDED = [
   "drop.planned",
   "drop.applied",
   "drop.failed",
+  // todo25 W5: a job committed AI suggestions (the open Studio pulls them, lib/live-suggestions.ts).
+  "annotations.committed",
+  "job.succeeded",
 ];
 
 /**

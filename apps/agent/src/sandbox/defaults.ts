@@ -61,9 +61,15 @@ export interface EgressPolicy {
   allowDomains: string[];
 }
 
+/**
+ * todo23 D7: the package registries only, for an install step. github.com is no longer on it:
+ * repos aren't installed from source (§2.2), only published wheels and npm packages.
+ */
+export const INSTALL_ALLOW_DOMAINS = ["pypi.org", "files.pythonhosted.org", "registry.npmjs.org"] as const;
+
 export const DEFAULT_EGRESS: EgressPolicy = {
   canOverride: false,
-  allowDomains: ["pypi.org", "files.pythonhosted.org", "github.com", "objects.githubusercontent.com"],
+  allowDomains: [...INSTALL_ALLOW_DOMAINS],
 };
 
 /**

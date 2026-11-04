@@ -43,11 +43,17 @@ export interface McpConfig {
   redisCaFile: string | undefined;
   /** Image build's git sha (`--build-arg GIT_SHA`), served by /version. */
   gitSha: string | undefined;
+  /** todo23 W10: the agent service (`<envPrefix>AGENT_URL`, default its dev port) for the scout tools. */
+  agentUrl: string;
+  /** The agent service token (`<envPrefix>AGENT_TOKEN`); the scout tools are off without it. */
+  agentToken: string | undefined;
 }
 
 /** The api's dev URL (`pnpm dev`, docs/running.md). */
 export const DEFAULT_STUDIO_URL = "http://127.0.0.1:8000";
 export const DEFAULT_PORT = 8300;
+/** The agent service's dev URL (apps/agent `AGENT_PORT`). */
+export const DEFAULT_AGENT_URL = "http://127.0.0.1:8100";
 
 /** Configuration is missing or invalid; the message names keys, never values. */
 export class ConfigError extends Error {
@@ -89,6 +95,8 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env, argv: string[] 
     redisUrl: env("MCP_REDIS_URL"),
     redisCaFile: env("MCP_REDIS_CA_FILE"),
     gitSha: raw.GIT_SHA || undefined,
+    agentUrl: (env("AGENT_URL") ?? DEFAULT_AGENT_URL).replace(/\/$/, ""),
+    agentToken: env("AGENT_TOKEN"),
   };
 }
 

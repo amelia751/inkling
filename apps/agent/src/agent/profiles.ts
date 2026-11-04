@@ -48,6 +48,8 @@ export interface Profile {
    * compact preset index.
    */
   studio?: boolean;
+  /** todo23 W3: the open-source scout's tools (search_oss, vet_oss, trial_oss, compare_oss). */
+  scout?: boolean;
   prompts: string[];
 }
 
@@ -85,6 +87,9 @@ export const PROFILES: Record<ProfileName, Profile> = {
   task: { name: "task", clientTools: CARD_TOOLS, sandbox: false, kernel: "task", prompts: ["base", "task"] },
   // todo21 D8: Home routes between projects; it never works on project data.
   home: { name: "home", clientTools: ["create_project"], sandbox: false, home: true, prompts: ["home"] },
+  // todo23 W3: finds, vets and tries open-source packages. No project data, no kernel tools; its
+  // trial sandboxes are its own (registries-only network), so it needs no session sandbox.
+  scout: { name: "scout", clientTools: CARD_TOOLS, sandbox: false, scout: true, prompts: ["scout"] },
 };
 
 /** Whether the profile can run here (a hard sandbox requirement needs Daytona). */

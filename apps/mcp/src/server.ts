@@ -9,6 +9,7 @@ import { writeEnvironment } from "./environment-write.js";
 import { CONTEXT_URI_TEMPLATE, type Caller, callOperationTool, hints, operationTools, projectContextTool, readContextResource, type ToolDef } from "./operations.js";
 import { createViewers } from "./viewers.js";
 import { studioKinds } from "./profiles.js";
+import { SCOUT_TOOLS, callScoutTool } from "./scout.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -67,11 +68,11 @@ export const ENV_TOOLS: ToolDef[] = [
   },
 ];
 
-/** Environment tools that save (count against the write quota, need project:write). */
-export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment"]);
+/** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
+export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment", "trial_oss"]);
 
 /** Every tool, `project_context` first (D9). */
-export const staticTools = (): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS];
+export const staticTools = (): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...SCOUT_TOOLS];
 
 /**
  * `remote`: built for one stateless HTTP request. The MCP Apps viewers are then off: their
@@ -164,6 +165,8 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
     try {
       const op = await callOperationTool(caller, req.params.name, args);
       if (op) return op as never;
+      const scout = await callScoutTool(config, token, req.params.name, args);
+      if (scout) return scout as never;
       const v = await viewers.call(req.params.name, args);
       if (v) return v as never;
       const r = await call(req.params.name, args);

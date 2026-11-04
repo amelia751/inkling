@@ -42,6 +42,9 @@ import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
 import { createDropTools, dropBlock, dropPart, waitForDrop } from "../tools/drops.ts";
 import { createStudioTools } from "../tools/studio.ts";
+import { createScoutTools } from "../tools/scout.ts";
+import { type Scout, createScout, daytonaSnapshot } from "../scout/service.ts";
+import type { Fetcher } from "../scout/http.ts";
 import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilderTools, createDatasetVersioningTools, createPluginSandboxTools, createTaskTools } from "../tools/kernel.ts";
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
@@ -209,6 +212,8 @@ export interface SessionServiceDeps {
   studio?: StudioCatalog;
   /** Run event fan-out (bus/); defaults to in-process. */
   bus?: RunEventBus;
+  /** todo23 W3: the scout's metadata fetcher (tests pass a fake); the global fetch otherwise. */
+  scoutFetch?: Fetcher;
 }
 
 /** FIFO slots for AGENT_MAX_CONCURRENT_RUNS; extra runs wait in `queued`. */
@@ -260,6 +265,8 @@ export class SessionService {
   readonly cluster: RunCoordinator;
   /** Read once at startup (agent/catalog.ts): static per deployment, never request state. */
   readonly studio: StudioCatalog;
+  /** todo23 W3: the open-source scout, shared by the scout profile's tools and /v1/scout/* routes. */
+  readonly scout: Scout;
 
   constructor(private readonly deps: SessionServiceDeps) {
     this.studio = deps.studio ?? loadStudioCatalog(deps.config);
@@ -299,6 +306,7 @@ export class SessionService {
         reclaim: daytona ? () => reclaimForQuota(daytona, deps.config.env, this.activeSessionIds(), (m) => deps.log.warn(m)) : undefined,
       });
     }
+    this.scout = createScout({ fetch: deps.scoutFetch, provider, egress: deps.egress, env: deps.config.env, snapshot: provider?.kind === "daytona" ? daytonaSnapshot : undefined });
   }
 
   private get config() {
@@ -493,6 +501,7 @@ export class SessionService {
       const acquire = () => manager.acquire({ ...owner, onEvent: (e) => this.onSandboxEvent(ctx, e) });
       tools.push(...createBoundaryTools(kernel, { acquire, sourceDir: SANDBOX_CWD }).filter((t) => t.name === "get_fingerprint" || t.name === "get_fixtures"));
     }
+    if (profile.scout) tools.push(...createScoutTools(this.scout, () => ({ projectId: pid, owner: meta.owner })));
     tools.push(...(this.deps.extraTools ?? []));
 
     const session = await createStudioSession({

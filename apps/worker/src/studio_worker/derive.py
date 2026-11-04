@@ -34,6 +34,8 @@ TILE = 254
 OVERLAP = 1
 UPLOAD_THREADS = 8
 UPLOAD_RETRIES = 5
+# Cloud Run refuses HTTP/1 request bodies over 32 MiB: bigger files go up in pieces.
+UPLOAD_PIECE = 16 * 1024 * 1024
 
 Progress = Callable[[int], None]
 log = logging.getLogger(__name__)
@@ -455,24 +457,40 @@ class DeriveWorker:
                 if stopped.is_set():
                     raise Stopped
                 ctype = "video/mp4" if rel.endswith(".mp4") else "image/jpeg" if rel.endswith(".jpeg") else "image/png" if rel.endswith(".png") else "application/xml"
-                for attempt in range(UPLOAD_RETRIES + 1):
-                    try:
+                url = f"/api/v1/worker/derivatives/{did}/files/{rel}"
+
+                def send(put) -> dict:
+                    for attempt in range(UPLOAD_RETRIES + 1):
+                        try:
+                            up = put()
+                            if up.status_code == 409:
+                                stopped.set()
+                                raise Stopped
+                            if up.status_code < 500:
+                                up.raise_for_status()
+                                return up.json()
+                            reason = f"HTTP {up.status_code}"
+                        except httpx.TransportError as e:
+                            reason = type(e).__name__
+                        if attempt == UPLOAD_RETRIES:
+                            log.warning("derivative upload failed", extra={"derivative": did, "file": rel, "reason": reason})
+                            raise DeriveError(f"Uploading the converted files failed ({reason})", retry=True)
+                        time.sleep(0.5 * 2**attempt)
+                    raise AssertionError("unreachable")
+
+                size = path.stat().st_size
+                if size <= UPLOAD_PIECE:
+                    def whole():
                         with path.open("rb") as body:  # streamed, never read whole
-                            up = self.http.put(f"/api/v1/worker/derivatives/{did}/files/{rel}", content=body, headers={"Content-Type": ctype})
-                        if up.status_code == 409:
-                            stopped.set()
-                            raise Stopped
-                        if up.status_code < 500:
-                            up.raise_for_status()
-                            return up.json()["key"]
-                        reason = f"HTTP {up.status_code}"
-                    except httpx.TransportError as e:
-                        reason = type(e).__name__
-                    if attempt == UPLOAD_RETRIES:
-                        log.warning("derivative upload failed", extra={"derivative": did, "file": rel, "reason": reason})
-                        raise DeriveError(f"Uploading the converted files failed ({reason})", retry=True)
-                    time.sleep(0.5 * 2**attempt)
-                raise AssertionError("unreachable")
+                            return self.http.put(url, content=body, headers={"Content-Type": ctype})
+
+                    return send(whole)["key"]
+                with path.open("rb") as fh:
+                    for offset in range(0, size, UPLOAD_PIECE):
+                        fh.seek(offset)
+                        piece = fh.read(UPLOAD_PIECE)
+                        out = send(lambda o=offset, p=piece: self.http.put(url, params={"offset": o, "total": size}, content=p, headers={"Content-Type": ctype}))
+                return out["key"]
 
             from concurrent.futures import ThreadPoolExecutor
 

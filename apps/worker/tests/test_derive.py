@@ -173,8 +173,9 @@ class _FakeKernel:
             return _Resp({"derivatives": [{"id": "drv-1", "nodeId": "nod-1", "kind": "video-mp4"}]})
         return _Resp({})
 
-    def put(self, url, content=b"", headers=None):
-        self.calls.append((url, headers))
+    def put(self, url, content=b"", headers=None, params=None):
+        self.calls.append((url, params if params is not None else headers))
+        self.bodies = getattr(self, "bodies", []) + [content if isinstance(content, bytes) else b"<stream>"]
         return _Resp({"key": "uploads/p/" + url.split("/files/")[1]})
 
     def stream(self, _m, _url):
@@ -195,6 +196,22 @@ def test_worker_loop_uploads_and_completes(tmp_path):
     assert any(u.endswith("/progress") for u in urls) and urls[-1].endswith("/complete")
     done = k.calls[-1][1]
     assert done["key"].startswith("uploads/p/derived/") and done["key"].endswith(".mp4")
+
+
+def test_a_file_over_the_piece_size_goes_up_in_pieces(tmp_path, monkeypatch):
+    monkeypatch.setattr(derive, "UPLOAD_PIECE", 4)
+    k = _FakeKernel()
+
+    def convert(kind, src, out, sha, progress):
+        out.mkdir(parents=True)
+        (out / "x.mp4").write_bytes(b"0123456789")
+        return derive.Derived(kind, f"derived/{sha}.mp4", {f"derived/{sha}.mp4": out / "x.mp4"})
+
+    assert derive.DeriveWorker(k, tmp_path, convert=convert).tick() == 1
+    pieces = [p for u, p in k.calls if "/files/" in u]
+    assert pieces == [{"offset": 0, "total": 10}, {"offset": 4, "total": 10}, {"offset": 8, "total": 10}]
+    assert k.bodies == [b"0123", b"4567", b"89"]
+    assert k.calls[-1][1]["key"].endswith(".mp4")
 
 
 def test_a_busy_kernel_is_retried_per_file_not_per_derivative(tmp_path, monkeypatch):

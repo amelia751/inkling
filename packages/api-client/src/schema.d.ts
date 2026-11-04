@@ -14368,7 +14368,10 @@ export interface operations {
     };
     derivative_file_api_v1_worker_derivatives__did__files__rel__put: {
         parameters: {
-            query?: never;
+            query?: {
+                offset?: number | null;
+                total?: number | null;
+            };
             header?: {
                 "x-worker-token"?: string;
             };

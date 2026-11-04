@@ -7,6 +7,8 @@ secrets broker record each *use*.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -56,3 +58,13 @@ def egress_hosts(perms: set[str] | list[str]) -> list[str]:
 def provider_needs(provider: dict) -> list[str]:
     """Permissions a provider needs at call time: its egress hosts and secrets."""
     return [f"network.egress:{h}" for h in provider.get("egress") or []] + [f"secrets.use:{s}" for s in provider.get("secrets") or []]
+
+
+# todo25 W7: model licences that restrict use to research / non-commercial work. Matched on the
+# provider's free-text `modelLicense`; such a provider can be selected only in a research org.
+_RESTRICTED = re.compile(r"\bCC[- ]BY[- ](?:[A-Z]+-)*NC\b|non[- ]?commercial|research|education(?:al)? use only|academic use only", re.IGNORECASE)
+
+
+def licence_restricted(model_license: str | None) -> bool:
+    """True when the weights' licence is non-commercial or research-only."""
+    return bool(model_license) and bool(_RESTRICTED.search(model_license))

@@ -126,7 +126,7 @@
       "id": "studio.segmentation",
       "version": "1.0.0",
       "title": "Segmentation",
-      "description": "Segment objects in images from text, point or box prompts. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
+      "description": "Segment objects in images from text, point or box prompts, or a named prompt recipe (label `lungs`: two boxes sized to a frontal chest X-ray, masks named right lung and left lung). Text prompts don't work on radiographs; use a recipe there. Mock provider for CI; Meta SAM (hosted) and a self-hosted SAM endpoint as configurable providers."
     },
     {
       "id": "studio.presets",

@@ -263,7 +263,7 @@ async def _domains(org: Organization) -> list[dict[str, str]]:
 
 
 def _org_dict(org: Organization, domains: list[dict[str, str]]) -> dict[str, Any]:
-    return {"id": org.id, "workosOrgId": org.workos_org_id, "name": org.name, "createdAt": projects.iso(org.created_at), "zeroRetention": bool(org.zero_retention), "aiAssist": bool(org.ai_assist), "managedProviderKeys": broker.org_allows_managed_keys(org), "domains": domains}
+    return {"id": org.id, "workosOrgId": org.workos_org_id, "name": org.name, "createdAt": projects.iso(org.created_at), "zeroRetention": bool(org.zero_retention), "aiAssist": bool(org.ai_assist), "managedProviderKeys": broker.org_allows_managed_keys(org), "research": bool(org.research), "domains": domains}
 
 
 @router.get("/org")
@@ -285,7 +285,7 @@ async def patch_org(body: dict = Body(...), ctx: RequestContext = Depends(requir
                 await _call(wclient.client().organizations.update_organization(_require_workos_org(org), name=name))
             org.name = name
             changed["name"] = name
-    for key, col in (("zeroRetention", "zero_retention"), ("aiAssist", "ai_assist")):
+    for key, col in (("zeroRetention", "zero_retention"), ("aiAssist", "ai_assist"), ("research", "research")):
         if key in body:
             if not isinstance(body[key], bool):
                 raise HTTPException(422, f"{key} must be true or false")

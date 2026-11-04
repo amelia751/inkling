@@ -565,6 +565,9 @@ class Organization(Base):
     # todo25 D4: projects may use Studio-managed provider keys (spend on the org). None = the
     # stage's default (on outside production); production needs an admin to turn it on.
     managed_provider_keys: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # todo25 W7: a research organisation may select providers whose model weights are licensed
+    # for non-commercial or research use only (MedSAM2, nnInteractive…). Off by default.
+    research: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class OrganizationMember(Base):

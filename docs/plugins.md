@@ -563,6 +563,47 @@ image.segment
 
 Provider features are not assumed identical: model selection exposes a capability/feature matrix (text prompts, point prompts, boxes, video tracking, max dimensions, masks, latency). The UI hides unsupported actions or explains gaps; it never pretends providers are interchangeable in quality or semantics.
 
+### 12.4 Adding a model as a provider (configuration only, todo25 W7)
+
+Three generic adapters are first-party code in `plugins/segmentation`
+(`providers/oip.py`, `replicate.py`, `hf.py`); a new model is a `providers` entry in
+`plugin.yaml` with an `adapter` block, no code:
+
+```yaml
+  - id: hf.medsam2
+    implements: [image.segment]
+    hosting: hosted
+    egress: [medsam2.us-east-1.aws.endpoints.huggingface.cloud]   # must contain the endpoint's host
+    secrets: [HF_TOKEN]
+    features: { text: false, points: false, boxes: true }
+    pricing: { unit: second, usdPerUnit: 0.000139, effectiveAt: "2026-11-04", sourceUrl: https://huggingface.co/pricing }
+    modelLicense: "MedSAM2: research and education use only"
+    adapter: { kind: hf, endpoint: "https://medsam2.us-east-1.aws.endpoints.huggingface.cloud", secret: HF_TOKEN, masks: png }
+```
+
+- `kind`: `oip` (Open Inference Protocol v2 / KServe v2: `POST {endpoint}/v2/models/{model}/infer`,
+  `image`/`boxes`/`points`/`text` input tensors, a `masks` output as a dense `[n, h, w]` tensor or
+  `BYTES`), `replicate` (Replicate or a Cog container: create a prediction, poll `urls.get`), or
+  `hf` (Hugging Face Inference Endpoints, the `image-segmentation` response shape).
+- `image`: `base64` or `dataUrl`; `masks`: `rle`, `png` (base64 or data URL) or `polygons`;
+  `fields` renames request and response fields (`{masks: pred_masks, scores: iou}`). Every
+  format is normalised to the image.segment result (`normalize.py`).
+- `secret` is one of the provider's `secrets`; the call goes through the secrets broker, which
+  injects the key. Without one, the call goes out through the worker's egress proxy. Add each
+  egress host and secret to `permissions.optional` so the install review lists them. A workspace
+  may move the endpoint with config `endpoints: {<provider id>: url}`, but only within the
+  declared egress hosts.
+- **Licence gate.** A `modelLicense` that reads non-commercial or research-only (CC-BY-NC*,
+  "research", "non-commercial", "education use only") can be selected only in an organization
+  with `research: true` (Organization › Settings, `PATCH /api/v1/org`); `configure` refuses it
+  with `403 provider_licence_research_only` elsewhere. The review marks such providers
+  `researchOnly`.
+- **Try before keep (D7).** Run `studio_plugin_segmentation.evaluate.evaluate_provider` over a
+  fixture folder (`<name>.png`, `<name>_mask.png`, optional `<name>.json` request); it returns
+  per-image Dice and the mean, and passes when the mean clears the bar (0.8 by default). Record
+  its `quality` block on the provider (`quality: {metric: dice, mean, images, fixtures,
+  evaluatedAt}`); the install review shows it.
+
 ## 13. Implementation milestones
 
 ### Phase 0 — contracts and kernel primitives

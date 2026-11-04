@@ -67,6 +67,35 @@ export const ProviderPricing = z
   })
   .strict();
 
+/** Generic provider adapters (todo25 W7): Open Inference Protocol v2, Replicate/Cog, Hugging
+ * Face Inference Endpoints. Adding a model is data; the endpoint's host must be in `egress`. */
+export const ProviderAdapter = z
+  .object({
+    kind: z.enum(["oip", "replicate", "hf"]),
+    endpoint: z.string().url(),
+    /** OIP model name, Replicate model version, or an HF model id (informational). */
+    model: z.string().optional(),
+    /** Secret (from `secrets`) the broker injects; none for an unauthenticated in-project endpoint. */
+    secret: z.string().regex(/^[A-Z][A-Z0-9_]*$/).optional(),
+    /** How the image is sent: base64 bytes or a data URL. */
+    image: z.enum(["base64", "dataUrl"]).optional(),
+    /** Mask format the endpoint returns: COCO RLE, base64 PNG, or polygons. */
+    masks: z.enum(["rle", "png", "polygons"]).optional(),
+    /** Field names in the endpoint's request and response, where they differ from the defaults. */
+    fields: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();
+
+export const ProviderQuality = z
+  .object({
+    metric: z.literal("dice"),
+    mean: z.number().min(0).max(1),
+    images: z.number().int().nonnegative(),
+    fixtures: z.string(),
+    evaluatedAt: z.string(),
+  })
+  .strict();
+
 export const ProviderDecl = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9.-]*)*$/),
@@ -82,6 +111,10 @@ export const ProviderDecl = z
     /** Model and service terms, kept apart from the plugin's code licence (§5.2). */
     modelLicense: z.string().optional(),
     serviceTerms: z.string().optional(),
+    /** A model added by configuration (todo25 W7): a generic first-party adapter + its settings. */
+    adapter: ProviderAdapter.optional(),
+    /** The provider's last try-before-keep score against reference masks (todo25 D7). */
+    quality: ProviderQuality.optional(),
   })
   .strict();
 

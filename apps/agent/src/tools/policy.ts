@@ -106,7 +106,8 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | stage_plugin, create_plugin_sandbox, build_plugin_artifact               | deny unless the user asked for a plugin change in this run |
  * | request_install_approval                                                 | ask (the Studio shows the install review) |
  * | activate / configure / disable / rollback_plugin                         | ask |
- * | invoke_capability, create_job (gateway runs, may bill)                   | ask |
+ * | invoke_capability, create_job up to AUTO_RUN_INPUTS inputs (todo25 D5)  | allow: the kernel prices and refuses over budget; results are suggestions to review |
+ * | create_job over AUTO_RUN_INPUTS inputs                                    | ask |
  * | dataset_open_review (dataset_branch/commit/diff: allow, work/agent-* only) | ask |
  * | propose_schema / propose_relationship (a proposal; changes no data)     | ask (the card links to Explore) |
  * | confirm_proposal                                                         | allow: the kernel refuses agents (403) |
@@ -120,6 +121,9 @@ export const EXPORT_APPROVAL_BYTES = 50 * 1024 * 1024;
  * | catalogue destroy (purge, empty trash, delete forever)                  | ask, "can't be undone" |
  * | anything after a budget is exhausted                                     | deny |
  */
+/** Batches up to this many inputs run without an approval card (todo25 §5: no approval on screen). */
+export const AUTO_RUN_INPUTS = 50;
+
 export function decide(
   call: { toolName: string; input: Record<string, unknown> },
   s: PolicyState,
@@ -203,9 +207,13 @@ export function decide(
     case "dataset_open_review":
       return { kind: "ask", summary: `Open a review to merge your work branch into main: ${str("title").slice(0, 200)}` };
     case "invoke_capability":
-      return { kind: "ask", summary: `Run ${str("capability")} through the gateway (results arrive as AI suggestions to review)` };
+      // todo25 D5: one input, priced and budgeted by the kernel; the result is an AI suggestion.
+      return { kind: "allow" };
     case "create_job": {
       const n = Array.isArray(call.input.inputs) ? call.input.inputs.length : 0;
+      // todo25 D5/D6: a Studio-sized batch runs at once (the chat states images, provider and cost
+      // first); the kernel still prices it and refuses over budget. Bigger batches ask.
+      if (n <= AUTO_RUN_INPUTS) return { kind: "allow" };
       return { kind: "ask", summary: `Run ${str("capability")} on ${n} input${n === 1 ? "" : "s"} as a batch (priced against the budget first)` };
     }
     case "bash": {

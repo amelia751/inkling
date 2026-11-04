@@ -154,7 +154,11 @@ describe("builder policy (pure)", () => {
       summary: expect.any(String),
       detail: { kind: "plugin-install", requestId: "req_9", workspaceId: "demo" },
     });
-    for (const t of ["activate_plugin", "configure_plugin", "disable_plugin", "rollback_plugin", "invoke_capability", "create_job"]) expect(d(t, { userText: "install" }).kind).toBe("ask");
+    for (const t of ["activate_plugin", "configure_plugin", "disable_plugin", "rollback_plugin"]) expect(d(t, { userText: "install" }).kind).toBe("ask");
+    // todo25 D5: a Studio-sized batch runs without a card (the kernel prices it); a big one asks.
+    expect(d("invoke_capability", {}).kind).toBe("allow");
+    expect(d("create_job", {}, { inputs: Array.from({ length: 12 }, () => ({})) }).kind).toBe("allow");
+    expect(d("create_job", {}, { inputs: Array.from({ length: 51 }, () => ({})) }).kind).toBe("ask");
   });
 
   it("the builder's file tools stay inside the plugin directory", () => {

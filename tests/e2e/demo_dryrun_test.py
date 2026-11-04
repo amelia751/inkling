@@ -111,15 +111,7 @@ def beat_segment(page) -> None:
     sent = time.time()
     box.press("Enter")
 
-    # The assistant states the batch and asks once (create_job); the person approves in the chat.
-    approve = page.get_by_test_id("agent-approval").get_by_role("button", name="Approve")
-    try:
-        approve.first.wait_for(timeout=20000)
-        check("segment: the chat names the batch before it runs", "12" in page.get_by_test_id("agent-approval").first.inner_text())
-        approve.first.click()
-    except Exception:  # noqa: BLE001 — no approval card (e.g. pre-approved): the timing still counts
-        pass
-
+    # todo25 §5: the chat states the batch (images, Meta's SAM 3.1, cost) and runs it; no approval card.
     done_at = None
     masks: dict[str, list[dict]] = {}
     while time.time() - sent < SEGMENT_BUDGET_S * 3:
@@ -131,6 +123,7 @@ def beat_segment(page) -> None:
     timing("Send → 12 images with lung masks", done_at, SEGMENT_BUDGET_S)
     check(f"segment: {SEGMENT_IMAGES} images have masks", len(masks) >= SEGMENT_IMAGES, f"{len(masks)} images")
     check(f"segment: within {SEGMENT_BUDGET_S:.0f} s", done_at is not None and done_at <= SEGMENT_BUDGET_S, f"{done_at:.1f} s" if done_at else "timed out")
+    check("segment: no approval card on screen", page.get_by_test_id("agent-approval").count() == 0)
     labels = {a["label"] for v in masks.values() for a in v}
     check("segment: masks are labelled right lung and left lung", labels == LUNG_LABELS, str(sorted(labels)))
     check("segment: every mask is a pending suggestion from meta.sam", all((a.get("attributes") or {}).get("review_status") == "pending" and (a.get("attributes") or {}).get("provider") == "meta.sam" for v in masks.values() for a in v))

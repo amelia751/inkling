@@ -100,7 +100,8 @@ describe("segment the lungs on these (todo25 W4)", () => {
       expect(i.label).toBe("lungs");
       expect(i.prompts).toBeUndefined();
     }
-    expect(approvals).toEqual([expect.stringMatching(/image\.segment on 12 inputs/)]);
+    // todo25 §5: no approval card on screen for a Studio-sized batch.
+    expect(approvals).toEqual([]);
     // The consent line comes before the call.
     const text = events.filter((e) => e.type === "text").map((e: any) => e.delta).join("");
     expect(text).toMatch(/12 images will be sent to Meta.s SAM 3\.1, about \$0\.03/);

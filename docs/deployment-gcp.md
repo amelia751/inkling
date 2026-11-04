@@ -421,6 +421,42 @@ what we demo and test: `features = { chat_drops = true, auto_apply = true, fast_
 The product name a stage shows is `display_name` (`STUDIO_DISPLAY_NAME`); leave it empty to use
 `NAMING.displayName`. After an apply, check `GET /api/v1/features` and `/config.json`.
 
+### Observability (todo27)
+
+**Traces.** Every Cloud Run service that does work sets `OTEL_TRACES_EXPORTER=gcp` and its own
+`OTEL_SERVICE_NAME` (`studio-agent`, `studio-api`, `studio-worker`, `studio-versioning`,
+`studio-pipeline`), and exports spans to Cloud Trace with its own service account
+(`roles/cloudtrace.agent`, write-only; `cloudtrace.googleapis.com` is enabled in both projects).
+One chat is one trace, but it is stored in two places:
+
+- the **agent half** (run span, one span per model call and per tool call) in `spurby-ai`;
+- the **kernel half** (api requests, jobs, worker, versioning, pipeline) in `spurby-phi`.
+
+Both halves share the trace id: the agent's tool span is the active context when it calls the
+Studio host, so the `traceparent` it sends makes the api's spans children of that tool call.
+Nothing crosses projects except that header; no identity reads the other project's traces.
+The run record (and the run's `start` event) carries the `traceId`, so
+`pnpm trace <run-id | session-id | trace-id>` fetches both halves with your `gcloud`
+credentials (projects from `STUDIO_TRACE_PROJECTS`, default `spurby-ai,spurby-phi`) and prints
+one tree. `pnpm trace --file spans.json` prints a tree from saved console or OTLP JSON (local
+runs with `OTEL_TRACES_EXPORTER=console`).
+
+**No content in spans (D3).** Spans hold names, ids, durations, model names, token counts, cost,
+stop reasons, error types and short sanitized error messages, nothing else: no prompts,
+completions, tool arguments, tool results, file names or pixel data. That is what makes the
+agent half safe to keep in `spurby-ai`. `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT`
+stays unset. A canary test in `apps/agent` enforces it.
+
+**Sampling.** `OTEL_TRACES_SAMPLER=parentbased_traceidratio` with `OTEL_TRACES_SAMPLER_ARG` from
+the variable `trace_sample_ratio` (both stacks; set the same value in each). Staging keeps 1.0
+(every trace); production uses 0.1. Parent-based means the agent decides once per run and the
+kernel follows, so a sampled chat is always whole.
+
+**Cost.** Cloud Trace bills per span ingested, with the first 2.5 million spans per billing
+account per month free, then about $0.20 per million. A chat is tens of spans, so staging stays
+inside the free tier; check the billing report after the first week. Lower
+`trace_sample_ratio` if it doesn't.
+
 ## Sample templates
 
 Sample projects (todo14 §3, §4.3) are templates in the Samples organization; "Try a sample"

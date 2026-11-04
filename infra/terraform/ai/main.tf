@@ -37,6 +37,7 @@ resource "google_project_service" "this" {
   for_each = toset([
     "aiplatform.googleapis.com",
     "artifactregistry.googleapis.com",
+    "cloudtrace.googleapis.com", # todo27 W4: spans
     "compute.googleapis.com",
     "container.googleapis.com",
     "iam.googleapis.com",

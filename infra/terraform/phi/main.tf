@@ -55,6 +55,7 @@ resource "google_project_service" "this" {
     "artifactregistry.googleapis.com",
     "binaryauthorization.googleapis.com",
     "cloudkms.googleapis.com",
+    "cloudtrace.googleapis.com", # todo27 W4: spans
     "compute.googleapis.com",
     "container.googleapis.com",
     "dlp.googleapis.com",

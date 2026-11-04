@@ -2,7 +2,9 @@
 # apps/site: the public marketing page, static files behind nginx. Build from the repo root:
 #   docker build -f apps/site/Dockerfile -t studio-site:dev --build-arg GIT_SHA=$(git rev-parse --short HEAD) \
 #     --build-arg STUDIO_SITE_APP_URL=https://app.example.com .
-# The app URL ("Sign in", "Start") is baked into the bundle at build time.
+# The product name and the app URL ("Sign in", "Start") are set per deployment with
+# STUDIO_DISPLAY_NAME and STUDIO_SITE_APP_URL at run time; unset, they fall back to naming.ts and
+# the build arg.
 ARG NODE_IMAGE=node:24-trixie-slim
 ARG NGINX_IMAGE=nginxinc/nginx-unprivileged:1.29-alpine
 
@@ -26,7 +28,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 COPY --from=prune /out/full/ ./
 COPY tsconfig.base.json ./
 COPY schemas schemas
-RUN pnpm --filter @studio/site exec vite build
+RUN pnpm --filter @studio/site exec vite build \
+ && mkdir -p /site-defaults \
+ && node -p 'require("./schemas/naming.json").displayName' > /site-defaults/display-name \
+ && printf '%s\n' "${STUDIO_SITE_APP_URL:-http://localhost:5173}" > /site-defaults/app-url
 
 FROM ${NGINX_IMAGE}
 ARG GIT_SHA=dev
@@ -39,6 +44,8 @@ RUN rm -f /etc/nginx/conf.d/default.conf
 COPY apps/site/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY apps/site/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=0755 apps/site/nginx/05-tmp-dirs.sh /docker-entrypoint.d/05-tmp-dirs.sh
+COPY --chmod=0755 apps/site/nginx/10-site-defaults.envsh /docker-entrypoint.d/10-site-defaults.envsh
+COPY --from=build /site-defaults /etc/nginx/site-defaults
 COPY --from=build /repo/apps/site/dist /usr/share/nginx/html
 USER 101
 ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \

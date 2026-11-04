@@ -51,7 +51,7 @@ jobs:
           pkgs=$(pnpm exec turbo ls --filter="...[$base]" --output=json 2>/dev/null | sed -n '/^{/,$p' | jq -r '.packages.items[].name')
           files=$(git diff --name-only "$base" HEAD)
           apps=""
-          for app in web api agent worker versioning pipeline mcp; do
+          for app in web api agent worker versioning pipeline mcp site; do
             hit=false
             [ "$ALL" = "true" ] && hit=true
             echo "$pkgs" | grep -qx "@studio/$app" && hit=true

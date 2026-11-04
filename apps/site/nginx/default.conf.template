@@ -1,5 +1,7 @@
 # Rendered at container start by the nginx image's envsubst step into /tmp/nginx/conf.d.
-#   GIT_SHA   build revision for /version
+#   GIT_SHA               build revision for /version
+#   STUDIO_DISPLAY_NAME   product name on the page (plain text; default: the build's display name)
+#   STUDIO_SITE_APP_URL   where "Sign in" and "Start" go (the web app's origin)
 server {
   listen 8080;
   server_name _;
@@ -13,6 +15,9 @@ server {
   location /assets/ { add_header Cache-Control "public, max-age=31536000, immutable"; }
   location / {
     add_header Cache-Control "no-cache";
+    sub_filter_once off;
+    sub_filter '%DISPLAY_NAME%' '${STUDIO_DISPLAY_NAME}';
+    sub_filter '%APP_URL%' '${STUDIO_SITE_APP_URL}';
     try_files $uri $uri/ /index.html;
   }
 }

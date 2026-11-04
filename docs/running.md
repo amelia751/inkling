@@ -111,6 +111,23 @@ agent reads the key and model from `secrets/*.env` itself and refuses a model ou
 cost money: keep them few (`AGENTS.md`, "Testing the product"); tests and e2e always use
 `scripted`.
 
+### Traces locally
+
+Tracing is off unless you switch it on (todo27 D4), and costs nothing when off.
+`OTEL_TRACES_EXPORTER=console pnpm dev` prints each service's spans in its own terminal: HTTP in
+and out today, plus model and tool calls in the agent. `tools/dev.mjs` passes every `OTEL_*`
+variable (from your shell or a `secrets/*.env` file) through to all services, including the standard
+`OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG`. For a timeline view, run Jaeger and export OTLP
+to it, then open http://localhost:16686:
+
+```sh
+docker run --rm -d --name jaeger -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one
+OTEL_TRACES_EXPORTER=otlp OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 pnpm dev
+```
+
+`OTEL_TRACES_EXPORTER=gcp` (staging) exports to Cloud Trace with application default credentials.
+Spans never carry prompts, completions, tool arguments or results, or file names.
+
 ### Seed mode, or the API and worker
 
 The web app runs in one of two modes. Which one depends on whether the Vite dev server knows

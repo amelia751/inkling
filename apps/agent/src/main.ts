@@ -50,7 +50,7 @@ log.info(
 );
 for (const w of warnings) log.warn(w);
 
-const tracing = await initTracing({ service: SERVICE_NAME, version: SERVICE_VERSION, warn: (m) => log.warn(m) });
+const tracing = await initTracing({ service: SERVICE_NAME, version: SERVICE_VERSION, warn: (m) => log.warn(m), importer: (s) => import(s) });
 installFetchPropagation(sameOriginAs([config.kernelUrl, config.studioUrl]));
 
 const store = createStore(config, (m) => log.info(m));

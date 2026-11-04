@@ -72,6 +72,9 @@
       ],
       "@plugins/dicom-export/*": [
         "../../plugins/dicom-export/ui/*"
+      ],
+      "@plugins/chart/*": [
+        "../../plugins/chart/ui/*"
       ]
     }
   },

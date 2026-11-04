@@ -111,6 +111,12 @@
       "description": "Plain-text documents with character-offset span labels (named entities, phrases); JSONL export in the spaCy / doccano shape."
     },
     {
+      "id": "studio.chart",
+      "version": "0.1.0",
+      "title": "Charts",
+      "description": "Time-series lines and open/high/low/close candles over table rows, Vega-Lite specs, and window (span) and event (instant) annotations on the time axis."
+    },
+    {
       "id": "studio.segmentation",
       "version": "1.0.0",
       "title": "Segmentation",
@@ -238,6 +244,18 @@
       "example": {
         "data": {
           "kind": "studio.text-spans.dataKinds.text"
+        }
+      }
+    },
+    {
+      "id": "studio.chart.dataKinds.series",
+      "type": "dataKinds",
+      "module": "studio.chart",
+      "description": "One item per delimited text file whose rows carry a time column; the table kit's `table` kind is also accepted by the chart renderers",
+      "label": "Time-ordered table",
+      "example": {
+        "data": {
+          "kind": "studio.chart.dataKinds.series"
         }
       }
     },
@@ -1100,6 +1118,166 @@
             "renderer": "studio.text-spans.renderers.reader"
           }
         ]
+      }
+    },
+    {
+      "id": "studio.chart.renderers.series",
+      "type": "renderers",
+      "module": "studio.chart",
+      "description": "Time-series lines ({time, value[]}) or candles ({time, open, high, low, close}, optional volume) drawn with Lightweight Charts",
+      "consumes": [
+        "studio.chart.dataKinds.series",
+        "studio.table.dataKinds.table"
+      ],
+      "space": "time",
+      "capabilities": [
+        "time",
+        "pan",
+        "zoom"
+      ],
+      "example": {
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "studio.chart.renderers.series",
+            "config": {
+              "time": "time",
+              "open": "open",
+              "high": "high",
+              "low": "low",
+              "close": "close",
+              "volume": "volume"
+            }
+          }
+        ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "time": {
+            "default": "time",
+            "description": "Column holding the time of each row (ISO date, epoch seconds or epoch ms)",
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "default": [],
+            "description": "Columns drawn as lines; empty = every numeric column that is not time or a candle column",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "open": {
+            "description": "Candle mode: column with each bar's first value (set open, high, low and close together)",
+            "type": "string",
+            "minLength": 1
+          },
+          "high": {
+            "description": "Candle mode: column with each bar's highest value",
+            "type": "string",
+            "minLength": 1
+          },
+          "low": {
+            "description": "Candle mode: column with each bar's lowest value",
+            "type": "string",
+            "minLength": 1
+          },
+          "close": {
+            "description": "Candle mode: column with each bar's last value",
+            "type": "string",
+            "minLength": 1
+          },
+          "volume": {
+            "description": "Optional column drawn as a histogram under the main pane",
+            "type": "string",
+            "minLength": 1
+          },
+          "timeUnit": {
+            "default": "auto",
+            "description": "Unit of numeric time values; auto treats values above 1e11 as ms",
+            "type": "string",
+            "enum": [
+              "auto",
+              "s",
+              "ms"
+            ]
+          }
+        },
+        "required": [
+          "time",
+          "value",
+          "timeUnit"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "studio.chart.renderers.spec",
+      "type": "renderers",
+      "module": "studio.chart",
+      "description": "Any Vega-Lite chart: a JSON spec in config, with the item's rows injected as data when the spec has none",
+      "consumes": [
+        "studio.chart.dataKinds.series",
+        "studio.table.dataKinds.table"
+      ],
+      "space": "time",
+      "capabilities": [],
+      "example": {
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "studio.chart.renderers.spec",
+            "config": {
+              "spec": {
+                "mark": "bar",
+                "encoding": {
+                  "x": {
+                    "field": "time",
+                    "type": "temporal"
+                  },
+                  "y": {
+                    "field": "value",
+                    "type": "quantitative"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      },
+      "configSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "spec": {
+            "default": {
+              "mark": "line",
+              "encoding": {
+                "x": {
+                  "field": "time",
+                  "type": "temporal"
+                },
+                "y": {
+                  "field": "value",
+                  "type": "quantitative"
+                }
+              }
+            },
+            "description": "A Vega-Lite JSON spec. Without `data`, the item's rows are injected as `data.values`",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "spec"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -2141,6 +2319,38 @@
         "tools": [
           "studio.core.tools.select",
           "studio.text-spans.tools.entity"
+        ]
+      }
+    },
+    {
+      "id": "studio.chart.tools.window",
+      "type": "tools",
+      "module": "studio.chart",
+      "description": "Time window or regime as a core `span` (attributes.kind = window)",
+      "label": "Window",
+      "creates": "span",
+      "when": "renderer == studio.chart.renderers.series",
+      "hotkey": "i",
+      "example": {
+        "tools": [
+          "studio.core.tools.select",
+          "studio.chart.tools.window"
+        ]
+      }
+    },
+    {
+      "id": "studio.chart.tools.event",
+      "type": "tools",
+      "module": "studio.chart",
+      "description": "Point-in-time event as a core `instant` (attributes.kind = event)",
+      "label": "Event",
+      "creates": "instant",
+      "when": "renderer == studio.chart.renderers.series",
+      "hotkey": "t",
+      "example": {
+        "tools": [
+          "studio.core.tools.select",
+          "studio.chart.tools.event"
         ]
       }
     },
@@ -3921,6 +4131,47 @@
           {
             "command": "studio.wsi.commands.importGeoJSON",
             "keys": []
+          }
+        ]
+      }
+    },
+    {
+      "id": "studio.chart.commands.fitAll",
+      "type": "commands",
+      "module": "studio.chart",
+      "description": "Zoom the time axis to show every row",
+      "label": "Fit all data",
+      "when": "renderer == studio.chart.renderers.series",
+      "keys": [
+        "Home"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.chart.commands.fitAll",
+            "keys": [
+              "Home"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "studio.chart.commands.cancelWindow",
+      "type": "commands",
+      "module": "studio.chart",
+      "description": "Drop the window whose start was clicked but not its end",
+      "label": "Cancel the open window",
+      "keys": [
+        "Escape"
+      ],
+      "example": {
+        "keybindings": [
+          {
+            "command": "studio.chart.commands.cancelWindow",
+            "keys": [
+              "Escape"
+            ]
           }
         ]
       }
@@ -6016,6 +6267,72 @@
       ]
     },
     {
+      "id": "studio.presets.presets.series-chart",
+      "type": "presets",
+      "module": "studio.presets",
+      "description": "Table rows over time on a line or candle chart: mark windows (spans) and events (instants) on the time axis.",
+      "example": {
+        "$schema": "studio://schema/environment/v1",
+        "id": "series-chart",
+        "title": "Time-series chart",
+        "data": {
+          "kind": "studio.chart.dataKinds.series"
+        },
+        "viewports": [
+          {
+            "name": "main",
+            "renderer": "studio.chart.renderers.series",
+            "config": {
+              "time": "time",
+              "open": "open",
+              "high": "high",
+              "low": "low",
+              "close": "close",
+              "volume": "volume"
+            }
+          }
+        ],
+        "tools": [
+          "studio.core.tools.select",
+          "studio.core.tools.pan",
+          "studio.chart.tools.window",
+          "studio.chart.tools.event"
+        ],
+        "labels": [
+          {
+            "name": "marks",
+            "control": "TimeSeriesLabels",
+            "classes": [
+              {
+                "id": "window",
+                "color": "chart-1"
+              },
+              {
+                "id": "event",
+                "color": "chart-2"
+              }
+            ]
+          }
+        ],
+        "panels": {
+          "left": [
+            "studio.core.panels.files",
+            "studio.core.panels.labels"
+          ],
+          "right": [
+            "studio.core.panels.ai"
+          ]
+        },
+        "reviewRules": [
+          "studio.core.reviewRules.unlabeled-items"
+        ],
+        "layout": null
+      },
+      "profileOf": [
+        "studio.chart.dataKinds.series"
+      ]
+    },
+    {
       "id": "studio.presets.presets.video",
       "type": "presets",
       "module": "studio.presets",
@@ -6184,6 +6501,12 @@
       "preset": "preset:sensor-timeseries-events",
       "renderer": "studio.timeseries.renderers.strip-chart",
       "description": "Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall)."
+    },
+    {
+      "kind": "studio.chart.dataKinds.series",
+      "preset": "preset:series-chart",
+      "renderer": "studio.chart.renderers.series",
+      "description": "Table rows over time on a line or candle chart: mark windows (spans) and events (instants) on the time axis."
     },
     {
       "kind": "studio.video.dataKinds.video",

@@ -20,6 +20,7 @@ import video from "@plugins/video/manifest";
 import volume from "@plugins/volume/manifest";
 import wsi from "@plugins/wsi/manifest";
 import textSpans from "@plugins/text-spans/manifest";
+import chart from "@plugins/chart/manifest";
 import experimental from "./agent-panels/manifest";
 import generic from "./sandbox/manifest";
 import { featureEnabled } from "./flags";
@@ -62,7 +63,7 @@ export const DECLARATIVE_MODULES: ModuleManifest[] = PLUGIN_PACKAGES.packages
   .map((p) => declarativeModule(p.manifest, p.contributions!));
 if (PLUGIN_PACKAGES.problems.length && import.meta.env?.DEV) console.warn("[plugins] invalid plugin manifests (not registered):", PLUGIN_PACKAGES.problems);
 
-export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, fileView, generic, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, ...DECLARATIVE_MODULES, presets];
+export const MODULES: ModuleManifest[] = [core, overlay2d, cornerstone, timeline, fileView, generic, image2d, volume, timeseries, video, cine, cardiacMetrics, wsi, dicomExport, textSpans, chart, ...DECLARATIVE_MODULES, presets];
 
 const replace = import.meta.env.DEV;
 for (const m of MODULES) registry.registerModule(m, { replace });

@@ -13,6 +13,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.wsi.dataKinds.raster-pyramid` → `preset:pathology` (renderer studio.wsi.renderers.osd)
 - `studio.wsi.dataKinds.raster-pyramid` → `preset:satellite-tiles` (renderer studio.wsi.renderers.osd)
 - `studio.timeseries.dataKinds.multichannel-timeseries` → `preset:sensor-timeseries-events` (renderer studio.timeseries.renderers.strip-chart)
+- `studio.chart.dataKinds.series` → `preset:series-chart` (renderer studio.chart.renderers.series)
 - `studio.video.dataKinds.video` → `preset:video` (renderer studio.video.renderers.frame-canvas)
 - `studio.volume.dataKinds.volume` → `preset:volume-3d` (renderer studio.volume.renderers.cornerstone-mpr)
 
@@ -25,6 +26,7 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.dataKinds.volume-time` — A 4D series plus reference segmentations, as one study
 - `studio.wsi.dataKinds.raster-pyramid` — One item per pyramid (slide); thumbnails are skipped
 - `studio.text-spans.dataKinds.text` — One item per UTF-8 text file
+- `studio.chart.dataKinds.series` — One item per delimited text file whose rows carry a time column; the table kit's `table` kind is also accepted by the chart renderers
 
 ## renderers
 - `studio.file-view.renderers.file` — Generic file view: name, size, kind, facts, preview for images, download (consumes studio.generic.dataKinds.files; space image2d)
@@ -36,6 +38,8 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.renderers.slice-frame-canvas` — One slice × frame at a time on a canvas, with a slice × frame matrix, key frames and playback. Publishes runtime grid, playhead, references and coverage (consumes studio.cine.dataKinds.volume-time; space image2d)
 - `studio.wsi.renderers.osd` — OpenSeadragon deep zoom with the overlay2d vector engine, navigator and colour adjustments (consumes studio.wsi.dataKinds.raster-pyramid; space image2d)
 - `studio.text-spans.renderers.reader` — Reading view: select text to label a span; click a span to select it (consumes studio.text-spans.dataKinds.text; space text)
+- `studio.chart.renderers.series` — Time-series lines ({time, value[]}) or candles ({time, open, high, low, close}, optional volume) drawn with Lightweight Charts (consumes studio.chart.dataKinds.series, studio.table.dataKinds.table; space time)
+- `studio.chart.renderers.spec` — Any Vega-Lite chart: a JSON spec in config, with the item's rows injected as data when the spec has none (consumes studio.chart.dataKinds.series, studio.table.dataKinds.table; space time)
 
 ## geometries
 - `studio.core.geometries.class` — Item-level class (whole image, recording or study)
@@ -114,6 +118,8 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.wsi.tools.mark` — Point (cell) counting (creates keypoint; when renderer == studio.wsi.renderers.osd)
 - `studio.wsi.tools.length` — Distance in µm (creates measurement; when renderer == studio.wsi.renderers.osd)
 - `studio.text-spans.tools.entity` — Label a selected text span (creates studio.text-spans.span; when renderer.space == text)
+- `studio.chart.tools.window` — Time window or regime as a core `span` (attributes.kind = window) (creates span; when renderer == studio.chart.renderers.series)
+- `studio.chart.tools.event` — Point-in-time event as a core `instant` (attributes.kind = event) (creates instant; when renderer == studio.chart.renderers.series)
 
 ## commands
 - `studio.core.commands.undo` — Undo the last change (an annotation in the Studio; a file operation in Sources)
@@ -201,6 +207,8 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `studio.cine.commands.goTo` — Show a slice and frame; args { slice?, frame? } (0-based)
 - `studio.wsi.commands.toggleClassNames` — Toggle class names on regions (takes N from Next to do) (when renderer == studio.wsi.renderers.osd)
 - `studio.wsi.commands.importGeoJSON` — Pick a GeoJSON file (QuPath, Cytomine, DSA) and add its objects to the current slide as one undo step (when renderer == studio.wsi.renderers.osd)
+- `studio.chart.commands.fitAll` — Zoom the time axis to show every row (when renderer == studio.chart.renderers.series)
+- `studio.chart.commands.cancelWindow` — Drop the window whose start was clicked but not its end
 - `studio.segmentation.commands.segment` — Segment objects in this image (selected label, or the provider's) (when item.mediaType =~ /^(?:image\/png|image\/jpeg|image\/webp)$/)
 
 ## panels
@@ -270,5 +278,6 @@ Each preset is a profile for its kind (kind → preset; a kind can have several)
 - `preset:pathology` — Whole-slide images: vector regions, region brush and wand, cell counting, µm measurements; QuPath GeoJSON, ASAP XML and counts export.
 - `preset:satellite-tiles` — Deep-zoom satellite or aerial imagery (DZI): building footprints, fields and points of interest, with areas in m² from metres per pixel.
 - `preset:sensor-timeseries-events` — Accelerometer or other sensor CSV on a plain-grid strip chart: activity spans (walk / run / rest) and point events (step, fall).
+- `preset:series-chart` — Table rows over time on a line or candle chart: mark windows (spans) and events (instants) on the time axis.
 - `preset:video` — Video with tracked boxes, polygons and keypoints, segments and events; CVAT, MOT and temporal JSON export.
 - `preset:volume-3d` — MRI / CT volumes in linked MPR with crosshairs, 3D labelmaps, measurements; NIfTI and DICOM export.

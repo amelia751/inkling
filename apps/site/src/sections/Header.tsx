@@ -1,16 +1,12 @@
 import { useEffect, useState } from "react";
-import { ArrowRightIcon, ChevronDownIcon, CloseIcon, MenuIcon } from "@studio/ui/icons";
+import { ArrowRightIcon, BrandLogo, ChevronDownIcon, CloseIcon, MenuIcon } from "@studio/ui/icons";
 import { ANNOUNCEMENTS, APP_URL, NAME, NAV, type NavEntry } from "@/content";
 import { useCycle, useReducedMotion } from "@/lib/motion";
 
 export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
     <a href="/#top" className="flex items-center gap-2.5" aria-label={`${NAME} home`}>
-      <svg viewBox="0 0 36 36" className="size-9 shrink-0" aria-hidden>
-        <rect width="36" height="36" rx="10" fill="var(--color-lime)" />
-        <path d="M10 15v-5h5M26 21v5h-5" stroke="var(--color-ink)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <circle cx="18" cy="18" r="3.2" fill="var(--color-ink)" />
-      </svg>
+      <BrandLogo className="size-9 shrink-0" />
       <span className={`display text-[22px] tracking-[-0.02em] ${inverse ? "text-white" : "text-ink"}`}>{NAME}</span>
     </a>
   );

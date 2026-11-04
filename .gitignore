@@ -39,3 +39,6 @@ tests/e2e/.artifacts/
 
 # Planning notes stay local.
 todo/
+
+# The pitch deck is local only.
+presentation/

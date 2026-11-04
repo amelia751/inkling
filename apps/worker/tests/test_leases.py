@@ -147,8 +147,18 @@ def test_heartbeats_keep_a_short_lease_alive(slow, tmp_path):
     t.join(timeout=10)
 
 
+def drain(slow, tmp_path) -> None:
+    """The kernel is shared by the session: earlier tests may leave events (uploads to inspect,
+    archives to unpack) that a fresh worker's tick picks up first. Do those before timing a tick."""
+    w = Worker(slow["url"], slow["token"], tmp_path, "w-drain", heartbeat_s=0.5)
+    for _ in range(50):
+        if not w.tick():
+            return
+
+
 def test_a_cancelled_kernel_service_job_stops_at_once(slow, tmp_path):
     url = slow["url"]
+    drain(slow, tmp_path)
     tok = {"Authorization": "Bearer dev-only-pipeline-token"}
     r = httpx.post(f"{url}/api/v1/service/jobs", json={"workspace_id": "slow", "kind": "noop", "input_ref": "sleep:60", "resource_class": "cpu", "idempotency_key": "svc-sleep"}, headers=tok)
     assert r.status_code == 201, r.text
@@ -171,6 +181,7 @@ def test_a_cancelled_kernel_service_job_stops_at_once(slow, tmp_path):
 
 def test_a_worker_claims_only_its_resource_classes(slow, tmp_path):
     url = slow["url"]
+    drain(slow, tmp_path)
     tok = {"Authorization": "Bearer dev-only-pipeline-token"}
     r = httpx.post(f"{url}/api/v1/service/jobs", json={"workspace_id": "slow", "kind": "noop", "input_ref": "blob:g", "resource_class": "gpu", "idempotency_key": "svc-gpu"}, headers=tok)
     job_id = r.json()["job_id"]

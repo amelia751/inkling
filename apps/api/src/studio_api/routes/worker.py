@@ -234,6 +234,14 @@ async def inspect_derived(node_id: str, role: str, request: Request, db: Session
     return inspection.put_derived(db, node_id, role, data, request.headers.get("Content-Type", ""))
 
 
+@router.post("/inspect/imports/{import_id}/nodes", dependencies=[Depends(_auth)])
+def inspect_nodes(import_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
+    """todo28 W1: files of an import as soon as each is checked (any subset, idempotent per node)."""
+    from ..kernel import inspection
+
+    return inspection.post_nodes(db, import_id, body)
+
+
 @router.post("/inspect/imports/{import_id}/report", dependencies=[Depends(_auth)])
 def inspect_report(import_id: str, body: dict = Body(...), db: Session = Depends(get_session)):
     from ..kernel import inspection

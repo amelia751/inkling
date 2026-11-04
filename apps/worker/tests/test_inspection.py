@@ -1,8 +1,7 @@
 """Inspection (todo6 Phase 5.1): an import through the live kernel is inspected by the worker
 loop. Kinds come from content, DICOM files become a candidate series with its gaps flagged,
-identifying headers and path names hold files, tables are profiled, and the relationship,
-label mapping and dataset proposals wait for a person. Confirming the dataset creates the
-task with the CSV's classes and its labels as `imported` annotations."""
+identifying headers and path names hold files, tables are profiled, and the relationship and
+label mapping proposals wait for a person."""
 
 from __future__ import annotations
 
@@ -146,7 +145,7 @@ def test_worker_inspects_an_import_and_proposes_without_applying(stack, tmp_path
     assert xl["table"]["csvPath"].endswith(".csv") and xl["table"]["rowCount"] == 2 and xl["workbook"]["sheet"]
 
     props = {p["kind"]: p for p in httpx.get(f"{url}/api/v1/projects/{project}/proposals").json()["proposals"]}
-    assert set(props) == {"group", "relationship", "mapping", "dataset"}
+    assert set(props) == {"group", "relationship", "mapping"}  # todo20 W1: no dataset proposals
     assert all(p["status"] == "proposed" and p["createdBy"] == "worker:inspect" for p in props.values())
     g = props["group"]
     assert g["payload"]["summary"].startswith("4 DICOM files form 1 MRI series (MR, 8×8, 4 slices)") and g["evidence"]["missingInstances"] == [3]
@@ -157,9 +156,7 @@ def test_worker_inspects_an_import_and_proposes_without_applying(stack, tmp_path
     assert rel["strength"] == "possible"  # 5 of 6: words, never percentages
     mp = props["mapping"]
     assert mp["payload"]["column"] == "diagnosis" and {c["id"] for c in mp["payload"]["classes"]} == {"normal", "pneumonia"}
-    ds = props["dataset"]
-    assert ds["payload"]["preset"] == "preset:image-2d" and ds["payload"]["itemCount"] == 5
-    # Proposed, not applied: no dataset, no task, no annotations yet.
+    # Proposed, not applied: no dataset yet.
     assert [d for d in httpx.get(f"{url}/api/v1/projects/{project}/datasets").json()["datasets"]] == []
 
     # The summary and quality list come from the same rows.
@@ -172,34 +169,18 @@ def test_worker_inspects_an_import_and_proposes_without_applying(stack, tmp_path
     r = httpx.post(f"{url}/api/v1/proposals/{rel['id']}/recompute", json={"resolutions": {"5": "skip"}}).json()
     assert (r["evidence"]["matched"], r["evidence"]["unmatched"], r["evidence"]["skipped"]) == (5, 0, 1) and r["strength"] == "strong"
 
-    # The action preview, then confirming the dataset: dataset + task + environment + imported labels.
-    pv = httpx.get(f"{url}/api/v1/proposals/{ds['id']}/preview").json()
-    assert pv["files"] == 5 and pv["importedLabels"] == 5 and sorted(pv["labelClasses"]) == ["normal", "pneumonia"] and len(pv["alsoConfirms"]) == 2
     tok = httpx.post(f"{url}/api/v1/sessions", json={"scopes": ["proposals.write"], "agent": "run-1"}, headers={"X-Workspace-Id": project}).json()["token"]
     agent = {"Authorization": f"Bearer {tok}"}
-    assert httpx.post(f"{url}/api/v1/proposals/{ds['id']}/confirm", json={}, headers=agent).status_code == 403
-    out = httpx.post(f"{url}/api/v1/proposals/{ds['id']}/confirm", json={}).json()
-    task = out["task"]["id"]
-    assert out["importedLabels"] == 5 and out["task"]["kind"] == "classification"
-    env = httpx.get(f"{url}/api/environments/{task}").json()["effective"]
-    assert env["extends"] == "preset:image-2d" and sorted(c["id"] for c in env["labels"][0]["classes"]) == ["normal", "pneumonia"]
-    doc = httpx.get(f"{url}/api/v1/tasks/{task}/document").json()
-    assert len(doc["assets"]) == 5
-    anns = httpx.get(f"{url}/api/annotations/{task}", headers={"X-Workspace-Id": task}).json()["annotations"]
-    assert len(anns) == 5 and {a["provenance"] for a in anns} == {"imported"} and {a["itemId"] for a in anns} == {a["path"] for a in doc["assets"]}
-    assert anns[0]["attributes"]["source_file"] == "labels.csv" and anns[0]["attributes"]["review_status"] == "pending"
-    decided = {p["kind"]: p["status"] for p in httpx.get(f"{url}/api/v1/projects/{project}/proposals").json()["proposals"]}
-    assert decided == {"group": "proposed", "relationship": "confirmed", "mapping": "confirmed", "dataset": "confirmed"}
-    assert httpx.get(f"{url}/api/v1/imports/{imp['id']}").json()["state"] == "imported"
     actions = [e["action"] for e in httpx.get(f"{url}/api/v1/projects/{project}/activity").json()["entries"]]
-    for a in ("import.completed", "import.inspected", "proposal.confirmed", "dataset.created", "task.created"):
+    for a in ("import.completed", "import.inspected"):
         assert a in actions, a
 
     # Clearing the privacy hold is a person's call, with a reason, and audited.
     nid = n["IM0001.dcm"]["id"]
     assert httpx.post(f"{url}/api/v1/source-nodes/{nid}/privacy/clear", json={"reason": "x"}, headers=agent).status_code == 403
     assert httpx.post(f"{url}/api/v1/source-nodes/{nid}/privacy/clear", json={"reason": "Synthetic phantom name"}).json()["status"] == "attention"
-    assert "privacy.cleared" in [e["action"] for e in httpx.get(f"{url}/api/v1/projects/{project}/activity").json()["entries"]]
+    feed = httpx.get(f"{url}/api/v1/projects/{project}/activity").json()["entries"]
+    assert "privacy.cleared" in [e["action"] for e in feed], [(e["id"], e["action"]) for e in feed]
 
 
 def test_a_second_report_for_a_finished_import_is_refused(stack, tmp_path, mixed):
@@ -240,3 +221,105 @@ def test_table_profile_types_and_keys():
     assert prof["candidateKeys"] == ["id"] and prof["nameColumns"] == ["id"] and findings == []
     _, held = tables.profile("name,email\nA,a@b.org\n", "t.csv", [])
     assert any("e-mail" in f or "email" in f for f in held)
+
+
+# ---- todo28 W1: per-file posts, against a fake kernel ---------------------------------------
+
+
+class FakeKernel:
+    """Just the inspection routes: an import's files, their bytes (ranged), derived files, and
+    what the worker posts (`…/nodes`, `…/report`), with when it posted."""
+
+    def __init__(self, files: dict[str, bytes], *, slow: dict[str, float] | None = None, broken: set[str] | None = None):
+        import threading
+        import time
+
+        self.time = time
+        self.lock = threading.Lock()
+        self.bytes = {f"n{i}": d for i, d in enumerate(files.values())}
+        self.files = [{"nodeId": f"n{i}", "relPath": rel, "name": rel.rsplit("/", 1)[-1], "size": len(d)} for i, (rel, d) in enumerate(files.items())]
+        self.ids = {f["relPath"]: f["nodeId"] for f in self.files}
+        self.slow = {self.ids[k]: v for k, v in (slow or {}).items()}
+        self.broken = {self.ids[k] for k in broken or ()}
+        self.posts: list[tuple[float, list[str]]] = []
+        self.report: dict | None = None
+        self.reads: dict[str, int] = {}
+        self.done_at: dict[str, float] = {}
+
+    def __call__(self, req: httpx.Request) -> httpx.Response:
+        path = req.url.path
+        if path == "/api/v1/worker/inspect/imports/imp1":
+            return httpx.Response(200, json={"importId": "imp1", "state": "inspecting", "files": self.files})
+        if path.endswith("/content"):
+            nid = path.split("/")[-2]
+            with self.lock:
+                self.reads[nid] = self.reads.get(nid, 0) + 1
+            if nid in self.broken:
+                return httpx.Response(503)
+            self.time.sleep(self.slow.get(nid, 0))
+            data = self.bytes[nid]
+            rng = req.headers.get("Range")
+            if rng:
+                a, b = (int(x) for x in rng.split("=")[1].split("-"))
+                data = data[a : b + 1]
+            with self.lock:
+                self.done_at[nid] = self.time.monotonic()
+            return httpx.Response(200, content=data)
+        if "/derived/" in path:
+            return httpx.Response(200, json={"path": "derived/x.png"})
+        if path.endswith("/nodes"):
+            with self.lock:
+                self.posts.append((self.time.monotonic(), [n["nodeId"] for n in json_body(req)["nodes"]]))
+            return httpx.Response(200, json={"inspected": 1})
+        if path.endswith("/report"):
+            self.report = json_body(req)
+            return httpx.Response(200, json={"state": "ready"})
+        return httpx.Response(404)
+
+
+def json_body(req: httpx.Request) -> dict:
+    import json
+
+    return json.loads(req.content)
+
+
+def run_fake(k: FakeKernel, tmp_path, concurrency: int = 4) -> str:
+    sub = InspectSubscriber(httpx.Client(base_url="http://kernel", transport=httpx.MockTransport(k)), tmp_path, concurrency=concurrency, backoff_s=(0, 0, 0, 0))
+    return sub.handle({"eventId": "e1", "type": "source.uploaded", "payload": {"importId": "imp1"}})
+
+
+def test_a_slow_big_file_doesnt_delay_the_small_ones(tmp_path):
+    files = {f"x/img_{i}.png": png(8 + i, 8) for i in range(4)}
+    files["x/big.png"] = png(200, 200)
+    k = FakeKernel(files, slow={"x/big.png": 1.5})
+    assert run_fake(k, tmp_path, concurrency=2) == "ready"
+    big = k.ids["x/big.png"]
+    small = {k.ids[f"x/img_{i}.png"] for i in range(4)}
+    first_at, first = k.posts[0]
+    assert big not in first and set(first) <= small
+    assert first_at < k.done_at[big]  # posted while the big one was still being read
+    posted = [n for _, ids in k.posts for n in ids]
+    assert sorted(posted) == sorted(small | {big}) and len(posted) == len(set(posted))
+    assert k.report is not None and k.report["nodes"] == []  # nothing re-sent in the report
+
+
+def test_an_http_error_retries_only_that_file(tmp_path):
+    files = {f"x/img_{i}.png": png(8 + i, 8) for i in range(3)}
+    files["x/flaky.png"] = png(9, 9)
+    k = FakeKernel(files, broken={"x/flaky.png"})
+    assert run_fake(k, tmp_path) == "ready"
+    flaky = k.ids["x/flaky.png"]
+    assert k.reads[flaky] == 5 and all(k.reads[k.ids[f"x/img_{i}.png"]] <= 2 for i in range(3))
+    posted = {n for _, ids in k.posts for n in ids}
+    assert posted == {k.ids[f"x/img_{i}.png"] for i in range(3)}
+    assert k.report is not None and k.report["retrying"] == [flaky] and k.report["nodes"] == []
+
+
+def test_a_dicom_series_is_posted_as_one_group(tmp_path):
+    files = {f"mri/IM{i:04d}.dcm": dicom(i) for i in (1, 2, 3)}
+    files["notes/a.png"] = png(4, 4)
+    k = FakeKernel(files)
+    assert run_fake(k, tmp_path) == "ready"
+    series = {k.ids[f"mri/IM{i:04d}.dcm"] for i in (1, 2, 3)}
+    assert [set(ids) for _, ids in k.posts] == [{k.ids["notes/a.png"]}, series]
+    assert k.report is not None and k.report["nodes"] == [] and len(k.report["groups"]) == 1 and set(k.report["groups"][0]["nodeIds"]) == series

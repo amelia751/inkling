@@ -107,6 +107,13 @@ CREATE TABLE agent_ui_parts (
 );
 `,
   },
+  {
+    // todo27 W1: a run's OpenTelemetry trace id, so a chat's run leads to its trace.
+    version: 6,
+    sql: `
+ALTER TABLE agent_runs ADD COLUMN trace_id text;
+`,
+  },
 ];
 
 export const LATEST_VERSION = MIGRATIONS.at(-1)!.version;

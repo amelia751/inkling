@@ -52,6 +52,7 @@ import { type CallFacts, type PolicyState, policyExtension } from "../tools/poli
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
 import { Projector, providerErrorMessage, sanitizeError } from "./events.ts";
+import { RunTracer, withToolContext } from "./tracing.ts";
 import { Run } from "./runs.ts";
 
 export const AI_ASSIST_OFF_MESSAGE = "The assistant is off for this organization";
@@ -124,6 +125,8 @@ export class SessionContext {
   readonly runs = new Map<string, Run>();
   readonly policy: PolicyState;
   projector: Projector | undefined;
+  /** todo27 W1: the active run's spans (a no-op without an OpenTelemetry SDK). */
+  tracer: RunTracer | undefined;
   persisted = 0;
   /** Set by SessionService: records approvals/client-tool calls (cluster/coordinator.ts) before emitting. */
   emitHook: ((body: Parameters<Run["events"]["push"]>[0]) => void) | undefined;
@@ -515,7 +518,7 @@ export class SessionService {
       runtime: this.deps.runtime,
       cwd: SANDBOX_CWD,
       systemPrompt: systemPrompt(profile, { studioIndex: this.studio.index }),
-      tools,
+      tools: tools.map((t) => withToolContext(t, () => ctx.tracer)),
       sessionManager,
       model: resolveModel(this.deps.runtime, this.config),
       extensions: [
@@ -567,7 +570,7 @@ export class SessionService {
       runtime: this.deps.runtime,
       cwd: SANDBOX_CWD,
       systemPrompt: systemPrompt(ctx.profile),
-      tools,
+      tools: tools.map((t) => withToolContext(t, () => ctx.tracer)),
       sessionManager,
       model: resolveModel(this.deps.runtime, this.config, reviewer),
       extensions: [
@@ -618,7 +621,7 @@ export class SessionService {
       runtime: this.deps.runtime,
       cwd: SANDBOX_CWD,
       systemPrompt: systemPrompt(ctx.profile),
-      tools,
+      tools: tools.map((t) => withToolContext(t, () => ctx.tracer)),
       sessionManager,
       model: resolveModel(this.deps.runtime, this.config),
       extensions: [
@@ -1151,12 +1154,23 @@ export class SessionService {
       return;
     }
 
-    const log = this.deps.log.child({ sessionId: ctx.id, runId: run.id, principal: run.principal, orgId: run.orgId });
+    const model = ctx.piSession.model;
+    const tracer = new RunTracer({
+      runId: run.id,
+      sessionId: ctx.id,
+      provider: model?.provider ?? this.config.model.provider,
+      model: model?.id ?? this.config.model.id,
+      thinking: ctx.piSession.thinkingLevel,
+      profile: ctx.meta.profile,
+    });
+    ctx.tracer = tracer;
+    run.traceId = tracer.traceId;
+    const log = this.deps.log.child({ sessionId: ctx.id, runId: run.id, principal: run.principal, orgId: run.orgId, ...(run.traceId ? { traceId: run.traceId } : {}) });
     this.transition(ctx, "running", run);
     ctx.policy.toolCalls = 0;
     ctx.policy.spendUsd = 0;
     ctx.policy.startedAt = Date.now();
-    ctx.projector = new Projector(`${this.config.model.provider}:${this.config.model.id}`, toolTitles(ctx));
+    ctx.projector = new Projector(`${this.config.model.provider}:${this.config.model.id}`, toolTitles(ctx), run.traceId);
     const stopKeepalive = ctx.profile.sandbox ? this.sandboxes?.keepalive(ctx.id) : undefined;
     const timer = setTimeout(() => this.abortRun(ctx, run, "expired"), this.config.budgets.maxRunSeconds * 1000);
     timer.unref();
@@ -1191,6 +1205,8 @@ export class SessionService {
       }
     } finally {
       if (!run.done) this.transition(ctx, "failed", run);
+      tracer.end(run.status);
+      if (ctx.tracer === tracer) ctx.tracer = undefined;
       clearTimeout(timer);
       stopKeepalive?.();
       ctx.bridge.cancelAll("run ended");
@@ -1285,9 +1301,10 @@ export class SessionService {
     const run = ctx.activeRun;
     if (e.type === "message_end" || e.type === "agent_settled") this.persist(ctx);
     if (!run || run.done || !ctx.projector) return;
+    ctx.tracer?.onEvent(e);
     if (e.type === "tool_execution_end")
       this.deps.log.info(
-        { sessionId: ctx.id, runId: run.id, toolCallId: e.toolCallId, tool: e.toolName, ok: !e.isError, ms: e.durationMs, sandboxId: this.sandboxes?.peek(ctx.id)?.id },
+        { sessionId: ctx.id, runId: run.id, traceId: run.traceId, toolCallId: e.toolCallId, tool: e.toolName, ok: !e.isError, ms: e.durationMs, sandboxId: this.sandboxes?.peek(ctx.id)?.id },
         "tool call",
       );
     for (const body of ctx.projector.project(e)) {

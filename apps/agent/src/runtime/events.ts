@@ -101,12 +101,14 @@ export class Projector {
     private readonly model: string,
     /** Tool name → row title (the tool's label); sandbox tools get a command-specific title. */
     private readonly titles: ReadonlyMap<string, string> = new Map(),
+    /** todo27 W1: the run's trace id, sent on `start` when tracing is on. */
+    private readonly traceId?: string,
   ) {}
 
   project(e: AgentSessionEvent): AgentEventBody[] {
     switch (e.type) {
       case "agent_start":
-        return [{ type: "start", model: this.model }];
+        return [{ type: "start", model: this.model, ...(this.traceId ? { traceId: this.traceId } : {}) }];
       case "message_update": {
         const a = e.assistantMessageEvent;
         if (a.type === "text_delta") return [{ type: "text", delta: a.delta }];

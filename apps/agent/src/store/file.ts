@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord, isActiveStatus } from "./types.ts";
+import { type InputKind, type InputRecord, type RunPatch, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord, isActiveStatus } from "./types.ts";
 
 /** `ses_<uuid>` or (todo20 W3) the browser's `conv-<uuid>`; never a path. */
 const SESSION_ID = /^(ses_|conv-)[A-Za-z0-9-]{8,64}$/;
@@ -192,7 +192,7 @@ export class FileSessionStore implements SessionStore {
     return true;
   }
 
-  async updateRun(id: string, patch: { status?: StoredRunStatus; usage?: RunUsage; toolCalls?: number }): Promise<void> {
+  async updateRun(id: string, patch: RunPatch): Promise<void> {
     const rec = this.readRun(id);
     if (!rec) return;
     // Terminal states are final, as in the Postgres store.

@@ -219,7 +219,7 @@ export class RunCoordinator {
   private async handle(l: LocalRun, e: AgentEvent): Promise<void> {
     const { run, ctx } = l;
     try {
-      if (e.type === "run-status") await this.store.updateRun(run.id, { status: e.status });
+      if (e.type === "run-status") await this.store.updateRun(run.id, { status: e.status, ...(run.traceId ? { traceId: run.traceId } : {}) });
       if (e.type === "done") {
         await this.flush(ctx.id);
         await this.store.updateRun(run.id, { status: l.interrupting ? "interrupted" : e.status, usage: run.usage, toolCalls: run.toolCalls });

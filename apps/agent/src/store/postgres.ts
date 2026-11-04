@@ -1,7 +1,7 @@
 import pg from "pg";
 import { envName } from "../config.ts";
 import { LATEST_VERSION, ident, migrate, schemaVersion } from "./migrations.ts";
-import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord } from "./types.ts";
+import { ACTIVE_STATUSES, type InputKind, type InputRecord, type RunPatch, type RunRecord, type RunUsage, type SessionScope, type SessionStore, type StoredMeta, type StoredRunStatus, type UiPartRecord } from "./types.ts";
 
 const ACTIVE = ACTIVE_STATUSES.map((s) => `'${s}'`).join(", ");
 
@@ -16,6 +16,7 @@ interface RunRow {
   created_at: Date;
   updated_at: Date;
   heartbeat_at: Date;
+  trace_id: string | null;
 }
 
 interface InputRow {
@@ -40,6 +41,7 @@ const toRun = (r: RunRow): RunRecord => ({
   heartbeatAt: r.heartbeat_at.getTime(),
   usage: r.usage ? (JSON.parse(r.usage) as RunUsage) : undefined,
   toolCalls: r.tool_calls,
+  ...(r.trace_id ? { traceId: r.trace_id } : {}),
 });
 
 const toInput = (r: InputRow): InputRecord => ({
@@ -239,23 +241,24 @@ export class PostgresSessionStore implements SessionStore {
 
   async insertRun(rec: RunRecord): Promise<boolean> {
     const r = await this.pool.query(
-      `INSERT INTO agent_runs (id, session_id, owner, status, replica, usage, tool_calls)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING RETURNING id`,
-      [rec.id, rec.sessionId, rec.owner, rec.status, rec.replica, json(rec.usage), rec.toolCalls ?? 0],
+      `INSERT INTO agent_runs (id, session_id, owner, status, replica, usage, tool_calls, trace_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING RETURNING id`,
+      [rec.id, rec.sessionId, rec.owner, rec.status, rec.replica, json(rec.usage), rec.toolCalls ?? 0, rec.traceId ?? null],
     );
     return r.rowCount === 1;
   }
 
-  async updateRun(id: string, patch: { status?: StoredRunStatus; usage?: RunUsage; toolCalls?: number }): Promise<void> {
+  async updateRun(id: string, patch: RunPatch): Promise<void> {
     // Terminal states are final: a late write from a slow replica can't resurrect an interrupted run.
     await this.pool.query(
       `UPDATE agent_runs SET
          status = CASE WHEN status IN (${ACTIVE}) THEN coalesce($2, status) ELSE status END,
          usage = coalesce($3, usage),
          tool_calls = coalesce($4, tool_calls),
+         trace_id = coalesce($5, trace_id),
          updated_at = now()
        WHERE id = $1`,
-      [id, patch.status ?? null, json(patch.usage), patch.toolCalls ?? null],
+      [id, patch.status ?? null, json(patch.usage), patch.toolCalls ?? null, patch.traceId ?? null],
     );
   }
 

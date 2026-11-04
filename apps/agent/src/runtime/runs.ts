@@ -29,6 +29,8 @@ export class Run {
   /** The model ended a turn with an error (already reported as an `error` event). */
   failed = false;
   readonly usage = { inputTokens: 0, outputTokens: 0, cachedTokens: 0, costUsd: 0 };
+  /** todo27 W1: the OpenTelemetry trace id of the run's span, when an SDK is recording. */
+  traceId: string | undefined;
 
   /** Who the run acts for (the session's owner, `user:<sub>` in workos mode) and in which organization. */
   readonly principal: string | undefined;

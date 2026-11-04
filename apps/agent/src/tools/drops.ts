@@ -1,4 +1,5 @@
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { Type } from "typebox";
 import type { DropMessagePart } from "@studio/agent-protocol";
 import type { KernelClient } from "./kernel.ts";
@@ -284,7 +285,7 @@ export function dropUpdateBlock(dropId: string, ms: DropMilestone[], s?: DropSum
     `<drop_update id="${dropId}">`,
     ...lines,
     ...(counts ? [JSON.stringify(counts)] : []),
-    "Add a waiting kind to the attached Studio with patch_studio (its profile at /data/kinds/<kind>), or tell the person in one short message. Don't boot another Studio.",
+    "This follows your last reply in the same chat: no greeting and no recap. Add a waiting kind to the attached Studio with patch_studio (its profile at /data/kinds/<kind>), or say in one or two sentences what needs the person. Don't boot another Studio.",
     "</drop_update>",
   ].join("\n");
 }
@@ -317,10 +318,20 @@ export function dropBlock(s: DropSummary | undefined, dropId: string, error?: st
   ].join("\n");
 }
 
+/** A drop's kinds as a static list for its tool row ("images, volumes"): no counts. */
+export function dropKindList(s: Pick<DropSummary, "byKind">): string {
+  return Object.entries(s.byKind)
+    .filter(([, n]) => n > 0)
+    .map(([kind]) => kind)
+    .join(", ");
+}
+
 export function createDropTools(k: KernelClient): ToolDefinition<any, any, any>[] {
   const getDrop = defineTool({
     name: "get_drop",
-    label: "Reading dropped files",
+    label: "Looking at your files",
+    pastLabel: "Looked at your files",
+    progress: true,
     description:
       "Files the user dropped, pasted or attached in the chat (a drop), right now (it never waits): per-file counts (ready, inStudio, checking, failed, waitingForKind), readyByKind and checkingByKind, the Studio it's attached to (studioTaskId), grouped failure reasons, the classifier's groups and suggestion, and for each file its node id, screened name, kind, state and technical facts (dimensions, frames, duration, modality, column names and types, pages). Never contents. Pages 50 files at a time (offset).",
     promptSnippet: "A chat drop's files: kinds, states, groups, screened names and facts",
@@ -333,11 +344,10 @@ export function createDropTools(k: KernelClient): ToolDefinition<any, any, any>[
       // Studio on their own, and a <drop_update> follows when a decision is needed.
       const s = await fetchDropSummary(k, args.dropId, args.offset ?? 0, signal);
       s.status ??= dropCounts(s) ?? dropStatus(s);
-      const kinds = Object.entries(s.byKind).map(([kind, n]) => `${n} ${kind}`).join(", ");
-      const settled = SETTLED_DROP_STATES.has(s.state ?? "");
-      const counted = dropCounts(s);
-      const label = counted ?? (settled && s.state !== "duplicate" && s.state !== "failed" ? `${s.status}${kinds ? ` · ${kinds}` : ""}` : s.status);
-      return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: label } };
+      // todo29 D6: the row is one quiet line with no live numbers (a count frozen at call time
+      // reads wrong a second later). Once the drop is settled it may name the kinds.
+      const settled = SETTLED_DROP_STATES.has(s.state ?? "") && s.state !== "duplicate" && s.state !== "failed";
+      return { content: [{ type: "text" as const, text: JSON.stringify(s) }], details: { summary: settled ? dropKindList(s) : "" } };
     },
   });
   return [getDrop, ...createAddDataTools(k)];
@@ -362,6 +372,7 @@ export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, an
   const importFromUrl = defineTool({
     name: "import_from_url",
     label: "Importing from a link",
+    pastLabel: "Imported from a link",
     description:
       "Import one file from a public https:// link or a gs:// object this project can read into the project's Sources. The person is asked to confirm they have the rights to add it first. The kernel fetches it in the background (state \"fetching\"), then inspects it; you get only its import id and state, never its contents. Private and local addresses are refused; the size limit is set by the deployment.",
     promptSnippet: "Add a file to Sources from an https:// or gs:// link (facts only)",
@@ -379,6 +390,7 @@ export function createAddDataTools(k: KernelClient): ToolDefinition<any, any, an
   const copyInto = defineTool({
     name: "copy_into_project",
     label: "Copying files",
+    pastLabel: "Copied files",
     description:
       "Copy files into this project's Sources from a sample (sampleId) or from another project the user can read (fromProjectId), optionally only some nodes (nodeIds). The person is asked to confirm they have the rights to add them first. The files are inspected as for an upload; you get only names, sizes and states.",
     promptSnippet: "Copy files from a sample or another readable project into Sources",

@@ -42,7 +42,8 @@ export function resolveModel(runtime: ModelRuntime, config: Config, ref = `${con
  * number of assistant messages since that user message, so each run replays its script from the
  * start. Past the last turn the model says it has nothing scripted. A string argument
  * `"{{last.a.b}}"` is replaced by field `a.b` of the latest tool result's JSON (e.g. a request id
- * the previous call returned).
+ * the previous call returned); `"{{when.N}}"` by capture group N of the script's `when` on the
+ * latest user message (e.g. the drop id of a `<drop id="…">` block).
  */
 export interface ScriptTurn {
   text?: string;
@@ -74,13 +75,15 @@ function lastToolJson(messages: readonly Message[]): unknown {
   return undefined;
 }
 
-function resolveRefs(value: unknown, last: () => unknown): unknown {
+function resolveRefs(value: unknown, last: () => unknown, when: RegExpExecArray | null = null): unknown {
   if (typeof value === "string") {
+    const group = value.match(/^\{\{when\.(\d+)\}\}$/)?.[1];
+    if (group) return when?.[Number(group)] ?? value;
     const ref = value.match(/^\{\{last\.([\w.]+)\}\}$/)?.[1];
     return ref ? ref.split(".").reduce<any>((o, k) => o?.[k], last()) : value;
   }
-  if (Array.isArray(value)) return value.map((v) => resolveRefs(v, last));
-  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveRefs(v, last)]));
+  if (Array.isArray(value)) return value.map((v) => resolveRefs(v, last, when));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveRefs(v, last, when)]));
   return value;
 }
 
@@ -100,7 +103,8 @@ export function scriptedReply(fixture: ScriptFixture, messages: readonly Message
   if (step.thinking) blocks.push(fauxThinking(step.thinking));
   if (step.text) blocks.push(fauxText(step.text));
   const last = () => lastToolJson(messages);
-  for (const c of step.toolCalls ?? []) blocks.push(fauxToolCall(c.name, resolveRefs(c.arguments ?? {}, last) as never));
+  const when = script?.when ? new RegExp(script.when, "i").exec(prompt) : null;
+  for (const c of step.toolCalls ?? []) blocks.push(fauxToolCall(c.name, resolveRefs(c.arguments ?? {}, last, when) as never));
   return fauxAssistantMessage(blocks, { stopReason: step.toolCalls?.length ? "toolUse" : "stop" });
 }
 

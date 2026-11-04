@@ -1,4 +1,5 @@
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { STUDIO_TOOLS, type StudioClient, type StudioToolName, StudioToolError, createStudioHandlers } from "@studio/studio-tools";
 import type { StudioCatalog } from "../agent/catalog.ts";
 
@@ -56,6 +57,7 @@ export function createStudioTools(deps: StudioToolsDeps): ToolDefinition<any, an
     defineTool({
       name: spec.name,
       label: spec.label,
+      pastLabel: spec.pastLabel,
       description: spec.description,
       parameters: spec.parameters as any,
       async execute(callId, args, signal) {

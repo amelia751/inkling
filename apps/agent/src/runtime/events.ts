@@ -61,6 +61,27 @@ export function redactInput(input: unknown): unknown {
   return typeof input === "string" ? clip(scrubSecrets(input), 2000) : input;
 }
 
+/**
+ * todo29 D6: a tool's row copy: its running title, its past-tense title once done, and whether
+ * the row is a progress note. A bare string is the running title only.
+ */
+export interface ToolRow {
+  title: string;
+  pastTitle?: string;
+  progress?: boolean;
+}
+export type ToolRows = ReadonlyMap<string, string | ToolRow>;
+
+export const toolRow = (rows: ToolRows, name: string): ToolRow | undefined => {
+  const r = rows.get(name);
+  return typeof r === "string" ? { title: r } : r;
+};
+
+/** The `pastTitle` / `progress` fields of a tool row, for a `tool-call` event or a replayed tool part. */
+export function rowExtras(row: ToolRow | undefined): { pastTitle?: string; progress?: boolean } {
+  return { ...(row?.pastTitle ? { pastTitle: row.pastTitle } : {}), ...(row?.progress ? { progress: true } : {}) };
+}
+
 export function toolTitle(name: string, args: any, label?: string): string {
   const s = (v: unknown) => (typeof v === "string" ? clip(v.split("\n")[0]!, 80) : "");
   switch (name) {
@@ -99,8 +120,8 @@ export class Projector {
 
   constructor(
     private readonly model: string,
-    /** Tool name → row title (the tool's label); sandbox tools get a command-specific title. */
-    private readonly titles: ReadonlyMap<string, string> = new Map(),
+    /** Tool name → row title (the tool's label, and its past-tense label); sandbox tools get a command-specific title. */
+    private readonly titles: ToolRows = new Map(),
     /** todo27 W1: the run's trace id, sent on `start` when tracing is on. */
     private readonly traceId?: string,
   ) {}
@@ -116,9 +137,11 @@ export class Projector {
         if (a.type === "toolcall_start" || a.type === "toolcall_delta" || a.type === "toolcall_end") return this.streamArgs(a);
         return [];
       }
-      case "tool_execution_start":
+      case "tool_execution_start": {
         this.args.set(e.toolCallId, e.args);
-        return [{ type: "tool-call", id: e.toolCallId, name: e.toolName, title: toolTitle(e.toolName, e.args, this.titles.get(e.toolName)) }];
+        const row = toolRow(this.titles, e.toolName);
+        return [{ type: "tool-call", id: e.toolCallId, name: e.toolName, title: toolTitle(e.toolName, e.args, row?.title), ...rowExtras(row) }];
+      }
       case "tool_execution_update": {
         const now = Date.now();
         if (now - (this.progress.get(e.toolCallId) ?? 0) < 250) return [];

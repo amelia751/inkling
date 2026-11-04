@@ -99,18 +99,22 @@
       ]
     },
     {
-      "when": "<drop id=",
+      "when": "<drop id=\"(drp-[a-z0-9]+)\"",
       "turns": [
         {
           "toolCalls": [
             {
-              "name": "project_overview",
-              "arguments": {}
+              "name": "boot_studio",
+              "arguments": {
+                "dropId": "{{when.1}}",
+                "preset": "preset:image-2d",
+                "name": "Dropped images"
+              }
             }
           ]
         },
         {
-          "text": "Got your files. They're in Sources, under Shared in chat, and the Studio that opened on them shows the first ready image. Add labels in the Studio, or tell me what you want to annotate."
+          "text": "Your Studio is open on the images; the rest join it as they're checked."
         }
       ]
     },

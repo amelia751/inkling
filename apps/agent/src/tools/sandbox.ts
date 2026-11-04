@@ -15,9 +15,9 @@ import {
   createLsToolDefinition,
   createReadToolDefinition,
   createWriteToolDefinition,
-  defineTool,
 } from "@earendil-works/pi-coding-agent";
 import { type TSchema, Type } from "typebox";
+import { defineTool } from "./define.ts";
 import { SandboxUnavailableError } from "../sandbox/client.ts";
 import { SANDBOX_CWD, SANDBOX_HOME, SANDBOX_LOG_DIR } from "../sandbox/defaults.ts";
 import { ExecAbortedError, shellQuote, streamCommand, truncateMiddle, withRecovery } from "../sandbox/exec.ts";
@@ -198,6 +198,7 @@ export function createSandboxTools(deps: SandboxToolDeps): ToolDefinition<any, a
   const runPython = defineTool({
     name: "run_python",
     label: "Run Python",
+    pastLabel: "Ran Python",
     description:
       "Run Python in the sandbox's persistent interpreter (variables survive between calls). " +
       "numpy, scipy, pandas, pyarrow, pillow, scikit-image, opencv, matplotlib, pydicom, nibabel and SimpleITK are installed. " +
@@ -242,6 +243,7 @@ export function createSandboxTools(deps: SandboxToolDeps): ToolDefinition<any, a
   const previewUrl = defineTool({
     name: "preview_url",
     label: "Preview URL",
+    pastLabel: "Shared a preview URL",
     description:
       "Get a signed, expiring URL for a port served inside the sandbox (e.g. after `python -m http.server 8000 &`). " +
       "The link only opens that one port.",
@@ -265,6 +267,7 @@ export function createSandboxTools(deps: SandboxToolDeps): ToolDefinition<any, a
   const exportArtifact = defineTool({
     name: "export_artifact",
     label: "Export artifact",
+    pastLabel: "Exported a file",
     description: `Copy a file from the sandbox to the user's artifact list (max ${Math.round(maxArtifact / 1024 / 1024)} MB). Returns metadata, not contents.`,
     promptSnippet: "Hand a sandbox file (report, figure, CSV) to the user",
     parameters: Type.Object({ path: Type.String({ description: "Absolute or cwd-relative path in the sandbox" }) }),

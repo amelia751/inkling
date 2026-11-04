@@ -128,6 +128,8 @@ export type OfferStudioArgs = Type.Static<typeof OfferStudioArgs>;
 export interface StudioToolSpec {
   name: string;
   label: string;
+  /** todo29 D6: the tool row once the call is done. */
+  pastLabel: string;
   description: string;
   parameters: unknown;
 }
@@ -140,6 +142,7 @@ export const STUDIO_TOOLS = [
   {
     name: "boot_studio",
     label: "Setting up Studio",
+    pastLabel: "Set up a Studio",
     description:
       "Create a draft Studio (a task over a set of items) only when the person explicitly asks for one. One Studio takes many kinds: list them in `accepts` and each gets its profile (preset); narrow the items with `filter`. Returns the task id and revision. Put labels and title in `patch`.",
     parameters: BootStudioArgs,
@@ -147,6 +150,7 @@ export const STUDIO_TOOLS = [
   {
     name: "patch_studio",
     label: "Changing Studio",
+    pastLabel: "Changed the Studio",
     description:
       "Apply a small JSON Patch to a task's Studio setup at the revision you read; errors come back with paths. A kind's view (renderer, config, tools, panels) is at /data/kinds/<kind id>. Labels are /labels, a list of groups {name, control (short name, e.g. Choices), classes: [{id, name}]}: add the whole list when the Studio has none.",
     parameters: PatchStudioArgs,
@@ -154,18 +158,21 @@ export const STUDIO_TOOLS = [
   {
     name: "get_studio_state",
     label: "Reading Studio",
+    pastLabel: "Read the Studio",
     description: "Read a task's Studio setup and revision: the kinds it accepts, each kind's profile, and the open item's kind and profile.",
     parameters: GetStudioStateArgs,
   },
   {
     name: "search_catalog",
     label: "Searching catalogue",
+    pastLabel: "Searched the catalogue",
     description: "Find module and contribution ids (renderers, tools, panels, exporters, label controls, presets) by words.",
     parameters: SearchCatalogArgs,
   },
   {
     name: "offer_studio",
     label: "Offering Studio",
+    pastLabel: "Offered a Studio",
     description:
       "Show a 'Create … Studio' button when the person only floats the idea; clicking it is their go-ahead. Creates nothing. With `preview`, boots the Studio as a preview only the person sees, which they Keep or Discard (a builder's final step).",
     parameters: OfferStudioArgs,

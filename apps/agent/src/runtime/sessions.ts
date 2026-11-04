@@ -40,7 +40,8 @@ import { SeedApiDatasetSource, SessionDatasetSource, createDatasetTools } from "
 import { createBoundaryTools } from "../tools/boundary.ts";
 import { createProjectTools } from "../tools/project.ts";
 import { createOperationTools, operationForTool } from "../tools/operations.ts";
-import { type DropMilestone, createDropTools, dropBlock, dropPart, dropUpdateBlock, dropUpdateStatus, fetchDropSummary, needsDecision, waitForDrop } from "../tools/drops.ts";
+import { toolCopy } from "../tools/define.ts";
+import { type DropMilestone, type DropSummary, createDropTools, dropBlock, dropPart, dropUpdateBlock, dropUpdateStatus, fetchDropSummary, needsDecision, waitForDrop } from "../tools/drops.ts";
 import { createReviewTools } from "../tools/review.ts";
 import { createStudioTools } from "../tools/studio.ts";
 import { createRecipeTools } from "../tools/recipes.ts";
@@ -51,7 +52,7 @@ import { KernelClient, PLUGIN_DIR, PLUGIN_FILE_TOOLS, packTarball, createBuilder
 import { type CallFacts, type PolicyState, policyExtension } from "../tools/policy.ts";
 import { type ArtifactInfo as SandboxArtifact, createSandboxTools } from "../tools/sandbox.ts";
 import { ApprovalBroker } from "./approvals.ts";
-import { Projector, providerErrorMessage, sanitizeError } from "./events.ts";
+import { Projector, type ToolRow, providerErrorMessage, sanitizeError } from "./events.ts";
 import { RunTracer, withToolContext } from "./tracing.ts";
 import { Run } from "./runs.ts";
 
@@ -121,6 +122,47 @@ export interface DropFollow {
   wakes: number;
   lastAt: number;
   seen: string[];
+  /** todo29 D4: the drop was sent with a message of this chat; only such a drop wakes it. */
+  attached?: boolean;
+  /** todo29 D4: the person pressed Stop after it was sent; its later milestones are acked, no turn. */
+  stopped?: boolean;
+  /** todo29 D4: what the chat already heard: kinds reported waiting, files reported failed. */
+  told?: DropTold;
+}
+
+export interface DropTold {
+  kinds: string[];
+  failed: number;
+}
+
+/**
+ * todo29 D4: the milestones that tell the chat something it hasn't heard: a kind waiting that
+ * wasn't reported, or more failed files than were reported (the kernel's counts are per drop, so
+ * cumulative). A `drop.settled` whose waiting kinds and failures were already said is no news,
+ * so it makes no turn. Returns the news and what the chat will have heard after it.
+ */
+export function dropNews(ms: DropMilestone[], told: DropTold = { kinds: [], failed: 0 }): { news: DropMilestone[]; told: DropTold } {
+  const kinds = new Set(told.kinds);
+  let failed = told.failed;
+  const news: DropMilestone[] = [];
+  for (const m of ms) {
+    if (!needsDecision(m)) continue;
+    const waiting = m.type === "drop.kind_waiting" ? ((m.count ?? 1) > 0 ? [m.kind ?? "unknown"] : []) : Object.entries(m.waitingForKind ?? {}).filter(([, n]) => n > 0).map(([k]) => k);
+    const failures = m.type === "drop.files_failed" ? (m.count ?? 1) : m.type === "drop.settled" ? (m.failed ?? 0) : 0;
+    const newKinds = waiting.filter((k) => !kinds.has(k));
+    if (!newKinds.length && failures <= failed) continue;
+    for (const k of newKinds) kinds.add(k);
+    failed = Math.max(failed, failures);
+    news.push(m);
+  }
+  return { news, told: { kinds: [...kinds], failed } };
+}
+
+/** What the chat heard from the drop block on the message that carried the drop. */
+function toldBy(s: DropSummary | undefined, prev?: DropTold): DropTold {
+  const kinds = new Set(prev?.kinds ?? []);
+  for (const [k, n] of Object.entries(s?.waitingForKind ?? {})) if (n > 0) kinds.add(k);
+  return { kinds: [...kinds], failed: Math.max(prev?.failed ?? 0, s?.failed ?? 0) };
 }
 
 /** todo28 D7: at most one wake per drop every 15 s, at most 4 per drop. */
@@ -131,7 +173,7 @@ export const WAKE_TOKEN_MIN_MS = 5 * 60_000;
 /** The browser hands over a token with at least this long left (kernel-token.ts: reused until 10 min before expiry). */
 const TOKEN_MIN_LIFE_MS = 10 * 60_000;
 
-export type WakeOutcome = "no-conversation" | "duplicate" | "nothing" | "capped" | "coalesced" | "steered" | "started" | "status";
+export type WakeOutcome = "no-conversation" | "unattached" | "stopped" | "duplicate" | "nothing" | "capped" | "coalesced" | "steered" | "started" | "status";
 
 /** When a kernel token stops working: its JWT `exp` if it has one, else the least the browser guarantees. */
 export function tokenExpiresAt(token: string, receivedAt: number): number {
@@ -1103,6 +1145,12 @@ export class SessionService {
     // never from the browser; the model gets that summary, never bytes, names or links.
     const drop = req.drop ? await this.readDrop(ctx, req.drop.dropId) : undefined;
     const userText = [drop?.block, req.text].filter(Boolean).join("\n\n");
+    // todo29 D4: a drop sent with a message is one this chat follows (its wakes); sending it again
+    // after a Stop follows it again.
+    if (req.drop) {
+      const prev = ctx.meta.drops?.[req.drop.dropId];
+      ctx.meta.drops = { ...ctx.meta.drops, [req.drop.dropId]: { wakes: 0, lastAt: 0, seen: [], ...prev, attached: true, stopped: false, told: toldBy(drop?.summary, prev?.told) } };
+    }
     // todo20 W3: the chat list's order and title.
     ctx.meta.updatedAt = Date.now();
     if (!ctx.meta.title) ctx.meta.title = titleFrom(req.text) ?? ctx.meta.title ?? null;
@@ -1172,16 +1220,22 @@ export class SessionService {
       this.writeMeta(meta);
     };
     if (!fresh.length) return { outcome: "duplicate" };
-    // Files that simply joined the Studio need no model call (D7).
-    if (!fresh.some(needsDecision)) return save(follow), { outcome: "nothing" };
+    // todo29 D4: the assistant speaks when spoken to. Only a drop sent with a message of this chat
+    // wakes it, never one after the person pressed Stop.
+    if (!follow.attached) return save(follow), { outcome: "unattached" };
+    if (follow.stopped) return save(follow), { outcome: "stopped" };
+    // Files that simply joined the Studio need no model call (D7), and neither does a milestone
+    // that repeats what the chat already heard (todo29 D4: a settled drop with nothing new).
+    const { news, told } = dropNews(fresh, follow.told);
+    if (!news.length) return save(follow), { outcome: "nothing" };
     if (follow.wakes >= WAKE_CAP) {
       this.deps.log.info({ sessionId, dropId, wakes: follow.wakes }, "drop wake capped");
       return save(follow), { outcome: "capped" };
     }
     if (now - follow.lastAt < WAKE_COALESCE_MS) return { outcome: "coalesced" };
-    save({ ...follow, wakes: follow.wakes + 1, lastAt: now });
+    save({ ...follow, wakes: follow.wakes + 1, lastAt: now, told });
     const summary = live?.kernel && live.kernelToken ? await fetchDropSummary(live.kernel, dropId).catch(() => undefined) : undefined;
-    const text = dropUpdateBlock(dropId, fresh, summary);
+    const text = dropUpdateBlock(dropId, news, summary);
     const active = live?.activeRun;
     if (live && active && !active.done) {
       if (active.status === "queued") active.pending.push(text);
@@ -1219,7 +1273,7 @@ export class SessionService {
     // The person's token is gone or about to expire: a plain status line, no model call.
     const id = `drop-update-${dropId}-${follow.wakes + 1}`;
     await this.queueUiWrite(sessionId, () =>
-      this.store.putUiPart({ sessionId, runId: null, messageId: id, partKey: `status:${id}`, part: { type: "status", id, text: dropUpdateStatus(fresh) } }),
+      this.store.putUiPart({ sessionId, runId: null, messageId: id, partKey: `status:${id}`, part: { type: "status", id, text: dropUpdateStatus(news) } }),
     );
     return { outcome: "status" };
   }
@@ -1254,7 +1308,7 @@ export class SessionService {
       // todo28 D8: wait only until the drop has files registered (at most 3 s), never for checking;
       // files still being checked join the attached Studio on their own.
       const { summary } = await waitForDrop(ctx.kernel, dropId, { timeoutMs: 3_000, intervalMs: 500, done: (s) => s.total > 0 });
-      return { block: dropBlock(summary, dropId), part: dropPart(summary) };
+      return { block: dropBlock(summary, dropId), part: dropPart(summary), summary };
     } catch (err) {
       this.deps.log.warn({ sessionId: ctx.id, dropId, err: sanitizeError(String(err)) }, "drop not readable");
       return { block: dropBlock(undefined, dropId, "the drop couldn't be read yet; try get_drop"), part: undefined };
@@ -1358,6 +1412,12 @@ export class SessionService {
     run.abort.abort();
     ctx.bridge.cancelAll(reason);
     ctx.approvals.rejectAll(reason);
+    // todo29 D4: after Stop, the drops this chat follows make no more wake turns (their milestones
+    // are acked); sending a drop again follows it again.
+    if (reason === "cancelled" && ctx.meta.drops && Object.values(ctx.meta.drops).some((f) => f.attached && !f.stopped)) {
+      ctx.meta.drops = Object.fromEntries(Object.entries(ctx.meta.drops).map(([id, f]) => [id, f.attached ? { ...f, stopped: true } : f]));
+      this.writeMeta(ctx.meta);
+    }
     if (run.status !== "queued") void ctx.piSession.abort().catch(() => {});
   }
 
@@ -1500,12 +1560,17 @@ function sandboxUsage(sb: Sandbox | undefined): { sandboxId?: string; sandboxSec
   return { sandboxId: sb.id, sandboxSeconds: Number.isFinite(from) ? Math.max(0, Math.round((to - from) / 1000)) : undefined };
 }
 
-/** Tool row titles: the tool's own label (dataset, sandbox) or the browser's name for client tools. */
-function toolTitles(ctx: SessionContext): Map<string, string> {
-  const titles = new Map<string, string>();
+/**
+ * Tool row titles: the tool's own label (dataset, sandbox) or the browser's name for client tools,
+ * with its past-tense label and progress mark (todo29 D6).
+ */
+function toolTitles(ctx: SessionContext): Map<string, ToolRow> {
+  const titles = new Map<string, ToolRow>();
   for (const t of ctx.piSession.getAllTools()) {
-    const label = ctx.piSession.getToolDefinition(t.name)?.label;
-    if (label) titles.set(t.name, label);
+    const def = ctx.piSession.getToolDefinition(t.name);
+    if (!def?.label) continue;
+    const { pastLabel, progress } = toolCopy(def);
+    titles.set(t.name, { title: def.label, ...(pastLabel ? { pastTitle: pastLabel } : {}), ...(progress ? { progress } : {}) });
   }
   return titles;
 }

@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { scriptedReply } from "../../src/agent/models.ts";
+import { fileURLToPath } from "node:url";
+import { BootStudioArgs } from "@studio/studio-tools";
+import { Value } from "typebox/value";
+import { loadScript, scriptedReply } from "../../src/agent/models.ts";
 import type { AgentEventBody } from "@studio/agent-protocol";
 import { ApprovalBroker } from "../../src/runtime/approvals.ts";
 import { EventLog, Projector, redactInput, sanitizeError } from "../../src/runtime/events.ts";
@@ -226,5 +229,20 @@ describe("scripted model", () => {
     expect(scriptedReply(fixture, [user("hello there"), assistant]).content).toMatchObject([{ type: "text", text: "two" }]);
     expect(scriptedReply(fixture, [user("hello"), assistant, user("something else")]).content).toMatchObject([{ text: "fallback" }]);
     expect(scriptedReply(fixture, [user("hello"), assistant, assistant]).content[0]).toMatchObject({ text: expect.stringMatching(/nothing more/) });
+  });
+
+  it("fills {{when.N}} from the script's capture groups (todo29 W5: the drop id)", () => {
+    const f = { scripts: [{ when: '<drop id="(drp-[a-z0-9]+)"', turns: [{ toolCalls: [{ name: "boot_studio", arguments: { dropId: "{{when.1}}", name: "Images" } }] }] }] };
+    expect(scriptedReply(f, [user('<drop id="drp-abc12345">\n</drop>\n\nMake me a Studio')]).content).toMatchObject([
+      { type: "toolCall", name: "boot_studio", arguments: { dropId: "drp-abc12345", name: "Images" } },
+    ]);
+  });
+
+  it("the journey fixture's drop turn boots a Studio on the drop (todo29 W5, J1)", () => {
+    const f = loadScript(fileURLToPath(new URL("../../../../tests/e2e/fixtures/journey-script.json", import.meta.url)));
+    const msg = scriptedReply(f, [user('<drop id="drp-0123456789abcdef">\nThe user dropped files.\n</drop>\n\nMake me a Studio')]);
+    const call = (msg.content as { type: string; name?: string; arguments?: unknown }[]).find((c) => c.type === "toolCall");
+    expect(call).toMatchObject({ name: "boot_studio", arguments: { dropId: "drp-0123456789abcdef" } });
+    expect(Value.Check(BootStudioArgs, call!.arguments)).toBe(true);
   });
 });

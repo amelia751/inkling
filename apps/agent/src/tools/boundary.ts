@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Sandbox } from "@daytona/sdk";
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { BuildResult, Fingerprint, FixtureSet, JobSummary, ProbeResult, Probe as ProbeSchema, VerifyReport } from "@studio/contracts/boundary";
 import { Type } from "typebox";
 import type { z } from "zod";
@@ -72,6 +73,7 @@ export function createBoundaryTools(k: KernelClient, deps: BoundaryDeps): ToolDe
   const getFingerprint = defineTool({
     name: "get_fingerprint",
     label: "Fingerprinting sample",
+    pastLabel: "Fingerprinted the sample",
     description:
       "The structure of a real sample, computed in our worker with every value dropped: format and magic bytes, endianness, sections (offsets, lengths), header field names with dtypes, " +
       "array dtypes and shapes, table columns. DICOM follows the PS3.15 Annex E profile. Names that could identify someone come back as <redacted:N>. You never get the file itself.",
@@ -86,6 +88,7 @@ export function createBoundaryTools(k: KernelClient, deps: BoundaryDeps): ToolDe
   const getFixtures = defineTool({
     name: "get_fixtures",
     label: "Making synthetic fixtures",
+    pastLabel: "Made synthetic fixtures",
     description:
       `Synthetic files with the sample's structure (same format, shapes, dtypes; noise, a phantom, edge values; placeholder header values), made from the fingerprint alone. ` +
       `They are copied into the build sandbox under ${deps.sourceDir}/${FIXTURES_DIR}/ for your tests. Real samples never enter the sandbox: test there on these, then verify_on_sample.`,
@@ -126,6 +129,7 @@ export function createBoundaryTools(k: KernelClient, deps: BoundaryDeps): ToolDe
   const verify = defineTool({
     name: "verify_on_sample",
     label: "Verifying on the real sample",
+    pastLabel: "Verified on the real sample",
     description:
       "Run your converter from the build sandbox on the real sample, in our worker (no network, read-only input). Returns a fixed-schema report only: pass/fail, the stage, the error class " +
       "(never the message), the file and line in YOUR source where it was raised, and each output's kind, dtype, shape, min/max/mean and NaN count. Fix and retry; use probe_sample when the layout is unclear.",
@@ -149,6 +153,7 @@ export function createBoundaryTools(k: KernelClient, deps: BoundaryDeps): ToolDe
   const probe = defineTool({
     name: "probe_sample",
     label: "Probing the real sample",
+    pastLabel: "Probed the real sample",
     description:
       "Ask small typed questions of the real sample when its layout is unknown: magic {offset, hex}; read_int {offset, width 1|2|4|8, signed, endian}; read_float {offset, width 4|8, endian}; " +
       "find {hex ≤8 bytes, start?, limit?} → offsets; read_text {offset, length ≤32} (free text comes back as <redacted:N>); field_names; section_sizes; size. Budgeted per sample and audited: plan your probes.",
@@ -171,6 +176,7 @@ export function createBuildTool(k: KernelClient, deps: Required<Pick<BoundaryDep
   return defineTool({
     name: "build_plugin_artifact",
     label: "Building plugin artifact",
+    pastLabel: "Built the plugin artifact",
     description:
       "Send the sandbox plugin's source to our worker, which rebuilds it with a pinned toolchain (source files only; anything built in the sandbox is dropped), hashes it, signs it with the platform key " +
       "and registers it as a `generated` plugin visible only in this workspace. The digest it returns is the one that gets installed. It doesn't install anything: then plan_plugin_change → stage_plugin → request_install_approval.",

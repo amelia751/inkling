@@ -4,6 +4,8 @@ import { createLogger } from "../../src/log.ts";
 import { DropWakes, SUBSCRIBER } from "../../src/runtime/drop-wakes.ts";
 import { decide } from "../../src/tools/policy.ts";
 import { dropCounts, safeSummary } from "../../src/tools/drops.ts";
+import { toolCopy } from "../../src/tools/define.ts";
+import { dropNews } from "../../src/runtime/sessions.ts";
 import { harness } from "./harness.ts";
 
 /**
@@ -88,6 +90,10 @@ const FIXTURE = {
       ],
     },
     {
+      when: "Look at the drop",
+      turns: [{ toolCalls: [{ name: "get_drop", arguments: { dropId: DROP } }] }, { text: "I looked at your files." }],
+    },
+    {
       when: "^<drop id",
       turns: [{ toolCalls: [{ name: "boot_studio", arguments: { accepts: [IMG], dropId: DROP, name: "Images" } }] }, { text: "Your Studio opened on the 2 ready images; 3 files are still being checked." }],
     },
@@ -108,6 +114,18 @@ async function setup() {
   const wakes = new DropWakes({ kernelUrl: h.config.kernelUrl, token: SVC, sessions: h.sessions, log: createLogger("silent"), fetchImpl: k.fetchImpl });
   return { k, wakes };
 }
+
+/** todo29 D4: send the drop with a message (the chat then follows it) and let the turn finish. */
+async function attach(text = ""): Promise<AgentEvent[]> {
+  const m = await h!.json("POST", `/v1/sessions/${CONV}/messages`, { text, drop: { dropId: DROP }, kernelToken: KTOKEN });
+  expect(m.status).toBe(202);
+  return h!.drive(m.body.runId);
+}
+
+/** D6: a tool row's summary never carries a live number ("· 0 ready · 35 checking"). */
+const noCountSummaries = (events: AgentEvent[]) => {
+  for (const e of events) if (e.type === "tool-result") expect(e.summary).not.toMatch(/·\s*\d/);
+};
 
 describe("todo28 W3: act on what's ready", () => {
   it("get_drop's counts read per file, never one status", () => {
@@ -136,6 +154,7 @@ describe("todo28 W3: act on what's ready", () => {
 
   it("a wake on kind_waiting patches the attached Studio to add the kind, under the wake policy", async () => {
     const { k, wakes } = await setup();
+    await attach();
     k.setSummary({ ...SUMMARY, studioTaskId: "tsk-1", waitingForKind: { [ECG]: 3 }, checking: 0 });
     k.publish("evt-1", "drop.kind_waiting", { kind: ECG, count: 3 });
     expect(await wakes.tick()).toEqual({ [DROP]: "started" });
@@ -150,17 +169,21 @@ describe("todo28 W3: act on what's ready", () => {
 
   it("a wake with nothing to decide makes no model call", async () => {
     const { k, wakes } = await setup();
+    await attach();
+    const before = k.seen.length;
     k.publish("evt-1", "drop.settled", { inStudio: 5, waitingForKind: {}, failed: 0 });
     expect(await wakes.tick()).toEqual({ [DROP]: "nothing" });
     expect(k.acked).toEqual(["evt-1"]);
     const ctx = await h!.sessions.get(CONV);
-    expect(ctx.activeRun).toBeUndefined();
-    expect(k.seen.some((c) => c.path.endsWith("/environments/tsk-1") || c.path.endsWith("/boots"))).toBe(false);
+    expect(ctx.activeRun?.done).toBe(true);
+    expect(k.seen.slice(before).some((c) => c.path.endsWith("/environments/tsk-1") || c.path.endsWith("/boots"))).toBe(false);
   });
 
   it("coalesces within 15 s, caps a drop at 4 wake-ups (the fifth milestone is dropped), and posts a status line when the token is gone", async () => {
     const { k } = await setup();
+    await attach();
     const ctx = await h!.sessions.get(CONV);
+    const first = ctx.activeRun;
     // An expired token: no model call, a plain status line instead.
     ctx.kernelTokenAt = Date.now() - 60 * 60_000;
     let now = Date.now();
@@ -179,7 +202,7 @@ describe("todo28 W3: act on what's ready", () => {
     }
     expect(outcomes).toEqual(["status", "status", "status", "status", "capped"]);
     expect(k.acked).toEqual(["evt-1", "evt-2", "evt-3", "evt-4", "evt-5"]);
-    expect(ctx.activeRun).toBeUndefined();
+    expect(ctx.activeRun).toBe(first);
     expect(ctx.meta.drops?.[DROP]?.wakes).toBe(4);
   });
 
@@ -192,5 +215,90 @@ describe("todo28 W3: act on what's ready", () => {
     expect(decide({ toolName: "activate_plugin", input: {} }, s, b)).toMatchObject({ kind: "deny" });
     expect(decide({ toolName: "get_drop", input: {} }, { ...s, toolCalls: 4 }, b)).toMatchObject({ kind: "deny" });
     expect(SUBSCRIBER).toBe("agent-drops");
+  });
+});
+
+describe("todo29 W4: the assistant speaks when spoken to", () => {
+  it("a drop never sent with a message of the chat makes no wake", async () => {
+    const { k, wakes } = await setup();
+    k.publish("evt-1", "drop.kind_waiting", { kind: ECG, count: 3 });
+    expect(await wakes.tick()).toEqual({ [DROP]: "unattached" });
+    expect(k.acked).toEqual(["evt-1"]);
+    expect((await h!.sessions.get(CONV)).activeRun).toBeUndefined();
+  });
+
+  it("after Stop, the drop's milestones are acked and no wake turn arrives", async () => {
+    const { k, wakes } = await setup();
+    const m = await h!.json("POST", `/v1/sessions/${CONV}/messages`, { text: "", drop: { dropId: DROP }, kernelToken: KTOKEN });
+    expect((await h!.json("POST", `/v1/runs/${m.body.runId}/cancel`, {})).status).toBeLessThan(300);
+    const events = await h!.drive(m.body.runId);
+    expect(events.at(-1)).toMatchObject({ type: "done" });
+    const ctx = await h!.sessions.get(CONV);
+    expect(ctx.meta.drops?.[DROP]).toMatchObject({ attached: true, stopped: true });
+    k.publish("evt-1", "drop.kind_waiting", { kind: ECG, count: 3 });
+    k.publish("evt-2", "drop.files_failed", { count: 2 });
+    expect(await wakes.tick()).toEqual({ [DROP]: "stopped" });
+    expect(k.acked).toEqual(["evt-1", "evt-2"]);
+    expect(ctx.activeRun?.id).toBe(m.body.runId);
+    expect(ctx.meta.drops?.[DROP]?.wakes).toBe(0);
+  });
+
+  it("a settled drop with nothing new to say makes no turn", async () => {
+    const { k, wakes } = await setup();
+    let now = Date.now();
+    const w = new DropWakes({ kernelUrl: h!.config.kernelUrl, token: SVC, sessions: h!.sessions, log: createLogger("silent"), fetchImpl: k.fetchImpl, now: () => now });
+    // The message's drop block already said the ECGs wait for a Studio.
+    k.setSummary({ ...SUMMARY, waitingForKind: { [ECG]: 3 } });
+    await attach();
+    const ctx = await h!.sessions.get(CONV);
+    const first = ctx.activeRun;
+    expect(ctx.meta.drops?.[DROP]?.told).toEqual({ kinds: [ECG], failed: 0 });
+    k.publish("evt-1", "drop.kind_waiting", { kind: ECG, count: 3 });
+    k.publish("evt-2", "drop.settled", { inStudio: 2, waitingForKind: { [ECG]: 3 }, failed: 0 });
+    expect(await w.tick()).toEqual({ [DROP]: "nothing" });
+    expect(k.acked).toEqual(["evt-1", "evt-2"]);
+    expect(ctx.activeRun).toBe(first);
+    // A failure nobody heard of yet is news: the settled milestone wakes the chat once.
+    now += 16_000;
+    ctx.kernelTokenAt = Date.now() - 60 * 60_000;
+    k.publish("evt-3", "drop.settled", { inStudio: 2, waitingForKind: { [ECG]: 3 }, failed: 1 });
+    expect(await w.tick()).toEqual({ [DROP]: "status" });
+    k.publish("evt-4", "drop.settled", { inStudio: 2, waitingForKind: { [ECG]: 3 }, failed: 1 });
+    now += 16_000;
+    expect(await w.tick()).toEqual({ [DROP]: "nothing" });
+  });
+
+  it("dropNews: a settled milestone is news only for unheard kinds or more failures", () => {
+    const settled = (waitingForKind: Record<string, number>, failed: number) => ({ eventId: "e", type: "drop.settled" as const, dropId: DROP, waitingForKind, failed });
+    expect(dropNews([settled({}, 0)]).news).toHaveLength(0);
+    expect(dropNews([settled({ [ECG]: 2 }, 0)], { kinds: [ECG], failed: 0 }).news).toHaveLength(0);
+    expect(dropNews([settled({ [ECG]: 2 }, 0)], { kinds: [], failed: 0 })).toEqual({ news: [settled({ [ECG]: 2 }, 0)], told: { kinds: [ECG], failed: 0 } });
+    expect(dropNews([settled({}, 3)], { kinds: [], failed: 1 }).told).toEqual({ kinds: [], failed: 3 });
+  });
+
+  it("get_drop's row: present and past tense, a progress row, no counts", async () => {
+    await setup();
+    await attach();
+    const m = await h!.json("POST", `/v1/sessions/${CONV}/messages`, { text: "Look at the drop", kernelToken: KTOKEN });
+    const events = await h!.drive(m.body.runId);
+    const call = events.find((e) => e.type === "tool-call" && e.name === "get_drop");
+    expect(call).toMatchObject({ title: "Looking at your files", pastTitle: "Looked at your files", progress: true });
+    const result = events.find((e) => e.type === "tool-result" && e.id === (call as { id: string }).id);
+    expect(result).toMatchObject({ ok: true, summary: "" });
+    noCountSummaries(events);
+    // The replayed thread carries the same copy.
+    const t = await h!.json("GET", `/v1/sessions/${CONV}/thread`);
+    const part = t.body?.messages?.flatMap((x: any) => x.parts).find((p: any) => p.type === "tool" && p.name === "get_drop");
+    expect(part).toMatchObject({ title: "Looking at your files", pastTitle: "Looked at your files", progress: true, status: "done" });
+  });
+
+  it("every server tool states a past-tense label", async () => {
+    await setup();
+    const ctx = await h!.sessions.get(CONV);
+    const missing = ctx.piSession
+      .getAllTools()
+      .map((t) => t.name)
+      .filter((name) => !["bash", "read", "write", "edit", "ls", "grep", "find"].includes(name) && !toolCopy(ctx.piSession.getToolDefinition(name)).pastLabel);
+    expect(missing).toEqual([]);
   });
 });

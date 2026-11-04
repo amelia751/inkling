@@ -1,4 +1,5 @@
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { Type } from "typebox";
 import type { ClientToolSpec } from "@studio/agent-protocol";
 import { KernelError, type KernelClient } from "./kernel.ts";
@@ -61,6 +62,7 @@ export function createHomeTools(d: HomeToolsDeps): ToolDefinition<any, any, any>
   const listProjects = defineTool({
     name: "list_projects",
     label: "Listing projects",
+    pastLabel: "Listed projects",
     description:
       "The person's projects: id, title, the kinds of files each holds with counts, and last activity. Metadata only: no file names, folders or contents. Use it to answer which project has what, or to pick one for open_in_project.",
     promptSnippet: "List the person's projects (metadata only)",
@@ -76,6 +78,7 @@ export function createHomeTools(d: HomeToolsDeps): ToolDefinition<any, any, any>
   const openInProject = defineTool({
     name: "open_in_project",
     label: "Opening a chat in a project",
+    pastLabel: "Opened a chat in the project",
     description:
       "Start a new chat in one project with the person's request as its first message; the work happens there and the person is taken to it. Use it for anything that reads or changes a project's files, labels or Studios.",
     promptSnippet: "Hand a request to a new chat in one project",

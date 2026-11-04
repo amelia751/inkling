@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { StudioToolDefinition } from "./define.ts";
 import { Type } from "typebox";
 import { z } from "zod";
 import { OPERATIONS, type Operation, operationRequest, operationToolName } from "@studio/contracts/operations";
@@ -81,8 +82,27 @@ function batchOf(res: unknown): string | undefined {
   return r && typeof r.batchId === "string" ? r.batchId : undefined;
 }
 
+const PAST_VERB: Record<string, string> = {
+  list: "Listed", search: "Searched", mkdir: "Made a folder in", rename: "Renamed", move: "Moved", copy: "Copied", trash: "Trashed",
+  restore: "Restored", purge: "Deleted forever", versions_restore: "Restored a version of", star: "Starred", unstar: "Unstarred",
+  undo: "Undid a change to", cancel: "Cancelled", retry: "Retried", create: "Created", add_files: "Added files to", delete: "Deleted",
+  propose: "Proposed", boot: "Opened", patch: "Changed", publish: "Published", export: "Exported", update: "Updated", merge: "Merged",
+  overview: "Read", describe: "Described", empty: "Emptied", destroy: "Deleted forever",
+};
+const OP_NOUN: Record<string, string> = {
+  source: "files", import: "an import", dataset: "a dataset", collection: "a collection", structure: "a structure", studio: "a Studio",
+  labels: "labels", rules: "review rules", project: "the project", trash: "the Trash",
+};
+
+/** todo29 D6: an operation's tool row once done, from its id: "source.rename" → "Renamed files". */
+export function operationPastLabel(opId: string): string {
+  const [noun = "", verb = ""] = opId.split(".");
+  const v = PAST_VERB[verb];
+  return v ? `${v} ${OP_NOUN[noun] ?? noun}` : `Ran ${opId}`;
+}
+
 export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, any, any>[] {
-  const tools: ToolDefinition<any, any, any>[] = OPERATION_TOOLS.map((op) => {
+  const tools: StudioToolDefinition[] = OPERATION_TOOLS.map((op) => {
     const name = operationToolName(op.id);
     const schema = z.toJSONSchema(op.input, { io: "input", unrepresentable: "any" }) as Record<string, unknown>;
     const tierNote =
@@ -90,6 +110,7 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
     return {
       name,
       label: op.id,
+      pastLabel: operationPastLabel(op.id),
       promptSnippet: op.description.slice(0, 200),
       description: `${op.description}${tierNote}`,
       parameters: Type.Unsafe<Record<string, unknown>>(schema),
@@ -118,11 +139,12 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
         if (op.tier === "destroy") return text({ deletedForever: true, result: res }, "Deleted forever", { opId: op.id });
         return text(res, "Done", { opId: op.id, ...(batchId ? { batchId } : {}) });
       },
-    } satisfies ToolDefinition<any, any, any>;
+    } satisfies StudioToolDefinition;
   });
   tools.push({
     name: "undo_turn",
     label: "Undo these changes",
+    pastLabel: "Undid these changes",
     promptSnippet: "Undo everything you changed in the previous turn",
     description: "Undo every change you made in one turn (default: your previous turn that changed something): restores what you trashed and reverses renames, moves and new folders.",
     parameters: Type.Object({ runId: Type.Optional(Type.String()) }),
@@ -140,6 +162,6 @@ export function createOperationTools(d: OperationToolDeps): ToolDefinition<any, 
       const n = res?.undone ?? 0;
       return text(res, `Undid ${n} change${n === 1 ? "" : "s"}`);
     },
-  } satisfies ToolDefinition<any, any, any>);
+  } satisfies StudioToolDefinition);
   return tools;
 }

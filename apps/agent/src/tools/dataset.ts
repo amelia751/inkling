@@ -1,4 +1,5 @@
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { Type } from "typebox";
 import type { DatasetSnapshot } from "@studio/agent-protocol";
 
@@ -170,6 +171,7 @@ export function createDatasetTools(source: DatasetSource): ToolDefinition<any, a
   const overview = defineTool({
     name: "dataset_overview",
     label: "Reading dataset overview",
+    pastLabel: "Read the dataset overview",
     description:
       "Dataset title, data type, task, label set, licence, item count, annotation progress per label and provenance, and the item open in the viewer.",
     promptSnippet: "Overview of the open dataset and annotation progress",
@@ -205,6 +207,7 @@ export function createDatasetTools(source: DatasetSource): ToolDefinition<any, a
   const listItems = defineTool({
     name: "list_items",
     label: "Listing items",
+    pastLabel: "Listed items",
     description: "List items (images, subjects, recordings…) filtered by annotation state. Returns ids, names, groups and annotation counts.",
     promptSnippet: "List dataset items by annotation state",
     parameters: Type.Object({
@@ -241,6 +244,7 @@ export function createDatasetTools(source: DatasetSource): ToolDefinition<any, a
   const itemAnnotations = defineTool({
     name: "get_item_annotations",
     label: "Reading annotations",
+    pastLabel: "Read annotations",
     description: "Annotations on one item: label, shape summary and provenance. Accepts an item id or name.",
     promptSnippet: "Annotations on one item",
     parameters: Type.Object({ item: Type.String({ description: "Item id or name." }), projectId: projectIdParam }),
@@ -256,6 +260,7 @@ export function createDatasetTools(source: DatasetSource): ToolDefinition<any, a
   const runValidation = defineTool({
     name: "run_validation",
     label: "Checking validation",
+    pastLabel: "Checked validation",
     description: "Run the dataset's validation checks: unannotated items, unreviewed AI suggestions, unknown labels, disagreements with source labels, unsaved edits.",
     promptSnippet: "Run dataset validation checks",
     parameters: Type.Object({ projectId: projectIdParam }),

@@ -1,5 +1,6 @@
 import type { ThreadMessage, ThreadPart } from "@studio/agent-protocol";
 import type { RunRecord, UiPartRecord } from "../store/types.ts";
+import { type ToolRows, rowExtras, toolRow } from "./events.ts";
 
 /**
  * todo20 W3 / D2: a conversation's visible thread, rebuilt on the server from the stored pi
@@ -57,7 +58,7 @@ const firstLine = (s: string) => s.split("\n").find((l) => l.trim())?.trim().sli
  * `entries`: the transcript, header first. `runs`: the session's run records (any order); each
  * assistant message gets the run that was started last at or before its user message.
  */
-export function buildThread(entries: unknown[], runs: RunRecord[], titles: ReadonlyMap<string, string> = new Map(), uiParts: UiPartRecord[] = [], now = Date.now()): ThreadMessage[] {
+export function buildThread(entries: unknown[], runs: RunRecord[], titles: ToolRows = new Map(), uiParts: UiPartRecord[] = [], now = Date.now()): ThreadMessage[] {
   const sorted = [...runs].sort((a, b) => a.createdAt - b.createdAt);
   const out: ThreadMessage[] = [];
   let assistant: ThreadMessage | undefined;
@@ -104,7 +105,8 @@ export function buildThread(entries: unknown[], runs: RunRecord[], titles: Reado
           if (last?.type === "reasoning") last.text += c.thinking;
           else parts.push({ type: "reasoning", text: c.thinking });
         } else if (c.type === "toolCall" && c.id && c.name) {
-          parts.push({ type: "tool", id: c.id, name: c.name, title: titles.get(c.name) ?? c.name, status: "running", input: c.arguments });
+          const row = toolRow(titles, c.name);
+          parts.push({ type: "tool", id: c.id, name: c.name, title: row?.title ?? c.name, ...rowExtras(row), status: "running", input: c.arguments });
         }
       }
       if (m.stopReason === "error" && m.errorMessage) assistant.error = m.errorMessage;

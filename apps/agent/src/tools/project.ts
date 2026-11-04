@@ -1,4 +1,5 @@
-import { type ToolDefinition, defineTool } from "@earendil-works/pi-coding-agent";
+import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { defineTool } from "./define.ts";
 import { Type } from "typebox";
 import { KernelError, type KernelClient } from "./kernel.ts";
 
@@ -127,6 +128,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const overview = defineTool({
     name: "project_overview",
     label: "Reading project",
+    pastLabel: "Read the project",
     description:
       "The open project at a glance: title, description, tasks, what data it holds (counts per kind) and what needs attention (privacy holds, import problems, proposals to confirm). Start here for questions about the project as a whole.",
     promptSnippet: "Project summary: tasks, data and what needs attention",
@@ -156,6 +158,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const listSources = defineTool({
     name: "list_sources",
     label: "Listing sources",
+    pastLabel: "Listed sources",
     description:
       "What was imported into this project: each source (an upload or a sample) with its file count and status, and the first level of its folder tree (folders, files and collapsed numbered runs such as scan001–scan120.dcm). " +
       "Pass nodeId to list one folder instead. Files are shown as uploaded; names may be meaningless (IM-0001.dcm).",
@@ -202,6 +205,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const describeNode = defineTool({
     name: "describe_source_node",
     label: "Reading file details",
+    pastLabel: "Read file details",
     description:
       "One file or folder in Data: what was detected (kind, facts such as columns, dimensions or series), its flags (duplicate, unsupported, quality), where it sits and which datasets use it. Never the file's contents. Files held for privacy review are not described.",
     promptSnippet: "Facts and flags for one source file or folder",
@@ -222,6 +226,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const listProposals = defineTool({
     name: "list_proposals",
     label: "Listing proposals",
+    pastLabel: "Listed proposals",
     description:
       "Proposals waiting in Explore (groups, relationships, mappings, datasets, tasks) with their strength (strong / possible / weak) and evidence. Proposals change nothing until a person confirms them in Explore.",
     promptSnippet: "Proposals to confirm in Explore",
@@ -239,6 +244,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const importIssues = defineTool({
     name: "list_import_issues",
     label: "Checking imports",
+    pastLabel: "Checked imports",
     description:
       "Problems from imports: uploads that failed or were rejected, files skipped as duplicates, files that can't be read yet, and files held for privacy review (counted, never named). Use it for 'did my upload work?' questions.",
     promptSnippet: "Failed, rejected, duplicate, unreadable and held files from imports",
@@ -291,6 +297,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const proposeSchema = defineTool({
     name: "propose_schema",
     label: "Proposing a table layout",
+    pastLabel: "Proposed a table layout",
     description:
       "Propose how a table's columns should be read (type and role of each column, e.g. an ID that links to images, or a label column). Creates a proposal the user reviews and confirms in Explore; it changes no data. The user approves creating it first.",
     promptSnippet: "Propose a table's column layout (a proposal, confirmed in Explore)",
@@ -317,6 +324,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const proposeRelationship = defineTool({
     name: "propose_relationship",
     label: "Proposing a relationship",
+    pastLabel: "Proposed a relationship",
     description:
       "Propose how two parts of the project fit together, e.g. 'diagnosis.csv column patient_id matches the MRI folders by name'. Creates a proposal the user reviews and confirms in Explore; it never merges, links or changes anything by itself. The user approves creating it first.",
     promptSnippet: "Propose a link between a table and files (a proposal, confirmed in Explore)",
@@ -337,6 +345,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const confirm = defineTool({
     name: "confirm_proposal",
     label: "Asking to confirm",
+    pastLabel: "Asked to confirm",
     description:
       "Ask the kernel to confirm a proposal. Only a person can confirm (docs: 'nothing proposed changes data until the user confirms it'), so the kernel refuses this for the assistant with 403. " +
       "Don't use it to get something done: offer open_location to Explore instead so the user confirms there. If it was refused, say so plainly.",
@@ -359,6 +368,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const listFolder = defineTool({
     name: "list_folder",
     label: "Listing folder",
+    pastLabel: "Listed a folder",
     description:
       "One folder of the project's Sources (the drive): its subfolders and files by current name, with kind, status and counts. Leave nodeId out for the top of the drive. " +
       "Never file contents or the names files were uploaded with. Numbered runs (scan001–scan120.dcm) are one row; list the run's id to see its files. Use the ids with propose_reorganization.",
@@ -394,6 +404,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const findFiles = defineTool({
     name: "find_files",
     label: "Finding files",
+    pastLabel: "Found files",
     description:
       "Search the project's Sources by name (part of the current name, any case) and/or detected kind (image, dicom, dicom-series, volume, video, waveform, slide, table, document, mask, annotations, archive, unknown). " +
       "Returns ids, current names, kinds and the parent folder id (to group by folder), at most 200. Never contents or the names files were uploaded with.",
@@ -421,6 +432,7 @@ export function createProjectTools(k: KernelClient): ToolDefinition<any, any, an
   const proposeStructure = defineTool({
     name: "propose_structure",
     label: "Drafting the dataset structure",
+    pastLabel: "Drafted the dataset structure",
     description:
       "Draft a dataset's structure: its collections (one kind each), their fields (from inspection facts: dimensions, modality, column names and types), relationships between collections, and the annotation definitions with stable label ids (from the person's request). Writes your own work branch, never the person's draft, and returns what changed against the draft; the person accepts it. Send the whole structure (read the current one from the plan or dataset first) and keep existing ids.",
     promptSnippet: "Draft a dataset's structure.json on your own branch (the person accepts it)",

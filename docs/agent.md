@@ -163,7 +163,7 @@ The other rows are options from the original Harness survey; none is wired up. D
 ### 6.1 Prerequisites
 
 - pnpm (the repo's package manager). `apps/agent` declares `engines.node >=22.19` and `devEngines.runtime` Node `^24` with `onFail: download`, so pnpm fetches a matching Node just for this package: check with `pnpm --filter @studio/agent exec node -v`.
-- A model key: `OPENAI_API_KEY` (dev default `openai:gpt-6.1-sol`) or `ANTHROPIC_API_KEY`, in the real environment or `secrets/models.env`.
+- A model key: `STUDIO_AGENT_MUSE_API_KEY` (default `muse:muse-spark-1.3`, Meta Model API), `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, in the real environment or `secrets/models.env`. Each provider is one file in `apps/agent/src/agent/providers/`; `ACTIVE` in `providers/index.ts` picks the default.
 - `DAYTONA_API_KEY` (+ `DAYTONA_API_URL`, `DAYTONA_TARGET`) in `secrets/daytona.env` for the `coder` profile; without it the service runs with sandboxes off.
 - Synthetic or public de-identified data only (seed-data).
 

@@ -42,7 +42,7 @@ const set = (key, value) => {
 const notes = [];
 
 // ---- Model (D6) ----------------------------------------------------------------------------------
-const providerKey = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((k) => env[k] || fromFiles[k]);
+const providerKey = [`${P}AGENT_MUSE_API_KEY`, "OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((k) => env[k] || fromFiles[k]);
 if (!env[`${P}AGENT_MODEL`] && !fromFiles[`${P}AGENT_MODEL`]) {
   // A provider key in the shell or secrets/: the agent's own default model, as before todo15.
   // No key at all: scripted, so the assistant still answers (free, canned).

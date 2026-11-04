@@ -31,3 +31,6 @@ secrets/*
 # Turborepo cache and build outputs
 .turbo/
 tests/e2e/.artifacts/
+
+# Planning notes stay local.
+todo/

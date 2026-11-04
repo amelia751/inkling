@@ -4,6 +4,7 @@ import type { Api, Message, Model } from "@earendil-works/pi-ai";
 import { type FauxContentBlock, fauxAssistantMessage, fauxProvider, fauxText, fauxThinking, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { type Config, SCRIPTED_PROVIDER, envName } from "../config.ts";
+import { PROVIDERS } from "./providers/index.ts";
 
 export const DEFAULT_DATA_DIR = resolve(import.meta.dirname, "../../.data");
 export const dataDir = (config: Config) => resolve(config.dataDir ?? DEFAULT_DATA_DIR);
@@ -17,6 +18,7 @@ export async function createModelRuntime(config: Config): Promise<ModelRuntime> 
     modelsPath: null,
     allowModelNetwork: false,
   });
+  for (const p of PROVIDERS) if (config.providerKeys[p.id]) p.register?.(runtime);
   for (const [provider, key] of Object.entries(config.providerKeys)) await runtime.setRuntimeApiKey(provider, key);
   if (config.model.provider === SCRIPTED_PROVIDER) registerScriptedProvider(runtime, config.script ? loadScript(config.script) : { scripts: [] });
   return runtime;

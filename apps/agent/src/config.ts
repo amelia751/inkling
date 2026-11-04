@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
+import { DEFAULT_ALLOWLIST, DEFAULT_MODEL, PROVIDERS } from "./agent/providers/index.ts";
 import { envKey } from "./naming.ts";
 import { maskSecret } from "./secrets.ts";
 
@@ -62,13 +63,12 @@ const schema = z.object({
   /** WorkOS API origin, e.g. `http://localhost:4100` for WorkOS Emulate; https://api.workos.com otherwise. */
   AGENT_WORKOS_BASE_URL: z.string().url().optional().or(z.literal("").transform(() => undefined)),
 
-  AGENT_MODEL: z.string().default("openai:gpt-6.1-sol"),
-  AGENT_MODEL_ALLOWLIST: z
-    .string()
-    .default("openai:gpt-6.1-sol,openai:gpt-6-sol,anthropic:claude-sonnet-5-5,anthropic:claude-opus-5-5"),
+  AGENT_MODEL: z.string().default(DEFAULT_MODEL),
+  AGENT_MODEL_ALLOWLIST: z.string().default(DEFAULT_ALLOWLIST),
   AGENT_THINKING: z.enum(["off", "minimal", "low", "medium", "high"]).default("low"),
   OPENAI_API_KEY: optional,
   ANTHROPIC_API_KEY: optional,
+  AGENT_MUSE_API_KEY: optional,
   /**
    * Vertex AI (todo10 D8): `AGENT_MODEL=google-vertex:<model>` calls the model in this project and
    * location with Application Default Credentials (Workload Identity on GKE), never a key.
@@ -257,8 +257,10 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   else if (!allowlist.includes(e.AGENT_MODEL)) throw new ConfigError(`${MODEL} ${e.AGENT_MODEL} is not in ${envName("AGENT_MODEL_ALLOWLIST")}`);
 
   const providerKeys: Record<string, string> = {};
-  if (e.OPENAI_API_KEY) providerKeys.openai = e.OPENAI_API_KEY;
-  if (e.ANTHROPIC_API_KEY) providerKeys.anthropic = e.ANTHROPIC_API_KEY;
+  for (const p of PROVIDERS) {
+    const key = (e as Record<string, unknown>)[p.keyEnv];
+    if (typeof key === "string" && key) providerKeys[p.id] = key;
+  }
   const vertex = e.GOOGLE_CLOUD_PROJECT && e.GOOGLE_CLOUD_LOCATION ? { project: e.GOOGLE_CLOUD_PROJECT, location: e.GOOGLE_CLOUD_LOCATION } : undefined;
   if (vertex) providerKeys[VERTEX_PROVIDER] = VERTEX_ADC;
 
@@ -267,7 +269,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
     missing.push(
       ...(provider === VERTEX_PROVIDER
         ? (["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_LOCATION"] as const).filter((k) => !e[k])
-        : [`${provider.toUpperCase()}_API_KEY`]),
+        : [envName(PROVIDERS.find((p) => p.id === provider)?.keyEnv ?? `${provider.toUpperCase()}_API_KEY`)]),
     );
   const sandboxOn = e.AGENT_SANDBOX === "daytona";
   if (sandboxOn && !e.DAYTONA_API_KEY) missing.push("DAYTONA_API_KEY");
@@ -368,8 +370,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
 /** One line per secret: presence and last 3 characters only. */
 export function describeSecrets(config: Config): string {
   return [
-    `openai=${maskSecret(config.providerKeys.openai)}`,
-    `anthropic=${maskSecret(config.providerKeys.anthropic)}`,
+    ...PROVIDERS.map((p) => `${p.id}=${maskSecret(config.providerKeys[p.id])}`),
     `vertex=${config.vertex ? "adc" : "unset"}`,
     `daytona=${maskSecret(config.daytona?.apiKey)}`,
     `serviceToken=${maskSecret(config.serviceToken)}`,

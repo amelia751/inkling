@@ -90,14 +90,17 @@ Google Cloud takes the target as a URL and gets public templates only
 ### Real model
 
 `pnpm dev` runs the agent on `STUDIO_AGENT_MODEL` if set; otherwise on the agent's default model
-when a provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) is in your shell or `secrets/`, and on
-the `scripted` model (free, deterministic) when there's no key. `pnpm dev` also points the web at
-the api it starts (`STUDIO_API_URL=http://127.0.0.1:8000`), not the seed server. To pick a model, copy `secrets/models.env.example` to
-`secrets/models.env` and set one provider key and the model:
+when a provider key (`STUDIO_AGENT_MUSE_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) is in
+your shell or `secrets/`, and on the `scripted` model (free, deterministic) when there's no key.
+The default model is `muse:muse-spark-1.3` (Meta Model API). Each provider is one file in
+`apps/agent/src/agent/providers/`, and `ACTIVE` in `providers/index.ts` picks the default.
+`pnpm dev` also points the web at the api it starts (`STUDIO_API_URL=http://127.0.0.1:8000`),
+not the seed server. To pick a model, copy `secrets/models.env.example` to `secrets/models.env`
+and set one provider key and, optionally, the model:
 
 ```sh
-ANTHROPIC_API_KEY=sk-ant-…                       # or OPENAI_API_KEY=… with an openai: model
-STUDIO_AGENT_MODEL=anthropic:claude-sonnet-5-5  # provider:model from STUDIO_AGENT_MODEL_ALLOWLIST
+STUDIO_AGENT_MUSE_API_KEY=…                 # or OPENAI_API_KEY=… with an openai: model
+STUDIO_AGENT_MODEL=muse:muse-wonder-1.0     # provider:model from STUDIO_AGENT_MODEL_ALLOWLIST
 ```
 
 `pnpm dev` (`tools/dev.mjs`) sees the model in the file and stops defaulting to `scripted`; the

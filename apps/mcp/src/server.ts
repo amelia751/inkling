@@ -83,6 +83,36 @@ export const ENV_TOOLS: ToolDef[] = [
     ),
     annotations: READ,
   },
+  {
+    name: "boot_preview",
+    description:
+      "Boot a Studio as a preview (todo23 D8): an immutable environment on a project's dataset, visible only to the person you act for, with a Preview badge. Never switches anyone's Studio. Returns the preview (`id`, `taskId`, `expiresAt`); show the person what you verified and let them Keep or Discard it.",
+    inputSchema: obj(
+      {
+        projectId: { type: "string", description: "The project (not a task) id" },
+        spec: { type: "object", description: "The complete environment (validate it first)" },
+        datasetId: { type: "string", description: "Dataset to preview on. Omitted: the project's default Studio's dataset" },
+        title: { type: "string" },
+        pluginVersions: { type: "object", description: "Pinned plugin versions {pluginId: version}. Omitted: the project's installed versions" },
+        verification: { type: "object", description: "The verification summary to show beside the preview" },
+      },
+      ["projectId", "spec"],
+    ),
+    annotations: hints("write", "POST"),
+  },
+  { name: "list_previews", description: "The previews you (or the person you act for) booted in a project and haven't kept or discarded.", inputSchema: obj({ projectId: { type: "string" } }, ["projectId"]), annotations: READ },
+  {
+    name: "keep_preview",
+    description: "Keep a preview: its Studio moves to the project's workspace tier and everyone in the project sees it. Only the requester keeps; only on their explicit say-so.",
+    inputSchema: obj({ projectId: { type: "string" }, previewId: { type: "string" } }, ["projectId", "previewId"]),
+    annotations: hints("write", "POST"),
+  },
+  {
+    name: "discard_preview",
+    description: "Discard a preview: deletes it, its Studio and every annotation made in it.",
+    inputSchema: obj({ projectId: { type: "string" }, previewId: { type: "string" } }, ["projectId", "previewId"]),
+    annotations: hints("destroy", "POST"),
+  },
 ];
 
 /** todo23 W10: build and test tools. Local processes, so stdio only (refused over HTTP). */
@@ -108,11 +138,13 @@ export const HARNESS_TOOLS: ToolDef[] = [
 export const reviewPath = (a: { projectId: string; kind: string; id: string; version: string }) =>
   `/api/v1/projects/${encodeURIComponent(a.projectId)}/reviews?artifact=${encodeURIComponent(`${a.kind}:${a.id}@${a.version}`)}`;
 
+/** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
+export const ENV_WRITES_PREVIEW = ["boot_preview", "keep_preview", "discard_preview"] as const;
 
 /** Every tool, `project_context` first (D9). */
 export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...RECIPE_TOOLS, ...SCOUT_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
 /** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
-export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment", "trial_oss"]);
+export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment", "trial_oss", ...ENV_WRITES_PREVIEW]);
 
 
 /**
@@ -157,6 +189,7 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
     }
     return http("POST", "/api/environments/validate", spec);
   }
+  const previews = (projectId: unknown) => `/api/v1/projects/${encodeURIComponent(String(projectId))}/previews`;
 
   async function call(name: string, args: Record<string, any>): Promise<Result> {
     switch (name) {
@@ -200,6 +233,19 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
         return writeEnvironment(http, "PATCH", String(args.projectId), authored({ patch: args.patch }), args.revision);
       case "set_environment":
         return writeEnvironment(http, "PUT", String(args.projectId), authored({ environment: args.spec }), args.revision);
+      case "boot_preview": {
+        const body: Record<string, unknown> = { environment: args.spec };
+        for (const k of ["datasetId", "title", "pluginVersions", "verification"]) if (args[k] !== undefined) body[k] = args[k];
+        return http("POST", previews(args.projectId), body);
+      }
+      case "list_previews":
+        return http("GET", previews(args.projectId));
+      case "keep_preview":
+        return http("POST", `${previews(args.projectId)}/${encodeURIComponent(String(args.previewId))}/keep`);
+      case "discard_preview": {
+        const r = await http("POST", `${previews(args.projectId)}/${encodeURIComponent(String(args.previewId))}/discard`);
+        return r.ok ? { ok: true, data: { discarded: String(args.previewId) } } : r;
+      }
       default:
         return { ok: false, data: { error: `Unknown tool "${name}"` } };
     }

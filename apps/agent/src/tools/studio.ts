@@ -35,7 +35,7 @@ const SUMMARY: Record<StudioToolName, (r: any) => string> = {
   patch_studio: (r) => `Studio updated (revision ${r.revision})`,
   get_studio_state: (r) => `Studio at revision ${r.revision}${r.activeItem?.kind ? ` (open item: ${r.activeItem.kind.split(".").pop()})` : ""}`,
   search_catalog: (r) => `${r.results.length} match${r.results.length === 1 ? "" : "es"}`,
-  offer_studio: (r) => `Offered: ${r.offer.title}`,
+  offer_studio: (r) => (r.preview ? `Preview booted: ${r.offer.title}` : `Offered: ${r.offer.title}`),
 };
 
 /** The result a stale-revision write returns (todo21 D6). */

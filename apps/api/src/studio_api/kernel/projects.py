@@ -840,6 +840,9 @@ def require_task(db: Session, ctx: RequestContext, task_id: str) -> tuple[TaskRo
     t = db.get(TaskRow, task_id)
     if t is None:
         raise HTTPException(404, "no such task")
+    from . import previews
+
+    previews.guard_task(db, ctx, t)
     return t, require_project(db, ctx, t.project_id)
 
 

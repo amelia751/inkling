@@ -262,8 +262,29 @@ export function createStudioHandlers(deps: StudioToolDeps) {
       return { query: args.query, results: results.map(({ score: _s, ...r }) => r), ...(results.length ? {} : { note: "Nothing matched; try other words or a broader kind." }) };
     },
 
-    async offer_studio(args: OfferStudioArgs) {
+    async offer_studio(args: OfferStudioArgs, ctx: CallContext = {}) {
       if (!known.has(args.preset)) throw new StudioToolError(`Unknown preset ${args.preset}. Use one from the preset index.`, { status: 422 });
+      if (args.preview) {
+        const pv = args.preview;
+        const projectId = project(pv.projectId);
+        const preview = await wrap(() =>
+          client.bootPreview(
+            projectId,
+            {
+              environment: pv.environment ?? { extends: args.preset },
+              title: args.title,
+              ...(pv.datasetId ? { datasetId: pv.datasetId } : {}),
+              ...(pv.verification ? { verification: pv.verification } : {}),
+            },
+            ctx.signal,
+          ),
+        );
+        return {
+          offer: { preset: args.preset, title: args.title, reason: args.reason },
+          preview: { id: preview.id, taskId: preview.taskId, expiresAt: preview.expiresAt, pluginVersions: preview.pluginVersions, ...(preview.verification ? { verification: preview.verification } : {}) },
+          note: "Booted as a preview only the person sees. Show them the verification summary; they Keep, Change or Discard it. Their current Studio is unchanged.",
+        };
+      }
       return { offer: { preset: args.preset, title: args.title, reason: args.reason }, note: "Shown as a button. Nothing was created; boot_studio runs when the person clicks it or asks explicitly." };
     },
   };

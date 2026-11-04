@@ -29,7 +29,7 @@ from .routes import findings as findings_routes
 from .routes import rules as rules_routes
 from .routes import trash as trash_routes
 from .routes import reviews as reviews_routes
-from .routes import api_keys, boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, projects, service, sources, unpack, versioning, worker
+from .routes import api_keys, boots, boundary, datasets_views, drops, environments, explore, features, files, kernel, ops, organize, pipelines, plugins, previews, projects, service, sources, unpack, versioning, worker
 
 log = logging.getLogger(__name__)
 
@@ -127,6 +127,7 @@ def create_app(*, init_db: bool = True) -> FastAPI:
     app.include_router(prefs_routes.router)
     app.include_router(datasets_views.router)
     app.include_router(boots.router)
+    app.include_router(previews.router)
     app.include_router(sources.router)
     app.include_router(rules_routes.router)
     app.include_router(labels_routes.router)

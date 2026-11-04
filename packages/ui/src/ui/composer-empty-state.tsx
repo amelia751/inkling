@@ -33,8 +33,13 @@ export interface ComposerEmptyStateProps {
   /** Controlled text (optional: uncontrolled by default). */
   value?: string
   onValueChange?: (text: string) => void
-  /** Enter or the send button, with the trimmed text. */
+  /** Enter or the send button, with the trimmed text (empty when only attachments go). */
   onSend?: (text: string) => void
+  /**
+   * Files attached and waiting for Send (the app's tiles), shown in the composer above the
+   * field. While there are some, Send works with no text.
+   */
+  attachments?: React.ReactNode
   /** Example requests under the composer; picking one fills the field (or calls `onExample`). */
   examples?: string[]
   onExample?: (text: string) => void
@@ -94,6 +99,7 @@ function ComposerEmptyState({
   value,
   onValueChange,
   onSend,
+  attachments,
   examples,
   onExample,
   onFiles,
@@ -135,9 +141,10 @@ function ComposerEmptyState({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`
   }, [text])
 
+  const canSend = !!text.trim() || !!attachments
   const send = () => {
     const t = text.trim()
-    if (!t || busy || !onSend) return
+    if (!canSend || busy || !onSend) return
     onSend(t)
   }
   const take = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -237,6 +244,7 @@ function ComposerEmptyState({
             {...dropProps}
           >
             {overlay}
+            {attachments && <div className="mb-2" data-testid="composer-attachments">{attachments}</div>}
             <textarea
               ref={area}
               value={text}
@@ -265,7 +273,7 @@ function ComposerEmptyState({
             <div className="mt-2 flex items-center gap-2">
               {attach}
               {filesDisabledReason && <span className="text-caption text-hint" data-testid="composer-files-disabled">{filesDisabledReason}</span>}
-              <Button type="button" variant={text.trim() ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={send} disabled={!text.trim() || busy || !onSend} loading={busy} aria-label="Send" data-testid="composer-send">
+              <Button type="button" variant={canSend ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={send} disabled={!canSend || busy || !onSend} loading={busy} aria-label="Send" data-testid="composer-send">
                 <SubmitIcon />
               </Button>
             </div>

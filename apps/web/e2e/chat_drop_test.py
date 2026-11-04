@@ -215,14 +215,19 @@ def t_home(browser, port):
             root = kernel("GET", f"/projects/{pid}/fs")[1]["rootNodeId"]
             top = kernel("GET", f"/projects/{pid}/fs/children?node={root}")[1]["items"]
             check("home: the 12 files are in Shared in chat", any((i.get("displayPath") or i["name"]).startswith("Shared in chat") for i in top), str([(i["name"], i.get("displayPath")) for i in top]))
-            # The drop opened the drawer; once the assistant is on, the message carries the drop.
+            # todo29 D1: the drop only attached; the drawer stays shut until Send.
+            tiles = page.get_by_test_id("empty-project").get_by_test_id("attachment-tile")
+            check("home: the drop shows as tiles in the composer, no message, drawer shut", tiles.count() == 12 and page.get_by_test_id("agent-drawer").count() == 0, str(tiles.count()))
+            page.get_by_test_id("empty-project-input").fill("Make me a Studio")
+            page.get_by_test_id("composer-send").click()
             consent = page.get_by_role("button", name="Turn on for this browser")
             consent.or_(page.get_by_test_id("agent-log")).first.wait_for(timeout=20000)
             if consent.count():
                 consent.click()
-            card = page.get_by_test_id("user-drop").get_by_test_id("drop-card")
+            card = page.get_by_test_id("user-drop").get_by_test_id("attachment-tiles")
             card.wait_for(timeout=20000)
-            check("home: the chat shows the drop card with live states", card.get_by_test_id("drop-chip").count() == 12, str(card.get_by_test_id("drop-chip").count()))
+            card.get_by_test_id("attachment-more").click()
+            check("home: the message shows the drop as tiles", card.get_by_test_id("attachment-tile").count() == 12, str(card.get_by_test_id("attachment-tile").count()))
     finally:
         page.context.close()
 
@@ -240,16 +245,18 @@ def t_chat_drop(browser, port):
         check("composer: attach button", page.get_by_test_id("agent-attach").is_enabled())
         names = [f"cxr_{i:02d}.png" for i in range(12)]
         t0 = page.evaluate(DROP_JS, ["[data-testid=agent-log]", [{"name": n, "type": "image/png", "b64": b64(png(i))} for i, n in enumerate(names)]])
-        page.get_by_test_id("drop-card").first.wait_for(timeout=5000)
+        page.get_by_test_id("attachment-tiles").first.wait_for(timeout=5000)
         shown = page.evaluate("performance.now()") - t0
-        check("drop: the card shows in the composer at once (< 300 ms budget)", shown < 300 or page.get_by_test_id("drop-card").count() > 0, f"{shown:.0f} ms (includes the wait)")
+        check("drop: the tiles show in the composer at once (< 300 ms budget)", shown < 300 or page.get_by_test_id("attachment-tiles").count() > 0, f"{shown:.0f} ms (includes the wait)")
         attest(page)
         page.get_by_label("Send").click()
-        card = page.get_by_test_id("user-drop").get_by_test_id("drop-card")
+        card = page.get_by_test_id("user-drop").get_by_test_id("attachment-tiles")
         card.wait_for(timeout=10000)
-        chips = card.get_by_test_id("drop-chip")
+        if card.get_by_test_id("attachment-more").count():
+            card.get_by_test_id("attachment-more").click()
+        chips = card.get_by_test_id("attachment-tile")
         wait(lambda: chips.count() == 12, timeout=20)
-        check("drop: the message shows 12 chips", chips.count() == 12, str(chips.count()))
+        check("drop: the message shows 12 tiles", chips.count() == 12, str(chips.count()))
         states = set()
         end = time.time() + 60
         while time.time() < end:
@@ -257,10 +264,10 @@ def t_chat_drop(browser, port):
             states |= now
             # (Empty while the page moves: the fast path opens the project's first Studio,
             # with this chat beside it.)
-            if now and now <= {"ready", "kept"}:
+            if now and now <= {"done"}:
                 break
             time.sleep(0.2)
-        check("drop: chips move through live states to ready", "ready" in states and len(states) >= 2, str(sorted(states)))
+        check("drop: tiles go loading to done", "done" in states and len(states) >= 2, str(sorted(states)))
         drops = conversation_drops(pid)
         check("drop: one chat drop with 12 files", len(drops) == 1 and len(drops[0]["files"]) == 12 and drops[0]["origin"] == "chat", str([(d["origin"], len(d["files"])) for d in drops]))
         root = kernel("GET", f"/projects/{pid}/fs")[1]["rootNodeId"]
@@ -283,19 +290,22 @@ def t_chat_drop(browser, port):
         check("shared files: lists the drop", page.get_by_test_id("chat-files").get_by_test_id("drop-chip").count() == 12)
         page.get_by_test_id("agent-back-to-chat").click()
         # Remove a file from the chat: the File stays; deleting the File shows "Deleted file".
-        card = page.get_by_test_id("user-drop").get_by_test_id("drop-card").first
+        card = page.get_by_test_id("user-drop").get_by_test_id("attachment-tiles").first
         card.wait_for(timeout=10000)
+        if card.get_by_test_id("attachment-more").count():
+            card.get_by_test_id("attachment-more").click()
         first, second = drops[0]["files"][0]["nodeId"], drops[0]["files"][1]["nodeId"]
-        chip = card.locator(f"[data-testid=drop-chip][data-node-id='{first}']")
+        chip = card.locator(f"[data-testid=attachment-tile][data-node-id='{first}']")
         chip.hover()
-        chip.get_by_test_id("drop-chip-remove").click()
-        wait(lambda: chip.get_attribute("data-state") == "removed", timeout=10)
+        chip.get_by_test_id("attachment-tile-remove").click()
+        # A file removed from the chat is no longer a tile.
+        wait(lambda: chip.count() == 0, timeout=10)
         detail = kernel("GET", f"/source-nodes/{first}")[1]
-        check("remove from chat: the reference goes, the File stays", chip.get_attribute("data-state") == "removed" and detail["trash"] is None, f"{chip.get_attribute('data-state')} {detail.get('trash')}")
+        check("remove from chat: the reference goes, the File stays", chip.count() == 0 and detail["trash"] is None, f"{chip.count()} {detail.get('trash')}")
         kernel("POST", f"/projects/{pid}/fs/ops", {"ops": [{"kind": "trash", "nodeIds": [second]}]})
-        gone = card.locator(f"[data-testid=drop-chip][data-node-id='{second}']")
-        wait(lambda: gone.get_attribute("data-state") == "deleted", timeout=15)
-        check("delete the File: the chat shows Deleted file", gone.get_attribute("data-state") == "deleted" and "Deleted file" in gone.inner_text(), gone.inner_text())
+        gone = card.locator(f"[data-testid=attachment-tile][data-node-id='{second}']")
+        wait(lambda: gone.get_attribute("data-file-state") == "deleted", timeout=15)
+        check("delete the File: the chat shows a failed tile", gone.get_attribute("data-file-state") == "deleted" and gone.get_attribute("data-state") == "failed", str(gone.get_attribute("data-file-state")))
         check("chat drop: no page errors", not errors, str(errors[:3]))
     finally:
         events.stop = True
@@ -320,13 +330,13 @@ def t_paste_in_studio(browser, port):
         box = page.get_by_label(f"Message {AI}")
         box.wait_for(timeout=10000)
         page.evaluate(PASTE_JS, [f"[aria-label='Message {AI}']", b64(png(40))])
-        page.get_by_test_id("drop-card").first.wait_for(timeout=5000)
+        page.get_by_test_id("attachment-tiles").first.wait_for(timeout=5000)
         attest(page)
         box.fill("Here's a screenshot")
         page.get_by_label("Send").click()
         made = wait(lambda: [d for d in conversation_drops(pid) if d["id"] not in before and d["files"] and d["files"][0]["nodeId"]], timeout=30)
         check("paste: a screenshot in the Studio chat becomes a File", bool(made) and made[0]["files"][0]["name"].startswith("Screenshot "), str(made and made[0]["files"][0]["name"]))
-        check("paste: a chip on the message", page.get_by_test_id("user-drop").get_by_test_id("drop-chip").count() >= 1)
+        check("paste: a tile on the message", page.get_by_test_id("user-drop").get_by_test_id("attachment-tile").count() >= 1)
         wait(lambda: "drop.received" in events.kinds(), timeout=10)
         check("paste: a drop.* event", any(k.startswith("drop.") for k in events.kinds()), str(sorted(events.kinds())))
     finally:
@@ -386,7 +396,7 @@ def t_big_file_resume(browser, port):
     try:
         open_assistant(page, f"http://localhost:{port}/projects/{pid}/sources", "sources-page")
         page.get_by_test_id("agent-attach-input").set_input_files(str(big))
-        page.get_by_test_id("drop-card").first.wait_for(timeout=10000)
+        page.get_by_test_id("attachment-tiles").first.wait_for(timeout=10000)
         attest(page)
         page.get_by_label("Send").click()
         page.get_by_test_id("user-drop").wait_for(timeout=60000)

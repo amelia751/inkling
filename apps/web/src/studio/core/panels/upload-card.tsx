@@ -11,9 +11,9 @@ import { useAgent } from "@/studio/stores/agent";
  * request_upload (todo16 D10): the assistant asks, the person picks or drops files here. The
  * bytes go the normal import path (`startDrop`, into the folder the assistant named or the
  * chat's landing folder); the assistant only ever reads the drop's facts, as for any chat drop.
- * The drop belongs to the conversation: on the first files it's queued as a message of its own
- * (`usePendingAsks`), which the conversation sends with the drop block so the assistant gets its
- * facts, or keeps in the composer for the next message while a run is going (todo16 round 2).
+ * The drop belongs to the conversation: on the first files it joins the composer
+ * (`usePendingAsks`, attach-only) and goes with the person's next Send (todo29 D1: attaching
+ * never sends).
  */
 export function UploadCard({ projectId, card }: { projectId: string; card: Extract<AgentCard, { kind: "upload-request" }> }) {
   const input = useRef<HTMLInputElement>(null);
@@ -27,8 +27,8 @@ export function UploadCard({ projectId, card }: { projectId: string; card: Extra
     const conv = useAgent.getState().conversation(projectId);
     const id = startDrop({ projectId, origin: "chat", files: pastedFiles(files), conversationId: conv.id, conversationTitle: conv.title, messageId, ...(card.folderId ? { targetNodeId: card.folderId } : {}), ...(dropId ? { dropId } : {}) });
     setDropId(id);
-    // More files later join the same drop; the message carrying it is sent once.
-    if (!dropId) usePendingAsks.getState().queue(projectId, "", { dropId: id, messageId });
+    // More files later join the same drop; it waits in the composer and goes with the next Send (todo29 D1).
+    if (!dropId) usePendingAsks.getState().queue(projectId, "", { dropId: id, messageId }, undefined, { attachOnly: true });
   };
   const onDrop = (e: DragEvent) => {
     e.preventDefault();

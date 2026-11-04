@@ -23,7 +23,7 @@ import { AgentCardView, type StudioCardContext } from "./cards";
 import { BootCard, OfferCard } from "./boot-card";
 import { CopyButton } from "./copy-button";
 import { Markdown } from "./markdown";
-import { DropCard } from "@/studio/core/drops";
+import { AttachmentTiles } from "@/studio/core/drops";
 
 const PAST: Record<string, string> = {
   Reading: "Read",
@@ -86,7 +86,7 @@ export function UserMessage({ message, projectId, canEdit = true, onBranch }: { 
       {projectId &&
         drops.map((d) => (
           <div key={d.id} className="w-full max-w-[88%] self-end" data-testid="user-drop">
-            <DropCard dropId={d.id} projectId={projectId} canEdit={canEdit} />
+            <AttachmentTiles dropId={d.id} projectId={projectId} variant="message" canEdit={canEdit} />
           </div>
         ))}
       {text && (

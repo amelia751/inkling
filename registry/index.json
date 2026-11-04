@@ -328,7 +328,7 @@
       "version": "1.0.0",
       "publisher": "first-party",
       "trustTier": "first-party",
-      "artifactDigest": "sha256:8bf08bb9d624e9b18f1abba4cf697652e59d9feb7538a55db73599335027c56c",
+      "artifactDigest": "sha256:fc2446dee01f610e6e1da08cdde339ab098b5ac84943673e87b4a5bb9be74ce8",
       "path": "plugins/segmentation",
       "capabilities": [
         "image.segment"
@@ -348,16 +348,27 @@
         "optional": [
           "network.egress:api.meta.ai",
           "secrets.use:META_MODEL_API_KEY",
-          "network.egress:sam.internal"
+          "network.egress:sam.internal",
+          "network.egress:sam-oip.internal",
+          "network.egress:api.replicate.com",
+          "network.egress:replicate.delivery",
+          "secrets.use:REPLICATE_API_TOKEN",
+          "network.egress:medsam2.us-east-1.aws.endpoints.huggingface.cloud",
+          "secrets.use:HF_TOKEN"
         ]
       },
       "licenses": {
         "code": "Apache-2.0",
         "models": {
-          "meta.sam": "SAM License (Meta; not an OSI licence)"
+          "meta.sam": "SAM License (Meta; not an OSI licence)",
+          "oip.sam": "SAM License (Meta; not an OSI licence)",
+          "replicate.yolo26-seg": "AGPL-3.0 (Ultralytics YOLO; or an Ultralytics Enterprise licence)",
+          "hf.medsam2": "MedSAM2: research and education use only (non-commercial)"
         },
         "services": {
-          "meta.sam": "Meta Model API terms (dev.meta.ai)"
+          "meta.sam": "Meta Model API terms (dev.meta.ai)",
+          "replicate.yolo26-seg": "Replicate terms of service (replicate.com/terms)",
+          "hf.medsam2": "Hugging Face Inference Endpoints terms"
         }
       },
       "costHints": {
@@ -366,6 +377,18 @@
           "usdPerUnit": 0.0025,
           "effectiveAt": "2026-10-30",
           "sourceUrl": "https://dev.meta.ai/docs/pricing-rate-limits"
+        },
+        "replicate.yolo26-seg": {
+          "unit": "second",
+          "usdPerUnit": 0.000225,
+          "effectiveAt": "2026-11-04",
+          "sourceUrl": "https://replicate.com/pricing"
+        },
+        "hf.medsam2": {
+          "unit": "second",
+          "usdPerUnit": 0.000139,
+          "effectiveAt": "2026-11-04",
+          "sourceUrl": "https://huggingface.co/pricing"
         }
       },
       "compatibility": {
@@ -457,6 +480,97 @@
               "boxes": true,
               "video": false
             }
+          },
+          {
+            "id": "oip.sam",
+            "implements": [
+              "image.segment"
+            ],
+            "hosting": "self-hosted",
+            "egress": [
+              "sam-oip.internal"
+            ],
+            "features": {
+              "text": false,
+              "points": true,
+              "boxes": true,
+              "video": false
+            },
+            "modelLicense": "SAM License (Meta; not an OSI licence)",
+            "adapter": {
+              "kind": "oip",
+              "endpoint": "https://sam-oip.internal",
+              "model": "sam-3.1",
+              "masks": "rle"
+            }
+          },
+          {
+            "id": "replicate.yolo26-seg",
+            "implements": [
+              "image.segment"
+            ],
+            "hosting": "hosted",
+            "egress": [
+              "api.replicate.com",
+              "replicate.delivery"
+            ],
+            "secrets": [
+              "REPLICATE_API_TOKEN"
+            ],
+            "features": {
+              "text": false,
+              "points": false,
+              "boxes": false,
+              "video": false
+            },
+            "pricing": {
+              "unit": "second",
+              "usdPerUnit": 0.000225,
+              "effectiveAt": "2026-11-04",
+              "sourceUrl": "https://replicate.com/pricing"
+            },
+            "modelLicense": "AGPL-3.0 (Ultralytics YOLO; or an Ultralytics Enterprise licence)",
+            "serviceTerms": "Replicate terms of service (replicate.com/terms)",
+            "adapter": {
+              "kind": "replicate",
+              "endpoint": "https://api.replicate.com/v1/models/ultralytics/yolo26-seg/predictions",
+              "secret": "REPLICATE_API_TOKEN",
+              "image": "dataUrl",
+              "masks": "png"
+            }
+          },
+          {
+            "id": "hf.medsam2",
+            "implements": [
+              "image.segment"
+            ],
+            "hosting": "hosted",
+            "egress": [
+              "medsam2.us-east-1.aws.endpoints.huggingface.cloud"
+            ],
+            "secrets": [
+              "HF_TOKEN"
+            ],
+            "features": {
+              "text": false,
+              "points": false,
+              "boxes": true,
+              "video": false
+            },
+            "pricing": {
+              "unit": "second",
+              "usdPerUnit": 0.000139,
+              "effectiveAt": "2026-11-04",
+              "sourceUrl": "https://huggingface.co/pricing"
+            },
+            "modelLicense": "MedSAM2: research and education use only (non-commercial)",
+            "serviceTerms": "Hugging Face Inference Endpoints terms",
+            "adapter": {
+              "kind": "hf",
+              "endpoint": "https://medsam2.us-east-1.aws.endpoints.huggingface.cloud",
+              "secret": "HF_TOKEN",
+              "masks": "png"
+            }
           }
         ],
         "ui": {
@@ -474,7 +588,13 @@
           "optional": [
             "network.egress:api.meta.ai",
             "secrets.use:META_MODEL_API_KEY",
-            "network.egress:sam.internal"
+            "network.egress:sam.internal",
+            "network.egress:sam-oip.internal",
+            "network.egress:api.replicate.com",
+            "network.egress:replicate.delivery",
+            "secrets.use:REPLICATE_API_TOKEN",
+            "network.egress:medsam2.us-east-1.aws.endpoints.huggingface.cloud",
+            "secrets.use:HF_TOKEN"
           ]
         },
         "resources": {

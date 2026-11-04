@@ -41,6 +41,14 @@ def get_provider(provider_id: str, ctx: ToolContext) -> Provider:
     from .mock import MockProvider
 
     impls = {"mock": MockProvider, "meta.sam": MetaSam, "local.sam": LocalSam}
+    adapter = (ctx.provider or {}).get("adapter") if (ctx.provider or {}).get("id") == provider_id else None
+    if provider_id not in impls and adapter:
+        # A model added by configuration (todo25 W7): a generic adapter, settings from plugin.yaml.
+        from .adapter_registry import ADAPTERS
+
+        if adapter.get("kind") not in ADAPTERS:
+            raise ProviderError(f"provider {provider_id!r} has an unknown adapter {adapter.get('kind')!r}", recoverable=False)
+        return ADAPTERS[adapter["kind"]](ctx)
     if provider_id not in impls:
         raise ProviderError(f"unknown provider {provider_id!r}", recoverable=False)
     return impls[provider_id](ctx)

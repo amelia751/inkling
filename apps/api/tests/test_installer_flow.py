@@ -81,3 +81,49 @@ def test_catalog_search(registry_client):
     hits = c.get("/api/v1/plugins", params={"capability": "image.segment"}).json()["plugins"]
     assert [h["id"] for h in hits] == ["test.seg"] and hits[0]["version"] == "1.1.0"
     assert c.get("/api/v1/plugins/test.seg").json()["versions"] == ["1.0.0", "1.1.0"]
+
+
+def _research_registry(tmp_path):
+    from .conftest import manifest, write_registry
+
+    research = manifest(
+        "test.research",
+        capabilities=[{"id": "image.segment", "tool": "segment_objects", "mediaTypes": ["image/png"]}],
+        runtime={"kind": "python-worker", "entrypoint": "fake_plugin.tools:register", "maxExecutionSeconds": 30, "concurrency": 1},
+        providers=[
+            {"id": "mock", "implements": ["image.segment"], "hosting": "mock"},
+            {"id": "local.medsam2", "implements": ["image.segment"], "hosting": "self-hosted", "egress": ["medsam.test"], "modelLicense": "MedSAM2: research and education use only", "quality": {"metric": "dice", "mean": 0.91, "images": 4, "fixtures": "montgomery", "evaluatedAt": "2026-11-04"}},
+        ],
+        permissions={"required": ["assets.read"], "optional": ["network.egress:medsam.test"]},
+    )
+    return write_registry(tmp_path / "rr", [("research", research, {"uv.lock": "# locked\n"})])
+
+
+def test_research_only_weights_need_a_research_org(make_client, tmp_path):
+    """todo25 W7: a provider whose weights are research-only is selectable only in a research org."""
+    from studio_api import db
+    from studio_api.models import Organization, ProjectRow
+
+    c = make_client(registry_dir=_research_registry(tmp_path))
+    plan = c.post("/api/v1/workspaces/ws-a/plugins/plan", json={"pluginId": "test.research"}, headers=ws("ws-a")).json()
+    (item,) = plan["plan"]["install"]
+    prov = {p["id"]: p for p in item["providers"]}
+    assert prov["local.medsam2"]["researchOnly"] is True and prov["mock"]["researchOnly"] is False
+    assert prov["local.medsam2"]["quality"]["mean"] == 0.91  # the try-before-keep score, shown in the review
+    assert install(c, "ws-a", "test.research", grant=["network.egress:medsam.test"])["state"] == "ACTIVATED"
+    r = c.post("/api/v1/workspaces/ws-a/plugins/configure", json={"pluginId": "test.research", "config": {"provider": "local.medsam2"}}, headers=ws("ws-a"))
+    assert r.status_code == 403 and r.json()["detail"]["code"] == "provider_licence_research_only"
+    with db.session_scope() as s:
+        org = s.get(Organization, s.get(ProjectRow, "ws-a").org_id)
+        org.research = True
+    ok = c.post("/api/v1/workspaces/ws-a/plugins/configure", json={"pluginId": "test.research", "config": {"provider": "local.medsam2"}}, headers=ws("ws-a"))
+    assert ok.status_code == 200 and ok.json()["config"]["provider"] == "local.medsam2"
+
+
+def test_licence_classification():
+    from studio_api.plugins.policy import licence_restricted
+
+    for text in ("CC-BY-NC-SA 4.0", "cc by-nc 4.0", "research and development only", "MedSAM2: research and education use only", "Non-commercial use"):
+        assert licence_restricted(text), text
+    for text in (None, "", "Apache-2.0", "SAM License (Meta; not an OSI licence)", "AGPL-3.0", "CC-BY-4.0"):
+        assert not licence_restricted(text), text

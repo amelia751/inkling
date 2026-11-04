@@ -103,6 +103,47 @@ class Pricing(BaseModel):
     sourceUrl: AnyUrl
 
 
+class Kind(StrEnum):
+    oip = 'oip'
+    replicate = 'replicate'
+    hf = 'hf'
+
+
+class Image(StrEnum):
+    base64 = 'base64'
+    dataUrl = 'dataUrl'
+
+
+class Masks(StrEnum):
+    rle = 'rle'
+    png = 'png'
+    polygons = 'polygons'
+
+
+class Adapter(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    kind: Kind
+    endpoint: AnyUrl
+    model: str | None = None
+    secret: Annotated[str | None, Field(pattern='^[A-Z][A-Z0-9_]*$')] = None
+    image: Image | None = None
+    masks: Masks | None = None
+    fields: dict[str, str] | None = None
+
+
+class Quality(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    metric: Literal['dice']
+    mean: Annotated[float, Field(ge=0.0, le=1.0)]
+    images: Annotated[int, Field(ge=0, le=9007199254740991)]
+    fixtures: str
+    evaluatedAt: str
+
+
 class Provider(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -120,6 +161,8 @@ class Provider(BaseModel):
     pricing: Pricing | None = None
     modelLicense: str | None = None
     serviceTerms: str | None = None
+    adapter: Adapter | None = None
+    quality: Quality | None = None
 
 
 class Ui(BaseModel):
@@ -212,7 +255,7 @@ class Events(BaseModel):
     subscribes: list[str] | None = []
 
 
-class Kind(StrEnum):
+class Kind1(StrEnum):
     box2d = 'box2d'
     polygon2d = 'polygon2d'
     mask2d = 'mask2d'
@@ -265,7 +308,7 @@ class DiffItem(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
     )
-    kind: Kind
+    kind: Kind1
     compare_fields: list[CompareField] | None = None
     conflict_fields: Annotated[
         list[ConflictField] | None,

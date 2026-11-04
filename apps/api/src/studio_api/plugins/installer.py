@@ -144,7 +144,7 @@ def _plan_doc(db: Session, ctx: RequestContext, res: resolver.Resolution, target
                 "permissions": {"required": perms["required"], "optional": perms["optional"], "alreadyGranted": sorted(have)},
                 "secrets": sorted({s for p in providers for s in p.get("secrets") or []}),
                 "egress": sorted({h for p in providers for h in p.get("egress") or []}),
-                "providers": [{"id": p["id"], "hosting": p.get("hosting"), "pricing": p.get("pricing"), "modelLicense": p.get("modelLicense"), "serviceTerms": p.get("serviceTerms")} for p in providers],
+                "providers": [{"id": p["id"], "hosting": p.get("hosting"), "pricing": p.get("pricing"), "modelLicense": p.get("modelLicense"), "serviceTerms": p.get("serviceTerms"), "researchOnly": policy.licence_restricted(p.get("modelLicense")), "quality": p.get("quality")} for p in providers],
                 "estimatedSpend": {"defaultBudgetUsdPerJob": (e.manifest.get("resources") or {}).get("defaultBudgetUsdPerJob"), "maxBudgetUsdPerJob": (e.manifest.get("resources") or {}).get("maxBudgetUsdPerJob")},
                 "dataResidency": sorted({p.get("hosting") or "unknown" for p in providers}) or ["in-workspace"],
                 "uiSurfaces": sorted({a.get("surface") for a in ui.get("toolbarActions", [])} | {p.get("surface") for p in ui.get("panels", [])}),
@@ -345,6 +345,18 @@ def rollback(db: Session, ctx: RequestContext, plugin_id: str) -> WorkspacePlugi
     return _pin(db, ctx, pid, prev.version, prev.artifact_digest, prev.config_revision, ACTIVE)
 
 
+def _check_licence(db: Session, ctx: RequestContext, provider: dict) -> None:
+    """todo25 W7: research-only or non-commercial weights only in an org marked research."""
+    if not policy.licence_restricted(provider.get("modelLicense")):
+        return
+    from ..models import Organization
+
+    org_id = catalog.org_of(db, ctx.workspace_id)
+    org = db.get(Organization, org_id) if org_id else None
+    if org is None or not org.research:
+        raise HTTPException(403, {"message": f"provider {provider['id']!r} uses weights licensed for research or non-commercial use only ({provider.get('modelLicense')}); an org admin must mark the organization as research (Organization › Settings) before it can be selected", "code": "provider_licence_research_only"})
+
+
 def configure(db: Session, ctx: RequestContext, plugin_id: str, config: dict) -> dict:
     """New config revision. Switching provider is a streamlined change only if its egress/secrets are already granted."""
     pid = canonical_id(plugin_id)
@@ -356,6 +368,7 @@ def configure(db: Session, ctx: RequestContext, plugin_id: str, config: dict) ->
         prov = next((p for p in manifest.get("providers") or [] if p["id"] == config["provider"]), None)
         if prov is None:
             raise HTTPException(422, f"{pid}@{row.version} has no provider {config['provider']!r}")
+        _check_licence(db, ctx, prov)
         missing = policy.missing(db, ctx.workspace_id, pid, row.version, policy.provider_needs(prov))
         if missing:
             requested = set(policy.requested(manifest)["optional"]) | set(policy.requested(manifest)["required"])

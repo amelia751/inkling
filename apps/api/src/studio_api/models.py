@@ -562,6 +562,9 @@ class Organization(Base):
     # Organization › Settings (todo9 Phase 6): our own flags, not WorkOS's.
     zero_retention: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     ai_assist: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # todo25 W7: a research organisation may select providers whose model weights are licensed
+    # for non-commercial or research use only (MedSAM2, nnInteractive…). Off by default.
+    research: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
 
 class OrganizationMember(Base):

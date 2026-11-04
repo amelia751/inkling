@@ -254,6 +254,92 @@
               },
               "serviceTerms": {
                 "type": "string"
+              },
+              "adapter": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "oip",
+                      "replicate",
+                      "hf"
+                    ]
+                  },
+                  "endpoint": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "secret": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$"
+                  },
+                  "image": {
+                    "type": "string",
+                    "enum": [
+                      "base64",
+                      "dataUrl"
+                    ]
+                  },
+                  "masks": {
+                    "type": "string",
+                    "enum": [
+                      "rle",
+                      "png",
+                      "polygons"
+                    ]
+                  },
+                  "fields": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "kind",
+                  "endpoint"
+                ],
+                "additionalProperties": false
+              },
+              "quality": {
+                "type": "object",
+                "properties": {
+                  "metric": {
+                    "type": "string",
+                    "const": "dice"
+                  },
+                  "mean": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "images": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "fixtures": {
+                    "type": "string"
+                  },
+                  "evaluatedAt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "metric",
+                  "mean",
+                  "images",
+                  "fixtures",
+                  "evaluatedAt"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [

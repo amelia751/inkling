@@ -47,6 +47,49 @@ providers:
     hosting: self-hosted
     egress: [sam.internal]
     features: { text: false, points: true, boxes: true, video: false }
+  # ---- Models added by configuration (todo25 W7) -------------------------------------------
+  # Generic first-party adapters (providers/oip.py, replicate.py, hf.py) configured by data; no
+  # model-specific code. The endpoint's host must be in `egress`. Non-commercial or
+  # research-only weights can be selected only in orgs marked research (the api enforces it).
+  # The endpoints below are examples: point them at your deployment (config `endpoints`).
+  - id: oip.sam
+    implements: [image.segment]
+    hosting: self-hosted
+    egress: [sam-oip.internal]
+    features: { text: false, points: true, boxes: true, video: false }
+    modelLicense: "SAM License (Meta; not an OSI licence)"
+    adapter: { kind: oip, endpoint: "https://sam-oip.internal", model: sam-3.1, masks: rle }
+  - id: replicate.yolo26-seg
+    implements: [image.segment]
+    hosting: hosted
+    egress: [api.replicate.com, replicate.delivery]
+    secrets: [REPLICATE_API_TOKEN]
+    # Automatic instance segmentation of everyday objects: no prompts.
+    features: { text: false, points: false, boxes: false, video: false }
+    pricing:
+      # Billed per second of GPU time (T4 rate); a 640px image takes about a second.
+      unit: second
+      usdPerUnit: 0.000225
+      effectiveAt: "2026-11-04"
+      sourceUrl: https://replicate.com/pricing
+    modelLicense: "AGPL-3.0 (Ultralytics YOLO; or an Ultralytics Enterprise licence)"
+    serviceTerms: "Replicate terms of service (replicate.com/terms)"
+    adapter: { kind: replicate, endpoint: "https://api.replicate.com/v1/models/ultralytics/yolo26-seg/predictions", secret: REPLICATE_API_TOKEN, image: dataUrl, masks: png }
+  - id: hf.medsam2
+    implements: [image.segment]
+    hosting: hosted
+    egress: [medsam2.us-east-1.aws.endpoints.huggingface.cloud]
+    secrets: [HF_TOKEN]
+    features: { text: false, points: false, boxes: true, video: false }
+    pricing:
+      # A dedicated Inference Endpoint is billed per second it's up (1x T4).
+      unit: second
+      usdPerUnit: 0.000139
+      effectiveAt: "2026-11-04"
+      sourceUrl: https://huggingface.co/pricing
+    modelLicense: "MedSAM2: research and education use only (non-commercial)"
+    serviceTerms: "Hugging Face Inference Endpoints terms"
+    adapter: { kind: hf, endpoint: "https://medsam2.us-east-1.aws.endpoints.huggingface.cloud", secret: HF_TOKEN, masks: png }
 ui:
   contributions: ui/contributions.json
 skills:
@@ -60,6 +103,13 @@ permissions:
     - network.egress:api.meta.ai
     - secrets.use:META_MODEL_API_KEY
     - network.egress:sam.internal
+    # todo25 W7 adapters
+    - network.egress:sam-oip.internal
+    - network.egress:api.replicate.com
+    - network.egress:replicate.delivery
+    - secrets.use:REPLICATE_API_TOKEN
+    - network.egress:medsam2.us-east-1.aws.endpoints.huggingface.cloud
+    - secrets.use:HF_TOKEN
 resources:
   defaultBudgetUsdPerJob: 1.00
   maxBudgetUsdPerJob: 25.00

@@ -39,7 +39,7 @@ def engine() -> Engine:
         if url.startswith("sqlite:///") and not url.startswith("sqlite:///:memory:"):
             settings().data_dir.mkdir(parents=True, exist_ok=True)
         # Postgres: every replica keeps a small pool; pre-ping drops connections a failover killed.
-        kw: dict = {"connect_args": {"check_same_thread": False}} if url.startswith("sqlite") else {"pool_pre_ping": True, "pool_size": 5, "max_overflow": 10}
+        kw: dict = {"connect_args": {"check_same_thread": False, "timeout": 30}} if url.startswith("sqlite") else {"pool_pre_ping": True, "pool_size": 5, "max_overflow": 10}
         if url == "sqlite:///:memory:":
             from sqlalchemy.pool import StaticPool
 
@@ -51,6 +51,7 @@ def engine() -> Engine:
             def _pragmas(conn, _):  # noqa: ANN001
                 cur = conn.cursor()
                 cur.execute("PRAGMA foreign_keys=ON")
+                cur.execute("PRAGMA busy_timeout=30000")  # dev: parallel jobs' writers wait instead of failing
                 cur.execute("PRAGMA journal_mode=WAL") if ":memory:" not in url else None
                 cur.close()
 

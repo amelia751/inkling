@@ -145,5 +145,8 @@ def proxy(db: Session, token: str, method: str, url: str, *, headers: dict[str, 
     out = {**(headers or {}), inject: f"{scheme} {value}".strip() if scheme else value}
     db.add(PermissionUse(workspace_id=claims["ws"], plugin_id=claims["plugin"], version=claims["version"], permission=f"secrets.use:{claims['name']}", job_id=claims.get("job")))
     db.add(PermissionUse(workspace_id=claims["ws"], plugin_id=claims["plugin"], version=claims["version"], permission=f"network.egress:{host}", job_id=claims.get("job")))
+    # Record the use before the call, and never hold a transaction open across a provider call
+    # that can take seconds (todo25: a Studio's batch of parallel jobs would serialise on it).
+    db.commit()
     with httpx.Client(timeout=60, transport=transport, follow_redirects=False) as client:
         return client.request(method, url, headers=out, content=body)

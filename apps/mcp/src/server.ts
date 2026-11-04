@@ -11,6 +11,7 @@ import { createViewers } from "./viewers.js";
 import { studioKinds } from "./profiles.js";
 import { jobStatus, runHarness } from "./harness.js";
 import { RECIPE_TOOLS, callRecipeTool } from "./recipes.js";
+import { SCOUT_TOOLS, callScoutTool } from "./scout.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -88,11 +89,12 @@ export const HARNESS_TOOLS: ToolDef[] = [
   { name: "get_job_status", description: "State of a long job (run_harness): running, done with its report, or failed.", inputSchema: obj({ jobId: { type: "string" } }, ["jobId"]), annotations: READ },
 ];
 
-/** Environment tools that save (count against the write quota, need project:write). */
-export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment"]);
 
 /** Every tool, `project_context` first (D9). */
-export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...RECIPE_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
+export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...RECIPE_TOOLS, ...SCOUT_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
+/** Environment tools that save (count against the write quota, need project:write); trial_oss spends sandboxes. */
+export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment", "trial_oss"]);
+
 
 /**
  * `remote`: built for one stateless HTTP request. The MCP Apps viewers are then off: their
@@ -206,6 +208,8 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
     try {
       const op = await callOperationTool(caller, req.params.name, args);
       if (op) return op as never;
+      const scout = await callScoutTool(config, token, req.params.name, args);
+      if (scout) return scout as never;
       const v = await viewers.call(req.params.name, args);
       if (v) return v as never;
       const r = (await callRecipeTool(caller, req.params.name, args)) ?? (await call(req.params.name, args));

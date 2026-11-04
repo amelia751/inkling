@@ -19,6 +19,7 @@ import { BOUNDARY_SCHEMAS } from "@studio/contracts/boundary";
 import { PIPELINE_SCHEMAS, pipelineDocuments } from "@studio/contracts/pipeline";
 import { DatasetStructure } from "@studio/contracts/dataset-structure";
 import { DropPlan } from "@studio/contracts/drop-plan";
+import { OssEvaluation } from "@studio/contracts/oss-evaluation";
 import { Rules } from "@studio/contracts/rules";
 import { lintRulesDocument, lintRulesMarkdown, WriteRejected } from "@studio/contracts/lint-rules";
 export { lintRulesMarkdown };
@@ -125,6 +126,8 @@ export function contractSchemas(): Record<string, unknown> {
     // todo13 §5: the dataset structure the kernel validates `structure.json` writes against, and the drop plan.
     "dataset-structure.v1.json": js(DatasetStructure, "dataset-structure/v1"),
     "drop-plan.v1.json": js(DropPlan, "drop-plan/v1"),
+    // todo23 D6: the open-source scout's evaluation record, stored with the plugin or kit.
+    "oss-evaluation.v1.json": js(OssEvaluation, "oss-evaluation/v1"),
     // todo16 D7: the operations catalogue, read by apps/mcp and the kernel's tests.
     "operations.json": { $id: `${NAMING.schemaPrefix}://schema/operations/v1`, ...operationsDocument() },
     // todo17 D3/D4/D6: project rules, the lint rule catalogue and the write-rejected problem JSON, read by the kernel.

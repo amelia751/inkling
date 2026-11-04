@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "oss-evaluation.v1"
+    },
+    "package": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 214
+    },
+    "ecosystem": {
+      "type": "string",
+      "enum": [
+        "npm",
+        "pypi"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "licence": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "transitiveLicences": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "package": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 214
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "licences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "indirect"
+            ]
+          }
+        },
+        "required": [
+          "package",
+          "licences"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "scorecard": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10
+    },
+    "advisories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "severity": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "lastRelease": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "maintainers": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "repository": {
+      "type": "string",
+      "maxLength": 2048,
+      "format": "uri"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "picked",
+        "refused",
+        "amber"
+      ]
+    },
+    "conditions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2048,
+        "format": "uri"
+      }
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "maxLength": 40
+    },
+    "trial": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "pass",
+            "fail",
+            "refused",
+            "budget-exceeded"
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "command": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "exitCode": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "ms": {
+                "type": "number",
+                "minimum": 0
+              },
+              "kept": {
+                "type": "boolean"
+              },
+              "output": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "command",
+              "exitCode",
+              "ms",
+              "kept"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "smoke": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "exitCode": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "ms": {
+              "type": "number",
+              "minimum": 0
+            },
+            "output": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          "required": [
+            "command",
+            "exitCode",
+            "ms"
+          ],
+          "additionalProperties": false
+        },
+        "totalMs": {
+          "type": "number",
+          "minimum": 0
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "snapshotId": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "status",
+        "steps",
+        "totalMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "package",
+    "ecosystem",
+    "version",
+    "licence",
+    "transitiveLicences",
+    "advisories",
+    "decision",
+    "conditions",
+    "reasons",
+    "evidence",
+    "evaluatedAt"
+  ],
+  "additionalProperties": false,
+  "$id": "studio://schema/oss-evaluation/v1"
+}

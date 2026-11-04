@@ -147,6 +147,24 @@ async def validate_environment(request: Request, ctx: RequestContext = Depends(g
     return {"ok": True, "spec": body, "warnings": checked.warnings}
 
 
+@router.post("/api/v1/environments/validate", include_in_schema=False)
+async def validate_environment_v1(request: Request, ctx: RequestContext = Depends(get_context), db: Session = Depends(get_session)):
+    """todo23 W10 (closes S12): the full validation report without the web dev server, for the
+    MCP `validate_environment` tool and the harness. Always 200 for a readable body: `ok` says
+    whether it passes; `errors` (schema, reference, resolver) and `warnings` are the same rules
+    a write gets; `resolved` is the spec with its `extends` presets merged."""
+    try:
+        body = await _body(request)
+    except _BadBody as e:
+        return _json(400, {"error": str(e)})
+    checked = environment_policy.check_write(principal="person", installed=environment_policy.installed_plugins(db, ctx.workspace_id), environment=body)
+    from ..config import settings
+    from ..kernel.environment_resolve import merged_spec
+
+    resolved = merged_spec(body, settings().repo_root) if checked.ok else None
+    return {"ok": checked.ok, "errors": checked.errors, "warnings": checked.warnings, "resolved": resolved}
+
+
 @router.api_route("/api/catalog", methods=["GET"], include_in_schema=False)
 def catalog(kind: str | None = None):
     """The generated catalogue (`schemas/catalog.json`), the same file the web server serves.

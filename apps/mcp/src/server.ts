@@ -9,6 +9,7 @@ import { writeEnvironment } from "./environment-write.js";
 import { CONTEXT_URI_TEMPLATE, type Caller, callOperationTool, hints, operationTools, projectContextTool, readContextResource, type ToolDef } from "./operations.js";
 import { createViewers } from "./viewers.js";
 import { studioKinds } from "./profiles.js";
+import { jobStatus, runHarness } from "./harness.js";
 
 type Result = { ok: boolean; status?: number; data: any };
 
@@ -67,11 +68,30 @@ export const ENV_TOOLS: ToolDef[] = [
   },
 ];
 
+/** todo23 W10: build and test tools. Local processes, so stdio only (refused over HTTP). */
+export const HARNESS_TOOLS: ToolDef[] = [
+  {
+    name: "run_harness",
+    description:
+      "Run the verification harness on an environment: resolver and lint, the plugin's own tests, hidden acceptance tests, an interaction smoke test, an accessibility snapshot, light and dark screenshots at two sizes, viewer and token lint. Returns a job id: poll get_job_status for the fixed-schema report ({steps:[{name,status,blocking,details}], passed}). Local mode only for now; fixtures and hidden tests are copied read-only.",
+    inputSchema: obj({
+      env: { type: "object", description: "Environment spec (or pass envFile)" },
+      envFile: { type: "string", description: "Path to an environment or preset JSON file" },
+      plugins: { type: "string", description: "Folder of the plugin(s) under test (its tests and lint run)" },
+      fixtures: { type: "string", description: "Folder of sample files the Studio opens as items" },
+      hiddenTests: { type: "string", description: "Folder of Python acceptance tests (run with --port <studio port>)" },
+      mode: { type: "string", enum: ["local", "daytona"], description: "local (default); daytona is not wired yet" },
+    }),
+    annotations: hints("read", "POST"),
+  },
+  { name: "get_job_status", description: "State of a long job (run_harness): running, done with its report, or failed.", inputSchema: obj({ jobId: { type: "string" } }, ["jobId"]), annotations: READ },
+];
+
 /** Environment tools that save (count against the write quota, need project:write). */
 export const ENV_WRITES: ReadonlySet<string> = new Set(["patch_environment", "set_environment"]);
 
 /** Every tool, `project_context` first (D9). */
-export const staticTools = (): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS];
+export const staticTools = (opts: { remote?: boolean } = {}): ToolDef[] => [projectContextTool, ...operationTools(), ...ENV_TOOLS, ...(opts.remote ? [] : HARNESS_TOOLS)];
 
 /**
  * `remote`: built for one stateless HTTP request. The MCP Apps viewers are then off: their
@@ -97,6 +117,23 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       data = text;
     }
     return { ok: res.ok, status: res.status, data };
+  }
+
+  /**
+   * todo23 W10 (S12): the kernel's validate route answers without the web dev server; an older
+   * kernel (404) or none (unreachable) falls back to the Studio's Vite route.
+   */
+  async function validate(spec: unknown): Promise<Result> {
+    try {
+      const res = await fetch(`${config.apiUrl}/api/v1/environments/validate`, { method: "POST", headers: { ...auth, "Content-Type": "application/json" }, body: JSON.stringify(spec ?? null) });
+      if (res.ok || ![404, 405, 501].includes(res.status)) {
+        const data: any = await res.json().catch(() => ({ error: `kernel answered ${res.status}` }));
+        return { ok: res.ok && data.ok !== false, status: res.status, data };
+      }
+    } catch {
+      // kernel unreachable: the dev server below
+    }
+    return http("POST", "/api/environments/validate", spec);
   }
 
   async function call(name: string, args: Record<string, any>): Promise<Result> {
@@ -126,11 +163,15 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       case "get_environment": {
         const r = await http("GET", `/api/environments/${encodeURIComponent(args.projectId)}`);
         if (!r.ok) return r;
-        const v = await http("POST", "/api/environments/validate", r.data.effective);
+        const v = await validate(r.data.effective);
         return { ok: true, data: { revision: r.data.revision, source: r.data.effective, resolved: v.data.resolved, errors: v.data.errors, ...studioKinds(v.data.resolved ?? r.data.effective) } };
       }
       case "validate_environment":
-        return http("POST", "/api/environments/validate", args.spec);
+        return validate(args.spec);
+      case "run_harness":
+      case "get_job_status":
+        if (opts.remote) return { ok: false, data: { error: `${name} runs on this machine: use the stdio server (pnpm mcp)` } };
+        return name === "run_harness" ? runHarness(args) : jobStatus(String(args.jobId ?? ""));
       case "patch_environment":
         return writeEnvironment(http, "PATCH", String(args.projectId), authored({ patch: args.patch }), args.revision);
       case "set_environment":
@@ -147,7 +188,7 @@ export function createServer(config: McpConfig, token: string | undefined, opts:
       instructions: `${NAMING.displayName} projects: call project_context first, before any write, and follow its rules. Writes accept dryRun: true to check without saving. A rejected write lists every violation with its fix: apply them all and retry. Changing something published opens a change request. Studio environments: read \`catalog\`, then get_environment / validate_environment / patch_environment. view_* tools show a file in a sandboxed viewer to the user.`,
     },
   );
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...staticTools(), ...(await viewers.tools())] as never }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [...staticTools(opts), ...(await viewers.tools())] as never }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: await viewers.resources() }));
   server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
     resourceTemplates: [{ uriTemplate: CONTEXT_URI_TEMPLATE, name: "project-context", title: "Project context", description: "Rules, open findings, what's published and how to add data: read before writing.", mimeType: "application/json" }],

@@ -193,6 +193,49 @@ Upload limits, read by the API (`apps/api/src/studio_api/config.py`):
 Uploaded bytes go to the API's data BlobStore (`STUDIO_API_DATA_DIR` locally, the `assets`
 bucket under its data prefix with `STUDIO_BLOB_STORE=s3`), never to `/seed`.
 
+## Drive the builder from Claude Code or Cursor
+
+The repo's MCP server (`apps/mcp`, todo23 W10) gives an outside agent the same tools the in-house
+assistant has, over the API. Connect it once:
+
+```sh
+claude mcp add studio -- pnpm --dir /abs/path/to/repo mcp     # Cursor: same command in its MCP settings
+```
+
+Over stdio it calls the API at `STUDIO_API_URL` (default `http://127.0.0.1:8000`) with
+`STUDIO_MCP_PERSON_TOKEN` (or `STUDIO_MCP_API_KEY`) as the bearer: in dev mode, sign in once
+(`pnpm dev:signin`, [Signing in](#signing-in)) and use that person's token, so the kernel applies
+their project role. `validate_environment` calls the kernel's `POST /api/v1/environments/validate`
+(no web dev server needed) and falls back to the Studio's `/api/environments/validate` when the
+kernel is older or not running.
+
+Local harness, without MCP (fixtures and hidden tests are copied read-only; ports 5320–5329):
+
+```sh
+pnpm harness --env registry/presets/generic-image.json --fixtures <dir of sample files> \
+  [--plugins plugins/<name>] [--hidden-tests <dir of *_test.py>] [--report report.json] [--out <screenshots dir>]
+```
+
+It starts a frozen Vite server (`STUDIO_E2E=1`, seeds from a temp folder via `STUDIO_WEB_SEED_DIR`)
+and prints a fixed-schema report, `{version, passed, steps: [{name, status: pass|fail|skip,
+blocking, details}]}`, for: `resolver-lint`, `plugin-tests`, `hidden-tests` (each run as
+`python <file> --port <port>`, the project id is `harness`), `interaction-smoke`, `accessibility`
+(ARIA snapshot; axe is skipped offline), `screenshots` (light and dark, 1440×900 and 1024×768),
+`viewer-lint`, `token-lint`, `design-judge` (advisory, skipped). Exit 0 when no blocking step
+failed. The browser steps use Python Playwright through `uv run --with playwright`.
+
+Worked example, one tool call per step (_italic_ steps land with other todo23 workstreams):
+
+1. **Profile**: _`get_fingerprint`_ on the dataset (W4).
+2. **Fixtures**: _`get_fixtures`_ writes synthetic samples with planted truth (W4).
+3. **Plugin sandbox**: _`build sandbox` / file tools_ (W5, agent service), or edit `plugins/<name>/` locally.
+4. **Checks**: _`run_plugin_checks`_ (W5); locally `pnpm --dir apps/web test`.
+5. **Harness**: `run_harness {envFile, plugins, fixtures, hiddenTests}` returns a job id; poll
+   `get_job_status {jobId}` until `done` and read `report.passed` and each step. Local mode only
+   (Daytona mode is a TODO); stdio only.
+6. **Preview**: _`boot_preview`, `keep_preview`, `discard_preview`_ (W6); until then
+   `validate_environment` then `set_environment` on a scratch project.
+
 ## 2. `pnpm stack:up` (prod-like, local)
 
 ```sh

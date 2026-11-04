@@ -31,6 +31,7 @@
     "seeds:upload": "uv run tools/fetch-seeds.py --upload",
     "mcp": "pnpm --filter @studio/mcp dev",
     "mcp:http": "pnpm --filter @studio/mcp dev:http",
+    "harness": "node tools/harness/harness.mjs",
     "site": "pnpm --filter @studio/site dev",
     "agent": "pnpm --filter @studio/agent dev",
     "agent:test": "pnpm --filter @studio/agent test",

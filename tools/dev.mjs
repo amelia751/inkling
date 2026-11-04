@@ -7,6 +7,9 @@
 // Model (D6): <envPrefix>AGENT_MODEL from the shell or a secrets/*.env file; else the agent's default
 // when a provider key is set, else `scripted`. Nothing here prints a value:
 // only key names. A variable already exported in the shell always wins.
+//
+// Traces (todo27 W3): OTEL_* from the shell or a secrets/*.env file reach every service (turbo runs
+// with --env-mode=loose), so `OTEL_TRACES_EXPORTER=console pnpm dev` prints spans in each terminal.
 import { spawn } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -40,6 +43,11 @@ const set = (key, value) => {
   if (value !== undefined && (env[key] === undefined || env[key] === "")) env[key] = value;
 };
 const notes = [];
+
+// ---- Traces (todo27 W3) --------------------------------------------------------------------------
+for (const [k, v] of Object.entries(fromFiles)) if (k.startsWith("OTEL_")) set(k, v);
+if (env.OTEL_TRACES_EXPORTER || env.OTEL_EXPORTER_OTLP_ENDPOINT)
+  notes.push(`traces: ${env.OTEL_TRACES_EXPORTER || "otlp"}${env.OTEL_EXPORTER_OTLP_ENDPOINT ? ` (${env.OTEL_EXPORTER_OTLP_ENDPOINT})` : ""}`);
 
 // ---- Model (D6) ----------------------------------------------------------------------------------
 const providerKey = [`${P}AGENT_MUSE_API_KEY`, "OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((k) => env[k] || fromFiles[k]);

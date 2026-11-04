@@ -3,11 +3,12 @@
 Scripted model, dev auth (`pnpm dev`'s mode; the Emulate sign-in is covered by auth_test.py). The
 account menu's "Start as a new person" (todo14) stands in for "sign in as a new user":
 
-1. new person → empty Home → type "Chest X-ray classification with five labels" → a Studio with
-   the five labels, and no consent screen anywhere (D2: the first send is the acknowledgement);
-2. drop 12 generated PNGs on Home with no text → the Studio opens, the dataset is in Datasets and
-   the assistant replies in the chat (the empty-text drop message is sent);
-3. switch to another new person on the same browser → empty Home, no conversations, no recents
+1. new person → no projects → New project → its empty Overview's chat: "Chest X-ray
+   classification with five labels" → a Studio with the five labels, and no consent screen
+   anywhere (D2: the first send is the acknowledgement);
+2. another New project, 12 generated PNGs dropped on its chat with no text → the Studio opens, the
+   dataset is in Datasets and the assistant replies in the chat (the empty-text drop message is sent);
+3. switch to another new person on the same browser → no projects, no conversations, no recents
    (D1: persisted client state is per person).
 
 Needs the API with its worker; the test starts the agent service itself (scripted model,
@@ -150,12 +151,12 @@ def no_consent(page) -> bool:
 
 
 def new_person(page, base: str) -> str:
-    """Account menu → "Start as a new person": a fresh `user:dev-<id>` for this tab, on an empty Home."""
+    """Account menu → "Start as a new person": a fresh `user:dev-<id>` for this tab, with no projects."""
     page.goto(f"{base}/")
     page.get_by_test_id("user-menu").wait_for(timeout=30000)
     page.get_by_test_id("user-menu").click()
     page.get_by_test_id("dev-new-person").click()
-    page.get_by_test_id("home-composer").wait_for(timeout=30000)
+    page.get_by_test_id("no-projects").wait_for(timeout=30000)
     principal = wait(lambda: page.evaluate("() => Object.entries(sessionStorage).find(([k]) => k.endsWith('-dev-principal'))?.[1] ?? null"), timeout=10)
     return principal or ""
 
@@ -175,9 +176,18 @@ def studio_task(page) -> str | None:
     return m.group(1) if m else None
 
 
+def new_project(page, base: str, name: str) -> None:
+    """New project → name → Create: its Overview, which for an empty project is only the chat."""
+    page.goto(f"{base}/projects")
+    page.get_by_test_id("projects-new-project").click()
+    page.get_by_test_id("new-project-name").fill(name)
+    page.get_by_test_id("new-project-create").click()
+    page.get_by_test_id("empty-project").wait_for(timeout=30000)
+
+
 def empty_home(page, who: str) -> None:
     page.wait_for_load_state("networkidle")
-    check(f"{who}: empty Home asks what you're working on", page.locator("[data-testid=home-composer] h2").first.inner_text() == "What are you working on?")
+    check(f"{who}: no projects: New project, no composer", page.locator("[data-testid=no-projects] [data-testid=new-project]").count() == 1 and page.locator("[data-testid=home-composer]").count() == 0)
     check(f"{who}: no project cards", page.locator("[data-testid=project-card]").count() == 0)
     check(f"{who}: no Recent projects", page.get_by_text("Recent projects").count() == 0)
     headings = [t.strip() for t in page.locator("[data-testid=project-sidebar] h2").all_inner_texts()]
@@ -228,19 +238,20 @@ def main() -> int:
 
 
 def run(page, base: str) -> None:
-    # ---- 1. A new person types a task on an empty Home ----------------------------------------
+    # ---- 1. A new person makes a project and types a task in its chat --------------------------
     first = new_person(page, base)
     check("person 1: a fresh user:dev-<id>", first.startswith("user:dev-"), first)
     empty_home(page, "person 1")
     before = project_ids(first)
-    box = page.get_by_test_id("goal")
+    new_project(page, base, "Chest X-ray study")
+    made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
+    check("J2: New project creates a project", bool(made), str(made))
+    if not made:
+        return
+    box = page.get_by_test_id("empty-project-input")
     box.fill(GOAL)
     t0 = time.time()
     box.press("Enter")
-    made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
-    check("J2: the send creates a project", bool(made), str(made))
-    if not made:
-        return
     try:
         page.wait_for_url("**/studio/**", timeout=45000)
     except Exception:  # noqa: BLE001
@@ -261,18 +272,15 @@ def run(page, base: str) -> None:
         check("J2: the assistant panel shows the conversation, not a consent wall", log.first.is_visible() and no_consent(page))
     shot(page, "j2-studio")
 
-    # ---- 2. The same person drops 12 PNGs on Home, with no text --------------------------------
+    # ---- 2. The same person makes another project and drops 12 PNGs on its chat, no text -------
     before = project_ids(first)
-    page.goto(f"{base}/")
-    page.get_by_test_id("home-composer").wait_for(timeout=30000)
+    new_project(page, base, "Chest X-rays")
+    made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
+    check("J1: New project creates a project", bool(made), str(made))
     files = [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": base64.b64encode(png(i)).decode()} for i in range(12)]
     t1 = time.time()
-    page.evaluate(DROP_JS, ["[data-testid=home-drop]", files])
-    page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
-    page.get_by_test_id("new-project-create").click()
+    page.evaluate(DROP_JS, ["[data-testid=empty-project] [data-testid=drop-zone]", files])
     attest(page)
-    made = wait(lambda: [p for p in project_ids(first) if p not in before], timeout=30)
-    check("J1: the drop creates a project", bool(made), str(made))
     if not made:
         return
     pid = made[0]
@@ -291,8 +299,8 @@ def run(page, base: str) -> None:
         summaries = kernel("GET", f"/api/v1/projects/{pid}/dataset-summaries", first)[1]
         check("J1: the dataset is in Datasets", bool(ds_id) and ds_id in json.dumps(summaries), json.dumps(summaries)[:200])
     # The empty-text drop message is sent: the drop card and an assistant reply in the chat.
-    # Home opens the project with the drawer; open it only if it really isn't there (a click on an
-    # open drawer's toggle would close it).
+    # The drop opens the drawer; open it only if it really isn't there (a click on an open
+    # drawer's toggle would close it).
     if not wait(lambda: page.get_by_test_id("agent-log").count() > 0, timeout=10):
         page.get_by_label(f"{AI} panel").click()
     card = page.get_by_test_id("user-drop").get_by_test_id("drop-card")
@@ -319,7 +327,7 @@ def run(page, base: str) -> None:
     try:
         page.get_by_label(f"{AI} panel").click(timeout=5000)
         page.wait_for_timeout(500)
-    except Exception:  # noqa: BLE001 — Home without an assistant toggle: nothing to open
+    except Exception:  # noqa: BLE001 — Projects without an assistant toggle: nothing to open
         pass
     check("person 2: the assistant has no conversation of person 1", page.get_by_test_id("drop-card").count() == 0 and page.get_by_text(GOAL).count() == 0)
     shot(page, "person2-home")

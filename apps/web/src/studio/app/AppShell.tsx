@@ -10,7 +10,6 @@ import { ActivityPage } from "./routes/ActivityPage";
 import { ProjectSettingsPage } from "./routes/ProjectSettingsPage";
 import { TaskSetupPage } from "./routes/TaskSetupPage";
 import { NotFoundPage, RouteError } from "./routes/errors";
-import { HomePage } from "./routes/HomePage";
 import { NewProjectHost } from "./entry/new-project-dialog";
 import { ChatParamSync } from "./entry/home-chat";
 import { ProjectsPage } from "./routes/ProjectsPage";
@@ -40,11 +39,10 @@ const studio = (
 );
 
 const routes = [
-  { path: "/", element: <HomePage /> },
+  { path: "/", element: <Navigate to="/projects" replace /> },
   { path: "/projects", element: <ProjectsPage /> },
   { path: "/deleted-projects", element: <DeletedProjectsPage /> },
-  // A project starts from Home's composer (a sentence or a drop); old links land there.
-  { path: "/projects/new", element: <Navigate to="/" replace /> },
+  { path: "/projects/new", element: <Navigate to="/projects" replace /> },
   { path: "/projects/:projectId", element: <Navigate to="overview" replace /> },
   { path: "/projects/:projectId/overview", element: <ProjectOverviewPage /> },
   // The drive is "sources"; the old `/files/*` redirects keeping the node id and query.

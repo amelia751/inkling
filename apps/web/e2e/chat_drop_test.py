@@ -17,7 +17,7 @@ tests/e2e/fixtures/agent-script.json) on <envPrefix>E2E_AGENT_PORT (default 8306
 
 `STUDIO_E2E_API_DATA_DIR` (the API's SQLite data dir) lets the test make a viewer member; without
 it the viewer's 403 is covered by apps/api/tests/test_drops.py and reported as skipped here. The
-Home part drops 12 PNGs on Home's composer (`home-composer`) with no non-sample project yet.
+new-project part drops 12 PNGs on a new, empty project's chat (its Overview composer).
 """
 
 from __future__ import annotations
@@ -192,29 +192,30 @@ def conversation_drops(pid: str) -> list[dict]:
 
 
 def t_home(browser, port):
-    """Drop 12 PNGs on an empty Home (todo13 D1): a project is made and the files land in Shared in chat."""
+    """New project, then 12 PNGs dropped on its empty Overview's chat: they land in Shared in chat."""
     page = browser.new_context(viewport={"width": 1440, "height": 900}).new_page()
     try:
-        page.goto(f"http://localhost:{port}/")
+        page.goto(f"http://localhost:{port}/projects")
         # A cold dev server can take several seconds for the first render: wait, don't sample.
-        page.get_by_test_id("home-composer").wait_for(timeout=20000)
+        page.get_by_test_id("projects-new-project").wait_for(timeout=20000)
         before = {p["id"] for p in kernel("GET", "/projects")[1]["projects"]}
-        page.evaluate(DROP_JS, ["[data-testid=home-drop]", [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": b64(png(i))} for i in range(12)]])
-        # todo21 D2: the drop waits in the new-project dialog; Create starts the project.
-        page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
+        page.get_by_test_id("projects-new-project").click()
+        page.get_by_test_id("new-project-name").fill("Chest X-rays")
         page.get_by_test_id("new-project-create").click()
+        page.get_by_test_id("empty-project").wait_for(timeout=20000)
+        page.evaluate(DROP_JS, ["[data-testid=empty-project] [data-testid=drop-zone]", [{"name": f"cxr_{i:02d}.png", "type": "image/png", "b64": b64(png(i))} for i in range(12)]])
         attest(page)
         made = wait(lambda: [p for p in kernel("GET", "/projects")[1]["projects"] if p["id"] not in before], timeout=30)
-        check("home: a project exists after the drop", bool(made), str(made)[:200])
+        check("home: a project exists after New project", bool(made), str(made)[:200])
         if made:
             pid = made[0]["id"]
             # The files don't wait for the assistant: they're in Shared in chat before consent.
             files = wait(lambda: sum(len(d["files"]) for d in conversation_drops(pid)) == 12 and conversation_drops(pid), timeout=60)
-            check("home: one drop of 12 files, in the project's conversation", bool(files) and len(files) == 1 and files[0]["origin"] == "home" and bool(files[0]["conversationId"]), str([(d["origin"], d["conversationId"], len(d["files"])) for d in files or []]))
+            check("home: one drop of 12 files, in the project's conversation", bool(files) and len(files) == 1 and files[0]["origin"] == "chat" and bool(files[0]["conversationId"]), str([(d["origin"], d["conversationId"], len(d["files"])) for d in files or []]))
             root = kernel("GET", f"/projects/{pid}/fs")[1]["rootNodeId"]
             top = kernel("GET", f"/projects/{pid}/fs/children?node={root}")[1]["items"]
             check("home: the 12 files are in Shared in chat", any((i.get("displayPath") or i["name"]).startswith("Shared in chat") for i in top), str([(i["name"], i.get("displayPath")) for i in top]))
-            # The drawer opened on the new project; once the assistant is on, the message carries the drop.
+            # The drop opened the drawer; once the assistant is on, the message carries the drop.
             consent = page.get_by_role("button", name="Turn on for this browser")
             consent.or_(page.get_by_test_id("agent-log")).first.wait_for(timeout=20000)
             if consent.count():

@@ -32,8 +32,7 @@ Design influences:
 
 ```text
 Workspace (personal or organization)
-├── Home
-├── Projects
+├── Projects       ← also /
 ├── Datasets (cross-project index; optional for MVP)
 └── Recent
     └── Project (the durable container for a goal)
@@ -54,7 +53,7 @@ Persistent contextual Spurby AI panel can accompany any Project section.
 - **Workspace** is an account or organization and its members.
 - **Project** is a durable research goal, e.g. *Cardiac Research*.
 - **Sources** is everything added to the project and the section that shows it (todo16 D1): one drive, a tree of folders and files (the `sources` route; labelled Data before todo13, Files before todo16). One upload or import is an **import**. Names and folders change freely; bytes don't. Everything dropped in a chat lands here too, under **Shared in chat/<conversation>**.
-- **Drop** is one gesture of files (dropped, pasted or attached) in a chat, on Home, in Sources or on a Studio canvas. Every dropped file is a File first; whether it becomes dataset data is the drop's **plan**.
+- **Drop** is one gesture of files (dropped, pasted or attached) in a chat, on an empty project's Overview, in Sources or on a Studio canvas. Every dropped file is a File first; whether it becomes dataset data is the drop's **plan**.
 - **Source** is an import's provenance: who brought which files in, when and from where (an upload or a seed). It's shown in the inspector and the Imports list, not as a tree root.
 - **Trash** holds deleted files and folders for 30 days; Restore puts them back where they were.
 - **Dataset** is a logical, structured set of samples built from one or more sources.
@@ -66,38 +65,37 @@ Persistent contextual Spurby AI panel can accompany any Project section.
 
 ### Navigation placement
 
-- **Global rail/sidebar:** Home, Projects, Datasets, Recent; switch organization/workspace.
+- **Global rail/sidebar:** Projects, Datasets, Recent; switch organization/workspace.
 - **Project sidebar** (todo13 D10): Overview, Sources, Datasets, Studio, Review, Activity, with Trash (and its count) and Settings at the bottom. Explore opens from Datasets' "Needs attention"; pipeline runs live under Sources. Datasets shows while `API_FEATURE_DATASETS_TAB` is on. This is separate from global navigation.
 - **Studio contextual left panel:** Items / Labels. The Items tab is named by the data kind's noun (Images, Studies, Slides, Recordings, Videos); "Sources" is the drive and "Review" is the project section, so neither word names a Studio tab. When the Studio's dataset has several collections, the header has a **collection switcher**: each collection is its own Studio. This is *not* the project sidebar; the latter collapses to a breadcrumb or icon rail during editing.
 - **Task setup** (`/projects/:p/tasks/:taskId/setup`) is where an owner configures a task: labels, tools, viewer, panels, export formats and what annotators see. It's reached from the Studio's task switcher, its ⋯ menu and the Overview task card; annotators can open it read-only.
 - **Right panel:** persistent, collapsible AI chat that carries project context across sections.
 
-## 3. Workspace home / Projects
+## 3. Projects
 
-**Primary prompt:** “What are you working on?”
+`/` opens Projects, like opening a folder picker. There is no separate Home and no composer
+before a project exists.
 
 Screen elements:
 - App identity + workspace switcher.
 - Primary action: **New project**.
 - Recent/active project cards with human names, one-line description, last activity, and a single direct resume action.
 - Secondary navigation to all Projects and cross-project Datasets.
-- Optional natural-language entry: “Describe what you want to work on—or add some files.”
 
 **Create Project flow:**
 
-1. User names a project or states a goal in natural language.
-2. User may drag/drop files or whole folders immediately, or create an empty project.
+1. User clicks **New project** (or presses N) and names it, like naming a folder.
+2. The project opens on its Overview, which for an empty project is only the chat: ask the
+   assistant, or drop files or whole folders.
 3. Spurby creates the project, preserves original source paths, and begins safe file inspection.
 4. Clean 2D image import can offer **Open Studio** directly. Mixed or ambiguous imports offer **Explore results** first.
 
 Avoid making users define labels, JSON schemas, medical modality or export formats before they've supplied data.
 
-**One way in (todo13).** Home *is* the composer: a send or a drop (anywhere on the page, or a
-pasted screenshot) creates the project through the person's API, named from the goal or from
-what the files are (“12 images”, never a file name), and opens it with the assistant drawer,
-the message delivered or the files uploading. With projects already, it asks first: add to the
-last project, or start a new one. Projects with none shows the same composer. There is no project form: every "New project"
-goes to this composer, and `/projects/new` redirects to it. Every empty surface (Overview, Sources, Datasets, the Studio entry, the empty
+**One way in.** Every "New project" (Projects, the project switcher, N) opens the same name
+dialog; Create opens the project's Overview with the assistant drawer shut. The empty Overview
+*is* the chat composer: a send or a drop opens the drawer with the message delivered or the
+files uploading. `/projects/new` redirects to Projects. Every empty surface (Overview, Sources, Datasets, the Studio entry, the empty
 Studio canvas) is the same `ComposerEmptyState` (`@studio/ui`): what will appear there, plus
 drop files and ask the assistant. The Studio canvas takes drops at any time; files join the
 open Studio. `?timeline=1` shows the drop timeline (gesture → first interactive item), which is
@@ -113,8 +111,8 @@ also posted, as durations only, to `POST /api/v1/telemetry/timeline`.
    keep as reference (PDF, DOCX, notes) or keep, can't use yet ("Find a plugin"). A labels
    table keyed by file names is asked about ("Is this a labels table for these images?").
 3. *Fast path.* When the kinds (and the words, if any) map to one preset, the plan applies at
-   once and the person who dropped on Home (or made the project's first Studio) lands in the
-   Studio on the first ready item, while the rest stream in. A Home send that names a preset
+   once and the person who dropped on the empty Overview (or made the project's first Studio) lands in the
+   Studio on the first ready item, while the rest stream in. A first send that names a preset
    ("Chest X-ray classification with five labels") opens its empty Studio the same way; the
    canvas says "Drop files here to start" and the assistant adds what the words asked for.
 4. *Applied automatically* only to the person's own drafts, with **Undo** on the card for 30 s;
@@ -378,7 +376,7 @@ Keep the current capable X-ray canvas, toolbar, image controls, and overall visu
 
 ## 9. Persistent AI chat — Cursor-like, not a generic bot
 
-The assistant follows project context across Overview, Sources, Datasets (and Explore), Studio, Review, and Activity, on Home before a project exists, and in the Studio's AI panel. Its composer takes drops, pastes and attachments (todo13). It can read permitted project metadata and propose typed tool actions.
+The assistant follows project context across Overview, Sources, Datasets (and Explore), Studio, Review, and Activity, and in the Studio's AI panel. Its composer takes drops, pastes and attachments (todo13). It can read permitted project metadata and propose typed tool actions.
 
 Examples:
 - “What did I import?” → inspect source inventory.
@@ -411,7 +409,7 @@ A project goes to Deleted projects after you type its name (Settings › Danger 
 | Where | Empty state |
 |---|---|
 | Trash (`/projects/:p/trash`) | "Nothing in Trash. Deleted things stay here for 30 days, then they're gone." |
-| Deleted projects (`/deleted-projects`, linked under Home's project list) | "No deleted projects. A deleted project stays here for 30 days, then it's gone." |
+| Deleted projects (`/deleted-projects`, linked under the Projects list) | "No deleted projects. A deleted project stays here for 30 days, then it's gone." |
 | A dataset whose files are all in Trash | "This dataset's files are in Trash" + **Restore** |
 | A Studio whose dataset is in Trash | "This Studio's dataset is in Trash" + **Open Trash** |
 | Sources after deleting everything | Same as first run (drop files, ask) |

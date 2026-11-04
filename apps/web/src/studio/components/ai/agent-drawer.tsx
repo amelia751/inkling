@@ -13,7 +13,6 @@ import { useOverview, useProjectSummary } from "@/studio/lib/projects-api";
 import { useViewport } from "@/studio/lib/use-media-query";
 import { useFeature } from "@/studio/lib/features";
 import { useFirstRunHints } from "@/studio/lib/prefs-api";
-import { HOME_EXAMPLES } from "@/studio/app/entry/HomeComposer";
 import type { ClientToolOutcome } from "@/studio/stores/agent";
 import { ASSISTANT_WIDTH, clampAssistantWidth, useShell } from "@/studio/stores/shell";
 
@@ -30,9 +29,12 @@ const FILES_PROMPTS = [
   { icon: TableFileIcon, text: "Put all spreadsheets in one folder" },
 ];
 
-/** todo14 D8: the first-run hints are the todo13 examples (Home's composer), in the same order. */
-const FIRST_RUN_ICONS = [SegmentIcon, TagIcon, VideoIcon];
-const FIRST_RUN_PROMPTS = HOME_EXAMPLES.map((text, i) => ({ icon: FIRST_RUN_ICONS[i] ?? SearchIcon, text }));
+/** todo14 D8: the first-run hints, across kinds of data so they don't read as one domain's tool. */
+const FIRST_RUN_PROMPTS = [
+  { icon: SegmentIcon, text: "Segment liver CT" },
+  { icon: TagIcon, text: "Classify skin lesions" },
+  { icon: VideoIcon, text: "Annotate ultrasound video" },
+];
 
 /** Outside the Studio only project cards run; environment tools need the open Studio. */
 async function runProjectTool(name: string, input: Record<string, unknown>): Promise<ClientToolOutcome> {

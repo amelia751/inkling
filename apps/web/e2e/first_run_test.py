@@ -3,7 +3,7 @@
 The account menu's dev section ("Start as a new person") picks a random `user:dev-<id>` for the
 tab; every api and agent request carries it as `X-Dev-Principal`. The seed stand-in answers like
 the api in dev: only `user:local-expert` (no header) belongs to the Samples org, so the new person
-sees an empty Home (the composer, no Recent projects), an empty sidebar (no Recent), and no
+sees an empty Home (New project, no project cards), an empty sidebar (no Recent), and no
 "Or try a sample project" line until the api offers samples (`GET /v1/samples`, absent here).
 "Back to local-expert" brings the samples back.
 
@@ -84,14 +84,13 @@ def main() -> int:
         # ---- Start as a new person: an empty product ----------------------------------------------
         sent.clear()
         menu_action(page, "dev-new-person")
-        page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
-        page.wait_for_selector("[data-testid=home-composer][data-align=center]", timeout=10000)
+        page.wait_for_selector("[data-testid=no-projects]", timeout=20000)
         principal = page.evaluate("() => Object.entries(sessionStorage).find(([k]) => k.endsWith('-dev-principal'))?.[1] ?? null")
         check("a random user:dev-<id> principal for this tab", bool(principal) and principal.startswith("user:dev-"), str(principal))
         page.wait_for_load_state("networkidle")
         project_reqs = [h for u, h in sent if "/api/v1/projects" in u]
         check("api requests carry X-Dev-Principal", bool(project_reqs) and all(h == principal for h in project_reqs), str(project_reqs[:3]))
-        check("empty Home: the composer asks what you're working on", page.locator("[data-testid=home-composer] h2").first.inner_text() == "What are you working on?")
+        check("no projects: New project and no composer", page.locator("[data-testid=no-projects] [data-testid=new-project]").count() == 1 and page.locator("[data-testid=home-composer]").count() == 0)
         check("empty Home: no project cards", page.locator("[data-testid=project-card]").count() == 0)
         check("empty Home: no Recent projects", page.get_by_text("Recent projects").count() == 0)
         page.wait_for_selector("[data-testid=try-sample]", timeout=10000)
@@ -99,7 +98,7 @@ def main() -> int:
         side = page.locator("[data-testid=project-sidebar]")
         headings = [t.strip() for t in side.locator("h2").all_inner_texts()]
         check("empty sidebar: Workspace and Settings, no Recent or conversations", headings == ["Workspace", "Settings"], str(headings))
-        check("empty sidebar: Home and Projects stay reachable", side.get_by_role("link", name="Home", exact=True).count() == 1 and side.get_by_role("link", name="Projects", exact=True).count() == 1)
+        check("empty sidebar: Projects stays reachable, no Home", side.get_by_role("link", name="Home", exact=True).count() == 0 and side.get_by_role("link", name="Projects", exact=True).count() == 1)
         shot(page, "first-run-home-empty")
         page.locator("[data-testid=user-menu]").click()
         check("the menu shows the new principal", page.locator("[data-testid=dev-principal]").inner_text() == principal)
@@ -112,18 +111,15 @@ def main() -> int:
         r = page.request.get(f"{base}/api/v1/projects/{P}")
         check("…and still opens for local-expert", r.status == 200, str(r.status))
 
-        # Projects with none: the same composer, and the same sample entry.
         page.goto(f"{base}/projects")
-        page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
-        check("Projects with none shows Home's composer", page.locator("[data-testid=project-card]").count() == 0)
-        check("Projects with none offers samples too", bool(page.wait_for_selector("[data-testid=try-sample]", timeout=10000)))
+        page.wait_for_selector("[data-testid=no-projects]", timeout=20000)
         check("the principal survives navigation in the tab", page.evaluate(f"async () => (await import('{DEV_PRINCIPAL}')).devPrincipal()") == principal)
 
         # The line follows GET /v1/samples: disabled, or an api without the route, hides it.
         for name, body, status in (("disabled", {"enabled": False, "samples": []}, 200), ("404", {"detail": "Not Found"}, 404)):
             page.route("**/api/v1/samples", json_route(body, status))
             page.goto(f"{base}/")
-            page.wait_for_selector("[data-testid=home-composer]", timeout=20000)
+            page.wait_for_selector("[data-testid=no-projects]", timeout=20000)
             page.wait_for_load_state("networkidle")
             check(f"try-sample hidden when samples are {name}", page.locator("[data-testid=try-sample]").count() == 0)
             page.unroute("**/api/v1/samples")
@@ -144,7 +140,7 @@ def main() -> int:
         page.wait_for_selector("[data-testid=sample-error]", timeout=10000)
         check("without the api, copying says it needs the full stack", "full stack" in page.locator("[data-testid=sample-error]").inner_text())
 
-        # ---- First send: the project opens empty with the drawer (todo13 D1) -----------------------
+        # ---- New project: it opens on its Overview, which for an empty project is only the chat ----
         # The stand-in can't create projects (501): answer as the api would, and let the new person
         # read the created project (the stand-in's sample, emptied) by dropping the header for it.
         created: list[dict] = []
@@ -161,16 +157,15 @@ def main() -> int:
         page.route(f"**/api/v1/projects/{P}/**", as_owner)
         page.route(f"**/api/v1/projects/{P}", as_owner)
         page.goto(f"{base}/")
-        page.wait_for_selector("[data-testid=goal]", timeout=20000)
-        page.locator("[data-testid=goal]").fill("Label chest X-rays")
-        page.locator("[data-testid=goal]").press("Enter")
+        page.locator("[data-testid=no-projects] [data-testid=new-project]").click()
+        page.locator("[data-testid=new-project-name]").fill("Label chest X-rays")
+        page.locator("[data-testid=new-project-create]").click()
         page.wait_for_url(f"**/projects/{P}/overview", timeout=10000)
-        check("send creates the first project", bool(created) and created[0].get("title") == "Label chest X-rays", json.dumps(created))
-        check("the project opens with the drawer", bool(page.wait_for_selector("[data-testid=agent-drawer]", timeout=10000)))
+        check("New project creates the first project", bool(created) and created[0].get("title") == "Label chest X-rays", json.dumps(created))
         page.wait_for_selector("[data-testid=empty-project]", timeout=10000)
-        check("Overview shows the todo13 empty state", page.locator("[data-testid=tell-assistant]").count() == 1)
+        check("the empty Overview is only the chat, the drawer stays shut", page.locator("[data-testid=empty-project-input]").count() == 1 and page.locator("[data-testid=agent-drawer-collapsed]").count() == 1)
         page.wait_for_timeout(500)
-        shot(page, "first-run-overview-drawer")
+        shot(page, "first-run-overview")
         page.unroute(f"**/api/v1/projects/{P}/**")
         page.unroute(f"**/api/v1/projects/{P}")
         page.unroute("**/api/v1/projects")
@@ -223,7 +218,7 @@ def main() -> int:
         page.wait_for_selector("[data-testid=agent-empty]", timeout=10000)
         page.wait_for_selector("[data-testid=first-run-hints]", timeout=10000)
         notice = page.locator("[data-testid=agent-drawer] [data-testid=ai-notice]")
-        check("D2: no consent wall, and no notice in the empty chat (Home carries it)", notice.count() == 0, notice.all_inner_texts().__str__())
+        check("D2: no consent wall, and no notice in the empty chat (the empty Overview carries it)", notice.count() == 0, notice.all_inner_texts().__str__())
         prompts = [t.strip() for t in page.locator("[data-testid=agent-empty] li button").all_inner_texts()]
         check("first-run hints: the three todo13 examples", prompts == ["Segment liver CT", "Classify skin lesions", "Annotate ultrasound video"], str(prompts))
         shot(page, "first-run-drawer-hints")

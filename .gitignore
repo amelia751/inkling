@@ -28,6 +28,11 @@ secrets/*
 .worktrees/
 .claude/worktrees/
 
+# Coding-agent state; only the project hooks are versioned.
+.muse/*
+!.muse/hooks.json
+!.muse/hooks/
+
 # Turborepo cache and build outputs
 .turbo/
 tests/e2e/.artifacts/

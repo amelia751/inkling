@@ -34,6 +34,20 @@ git worktree remove .worktrees/<branch> && git worktree prune
 
 Don't switch branches or commit in someone else's checkout.
 
+## Path rules
+
+Some rules apply only to some paths. Read the matching skill in `.agents/skills/` first:
+
+| Skill | Before changing |
+|---|---|
+| `data-boundary` | `infra/**`, `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, `apps/worker/**`, `apps/api/src/studio_api/routes/**`, `secrets/**`, `docs/deployment-gcp.md`, or anything that moves item bytes |
+| `naming` | ids, schema ids, env vars, resource names, packages, images, product-name copy |
+| `site-style` | `apps/site/**` |
+
+`.muse/hooks.json` refuses, before the tool runs: hand edits to generated files, the product
+name or a past namespace in code, printing a `secrets/` file, and switching branches outside a
+worktree.
+
 ## Checks
 
 From the repo root: `pnpm typecheck`, `pnpm test` and `pnpm lint` (Turborepo, every

@@ -226,6 +226,39 @@ def accepts_kind(accepts, kind: str | None) -> bool:
     return kind in keep or (kind == "mask" and bool(keep & SUBJECT_KINDS))
 
 
+def task_takes(db: Session, t: TaskRow, kind: str | None) -> bool:
+    """Whether items of (collection) kind `kind` belong in task `t`: its `accepts`, else its
+    collection's kind, else (no filter) any kind."""
+    if not kind:
+        return False
+    if t.accepts:
+        return accepts_kind(t.accepts, kind)
+    if t.collection_id:
+        c = db.get(DatasetCollectionRow, t.collection_id)
+        return c is None or c.kind == kind
+    return True
+
+
+def add_for_task(db: Session, ctx: RequestContext | None, t: TaskRow, node_ids: list[str]) -> list[str]:
+    """todo24 D3: pin the files among `node_ids` (folders expand) whose kind task `t` takes into
+    its dataset, each in its kind's collection. Returns the node ids newly pinned."""
+    from ..models import SourceNode
+    from . import tree
+    from .kinds import kind_from_extension
+
+    d = db.get(DatasetRow, t.dataset_id) if t.dataset_id else None
+    if d is None or not node_ids:
+        return []
+    rows = list(db.scalars(select(SourceNode).where(SourceNode.id.in_(node_ids), SourceNode.project_id == d.project_id)))
+    dirs = [n.id for n in rows if n.is_dir]
+    files = [n for n in rows if not n.is_dir and n.trashed_at is None] + (tree.files_under(db, dirs) if dirs else [])
+    keep = [n.id for n in files if n.asset_id and task_takes(db, t, collection_kind(n.detected_kind or kind_from_extension(n.name), n.facts))]
+    if not keep:
+        return []
+    added, _ = add_by_kind(db, ctx or _system_ctx(d.project_id), d, keep)
+    return [i for ids in added.values() for i in ids]
+
+
 def item_filter(db: Session, t: TaskRow, d: DatasetRow | None):
     """For `task_document`: a predicate over node ids (None = no filter). todo19 D2: a task with
     `accepts` sees the dataset's files of those kinds; a legacy task its collection's files."""

@@ -271,6 +271,9 @@ def create_session(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, 
     audit.record(db, ctx.for_scope(p.id, None), "import.started", target=s.id, after={"files": len(wanted), "skippedSystemFiles": skipped_junk, "attested": True, **({"dropId": drop.id} if drop is not None else {})})
     # Dropped into a Studio (todo11 D8): its images are items from now on, before any byte.
     registered = ingest.register(db, s, task) if task is not None else None
+    if task is None and (following := ingest.following_task(db, p.id)) is not None:
+        # todo24 D3: a draft Studio booted before its files takes this upload too (items on its stream).
+        ingest.adopt(db, s, following)
     _publish(db, ctx, s)
     out = session_dict(db, s, files=True)
     if registered is not None:
@@ -554,6 +557,7 @@ def complete(db: Session, ctx: RequestContext, s: ImportSession, p: ProjectRow) 
     if (s.totals or {}).get("taskId"):
         ingest.link_to_dataset(db, s)
     if ids:
+        ingest.follow_completed(db, s, ids)  # todo24 D3: a draft Studio booted before its files
         prio = {"priority": "first"} if (s.totals or {}).get("priority") == "first" else {}
         events.publish(db, scoped, "source.uploaded", {"projectId": p.id, "importId": s.id, "sourceId": source.id, "nodeIds": ids, **prio}, source="kernel", idempotency_key=f"source.uploaded:{s.id}")
         # todo17 D11: imaging checks run in the worker after the upload; they never block it.

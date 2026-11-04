@@ -213,7 +213,10 @@ export function createStudioHandlers(deps: StudioToolDeps) {
         ...(revision !== undefined ? { revision } : {}),
         ...(accepted.ms !== undefined ? { ms: accepted.ms } : {}),
         draft: true,
-        note: "Draft Studio: only a person can publish it.",
+        note:
+          args.files?.length || args.folders?.length
+            ? "Draft Studio: only a person can publish it."
+            : "Draft Studio: only a person can publish it. Booted without files: it starts with the project's files of its kinds if it is the project's first Studio, and files uploaded to the project join it while it stays a draft (not after it's published).",
       };
     },
 

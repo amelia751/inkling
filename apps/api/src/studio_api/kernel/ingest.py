@@ -186,6 +186,71 @@ def link_to_dataset(db: Session, s: ImportSession) -> None:
     db.flush()
 
 
+# ---- A Studio booted before its files (todo24 D3) ---------------------------------------------
+#
+# A draft Studio booted with no files (the assistant set it up while the drop was still uploading)
+# has `definition.fillsFromUploads` on its dataset. While the task is a draft, every upload into
+# the project joins it: an import already in flight when it boots, or started later without a
+# `taskId`, is adopted (its images become items at once, exactly like a drop into the Studio), and
+# on completion its committed files whose kind the Studio takes are pinned. Publishing stops it.
+
+FOLLOW = "fillsFromUploads"
+
+
+def following_task(db: Session, project_id: str) -> TaskRow | None:
+    """The oldest draft Studio of the project that fills from uploads, if any."""
+    from ..models import DatasetRow
+
+    for t in db.scalars(select(TaskRow).where(TaskRow.project_id == project_id, TaskRow.state == "draft", TaskRow.trashed_at.is_(None)).order_by(TaskRow.created_at, TaskRow.id)):
+        d = db.get(DatasetRow, t.dataset_id) if t.dataset_id else None
+        if d is not None and (d.definition or {}).get(FOLLOW):
+            return t
+    return None
+
+
+def in_drop(s: ImportSession) -> bool:
+    """A drop's sessions go where its plan puts them (drops_plan.apply), never adopted."""
+    return bool(getattr(s, "drop_id", None) or (s.totals or {}).get("dropId"))
+
+
+def adopt(db: Session, s: ImportSession, t: TaskRow) -> list[dict]:
+    """Make an import without a Studio a drop into `t` (its images register as items now)."""
+    from . import collections
+
+    if (s.totals or {}).get("taskId") or in_drop(s) or not collections.task_takes(db, t, "image"):
+        return []
+    s.totals = {**(s.totals or {}), "taskId": t.id}
+    db.flush()
+    return register(db, s, t)
+
+
+def adopt_open(db: Session, t: TaskRow) -> int:
+    """At an empty boot: the project's imports still uploading (no Studio of their own) join `t`."""
+    from .imports import OPEN_STATES
+
+    n = 0
+    for s in db.scalars(select(ImportSession).where(ImportSession.project_id == t.project_id, ImportSession.state.in_(OPEN_STATES)).order_by(ImportSession.started_at)):
+        if not (s.totals or {}).get("taskId"):
+            adopt(db, s, t)
+            n += int((s.totals or {}).get("taskId") == t.id)
+    return n
+
+
+def follow_completed(db: Session, s: ImportSession, node_ids: list[str]) -> list[str]:
+    """On completion: pin the session's committed files of the kinds the Studio it joined (or the
+    project's following Studio) takes. Returns the node ids newly pinned."""
+    from ..models import DatasetRow
+    from . import collections
+
+    if in_drop(s):
+        return []
+    t = db.get(TaskRow, (s.totals or {}).get("taskId") or "") or following_task(db, s.project_id)
+    d = db.get(DatasetRow, t.dataset_id) if t is not None and t.dataset_id else None
+    if t is None or d is None or t.state != "draft" or not (d.definition or {}).get(FOLLOW):
+        return []
+    return collections.add_for_task(db, None, t, node_ids)
+
+
 # ---- Reads for the Studio ---------------------------------------------------------------------
 
 

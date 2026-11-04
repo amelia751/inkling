@@ -171,6 +171,20 @@ def test_uploads_verify_dedupe_and_resume(client):
     assert len(client.get(f"/api/v1/projects/{p['id']}/sources").json()["sources"]) == 1
 
 
+def test_upload_chunks_over_32_mib_are_refused(client):
+    """todo24 D4: Cloud Run refuses HTTP/1 bodies over 32 MiB, so the kernel does too, in every mode."""
+    p = client.post("/api/v1/projects", json={"title": "Big"}).json()
+    size = 40 * 1024**2
+    body = {"attested": True, "files": [{"clientFileId": "big", "relPath": "big.avi", "size": size, "sha256": "0" * 64}]}
+    s = client.post(f"/api/v1/projects/{p['id']}/imports", json=body).json()
+    url = s["files"][0]["uploadUrl"]
+    r = client.put(url, content=b"\0" * (33 * 1024**2))
+    assert r.status_code == 413 and "32 MiB" in r.json()["detail"]
+    # Nothing was received, and a chunk at the limit goes through.
+    ok = client.put(url, content=b"\0" * (32 * 1024**2))
+    assert ok.status_code == 200 and ok.json()["received"] == 32 * 1024**2
+
+
 def test_events_publish_project_updates(client):
     p = client.post("/api/v1/projects", json={"title": "Live"}).json()
     _import(client, p["id"], {"d/a.png": png(4, 4)})

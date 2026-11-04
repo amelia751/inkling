@@ -96,7 +96,7 @@ function watchUpload(key: string): void {
     const session = s.sessions.find((x) => x.key === key);
     if (!session) return stop();
     if (session.files.some((f) => f.state !== "pending")) markTimeline("first-file-uploaded");
-    if (session.phase === "checking" || session.phase === "done") {
+    if (session.phase === "checking" || session.phase === "done" || session.phase === "partial") {
       markTimeline("upload-done");
       stop();
     }

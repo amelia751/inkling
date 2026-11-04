@@ -104,14 +104,14 @@ async function run(id: string, o: StartDropOptions, picked: Picked, joining: boo
   await send(id, o, picked, origin);
 }
 
-/** Resolves when the drop's (only) session has its bytes in: checking, done, failed or cancelled. */
+/** Resolves when the drop's (only) session has its bytes in: checking, done, partial, failed or cancelled. */
 function uploaded(dropId: string): Promise<string> {
   const phase = () => {
     const x = useUploads.getState().sessions.find((x) => x.dropId === dropId);
     // `failed` without an error is the moment between registering and uploading (`absorb`).
     return x?.phase === "failed" && !x.error ? "uploading" : x?.phase;
   };
-  const over = (p: string | undefined) => p === "checking" || p === "done" || p === "failed" || p === "cancelled";
+  const over = (p: string | undefined) => p === "checking" || p === "done" || p === "partial" || p === "failed" || p === "cancelled";
   if (over(phase())) return Promise.resolve(phase()!);
   return new Promise((resolve) => {
     const stop = useUploads.subscribe(() => {

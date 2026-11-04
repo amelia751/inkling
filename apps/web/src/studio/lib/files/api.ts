@@ -27,6 +27,7 @@ import { beginLocalOp, guardNow, loadIsCurrent } from "./guard";
 import { DEFAULT_SORT, foldersTouched, patchFolder, patchStar, rowsOf, type ChildrenData, type FsSort } from "./optimistic";
 import { useTabUndo } from "./undo";
 import { apiFetch } from "@/extension-host/http";
+import { UPLOAD_CHUNK_BYTES } from "@/studio/lib/uploads/chunk";
 
 export { NeedsApiError, ApiError };
 export type { FsSort, FsSortKey, ChildrenData } from "./optimistic";
@@ -244,8 +245,6 @@ export async function downloadZip(
 
 // ---- Replace with a new version (D6) -------------------------------------------------------------
 
-const CHUNK = 8 * 1024 * 1024;
-
 /**
  * Upload `file` as a new version of `nodeId`: hash it, open a replace-mode upload session
  * (`POST /source-nodes/:id/versions`), send the bytes, complete. Inspection re-runs on the new
@@ -262,10 +261,10 @@ export async function replaceFile(nodeId: string, file: File, { onProgress, sign
   if (!entry || entry.state === "pending") {
     let offset = entry?.received ?? 0;
     do {
-      const res = await apiFetch(apiUrl(`/v1/uploads/${session.id}/files/f0?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + CHUNK), signal });
+      const res = await apiFetch(apiUrl(`/v1/uploads/${session.id}/files/f0?offset=${offset}`), { method: "PUT", body: file.slice(offset, offset + UPLOAD_CHUNK_BYTES), signal });
       const body = (await res.json().catch(() => ({}))) as { received?: number; state?: string; detail?: string };
       if (!res.ok) throw toFsError(new ApiError(res.status, body.detail ?? `${res.status}`, body));
-      offset = body.received ?? offset + Math.min(CHUNK, file.size - offset);
+      offset = body.received ?? offset + Math.min(UPLOAD_CHUNK_BYTES, file.size - offset);
       onProgress?.(offset, file.size);
       if (body.state && body.state !== "pending") break;
     } while (offset < file.size);

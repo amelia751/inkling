@@ -18,7 +18,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@studio/ui/ui/dropdown-menu";
 import { Label } from "@studio/ui/ui/label";
 import { Spinner } from "@studio/ui/ui/spinner";
-import { bytesInFlight, INSPECTION_STALLED_REASON, NOT_UPLOADED, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
+import { bytesInFlight, INSPECTION_STALLED_REASON, NOT_UPLOADED, settledPhase, trayLine, useUploads, type TraySession } from "@/studio/stores/uploads";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
 import { cn } from "@studio/ui/utils";
 import { resumeDrop } from "@/studio/core/drops/start";
@@ -250,6 +250,7 @@ function PhaseIcon({ s }: { s: TraySession }) {
   const bad = s.files.some((f) => f.state === "failed" || f.state === "rejected");
   if (s.phase === "attesting") return <QueuedIcon className="size-4 text-hint" />;
   if (s.phase === "preparing" || s.phase === "uploading" || s.phase === "checking") return <Spinner className="size-4" />;
+  if (s.phase === "partial") return <WarningIcon className="size-4 text-warning" />;
   if (s.phase === "failed" || bad) return <ErrorIcon className="size-4 text-danger" />;
   if (s.phase === "cancelled") return <CloseIcon className="size-4 text-hint" />;
   if (s.needsReview) return <WarningIcon className="size-4 text-warning" />;
@@ -266,6 +267,8 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
   const refresh = useRefreshProject();
   const [open, setOpen] = useState(false);
   const failed = s.files.filter((f) => f.state === "failed" || f.state === "rejected");
+  // todo24 D5: a finished session's files that never went up are retried with the failed ones.
+  const retriable = failed.length + (settledPhase(s.phase) && s.phase !== "cancelled" ? s.files.filter((f) => f.state === "pending").length : 0);
   const busy = s.phase === "preparing" || s.phase === "uploading";
   // Stopped before the kernel had the files (a network drop, a reload): offer the same picker again.
   const interrupted = s.phase === "failed" && !s.importId;
@@ -305,7 +308,7 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
                 <Button size="sm" variant="ghost-secondary" onClick={() => dismiss(s.key)} data-testid="tray-dismiss">Dismiss</Button>
               </>
             )}
-            {failed.length > 0 && s.importId && (
+            {retriable > 0 && s.importId && !busy && (
               <Button size="sm" variant="outline" onClick={() => void retry(s.key)} data-testid="tray-retry">Retry failed</Button>
             )}
             {(failed.length > 0 || s.files.length > 0) && (
@@ -335,9 +338,9 @@ function TrayRow({ s, collapsed }: { s: TraySession; collapsed: boolean }) {
 
 const FILE_STATE: Record<string, string> = { pending: "Waiting", uploaded: "Uploaded", skipped_duplicate: "Already in this project", rejected: "Not accepted", failed: "Didn't upload" };
 
-/** A file row's words: a session that stopped leaves its unsent files "Not uploaded", never "Waiting". */
+/** A file row's words: a session that isn't moving leaves its unsent files "Not uploaded", never "Waiting" (todo24 D5). */
 export function fileRowText(s: Pick<TraySession, "phase">, f: Pick<TraySession["files"][number], "state" | "reason">): string {
   if (f.reason) return f.reason;
-  if (f.state === "pending" && (s.phase === "failed" || s.phase === "cancelled")) return NOT_UPLOADED;
+  if (f.state === "pending" && settledPhase(s.phase)) return NOT_UPLOADED;
   return FILE_STATE[f.state] ?? f.state;
 }

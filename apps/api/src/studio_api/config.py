@@ -49,6 +49,7 @@ that are missing or invalid, never their values.
 | GIT_SHA                   | unknown                          | reported by /version (also read unprefixed: the Docker build arg) |
 | API_UPLOAD_MAX_FILE_BYTES | 2147483648 (2 GB)                | largest file an import session accepts |
 | API_UPLOAD_MAX_SESSION_FILES | 20000                         | most files in one import session |
+| API_UPLOAD_MAX_CHUNK_BYTES | 33554432 (32 MiB)               | largest upload chunk (one PUT body); Cloud Run refuses HTTP/1 bodies over 32 MiB, so every mode enforces it (todo24 D4) |
 | API_DROP_MAX_FILES        | 10000                            | files per drop; above it the card points to Files' folder upload |
 | API_DROP_MAX_BYTES        | 53687091200 (50 GB)              | bytes per drop |
 | API_DROP_RATE_PER_MINUTE  | 20                               | drops a person may start per minute (429 with Retry-After above it) |
@@ -225,6 +226,8 @@ class Settings(BaseModel):
     # Uploads (todo6 Phase 4): per-file and per-session limits for import sessions.
     upload_max_file_bytes: int = 2 * 1024**3
     upload_max_session_files: int = 20_000
+    # todo24 D4: Cloud Run's HTTP/1 request cap, enforced in every mode so a laptop fails like staging.
+    upload_max_chunk_bytes: int = 32 * 1024**2
     url_import_max_bytes: int = 5 * 1024**3  # todo16 D10: largest import from a link
     # ---- Chat drops (todo13-drops, §7.1) ----
     drop_max_files: int = 10_000
@@ -363,6 +366,7 @@ _KEYS: dict[str, str] = {
     "git_sha": "GIT_SHA",
     "upload_max_file_bytes": "API_UPLOAD_MAX_FILE_BYTES",
     "upload_max_session_files": "API_UPLOAD_MAX_SESSION_FILES",
+    "upload_max_chunk_bytes": "API_UPLOAD_MAX_CHUNK_BYTES",
     "url_import_max_bytes": "API_URL_IMPORT_MAX_BYTES",
     # Chat drops (todo13-drops)
     "drop_max_files": "API_DROP_MAX_FILES",

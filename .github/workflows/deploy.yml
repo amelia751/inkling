@@ -1,0 +1,86 @@
+# Continuous deploy to the Cloud Run stage. Runs after `images` finishes on main and deploys
+# that commit only if `ci` passed for it too and it is still main's head (a newer push deploys
+# instead). tools/deploy-run.sh runs the migrate jobs, rolls each rebuilt app, smoke-tests the
+# Studio host and the agent, and puts every moved service back on its previous revision when
+# anything fails. Rerun by hand with `gh workflow run deploy.yml` (deploys main's head).
+#
+# Repo variables: GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT, GCP_IMAGES_REGISTRY
+# (phi stack outputs ci_workload_identity_provider, ci_deploy_service_account),
+# GCP_AGENT_WORKLOAD_IDENTITY_PROVIDER, GCP_AGENT_CI_SERVICE_ACCOUNT, GCP_AGENT_IMAGES_REGISTRY
+# (ai stack ci_* outputs), STUDIO_URL and AGENT_URL.
+name: deploy
+
+on:
+  workflow_run:
+    workflows: [images]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Cloud Run stage
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - id: gate
+        name: CI passed and the commit is main's head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          head="$(gh api "repos/$REPO/commits/main" --jq .sha)"
+          if [ "$head" != "$SHA" ]; then
+            echo "main moved on to ${head::7}; that push deploys instead."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for _ in $(seq 1 120); do
+            state="$(gh run list -R "$REPO" --workflow ci.yml --commit "$SHA" --event push --limit 1 --json status,conclusion --jq '.[0] | "\(.status) \(.conclusion)"')"
+            case "$state" in
+              "completed success") echo "go=true" >> "$GITHUB_OUTPUT"; echo "sha=$SHA" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              completed*) echo "::error::ci for ${SHA::7} ended: $state"; exit 1 ;;
+            esac
+            sleep 20
+          done
+          echo "::error::ci for ${SHA::7} didn't finish in 40 minutes"
+          exit 1
+      - if: steps.gate.outputs.go == 'true'
+        id: phi
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          export_environment_variables: false
+      - if: steps.gate.outputs.go == 'true'
+        id: ai
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_AGENT_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_AGENT_CI_SERVICE_ACCOUNT }}
+          export_environment_variables: false
+      - if: steps.gate.outputs.go == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+      - if: steps.gate.outputs.go == 'true'
+        name: Migrate, roll out, smoke test
+        env:
+          SHA: ${{ steps.gate.outputs.sha }}
+          PHI_REGISTRY: ${{ vars.GCP_IMAGES_REGISTRY }}
+          AI_REGISTRY: ${{ vars.GCP_AGENT_IMAGES_REGISTRY }}
+          PHI_CREDENTIALS: ${{ steps.phi.outputs.credentials_file_path }}
+          AI_CREDENTIALS: ${{ steps.ai.outputs.credentials_file_path }}
+          STUDIO_URL: ${{ vars.STUDIO_URL }}
+          AGENT_URL: ${{ vars.AGENT_URL }}
+        run: bash tools/deploy-run.sh

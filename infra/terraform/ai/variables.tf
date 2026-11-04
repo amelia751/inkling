@@ -21,6 +21,24 @@ variable "sql_running" {
   default     = false
 }
 
+variable "github_repository" {
+  description = "GitHub repository (owner/name) whose `main` branch may push the agent image and roll the agent (ci.tf). Empty: no CI federation."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository_id" {
+  description = "Numeric ID of that repository (`gh api repos/<owner>/<name> --jq .id`)."
+  type        = string
+  default     = ""
+}
+
+variable "github_repository_owner_id" {
+  description = "Numeric ID of the repository's owner (`gh api repos/<owner>/<name> --jq .owner.id`)."
+  type        = string
+  default     = ""
+}
+
 variable "sql_tier" {
   type    = string
   default = "db-custom-1-3840"

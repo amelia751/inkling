@@ -69,3 +69,32 @@ resource "google_artifact_registry_repository_iam_member" "ci_images" {
   role       = "roles/artifactregistry.writer"
   member     = "serviceAccount:${google_service_account.ci_images[0].email}"
 }
+
+# .github/workflows/deploy.yml: new revisions of the Cloud Run services and the migrate jobs.
+# It can't change their identities, env or secrets (Terraform owns those), only roll images.
+resource "google_service_account" "ci_deploy" {
+  count        = local.ci_enabled ? 1 : 0
+  account_id   = "ci-deploy"
+  display_name = "GitHub Actions on main: roll Cloud Run images"
+}
+
+resource "google_service_account_iam_member" "ci_deploy_wif" {
+  count              = local.ci_enabled ? 1 : 0
+  service_account_id = google_service_account.ci_deploy[0].name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github[0].name}/attribute.repository_id/${var.github_repository_id}"
+}
+
+resource "google_project_iam_member" "ci_deploy" {
+  count   = local.ci_enabled ? 1 : 0
+  project = var.project
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.ci_deploy[0].email}"
+}
+
+resource "google_service_account_iam_member" "ci_deploy_act_as" {
+  for_each           = local.ci_enabled ? toset(distinct(values(local.run_sa))) : toset([])
+  service_account_id = "projects/${var.project}/serviceAccounts/${each.value}"
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.ci_deploy[0].email}"
+}

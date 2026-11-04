@@ -93,27 +93,37 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      # Artifact Registry in the phi project, through Workload Identity Federation (no keys).
-      # Off until the repo variables GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_CI_SERVICE_ACCOUNT and
-      # GCP_IMAGES_REGISTRY (us-central1-docker.pkg.dev/<project>/images) are set from the
-      # phi stack's ci_* outputs. The provider admits only this repository's main branch, and
-      # the service account may write to that one repository; the agent image lives in the ai
-      # project, so it stays on ghcr until that project has its own federation.
+      # Artifact Registry through Workload Identity Federation (no keys): the phi project for
+      # every app but the agent (repo variables GCP_WORKLOAD_IDENTITY_PROVIDER,
+      # GCP_CI_SERVICE_ACCOUNT, GCP_IMAGES_REGISTRY from the phi stack's ci_* outputs), the ai
+      # project for the agent (GCP_AGENT_WORKLOAD_IDENTITY_PROVIDER, GCP_AGENT_CI_SERVICE_ACCOUNT,
+      # GCP_AGENT_IMAGES_REGISTRY from the ai stack). Unset: ghcr only.
       - id: ar
         env:
-          REGISTRY: ${{ vars.GCP_IMAGES_REGISTRY }}
           APP: ${{ matrix.app }}
+          PHI_REGISTRY: ${{ vars.GCP_IMAGES_REGISTRY }}
+          PHI_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          PHI_SA: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+          AI_REGISTRY: ${{ vars.GCP_AGENT_IMAGES_REGISTRY }}
+          AI_PROVIDER: ${{ vars.GCP_AGENT_WORKLOAD_IDENTITY_PROVIDER }}
+          AI_SA: ${{ vars.GCP_AGENT_CI_SERVICE_ACCOUNT }}
         run: |
-          if [ -n "$REGISTRY" ] && [ "$APP" != "agent" ]; then
-            echo "image=$REGISTRY/studio-$APP" >> "$GITHUB_OUTPUT"
-            echo "host=${REGISTRY%%/*}" >> "$GITHUB_OUTPUT"
+          if [ "$APP" = "agent" ]; then registry="$AI_REGISTRY" provider="$AI_PROVIDER" sa="$AI_SA"
+          else registry="$PHI_REGISTRY" provider="$PHI_PROVIDER" sa="$PHI_SA"; fi
+          if [ -n "$registry" ]; then
+            {
+              echo "image=$registry/studio-$APP"
+              echo "host=${registry%%/*}"
+              echo "provider=$provider"
+              echo "sa=$sa"
+            } >> "$GITHUB_OUTPUT"
           fi
       - if: steps.ar.outputs.image != ''
         id: gcp
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ steps.ar.outputs.provider }}
+          service_account: ${{ steps.ar.outputs.sa }}
           token_format: access_token
       - if: steps.ar.outputs.image != ''
         uses: docker/login-action@v3

@@ -119,6 +119,11 @@ resource "google_cloud_run_v2_service" "web" {
     }
   }
 
+  # deploy.yml rolls the image; Terraform sets it only when it creates the service.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image, client, client_version]
+  }
+
   depends_on = [google_project_service.run, google_secret_manager_secret_iam_member.run]
 }
 
@@ -358,6 +363,11 @@ resource "google_cloud_run_v2_service" "api" {
     }
   }
 
+  # deploy.yml rolls the image; Terraform sets it only when it creates the service.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image, client, client_version]
+  }
+
   depends_on = [google_project_service.run, google_secret_manager_secret_iam_member.run]
 }
 
@@ -464,6 +474,11 @@ resource "google_cloud_run_v2_service" "versioning" {
         }
       }
     }
+  }
+
+  # deploy.yml rolls the image; Terraform sets it only when it creates the service.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image, client, client_version]
   }
 
   depends_on = [google_project_service.run, google_secret_manager_secret_iam_member.run]
@@ -605,6 +620,11 @@ resource "google_cloud_run_v2_service" "pipeline" {
     }
   }
 
+  # deploy.yml rolls the image; Terraform sets it only when it creates the service.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image, client, client_version]
+  }
+
   depends_on = [google_project_service.run, google_secret_manager_secret_iam_member.run]
 }
 
@@ -719,6 +739,11 @@ resource "google_cloud_run_v2_service" "worker" {
         }
       }
     }
+  }
+
+  # deploy.yml rolls the image; Terraform sets it only when it creates the service.
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image, client, client_version]
   }
 
   depends_on = [google_project_service.run, google_secret_manager_secret_iam_member.run]

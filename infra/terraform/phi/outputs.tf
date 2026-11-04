@@ -65,6 +65,11 @@ output "ci_service_account" {
   value       = local.ci_enabled ? google_service_account.ci_images[0].email : ""
 }
 
+output "ci_deploy_service_account" {
+  description = "For deploy.yml's `service_account`: rolls Cloud Run images and runs the migrate jobs."
+  value       = local.ci_enabled ? google_service_account.ci_deploy[0].email : ""
+}
+
 output "pipeline_connector_subscription" {
   description = "Milestone 3: the pull subscription apps/pipeline consumes (empty while pipeline_connectors_enabled=false)."
   value       = var.pipeline_connectors_enabled ? google_pubsub_subscription.connector_objects[0].id : ""

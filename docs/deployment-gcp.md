@@ -340,6 +340,30 @@ Each stage can show its own product name: variable `display_name` in both stacks
 `STUDIO_DISPLAY_NAME` on web (served in `/config.json`) and on the agent (its prompts). Empty keeps
 `NAMING.displayName`.
 
+### Deploys
+
+Every push to main deploys itself (`.github/workflows/deploy.yml`, `tools/deploy-run.sh`). After
+`images` finishes, the deploy waits for `ci` on the same commit and skips it if main has moved
+on. Then, for each app whose image was rebuilt (`sha-<commit>`):
+
+1. the migrate jobs (`api-migrate`, `versioning-migrate`, `pipeline-migrate`, `phi/run-jobs.tf`)
+   run on the new image;
+2. versioning, pipeline, api, worker, the agent and web get a new revision in that order. Cloud
+   Run only routes to a revision whose startup probe passes, so an image that doesn't boot never
+   takes traffic;
+3. a smoke test checks the Studio host (`/healthz`, `/config.json`, web's `/version`, the api's
+   sign-in redirect) and the agent's `/version`;
+4. if a rollout or the smoke test fails, every service it moved goes back to its previous
+   revision and the run fails.
+
+Migrations aren't rolled back, so each one has to work with the revision before it (add columns
+and tables first, drop them in a later release). Terraform sets images only when it creates a
+service; after that the deploy owns them (`ignore_changes`). CI signs in through Workload
+Identity Federation in both projects (`ci.tf`): `ci-deploy` in the Studio project and
+`ci-agent` in the agent project, each limited to main. Repo variables come from the two stacks'
+`ci_*` outputs, plus `STUDIO_URL` (set once the certificate is active) and `AGENT_URL`. To
+redeploy main by hand, run `gh workflow run deploy.yml`.
+
 ### WorkOS staging
 
 In the WorkOS dashboard's staging environment (Redirects), add for the stage's host (output

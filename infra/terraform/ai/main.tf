@@ -47,6 +47,7 @@ resource "google_project_service" "this" {
     "secretmanager.googleapis.com",
     "servicenetworking.googleapis.com",
     "sqladmin.googleapis.com",
+    "sts.googleapis.com",
   ])
   service            = each.key
   disable_on_destroy = false

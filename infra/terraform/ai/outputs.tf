@@ -27,6 +27,16 @@ output "images_registry" {
   value = "${var.region}-docker.pkg.dev/${var.project}/images"
 }
 
+output "ci_workload_identity_provider" {
+  description = "For google-github-actions/auth in the agent project (empty until the github_* variables are set)."
+  value       = local.ci_enabled ? google_iam_workload_identity_pool_provider.github[0].name : ""
+}
+
+output "ci_service_account" {
+  description = "For google-github-actions/auth: pushes the agent image, rolls the agent service."
+  value       = local.ci_enabled ? google_service_account.ci_agent[0].email : ""
+}
+
 output "service_accounts" {
   value = { for k, s in google_service_account.app : k => s.email }
 }

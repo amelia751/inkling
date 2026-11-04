@@ -13,7 +13,7 @@ from studio_api import db as kdb
 from studio_api.kernel import drops_classify as dc, drops_plan
 from studio_api.models import AnnotationDocumentRow, PluginAudit, DatasetCollectionRow, DatasetRow, DropPlanRow, SourceNode, TaskRow
 
-from .test_drops import _drop, _project, _report
+from .test_drops import _drop, _project_without_assistant as _project, _report
 
 BRATS = "BraTS2021_00621"
 

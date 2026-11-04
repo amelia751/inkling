@@ -8,7 +8,7 @@ from sqlalchemy import select
 from studio_api import db as kdb
 from studio_api.models import DropPlanRow, ProjectRow, TaskRow
 
-from .test_drops import _drop, _project, _report
+from .test_drops import _drop, _project_without_assistant as _project, _report
 
 
 def _tasks(pid: str) -> list[TaskRow]:

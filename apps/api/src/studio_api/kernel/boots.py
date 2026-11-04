@@ -171,11 +171,27 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
         if collection is not None or dataset is not None:
             return 422, {"ok": False, "errors": [{"path": "/addToTask", "code": "schema", "message": "addToTask adds to that Studio's dataset; leave out collectionId and datasetId"}]}
 
+    # todo28 D6: a boot for a drop (`dropId`, no files, dataset or collection of its own) starts
+    # on the drop's ready files and attaches the drop: the rest join as they're checked. One
+    # drop, one Studio: a drop attached elsewhere is refused unless a person moves it.
+    from . import drops_route
+
+    drop_row = None
+    drop_id = body.get("dropId")
+    if isinstance(drop_id, str) and DROP_RE.fullmatch(drop_id) and collection is None and dataset is None and not node_ids:
+        from ..models import Drop
+
+        drop_row = db.get(Drop, drop_id)
+        if drop_row is not None and drop_row.project_id != p.id:
+            return 422, {"ok": False, "errors": [{"path": "/dropId", "code": "reference", "message": "no such drop in this project"}]}
+        current = drops_route.attached_task(db, drop_row) if drop_row is not None else None
+        if current is not None and (target is None or target.id != current.id) and not (body.get("moveDrop") is True and not is_agent(ctx)):
+            return 409, {"error": "this drop already fills another Studio; add its kinds to that Studio instead", "taskId": current.id}
+
     title = (name or f"{_preset_title(preset)} Studio").strip()[:256] or "Studio"
     run = headers.get(studio_defs.RUN_HEADER) or ""
     initiator: dict[str, str | bool] = {"kind": "agent", **({"runId": run} if studio_defs.RUN_RE.fullmatch(run) else {})} if is_agent(ctx) else {"kind": "person"}
     # todo13 fast path: the drop that booted it, so the tab that dropped opens the Studio (§3.2).
-    drop_id = body.get("dropId")
     if isinstance(drop_id, str) and DROP_RE.fullmatch(drop_id):
         initiator["dropId"] = drop_id
         # The project's first Studio: the person who dropped lands in it wherever they dropped.
@@ -184,7 +200,10 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     b = Boot(id=boot_id, project_id=p.id, preset=preset, state="running", task_ids=[], steps=[], initiator=initiator, principal=ctx.principal, on_behalf_of=projects.person(ctx), request_hash=rh)
     db.add(b)
     if target is not None:
-        return _boot_into(db, ctx, p, b, target, presets, accepts, node_ids, headers, body, started)
+        status, out = _boot_into(db, ctx, p, b, target, presets, accepts, node_ids, headers, body, started)
+        if drop_row is not None:
+            drops_route.attach(db, ctx, drop_row, target)
+        return status, out
     # todo17 D3: the project's first boot with a preset stores that preset's rules (revision 1).
     from . import rules as project_rules
 
@@ -204,6 +223,11 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
             collections.add_files(db, d, collection.id, [n.id for n in tree.files_under(db, node_ids)])
     elif node_ids:
         d = projects.create_dataset(db, ctx, p, title, {"nodeIds": node_ids, "draft": True})
+    elif drop_row is not None:
+        # The drop's files join as they're ready (drops_route.attach), never other uploads.
+        d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True, "dropId": drop_row.id}, created_by=projects.person(ctx))
+        db.add(d)
+        db.flush()
     else:
         # todo24 D3: booted before its files (the drop is still uploading): it fills from uploads.
         d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True, ingest.FOLLOW: True}, created_by=projects.person(ctx))
@@ -229,6 +253,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     if node_ids:
         n = len((d.definition or {}).get("files") or [])
         _step(db, scoped, b, "files", f"Linked {n} file{'' if n == 1 else 's'}")
+    elif drop_row is not None:
+        n = len(drops_route.attach(db, ctx, drop_row, t))
+        _step(db, scoped, b, "files", f"Linked {n} ready file{'' if n == 1 else 's'}; the others join as they're checked")
     elif follows:
         # The project's first Studio starts with the files already there; uploads still running
         # (and later ones, while it's a draft) join it as they land.

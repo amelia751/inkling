@@ -228,9 +228,15 @@ def report(db: Session, import_id: str, body: dict, *, unreported_reason: str = 
     if updated:
         events.publish(db, ctx, "source.node.inspected", {"projectId": p.id, "nodeIds": updated[:1000]}, source="kernel")
     if s.drop_id:
+        # todo28 W2: ready files join the drop's Studio (if it's attached) before the drop's
+        # files are announced, so their `drop.file` says `in_studio`.
+        from . import drops_route
+
+        drops_route.route_ready(db, ctx, list(nodes))
         drops.session_inspected(db, ctx, s, list(nodes))
     events.publish(db, ctx, "import.updated", {"projectId": p.id, "importId": s.id, "state": s.state}, source="kernel")
-    # todo13 M2: a drop is classified (and maybe applied) once its last session is inspected.
+    # todo13 M2 / todo28 D5: the drop is classified (a suggestion for the assistant, or the
+    # classifier's own apply where no assistant is in the loop).
     from . import drops_plan
 
     drops_plan.after_inspection(db, s)

@@ -58,8 +58,10 @@ EVENT_TYPES = {
     "item.ready",
     "item.failed",
     # Drops (todo13 §5): one gesture of files dropped in chat, on Home, in Files or on a canvas
-    # (kernel/drops.py). `drop.classified|planned|applied` come from the classifier (todo13-organize).
-    *(DROP_EVENTS := ("drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed")),
+    # (kernel/drops.py). `drop.classified|planned|applied` come from the classifier (todo13-organize);
+    # `drop.kind_waiting|files_failed|settled` are the assistant's milestones (todo28 D7,
+    # kernel/drops_route.py), claimed by the agent service as subscriber `agent-drops`.
+    *(DROP_EVENTS := ("drop.received", "drop.file", "drop.classified", "drop.planned", "drop.applied", "drop.failed", "drop.kind_waiting", "drop.files_failed", "drop.settled")),
     # Pipelines (todo12 §4 M1, docs/pipeline.md §15): published by `service:pipeline` through
     # POST /api/v1/service/events, source "pipeline", idempotency key `<run_id>/<event>[/<step_id>]`.
     *(PIPELINE_EVENTS := (

@@ -13,7 +13,7 @@ import uuid
 
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..config import env, settings
@@ -141,23 +141,49 @@ WORKER_VERSIONING_OPS = {"review.get", "diff", "checkout", "review.check"}
 WORKER_VERSIONING_SCOPES = ("versioning.read", "versioning.checkout", "versioning.checks")
 
 
-@router.post("/subscriptions/claim", dependencies=[Depends(_auth)])
-def claim_events(body: dict = Body(...), db: Session = Depends(get_session)):
+def _subscriber_auth(request: Request, x_worker_token: str = Header(default="")) -> str:
+    """The worker (its token), or the agent service (todo28 D7: subscriber `agent-drops`, the
+    drop milestones only, checked by the route)."""
+    from ..kernel import service_scope
+
+    if x_worker_token and hmac.compare_digest(x_worker_token, worker_token()):
+        return "worker"
+    if service_scope.principal_of(request) == service_scope.AGENT:
+        return service_scope.AGENT
+    raise HTTPException(401, "bad worker token")
+
+
+def _agent_may(subscriber: str, types: list[str]) -> None:
+    from ..kernel import drops_route
+
+    if subscriber != drops_route.SUBSCRIBER or not set(types) <= set(drops_route.MILESTONES):
+        raise HTTPException(403, f"the agent service claims only {', '.join(drops_route.MILESTONES)} as {drops_route.SUBSCRIBER}")
+
+
+@router.post("/subscriptions/claim")
+def claim_events(body: dict = Body(...), db: Session = Depends(get_session), caller: str = Depends(_subscriber_auth)):
     from ..kernel import events
 
     subscriber = str(body.get("subscriber") or "")
     types = [str(t) for t in body.get("types") or []]
     if not subscriber or not types:
         raise HTTPException(422, "subscriber and types are required")
+    if caller != "worker":
+        _agent_may(subscriber, types)
     evs = events.claim_for(db, subscriber, types, int(body.get("limit") or 20))
     return {"events": [{"eventId": e.event_id, "type": e.type, "workspaceId": e.workspace_id, "payload": e.payload, "correlationId": e.correlation_id, "depth": e.depth} for e in evs]}
 
 
-@router.post("/subscriptions/ack", dependencies=[Depends(_auth)])
-def ack_events(body: dict = Body(...), db: Session = Depends(get_session)):
+@router.post("/subscriptions/ack")
+def ack_events(body: dict = Body(...), db: Session = Depends(get_session), caller: str = Depends(_subscriber_auth)):
     from ..kernel import events
+    from ..models import PluginEvent
 
-    return {"acked": events.ack(db, str(body.get("subscriber") or ""), [str(x) for x in body.get("eventIds") or []])}
+    subscriber = str(body.get("subscriber") or "")
+    ids = [str(x) for x in body.get("eventIds") or []]
+    if caller != "worker":
+        _agent_may(subscriber, [e.type for e in db.scalars(select(PluginEvent).where(PluginEvent.event_id.in_(ids)))] if ids else [])
+    return {"acked": events.ack(db, subscriber, ids)}
 
 
 @router.post("/versioning/run", dependencies=[Depends(_auth)])

@@ -59,7 +59,7 @@ def test_policy_rejects_a_profile_whose_renderer_doesnt_consume_its_kind():
 
 
 def test_boot_takes_extends_and_accepts(client):
-    from .test_drops import _project
+    from .test_drops import _project_without_assistant as _project
 
     pid = _project(client)
     r = client.post(f"/api/v1/projects/{pid}/boots", json={"bootId": "boot-mixed-1", "extends": ["preset:image-2d", "preset:ecg"], "accepts": ["image", "waveform"], "name": "Mixed"})
@@ -77,7 +77,7 @@ def test_a_mixed_drop_makes_one_studio(client):
     from studio_api import db as kdb
     from studio_api.models import DropPlanRow, TaskRow
 
-    from .test_drops import _drop, _project, _report
+    from .test_drops import _drop, _project_without_assistant as _project, _report
 
     pid = _project(client)
     files = {"x/chest.png": b"png", "v/clip.mp4": b"mp4", "m/brain.nii.gz": b"nii"}

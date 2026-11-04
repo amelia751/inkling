@@ -401,8 +401,9 @@ def session_inspected(db: Session, ctx: RequestContext, s: ImportSession, node_i
     d = db.get(Drop, s.drop_id) if s.drop_id else None
     if d is None:
         return
+    studio = _Studio(db, d)
     for n in db.scalars(select(SourceNode).where(SourceNode.id.in_(node_ids[:1000]))):
-        _publish(db, ctx, d, "drop.file", {"nodeId": n.id, "state": _node_state(n, d)})
+        _publish(db, ctx, d, "drop.file", {"nodeId": n.id, "state": _node_state(n, d, studio)})
     d.updated_at = now()
     _log(d, "drop.inspected", files=len(node_ids))
     settle(db, ctx, d)
@@ -463,6 +464,10 @@ def settle(db: Session, ctx: RequestContext | None, d: Drop) -> str:
         _publish(db, ctx, d, "drop.failed", {"step": "upload", "errorClass": "nothing_added"})
     # Otherwise the session's own `import.updated` tells clients to read the drop again.
     _log(d, "drop.settled", ready=good, failed=failed, duplicate=dup)
+    # todo28 D7: the assistant hears the drop settled (with its counts), and of any late failures.
+    from . import drops_route
+
+    drops_route.milestones(db, ctx, d, settled=True)
     return d.state
 
 
@@ -556,7 +561,15 @@ def import_rejected(db: Session, ctx: RequestContext, drop_id: str, grouped: lis
 # ---- Views ----------------------------------------------------------------------------------
 
 
-def _node_state(n: SourceNode | None, d: Drop) -> str:
+def held(n: SourceNode) -> bool:
+    """A privacy hold no one has cleared: the file stays out of every Studio (todo28 D2)."""
+    p = (n.flags or {}).get("privacy")
+    return bool(p) and not (isinstance(p, dict) and p.get("clearedBy"))
+
+
+def _node_state(n: SourceNode | None, d: Drop, studio: _Studio | None = None) -> str:
+    """`ready` is checked, clear and viewable (todo28 D1). With the drop's Studio known, a ready
+    file is `in_studio` once its dataset pins it, `waiting_kind` when the Studio doesn't take it."""
     if n is None or n.trashed_at is not None:
         return "deleted"
     if n.id in (d.removed or []):
@@ -566,7 +579,90 @@ def _node_state(n: SourceNode | None, d: Drop) -> str:
     flags = n.flags or {}
     if flags.get("unsupported") or n.detected_kind in KEPT_KINDS or n.detected_kind not in VIEWABLE:
         return "kept"
-    return "ready"
+    if held(n):
+        return "held"
+    return studio.state(n) if studio is not None else "ready"
+
+
+class _Studio:
+    """The Studio a drop's files go to: the one it's attached to (`task_id`), else the one its
+    applied plan put them in. `members`: the node ids its dataset pins."""
+
+    def __init__(self, db: Session, d: Drop) -> None:
+        from ..models import DatasetRow, DropPlanRow, TaskRow
+
+        self.db = db
+        tid = d.task_id
+        if not tid:
+            row = db.get(DropPlanRow, d.id)
+            tid = ((row.applied or {}).get("studioTaskId") if row is not None else None) or None
+        t = db.get(TaskRow, tid) if tid else None
+        self.task = t if t is not None and t.project_id == d.project_id and t.trashed_at is None else None
+        ds = db.get(DatasetRow, self.task.dataset_id) if self.task is not None and self.task.dataset_id else None
+        self.members = {str(r.get("nodeId")) for r in ((ds.definition or {}).get("files") or []) if isinstance(r, dict)} if ds is not None else set()
+
+    def state(self, n: SourceNode) -> str:
+        from . import collections
+
+        if self.task is None:
+            return "ready"
+        takes = collections.task_takes(self.db, self.task, collections.collection_kind(n.detected_kind, n.facts))
+        if n.id in self.members and takes:
+            return "in_studio"
+        return "ready" if takes else "waiting_kind"
+
+
+def _retrying(n: SourceNode | None) -> bool:
+    """A file the worker is retrying (todo28 W1): still `checking`, said so."""
+    return n is not None and n.detected_kind is None and bool((n.flags or {}).get("retrying") or (n.facts or {}).get("retrying"))
+
+
+READY_STATES = ("ready", "in_studio", "waiting_kind")
+
+
+def counts(db: Session, d: Drop) -> dict:
+    """todo28 D8: per-file counts, never one status for the drop: {ready, inStudio, checking,
+    retrying, failed, failedReasons, held, waitingForKind, studioTaskId}. `ready` counts every
+    checked, clear, viewable file (in the Studio or not); `failed` the files that failed to
+    upload or couldn't be read; `failedReasons` groups their reasons (never names)."""
+    studio = _Studio(db, d)
+    out: dict = {"ready": 0, "inStudio": 0, "checking": 0, "retrying": 0, "failed": 0, "held": 0, "waitingForKind": {}, "studioTaskId": studio.task.id if studio.task is not None else None}
+    reasons: dict[str, int] = {}
+    for s, f, n in _rows(db, d):
+        st = _file_state(s, f, n, d, studio)
+        if st in READY_STATES:
+            out["ready"] += 1
+        if st == "in_studio":
+            out["inStudio"] += 1
+        elif st == "waiting_kind" and n is not None:
+            k = _collection_kind(n)
+            out["waitingForKind"][k] = out["waitingForKind"].get(k, 0) + 1
+        elif st in ("checking", "uploading"):
+            out["checking"] += 1
+            out["retrying"] += int(_retrying(n))
+        elif st == "held":
+            out["held"] += 1
+        failure = _failure(f, n, st)
+        if failure:
+            out["failed"] += 1
+            reasons[failure] = reasons.get(failure, 0) + 1
+    out["failedReasons"] = [{"reason": r, "count": c} for r, c in sorted(reasons.items(), key=lambda x: -x[1])]
+    return out
+
+
+def _collection_kind(n: SourceNode) -> str:
+    from . import collections
+
+    return collections.collection_kind(n.detected_kind, n.facts) or n.detected_kind or "unknown"
+
+
+def _failure(f: UploadFile, n: SourceNode | None, st: str) -> str | None:
+    """A failed file's reason, without its name: an upload that failed, or bytes we couldn't read."""
+    if st == "failed":
+        return (f.reason or "The upload failed")[:200]
+    if st == "kept" and n is not None and (n.flags or {}).get("unsupported"):
+        return str((n.flags or {})["unsupported"])[:200]
+    return None
 
 
 def _looks_like(name: str, detected: str | None) -> str | None:
@@ -590,9 +686,9 @@ def _rows(db: Session, d: Drop) -> list[tuple[ImportSession, UploadFile, SourceN
     return out
 
 
-def _file_state(s: ImportSession, f: UploadFile, n: SourceNode | None, d: Drop) -> str:
+def _file_state(s: ImportSession, f: UploadFile, n: SourceNode | None, d: Drop, studio: _Studio | None = None) -> str:
     if f.node_id:
-        return _node_state(n, d)
+        return _node_state(n, d, studio)
     if f.state == "skipped_duplicate":
         return "duplicate"
     if f.state in ("failed", "rejected"):
@@ -604,8 +700,9 @@ def _file_state(s: ImportSession, f: UploadFile, n: SourceNode | None, d: Drop) 
 
 def person_view(db: Session, d: Drop) -> dict:
     files = []
+    studio = _Studio(db, d)
     for s, f, n in _rows(db, d):
-        state = _file_state(s, f, n, d)
+        state = _file_state(s, f, n, d, studio)
         reason = f.reason
         if f.state == "uploaded" and (reason or "").startswith("Same file as"):
             reason = "Already in Sources"
@@ -627,6 +724,7 @@ def person_view(db: Session, d: Drop) -> dict:
                 "kind": n.detected_kind if n is not None else None,
                 "looksLike": _looks_like(n.name, n.detected_kind) if n is not None else None,
                 "flags": sorted(k for k, v in (n.flags or {}).items() if v) if n is not None else [],
+                **({"retrying": True} if _retrying(n) else {}),
             }
         )
     return {
@@ -658,8 +756,9 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
     states: dict[str, int] = {}
     total_bytes = 0
     visible: list[tuple[UploadFile, SourceNode]] = []
+    studio = _Studio(db, d)
     for s, f, n in rows:
-        st = _file_state(s, f, n, d)
+        st = _file_state(s, f, n, d, studio)
         if st == "removed":
             continue
         states[st] = states.get(st, 0) + 1
@@ -674,12 +773,13 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
         cols = facts.get("columns")
         if isinstance(cols, list):
             facts["columns"] = [{"name": c.get("name"), "type": c.get("type")} if isinstance(c, dict) else c for c in cols][:200]
-        files.append({"nodeId": n.id, "agentName": name_screen.agent_name(n), **({"kind": n.detected_kind} if n.detected_kind else {}), **({"facts": facts} if facts else {})})
+        files.append({"nodeId": n.id, "agentName": name_screen.agent_name(n), "state": _node_state(n, d, studio), **({"retrying": True} if _retrying(n) else {}), **({"kind": n.detected_kind} if n.detected_kind else {}), **({"facts": facts} if facts else {})})
     total = sum(states.values())
     # todo20 D5: files whose bytes were already in the project vs new ones; a drop of only
     # known files settles as `duplicate`, never silently.
     already = states.get("duplicate", 0) + sum(1 for _s, f, n in rows if _same_bytes(f, n))
-    new = sum(v for k, v in states.items() if k in ("ready", "kept", "checking")) - (already - states.get("duplicate", 0))
+    new = sum(v for k, v in states.items() if k in ("ready", "in_studio", "waiting_kind", "held", "kept", "checking")) - (already - states.get("duplicate", 0))
+    c = counts(db, d)
     out = {
         "dropId": d.id,
         "origin": d.origin,
@@ -692,6 +792,15 @@ def summary(db: Session, d: Drop, offset: int = 0, limit: int = SUMMARY_FILES) -
         "byKind": by_kind,
         "bytes": total_bytes,
         "states": states,
+        # todo28 D8: what's ready, in the Studio, still being checked, failed or waiting for a kind.
+        "ready": c["ready"],
+        "inStudio": c["inStudio"],
+        "checking": c["checking"],
+        "failed": c["failed"],
+        "waitingForKind": c["waitingForKind"],
+        "studioTaskId": c["studioTaskId"],
+        **({"retrying": c["retrying"]} if c["retrying"] else {}),
+        **({"failedReasons": c["failedReasons"]} if c["failedReasons"] else {}),
         "groups": classified_groups(db, d.id) or groups(visible),
         "files": files,
     }

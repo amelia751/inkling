@@ -9,7 +9,8 @@ that token on every other route, as `agent_scope.py` does for agent sessions.
 
 `service:agent` (apps/agent, the service itself, not a run's delegated session token) presents
 `<envPrefix>API_AGENT_SERVICE_TOKEN` (dev: `dev-only-agent-service-token` when unset; production:
-unset = off). It may only tell the kernel a conversation's title changed (todo21 D7).
+unset = off). It may only tell the kernel a conversation's title changed (todo21 D7), and claim
+and ack the drop milestones as subscriber `agent-drops` (todo28 D7).
 """
 
 from __future__ import annotations
@@ -37,7 +38,14 @@ SERVICE_ROUTES: dict[str, frozenset[tuple[str, str]]] = {
             ("GET", f"{P}/blobs/{{key:path}}"),
         }
     ),
-    AGENT: frozenset({("POST", "/api/v1/projects/{project_id}/conversations/{conversation_id}/title")}),
+    AGENT: frozenset(
+        {
+            ("POST", "/api/v1/projects/{project_id}/conversations/{conversation_id}/title"),
+            # todo28 D7: the drop milestones, as subscriber `agent-drops` only (routes/worker.py).
+            ("POST", "/api/v1/worker/subscriptions/claim"),
+            ("POST", "/api/v1/worker/subscriptions/ack"),
+        }
+    ),
 }
 
 

@@ -29,7 +29,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# OpenTelemetry export (on when OTEL_EXPORTER_OTLP_ENDPOINT is set): `uv sync --extra otel`.
+# OpenTelemetry export (on per OTEL_TRACES_EXPORTER, todo/todo27.md D4): `uv sync --extra otel`.
 otel = ["studio-observability[otel]"]
 # Sign generated plugins with Cloud KMS (STUDIO_API_SIGNER=gcpkms).
 gcpkms = ["studio-signing[gcpkms]"]

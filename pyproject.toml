@@ -27,6 +27,8 @@ dev = [
     "pytest>=9.2",
     "pyright>=1.1.407",
     "import-linter>=2.5",
+    # Tracing packages in dev too, so `OTEL_TRACES_EXPORTER=console pnpm dev` works after `uv sync`.
+    "studio-observability[otel]",
 ]
 
 [tool.ruff]

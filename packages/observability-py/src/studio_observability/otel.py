@@ -1,60 +1,106 @@
-"""Optional OpenTelemetry: on only when OTEL_EXPORTER_OTLP_ENDPOINT is set and the `otel`
-extra is installed. Everything here is a no-op otherwise, so services never depend on it.
+"""Optional OpenTelemetry (todo/todo27.md D4). One switch: tracing is on when
+OTEL_TRACES_EXPORTER is `console`, `otlp` or `gcp`, or when an OTLP endpoint is set. Unset means
+off, with no cost and no warnings. `gcp` exports to Cloud Trace with application default
+credentials (the service account on GKE). Everything here is a no-op when tracing is off or the
+`otel` extra isn't installed, so services never depend on it.
 
-The exporter reads the standard OTEL_* variables (endpoint, headers, protocol, sampler).
+The SDK reads the other standard OTEL_* variables itself (endpoint, headers, protocol, and the
+sampler from OTEL_TRACES_SAMPLER / OTEL_TRACES_SAMPLER_ARG).
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from collections.abc import Iterator
+import sys
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Literal
 
 log = logging.getLogger(__name__)
 
+Exporter = Literal["console", "otlp", "gcp"]
+EXPORTERS: tuple[Exporter, ...] = ("console", "otlp", "gcp")
+
 _tracer: Any = None
+_provider: Any = None
+_warned = False
 
 
 def enabled() -> bool:
     return _tracer is not None
 
 
-def setup(service: str, version: str) -> bool:
-    """Install a tracer provider exporting OTLP/HTTP. Returns whether tracing is on."""
-    global _tracer
+def exporter_for(env: Mapping[str, str]) -> Exporter | None:
+    """Which exporter D4 picks for these variables, or None when tracing is off."""
+    kind = env.get("OTEL_TRACES_EXPORTER", "").strip().lower()
+    if kind in EXPORTERS:
+        return kind  # type: ignore[return-value]
+    if kind:  # `none`, or a value we don't support: off
+        return None
+    if env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+        return "otlp"
+    return None
+
+
+def _warn_once(msg: str, *args: object) -> None:
+    global _warned
+    if not _warned:
+        _warned = True
+        log.warning(msg, *args)
+
+
+def _span_processor(kind: Exporter) -> Any:
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
+
+    if kind == "console":
+        return SimpleSpanProcessor(ConsoleSpanExporter(out=sys.stdout))
+    if kind == "gcp":
+        from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+
+        return BatchSpanProcessor(CloudTraceSpanExporter())
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+    return BatchSpanProcessor(OTLPSpanExporter())
+
+
+def setup(service: str, version: str, env: Mapping[str, str] | None = None) -> bool:
+    """Install a tracer provider for the exporter D4 picks. Returns whether tracing is on."""
+    global _tracer, _provider
     if _tracer is not None:
         return True
-    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT") and not os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+    env = os.environ if env is None else env
+    raw = env.get("OTEL_TRACES_EXPORTER", "").strip().lower()
+    kind = exporter_for(env)
+    if kind is None:
+        if raw and raw != "none":
+            _warn_once("OTEL_TRACES_EXPORTER=%s isn't one of console, otlp, gcp; tracing stays off", raw)
         return False
     try:
         from opentelemetry import trace
-        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-    except ImportError:
-        log.warning("OTEL_EXPORTER_OTLP_ENDPOINT is set but the otel extra isn't installed; tracing stays off")
+
+        processor = _span_processor(kind)
+    except ImportError as e:
+        _warn_once("tracing is on (%s exporter) but the otel extra isn't installed (%s); tracing stays off", kind, e.name)
         return False
-    attrs = {"service.name": os.environ.get("OTEL_SERVICE_NAME") or service, "service.version": version}
-    provider = TracerProvider(resource=Resource.create(attrs))
-    provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+    except Exception as e:  # e.g. no application default credentials for gcp
+        _warn_once("tracing is on (%s exporter) but the exporter failed to start (%s); tracing stays off", kind, e)
+        return False
+    attrs = {"service.name": env.get("OTEL_SERVICE_NAME") or service, "service.version": version}
+    provider = TracerProvider(resource=Resource.create(attrs))  # sampler from OTEL_TRACES_SAMPLER
+    provider.add_span_processor(processor)
     trace.set_tracer_provider(provider)
-    _tracer = trace.get_tracer(service, version)
+    _provider, _tracer = provider, provider.get_tracer(service, version)
     return True
 
 
 def shutdown() -> None:
-    global _tracer
-    if _tracer is None:
-        return
-    from opentelemetry import trace
-
-    provider = trace.get_tracer_provider()
-    if hasattr(provider, "shutdown"):
-        provider.shutdown()  # type: ignore[union-attr]
-    _tracer = None
+    global _tracer, _provider
+    if _provider is not None:
+        _provider.shutdown()
+    _tracer = _provider = None
 
 
 def current_traceparent() -> str | None:

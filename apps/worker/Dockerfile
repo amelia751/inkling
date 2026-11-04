@@ -20,14 +20,14 @@ ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT
 WORKDIR /app
 COPY --from=manifests /out/ ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-workspace --package studio-worker
+    uv sync --frozen --no-dev --no-install-workspace --package studio-worker --extra otel
 COPY packages packages
 COPY apps/worker apps/worker
 COPY schemas schemas
 COPY registry registry
 COPY plugins plugins
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --package studio-worker
+    uv sync --frozen --no-dev --package studio-worker --extra otel
 # Prebuild every bundled plugin's locked environment (registry/index.json → plugins/<id>).
 RUN --mount=type=cache,target=/root/.cache/uv \
     /app/.venv/bin/studio-worker --prepare-envs

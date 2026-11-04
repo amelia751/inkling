@@ -6,11 +6,13 @@ requires-python = ">=3.12"
 dependencies = []
 
 [project.optional-dependencies]
-# OpenTelemetry is only switched on when OTEL_EXPORTER_OTLP_ENDPOINT is set; images that
-# want traces install this extra (`--extra otel` on the app).
+# OpenTelemetry is only switched on by OTEL_TRACES_EXPORTER (console | otlp | gcp) or
+# OTEL_EXPORTER_OTLP_ENDPOINT (todo/todo27.md D4). The api and worker images install this extra
+# (`--extra otel`); the workspace dev group includes it, so a plain `uv sync` has it too.
 otel = [
     "opentelemetry-sdk>=1.38",
     "opentelemetry-exporter-otlp-proto-http>=1.38",
+    "opentelemetry-exporter-gcp-trace==1.15.0",
 ]
 
 [dependency-groups]

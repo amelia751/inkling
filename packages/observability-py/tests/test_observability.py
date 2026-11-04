@@ -127,3 +127,60 @@ def test_otel_stays_off_without_an_endpoint(monkeypatch):
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
     monkeypatch.delenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", raising=False)
     assert not otel.setup("svc", "1") and not otel.enabled()
+
+
+@pytest.mark.parametrize(
+    ("env", "want"),
+    [
+        ({}, None),
+        ({"OTEL_TRACES_EXPORTER": "console"}, "console"),
+        ({"OTEL_TRACES_EXPORTER": "OTLP"}, "otlp"),
+        ({"OTEL_TRACES_EXPORTER": "gcp"}, "gcp"),
+        ({"OTEL_TRACES_EXPORTER": "gcp", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://x:4318"}, "gcp"),
+        ({"OTEL_EXPORTER_OTLP_ENDPOINT": "http://x:4318"}, "otlp"),
+        ({"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://x:4318/v1/traces"}, "otlp"),
+        ({"OTEL_TRACES_EXPORTER": "none", "OTEL_EXPORTER_OTLP_ENDPOINT": "http://x:4318"}, None),
+        ({"OTEL_TRACES_EXPORTER": "zipkin"}, None),
+        ({"OTEL_TRACES_EXPORTER": ""}, None),
+    ],
+)
+def test_exporter_for_follows_d4(env, want):
+    assert otel.exporter_for(env) == want
+
+
+def test_otel_off_logs_nothing(caplog):
+    with caplog.at_level(logging.WARNING):
+        assert not otel.setup("svc", "1", env={})
+    assert not caplog.records
+
+
+def test_otel_console_exporter_prints_spans(capsys):
+    pytest.importorskip("opentelemetry.sdk")
+    assert otel.setup("console-svc", "2.0", env={"OTEL_TRACES_EXPORTER": "console"})
+    try:
+        with otel.span("console job", PARENT, kind="consumer") as real:
+            assert real
+            assert otel.current_traceparent().split("-")[1] == PARENT.split("-")[1]
+    finally:
+        otel.shutdown()
+    out = capsys.readouterr().out
+    assert '"name": "console job"' in out and "console-svc" in out and PARENT.split("-")[1] in out
+
+
+def test_otel_missing_packages_still_starts(monkeypatch, caplog):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_otel(name, *a, **k):
+        if name.startswith("opentelemetry"):
+            raise ImportError(name=name)
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_otel)
+    monkeypatch.setattr(otel, "_warned", False)
+    with caplog.at_level(logging.WARNING):
+        assert not otel.setup("svc", "1", env={"OTEL_TRACES_EXPORTER": "gcp"})
+        assert not otel.setup("svc", "1", env={"OTEL_TRACES_EXPORTER": "gcp"})
+    assert len(caplog.records) == 1 and "otel extra" in caplog.records[0].getMessage()
+    assert not otel.enabled()

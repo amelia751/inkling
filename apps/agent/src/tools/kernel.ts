@@ -347,6 +347,42 @@ function jobSummary(j: any) {
   return j ? { jobId: j.jobId, kind: j.kind, state: j.state, progress: j.progress, counts: j.counts, errorClasses: j.errorClasses, annotationIds: j.annotationIds ?? [] } : null;
 }
 
+type JobView = NonNullable<ReturnType<typeof jobSummary>>;
+
+/** What one input and one result are called in a capability's plain-words summary, and where results are reviewed. */
+const WORDS: Record<string, { input: string; result: string; panel?: string }> = { "image.segment": { input: "image", result: "mask", panel: "Masks" } };
+const usd = (n: number) => `$${n > 0 && n < 0.01 ? n.toFixed(4) : n.toFixed(2)}`;
+
+/**
+ * todo25 W4: a batch in plain words (done, failed, results made, spend), for the person and the
+ * model alike. Only states and annotation ids are used: the kernel never shows the agent outputs.
+ */
+export function batchSummary(jobs: (JobView | null)[], opts: { capability?: string; estimateUsd?: number } = {}) {
+  const w = WORDS[opts.capability ?? ""] ?? { input: "input", result: "annotation" };
+  const js = jobs.filter((j): j is JobView => !!j);
+  const count = (...states: string[]) => js.filter((j) => states.includes(j.state)).length;
+  const done = count("succeeded");
+  const failed = count("failed", "cancelled");
+  const running = js.length - done - failed;
+  const made = js.reduce((a, j) => a + (j.annotationIds?.length ?? 0), 0);
+  let text = `${plural(js.length, w.input)}: ${done} done, ${failed} failed${running ? `, ${running} still running` : ""}`;
+  if (made || !running) text += `; ${plural(made, w.result)} ${running ? "so far" : "made"}`;
+  if (made) text += w.panel ? `, waiting for review in the ${w.panel} panel` : ", waiting for review";
+  text += ".";
+  if (opts.estimateUsd !== undefined) text += ` Estimated spend ${usd(opts.estimateUsd)}.`;
+  const errorClasses = [...new Set(js.flatMap((j) => (Array.isArray(j.errorClasses) ? j.errorClasses.map((e: any) => String(e?.errorClass ?? e)) : [])))];
+  return {
+    summary: text,
+    done,
+    failed,
+    running,
+    finished: running === 0,
+    resultsMade: made,
+    ...(errorClasses.length ? { errorClasses } : {}),
+    ...(w.panel ? { review: { panel: w.panel, annotationIds: js.flatMap((j) => j.annotationIds ?? []).slice(0, 1000) } } : {}),
+  };
+}
+
 export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[] {
   const listAssets = defineTool({
     name: "list_assets",
@@ -386,7 +422,9 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
   const createJob = defineTool({
     name: "create_job",
     label: "Starting batch job",
-    description: "Run a capability over several inputs as one batch. The whole batch is priced first and refused before any billable call if it exceeds the budget.",
+    description:
+      "Run a capability over several inputs as one batch (one input per item, e.g. every image in the Studio: one call, not a loop of invoke_capability). " +
+      "The whole batch is priced first and refused before any billable call if it exceeds the budget. Returns jobIds and a plain-words summary; pass them to get_job_status.",
     promptSnippet: "Run a capability over a batch of inputs",
     parameters: Type.Object({
       capability: Type.String(),
@@ -395,20 +433,40 @@ export function createTaskTools(k: KernelClient): ToolDefinition<any, any, any>[
     }),
     async execute(id, args, signal) {
       const r = await k.post<{ jobs: any[]; estimateUsd: number }>("/commands", { capability: args.capability, inputs: args.inputs, plugin: args.plugin && canonicalId(args.plugin) }, signal, `agent:${id}`);
-      return out({ jobs: r.jobs.map(jobSummary), estimateUsd: r.estimateUsd }, `${plural(r.jobs.length, "job")} · est. $${r.estimateUsd}`);
+      const jobs = r.jobs.map(jobSummary);
+      const s = batchSummary(jobs, { capability: args.capability, estimateUsd: r.estimateUsd });
+      return out({ ...s, capability: args.capability, jobIds: jobs.flatMap((j) => (j ? [j.jobId] : [])), estimateUsd: r.estimateUsd, jobs }, s.summary);
     },
   });
 
   const jobStatus = defineTool({
     name: "get_job_status",
     label: "Checking job",
-    description: "State, progress, counts and error classes of a job, and the ids of the annotations it produced. Never its outputs or error text.",
-    promptSnippet: "Status of a gateway job",
-    parameters: Type.Object({ jobId: Type.String() }),
+    description:
+      "State, progress, counts and error classes of a job (jobId) or of a whole batch (jobIds from create_job), and the ids of the annotations produced. " +
+      "A batch comes back with a plain-words summary (done, failed, results made, spend). Never outputs or error text.",
+    promptSnippet: "Status of a gateway job or batch",
+    parameters: Type.Object({
+      jobId: Type.Optional(Type.String()),
+      jobIds: Type.Optional(Type.Array(Type.String(), { minItems: 1, maxItems: 200 })),
+      capability: Type.Optional(Type.String({ description: "The capability the jobs ran (e.g. image.segment), for the summary's wording." })),
+      estimateUsd: Type.Optional(Type.Number({ description: "The estimate create_job returned, repeated in the summary." })),
+    }),
     async execute(_id, args, signal) {
-      const r = await k.get<{ job: any; result: { annotationIds?: string[] } | null }>(`/boundary/jobs/${encodeURIComponent(args.jobId)}`, signal);
-      const j = jobSummary({ ...r.job, annotationIds: r.result?.annotationIds });
-      return out(j, `${j?.state ?? "unknown"}`);
+      const one = async (jobId: string) => {
+        const r = await k.get<{ job: any; result: { annotationIds?: string[] } | null }>(`/boundary/jobs/${encodeURIComponent(jobId)}`, signal);
+        return jobSummary({ ...r.job, annotationIds: r.result?.annotationIds });
+      };
+      if (!args.jobIds?.length) {
+        if (!args.jobId) throw new Error("pass jobId or jobIds");
+        const j = await one(args.jobId);
+        return out(args.capability ? { ...j, summary: batchSummary([j], { capability: args.capability }).summary } : j, `${j?.state ?? "unknown"}`);
+      }
+      const jobs: (JobView | null)[] = [];
+      // A few at a time: a batch is up to 200 jobs.
+      for (let i = 0; i < args.jobIds.length; i += 8) jobs.push(...(await Promise.all(args.jobIds.slice(i, i + 8).map(one))));
+      const s = batchSummary(jobs, { capability: args.capability, estimateUsd: args.estimateUsd });
+      return out({ ...s, jobs: jobs.map((j) => j && { jobId: j.jobId, state: j.state, annotationIds: j.annotationIds }) }, s.summary);
     },
   });
 

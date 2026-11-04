@@ -1,0 +1,92 @@
+{
+  "scripts": [
+    {
+      "when": "segment the lungs",
+      "turns": [
+        {
+          "toolCalls": [
+            {
+              "name": "list_capabilities"
+            }
+          ]
+        },
+        {
+          "text": "12 images will be sent to Meta’s SAM 3.1, about $0.03 ($2.50 per 1,000 images). I’ll use the lungs recipe: two boxes per image, no text prompt.",
+          "toolCalls": [
+            {
+              "name": "create_job",
+              "arguments": {
+                "capability": "image.segment",
+                "inputs": [
+                  {
+                    "asset_id": "chest/img-01.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-02.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-03.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-04.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-05.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-06.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-07.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-08.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-09.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-10.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-11.jpeg",
+                    "label": "lungs"
+                  },
+                  {
+                    "asset_id": "chest/img-12.jpeg",
+                    "label": "lungs"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "toolCalls": [
+            {
+              "name": "get_job_status",
+              "arguments": {
+                "jobIds": "{{last.jobIds}}",
+                "capability": "image.segment",
+                "estimateUsd": "{{last.estimateUsd}}"
+              }
+            }
+          ]
+        },
+        {
+          "text": "Done: 12 images, 24 masks (right lung and left lung on each), about $0.03. Review them in the Masks panel: accept, reject or edit each one."
+        }
+      ]
+    }
+  ]
+}

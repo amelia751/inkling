@@ -8,12 +8,13 @@ is idempotent per key, so re-running a job never duplicates annotations (§14 #7
 from __future__ import annotations
 
 import copy
+import time
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from ..context import RequestContext
@@ -199,12 +200,27 @@ def commit(db: Session, ctx: RequestContext, annotations: list[dict], *, idempot
         if prior is not None:
             return list(prior.annotation_ids)
     checked = [_canonical(validate_annotation(a)) for a in annotations]
-    row = _row(db, ctx)
     ids = {a["id"] for a in checked}
-    row.annotations = [a for a in row.annotations if a.get("id") not in ids] + checked
-    row.revision += 1
-    row.annotations_version = row.annotations_version or ANNOTATIONS_VERSION
-    row.saved_at = datetime.now(UTC)
+    # Compare-and-set on the revision: jobs finishing at once (todo25: a Studio's batch runs in
+    # parallel) each append to the same document, and a plain read-modify-write loses all but one.
+    for attempt in range(50):
+        row = _row(db, ctx)
+        db.refresh(row)
+        base = row.revision
+        merged = [a for a in row.annotations if a.get("id") not in ids] + checked
+        done = db.execute(
+            update(AnnotationDocumentRow)
+            .where(AnnotationDocumentRow.workspace_id == ctx.workspace_id, AnnotationDocumentRow.task_id == ctx.task, AnnotationDocumentRow.revision == base)
+            .values(annotations=merged, revision=base + 1, annotations_version=row.annotations_version or ANNOTATIONS_VERSION, saved_at=datetime.now(UTC))
+            .execution_options(synchronize_session=False)
+        ).rowcount
+        if done == 1:
+            break
+        db.expire(row)
+        time.sleep(min(0.02 * (attempt + 1), 0.25))
+    else:
+        raise HTTPException(409, "the annotation document kept changing; try again")
+    db.refresh(row)
     db.add(AnnotationCommit(workspace_id=ctx.workspace_id, idempotency_key=idempotency_key or uuid.uuid4().hex, job_id=job_id, annotation_ids=[a["id"] for a in checked]))
     audit.record(db, ctx, "annotations.commit", target=source, after={"ids": [a["id"] for a in checked], "jobId": job_id, "revision": row.revision})
     db.flush()

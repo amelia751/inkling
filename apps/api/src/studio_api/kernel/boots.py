@@ -191,7 +191,9 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     project_rules.seed_from_preset(db, p, preset, projects.person(ctx))
 
     # The draft: a dataset of the given files (possibly none yet) and its task.
-    from . import collections
+    from . import collections, ingest
+
+    follows = first_studio = False
 
     if dataset is not None:
         d = dataset
@@ -203,9 +205,12 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     elif node_ids:
         d = projects.create_dataset(db, ctx, p, title, {"nodeIds": node_ids, "draft": True})
     else:
-        d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True}, created_by=projects.person(ctx))
+        # todo24 D3: booted before its files (the drop is still uploading): it fills from uploads.
+        d = DatasetRow(id=projects.new_id("ds"), project_id=p.id, title=title, description="", definition={"nodeIds": [], "files": [], "followedFolders": [], "draft": True, ingest.FOLLOW: True}, created_by=projects.person(ctx))
         db.add(d)
         db.flush()
+        follows = True
+        first_studio = db.scalar(select(TaskRow.id).where(TaskRow.project_id == p.id, TaskRow.trashed_at.is_(None)).limit(1)) is None
     if collection is None and accepts is None and dataset is None:
         collection = _default_collection(db, ctx, d, preset)
     t = projects.create_task(db, ctx, d, title, "annotate", None)
@@ -224,6 +229,14 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     if node_ids:
         n = len((d.definition or {}).get("files") or [])
         _step(db, scoped, b, "files", f"Linked {n} file{'' if n == 1 else 's'}")
+    elif follows:
+        # The project's first Studio starts with the files already there; uploads still running
+        # (and later ones, while it's a draft) join it as they land.
+        roots = list(db.scalars(select(SourceNode.id).where(SourceNode.project_id == p.id, SourceNode.parent_id.is_(None), SourceNode.is_dir.is_(True)))) if first_studio else []
+        n = len(collections.add_for_task(db, ctx, t, roots)) if roots else 0
+        uploading = ingest.adopt_open(db, t)
+        if n or uploading:
+            _step(db, scoped, b, "files", f"Linked {n} file{'' if n == 1 else 's'}" if n else f"Takes {uploading} upload{'' if uploading == 1 else 's'} in progress")
 
     # Revision 1: the preset. Revision 2: the refinement, so Undo reverts only that.
     prov = studio_defs.provenance(ctx, headers, body)

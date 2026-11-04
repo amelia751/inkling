@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sys
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -50,18 +51,67 @@ def _warn_once(msg: str, *args: object) -> None:
         log.warning(msg, *args)
 
 
+_KEEP_SEGMENT = re.compile(r"^(v\d+|[a-z][a-z_-]{0,31}|\{[a-z_]+\})$")
+_URL_KEYS = ("url.full", "url.path", "http.url", "http.target")
+_DROP_KEYS = ("url.query",)
+_NAMED_REQUEST = re.compile(r"^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) (/\S*)$")
+
+
+def redact_path(path: str) -> str:
+    """D3: request paths carry ids and file names. Keep route words (`api`, `v1`, `jobs`,
+    `{job_id}`); every other segment becomes `{id}`; the query string is dropped."""
+    path = path.split("?", 1)[0].split("#", 1)[0]
+    return "/".join(seg if (not seg or _KEEP_SEGMENT.match(seg)) else "{id}" for seg in path.split("/"))
+
+
+def redact_url(value: str) -> str:
+    if value.startswith("/"):
+        return redact_path(value)
+    m = re.match(r"^([a-z][a-z0-9+.-]*://[^/?#]*)(.*)$", value, re.I)
+    return (m.group(1) + redact_path(m.group(2) or "/")) if m else redact_path(value)
+
+
+def redact_span_fields(name: str, attributes: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
+    """The span name and attributes with every request path redacted (pure; tested)."""
+    out = {k: (redact_url(v) if k in _URL_KEYS and isinstance(v, str) else v) for k, v in attributes.items() if k not in _DROP_KEYS}
+    m = _NAMED_REQUEST.match(name)
+    return (f"{m.group(1)} {redact_path(m.group(2))}" if m else name), out
+
+
+class _Redacting:
+    """Wraps an exporter: spans leave the process with their request paths redacted (D3)."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+
+    def export(self, spans: Any) -> Any:
+        from opentelemetry.sdk.trace import ReadableSpan
+
+        out = []
+        for s in spans:
+            name, attrs = redact_span_fields(s.name, dict(s.attributes or {}))
+            out.append(ReadableSpan(name=name, context=s.context, parent=s.parent, resource=s.resource, attributes=attrs, events=s.events, links=s.links, kind=s.kind, status=s.status, start_time=s.start_time, end_time=s.end_time, instrumentation_scope=s.instrumentation_scope))
+        return self.inner.export(out)
+
+    def shutdown(self) -> None:
+        self.inner.shutdown()
+
+    def force_flush(self, timeout_millis: int = 30000) -> bool:
+        return self.inner.force_flush(timeout_millis)
+
+
 def _span_processor(kind: Exporter) -> Any:
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SimpleSpanProcessor
 
     if kind == "console":
-        return SimpleSpanProcessor(ConsoleSpanExporter(out=sys.stdout))
+        return SimpleSpanProcessor(_Redacting(ConsoleSpanExporter(out=sys.stdout)))
     if kind == "gcp":
         from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
 
-        return BatchSpanProcessor(CloudTraceSpanExporter())
+        return BatchSpanProcessor(_Redacting(CloudTraceSpanExporter()))
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
-    return BatchSpanProcessor(OTLPSpanExporter())
+    return BatchSpanProcessor(_Redacting(OTLPSpanExporter()))
 
 
 def setup(service: str, version: str, env: Mapping[str, str] | None = None) -> bool:

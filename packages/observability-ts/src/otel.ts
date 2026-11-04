@@ -51,6 +51,60 @@ const SDK = "@opentelemetry/sdk-node";
 const AUTO = "@opentelemetry/auto-instrumentations-node";
 const API = "@opentelemetry/api";
 const GCP = "@google-cloud/opentelemetry-cloud-trace-exporter";
+const OTLP = "@opentelemetry/exporter-trace-otlp-http";
+const BASE = "@opentelemetry/sdk-trace-base";
+
+// ---- D3: request paths carry ids and file names; they never leave in a span -----------------
+
+const KEEP_SEGMENT = /^(v\d+|[a-z][a-z_-]{0,31}|\{[a-z_]+\})$/;
+const URL_KEYS = new Set(["url.full", "url.path", "http.url", "http.target"]);
+const DROP_KEYS = new Set(["url.query"]);
+const NAMED_REQUEST = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) (\/\S*)$/;
+
+/** Keep route words (`api`, `v1`, `jobs`, `{job_id}`); every other segment becomes `{id}`; no query. */
+export function redactPath(path: string): string {
+  const bare = path.split("?")[0]!.split("#")[0]!;
+  return bare
+    .split("/")
+    .map((seg) => (!seg || KEEP_SEGMENT.test(seg) ? seg : "{id}"))
+    .join("/");
+}
+
+export function redactUrl(value: string): string {
+  if (value.startsWith("/")) return redactPath(value);
+  const m = /^([a-z][a-z0-9+.-]*:\/\/[^/?#]*)(.*)$/i.exec(value);
+  return m ? m[1] + redactPath(m[2] || "/") : redactPath(value);
+}
+
+/** A span's name and attributes with every request path redacted (pure; tested). */
+export function redactSpanFields(name: string, attributes: Record<string, unknown>): { name: string; attributes: Record<string, unknown> } {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(attributes)) {
+    if (DROP_KEYS.has(k)) continue;
+    out[k] = URL_KEYS.has(k) && typeof v === "string" ? redactUrl(v) : v;
+  }
+  const m = NAMED_REQUEST.exec(name);
+  return { name: m ? `${m[1]} ${redactPath(m[2]!)}` : name, attributes: out };
+}
+
+type SpanLike = { name: string; attributes: Record<string, unknown> };
+type ExporterLike = { export(spans: SpanLike[], done: (r: unknown) => void): void; shutdown(): Promise<void>; forceFlush?(): Promise<void> };
+
+/** Wraps an exporter so spans leave with their request paths redacted (D3). */
+export function redacting(inner: ExporterLike): ExporterLike {
+  return {
+    export(spans, done) {
+      const out = spans.map((s) => {
+        const r = redactSpanFields(s.name, s.attributes ?? {});
+        // A view over the SDK's span: everything else (context, times, status…) is unchanged.
+        return Object.create(s, { name: { value: r.name, enumerable: true }, attributes: { value: r.attributes, enumerable: true } }) as SpanLike;
+      });
+      inner.export(out, done);
+    },
+    shutdown: () => inner.shutdown(),
+    forceFlush: () => inner.forceFlush?.() ?? Promise.resolve(),
+  };
+}
 
 type NodeSdk = new (o: Record<string, unknown>) => { start(): void; shutdown(): Promise<void> };
 
@@ -72,21 +126,31 @@ export async function initTracing(opts: {
   let missing = SDK;
   try {
     const { NodeSDK } = (await load(SDK)) as { NodeSDK: NodeSdk };
-    let traceExporter: unknown;
+    let inner: ExporterLike;
     if (kind === "gcp") {
       missing = GCP;
-      const { TraceExporter } = (await load(GCP)) as { TraceExporter: new () => unknown };
-      traceExporter = new TraceExporter();
+      const { TraceExporter } = (await load(GCP)) as { TraceExporter: new () => ExporterLike };
+      inner = new TraceExporter();
+    } else if (kind === "otlp") {
+      missing = OTLP;
+      // Reads OTEL_EXPORTER_OTLP_* itself.
+      const { OTLPTraceExporter } = (await load(OTLP)) as { OTLPTraceExporter: new () => ExporterLike };
+      inner = new OTLPTraceExporter();
+    } else {
+      missing = BASE;
+      const { ConsoleSpanExporter } = (await load(BASE)) as { ConsoleSpanExporter: new () => ExporterLike };
+      inner = new ConsoleSpanExporter();
     }
+    const traceExporter = redacting(inner);
     env.OTEL_NODE_ENABLED_INSTRUMENTATIONS ??= "http,undici";
     const auto = (await load(AUTO).catch(() => undefined)) as { getNodeAutoInstrumentations?: () => unknown[] } | undefined;
     api = (await load(API).catch(() => undefined)) as OtelApi | undefined;
     env.OTEL_SERVICE_NAME ??= opts.service;
     if (opts.version && !/service\.version=/.test(env.OTEL_RESOURCE_ATTRIBUTES ?? ""))
       env.OTEL_RESOURCE_ATTRIBUTES = [env.OTEL_RESOURCE_ATTRIBUTES, `service.version=${opts.version}`].filter(Boolean).join(",");
-    // console and otlp: the SDK builds the exporter from OTEL_TRACES_EXPORTER / OTEL_EXPORTER_OTLP_*.
+    // We build the exporter (rather than the SDK from OTEL_TRACES_EXPORTER) so it can redact.
     const sdk = new NodeSDK({
-      ...(traceExporter ? { traceExporter } : {}),
+      traceExporter,
       instrumentations: auto?.getNodeAutoInstrumentations ? [auto.getNodeAutoInstrumentations()] : [],
     });
     sdk.start();

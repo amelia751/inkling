@@ -253,7 +253,20 @@ export interface CreateSessionResponse {
 export type ThreadPart =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "tool"; id: string; name: string; title: string; status: "running" | "done" | "error"; summary?: string; input?: unknown; output?: string }
+  | {
+      type: "tool";
+      id: string;
+      name: string;
+      title: string;
+      status: "running" | "done" | "error";
+      summary?: string;
+      input?: unknown;
+      output?: string;
+      /** todo29 D6: the row's past-tense label once done ("Looked at your files"). */
+      pastTitle?: string;
+      /** todo29 D6: the summary is a live snapshot (counts); the row never shows it. */
+      progress?: boolean;
+    }
   | { type: "drop"; id: string }
   /** todo22 W4: parts not in the transcript, recorded as `ui_part`s and replayed in place. */
   | { type: "card"; id: string; card: AgentCard; state: "open" | "applied" | "dismissed" | "undone" }

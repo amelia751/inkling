@@ -311,19 +311,26 @@ def timeline_steps(page) -> dict[str, int]:
     return {s["step"]: s["ms"] for s in (t or {}).get("steps", [])}
 
 
-def home_drop(page, port: int, files: dict[str, bytes]) -> tuple[str | None, float]:
-    """Drop on Home: a new project, after Create in the new-project dialog (todo21 D2)."""
+def new_project(page, port: int, name: str) -> str | None:
+    """New project → name → Create: its Overview, which for an empty project is only the chat."""
     before = project_ids()
-    page.goto(f"http://localhost:{port}/?timeline=1")
-    page.get_by_test_id("home-composer").wait_for(timeout=30000)
-    t0 = time.time()
-    page.evaluate(DROP_JS, ["[data-testid=home-drop]", b64files(files), None])
-    # todo21 D2: the drop waits in the new-project dialog; Create starts the project.
-    page.get_by_test_id("new-project-dialog").wait_for(timeout=10000)
+    page.goto(f"http://localhost:{port}/projects?timeline=1")
+    page.get_by_test_id("projects-new-project").wait_for(timeout=30000)
+    page.get_by_test_id("projects-new-project").click()
+    page.get_by_test_id("new-project-name").fill(name)
     page.get_by_test_id("new-project-create").click()
-    attest(page, 10000)
+    page.get_by_test_id("empty-project").wait_for(timeout=30000)
     made = wait(lambda: [p for p in project_ids() if p not in before], timeout=30)
-    return (made[0] if made else None), t0
+    return made[0] if made else None
+
+
+def home_drop(page, port: int, files: dict[str, bytes], name: str = "Dropped files") -> tuple[str | None, float]:
+    """A new project, then the files dropped on its empty Overview's chat."""
+    pid = new_project(page, port, name)
+    t0 = time.time()
+    page.evaluate(DROP_JS, ["[data-testid=empty-project] [data-testid=drop-zone]", b64files(files), None])
+    attest(page, 10000)
+    return pid, t0
 
 
 def studio_task(page) -> str | None:
@@ -414,24 +421,14 @@ class Suite:
     # J2 ----------------------------------------------------------------------------------------
     def j2_type_on_home(self) -> None:
         page = self.page
-        before = project_ids()
-        page.goto(self.url("/?timeline=1"))
-        page.get_by_test_id("home-composer").wait_for(timeout=30000)
-        box = page.get_by_test_id("goal")
+        pid = new_project(page, self.port, "Chest X-ray classification")
+        check("J2: New project creates a project", bool(pid), str(pid))
+        if not pid:
+            return
+        box = page.get_by_test_id("empty-project-input")
         box.fill("Chest X-ray classification with five labels")
         t_send = time.time()
         box.press("Enter")
-        target = page.get_by_test_id("home-target-new")
-        try:
-            target.wait_for(timeout=2000)
-            target.click()
-        except Exception:  # noqa: BLE001
-            pass
-        made = wait(lambda: [p for p in project_ids() if p not in before], timeout=30)
-        check("J2: a send on Home creates a project", bool(made), str(made))
-        if not made:
-            return
-        pid = made[0]
         try:
             page.wait_for_url("**/studio/**", timeout=45000)
         except Exception:  # noqa: BLE001

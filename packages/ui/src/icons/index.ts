@@ -35,7 +35,8 @@ export { default as SystemThemeIcon } from "@gravity-ui/icons/Display";
 export { default as SendIcon } from "@gravity-ui/icons/PaperPlane";
 export { default as LicenseIcon } from "@gravity-ui/icons/ShieldCheck";
 export { default as FileIcon } from "@gravity-ui/icons/FileCode";
-export { default as BrandIcon } from "@gravity-ui/icons/Binoculars";
+// The product logo, in colour (a mark, not a glyph): `custom.tsx`.
+export { BrandLogo } from "./custom";
 // Projects and sources (todo6 §3). Glyphs may repeat across jobs; a job never gets two glyphs.
 export { default as HomeIcon } from "@gravity-ui/icons/House";
 export { default as ProjectsIcon } from "@gravity-ui/icons/LayoutCellsLarge";

@@ -86,14 +86,14 @@ def main() -> int:
         page.locator("[data-testid=switch-project-ecg-waveform]").click()
         page.wait_for_url("**/projects/ecg-waveform/sources")
         check("project switcher keeps the section", page.url.endswith("/projects/ecg-waveform/sources"))
-        # A project starts from Home's composer: the switcher's "New project" goes there (no form).
+        # A project starts from "New project": the switcher's opens the name dialog.
         page.locator("[data-testid=project-switcher]").click()
         page.locator("[data-testid=switcher-new-project]").click()
-        page.wait_for_selector("[data-testid=home-composer]", timeout=10000)
-        check("New project goes to Home's composer", page.url.rstrip("/") == base.rstrip("/"))
+        check("the switcher's New project opens the name dialog", bool(page.wait_for_selector("[data-testid=new-project-dialog]", timeout=10000)))
+        page.locator("[data-testid=new-project-cancel]").click()
         page.goto(f"{base}/projects/new")
-        page.wait_for_selector("[data-testid=home-composer]", timeout=10000)
-        check("/projects/new lands on Home", page.url.rstrip("/") == base.rstrip("/"))
+        page.wait_for_selector("[data-testid=projects-new-project]", timeout=10000)
+        check("/projects/new lands on Projects", page.url.endswith("/projects"), page.url)
 
         # The Studio: the project nav is a rail, the top bar has the breadcrumb, and the same
         # command hides the rail to give the canvas the space.

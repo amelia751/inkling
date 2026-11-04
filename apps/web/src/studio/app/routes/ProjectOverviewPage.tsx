@@ -292,7 +292,8 @@ function StartCard({ projectId, tasks, defaultTaskId }: { projectId: string; tas
 /**
  * todo20 D3: the drop plan is the only way files become Studio items, so this card never offers
  * a dataset. It points at the Studio (or at Files while there is none yet) and, when a table
- * could add labels, at Explore. A settled import with a Studio already has the start card.
+ * could add labels, at Explore. A settled import with a Studio already has the start card, which
+ * also owns "Open Studio" whenever a Studio exists.
  */
 function LatestImport({ overview: o }: { overview: ProjectOverview }) {
   const projectId = o.project.id;
@@ -309,13 +310,12 @@ function LatestImport({ overview: o }: { overview: ProjectOverview }) {
           <Link to={exploreUrl(projectId)} data-testid="import-explore">See what we found</Link>
         </Button>
       )}
-      <Button size="lg" asChild>
-        {hasStudio ? (
-          <Link to={studioUrl(projectId)} data-testid="import-open-studio">Open Studio <ArrowRightIcon /></Link>
-        ) : (
+      {/* With a Studio, the start or resume card below already opens it: one "Open Studio" per page. */}
+      {!hasStudio && (
+        <Button size="lg" asChild>
           <Link to={sourcesUrl(projectId)} data-testid="import-open-files">See them in Files <ArrowRightIcon /></Link>
-        )}
-      </Button>
+        </Button>
+      )}
     </Card>
   );
 }

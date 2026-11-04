@@ -7,7 +7,6 @@ import {
   BillingIcon,
   ChevronDownIcon,
   DatasetsIcon,
-  HomeIcon,
   MergeIcon,
   OrganizationIcon,
   OverviewIcon,
@@ -38,7 +37,7 @@ import { useViewport, useWindowWidth } from "@/studio/lib/use-media-query";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { useProjectEvents } from "@/studio/lib/use-project-events";
 import { useTrashCount } from "@/studio/lib/files/api";
-import { billingUrl, changesUrl, connectedAgentsUrl, homeUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
+import { billingUrl, changesUrl, connectedAgentsUrl, orgUrl, profileUrl, projectUrl, projectsUrl, projectTrashUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
@@ -288,7 +287,6 @@ function SideNav({ project, rail }: { project?: ProjectRef; rail: boolean }) {
       <nav className={cn("flex flex-col", rail ? "items-center gap-1" : "gap-5")} aria-label="Workspace">
         <NewButton rail={rail} />
         <NavSection heading="Workspace" rail={rail}>
-          <NavItem to={homeUrl()} end icon={HomeIcon} label="Home" rail={rail} />
           <NavItem to={projectsUrl()} end icon={ProjectsIcon} label="Projects" rail={rail} />
         </NavSection>
         <NavSection heading="Settings" rail={rail}>

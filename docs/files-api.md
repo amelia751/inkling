@@ -76,7 +76,7 @@ reason "renamed".
 
 ## Drops and chat files (todo13-drops)
 
-A **drop** is one gesture of files dropped, pasted or attached (chat, Home, Sources, a Studio
+A **drop** is one gesture of files dropped, pasted or attached (chat, an empty project's Overview, Sources, a Studio
 canvas): table `drops` (`origin`, `conversation_id`, `message_id`, `task_id`, `state`), and every
 import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.py`,
 `routes/drops.py`; contract `packages/contracts/src/drops.ts`. Behind `API_FEATURE_CHAT_DROPS`
@@ -88,8 +88,8 @@ import session of the gesture carries `import_sessions.drop_id`. `kernel/drops.p
   person (`API_DROP_RATE_PER_MINUTE`, 429 with `Retry-After`). A client `id` (`drp-…`) makes a
   retry return the same drop.
 - `POST /v1/projects/:id/imports` takes `origin: {kind, conversationId?, messageId?, dropId?}`
-  (or `dropId`). A chat drop, and a Home drop (D1 delivers it into the new project's
-  conversation), lands in **Shared in chat/<conversation>** (made on first use, one subfolder per
+  (or `dropId`). A chat drop, including one on an empty project's Overview
+  composer, lands in **Shared in chat/<conversation>** (made on first use, one subfolder per
   conversation) with `Source.kind = chat`; the drop's totals stay within the limits.
 - The worker's listing of an import that holds a table (`GET /v1/worker/inspect/imports/:id`)
   carries `knownNames`: the file names of the drop's dataset, so a labels CSV dropped later is

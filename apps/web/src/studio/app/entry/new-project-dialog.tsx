@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { useNavigate } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ProjectSummary } from "@studio/contracts/types";
+import { AddDataIcon } from "@studio/ui/icons";
 import { Button } from "@studio/ui/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@studio/ui/ui/dialog";
 import { Input } from "@studio/ui/ui/input";
@@ -22,8 +23,8 @@ export interface NewProjectRequest {
   suggestion?: string;
   /**
    * What waits to be delivered after Create (a Home send or drop, D2): a line under the field.
-   * With `pending` the caller delivers and navigates; without it, the new project opens with its
-   * chat panel open, empty and focused.
+   * With `pending` the caller delivers and navigates; without it, the new project opens on its
+   * Overview.
    */
   pending?: string;
   /** Don't open the project after Create (the Home assistant's `create_project` tool). */
@@ -56,12 +57,20 @@ export function useNewProject() {
   return { open };
 }
 
+export function NewProjectButton({ size = "sm", variant = "outline", testId = "new-project", className }: { size?: "sm" | "lg"; variant?: "default" | "outline"; testId?: string; className?: string }) {
+  const { open } = useNewProject();
+  return (
+    <Button variant={variant} size={size} className={className} onClick={() => void open()} data-testid={testId}>
+      <AddDataIcon /> New project
+    </Button>
+  );
+}
+
 export function NewProjectHost() {
   const request = useNewProjectStore((s) => s.request);
   const close = useNewProjectStore((s) => s.close);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const setAssistant = useShell((s) => s.setAssistant);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,9 +97,7 @@ export function NewProjectHost() {
       useShell.getState().visited({ id: p.id, title: p.title });
       void qc.invalidateQueries({ queryKey: projectKeys.all });
       if (request.pending === undefined && !request.stay) {
-        // D1: the project opens with its chat open, empty, the composer focused.
         opened.current = true;
-        setAssistant(true, true);
         navigate(projectUrl(p.id));
       }
       close(p);
@@ -109,9 +116,8 @@ export function NewProjectHost() {
         onCloseAutoFocus={(e) => {
           if (!opened.current) return;
           opened.current = false;
+          // Focus goes to the new project's Overview composer, not back to the trigger.
           e.preventDefault();
-          // The drawer may mount after the dialog closes: ask it to focus again.
-          requestAnimationFrame(() => useShell.getState().setAssistant(true, true));
         }}
       >
         <DialogHeader>

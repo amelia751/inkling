@@ -18,6 +18,7 @@ import { mockSession, resetForOrg, switchOrg, useSession, type SessionOrg } from
 import { projectsUrl, projectUrl, studioUrl, taskSetupUrl, type ProjectSection } from "@/studio/lib/routes";
 import { useShell } from "@/studio/stores/shell";
 import { useUploads } from "@/studio/stores/uploads";
+import { useNewProject } from "@/studio/app/entry/new-project-dialog";
 import { SkeletonText } from "@studio/ui/ui/skeleton";
 import { cn } from "@studio/ui/utils";
 
@@ -121,6 +122,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const section = (/^\/projects\/[^/]+\/([^/]+)/.exec(pathname)?.[1] ?? "overview") as ProjectSection;
+  const { open: openNewProject } = useNewProject();
 
   return (
     // Keyed by project: switching mounts a fresh menu, so the old one's closing animation (whose
@@ -149,7 +151,7 @@ export function ProjectSwitcher({ projectId, title, className }: { projectId: st
             <ProjectsIcon className="text-muted-foreground" /> All projects
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => navigate("/")} data-testid="switcher-new-project">
+        <DropdownMenuItem onSelect={() => void openNewProject()} data-testid="switcher-new-project">
           <AddDataIcon className="text-muted-foreground" /> New project
         </DropdownMenuItem>
       </DropdownMenuContent>

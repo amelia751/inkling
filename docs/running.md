@@ -138,7 +138,7 @@ server stands in for the API, read-only (`apps/web/dev/project-stand-in.ts`). Ea
 `seed-data/manifest.json` becomes one project, one source, one dataset and one task, all with
 the seed's id. These work:
 
-- Home and All projects;
+- Projects;
 - Overview, including the resume card (resume state is kept in `seed-data/.resume/`);
 - Sources browsing: the tree, listing, inspector, Quick Look and search;
 - the Studio, with annotations saved to `seed-data/.annotations/`;

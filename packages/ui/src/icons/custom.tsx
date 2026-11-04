@@ -168,3 +168,18 @@ export const TimeSpan = strokeIcon(
     <rect x={5.5} y={5.25} width={5} height={5.5} fill="currentColor" stroke="none" />
   </>,
 );
+
+/**
+ * The product logo: two corner brackets framing a dot (a region being marked) in ink on a lime
+ * tile. Fixed brand colours, so it reads the same in light and dark themes. The marketing site,
+ * the app and the favicons (apps/web/public/favicon.svg) all use this mark.
+ */
+export function BrandLogo(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={36} height={36} viewBox="0 0 36 36" aria-hidden {...props}>
+      <rect width={36} height={36} rx={10} fill="#e0ff4f" />
+      <path d="M10 15v-5h5M26 21v5h-5" stroke="#052b42" strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <circle cx={18} cy={18} r={3.2} fill="#052b42" />
+    </svg>
+  );
+}

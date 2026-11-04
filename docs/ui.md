@@ -30,7 +30,7 @@ one task.
 
 In short:
 
-- Home (`/`) lists recent projects; `/projects` lists all of them.
+- `/` redirects to `/projects`, which lists the projects and has New project.
 - A project has a sidebar with Overview, Sources, Studio, Review and Activity, and Settings at the
   bottom. Sources is the project's drive at `/projects/:p/sources` (old `/files` links redirect). Explore and Datasets are
   off the sidebar for now; their pages open from Overview, Review and the Studio's top bar. The breadcrumb reads `Workspace ▾ / Project ▾ / Section`
@@ -211,7 +211,7 @@ What's where today:
 apps/web/src/studio/
 ├── app/
 │   ├── AppShell.tsx              # routes (ux.md §11), legacy /datasets/… redirects
-│   └── routes/                   # HomePage, ProjectsPage, ProjectOverviewPage, FilesPage,
+│   └── routes/                   # ProjectsPage (also /), ProjectOverviewPage, FilesPage,
 │                                 # ExplorePage, DatasetsPage, DatasetStudioPage, ProjectReviewPage,
 │                                 # ReviewPage, ActivityPage, ProjectSettingsPage, ExportPage, PluginsPage
 ├── components/

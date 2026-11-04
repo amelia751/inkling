@@ -13,6 +13,10 @@ import { useShell } from "@/studio/stores/shell";
 import { useStudio } from "@/studio/stores/studio";
 import { pickedFrom, useDropFiles, type DropOrigin } from "./drop-adapter";
 import { usePendingAsks } from "./pending-ask";
+import { feature } from "@/studio/lib/features";
+import { newDropId } from "@/studio/core/drops/api";
+import { useAgent } from "@/studio/stores/agent";
+import { AiNotice, useAckAiNotice } from "@/studio/components/ai/ai-notice";
 
 /**
  * The empty states of todo13 §3.1. The project Overview keeps the composer; the Studio entry and
@@ -56,32 +60,59 @@ function useAskInDrawer(projectId: string) {
   };
 }
 
-/** Overview of a project with nothing in it yet. */
+/**
+ * Files dropped or attached in an empty project's chat go to the assistant with the message: with
+ * chat drops on, shared in the project's conversation; otherwise through the tray, the message
+ * waiting for the upload (todo24 D2).
+ */
+function useChatFiles(projectId: string) {
+  const drop = useDropFiles();
+  const queue = usePendingAsks((s) => s.queue);
+  const setAssistant = useShell((s) => s.setAssistant);
+  return async (files: ComposerFiles, message: string) => {
+    startTimeline("overview");
+    const picked = await pickedFrom(files);
+    if (!picked.files.length) return;
+    const text = message.trim();
+    setAssistant(true);
+    if (feature("chatDrops")) {
+      const conv = await useAgent.getState().ensureConversation(projectId);
+      const pending = { dropId: newDropId(), messageId: crypto.randomUUID() };
+      queue(projectId, text, pending);
+      await drop({ projectId, picked, origin: "chat", surface: "overview", timelineStarted: true, conversationId: conv.id, conversationTitle: conv.title ?? (text.slice(0, 80) || undefined), ...pending });
+      return;
+    }
+    await drop({ projectId, picked, origin: "files", surface: "overview", timelineStarted: true, onUploadKey: (key) => text && queue(projectId, text, undefined, { key }) });
+  };
+}
+
+/** Overview of a project with nothing in it yet: only the chat with the assistant. */
 export function ProjectEmptyState({ projectId, title }: { projectId: string; title: string }) {
-  const onFiles = useEntryFiles(projectId, "files", "overview");
+  const sendFiles = useChatFiles(projectId);
   const ask = useAskInDrawer(projectId);
+  const ackAiNotice = useAckAiNotice();
   const blocked = useFilesBlocked(projectId);
+  const [text, setText] = useState("");
   return (
     <div className="flex flex-col gap-2" data-testid="empty-project">
       <ComposerEmptyState
         variant="page"
         composer
-        title="Let's start with your data"
-        description="Start by dropping files, or describe what you want to make."
-        placeholder="“Outline the liver in these CT series”, or drop files here"
-        onSend={(t) => ask(t)}
-        onFiles={(f) => void onFiles(f)}
+        title={`What do you want to do in ${title}?`}
+        description={`Ask ${NAMING.displayName} or attach files to get started.`}
+        placeholder="“Outline the liver in these CT series”"
+        value={text}
+        onValueChange={setText}
+        onSend={(t) => (ackAiNotice(), ask(t), setText(""))}
+        onFiles={(f) => (ackAiNotice(), void sendFiles(f, text), setText(""))}
         filesDisabledReason={blocked}
         dropLabel={`Drop to add these files to ${title}`}
-        footnote="DICOM folders, images, videos, tables, documents. Originals are kept exactly as they are."
+        footnote={<AiNotice />}
+        autoFocus
         dropTestId="drop-zone"
         inputTestId="empty-project-input"
         className="py-8"
       />
-      <button type="button" onClick={() => ask()} className="self-center text-sm text-muted-foreground hover:text-foreground" data-testid="tell-assistant">
-        <AiIcon className="mr-1.5 inline size-3.5 text-ai-text" />
-        Or open the assistant and tell {NAMING.displayName} what you're trying to create
-      </button>
     </div>
   );
 }

@@ -281,6 +281,10 @@ def run(page, base: str) -> None:
     t1 = time.time()
     page.evaluate(DROP_JS, ["[data-testid=empty-project] [data-testid=drop-zone]", files])
     attest(page)
+    # todo29 D1: attaching never sends. The files wait as tiles in the composer; Send (no text) sends.
+    tiles = page.get_by_test_id("composer-attachments").get_by_test_id("attachment-tile")
+    check("J1: the drop attaches tiles and sends nothing", bool(wait(lambda: tiles.count() > 0, timeout=15)) and page.get_by_test_id("agent-log").count() == 0, str(tiles.count()))
+    page.get_by_test_id("empty-project-input").press("Enter")
     if not made:
         return
     pid = made[0]
@@ -303,12 +307,17 @@ def run(page, base: str) -> None:
     # drawer's toggle would close it).
     if not wait(lambda: page.get_by_test_id("agent-log").count() > 0, timeout=10):
         page.get_by_label(f"{AI} panel").click()
-    card = page.get_by_test_id("user-drop").get_by_test_id("drop-card")
+    card = page.get_by_test_id("user-drop").get_by_test_id("attachment-tiles")
     try:
         card.wait_for(timeout=30000)
-        check("J1: the chat shows the drop card", card.get_by_test_id("drop-chip").count() == 12, str(card.get_by_test_id("drop-chip").count()))
+        more = card.get_by_test_id("attachment-more")
+        if more.count():
+            more.click()
+        n = card.get_by_test_id("attachment-tile").count()
+        check("J1: the message shows the 12 files as tiles", n == 12, str(n))
+        check("J1: no file-state words in the panel", not any(w in page.get_by_test_id("agent-log").inner_text() for w in ("Checking", "Kept in Sources", "In the Studio")))
     except Exception:  # noqa: BLE001
-        check("J1: the chat shows the drop card", False)
+        check("J1: the message shows the 12 files as tiles", False)
     # A finished assistant turn shows its action row (copy, regenerate) under the reply.
     reply = page.get_by_test_id("agent-log").get_by_test_id("agent-reply-done")
     check("J1: the assistant replies to the drop", bool(wait(lambda: reply.count() > 0, timeout=120 if MODEL else 45)), str(reply.count()))

@@ -538,10 +538,10 @@ class Suite:
         page.locator("[data-testid=file-row]").first.wait_for(timeout=30000)
         open_drawer(page)
         time.sleep(1.0)
-        res = page.evaluate(DROP_JS, ["[data-testid=agent-log]", b64files(self.files("mixed")), "[data-testid=drop-card]"])
+        res = page.evaluate(DROP_JS, ["[data-testid=agent-log]", b64files(self.files("mixed")), "[data-testid=attachment-tiles]"])
         shown = res.get("shown")
-        timing("drop → drop card visible (chat composer)", shown, "< 300 ms")
-        check("budget: drop → drop card < 300 ms", shown is not None and shown < 300, f"{shown}")
+        timing("drop → tiles visible (chat composer)", shown, "< 300 ms")
+        check("budget: drop → tiles < 300 ms", shown is not None and shown < 300, f"{shown}")
         attest(page)
         page.get_by_label("Send").click()
         cls = wait(lambda: events.first("drop.planned", lambda d: any(a["type"] == "keep_reference" for a in (d.get("plan") or {}).get("actions") or [])), timeout=60)
@@ -597,10 +597,10 @@ class Suite:
         d = wait(lambda: [x for x in ok("GET", f"/api/v1/projects/{pid}/drops")["drops"] if x["id"] not in drops_before and len(x["files"]) == 30 and all(f["state"] in ("ready", "kept", "linked", "duplicate") or f.get("duplicate") for f in x["files"])], timeout=60)
         last = [x for x in ok("GET", f"/api/v1/projects/{pid}/drops")["drops"] if x["id"] not in drops_before]
         check("J6: no new uploads (no bytes sent)", not puts, f"{len(puts)} PUTs")
-        chips = page.get_by_test_id("user-drop").last.get_by_test_id("drop-chip")
-        text = " ".join(chips.all_inner_texts()[:3]) if chips.count() else ""
-        card_text = page.get_by_test_id("user-drop").last.inner_text() if page.get_by_test_id("user-drop").count() else ""
-        check("J6: the card says Already in Sources", "Already in Sources" in card_text or "Already in Sources" in text, card_text[:200])
+        # todo29 D2: no state words; an already-stored file is a done tile whose raw state is duplicate.
+        tiles = page.get_by_test_id("user-drop").last.locator("[data-testid=attachment-tile]")
+        states = [tiles.nth(i).get_attribute("data-file-state") for i in range(tiles.count())]
+        check("J6: the tiles are done (already in Sources)", bool(states) and all(x in ("duplicate", "kept", "ready", "in_studio") for x in states) and "duplicate" in states, str(states[:5]))
         time.sleep(2)
         check("J6: no duplicate items", task_items(task) == before, f"{len(before)} → {len(task_items(task))}")
         _ = d, last
@@ -635,17 +635,19 @@ class Suite:
         self.j7 = {"drop": drop}
         # J9: remove the file from the chat: still in Files, Shared files updated.
         node = drop["files"][0]["nodeId"]
-        card = page.get_by_test_id("user-drop").last.get_by_test_id("drop-card")
-        chip = card.locator(f"[data-testid=drop-chip][data-node-id='{node}']")
+        card = page.get_by_test_id("user-drop").last.get_by_test_id("attachment-tiles")
+        if card.get_by_test_id("attachment-more").count():
+            card.get_by_test_id("attachment-more").click()
+        chip = card.locator(f"[data-testid=attachment-tile][data-node-id='{node}']")
         try:
             chip.hover()
-            chip.get_by_test_id("drop-chip-remove").click()
-            wait(lambda: chip.get_attribute("data-state") == "removed", timeout=10)
+            chip.get_by_test_id("attachment-tile-remove").click()
+            wait(lambda: chip.count() == 0, timeout=10)  # a removed tile is hidden
         except Exception as e:  # noqa: BLE001
             check("J9: remove from the chat", False, repr(e)[:200])
             return
         detail = ok("GET", f"/api/v1/source-nodes/{node}")
-        check("J9: removed from the chat, still in Sources", chip.get_attribute("data-state") == "removed" and detail["trash"] is None, str(detail.get("trash")))
+        check("J9: removed from the chat, still in Sources", chip.count() == 0 and detail["trash"] is None, str(detail.get("trash")))
         page.get_by_label("Assistant options").click()
         page.get_by_test_id("agent-shared-files").click()
         page.get_by_test_id("chat-files").or_(page.get_by_test_id("chat-files-empty")).first.wait_for(timeout=10000)

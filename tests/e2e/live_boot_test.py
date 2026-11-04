@@ -154,10 +154,9 @@ def t_live_boot(browser, port: int) -> None:
         check("boot: boot.ready shown < 20 s", time.time() - t_ask < 20, f"{(time.time() - t_ask):.1f} s")
         card = page.get_by_test_id("boot-card").first
         if card.count():
-            steps = page.get_by_test_id("boot-step").all_inner_texts()
-            check("boot card: rows name artefacts", any("Added 5 labels" in s for s in steps) and any("Created draft" in s for s in steps), str(steps))
-            check("boot card: header is a polite status", card.get_by_role("status").first.get_attribute("aria-live") == "polite")
-            check("boot card: Studio ready · N s · Undo · Publish", "Studio ready" in card.inner_text() and card.get_by_test_id("boot-undo").count() == 1 and card.get_by_test_id("boot-publish").count() == 1, card.inner_text()[:200])
+            # todo29 D7: one line, "{name} · {n} items", then Open; Undo and Publish stay (on hover).
+            check("boot card: one line with the item count", "items" in card.inner_text() and "Studio ready" not in card.inner_text(), card.inner_text()[:200])
+            check("boot card: Undo · Publish", card.get_by_test_id("boot-undo").count() == 1 and card.get_by_test_id("boot-publish").count() == 1)
         task = get_json(f"{KERNEL}/api/v1/tasks/{task_id}")
         check("boot: the task is a draft", task.get("state") == "draft", str({k: task.get(k) for k in ("state", "bootId")}))
 

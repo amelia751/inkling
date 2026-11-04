@@ -133,7 +133,7 @@ export type AgentEventBody =
   | { type: "run-status"; status: RunStatus }
   | { type: "reasoning"; delta: string }
   | { type: "text"; delta: string }
-  | { type: "tool-call"; id: string; name: string; title: string }
+  | { type: "tool-call"; id: string; name: string; title: string; pastTitle?: string; progress?: boolean }
   /**
    * Streamed tool arguments (todo11 D4, AG-UI TOOL_CALL_START / TOOL_CALL_ARGS / TOOL_CALL_END),
    * sent while the model is still writing the call, only for tools whose arguments are worth

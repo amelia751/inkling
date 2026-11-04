@@ -25,4 +25,5 @@ export * from "./accounts";
 export * as pipeline from "./pipeline";
 export * from "./operations";
 export * from "./rules";
+export * from "./review";
 export * from "./lint-rules";

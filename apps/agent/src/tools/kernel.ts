@@ -54,6 +54,9 @@ export const KERNEL_SCOPES = {
   // samples.*: the data-boundary routes (todo10 Phase 7): fingerprints, fixtures, verify, probes.
   builder: ["plugins.read", "plugins.manage", "plugins.author", "proposals.write", "samples.inspect", "samples.verify"],
   task: ["proposals.write", "project.write", "assets.read", "assets.write", "annotations.read", "commands.invoke", "versioning.read", "versioning.write", "versioning.review", "versioning.checkout"],
+  // todo23 W9: reviewers write only reviews and hidden tests (kernel/reviews.py), never the artifact.
+  reviewer: ["plugins.read", "reviews.read", "reviews.write"],
+  "red-team": ["plugins.read", "reviews.read", "reviews.write"],
 } as const;
 
 export class KernelClient {

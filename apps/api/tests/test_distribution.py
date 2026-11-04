@@ -12,6 +12,21 @@ from .test_artifacts import GEN, build, package, token
 
 ALICE = ws("ws-a", **{"X-Dev-Principal": "user:alice"})
 BOB = ws("ws-a", **{"X-Dev-Principal": "user:bob"})
+ERIN = ws("ws-a", **{"X-Dev-Principal": "user:erin"})
+
+
+def passing_review(c, version="0.1.0", headers=None):
+    """todo23 W9: promotion needs a passing review by someone other than the author."""
+    body = {"artifact": {"kind": "plugin", "id": GEN, "version": version}, "model": "rules:canary", "verdict": "pass", "findings": []}
+    from studio_api import db
+    from studio_api.models import OrganizationMember, ProjectRow, now
+
+    with db.session_scope() as s:
+        org = s.get(ProjectRow, "ws-a").org_id
+        if s.get(OrganizationMember, (org, "user:erin")) is None:
+            s.add(OrganizationMember(org_id=org, principal="user:erin", role="member", created_at=now()))
+    res = c.post("/api/v1/projects/ws-a/reviews", json=body, headers=headers or ERIN)
+    assert res.status_code == 201, res.text
 
 
 def export(c, version="0.1.0", headers=None):
@@ -114,6 +129,9 @@ def test_promotion_tiers_need_a_second_person(client):
     assert build(client, package(), headers=ALICE).json()["registered"]
     visible = lambda w: client.get(f"/api/v1/plugins/{GEN}", headers=ws(w)).status_code == 200  # noqa: E731
     assert (visible("ws-a"), visible("ws-c"), visible("ws-b")) == (True, False, False)
+    dana0 = ws("ws-a", **{"X-Dev-Principal": "user:dana"})
+    assert client.post(f"/api/v1/plugins/{GEN}/promotions", json={"version": "0.1.0"}, headers=dana0).status_code == 409  # no review yet
+    passing_review(client)
 
     # Agent sessions reach only the allow-listed routes (kernel/agent_scope.py): they can't ask
     # or review. Nobody can approve their own request or their own artifact.
@@ -153,6 +171,7 @@ def test_promotion_tiers_need_a_second_person(client):
 def test_promotion_re_verifies_the_artifact(client, tmp_path):
     _org(client, "org-1", "ws-a")
     r = build(client, package(), headers=ALICE).json()
+    passing_review(client)
     p = client.post(f"/api/v1/plugins/{GEN}/promotions", json={"version": "0.1.0"}, headers=ALICE).json()
     manifest = json.loads((tmp_path / "data" / "artifacts" / "sha256" / r["manifestDigest"][7:]).read_bytes())
     layer = tmp_path / "data" / "artifacts" / "sha256" / manifest["layers"][0]["digest"][7:]

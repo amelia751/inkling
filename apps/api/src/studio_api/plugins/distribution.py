@@ -32,7 +32,7 @@ from sqlalchemy.orm import Session
 from studio_signing import oci
 
 from ..context import RequestContext
-from ..kernel import audit
+from ..kernel import audit, reviews
 from ..models import PluginArtifact, PluginPromotion
 from ..naming import canonical_id
 from . import catalog, digest, store
@@ -250,6 +250,9 @@ def request_promotion(db: Session, ctx: RequestContext, plugin_id: str, version:
         raise HTTPException(409, f"{row.plugin_id}@{row.version} is already {row.trust_tier}")
     if to == "organisation" and catalog.org_of(db, row.workspace_id) is None:
         raise HTTPException(409, "the artifact's workspace belongs to no organisation")
+    # todo23 W9 (D11): an artifact without a passing review can't leave preview.
+    if not reviews.has_passing_review(db, ("plugin", row.plugin_id, row.version)):
+        raise HTTPException(409, f"{row.plugin_id}@{row.version} has no passing review; a reviewer must pass it before promotion")
     open_ = db.scalar(select(PluginPromotion).where(PluginPromotion.plugin_id == row.plugin_id, PluginPromotion.version == row.version, PluginPromotion.state == "requested"))
     if open_ is not None:
         return open_
@@ -278,6 +281,8 @@ def review_promotion(db: Session, ctx: RequestContext, promotion_id: int, approv
     if reason:
         p.reason = (p.reason + "\n" if p.reason else "") + f"review: {reason[:2000]}"
     if approve:
+        if not reviews.has_passing_review(db, ("plugin", row.plugin_id, row.version)):
+            raise HTTPException(409, f"{row.plugin_id}@{row.version} has no passing review")
         _verify_row(row)  # re-verified at the moment it widens
         row.trust_tier = p.to_tier
         if p.to_tier == "organisation":

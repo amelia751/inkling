@@ -40,6 +40,12 @@ export interface Profile {
    * and open_in_project: no dataset, project, Studio, kernel or sandbox tools.
    */
   home?: boolean;
+  /**
+   * todo23 W9 (D11): a reviewer session. Its only tools are tools/review.ts (read the review
+   * packet, record review.v1 findings, write hidden tests): no project, operation, Studio,
+   * sandbox or plugin tools, and it runs on `AGENT_REVIEWER_MODEL` (another model family).
+   */
+  review?: boolean;
   /** Server tools over the kernel (tools/kernel.ts); the session needs a kernel token. */
   kernel?: "builder" | "task";
   /**
@@ -85,10 +91,14 @@ export const PROFILES: Record<ProfileName, Profile> = {
   task: { name: "task", clientTools: CARD_TOOLS, sandbox: false, kernel: "task", prompts: ["base", "task"] },
   // todo21 D8: Home routes between projects; it never works on project data.
   home: { name: "home", clientTools: ["create_project"], sandbox: false, home: true, prompts: ["home"] },
+  // todo23 W9 (D11): the builder never approves its own work. Own principal (agent:<profile>),
+  // own model family, no write tools beyond the review store.
+  reviewer: { name: "reviewer", clientTools: [], sandbox: false, review: true, prompts: ["reviewer"] },
+  "red-team": { name: "red-team", clientTools: [], sandbox: false, review: true, prompts: ["red-team"] },
 };
 
 /** Whether the profile can run here (a hard sandbox requirement needs Daytona). */
-export const profileAvailable = (p: Profile, sandboxes: boolean) => p.sandbox !== true || sandboxes;
+export const profileAvailable = (p: Profile, sandboxes: boolean, reviewerModel = true) => (p.sandbox !== true || sandboxes) && (!p.review || reviewerModel);
 
 export function isProfileName(name: string): name is ProfileName {
   return Object.hasOwn(PROFILES, name);

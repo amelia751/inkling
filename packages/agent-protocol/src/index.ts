@@ -11,7 +11,7 @@
  * `builder` changes which plugins run in the workspace (kernel builder tools, no data writes);
  * `task` uses active capabilities through the gateway (no plugin changes). docs/plugins.md §8.
  */
-export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task" | "home";
+export type ProfileName = "assistant" | "environment-designer" | "coder" | "builder" | "task" | "home" | "reviewer" | "red-team";
 
 /** todo21 D8: a project's chat, or a Home chat that only routes between projects (no project). */
 export type SessionScope = "project" | "home";

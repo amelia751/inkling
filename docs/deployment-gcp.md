@@ -97,6 +97,9 @@ test checks each entry exists. Change this list and that file together.
 - Org settings (todo15 D2): `GET /api/v1/org`, so the agent can refuse runs when `aiAssist` is off.
 - Project rules (todo17 D3): `GET /api/v1/projects/{id}/rules` and `…/rules/history` (writes stay a
   person's; agents propose them).
+- Reviews (todo23 W9): `GET`/`POST /api/v1/projects/{id}/reviews` and `…/reviews/hidden-tests`.
+  Only reviewer and red-team sessions (`agent:reviewer`, `agent:red-team` with `reviews.write`) write
+  reviews or read and write hidden tests; the builder gets 403 (`kernel/reviews.py`).
 - Outside agents (todo17 D12): the same allowlist applies to an MCP OAuth token (principal
   `agent:<client name>`, on behalf of the person who signed it in, `auth/oauth.py`), plus
   `GET /api/v1/approvals/{id}` to poll the approval a person gives for its destroy (which always

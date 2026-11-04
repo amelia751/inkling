@@ -323,3 +323,17 @@ def test_a_dicom_series_is_posted_as_one_group(tmp_path):
     series = {k.ids[f"mri/IM{i:04d}.dcm"] for i in (1, 2, 3)}
     assert [set(ids) for _, ids in k.posts] == [{k.ids["notes/a.png"]}, series]
     assert k.report is not None and k.report["nodes"] == [] and len(k.report["groups"]) == 1 and set(k.report["groups"][0]["nodeIds"]) == series
+
+
+def test_a_wfdb_record_is_posted_when_its_own_files_are_checked_not_after_the_import(tmp_path):
+    """D1: a group waits only for its own members, never for an unrelated slow file."""
+    files = {"ecg/rec1.hea": b"rec1 1 500 1000\nrec1.dat 16 200 12 0 0 0 0 I\n", "ecg/rec1.dat": bytes(2000)}
+    files["x/big.png"] = png(200, 200)
+    k = FakeKernel(files, slow={"x/big.png": 1.5})
+    assert run_fake(k, tmp_path, concurrency=2) == "ready"
+    rec = {k.ids["ecg/rec1.hea"], k.ids["ecg/rec1.dat"]}
+    big = k.ids["x/big.png"]
+    at = next(t for t, ids in k.posts if set(ids) == rec)  # posted together, as one group
+    assert at < k.done_at[big]
+    posted = [n for _, ids in k.posts for n in ids]
+    assert sorted(posted) == sorted(rec | {big}) and len(posted) == len(set(posted))

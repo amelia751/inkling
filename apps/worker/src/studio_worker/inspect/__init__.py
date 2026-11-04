@@ -160,6 +160,15 @@ class InspectSubscriber:
         results: dict[str, tuple[dict, dicom.Instance | None]] = {}
         retrying: list[str] = []
         held: list[str] = []  # node ids waiting for their group
+        posted: set[str] = set()  # held files already posted with their group
+        # A WFDB record or a folder with an `Info.cfg` needs only its own members (D1): it's posted
+        # as soon as they're all checked, not after the whole import. DICOM series and label tables
+        # (keyed by every other file's name) still wait for the import.
+        own_groups: dict[str, set[str]] = {}
+        for f in files:
+            k = group_key(f["relPath"], stems, cfg_dirs)
+            if k.startswith(("wfdb:", "dir:")):
+                own_groups.setdefault(k, set()).add(f["nodeId"])
         buf: list[dict] = []
         buf_at = 0.0
 
@@ -170,6 +179,7 @@ class InspectSubscriber:
                 if post is not None:
                     post(chunk)
 
+        sizes_by_id = {f["nodeId"]: int(f.get("size") or 0) for f in files}
         order = sorted(files, key=lambda f: order_key(f, stems, cfg_dirs))
         with ThreadPoolExecutor(max_workers=self.concurrency, thread_name_prefix="inspect") as pool:
             pending = {pool.submit(self._inspect_retrying, f, names, stems): f for f in order}
@@ -186,6 +196,14 @@ class InspectSubscriber:
                     results[f["nodeId"]] = (out, inst)
                     if inst is not None or grouped(f["relPath"], out, stems, cfg_dirs):
                         held.append(f["nodeId"])
+                        k = group_key(f["relPath"], stems, cfg_dirs)
+                        members = own_groups.get(k)
+                        if inst is None and members and members <= results.keys():
+                            if k.startswith("dir:"):
+                                self._apply_cfg(k[4:], files, results, sizes_by_id)
+                            if post is not None:
+                                post([results[i][0] for i in sorted(members)])
+                            posted.update(members)
                     else:
                         if not buf:
                             buf_at = time.monotonic()
@@ -196,26 +214,10 @@ class InspectSubscriber:
         # frames); the cfg itself becomes a hidden `info` slot of that group (todo19 §2 A), not a
         # loose document the plan keeps as a reference.
         by_file = {f["nodeId"]: f for f in files}
-        sizes = {f["nodeId"]: int(f.get("size") or 0) for f in files}
-        for f in files:
-            if f["nodeId"] not in results:
-                continue
-            fn = results[f["nodeId"]][0]
-            if posixpath.basename(f["relPath"]).lower() == "info.cfg" and 0 < sizes[f["nodeId"]] <= 64 * 1024:
-                try:
-                    raw = self._retry(lambda f=f: self._all(f["nodeId"], sizes[f["nodeId"]]), f["nodeId"])
-                except httpx.HTTPError:
-                    continue
-                info = sidecars.parse_acdc_info(raw.decode("utf-8", "replace"))
-                folder = posixpath.dirname(f["relPath"])
-                used: list[str] = []
-                for nid, (n, _inst) in results.items():
-                    g = by_file[nid]
-                    if g is not f and posixpath.dirname(g["relPath"]) == folder and n.get("detectedKind") in ("volume", "mask"):
-                        n["facts"]["acdc"] = sidecars.item_meta(info)
-                        used.append(nid)
-                if used:
-                    fn["facts"]["sidecar"] = sidecar_slot(f["relPath"], used)
+        sizes = sizes_by_id
+        for folder in cfg_dirs:
+            if not own_groups.get("dir:" + folder, set()) & posted:  # posted early: already applied
+                self._apply_cfg(folder, files, results, sizes)
         instances = [inst for (_n, inst) in results.values() if inst is not None]
         groups = dicom.group_series(instances)
         nodes = [results[f["nodeId"]][0] for f in files if f["nodeId"] in results]
@@ -235,7 +237,7 @@ class InspectSubscriber:
                 except httpx.HTTPError:
                     pass  # no thumbnail: the series is still checked
         # Post the held files group by group: a series, a folder, a record.
-        waiting = set(held)
+        waiting = set(held) - posted
         for g in groups:
             ids = [i for i in g["nodeIds"] if i in waiting]
             if ids and post is not None:
@@ -282,6 +284,32 @@ class InspectSubscriber:
                 log.info("retrying a file's check", extra={"node_id": nid, "attempt": attempt + 1, "error": type(e).__name__})
                 time.sleep(self.backoff_s[attempt])
         raise AssertionError("unreachable")
+
+    def _apply_cfg(self, folder: str, files: list[dict], results: dict, sizes: dict[str, int]) -> None:
+        """ACDC `Info.cfg` (ED/ES, height, weight) → meta of the volumes in its folder (0-based
+        frames); the cfg itself becomes a hidden `info` slot of that group (todo19 §2 A), not a
+        loose document the plan keeps as a reference."""
+        for f in files:
+            if f["nodeId"] not in results or posixpath.dirname(f["relPath"]) != folder:
+                continue
+            if posixpath.basename(f["relPath"]).lower() != "info.cfg" or not 0 < sizes[f["nodeId"]] <= 64 * 1024:
+                continue
+            fn = results[f["nodeId"]][0]
+            try:
+                raw = self._retry(lambda f=f: self._all(f["nodeId"], sizes[f["nodeId"]]), f["nodeId"])
+            except httpx.HTTPError:
+                continue
+            info = sidecars.parse_acdc_info(raw.decode("utf-8", "replace"))
+            used: list[str] = []
+            for g in files:
+                if g is f or g["nodeId"] not in results or posixpath.dirname(g["relPath"]) != folder:
+                    continue
+                n = results[g["nodeId"]][0]
+                if n.get("detectedKind") in ("volume", "mask"):
+                    n["facts"]["acdc"] = sidecars.item_meta(info)
+                    used.append(g["nodeId"])
+            if used:
+                fn["facts"]["sidecar"] = sidecar_slot(f["relPath"], used)
 
     def _inspect_retrying(self, f: dict, names: list[str], stems: set[str]) -> tuple[dict, dicom.Instance | None] | None:
         try:

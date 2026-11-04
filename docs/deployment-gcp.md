@@ -332,6 +332,14 @@ pipeline token); values shared across the two projects are set twice with the sa
 Key files (the versioning and pipeline signing keys, their JWKS) are mounted as files at the paths
 the GKE overlay used. Add every version before the first deploy, or the revision fails to start.
 
+The agent's model is ai variable `agent_model` (`provider:model`, `apps/agent/src/agent/providers`).
+The default is Muse on the Meta Model API, whose key is `run-agent-muse-api-key`. That API is outside
+the Google BAA, so a stage using it runs on synthetic data only.
+
+Each stage can show its own product name: variable `display_name` in both stacks sets
+`STUDIO_DISPLAY_NAME` on web (served in `/config.json`) and on the agent (its prompts). Empty keeps
+`NAMING.displayName`.
+
 ### WorkOS staging
 
 In the WorkOS dashboard's staging environment (Redirects), add for the stage's host (output

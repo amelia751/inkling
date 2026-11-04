@@ -7,6 +7,12 @@ variable "studio_host" {
   default     = "studio.example.com"
 }
 
+variable "display_name" {
+  description = "Product name the Studio shows in this stage (STUDIO_DISPLAY_NAME, served in /config.json). Empty: the naming config's."
+  type        = string
+  default     = ""
+}
+
 variable "image_tag" {
   description = "Tag of every Studio image in the `images` registry (immutable tags: the git SHA CI pushed)."
   type        = string

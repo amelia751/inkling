@@ -23,7 +23,8 @@ locals {
     "run-agent-approval-secret",      # same value as the api's STUDIO_API_APPROVAL_SECRET
     "run-agent-kernel-service-token", # same value as the api's STUDIO_API_AGENT_SERVICE_TOKEN
     "run-agent-database-url",         # postgres://agent:…@<sql_private_ip>/agent?sslmode=require
-  ], var.agent_sandbox == "daytona" ? ["run-daytona-api-key"] : []))
+  ], var.agent_sandbox == "daytona" ? ["run-daytona-api-key"] : [], local.muse ? ["run-agent-muse-api-key"] : []))
+  muse = startswith(var.agent_model, "muse:")
 }
 
 resource "google_secret_manager_secret" "run" {
@@ -181,10 +182,28 @@ resource "google_cloud_run_v2_service" "agent" {
         name  = "STUDIO_WEB_URL"
         value = var.studio_url
       }
-      # D8: Vertex AI in this project, Application Default Credentials as studio-agent.
       env {
         name  = "STUDIO_AGENT_MODEL"
         value = var.agent_model
+      }
+      dynamic "env" {
+        for_each = local.muse ? ["run-agent-muse-api-key"] : []
+        content {
+          name = "STUDIO_AGENT_MUSE_API_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.run[env.value].secret_id
+              version = "latest"
+            }
+          }
+        }
+      }
+      dynamic "env" {
+        for_each = var.display_name == "" ? [] : [var.display_name]
+        content {
+          name  = "STUDIO_DISPLAY_NAME"
+          value = env.value
+        }
       }
       env {
         name  = "STUDIO_AGENT_MODEL_ALLOWLIST"

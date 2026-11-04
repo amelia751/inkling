@@ -54,6 +54,7 @@ ENV NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d \
     STUDIO_AGENT_URL=http://agent:8100 \
     STUDIO_AGENT_TOKEN="" \
     STUDIO_WEB_AUTH_MODE=dev \
+    STUDIO_DISPLAY_NAME="" \
     STUDIO_API_URL=http://api:8000 \
     GIT_SHA=${GIT_SHA}
 EXPOSE 8080

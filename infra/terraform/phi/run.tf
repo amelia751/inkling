@@ -86,6 +86,13 @@ resource "google_cloud_run_v2_service" "web" {
         name  = "STUDIO_WEB_AUTH_MODE"
         value = "workos"
       }
+      dynamic "env" {
+        for_each = var.display_name == "" ? [] : [var.display_name]
+        content {
+          name  = "STUDIO_DISPLAY_NAME"
+          value = env.value
+        }
+      }
       # /_auth asks the api (internal URL) for the person's access token.
       env {
         name  = "STUDIO_API_URL"

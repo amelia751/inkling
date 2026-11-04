@@ -31,15 +31,21 @@ variable "workos_issuer" {
 }
 
 variable "agent_model" {
-  description = "Default model (D8: Vertex AI in this project only)."
+  description = "Default model, provider:model (apps/agent/src/agent/providers). A muse: model reads its key from secret run-agent-muse-api-key."
   type        = string
-  default     = "google-vertex:gemini-3.1-pro-preview"
+  default     = "muse:muse-spark-1.3"
 }
 
 variable "agent_model_allowlist" {
   description = "Comma-separated models a person may pick."
   type        = string
-  default     = "google-vertex:gemini-3.1-pro-preview,google-vertex:gemini-3.5-flash"
+  default     = "muse:muse-spark-1.3,muse:muse-wonder-1.0"
+}
+
+variable "display_name" {
+  description = "Product name the assistant uses in this stage (STUDIO_DISPLAY_NAME). Empty: the naming config's."
+  type        = string
+  default     = ""
 }
 
 variable "agent_sandbox" {

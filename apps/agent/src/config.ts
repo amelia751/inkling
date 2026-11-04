@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { DEFAULT_ALLOWLIST, DEFAULT_MODEL, PROVIDERS } from "./agent/providers/index.ts";
-import { envKey } from "./naming.ts";
+import { envKey, NAMING } from "./naming.ts";
 import { maskSecret } from "./secrets.ts";
 
 /**
@@ -42,6 +42,8 @@ const flag = (fallback: boolean) =>
 
 const schema = z.object({
   ENV: z.enum(["development", "test", "production"]).default("development"),
+  /** The product name in this stage's prompts; empty keeps the naming config's. */
+  DISPLAY_NAME: optional,
   AGENT_HOST: z.string().default("127.0.0.1"),
   AGENT_PORT: int(8100),
   AGENT_TOKEN: optional,
@@ -245,6 +247,7 @@ export function loadConfig(raw: NodeJS.ProcessEnv = process.env): { config: Conf
   }
   const e = parsed.data;
   const warnings: string[] = [];
+  if (e.DISPLAY_NAME) NAMING.displayName = e.DISPLAY_NAME;
 
   const scripted = e.AGENT_MODEL === SCRIPTED_PROVIDER;
   const MODEL = envName("AGENT_MODEL");

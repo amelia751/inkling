@@ -7,6 +7,8 @@
 #   STUDIO_AGENT_TOKEN            service token the proxy adds; it never reaches the browser
 #   STUDIO_WEB_AUTH_MODE          `dev` (default) or `workos`: picks agent-auth/<mode>.inc (todo9 Phase 5)
 #                                  and is written into /config.json's `auth`
+#   STUDIO_DISPLAY_NAME           the product name in /config.json when no file is mounted
+#                                  (empty: the naming config's)
 #   STUDIO_API_URL                the API (default http://api:8000); `workos` mode asks its
 #                                  /api/auth/verify for the person's access token
 #   GIT_SHA                        build revision for /version
@@ -37,7 +39,12 @@ server {
     sub_filter_types application/json;
     sub_filter_once on;
     sub_filter '{' '{"auth":{"mode":"${STUDIO_WEB_AUTH_MODE}"},';
-    try_files /config.json =404;
+    try_files /config.json @config;
+  }
+  location @config {
+    default_type application/json;
+    add_header Cache-Control "no-store" always;
+    return 200 '{"auth":{"mode":"${STUDIO_WEB_AUTH_MODE}"},"displayName":"${STUDIO_DISPLAY_NAME}"}';
   }
 
   # workos mode: auth_request subrequest. The API reads the session cookie and answers 200 with

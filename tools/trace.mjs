@@ -247,11 +247,17 @@ export function localTraceIds(id, dir = runsDir()) {
   return out.sort((a, b) => a.createdAt - b.createdAt);
 }
 
+/** The agent's and the kernel's Google Cloud projects, from the environment (like tools/deploy-run.sh). */
 function projects() {
-  return (process.env.STUDIO_TRACE_PROJECTS ?? "spurby-ai,spurby-phi")
+  const list = (process.env.STUDIO_TRACE_PROJECTS ?? "")
     .split(",")
     .map((p) => p.trim())
     .filter(Boolean);
+  if (!list.length) {
+    console.error("pnpm trace: set STUDIO_TRACE_PROJECTS to the agent's and the kernel's project ids, comma-separated (or use --file <spans.json>)");
+    process.exit(2);
+  }
+  return list;
 }
 
 function token() {

@@ -437,7 +437,7 @@ Studio host, so the `traceparent` it sends makes the api's spans children of tha
 Nothing crosses projects except that header; no identity reads the other project's traces.
 The run record (and the run's `start` event) carries the `traceId`, so
 `pnpm trace <run-id | session-id | trace-id>` fetches both halves with your `gcloud`
-credentials (projects from `STUDIO_TRACE_PROJECTS`, default `spurby-ai,spurby-phi`) and prints
+credentials (projects from `STUDIO_TRACE_PROJECTS`, e.g. `STUDIO_TRACE_PROJECTS=spurby-ai,spurby-phi`) and prints
 one tree. `pnpm trace --file spans.json` prints a tree from saved console or OTLP JSON (local
 runs with `OTEL_TRACES_EXPORTER=console`).
 

@@ -3588,6 +3588,43 @@
         "summary": "Change Plan"
       }
     },
+    "/api/v1/drops/{drop_id}/replan": {
+      "post": {
+        "operationId": "replan_plan_api_v1_drops__drop_id__replan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "drop_id",
+            "required": true,
+            "schema": {
+              "title": "Drop Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replan Plan"
+      }
+    },
     "/api/v1/drops/{drop_id}/undo": {
       "post": {
         "operationId": "undo_plan_api_v1_drops__drop_id__undo_post",
@@ -6806,6 +6843,65 @@
           }
         },
         "summary": "Conversation Deleted"
+      }
+    },
+    "/api/v1/projects/{project_id}/conversations/{conversation_id}/title": {
+      "post": {
+        "description": "todo21 D7: the agent service tells the kernel a chat got or changed its title; the chat's\n`Shared in chat` folder follows unless a person renamed it.",
+        "operationId": "conversation_titled_api_v1_projects__project_id__conversations__conversation_id__title_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Conversation Titled"
       }
     },
     "/api/v1/projects/{project_id}/dataset-attention": {
@@ -14160,6 +14256,92 @@
           }
         },
         "summary": "Versioning Run"
+      }
+    },
+    "/api/v1/workers/capabilities": {
+      "get": {
+        "operationId": "list_capabilities_api_v1_workers_capabilities_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Capabilities"
+      },
+      "post": {
+        "operationId": "report_capabilities_api_v1_workers_capabilities_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-worker-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Worker-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report Capabilities"
       }
     },
     "/api/v1/workspaces/{workspace_id}/capabilities": {

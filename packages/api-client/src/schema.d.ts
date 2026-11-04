@@ -1178,6 +1178,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/drops/{drop_id}/replan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Replan Plan */
+        post: operations["replan_plan_api_v1_drops__drop_id__replan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/drops/{drop_id}/undo": {
         parameters: {
             query?: never;
@@ -2363,6 +2380,27 @@ export interface paths {
         put?: never;
         /** Conversation Deleted */
         post: operations["conversation_deleted_api_v1_projects__project_id__conversations__conversation_id__deleted_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project_id}/conversations/{conversation_id}/title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Conversation Titled
+         * @description todo21 D7: the agent service tells the kernel a chat got or changed its title; the chat's
+         *     `Shared in chat` folder follows unless a person renamed it.
+         */
+        post: operations["conversation_titled_api_v1_projects__project_id__conversations__conversation_id__title_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4652,6 +4690,24 @@ export interface paths {
          * @description Run a read or report-check versioning operation in a workspace, as the worker.
          */
         post: operations["versioning_run_api_v1_worker_versioning_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workers/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Capabilities */
+        get: operations["list_capabilities_api_v1_workers_capabilities_get"];
+        put?: never;
+        /** Report Capabilities */
+        post: operations["report_capabilities_api_v1_workers_capabilities_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7407,6 +7463,37 @@ export interface operations {
             };
         };
     };
+    replan_plan_api_v1_drops__drop_id__replan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                drop_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     undo_plan_api_v1_drops__drop_id__undo_post: {
         parameters: {
             query?: never;
@@ -9805,6 +9892,44 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    conversation_titled_api_v1_projects__project_id__conversations__conversation_id__title_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -14767,6 +14892,74 @@ export interface operations {
         };
     };
     versioning_run_api_v1_worker_versioning_run_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_capabilities_api_v1_workers_capabilities_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-worker-token"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_capabilities_api_v1_workers_capabilities_post: {
         parameters: {
             query?: never;
             header?: {

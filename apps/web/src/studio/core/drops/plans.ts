@@ -254,15 +254,25 @@ export function memberCounts(a: DropAction): { kind: string; count: number; labe
   return [...by].map(([kind, count]) => ({ kind, count, label: noun(kind, count) }));
 }
 
+/** How many files an action puts into a dataset: its members when it has them, else its own count. */
+export const membersTotal = (a: DropAction) => (a.members?.length ? a.members.reduce((n, m) => n + m.count, 0) : (a.count ?? a.nodeIds.length));
+
+const LANDS: ReadonlySet<DropAction["type"]> = new Set(["new_dataset", "new_collection", "add_to_collection"]);
+
+/** todo29 D8: the files a plan put into the Studio (never the drop's total: kept files didn't go in). */
+export function wentIn(actions: DropAction[]): number {
+  return actions.reduce((n, a) => n + (LANDS.has(a.type) ? membersTotal(a) : 0), 0);
+}
+
 /** One line per action, in the card's words (no file names: the plan carries none). */
 export function actionLabel(a: DropAction): string {
   const what = noun(a.kind, a.count ?? a.nodeIds.length);
   switch (a.type) {
     case "new_dataset":
       if (a.members?.length) {
-        const n = a.count ?? a.nodeIds.length;
-        const k = memberCounts(a).length;
-        return `One Studio · ${n} ${n === 1 ? "file" : "files"} · ${k} ${k === 1 ? "kind" : "kinds"}`;
+        // todo29 D8: the number is what goes in (the members), the same one the applied line says.
+        const n = membersTotal(a);
+        return `New Studio · ${n} ${n === 1 ? "file" : "files"}`;
       }
       return `${what} → a new draft dataset${a.name ? ` (“${a.name}”)` : ""}`;
     case "new_collection":

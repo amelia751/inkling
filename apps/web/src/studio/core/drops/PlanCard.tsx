@@ -2,12 +2,12 @@ import { useEffect, useState } from "react";
 import { problemMessage, toProblem } from "@/studio/lib/problem";
 import { Link, useParams } from "react-router";
 import { AnnotateIcon, ArchiveFileIcon, DatasetsIcon, DocumentIcon, DoneIcon, ErrorIcon, FileIcon, ImageIcon, PrivacyIcon, SearchIcon, TableFileIcon, UndoIcon, UnknownFileIcon, VideoIcon, VolumeIcon, WaveformIcon, SlideIcon } from "@studio/ui/icons";
-import type { DropAction, DropActionType } from "@studio/contracts/drop-plan";
+import type { DropAction, DropActionType, DropPlan } from "@studio/contracts/drop-plan";
 import { Button } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
-import { actionLabel, findPlugins, memberCounts, QUESTION_COPY, QUESTIONS, REFUSED_COPY, replanSummaryText, undoSecondsLeft, usePlans, type PlanView } from "./plans";
+import { actionLabel, findPlugins, memberCounts, wentIn, QUESTION_COPY, QUESTIONS, REFUSED_COPY, replanSummaryText, undoSecondsLeft, usePlans, type PlanView } from "./plans";
 
 /**
  * The plan card (todo13 D5, D6, §3.2–3.4): a drop's groups and the one action each gets, with
@@ -87,6 +87,8 @@ function PlanLedger({ plan }: { plan: PlanView }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, DropActionType>>({});
+  // todo29 D7: the per-kind member list is behind "Details".
+  const [details, setDetails] = useState<Record<string, boolean>>({});
   const left = useSecondsLeft(plan);
   const actions = plan.plan!.actions;
   const asking = actions.filter((a) => a.asks && QUESTIONS.has(a.asks));
@@ -180,6 +182,11 @@ function PlanLedger({ plan }: { plan: PlanView }) {
                 )}
               </div>
               {a.members && a.members.length > 0 && (
+                <button type="button" className="ml-6 self-start text-sm text-hint hover:text-foreground" onClick={() => setDetails((d) => ({ ...d, [a.groupId]: !d[a.groupId] }))} aria-expanded={!!details[a.groupId]} data-testid="plan-details">
+                  Details
+                </button>
+              )}
+              {a.members && a.members.length > 0 && details[a.groupId] && (
                 <ul className="ml-6 flex flex-wrap gap-x-3 gap-y-0.5 text-sm text-muted-foreground" data-testid="plan-members">
                   {memberCounts(a).map((m) => {
                     const KindIcon = ICON[m.kind] ?? FileIcon;
@@ -358,12 +365,16 @@ const files = (n: number) => `${n} ${n === 1 ? "file" : "files"}`;
 
 /** todo20 D4/D5: what an applied drop did, in one line ("Added 35 files to Studio",
  * "Already in this project") plus "12 new, 23 already here" when it was partly known. */
-export function appliedCopy(plan: Pick<PlanView, "outcome" | "newCount" | "alreadyHere">): { headline: string; detail?: string; open: string } | null {
+export function appliedCopy(plan: Pick<PlanView, "outcome" | "newCount" | "alreadyHere"> & { plan?: Pick<DropPlan, "actions"> }): { headline: string; detail?: string; open: string } | null {
   const added = plan.newCount ?? 0;
   const here = plan.alreadyHere ?? 0;
   if (!plan.outcome) return null;
   if (added === 0 && here > 0) return { headline: "Already in this project", detail: `${here === 1 ? "This file is" : `These ${here} files are`} already in this project`, open: "Open in Studio" };
-  return { headline: `Added ${files(added)} to Studio`, ...(here > 0 ? { detail: `${added} new, ${here} already here` } : {}), open: "Open" };
+  // todo29 D7/D8: one line, one number: what went in (the plan's members), never the drop's total.
+  const actions = plan.plan?.actions ?? [];
+  const n = actions.length ? wentIn(actions) : added;
+  const studio = actions.find((a) => a.type === "new_dataset" && a.name)?.name ?? "Studio";
+  return { headline: `Added ${files(n)} to ${studio}`, ...(here > 0 ? { detail: `${added} new, ${here} already here` } : {}), open: "Open" };
 }
 
 /** A follow-up plan for files that arrived after the first was applied (`<dropId>-<n>`, drops_plan.py). */

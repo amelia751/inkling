@@ -33,12 +33,13 @@ import { runStudioCommand, STUDIO_COMMAND } from "@/studio/lib/studio-boot";
 import { SPECIALIST_LABEL, type StudioCardContext } from "./cards";
 import { usePendingAsk, withUploadNote } from "@/studio/app/entry/pending-ask";
 import { useDropFiles } from "@/studio/app/entry/drop-adapter";
-import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, whenRegistered } from "@/studio/core/drops";
+import { cancelDrop, DropCard, pastedFiles, SharedFiles, startDrop, useChatDropsEnabled, useDropChips, whenRegistered } from "@/studio/core/drops";
 import { runtimeConfig } from "@/extension-host/runtime-config";
 import { useProjectSummary } from "@/studio/lib/projects-api";
 import { fromDataTransfer, fromFileList, hasFiles, type Picked } from "@/studio/lib/uploads/walk";
 import { settledPhase, trayLine, useUploads } from "@/studio/stores/uploads";
 import { chatUploadsGate } from "./chat-uploads";
+import { composerBusy, composerButton, composerEnter, dropSettled } from "./composer-state";
 
 /**
  * The assistant (docs/ux.md §9), shared by its two hosts (todo6 Phase 6): the Studio's right
@@ -266,6 +267,8 @@ function Conversation({
 }: AssistantPanelProps & { thread: ChatMessage[]; status: AgentStatus; running: boolean; busy: boolean; onScrolled: (scrolled: boolean) => void; dropsOn: boolean; dropsPending?: boolean; canEdit: boolean; chatId?: string }) {
   const send = useAgent((s) => s.send);
   const profile = useAgent((s) => s.profile);
+  // todo29 D5: the assistant follows a drop it was sent until the drop settles (or Stop).
+  const followingDrop = useAgent((s) => (chatId ? s.following[chatId] : undefined));
   const dismissed = useAgentContextStore((s) => s.dismissed === provider.key);
   const ackAiNotice = useAckAiNotice();
   const scroller = useRef<HTMLDivElement>(null);
@@ -437,15 +440,19 @@ function Conversation({
                 />
               ),
             )}
+            {followingDrop && !running && <WatchingFiles />}
           </div>
         )}
-        <DropPlanCards projectId={project.id} />
+        {followingDrop && chatId && <FollowDrop chatId={chatId} dropId={followingDrop} />}
+        {/* todo29 D7: with chat drops on, the assistant orchestrates them; its reply and the Studio card say what happened. */}
+        {!dropsOn && <DropPlanCards projectId={project.id} />}
       </div>
       <Composer
         project={project}
         provider={provider}
         placeholder={placeholder(profile)}
         running={running}
+        following={!!followingDrop}
         busy={busy}
         onSend={(t) => ask(t)}
         studio={!!studio}
@@ -498,11 +505,31 @@ function EmptyState({ title, body, prompts, footer, onAsk, drops }: { title: str
   );
 }
 
+/** todo29 D5: the hint under the last reply while the assistant waits on its files (no run active). */
+function WatchingFiles() {
+  return (
+    <div className="flex items-center gap-2 self-start text-hint" role="status" data-testid="agent-watching">
+      <Spinner size="s" />
+      Watching your files
+    </div>
+  );
+}
+
+/** Ends the chat's drop follow-up once the drop has nothing moving. */
+function FollowDrop({ chatId, dropId }: { chatId: string; dropId: string }) {
+  const settled = dropSettled(useDropChips(dropId));
+  useEffect(() => {
+    if (settled) useAgent.getState().unfollow(chatId);
+  }, [settled, chatId]);
+  return null;
+}
+
 function Composer({
   project,
   provider,
   placeholder,
   running,
+  following = false,
   busy,
   onSend,
   studio,
@@ -519,6 +546,8 @@ function Composer({
   provider: AgentContextProvider;
   placeholder: string;
   running: boolean;
+  /** todo29 D5: the assistant follows a drop it was sent; the composer is busy as if running. */
+  following?: boolean;
   busy: boolean;
   onSend: (t: string) => void;
   studio: boolean;
@@ -539,6 +568,16 @@ function Composer({
   const folderPicker = useRef<HTMLInputElement>(null);
   const canSend = !!text.trim() || !!pending || uploads.length > 0;
   const stop = useAgent((s) => s.stop);
+  // todo29 D5: Stop whenever the assistant works (a run, or following its files); Enter queues meanwhile.
+  const working = composerBusy(running, following);
+  const [queued, setQueued] = useState<string[]>([]);
+  useEffect(() => {
+    if (working || busy || !queued.length) return;
+    // In order, as one message: the next reply answers everything that was queued.
+    onSend(queued.filter(Boolean).join("\n\n"));
+    setQueued([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [working, busy, queued]);
 
   useEffect(() => {
     const el = area.current;
@@ -553,15 +592,30 @@ function Composer({
     if (focusTick) area.current?.focus();
   }, [focusTick]);
 
-  // While a run is active, a message steers it (the service queues it after the current step).
+  // todo29 D5: while the assistant works, Enter queues the message; it goes when the work ends.
   const submit = () => {
-    if (!canSend || busy) return;
-    onSend(text);
-    setText("");
+    if (busy) return;
+    const next = composerEnter({ busy: working, text, canSend, queued });
+    if (next.send !== undefined) onSend(next.send);
+    if (next.send !== undefined || next.queued !== queued) setText("");
+    setQueued(next.queued);
   };
 
   return (
     <div className="flex shrink-0 flex-col gap-2 px-4 pt-3 pb-3">
+      {queued.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5" data-testid="agent-queued">
+          {queued.map((q, i) => (
+            <li key={i} className="flex h-6 max-w-full min-w-0 items-center gap-1.5 rounded-full bg-generic pr-1 pl-2.5 text-caption" data-testid="agent-queued-chip">
+              <span className="shrink-0 text-hint">Queued</span>
+              <span className="min-w-0 truncate">{q || "Your files"}</span>
+              <button type="button" className="rounded-full p-0.5 text-hint hover:text-foreground" onClick={() => setQueued((list) => list.filter((_, j) => j !== i))} aria-label="Remove queued message">
+                <CloseIcon className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div
         className={cn(
           "flex min-h-30 cursor-text flex-col rounded-xl border border-border bg-background p-3 transition-colors focus-within:border-brand-heavy",
@@ -600,7 +654,7 @@ function Composer({
               e.preventDefault();
               submit();
             }
-            if (e.key === "Escape" && running) stop(project.id);
+            if (e.key === "Escape" && working) stop(project.id);
           }}
           onPaste={(e) => {
             // A pasted screenshot (or copied files) becomes a drop, like an attached file.
@@ -610,7 +664,7 @@ function Composer({
             if (attach.allowed) attach.onFiles(pastedFiles(files));
           }}
           rows={2}
-          placeholder={running ? "Add to the current request…" : placeholder}
+          placeholder={working ? "Queue a message…" : placeholder}
           aria-label={`Message ${NAMING.displayName} AI`}
           className="block max-h-55 min-h-11 w-full flex-1 resize-none bg-transparent text-chat outline-none placeholder:text-hint focus-visible:outline-none"
         />
@@ -674,7 +728,7 @@ function Composer({
             </>
           )}
           <ContextIndicator provider={provider} />
-          {running && !canSend ? (
+          {composerButton(working) === "stop" ? (
             <Button variant="secondary" size="icon-lg" className="ml-auto" onClick={() => stop(project.id)} aria-label="Stop generating"><StopIcon /></Button>
           ) : (
             <Button variant={canSend ? "default" : "secondary"} size="icon-lg" className="ml-auto disabled:text-hint" onClick={submit} disabled={!canSend || busy} aria-label="Send"><SubmitIcon /></Button>

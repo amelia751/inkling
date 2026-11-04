@@ -1,20 +1,22 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
-import { AnnotateIcon, ChevronDownIcon, DoneIcon, DotIcon, ErrorIcon, UndoIcon } from "@studio/ui/icons";
+import { AnnotateIcon, ErrorIcon, UndoIcon } from "@studio/ui/icons";
 import { Badge } from "@studio/ui/ui/badge";
 import { Button, buttonVariants } from "@studio/ui/ui/button";
 import { Spinner } from "@studio/ui/ui/spinner";
 import { cn } from "@studio/ui/utils";
 import { studioUrl } from "@/studio/lib/routes";
 import { threadKey, useAgent } from "@/studio/stores/agent";
-import { readySeconds } from "@/studio/components/layout/boot-status";
-import { bootRows, formatSeconds, useBoots, type BootStep, type BootView } from "@/studio/stores/boots";
+import { useBoots, type BootView } from "@/studio/stores/boots";
+import { fetchDataset, fetchTask, projectKeys } from "@/studio/lib/projects-api";
+import { useDrop } from "@/studio/core/drops";
 
 /**
- * The boot card / ledger (todo11 §3): one shimmering header line while the boot runs, then
- * "Studio ready · N s · Undo · Publish". Rows name artefacts ("Added 5 labels"), fixed height,
- * expandable when they carry one. Fed by the project stream's `boot.*` events (the boots
- * store), so the New Studio button and `/studio` get the same card as the model's boots.
+ * The boot card (todo11 §3, todo29 D7): one shimmering line while the boot runs, then
+ * "{name} · {n} items · Open" (Undo and Publish on hover). No step rows, no kind list.
+ * Fed by the project stream's `boot.*` events (the boots store), so the New Studio button and
+ * `/studio` get the same card as the model's boots.
  */
 export function BootCard({ bootId }: { bootId: string }) {
   const boot = useBoots((s) => s.boots[bootId]);
@@ -27,14 +29,31 @@ export function BootCard({ bootId }: { bootId: string }) {
   return <BootLedger boot={boot} />;
 }
 
+/** todo29 D7/D8: the card's one line, "Chest X-rays · 27 items"; the count only when it's known. */
+export function bootLine(name: string, items: number | undefined): string {
+  return items === undefined ? name : `${name} · ${items} ${items === 1 ? "item" : "items"}`;
+}
+
+/** The Studio's name and how many items went in: the drop's `inStudio` when a drop booted it, else the dataset's files. */
+function useBootSummary(boot: BootView): { name?: string; items?: number } {
+  const task = boot.taskIds[0];
+  const dropId = (boot.initiator as { dropId?: string } | undefined)?.dropId;
+  const t = useQuery({ queryKey: ["tasks", task], queryFn: () => fetchTask(task!), enabled: !!task && boot.state === "ready", staleTime: 5_000 });
+  const datasetId = t.data?.datasetId;
+  const d = useQuery({ queryKey: [...projectKeys.datasets(boot.projectId), datasetId], queryFn: () => fetchDataset(boot.projectId, datasetId!), enabled: !!datasetId && !dropId, staleTime: 5_000 });
+  const drop = useDrop(boot.state === "ready" ? dropId : undefined);
+  const inStudio = (drop.data?.summary as { inStudio?: number } | undefined)?.inStudio;
+  return { name: t.data?.title, items: dropId ? inStudio : d.data?.fileCount };
+}
+
 function BootLedger({ boot }: { boot: BootView }) {
   const { taskId } = useParams();
   const [busy, setBusy] = useState<null | "undo" | "publish">(null);
   const [error, setError] = useState<string | null>(null);
   const task = boot.taskIds[0];
   const here = !!task && taskId === task;
-  const rows = bootRows(boot);
   const refined = boot.steps.some((s) => s.step === "refine" && s.state === "done");
+  const summary = useBootSummary(boot);
   const act = (kind: "undo" | "publish") => {
     setBusy(kind);
     setError(null);
@@ -43,89 +62,52 @@ function BootLedger({ boot }: { boot: BootView }) {
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setBusy(null));
   };
+  // todo29 D7: one line, "{name} · {n} items · Open"; no step list, no kind list.
   const header =
     boot.state === "running"
       ? "Setting up your Studio"
       : boot.state === "ready"
-        ? readySeconds(boot) !== undefined
-          ? `Studio ready · ${formatSeconds(readySeconds(boot)!)} s`
-          : "Studio ready"
+        ? bootLine(summary.name ?? "Studio ready", summary.items)
         : boot.state === "stopped"
           ? "Stopped · what was built is kept"
           : "Couldn't set up the Studio";
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-background" data-testid="boot-card" data-state={boot.state} data-boot-id={boot.bootId}>
+    <section className="group/boot overflow-hidden rounded-lg border border-border bg-background" data-testid="boot-card" data-state={boot.state} data-boot-id={boot.bootId}>
       <header className="flex h-9 items-center gap-2 px-3">
         {boot.state === "running" ? <Spinner className="size-3.5" /> : boot.state === "failed" ? <ErrorIcon className="size-4 shrink-0 text-danger" /> : <AnnotateIcon className="size-4 shrink-0 text-hint" />}
         <p role="status" aria-live="polite" className={cn("min-w-0 truncate font-semibold", boot.state === "running" && "shimmer-text")} data-testid="boot-card-status">
           {header}
         </p>
-        {boot.published && <Badge theme="success" className="ml-auto shrink-0">Published</Badge>}
-      </header>
-      <ul className="flex flex-col px-3 pb-2">
-        {rows.map((r) => (
-          <BootRow key={r.step} row={r} />
-        ))}
-      </ul>
-      {boot.message && boot.state === "failed" && <p className="px-3 pb-2 text-danger">{boot.message}</p>}
-      {error && <p className="px-3 pb-2 text-danger" role="alert">{error}</p>}
-      {(boot.state === "running" || task) && (
-        <footer className="flex items-center gap-1.5 border-t border-border px-3 py-1.5">
+        {boot.published && <Badge theme="success" className="shrink-0">Published</Badge>}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {boot.state === "running" ? (
             <Button variant="ghost" size="xs" onClick={() => useBoots.getState().stop(boot.bootId)} data-testid="boot-stop">Stop</Button>
           ) : (
             <>
-              {task && !here && (
-                <Link to={studioUrl(boot.projectId, task)} viewTransition className={buttonVariants({ variant: "secondary", size: "xs" })} data-testid="boot-open">
-                  Open Studio
-                </Link>
-              )}
               {refined && !boot.undone && boot.state !== "failed" && (
-                <Button variant="ghost" size="xs" disabled={!!busy} onClick={() => act("undo")} data-testid="boot-undo">
+                <Button variant="ghost" size="xs" className="opacity-0 group-hover/boot:opacity-100 focus-visible:opacity-100" disabled={!!busy} onClick={() => act("undo")} data-testid="boot-undo">
                   <UndoIcon />
                   Undo
                 </Button>
               )}
               {task && !boot.published && boot.state !== "failed" && (
-                <Button variant="ghost" size="xs" className="ml-auto" disabled={!!busy} onClick={() => act("publish")} data-testid="boot-publish">
+                <Button variant="ghost" size="xs" className="opacity-0 group-hover/boot:opacity-100 focus-visible:opacity-100" disabled={!!busy} onClick={() => act("publish")} data-testid="boot-publish">
                   Publish
                 </Button>
               )}
+              {task && !here && (
+                <Link to={studioUrl(boot.projectId, task)} viewTransition className={buttonVariants({ variant: "secondary", size: "xs" })} data-testid="boot-open">
+                  Open
+                </Link>
+              )}
             </>
           )}
-        </footer>
-      )}
+        </div>
+      </header>
+      {boot.message && boot.state === "failed" && <p className="px-3 pb-2 text-danger">{boot.message}</p>}
+      {error && <p className="px-3 pb-2 text-danger" role="alert">{error}</p>}
     </section>
-  );
-}
-
-function BootRow({ row }: { row: BootStep }) {
-  const [open, setOpen] = useState(false);
-  const icon =
-    row.state === "active" ? (
-      <Spinner className="size-3.5" />
-    ) : row.state === "done" ? (
-      <DoneIcon className="size-3.5 shrink-0 text-hint" />
-    ) : row.state === "failed" ? (
-      <ErrorIcon className="size-3.5 shrink-0 text-danger" />
-    ) : (
-      <DotIcon className="size-3.5 shrink-0 text-hint" />
-    );
-  return (
-    <li data-testid="boot-step" data-state={row.state} data-step={row.step}>
-      <button
-        type="button"
-        onClick={() => row.artefact && setOpen(!open)}
-        aria-expanded={row.artefact ? open : undefined}
-        className={cn("group flex h-6 w-full min-w-0 items-center gap-2 text-left", row.state === "pending" ? "text-hint" : "text-muted-foreground", row.artefact && "hover:text-foreground")}
-      >
-        {icon}
-        <span className={cn("min-w-0 truncate", row.state === "active" && "shimmer-text")}>{row.label}</span>
-        {row.artefact && <ChevronDownIcon className={cn("ml-auto size-3 shrink-0 text-hint opacity-0 transition group-hover:opacity-100", open && "rotate-180 opacity-100")} />}
-      </button>
-      {open && row.artefact && <p className="ml-5.5 truncate pb-1 text-caption text-hint">{row.artefact}</p>}
-    </li>
   );
 }
 

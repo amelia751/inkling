@@ -6,6 +6,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { NAMING } from "@studio/contracts/naming";
 import { AssistantPanel } from "@/studio/components/ai/assistant-panel";
 import { AskButton } from "@/studio/components/ai/ask-button";
+import { AiNotice } from "@/studio/components/ai/ai-notice";
+import { emptyProjectCopy } from "@/studio/components/ai/empty-project-copy";
 import { CARD_TOOL_NAMES, runCardTool } from "@/studio/lib/agent/card-tools";
 import { currentProvider, useAgentContextStore, type AgentSection } from "@/studio/lib/agent/providers";
 import { ENV_TOOL_NAMES } from "@/studio/lib/agent/session";
@@ -125,7 +127,8 @@ function ResizableColumn({ children }: { children: React.ReactNode }) {
 
 function DrawerPanel({ project, section, onClose }: { project: { id: string; title: string }; section: AgentSection; onClose: () => void }) {
   const summary = useProjectSummary(project.id).data;
-  const held = useOverview(project.id).data?.attention?.filter((a) => a.type === "privacy").length ?? 0;
+  const overview = useOverview(project.id).data;
+  const held = overview?.attention?.filter((a) => a.type === "privacy").length ?? 0;
   const ref = { id: project.id, title: summary?.title ?? project.title, restricted: !!summary?.restricted };
   const registered = useAgentContextStore((s) => s.provider);
   const provider = currentProvider(registered, section, ref);
@@ -146,6 +149,11 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
               body: "Find files or tidy folders. Nothing moves until you apply.",
               prompts: FILES_PROMPTS,
             }
+          : overview?.empty
+          ? (() => {
+              const copy = emptyProjectCopy(ref.title);
+              return { title: copy.title, body: copy.description, prompts: [{ icon: SegmentIcon, text: copy.example }], footer: <AiNotice /> };
+            })()
           : {
               title: "How can I help with this project?",
               body: drops ? "Ask about this project, or drop files." : "Ask about this project.",

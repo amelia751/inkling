@@ -21,6 +21,7 @@ import { cancelDrop } from "@/studio/core/drops/start";
 import { useComposerAttachments } from "./composer-attachments";
 import { useAgent } from "@/studio/stores/agent";
 import { AiNotice, useAckAiNotice } from "@/studio/components/ai/ai-notice";
+import { emptyProjectCopy } from "@/studio/components/ai/empty-project-copy";
 
 /**
  * The empty states of todo13 §3.1. The project Overview keeps the composer; the Studio entry and
@@ -128,14 +129,22 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
   const blocked = useFilesBlocked(projectId);
   const [text, setText] = useState("");
   const attached = useComposerAttachments((s) => !!s.byProject[projectId]);
+  const panelOpen = useShell((s) => s.assistantOpen);
+  const copy = emptyProjectCopy(title);
+  if (panelOpen)
+    return (
+      <p className="py-16 text-center text-sm text-hint" data-testid="empty-project">
+        Start in the {NAMING.displayName} panel, or drop files here.
+      </p>
+    );
   return (
     <div className="flex flex-col gap-2" data-testid="empty-project">
       <ComposerEmptyState
         variant="page"
         composer
-        title={`What do you want to do in ${title}?`}
-        description={`Attach files or a whole folder and ${NAMING.displayName} uploads them, sorts them by type and sets up a Studio for each. Then ask for what you need, like prelabeling objects with SAM 3.1.`}
-        placeholder="“Prelabel the lungs in these chest X-rays”"
+        title={copy.title}
+        description={copy.description}
+        placeholder={`“${copy.example}”`}
         value={text}
         onValueChange={setText}
         onSend={(t) => (ackAiNotice(), send(t), setText(""))}

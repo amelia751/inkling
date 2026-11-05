@@ -62,6 +62,24 @@ def job_dict(j: PluginJob) -> dict:
     }
 
 
+def _task_of_input(db: Session, project_id: str, input: dict) -> str | None:
+    """A job started outside a Studio (the project's chat) commits its suggestions to the newest
+    Studio whose dataset holds the input's file, so that Studio shows them."""
+    from ..models import DatasetRow, SourceNode, TaskRow
+
+    asset_id = input.get("asset_id") if isinstance(input, dict) else None
+    if not isinstance(asset_id, str):
+        return None
+    node = db.scalar(select(SourceNode.id).where(SourceNode.project_id == project_id, SourceNode.asset_id == asset_id).limit(1))
+    if node is None:
+        return None
+    for t in db.scalars(select(TaskRow).where(TaskRow.project_id == project_id, TaskRow.trashed_at.is_(None)).order_by(TaskRow.created_at.desc())):
+        ds = db.get(DatasetRow, t.dataset_id) if t.dataset_id else None
+        if ds is not None and any(isinstance(r, dict) and r.get("nodeId") == node for r in (ds.definition or {}).get("files") or []):
+            return t.id
+    return None
+
+
 def enqueue(db: Session, ctx: RequestContext, *, plugin_id: str, version: str, tool: str, input: dict, capability: str | None, provider: str | None, estimated_cost_usd: float, timeout_s: int, resource_class: str = "cpu") -> tuple[PluginJob, bool]:
     """Returns (job, created). The same idempotency key returns the existing job (§14 #7)."""
     if ctx.idempotency_key:
@@ -83,7 +101,7 @@ def enqueue(db: Session, ctx: RequestContext, *, plugin_id: str, version: str, t
         principal=ctx.principal,
         timeout_s=timeout_s,
         traceparent=current_traceparent(),
-        task_id=ctx.task_id,
+        task_id=ctx.task_id or _task_of_input(db, ctx.workspace_id, input),
         resource_class=resource_class,
     )
     db.add(j)

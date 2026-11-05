@@ -71,6 +71,26 @@ def test_boot_takes_extends_and_accepts(client):
     assert bad.status_code == 422 and bad.json()["errors"][0]["path"] == "/extends"
 
 
+def test_a_job_started_from_the_project_chat_lands_in_the_studio_holding_its_file(client):
+    from sqlalchemy import select
+
+    from studio_api import db as kdb
+    from studio_api.kernel import jobs
+    from studio_api.models import SourceNode, TaskRow
+
+    from .test_drops import _drop, _project_without_assistant as _project, _report
+
+    pid = _project(client)
+    _drop_row, imp = _drop(client, pid, {"x/chest.png": b"png", "v/clip.mp4": b"mp4"})
+    _report(client, imp, {"chest.png": "image", "clip.mp4": "video"}, {})
+    with kdb.session_scope() as db:
+        tid = db.scalar(select(TaskRow.id).where(TaskRow.project_id == pid))
+        asset = db.scalar(select(SourceNode.asset_id).where(SourceNode.project_id == pid, SourceNode.name == "chest.png"))
+        assert tid and asset
+        assert jobs._task_of_input(db, pid, {"asset_id": asset}) == tid
+        assert jobs._task_of_input(db, pid, {"asset_id": "nope"}) is None
+
+
 def test_accepts_given_as_data_kind_ids_become_item_kinds(client):
     from .test_drops import _project_without_assistant as _project
 

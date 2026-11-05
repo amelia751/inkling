@@ -133,9 +133,14 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
   const copy = emptyProjectCopy(title);
   if (panelOpen)
     return (
-      <p className="py-16 text-center text-sm text-hint" data-testid="empty-project">
-        Start in the {NAMING.displayName} panel, or drop files here.
-      </p>
+      <EmptyState
+        variant="page"
+        art="files"
+        title="No files yet"
+        description={`Attach them in the ${NAMING.displayName} panel, or drop them anywhere here.`}
+        className="py-16"
+        data-testid="empty-project"
+      />
     );
   return (
     <div className="flex flex-col gap-2" data-testid="empty-project">

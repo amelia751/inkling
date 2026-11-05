@@ -142,9 +142,11 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
           {editing === "description" ? (
             <InlineEdit initial={project.description} label="Description" multiline onDone={(v) => (setEditing(null), v !== null && v !== project.description && save.mutate({ description: v }))} className="mt-1 text-sm" />
           ) : (
-            <button type="button" className="mt-1 max-w-2xl rounded-md text-left text-sm text-muted-foreground hover:bg-generic" onClick={() => setEditing("description")}>
-              {project.description || <span className="text-hint">Add a short description</span>}
-            </button>
+            project.description && (
+              <button type="button" className="mt-1 max-w-2xl rounded-md text-left text-sm text-muted-foreground hover:bg-generic" onClick={() => setEditing("description")}>
+                {project.description}
+              </button>
+            )
           )}
           {(project.sample || project.sampleOf) && project.license && (
             <p className="mt-1 flex max-w-2xl items-start gap-1.5 text-xs text-muted-foreground" data-testid="sample-license">

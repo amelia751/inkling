@@ -6,7 +6,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@studio/ui/ui/tooltip";
 import { NAMING } from "@studio/contracts/naming";
 import { AssistantPanel } from "@/studio/components/ai/assistant-panel";
 import { AskButton } from "@/studio/components/ai/ask-button";
-import { AiNotice } from "@/studio/components/ai/ai-notice";
 import { emptyProjectCopy } from "@/studio/components/ai/empty-project-copy";
 import { CARD_TOOL_NAMES, runCardTool } from "@/studio/lib/agent/card-tools";
 import { currentProvider, useAgentContextStore, type AgentSection } from "@/studio/lib/agent/providers";
@@ -149,14 +148,10 @@ function DrawerPanel({ project, section, onClose }: { project: { id: string; tit
               body: "Find files or tidy folders. Nothing moves until you apply.",
               prompts: FILES_PROMPTS,
             }
-          : overview?.empty
-          ? (() => {
-              const copy = emptyProjectCopy(ref.title);
-              return { title: copy.title, body: copy.description, prompts: [{ icon: SegmentIcon, text: copy.example }], footer: <AiNotice /> };
-            })()
           : {
-              title: "How can I help with this project?",
-              body: drops ? "Ask about this project, or drop files." : "Ask about this project.",
+              ...(overview?.empty
+                ? { title: emptyProjectCopy(ref.title).title, body: emptyProjectCopy(ref.title).description }
+                : { title: "How can I help with this project?", body: drops ? "Ask about this project, or drop files." : "Ask about this project." }),
               ...(hints.show
                 ? {
                     // todo14 D8: a first run gets the three todo13 examples, once, until dismissed.

@@ -1,5 +1,5 @@
 # spurby-data: data we curate (public datasets, seed data, synthetic e2e fixtures, demos) and
-# de-identified releases from spurby-phi (docs/deployment-gcp.md). No customer data except what
+# de-identified releases from spurby-phi (.agents/skills/data-boundary/deployment-gcp.md). No customer data except what
 # arrives through the release path. Normal controls; no CMEK requirement.
 terraform {
   required_version = ">= 1.9"

@@ -159,7 +159,7 @@ export function NewDatasetDialog({ projectId, onClose }: { projectId: string; on
           </div>
           {create.error && (
             <Alert theme="danger">
-              {create.error instanceof NeedsApiError ? "Creating datasets needs the full stack: see docs/running.md" : String(create.error.message)}
+              {create.error instanceof NeedsApiError ? "Creating datasets needs the full stack: see README.md" : String(create.error.message)}
             </Alert>
           )}
           <DialogFooter>

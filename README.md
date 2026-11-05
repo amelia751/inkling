@@ -1,149 +1,193 @@
-# Studio
+# Inkling
 
-A studio for viewing, annotating and exporting medical and scientific data: 2-D images and DICOM,
-3-D volumes, cardiac cine, video, ECG and other signals, whole-slide pathology and text.
+**One labelling studio for every kind of medical and scientific data.** Drop a folder of
+X-rays, CT series, ECGs, pathology slides or video. Inkling sorts the files by type, sets up a
+Studio for each, and an AI assistant prelabels them with Meta's SAM 3.1 and Muse models. Every
+suggestion arrives as a preview that a person accepts or rejects.
 
-- **One Studio, many data types.** Each data type is a plugin. A JSON **environment** picks which
-  plugins a Studio shows and how they're laid out, so a cardiology Studio and a pathology Studio
-  are two environments, not two apps.
-- **An AI assistant that proposes, never edits silently.** The agent can read the dataset, run the
-  Studio's tools and run code in Daytona sandboxes. Everything it suggests arrives as a preview
-  you approve or reject.
-- **Plugins without touching the core.** New data types, tools, exporters and models are added as
-  plugins: a `plugin.yaml`, a UI module and an optional Python worker. The agent can author them too.
-- **Datasets as repositories.** Branches, commits, reviews and merges for annotations.
+Live: [app.inklinglabs.io](https://app.inklinglabs.io) · Site: [inklinglabs.io](https://inklinglabs.io)
 
-The product name lives in one file, `packages/contracts/src/naming.ts` (exported as
-`schemas/naming.json`). Code uses the brand-free scope `@studio/*`, so renaming the product means
-changing that file and running `tools/rename-namespace.mjs`.
+## Meta models
 
-## Quick start
+Both models are called through the [Meta Model API](https://dev.meta.ai/docs/sam/overview)
+(`https://api.meta.ai/v1/responses`, an OpenAI-style Responses API). Keys are only ever env
+vars or Secret Manager entries; none is in the repo.
 
-You need Node 24 (`.nvmrc`), pnpm, uv and, for the backing services, Docker.
+| Model | Used for | Wired in | Key |
+|---|---|---|---|
+| `muse-spark-1.3` (default), `muse-wonder-1.0` | the assistant: planning, tool calls, Studio setup | [`apps/agent/src/agent/providers/muse.ts`](apps/agent/src/agent/providers/muse.ts), default in [`providers/index.ts`](apps/agent/src/agent/providers/index.ts) | `STUDIO_AGENT_MUSE_API_KEY` |
+| `sam-3.1` | mask proposals ("prelabel the lungs") | [`plugins/segmentation/.../providers/meta_sam.py`](plugins/segmentation/src/studio_plugin_segmentation/providers/meta_sam.py) | `STUDIO_API_PROVIDER_KEY_META` |
 
-```sh
-pnpm install && uv sync     # JS and Python dependencies
-pnpm seeds                  # sample datasets into seed-data/ (git-ignored)
-pnpm dev                    # web :5173, api :8000, agent :8100, worker, with hot reload
+On Cloud Run the model is chosen in
+[`infra/terraform/ai/run-variables.tf`](infra/terraform/ai/run-variables.tf) (`agent_model`,
+default `muse:muse-spark-1.3`) and the key is mounted from secret `run-agent-muse-api-key` in
+[`infra/terraform/ai/run.tf`](infra/terraform/ai/run.tf). Locally, copy
+[`secrets/models.env.example`](secrets/models.env.example) to `secrets/models.env`. OpenAI and
+Anthropic models work too (`STUDIO_AGENT_MODEL=openai:<model>`).
+
+SAM docs: [overview](https://dev.meta.ai/docs/sam/overview) ·
+[segmenting](https://dev.meta.ai/docs/sam/segmenting) ·
+[reading the output](https://dev.meta.ai/docs/sam/reading-segmentation) ·
+[pricing and limits](https://dev.meta.ai/docs/pricing-rate-limits).
+
+## Architecture
+
+Three lanes. Customer data and the AI never share a cloud project.
+
+**Studio.** The web app (`apps/web`) runs an **environment**: a JSON file that picks which
+plugins a Studio shows and how they're laid out. A chest X-ray Studio and a pathology Studio
+are two environments, not two apps. Each data type is a plugin under `plugins/`.
+
+**Kernel.** The api (`apps/api`, FastAPI) owns projects, files, annotations, jobs and the audit
+log. Uploads go to object storage; the worker (`apps/worker`) converts files (DICOM, slides,
+video) and runs plugin jobs such as SAM 3.1 segmentation. Versioning (`apps/versioning`, Go)
+gives datasets branches, commits, reviews and merges. All of it runs in the customer-data
+project: Cloud Run, Cloud SQL, KMS-encrypted buckets.
+
+**Assistant.** The agent (`apps/agent`, Node) runs Muse in a separate AI project. It sees
+file names, counts and annotation summaries, never sample bytes. It acts only through the
+kernel's tools (boot a Studio, start a job, propose labels), and every change is a preview a
+person approves. Runs stream to the browser over SSE.
+
+## Layout
+
+```
+.
+├── README.md
+├── AGENTS.md                 rules for AI coding agents in this repo
+├── package.json              pnpm + Turborepo scripts (dev, test, regen, checks)
+├── pyproject.toml            uv workspace (Python 3.12)
+│
+├── apps/                     deployables: one Dockerfile, one Cloud Run service each
+│   ├── web/                  the Studio · React 19, Vite, zustand, Tailwind + shadcn
+│   │   └── src/
+│   │       ├── studio/       the shell: projects, Files, the assistant panel
+│   │       └── extension-host/   loads plugins, turns an environment into a Studio
+│   ├── api/                  the kernel · FastAPI, Postgres
+│   │   └── src/studio_api/
+│   │       ├── routes/       HTTP: projects, files, assets, commands, jobs, events (SSE)
+│   │       └── kernel/       imports, boots, jobs, annotations, audit
+│   ├── worker/               file conversion + plugin jobs from the queue
+│   ├── agent/                the assistant · pi agent, Muse, SSE run streams
+│   │   └── src/agent/providers/   muse, openai, anthropic
+│   ├── versioning/           dataset versioning · Go
+│   ├── pipeline/             durable ingest workflows · Go, DBOS
+│   ├── mcp/                  MCP server, so Claude Desktop or Cursor can drive the Studio
+│   └── site/                 the marketing site
+│
+├── plugins/                  one data type or tool each: plugin.yaml, ui/, optional worker
+│   ├── image2d/              2-D images and DICOM: window/level, boxes, polygons
+│   ├── volume/               CT and MRI: MPR views, 3-D, masks
+│   ├── cine/                 cardiac cine loops
+│   ├── cardiac-metrics/      volumes and ejection fraction on top of cine
+│   ├── timeseries/           ECG and signals: intervals and events
+│   ├── video/                frame-accurate video segments
+│   ├── wsi/                  whole-slide pathology, GeoJSON import/export
+│   ├── text-spans/           span labels in text
+│   ├── table/, chart/        tabular and chart data
+│   ├── segmentation/         SAM 3.1 mask proposals (Python worker)
+│   ├── dicom-export/         DICOM SEG/SR export
+│   └── _template/            starting point: node tools/new-plugin.mjs <name>
+│
+├── packages/                 shared libraries, never deployed alone
+│   ├── contracts/            canonical types and zod schemas; naming.ts holds the product name
+│   ├── plugin-ui-sdk/        all a plugin UI may import: defineModule, useHost
+│   ├── plugin-sdk/           Python SDK for plugin workers
+│   ├── ui/                   shadcn components and icons
+│   ├── renderers/            Cornerstone, 2-D overlay, timeline, viewport chrome, IO
+│   ├── studio-tools/         the Studio tools shared by agent and mcp
+│   ├── agent-protocol/       wire types between web and agent
+│   ├── environment-core/     environment validation shared by clients
+│   ├── api-client/           typed client, generated from the OpenAPI spec
+│   ├── signing/              Ed25519 dev key, Cloud KMS in production
+│   └── observability-*/      JSON logs and OpenTelemetry (TS and Python)
+│
+├── registry/
+│   ├── presets/              ready-made environments: image-2d, ecg, pathology, volume-3d…
+│   ├── recipes/              multi-step recipes the assistant can run
+│   └── index.json            plugin index (generated)
+│
+├── schemas/                  generated JSON Schemas + OpenAPI; source of truth for TS, Python, Go
+│
+├── infra/
+│   ├── terraform/
+│   │   ├── org/              folders, org policies, VPC Service Controls perimeter
+│   │   ├── phi/              customer data: Cloud Run, Cloud SQL, KMS, buckets, LB
+│   │   ├── ai/               the agent's project: Cloud Run, model keys, sandboxes
+│   │   └── data/             curated data: public sets, synthetic fixtures, de-identified releases
+│   ├── docker/               compose stack: the whole product on :8080
+│   ├── k8s/                  Kustomize base + dev/staging/prod overlays
+│   └── workos/               sign-in emulator config for local dev
+│
+├── .github/workflows/
+│   ├── images.yml            build and push every image
+│   ├── ci.yml                typecheck, lint, test, boundary and generated-file checks
+│   └── deploy.yml            migrations, then Cloud Run
+│
+├── secrets/                  *.env.example templates; real *.env are git-ignored
+├── tools/                    dev runner, seeds, codegen, boundary and naming checks
+└── tests/e2e/                end-to-end tests across services
 ```
 
-Open http://localhost:5173. The web app serves `seed-data/` straight from disk, and the API
-falls back to SQLite and local files, so none of this needs Docker or a key.
+## Spin-up Instructions
 
-To use the agent with a real model and sandboxes, add keys to `secrets/*.env` (start from the
-`*.example` files; see [`secrets/README.md`](secrets/README.md)). Without keys the agent runs
-scripted, with sandboxes off.
+Judges can use the [live app](https://app.inklinglabs.io) without installing anything. The
+steps below run the same product locally.
 
-| Command | What it does |
-|---|---|
-| `pnpm infra:up` / `infra:down` | Postgres, Redis and S3 in Docker, for running `pnpm dev` against real backing services |
-| `pnpm stack:up` / `stack:down` | the whole product from its images behind one router on :8080, like production |
-| `pnpm agent`, `pnpm api`, `pnpm mcp` | one service on its own |
-| `pnpm seeds:upload` | copy the sample data into object storage |
+### Prerequisites
 
-[`docs/running.md`](docs/running.md) covers all three ways to run it, including a local
-Kubernetes cluster.
+- Node 24 (`.nvmrc`) and pnpm
+- Python 3.12 and [uv](https://docs.astral.sh/uv/)
+- ffmpeg, for video (`brew install ffmpeg`)
+- Docker, only for the compose stack
 
-## What's in the repo
+### Local
 
-A pnpm + uv monorepo built with Turborepo.
+1. Install and fetch the sample data (public and synthetic, into `seed-data/`, git-ignored).
 
-```text
-apps/        deployables: one Dockerfile and one Kubernetes Deployment each
-plugins/     first-party plugins (UI module, plugin.yaml, optional Python worker)
-packages/    shared libraries, never deployed alone
-registry/    presets (ready-made environments) and the plugin index
-schemas/     generated JSON Schemas, the source of truth across TS, Python and Go
-infra/       Docker Compose and Kubernetes (Kustomize base + dev/staging/prod overlays)
-tools/       repo-wide scripts: seeds, checks, codegen, renames, scaffolding
-tests/e2e/   end-to-end tests that span several services
-docs/        design docs, the glossary and architecture decisions
-todo/        the current plan and BACKLOG.md; finished plans are in todo/done/
+```bash
+pnpm install && uv sync
+pnpm seeds
 ```
 
-### Services (`apps/`)
+2. Add a Meta Model API key. Without one the assistant runs a free scripted model and SAM is off.
 
-| App | Stack | What it does |
-|---|---|---|
-| `web` | React 19, Vite, zustand, Tailwind + shadcn | The Studio and the **extension host**, which loads plugins and turns an environment into a running Studio |
-| `api` | Python, FastAPI, Postgres | The kernel (assets, annotations, workspaces, the command gateway, jobs, audit) and the plugin control plane |
-| `agent` | Node, pi agent, Daytona | AI agent runtime: profiles, tools, approvals, resumable SSE run streams |
-| `worker` | Python | Runs plugin jobs, such as segmentation inference, from the queue; scales on queue depth |
-| `versioning` | Go, Postgres | Dataset versioning: branches, commits, review requests, semantic diffs, merges |
-| `mcp` | Node | MCP server, so outside agents (Claude Desktop, Cursor) can drive the Studio |
+```bash
+cp secrets/models.env.example secrets/models.env
+#   STUDIO_AGENT_MUSE_API_KEY=...        the assistant
+echo 'STUDIO_API_PROVIDER_KEY_META=...' > secrets/api.env   # SAM 3.1
+```
 
-Every service is stateless, reads its config only from `STUDIO_<ROLE>_*` env vars, and serves
-`/healthz`, `/readyz` and `/version`.
+3. Start everything with hot reload: web on :5173, api on :8000, agent on :8100, and the worker.
+The api falls back to SQLite and local files, so no database is needed.
 
-### Plugins (`plugins/`)
+```bash
+pnpm dev                  # dev sign-in
+pnpm dev:signin           # real WorkOS sign-in (secrets/workos.env)
+```
 
-| Plugin | Adds |
-|---|---|
-| `image2d` | 2-D images and DICOM: window/level, measurements, boxes and polygons |
-| `volume` | MRI and CT volumes: MPR views, 3-D rendering, segmentation masks |
-| `cine` | cine loops such as cardiac MRI, with frame playback |
-| `cardiac-metrics` | volumes and ejection fraction on top of `cine` |
-| `timeseries` | ECG and other signals, with interval and event labels |
-| `video` | video such as endoscopy, with frame-accurate segments |
-| `wsi` | whole-slide pathology images, with region annotations and GeoJSON import/export |
-| `text-spans` | span labelling in text documents |
-| `dicom-export` | DICOM SEG/SR export of annotations and masks |
-| `segmentation` | reference worker plugin: SAM-style mask proposals you review in the Studio |
-| `_template` | the starting point for a new plugin (`node tools/new-plugin.mjs <name>`) |
+4. Open http://localhost:5173, create a project, drop the `seed-data/` folder into the
+assistant panel and ask: *"Prelabel the lungs in these chest X-rays."*
 
-### Libraries (`packages/`)
+To run the product from its images behind one router, like production:
 
-| Package | What it is |
-|---|---|
-| `contracts` | canonical types and zod schemas: environments, annotations, geometries, `plugin.yaml`, naming |
-| `plugin-ui-sdk` | everything a plugin's UI may import: `defineModule`, contribution types, `useHost` |
-| `ui` | shadcn components, icons and utilities, with no app state |
-| `renderers` | shared viewer engines: Cornerstone, 2-D overlay, timeline, viewport chrome, file IO |
-| `agent-protocol` | the agent's request and event types, shared by `web` and `agent` |
-| `api-client` | typed client for `apps/api`, generated from its OpenAPI spec |
-| `plugin-sdk` | the Python SDK for plugin workers (`studio_plugin_sdk`) |
-| `observability-ts`, `observability-py` | structured logging and OpenTelemetry for every service |
+```bash
+pnpm stack:up             # http://localhost:8080
+pnpm stack:down
+```
 
-## Rules worth knowing first
+### Cloud
 
-- **Apps never import each other.** They talk over HTTP and events. Shared code goes in
-  `packages/`, which never imports `apps/` or `plugins/`.
-- **Plugins only import the SDKs**: `@studio/plugin-ui-sdk`, `@studio/contracts`, `@studio/ui` and
-  `@studio/renderers` in the UI, and `studio_plugin_sdk` in Python.
-- **Names follow the folder.** `apps/<x>` and `packages/<x>` are `@studio/<x>` (`studio_<x>` in
-  Python), `plugins/<x>` is `@studio/plugin-<x>`, images are `studio-<x>`.
-- **Generated files aren't edited by hand**: `schemas/`, `docs/modules-reference.md` and the API
-  client. Regenerate them with `pnpm emit:schemas`.
+Every push to `main` builds the images (`images.yml`), runs CI and deploys to Cloud Run
+(`deploy.yml`), running the api, versioning and pipeline migrations first. Infrastructure is
+Terraform: apply `infra/terraform/org`, then `phi` and `ai`; each folder's README lists its
+variables. Secret values go into Secret Manager by hand, never through Terraform state.
 
-`pnpm check:boundaries`, `pnpm check:names` and `uv run lint-imports` enforce these in CI.
-Words like Studio, module, kernel, environment and workspace have exactly one meaning each: see the
-[glossary](docs/README.md#glossary).
+### Checks
 
-## Checks
-
-```sh
-pnpm affected               # typecheck, lint and test only what changed vs origin/main
+```bash
+pnpm affected             # typecheck, lint and test only what changed vs origin/main
 pnpm typecheck && pnpm test && pnpm lint
-pnpm check:boundaries && pnpm check:names && pnpm check:python-imports
-pnpm emit:schemas --check   # fails if generated schemas are stale
-pnpm test:api               # API tests (pytest)
-pnpm agent:live             # live Daytona tests (needs secrets/daytona.env)
+pnpm check:boundaries && pnpm check:names && pnpm check:generated
+uv run pytest apps/api    # kernel tests
 ```
-
-The web app's Playwright e2e tests are in `apps/web/e2e`, and the cross-service ones are in
-`tests/e2e`. [`AGENTS.md`](AGENTS.md) has the full list of checks to run before handing work back,
-and the rules for AI coding agents working in this repo.
-
-## Docs
-
-| Doc | Covers |
-|---|---|
-| [`docs/README.md`](docs/README.md) | repo map, glossary, import rules |
-| [`docs/product.md`](docs/product.md) | what the product is and who it's for |
-| [`docs/ui.md`](docs/ui.md) | UI rules: layout, AI provenance colours, saving states, keyboard |
-| [`docs/modules.md`](docs/modules.md) | environments, modules, contributions and presets |
-| [`docs/plugins.md`](docs/plugins.md) | plugin manifests, the kernel, the control plane, workers and security |
-| [`docs/agent.md`](docs/agent.md) | the agent runtime, sandboxes, tools and approvals |
-| [`docs/versioning.md`](docs/versioning.md) | dataset versioning |
-| [`docs/running.md`](docs/running.md) | dev servers, the compose stack and local Kubernetes |
-| [`docs/adr/`](docs/adr/) | architecture decisions |

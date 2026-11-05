@@ -10,7 +10,7 @@ data:
   STUDIO_BLOB_STORE: gcs
   STUDIO_GCS_BUCKET: spurby-phi-objects
   # Sample templates (todo14 §3): the public sample set, copied once into this bucket's
-  # samples/ prefix (docs/deployment-gcp.md, "Sample templates"). Seed assets, /seed/* and
+  # samples/ prefix (.agents/skills/data-boundary/deployment-gcp.md, "Sample templates"). Seed assets, /seed/* and
   # sample copies read there; derived data and uploads stay under .data/.
   STUDIO_API_SAMPLES_PREFIX: samples
   # Memorystore (redis_host, TLS on 6378). The full URL with the AUTH string is in api-secrets:

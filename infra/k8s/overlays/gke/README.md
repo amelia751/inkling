@@ -1,6 +1,6 @@
 # overlays/gke
 
-Google Cloud (todo10 Phase 9, `docs/deployment-gcp.md`). Two clusters, one per project, made by
+Google Cloud (todo10 Phase 9, `.agents/skills/data-boundary/deployment-gcp.md`). Two clusters, one per project, made by
 `infra/terraform/phi` and `infra/terraform/ai`:
 
 | Overlay | Cluster | Runs |

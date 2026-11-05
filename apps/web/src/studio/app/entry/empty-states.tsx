@@ -31,7 +31,7 @@ import { emptyProjectCopy } from "@/studio/components/ai/empty-project-copy";
  */
 
 /** Adding files needs the api (the seed stand-in is read-only). */
-const NEEDS_API = "Adding files needs the full stack: see docs/running.md";
+const NEEDS_API = "Adding files needs the full stack: see README.md";
 /** Dropping is a write (D14): viewers see why they can't. */
 const VIEWER = "Ask a contributor to add files";
 

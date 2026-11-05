@@ -3,7 +3,7 @@
 #   pnpm stack:up    # profile full: deps + every app image behind one router on :8080
 #   pnpm infra:down / pnpm stack:down   (add `-v` to drop the data volumes)
 # App env: infra/docker/env/*.env (committed, non-secret dev defaults), overridden by the
-# git-ignored secrets/*.env files when they exist. See docs/running.md.
+# git-ignored secrets/*.env files when they exist. See README.md.
 name: studio
 
 x-app: &app
@@ -110,7 +110,7 @@ services:
   # infra/workos/README.md). Environment key sk_test_default, any client id. `iss` is pinned to
   # the host URL so it's the same for apps on the host and in containers; the signing key is
   # generated per start, so restart a workos-mode api after restarting this. Only the api uses it
-  # (sign-in and the event sync), and only with STUDIO_API_AUTH_MODE=workos (docs/running.md, "Signing in").
+  # (sign-in and the event sync), and only with STUDIO_API_AUTH_MODE=workos (README.md, "Signing in").
   workos-emulate:
     image: ghcr.io/workos/emulate:0.18.0
     profiles: [deps, full]

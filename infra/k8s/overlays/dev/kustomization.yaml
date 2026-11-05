@@ -1,5 +1,5 @@
 # Local cluster (kind/k3d): one replica each, in-cluster deps, local image tags loaded with
-# `kind load docker-image studio-<app>:dev`. See docs/running.md.
+# `kind load docker-image studio-<app>:dev`. See README.md.
 #   kubectl apply -k infra/k8s/overlays/dev
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -28,7 +28,7 @@ images:
 # DEV-ONLY PLACEHOLDERS, NOT SECRETS. Every value below is a fixed local-cluster credential
 # (`dev-only-…`) for the in-cluster deps. Staging/prod create `<app>-secrets` out of band
 # (infra/k8s/README.md); nothing under infra/ may contain a `kind: Secret` with data.
-# For real model/Daytona keys on a dev cluster, see docs/running.md (kubectl create secret …).
+# For real model/Daytona keys on a dev cluster, see README.md (kubectl create secret …).
 generatorOptions:
   disableNameSuffixHash: true
 secretGenerator:

@@ -1,11 +1,11 @@
 ---
 name: data-boundary
-description: Customer-data boundary between spurby-ai, spurby-phi and spurby-data. Use before changing infra/**, apps/agent/src/sandbox/**, apps/agent/src/tools/**, apps/worker/**, apps/api/src/studio_api/routes/**, secrets/** or docs/deployment-gcp.md, or anything that moves item bytes.
+description: Customer-data boundary between spurby-ai, spurby-phi and spurby-data. Use before changing infra/**, apps/agent/src/sandbox/**, apps/agent/src/tools/**, apps/worker/**, apps/api/src/studio_api/routes/**, secrets/**, or anything that moves item bytes.
 ---
 
 # Customer-data boundary
 
-Read `docs/deployment-gcp.md` first. The invariant: **customer data lives only in `spurby-phi`;
+Read [`deployment-gcp.md`](deployment-gcp.md) first. The invariant: **customer data lives only in `spurby-phi`;
 nothing reads it from `spurby-ai`.**
 
 Before handing back a change in these paths, check:
@@ -18,7 +18,7 @@ Before handing back a change in these paths, check:
 - [ ] Job summaries suppress small counts.
 - [ ] Sandbox egress stays closed; no secrets passed into sandboxes (`envVars`).
 - [ ] No new route callable from `spurby-ai` into `spurby-phi` without saying so in the hand-back, and
-  updating the ingress list in `docs/deployment-gcp.md`.
+  updating the ingress list in `deployment-gcp.md`.
 - [ ] Nothing copies data from `spurby-phi` to `spurby-data` except the de-identified release path.
 - [ ] Plugin code that runs on real data runs in the worker (gVisor node pool, no egress, read-only
   input) or the browser sandbox, never in a build sandbox.

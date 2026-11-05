@@ -151,7 +151,7 @@ function GeneralForm({ project }: { project: ProjectSummary }) {
       <DangerZone projectId={project.id} name={project.title} disabled={readOnly} />
       {error && (
         <Alert theme="danger">
-          {error instanceof NeedsApiError ? "Changing a project needs the full stack: see docs/running.md" : error.message}
+          {error instanceof NeedsApiError ? "Changing a project needs the full stack: see README.md" : error.message}
         </Alert>
       )}
     </div>

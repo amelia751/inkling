@@ -1,7 +1,7 @@
 # Organization layer
 
 Folders, organization policies and the VPC Service Controls perimeter around `spurby-phi`. The
-projects themselves already exist and aren't managed here. Layout and reasons: `docs/deployment-gcp.md`.
+projects themselves already exist and aren't managed here. Layout and reasons: `.agents/skills/data-boundary/deployment-gcp.md`.
 
 Runs as the keyless deploy identity `terraform@spurby-phi.iam.gserviceaccount.com`. A person with
 Token Creator on it (the Workspace super admin) mints a short-lived token; no key files:

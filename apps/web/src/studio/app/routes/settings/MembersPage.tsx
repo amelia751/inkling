@@ -74,7 +74,7 @@ export function MembersPage() {
         rowKey={(m) => m.id}
         loading={membersQ.isLoading} empty={
           offline ? (
-            "Members need the API: see docs/running.md"
+            "Members need the API: see README.md"
           ) : q || status !== "all" ? (
             <NoResults what="users" onClear={() => (setQ(""), setStatus("all"))} />
           ) : (

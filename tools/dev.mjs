@@ -71,7 +71,7 @@ set(`${P}API_URL`, "http://127.0.0.1:8000");
 if (signin) {
   const workos = join(SECRETS, "workos.env");
   if (!existsSync(workos)) {
-    console.error("dev:signin needs secrets/workos.env (copy secrets/workos.env.example; docs/running.md, \"Sign in locally\")");
+    console.error("dev:signin needs secrets/workos.env (copy secrets/workos.env.example; README.md, \"Sign in locally\")");
     process.exit(1);
   }
   const w = parseEnvFile(workos);

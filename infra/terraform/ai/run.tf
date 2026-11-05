@@ -7,7 +7,7 @@
 # address, no IP allow-list, no cross-project IAM (the organization policy blocks it). web in
 # spurby-phi reaches the agent at its run.app URL with STUDIO_AGENT_TOKEN, so invoker IAM is off
 # and the agent checks that token itself. Env never sets dev auth or the file store
-# (tools/check-deploy-auth.mjs). docs/deployment-gcp.md, "Cloud Run stage".
+# (tools/check-deploy-auth.mjs). .agents/skills/data-boundary/deployment-gcp.md, "Cloud Run stage".
 
 resource "google_project_service" "run" {
   service            = "run.googleapis.com"

@@ -281,7 +281,7 @@ function RelationshipInspector({ projectId, r, from, to, canEdit, onClose }: { p
           />
         </InspectorSection>
       )}
-      {confirm.error && <Alert theme="danger">{confirm.error instanceof NeedsApiError ? "Confirming needs the full stack: see docs/running.md" : confirm.error.message}</Alert>}
+      {confirm.error && <Alert theme="danger">{confirm.error instanceof NeedsApiError ? "Confirming needs the full stack: see README.md" : confirm.error.message}</Alert>}
       <div className="flex flex-wrap gap-2">
         {r.proposalId && (
           <Button variant={open ? "default" : "outline"} size="sm" asChild>

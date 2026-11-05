@@ -277,7 +277,7 @@ resource "google_monitoring_alert_policy" "drop_first_interactive_p95" {
 
   documentation {
     mime_type = "text/markdown"
-    content   = "The minute budget (todo13 §6) is slipping: the browser's timeline (`drop.timeline` lines) puts p95 drop-to-first-interactive over 30 s. Open a slow drop's lines by `jsonPayload.dropId` (`drop.received` … `drop.applied`, and `steps_ms` on its `drop.timeline`) to see which step grew: upload, inspection queue wait, or the Studio's first frame. docs/deployment-gcp.md, \"Rolling out drops\"."
+    content   = "The minute budget (todo13 §6) is slipping: the browser's timeline (`drop.timeline` lines) puts p95 drop-to-first-interactive over 30 s. Open a slow drop's lines by `jsonPayload.dropId` (`drop.received` … `drop.applied`, and `steps_ms` on its `drop.timeline`) to see which step grew: upload, inspection queue wait, or the Studio's first frame. .agents/skills/data-boundary/deployment-gcp.md, \"Rolling out drops\"."
   }
 }
 
@@ -299,7 +299,7 @@ resource "google_monitoring_alert_policy" "name_screen_error_rate" {
 
   documentation {
     mime_type = "text/markdown"
-    content   = "Sensitive Data Protection calls from the api are failing (`name_screen.error`). Screening fails closed: affected names reach the agent as `<kind>-NNNN.<ext>`, so nothing leaks, but the agent sees fewer real names. Check the api's `roles/dlp.user`, the DLP quota in spurby-phi and the perimeter (docs/deployment-gcp.md)."
+    content   = "Sensitive Data Protection calls from the api are failing (`name_screen.error`). Screening fails closed: affected names reach the agent as `<kind>-NNNN.<ext>`, so nothing leaks, but the agent sees fewer real names. Check the api's `roles/dlp.user`, the DLP quota in spurby-phi and the perimeter (.agents/skills/data-boundary/deployment-gcp.md)."
   }
 }
 

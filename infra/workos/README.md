@@ -1,7 +1,7 @@
 # infra/workos
 
 WorkOS configuration as files (todo/todo9.md, Phase 0 and Phase 13). Sign-in in dev, staging and
-production: [`docs/running.md`](../../docs/running.md#signing-in).
+production: [the README](../../README.md#spin-up-instructions).
 
 | File | What | Applied with |
 |---|---|---|

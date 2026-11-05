@@ -48,7 +48,7 @@ data:
   STUDIO_API_NAME_SCREEN_QPS: "5"
   STUDIO_API_NAME_SCREEN_LOCATION: us-central1
   # Feature flags (served at GET /api/v1/features; a flag off hides its UI and 404s its routes).
-  # Off in production until the rollout (docs/deployment-gcp.md, "Rolling out drops"):
+  # Off in production until the rollout (.agents/skills/data-boundary/deployment-gcp.md, "Rolling out drops"):
   # CHAT_DROPS, then DATASETS_TAB, then FAST_PATH, then AUTO_APPLY, a day apart.
   STUDIO_API_FEATURE_CHAT_DROPS: "false"
   STUDIO_API_FEATURE_DATASETS_TAB: "false"

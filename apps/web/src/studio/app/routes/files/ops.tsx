@@ -115,7 +115,7 @@ export function useFileOps(projectId: string, writable: boolean): FileOps {
     async (input: FsOp[], opts: RunOptions = {}): Promise<FsOpsResult | undefined> => {
       if (!input.length) return undefined;
       if (!writable) {
-        notify(NEEDS_FULL_STACK, { tone: "error", description: "Changing files needs the API and the database (docs/running.md)." });
+        notify(NEEDS_FULL_STACK, { tone: "error", description: "Changing files needs the API and the database (README.md)." });
         return undefined;
       }
       let ops: FsOp[];

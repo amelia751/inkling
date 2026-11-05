@@ -29,7 +29,7 @@ import { apiFetch } from "@/extension-host/http";
  */
 export class NeedsApiError extends Error {
   constructor() {
-    super("Adding data needs the full stack: see docs/running.md");
+    super("Adding data needs the full stack: see README.md");
   }
 }
 

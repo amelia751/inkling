@@ -1,7 +1,7 @@
 # spurby-ai stack
 
 The agent, its model calls and its build sandboxes. Never customer data: the agent reaches
-`spurby-phi` only over HTTPS through the api's agent routes (`docs/deployment-gcp.md`). The
+`spurby-phi` only over HTTPS through the api's agent routes (`.agents/skills/data-boundary/deployment-gcp.md`). The
 Kubernetes side is `infra/k8s/overlays/gke/ai`.
 
 | File | What |

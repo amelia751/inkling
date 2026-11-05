@@ -86,7 +86,7 @@ export function ExplorePage() {
         <PageHeading title="Explore" description={`What ${NAMING.displayName} found in your files and how they fit together. Nothing here changes your data until you confirm it.`} />
         {error ? (
           <p className="text-sm text-muted-foreground" role="alert">
-            {error instanceof NeedsApiError ? "Explore needs the full stack (the API and the worker): see docs/running.md." : `Couldn't load Explore: ${String(error)}`}
+            {error instanceof NeedsApiError ? "Explore needs the full stack (the API and the worker): see README.md." : `Couldn't load Explore: ${String(error)}`}
           </p>
         ) : (
           <Tabs value={tab} onValueChange={(t) => select(t as Tab)}>

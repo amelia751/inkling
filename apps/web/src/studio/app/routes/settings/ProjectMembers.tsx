@@ -76,7 +76,7 @@ export function ProjectMembers({ projectId }: { projectId: string }) {
       </div>
       <DataTable columns={columns} rows={rows} rowKey={(m) => m.userId} loading={team.isLoading} empty={
           offline ? (
-            "Project members need the API: see docs/running.md"
+            "Project members need the API: see README.md"
           ) : (
           <EmptyState
             art="members"

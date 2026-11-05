@@ -10,7 +10,7 @@ import { ApiError, NeedsApiError } from "@/studio/lib/projects-api";
  * - `access-denied`: "No access" + who to ask.
  * - `offline`: the browser or the server is unreachable + Retry.
  * - `stale`: a new version was deployed under an open tab (lazy chunk 404) + Reload.
- * - `needs-api`: the dev seed server can't do this; points at docs/running.md.
+ * - `needs-api`: the dev seed server can't do this; points at README.md.
  * - `error`: anything else + Retry and Copy error details (with the request id).
  */
 export type ErrorKindName = "not-found" | "access-denied" | "offline" | "stale" | "needs-api" | "error";
@@ -53,7 +53,7 @@ export function describeError(e: unknown, what = "page"): DescribedError {
   const base = { status, requestId, details };
 
   if (e instanceof NeedsApiError)
-    return { ...base, name: "needs-api", illustration: "error", title: "Needs the full stack", description: "The dev seed server can't do this. Start the API: see docs/running.md.", retry: false };
+    return { ...base, name: "needs-api", illustration: "error", title: "Needs the full stack", description: "The dev seed server can't do this. Start the API: see README.md.", retry: false };
   if (status === 410)
     return { ...base, name: "not-found", illustration: "not-found", title: "Moved to Trash", description: `This ${what} is in Trash. Restore it from the project's Trash to open it again.`, retry: false };
   if (status === 404)

@@ -3,9 +3,8 @@
 pnpm + uv monorepo, orchestrated by Turborepo. Deployables are `apps/*` (`web`: React 19,
 Vite 7, TypeScript, zustand, Tailwind + shadcn; `api` and `worker`: Python 3.12; `agent` and
 `mcp`: Node 24; `versioning`: Go). Seed data is fetched locally with `pnpm seeds` and is
-gitignored. Map of the repo: `docs/README.md`; how to run it: `docs/running.md`. Words like
-Studio, module, kernel, environment and workspace have one meaning each: see the
-[glossary](docs/README.md#glossary).
+gitignored. Map of the repo and how to run it: `README.md`. Words like Studio, module, kernel,
+environment and workspace have one meaning each: see the [glossary](#glossary).
 
 ## Layout rules
 
@@ -18,7 +17,7 @@ Studio, module, kernel, environment and workspace have one meaning each: see the
   process memory or on local disk (except `/tmp`), or replicas > 1 break.
 - Customer data lives only in the `spurby-phi` Google Cloud project; nothing reads it from
  `spurby-ai`, where the agent runs. No real sample or item bytes ever reach a sandbox or the model's
- context. See `docs/deployment-gcp.md`.
+ context. See `.agents/skills/data-boundary/deployment-gcp.md`.
 - Config comes only from env vars (named with the naming config's `envPrefix` in Python);
   `secrets/*.env` is a dev overlay. Every HTTP service serves `/healthz`, `/readyz`, `/version`.
 
@@ -40,7 +39,7 @@ Some rules apply only to some paths. Read the matching skill in `.agents/skills/
 
 | Skill | Before changing |
 |---|---|
-| `data-boundary` | `infra/**`, `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, `apps/worker/**`, `apps/api/src/studio_api/routes/**`, `secrets/**`, `docs/deployment-gcp.md`, or anything that moves item bytes |
+| `data-boundary` | `infra/**`, `apps/agent/src/sandbox/**`, `apps/agent/src/tools/**`, `apps/worker/**`, `apps/api/src/studio_api/routes/**`, `secrets/**`, or anything that moves item bytes |
 | `naming` | ids, schema ids, env vars, resource names, packages, images, product-name copy |
 | `site-style` | `apps/site/**` |
 
@@ -97,7 +96,7 @@ run it, and it must be small:
 ## Architecture in one paragraph
 
 The Studio shell runs an **environment** (JSON) that references **modules** (the UI half of
-a plugin, `docs/plugins.md`). First-party plugins live in `plugins/<name>/ui/` and contribute
+a plugin). First-party plugins live in `plugins/<name>/ui/` and contribute
 data kinds, renderers, tools, commands, panels, inspectors, exporters, label controls,
 review rules and presets. Shared building blocks (Cornerstone, overlay2d, timeline, viewport
 chrome, IO) are trusted renderers in `packages/renderers`. Canonical types and the
@@ -105,7 +104,6 @@ environment schema are `packages/contracts`; what a plugin may import is
 `packages/plugin-ui-sdk` (module contract, host API) and `packages/ui` (shadcn,
 icons). The registry, resolver, `when` clauses, commands, catalogue and agent tools are the
 **extension host** (`apps/web/src/extension-host/`); the shell is `apps/web/src/studio/`.
-Read `docs/modules.md`.
 
 ## Adding a first-party plugin
 
@@ -150,6 +148,35 @@ Read `docs/modules.md`.
   (`packages/contracts/src/migrations/annotations-v1-to-v2.ts`).
 - Icons come only from `@studio/ui/icons`.
 - Never hand-edit generated files: `schemas/*.json`, `schemas/catalog.md`,
- `docs/modules-reference.md`, `registry/index.json`. `pnpm regen` rebuilds every one; run it
+ `registry/index.json`. `pnpm regen` rebuilds every one; run it
  after touching plugins, contracts or api routes, and after merging main. The web server serves the catalogue and environment schema from
   `schemas/` at `/catalog.json`, `/catalog.md` and `/schema/environment.v1.json`.
+
+## Glossary
+
+One meaning per word, in docs, comments and code. When a doc needs the other sense, it uses
+the word in the right-hand column.
+
+| Term | Means | Not (say this instead) |
+|---|---|---|
+| **Studio** | one labelling task over a set of items, and the editor that shows it (`/projects/:projectId/studio/:taskId`). It **accepts** a set of data kinds (todo19 D2); a mixed drop gets one Studio, never one per kind. Its code is in `apps/web/src/studio/`, which also holds the rest of the web shell | the whole product (say the product name), the other project sections, or the code scope `@studio` |
+| **Plugin** | an installable unit: `plugin.yaml` + optional `ui/` + optional worker code | — |
+| **Module** | a plugin's UI half (`ModuleManifest`, `ui/manifest.ts`) | a plugin |
+| **Extension host** | the registry, resolver, commands and catalogue in the web app (`apps/web/src/extension-host/`) | the API's plugin control plane |
+| **API** (service) | `apps/api`, configured and deployed as `api` | the kernel |
+| **Kernel** | the stable core inside the API (`studio_api/kernel/`, `studio_api/kernel/__init__.py`) | the API service |
+| **Environment** | a JSON spec of what one Studio shows (`environment.v1.json`) | a deployment target: dev, staging and prod are **stages** (`infra/k8s/overlays/<stage>`) |
+| **Preset** | an environment shipped in `registry/presets/`. Each one is the default **profile** for its data kind | — |
+| **Profile** | one data kind's view inside a Studio: renderer, config, tools, panels, exporters (`data.kinds.<kind>`, todo19 D3). The open item's kind picks it; a kind without one opens in the generic file view | a preset (a preset is where a profile usually comes from) |
+| **Organization** | the account level: a person's or a team's projects and members (`organizations`, `org_id`). UI copy may call it "Workspace" | the kernel's workspace |
+| **Project** | a durable research goal, the container for sources, datasets and tasks (`projects`) | a dataset, or a seed entry in `manifest.json` (each seed is one project, dataset and task with the same id) |
+| **Workspace** | the kernel's per-project plugin activation and settings (`workspace.v1.json`). The kernel `Workspace` row is 1:1 with a project: `workspace_id` is the project id | the organization, even where UI copy says "Workspace"; a pnpm or uv workspace: say **repo workspace** |
+| **Sources** | everything added to a project, and the section that shows it (todo16 D1): the project's drive (todo7), one tree of folders and files per project (`DriveInfo.rootNodeId`, `source_nodes`), root folder "Sources", route `/projects/:p/sources`. Bytes never change; names and folders do, through journaled, undoable `fs/ops` batches  | a source (where a file came from); the Studio's Files tab (a task's items) |
+| **Import** | one upload or import's provenance: who brought which files in, when and from where (an upload, a link or a seed; the `sources` table keeps its name internally). Shown in the inspector and the Imports list; no longer a tree root since todo7 (each became a top-level folder in Sources) | the section or drive (say **Sources**), or a dataset |
+| **Trash** | where deleted files and folders wait 30 days before the `files.empty_trash` job purges them (`trashed_at`); Restore puts them back. Bytes are deleted only when nothing else uses them | a purge (Delete forever), or removing an import |
+| **Import session** | one upload into a project: its files, the rights attestation and its state (`uploading → inspecting → needs_review` or `ready → imported`, or `failed`, `cancelled`) | an upload of a single file (that's an upload file) |
+| **Dataset** | a logical set of items built from one or more sources: which source nodes, how they group, a preset | a source, a project or a version |
+| **Collection** | a coherent group within a dataset (MRI studies, echo recordings). Not stored on its own yet: a dataset's definition says how items group | a folder in Sources |
+| **Task** | work on a dataset (classification, segmentation, event marking). It owns one environment and one annotation document, both keyed by `task_id` | a plugin job |
+| **Proposal** | something the inspection worker or the assistant suggests (a group, relationship, mapping, dataset or task), with evidence and a strength. It changes nothing until a person confirms it | a confirmed relationship or dataset |
+| **Version** | an immutable snapshot of a dataset in `apps/versioning` (Datasets › Versions) | an environment revision, or an annotation document save |

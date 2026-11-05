@@ -1,6 +1,6 @@
 # spurby-ai: the agent (apps/agent), its model calls (Vertex AI) and its build sandboxes
 # (GKE Sandbox + kubernetes-sigs/agent-sandbox, todo10 D9). Never holds customer data; reaches
-# spurby-phi only over HTTPS through the api's agent routes (docs/deployment-gcp.md). Outside the
+# spurby-phi only over HTTPS through the api's agent routes (.agents/skills/data-boundary/deployment-gcp.md). Outside the
 # organization by choice, so none of the org policies apply: this stack sets the same defaults
 # itself (private nodes, no keys, Workload Identity).
 #

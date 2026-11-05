@@ -9,7 +9,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * apps/api (kernel/projects.py, tree.py, overview.py), so Overview, Sources browsing and the
  * Studio work on the Vite dev server and in apps/web/e2e. Resume state is kept in
  * `resumeDir` (seed-data/.resume/, a temp folder in e2e runs). Every other write answers
- * 501 `{ error: "needs the API" }`: adding data needs the full stack (docs/running.md).
+ * 501 `{ error: "needs the API" }`: adding data needs the full stack (README.md).
  *
  *   GET  /api/v1/projects[/:id[/overview|/sources|/datasets[/:d[/profile]]|/search|/imports|/proposals|/review|/activity|/resume]]
  *   GET  /api/v1/projects/:id/dataset-summaries, /dataset-attention?datasetId= (routes/datasets_views.py)
@@ -541,7 +541,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir, e2
     // todo14 M0: a new dev person belongs to no org with projects.
     const principal = String(req.headers["x-dev-principal"] ?? url.searchParams.get("devPrincipal") ?? SAMPLE_MEMBER);
     if (principal !== SAMPLE_MEMBER && PROJECT_SCOPED.has(head ?? "")) {
-      if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see docs/running.md" });
+      if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see README.md" });
       if (head === "projects" && !id) return send(200, { projects: [] });
       return notFound();
     }
@@ -563,10 +563,10 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir, e2
       res.statusCode = 204;
       return res.end();
     }
-    if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see docs/running.md" });
+    if (req.method !== "GET" && req.method !== "HEAD") return send(501, { error: "needs the API", detail: "Adding data needs the full stack: see README.md" });
 
     // Explore reads proposals, which only the inspection worker makes: the UI says it needs the full stack.
-    if (head === "projects" && id && sub === "explore") return send(501, { error: "needs the API", detail: "Explore needs the full stack: see docs/running.md" });
+    if (head === "projects" && id && sub === "explore") return send(501, { error: "needs the API", detail: "Explore needs the full stack: see README.md" });
 
     if (head === "projects") {
       if (!id) {
@@ -686,7 +686,7 @@ export function projectStandIn(seedRoot: string, { resumeDir, annotationsDir, e2
       if (sub === "versions") return send(200, { versions: n.isDir ? [] : [{ version: 1, assetId: n.assetPath ?? n.id, sha256: n.sha256, size: n.size, createdBy: SEED_PRINCIPAL, createdAt: createdAt(), current: true }] });
       if (sub === "activity") return send(200, { items: [] });
       if (sub === "download") {
-        if (n.isDir || !n.assetPath) return send(501, { error: "needs the API", detail: "Downloading folders needs the full stack: see docs/running.md" });
+        if (n.isDir || !n.assetPath) return send(501, { error: "needs the API", detail: "Downloading folders needs the full stack: see README.md" });
         res.statusCode = 302;
         res.setHeader("Location", `/seed/${n.assetPath.split("/").map(encodeURIComponent).join("/")}`);
         return res.end();

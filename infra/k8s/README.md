@@ -1,7 +1,7 @@
 # infra/k8s
 
 Kustomize for every deployable app. How to run it on a local cluster is in
-[`docs/running.md`](../../docs/running.md); this file covers secrets, the WorkOS runbook, scaling
+[the README](../../README.md#spin-up-instructions); this file covers secrets, the WorkOS runbook, scaling
 and adding an app.
 
 ```text
@@ -56,7 +56,7 @@ key in the Secret wins). **No Secret is ever committed.** `node infra/k8s/check-
 
 - **dev overlay:** a `secretGenerator` with fixed, clearly marked local placeholders for the
   in-cluster deps. To use real model or Daytona keys on a dev cluster, replace `agent-secrets`
-  after applying (see `docs/running.md`).
+  after applying (see `README.md`).
 - **staging/prod:** create the Secrets out of band, for now by hand (below); move to the
   External Secrets Operator backed by the cloud secret manager once staging exists.
 
@@ -108,7 +108,7 @@ kubectl -n $NS create secret generic api-secrets --from-env-file=<(your-secret-m
 
 ## WorkOS runbook (todo9)
 
-Sign-in, WorkOS environments and modes: `docs/running.md` ("Signing in"). Here: the Secret and
+Sign-in, WorkOS environments and modes: `README.md` ("Signing in"). Here: the Secret and
 what to do in production. `workos-secrets` keys are in the table above. Pods read it at start
 (`envFrom` / `secretKeyRef`), so every change needs a restart of api (and worker for the key).
 Below, `NS=studio`; on GKE the value lives in Secret Manager (`spurby-phi`, secret

@@ -1,7 +1,7 @@
 # The Cloud Run stage (todo22 W6, D6): web, api, versioning and pipeline as services, the worker
 # as a worker pool, one HTTPS load balancer for the Studio host. Signed in with WorkOS only: the
 # env below never sets dev auth, trusted headers, a SQLite URL or a local blob store
-# (tools/check-deploy-auth.mjs reads these blocks). docs/deployment-gcp.md, "Cloud Run stage".
+# (tools/check-deploy-auth.mjs reads these blocks). .agents/skills/data-boundary/deployment-gcp.md, "Cloud Run stage".
 #
 # Network: every service uses Direct VPC egress on the existing subnet, so Cloud SQL's private
 # IP is reachable and calls to another service's run.app URL count as internal (Private Google
@@ -40,7 +40,7 @@ locals {
 
   # todo27 W4 (D4, D5): tracing on, exported to Cloud Trace in this project with each service's
   # own identity; a sampled agent run is sampled whole (parent-based). Each service adds
-  # OTEL_SERVICE_NAME. docs/deployment-gcp.md, "Observability".
+  # OTEL_SERVICE_NAME. .agents/skills/data-boundary/deployment-gcp.md, "Observability".
   otel_env = {
     OTEL_TRACES_EXPORTER    = "gcp"
     OTEL_TRACES_SAMPLER     = "parentbased_traceidratio"
@@ -99,7 +99,7 @@ resource "google_cloud_run_v2_service" "web" {
       ports {
         container_port = 8080
       }
-      # The image is built with STUDIO_WEB_AUTH_MODE=workos (docs/deployment-gcp.md); nginx reads
+      # The image is built with STUDIO_WEB_AUTH_MODE=workos (.agents/skills/data-boundary/deployment-gcp.md); nginx reads
       # the same key at start for /config.json's `auth` and the agent proxy's identity headers.
       env {
         name  = "STUDIO_WEB_AUTH_MODE"

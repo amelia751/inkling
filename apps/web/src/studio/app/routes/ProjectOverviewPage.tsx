@@ -122,7 +122,7 @@ function ProjectHeader({ project }: { project: ProjectSummary }) {
   const save = useMutation({
     mutationFn: (patch: Partial<Pick<ProjectSummary, "title" | "description">>) => api<ProjectSummary>(`/projects/${project.id}`, { method: "PATCH", json: patch }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: projectKeys.all }),
-    onError: (e) => setError(e instanceof NeedsApiError ? "Editing projects needs the full stack: see docs/running.md" : String(e)),
+    onError: (e) => setError(e instanceof NeedsApiError ? "Editing projects needs the full stack: see README.md" : String(e)),
   });
   return (
     <header className="mb-8" data-testid="project-header">

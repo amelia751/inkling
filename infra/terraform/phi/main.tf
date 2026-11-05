@@ -1,4 +1,4 @@
-# spurby-phi: everything that touches customer data (docs/deployment-gcp.md). Inside the VPC
+# spurby-phi: everything that touches customer data (.agents/skills/data-boundary/deployment-gcp.md). Inside the VPC
 # Service Controls perimeter (infra/terraform/org/perimeter.tf). Plan/apply: README.md.
 terraform {
   required_version = ">= 1.9"

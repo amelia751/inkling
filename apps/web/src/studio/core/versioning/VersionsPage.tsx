@@ -35,7 +35,7 @@ export function VersioningOff({ children }: { children: React.ReactNode }) {
       <AppLayout>
         <div className="mx-auto max-w-xl p-8 text-center text-sm text-muted-foreground">
           <h2 className="mb-2 text-body-2 font-semibold text-foreground" data-testid="versioning-off">Versions aren't turned on</h2>
-          Your work is still saved as you go. Branches, reviews and releases need the versioning service, which isn't running here: docs/running.md says how to start it.
+          Your work is still saved as you go. Branches, reviews and releases need the versioning service, which isn't running here: README.md says how to start it.
         </div>
       </AppLayout>
     );

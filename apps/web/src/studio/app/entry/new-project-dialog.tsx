@@ -102,7 +102,7 @@ export function NewProjectHost() {
       }
       close(p);
     } catch (e) {
-      setError(e instanceof NeedsApiError ? "Creating a project needs the full stack (the API): see docs/running.md" : e instanceof Error ? e.message : String(e));
+      setError(e instanceof NeedsApiError ? "Creating a project needs the full stack (the API): see README.md" : e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }

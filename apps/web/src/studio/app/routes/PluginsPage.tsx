@@ -89,7 +89,7 @@ export function PluginsPage() {
           />
           <BuiltInPlugins />
           <p className="mt-4 text-sm text-muted-foreground" data-testid="plugins-needs-api">
-            Installing more plugins, or turning one off for this project, needs the API: see docs/running.md.
+            Installing more plugins, or turning one off for this project, needs the API: see README.md.
           </p>
         </PageContainer>
       </AppLayout>

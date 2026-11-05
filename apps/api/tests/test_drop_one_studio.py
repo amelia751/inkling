@@ -71,6 +71,17 @@ def test_boot_takes_extends_and_accepts(client):
     assert bad.status_code == 422 and bad.json()["errors"][0]["path"] == "/extends"
 
 
+def test_accepts_given_as_data_kind_ids_become_item_kinds(client):
+    from .test_drops import _project_without_assistant as _project
+
+    pid = _project(client)
+    ids = ["studio.image2d.dataKinds.raster", "studio.cine.dataKinds.volume-time", "studio.timeseries.dataKinds.multichannel-timeseries", "studio.wsi.dataKinds.raster-pyramid"]
+    r = client.post(f"/api/v1/projects/{pid}/boots", json={"bootId": "boot-ids-1", "extends": ["preset:image-2d", "preset:cine-4d", "preset:ecg", "preset:pathology"], "accepts": ids, "name": "Ids"})
+    assert r.status_code == 202, r.text
+    doc = client.get(f"/api/v1/tasks/{r.json()['taskIds'][0]}/document").json()
+    assert doc["accepts"] == ["image", "dicom", "volume-time", "waveform", "slide"]
+
+
 def test_a_mixed_drop_makes_one_studio(client):
     from sqlalchemy import select
 

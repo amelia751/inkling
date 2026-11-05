@@ -67,6 +67,19 @@ def _preset_title(preset: str) -> str:
     return preset.removeprefix("preset:").replace("-", " ").strip().capitalize() or "Studio"
 
 
+def _item_kinds(accepts: list[str]) -> list[str]:
+    """`accepts` names item kinds (`image`, `waveform`); a data-kind contribution id stands for
+    the file kinds it takes, so a Studio booted with ids still takes its files."""
+    from .environment_resolve import _load
+
+    by_id, _ = _load(str(environment_policy._root()))
+    out: list[str] = []
+    for k in accepts:
+        c = by_id.get(k)
+        out += (c.get("fileKinds") or [k.rsplit(".", 1)[-1]]) if c is not None and c.get("type") == "dataKinds" else [k]
+    return list(dict.fromkeys(out))
+
+
 def _ids(body: dict, key: str) -> list[str]:
     raw = body.get(key) or []
     if not isinstance(raw, list) or not all(isinstance(x, str) for x in raw):
@@ -111,7 +124,7 @@ def boot(db: Session, ctx: RequestContext, p: ProjectRow, body: dict, headers) -
     accepts = body.get("accepts")
     if accepts is not None and (not isinstance(accepts, list) or not accepts or not all(isinstance(k, str) and k for k in accepts)):
         return 422, {"ok": False, "errors": [{"path": "/accepts", "code": "schema", "message": "accepts: a non-empty list of item kinds such as [\"image\", \"waveform\"]"}]}
-    accepts = list(dict.fromkeys(accepts)) if accepts else None
+    accepts = _item_kinds(accepts) if accepts else None
     patch = body.get("patch")
     if patch is not None and not isinstance(patch, list):
         return 422, {"ok": False, "errors": [{"path": "/patch", "code": "patch", "message": "A JSON Patch is an array of operations"}]}
@@ -297,8 +310,9 @@ def extend_task(db: Session, ctx: RequestContext, p: ProjectRow, t: TaskRow, pre
     from . import collections
 
     added: list[str] = []
+    kinds = _item_kinds(kinds)
     if t.accepts or t.collection_id:
-        cur = list(t.accepts or [])
+        cur = _item_kinds(list(t.accepts or []))
         if not cur and t.collection_id and (c := db.get(DatasetCollectionRow, t.collection_id)) is not None:
             cur = [c.kind]
         added = [k for k in dict.fromkeys(kinds) if not collections.accepts_kind(cur, k)]

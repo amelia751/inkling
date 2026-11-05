@@ -134,8 +134,8 @@ export function ProjectEmptyState({ projectId, title }: { projectId: string; tit
         variant="page"
         composer
         title={`What do you want to do in ${title}?`}
-        description={`Ask ${NAMING.displayName} or attach files to get started.`}
-        placeholder="“Outline the liver in these CT series”"
+        description={`Attach files or a whole folder and ${NAMING.displayName} uploads them, sorts them by type and sets up a Studio for each. Then ask for what you need, like prelabeling objects with SAM 3.1.`}
+        placeholder="“Prelabel the lungs in these chest X-rays”"
         value={text}
         onValueChange={setText}
         onSend={(t) => (ackAiNotice(), send(t), setText(""))}
